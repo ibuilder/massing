@@ -13,8 +13,8 @@ the 5D/4D spine from R25, and the interaction surface from R26. **What is thin n
 the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
 structural carry-overs that keep the codebase workable are still outstanding.
 
-**Status:** CodeQL 0 open alerts · backend suite green (**408** suites) · vitest **510** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.722**.
+**Status:** CodeQL 0 open alerts · backend suite green (**408** suites) · vitest **520** (incl. 152 vendored kernel tests) · single-source version in
+`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.723**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
 reverts. R26 is otherwise complete — what gates making it the default is named in that section.
@@ -42,189 +42,51 @@ request can arrive.
 So the ordering below puts **reachability and evidence above new capability**, and will stay that way
 until the backlog of built-but-uncallable work is zero.
 
-1. **🧩 KERNEL-ADOPT ③ — the next capability onto the kernel.** ① shipped v0.3.713: the **identity
-   boundary** (`src/kernel/elementRef.ts`), on the vendored `ElementRef` contract, called by
-   `selectionSets` and surfaced by the viewer. It closed a real defect — GlobalIds that resolved to
-   nothing were dropped silently — and it is the seam every later capability crosses, which is why it
-   went first rather than a feature move. ② shipped v0.3.717: markup as a real plugin through the
-   plugin host, chosen because `reloadModelPins` was awaited unguarded on the panel-build path — a
-   pins failure aborted the rest of the build silently. **Command-bus undo is NOT the next candidate:
-   checked, and we already have model-level undo via versioned source IFC, which is stronger for
-   authoring.** Pick ③ from a real pain, not from the kernel's feature list.
-2. **🔓 UN-VENDOR — DECIDED: don't, for now.** The reason for vendoring was that a
-   public repo cannot install from a private one without a CI credential. That reason is gone, so the
-   Both alternatives cost more than the problem. A **registry publish** means versioning and
-   releasing 22 packages, holding publish credentials, and making the build depend on registry
-   availability — to consume three packages with no runtime dependencies; it also loses the SHA
-   pinning that ties our copy to an exact upstream commit. A **submodule** changes checkout across
-   CI, Pages and Desktop, needs `--recurse-submodules` from every cloner, and worsens the offline
-   story. Vendoring costs ~5.3k lines and a `cp`, with **zero local patches** since v0.3.716; drift
-   is caught by `ties.test.ts` and upstream's own 152 tests run in our suite.
-   **Revisit only if** we adopt substantially more of the kernel, or a third consumer appears and the
-   copy stops being a copy and starts being a fork.
-3. **✅ ~~MONEY-WIRE ②~~ — DONE v0.3.720** (`project_budget`, `resource_loading`). ① shipped v0.3.718: `capital.allocate` now uses
-   largest-remainder, so a split total adds up and the leftover cents stop landing on whoever sorts
-   last. `money` has left `KNOWN_UNREACHABLE`. **Not** a mandate to convert all 267 `round(x, 2)`
-   calls — most are display rounding where drift is invisible. The ones worth finding are the other
-   places that **split or prorate a total**; `project_budget.py:102` (`per = bud / len(months)`) and
-   `resource_loading.py:98` are the next candidates.
-4. **🧭 LAYOUT-IA — the two findings the parity audit produced.** Parity itself is **DONE** and
-   asserted ([layout-parity.md](layout-parity.md), `shell/parity.test.ts`): 46 of 46 destinations
-   roomed, nothing lost in any of the 5 workspaces, no empty rooms. What it surfaced is *shape*, not
-   loss: **`work` holds 3 destinations against `model`'s 17**, and it is where most workspaces land —
-   three entries is a thin first impression. And two of `schedule`'s five (*Equipment*, *Resource
-   loading*) are arguably cost-side. Both are judgement calls that want **R26-V-TIMING** data rather
-   than another opinion, so they are recorded, not acted on.
-5. **✅ ~~LICENSE-BCF~~ — DONE v0.3.720.** Wiring
-   `supply_chain` into a gate (v0.3.719) found GPLv3 in the shipped dependency closure, arriving as an
-   *unconditional* requirement of `ifctester`. **We do not need it**: `ifctester` is LGPLv3 (fine, same
-   as ifcopenshell), we import only `ifctester.ids`, and that loads zero bcf modules — bcf-client backs
-   ifctester's BCF *reporter*, which we never call; our BCF work is our own `bcf_io.py`. Two guards now
-   hold the code half (`test_license_gate`: first-party must never import it, and ifctester may only be
-   used through `ids`). **What remains is packaging**, not code: PyInstaller `--exclude-module` for the
-   desktop build and an uninstall step after `pip install` in the image. Owner's call because it
-   changes how binaries are built.
-6. **⚙ SPRINT B tail — PERF-THREADS, then PERF-WORKERS.** ~~PERF-RATE~~ **DONE v0.3.721**: it now
-   refuses to start a production deployment instead of logging `CRITICAL` and starting anyway.
-   * **PERF-THREADS — bound concurrent MODEL work, not threads in general.** Verified: Starlette's
-     pool is 40 threads (not unbounded, as the report claimed), and ~80 `run_in_threadpool` calls are
-     mostly cheap I/O that should stay parallel. The real exposure is a handful of IFC paths where 40
-     concurrent opens at hundreds of MB each is an OOM. **Design:** one small `asyncio.Semaphore`
-     around the IFC/geometry sites only, env-tunable, defaulting low. Deliberately NOT a global cap —
-     that would throttle the cheap 70 to protect the expensive 10. Left unbuilt on purpose: it changes
-     request-path concurrency, so it wants a session with room to think about starvation and ordering
-     rather than being appended to a long one.
-   * **PERF-WORKERS — the cache story is BYTES, not count and not duplication.** Superseded by
-     [caching-research.md](caching-research.md): both caches bound a *count* (`maxsize=8` models,
-     `_BAKE_CACHE_MAX=4`), so with models spanning 8 MB to 2 GB the configured number cannot be
-     planned against. Sizing was never the lever — raising `maxsize` makes a byte-unbounded cache hold
-     more. Order: (a) byte-bound both caches with an explicit budget [needs `cachetools`, MIT];
-     ~~(b) re-key the bake cache by content~~ **DONE v0.3.722**; (c) share baked geometry across workers [needs `diskcache`,
-     Apache-2.0]. Baking is the expensive half, so sharing it shrinks the unshareable model cache —
-     which is why affinity may end up not being worth doing at all.
-   * **CACHE-JSON — records have no runtime cache.** 132 modules × projects × history is the larger
-     aggregate and every panel refetches it. `.frag`/WASM/bundles are already `CacheFirst` and correct.
-     The gap is JSON: IndexedDB + stale-while-revalidate, using the kernel's already-vendored
-     `storage-browser`. A cached view must SAY it is cached — stale-and-silent is the failure mode this
-     codebase has spent a cycle on.
-   * ~~PERF-WORKERS as originally written~~ Sizing is the wrong lever (raising
-     per-worker caches multiplies resident memory by the worker count — the report's own finding ③
-     contradicts its finding ①). The real options are a bounded **shared** cache or worker affinity,
-     both of which are architecture, not tuning. Sequence it after PERF-THREADS.
-7. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** `rdflib` approved; `.mass` becomes a
-   standards-conformant container. Pin the dependency in the change that first uses it.
-8. **🖼 Demo regeneration.** The captured `GET /modules` snapshot is stale since `expected_finish`
-   landed. A schema change *does* alter what the snapshot captures — an earlier judgement of mine that
-   said otherwise was wrong.
-9. **📐 R27 tail** — LAYOUT ①(b) received-sheet detection · CLAIM-TYPE into the Inspector UI ·
-   FIRM-MEMORY (org-scoped standards; sequenced last since it is data-scoping, not an engine) ·
-   SKILL-GAP (reading, not building).
-10. **🧱 Decomposition & reliability carry-overs** — deferred longest, still real.
+### Actually open — 6 things
 
-**A standing gate for every sprint from here:** *what did we build that nothing calls?*
-`grep -rn <module> src/aec_api/routers/ src/aec_api/mcp_tools.py` before marking any item done. For a
-frontend module, grep the **view** that should render it, not its own test.
+Each line says what KIND of work it is, because "10 items" that mixes finished work, decisions
+already made, and things blocked on users reads as far more load than it is. Everything resolved has
+moved to [roadmap-completed.md](roadmap-completed.md); it is not listed here just because it was
+recently true.
 
-**And one on cadence:** batch items into sprints — one release, one full suite, one CI watch, one code
-review per sprint. Twenty suite runs happened on 2026-07-26 and **seven produced no summary at all**
-(buffering loss, background teardown, a wrong working directory). Always `PYTHONUNBUFFERED=1`, and
-read the **summary line**, never the failure count — `grep -c "^FAIL"` returns 0 when nothing ran.
+1. **🧩 KERNEL-ADOPT ③ — a capability onto the kernel.** *Build.* ① the identity boundary (v0.3.713)
+   and ② markup through the plugin host (v0.3.717) both closed real defects; pick ③ from a real pain,
+   not from the kernel's feature list. **Undo is not a candidate** — checked: model-level undo via
+   versioned source IFC is stronger for authoring.
+2. **🗃 CACHE — byte-bound, then share.** *Build, needs 2 deps.* See
+   [caching-research.md](caching-research.md). ~~Re-key by content~~ DONE v0.3.722. Remaining:
+   (a) byte-bound both caches with an explicit budget [`cachetools`, MIT]; (b) share baked geometry
+   across workers [`diskcache`, Apache-2.0]. Baking is the expensive half, so sharing it shrinks the
+   unshareable model cache — affinity may end up not being worth doing.
+3. **🌐 CACHE-JSON ② — widen the consumers.** ① shipped v0.3.723: `recordCache.ts` (IndexedDB +
+   stale-while-revalidate, 10 tests) with `moduleRecordsCached` on the client and the work-order list
+   as the first real consumer, showing "cached N min ago — refreshing…". **Remaining:** the other
+   whole-list readers (`aiassist`, `design`, `ledger`, portal:1850). Deliberately NOT the paged
+   `moduleRecordsFiltered` register — every filter permutation is its own key and staleness matters
+   more when someone is narrowing a search.
+4. **⚙ PERF-THREADS — bound concurrent MODEL work.** *Build, design settled.* One small semaphore
+   around the IFC sites only, NOT a global cap — that would throttle ~70 cheap I/O calls to protect
+   ~10 expensive ones. Wants a session with room to think about starvation, not an appended hour.
+5. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** *Build.* `rdflib` approved; pin it in the
+   change that first uses it.
+6. **🖼 Demo regeneration + 📐 R27 tail + 🧱 decomposition carry-overs.** *Build, low stakes.* The
+   demo snapshot is stale since `expected_finish`; R27's tail is LAYOUT ①(b), CLAIM-TYPE in the
+   Inspector, FIRM-MEMORY, SKILL-GAP.
 
-0b. ◧ **🧱 FAMILY-COMPLETE — enough content to actually build a building** *(all six batches shipped
-   v0.3.668–670; the completeness gate is green, depth-within-system continues)*.
+### Not work — decided, or waiting on something that is not effort
 
-   **Shipped.** The shelf went **41 packs / 281 families / 2,370 types → 57 / 426 / 2,796** across six
-   catalog batches — plumbing, electrical, fire protection + alarm, mechanical, architectural +
-   interiors, conveying + site — plus a `structural-foundations` pack the coverage gate forced.
-
-   **The gate.** `family_packs.coverage()` (`GET /families/coverage`, `test_family_coverage`) checks
-   the installed shelf against the IFC *type classes* each building system needs, per typology.
-   Class-level, not family-count: it proves the shelf can place a pump, not that some catalog named
-   something `fire_pump`. A system counts as satisfied only when **every** required class is present —
-   terminals with no duct is not half an HVAC package — and a short system names its missing classes.
-
-   **What it caught.** Zero `IfcFootingType` across 413 families: the catalog held W-shapes, HSS,
-   precast, timber, rebar and PT, and no foundations, so all six typologies were unbuildable while
-   the shelf looked enormous. Breadth had hidden it; only a mechanical check found it. All six —
-   residential, commercial, hotel, hospital, industrial, airport — now clear every system.
-
-   **What remains** *(the reason this is ◧ and not ✅)*:
-   - **Depth-within-system.** The content plan's §8e target is **~800 families / ~7,500 types**;
-     we are at 426 / 2,796. The gate proves each system is *representable*, not that it has the size
-     series a real project schedules from. Size-series generators are the lever (3 AISC catalog
-     families already expand to 1,299 real types) — apply the same to duct, pipe, luminaires,
-     panelboards and door/window families.
-   - **Raise the gate as the content grows.** Today it asks "is every system's class present". The
-     next rung is "does every system have enough *types* to model it", which is the shape
-     `tests/test_completeness.py` upstream already hints at.
-   - ✅ **Duplicate families from batch 1** *(merged v0.3.688)*. Checking first changed what the merge
-     meant: of the six keys the review flagged, **only one is a genuine duplicate**.
-     `pipe_copper_l` → `pipe_copper_type_l` (one product, two names, one pack — the ASTM B88
-     designation carries the wall thickness and wins). The other five are a **generic tier and a
-     specific tier**: `wc_flush_valve` is one *kind* of toilet and the fixtures pack has no tank-type
-     WC, `shower_receptor` is a *part* of a shower, `sink_kitchen` is not what "sink" means. Merging
-     those would assert fixture types nobody specified — so the two-tier relation is now **recorded**
-     (`FAMILY_TIERS`) instead of left implicit, and the next reviewer will not re-flag it. Done by
-     **alias, not deletion**, because deleting a key breaks every model that already placed one; the
-     generated packs are untouched since they are build output from the upstream generator.
-   - ✅ **Pack licence** *(fixed v0.3.688)*. The premise was wrong and worth recording: the shelf
-     reported `unlicensed` for all 57 packs, and the entry above blamed a manifest that "carries no
-     `licence` field" — but `manifest.json` declares `CC0-1.0` for the library **and** on every pack
-     row, alongside `code: MIT`. Nothing was unlicensed; our **reader** looked only for a singular
-     per-pack `licence` key, so it missed both the library-level declaration and the plural
-     `"licenses": [...]` list the rows actually use. A shape mismatch had been sitting in the backlog
-     as a compliance problem. `unlicensed` is now 0, `licence_source` distinguishes a pack's own claim
-     from an inherited one, and the terms follow the content into the import audit trail. The packs
-     are licensed the same way as the rest of the platform: **code MIT, content CC0-1.0**.
-   - **Content repo release.** The packs are still consumed from a working tree; a tagged upstream
-     release would let the shelf pin a version. *(user action)*
-
-4. ◧ **🎨 P2 authoring & document depth** *(L; slice it, reassess after two)*.
-   ✅ **W10-2** *(v0.3.667)* — `family_shapes.py`: 14 parameterised profiles built as native IFC,
-   swept or revolved, with boolean cut-outs. The write table is asserted **symmetric with the read
-   table** so authored and imported content can't diverge, and every attribute name is validated
-   against the real IFC4 schema. *(Meshes deliberately excluded — they can't be resized, scheduled
-   or measured; that content belongs in an imported pack.)*
-   **Remaining:** **B3** wall Axis + clip planes · **E5** parametric handles — both viewer-coupled
-   and gated on the preview stall. *Every server-side item in this ring is now shipped.*
-   ✅ **D2** *(v0.3.674)* — routed egress. The old check measured **straight-line** distance and said
-   so; IBC 1017 limits distance *along the path of travel*, so the old number was always short and
-   the error ran in the **unsafe** direction — it passed plans that do not comply. `egress_route.py`
-   rasterises the plate and runs a multi-source Dijkstra from every exit; each space reports the
-   routed distance, the straight-line one, and their **detour ratio**. No-route is its own outcome,
-   an unmarked exit refuses rather than guessing, and the grid resolution is stated, not implied.
-   ✅ **W10-5 + C6** *(v0.3.673)* — sections were bare linework: correct and unissuable. They now
-   carry **poché** grouped by what the material *is* (structure heavier than enclosure heavier than
-   openings — the one distinction linework cannot make), **LOD-following** so the tone steps back as
-   the linework sharpens while the linework itself stays identical, **C6 reference-line datums**, grid
-   bubbles, and the **floor-to-floor dimension chain**. A misspelled LOD is refused, not defaulted.
-
-0c. ◧ **🎯 LOD-500 — field verification as a workflow, not a thousand clicks** *(v0.3.673; the
-   ladder's top rung is now reachable)*.
-
-   LOD 500 is the level most often misread. Per BIMForum it is **not** "more detail than LOD 400" —
-   it is a *field-verified as-built* condition that applies to what exists rather than what was
-   designed, and it is earned by someone going and looking. The 2024 specification adds that an LOD
-   500 element's **accuracy must be stated by means other than the LOD number**.
-
-   **Shipped.** The verification stamp had been written into the IFC since G1 and the LOD assessment
-   never read it, so a fully verified model still reported "LOD 400, capped".
-   - `lod.achieved_lod` reaches 500 from the stamp; a *thin verified* element gets there and an
-     information-complete unverified one does not. Measured-outside-tolerance is **not** promoted.
-   - `GET /lod/handover-readiness` — the gap as a **work list** (reason + next action per element,
-     by discipline), because "62% ready" cannot be scheduled.
-   - `scan_deviation.per_element_deviation` + `POST /scan/verify-lod500` — attribute a point cloud to
-     individual elements and stamp the ones that verify, **with their measured deviation** so the
-     assertion states an accuracy. Uncovered elements get no verdict: absence of points is not
-     evidence. `apply=false` is a dry run.
-
-   **Next rungs:**
-   - **Verification evidence** — attach the scan/photo/report that backs each stamp, so an assertion
-     is auditable rather than merely present.
-   - **Verification-aware handover** — gate the turnover package on readiness, and carry the
-     verification into COBie.
-   - **Registered scan alignment** — today the cloud is assumed to be in model coordinates; a real
-     survey needs a registration step before deviation means anything.
+* **UN-VENDOR the kernel — DECIDED: don't.** A registry publish or a submodule both cost more than
+  ~5.3k vendored lines with zero local patches and a `cp` to refresh. Revisit only if we adopt much
+  more of the kernel, or a third consumer appears and the copy becomes a fork.
+* **LAYOUT-IA — blocked on users, not on effort.** Parity is proven ([layout-parity.md](layout-parity.md)):
+  46/46 destinations roomed, nothing lost in any workspace, no empty rooms. What remains is *shape* —
+  `work` holds 3 against `model`'s 17 — and that wants **R26-V-TIMING** data rather than another
+  opinion.
+* **R26-V-TIMING — needs real users.** First-task completion per persona. Cannot be manufactured, and
+  three open questions above resolve the moment it exists.
+* **Owner decisions, not tasks:** `bcf-client` packaging exclusion is DONE (v0.3.720); the plugin
+  free/paid line is settled ([plugin-architecture-plan.md](plugin-architecture-plan.md)); what remains
+  is pricing, which wants customers.
 
 
 ## 🏗 R21 — LOD 400→500 DOCUMENTATION RING *(from a real LOD 400 shop-drawing set, 2026-07-25)*

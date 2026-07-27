@@ -25,11 +25,27 @@ export async function renderOperations(ctx: PanelContext) {
     const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
     const load = async () => {
       body.innerHTML = "";
-      let k; let wos;
+      let k; let wos; let cachedNote = "";
       try {
         k = await ctx.host.api.cmmsKpis(pid);
-        wos = await ctx.host.api.moduleRecords(pid, "work_order");
+        // CACHE-JSON — the work-order list is a whole-list read someone opens repeatedly, which is
+        // the case stale-while-revalidate is for: show what we have at once, refresh behind them.
+        // `onFresh` re-renders ONLY when the answer actually changed, so a revalidation that finds
+        // nothing new does not repaint the table for no reason.
+        const { freshnessLabel } = await import("../../api/recordCache");
+        const got = await ctx.host.api.moduleRecordsCached(pid, "work_order", () => void load());
+        wos = got.value;
+        // A cached list is a claim about the present made from the past. It is never presented as
+        // current — the age is shown, because stale-and-silent is the failure this whole codebase
+        // has spent a cycle learning to refuse.
+        cachedNote = freshnessLabel(got);
       } catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+      if (cachedNote) {
+        const stale = el("div", "meta");
+        stale.style.cssText = "font-size:11px;margin-bottom:6px;color:var(--muted)";
+        stale.textContent = `${cachedNote} — refreshing…`;
+        body.appendChild(stale);
+      }
       // KPI cards
       const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
       const card = (label: string, value: string, warn = false) => {

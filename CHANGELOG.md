@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.723 — lists that appear at once, and admit when they are from a moment ago
+
+Record lists now show what was there last time immediately, and refresh behind you. Opening a
+register on a site connection no longer means watching a spinner decide whether today is going to be
+frustrating.
+
+**A cached list says that it is cached.** It carries how old it is, and the panel shows it — "cached
+3 min ago, refreshing…" — rather than presenting yesterday's answer with the confidence of this
+morning's. Serving something slightly old is fine and useful; serving it *silently* is the thing this
+codebase has spent a whole cycle learning to refuse, because a number that looks current and is not
+is worse than no number.
+
+The refresh only redraws when the answer actually changed, so a list that is still correct does not
+flicker. If the network is down, the stored copy is served with its true age instead of an empty
+screen. If the browser will not allow local storage at all, everything works exactly as before —
+caching is a convenience, and losing it is never treated as a failure.
+
+Records were the largest thing we were re-fetching constantly: over a hundred registers, per project,
+with their history. Downloaded geometry and program code were already kept properly; this closes the
+half that was not.
+
 ## v0.3.722 — sign in with Autodesk, clear your cached data, and geometry that knows which file it came from
 
 **Sign in with Autodesk.** Google, Microsoft and Procore already worked; the missing one was the

@@ -2,6 +2,7 @@
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
 import { HttpCore } from "./httpCore";
+import type { Cached } from "./recordCache";
 
 // DTO types live in ./types (extracted from this file). Re-export them so the many
 // `import { … } from "../api/client"` sites across the app keep resolving unchanged.
@@ -2829,6 +2830,28 @@ export class ApiClient extends HttpCore {
   }
   moduleRecords(pid: string, key: string) {
     return this.json<ModuleRecord[]>(`/projects/${pid}/modules/${key}`);
+  }
+
+  /**
+   * CACHE-JSON — records, served from cache first and revalidated behind you.
+   *
+   * `moduleRecords` above is unchanged and still the right call when you need a guaranteed-current
+   * answer (immediately after a write, or before a decision that depends on it). This is for the
+   * common case: opening a panel to look at a list.
+   *
+   * The result is NOT a bare array. It carries `fresh` and `ageSeconds`, because a cached list is a
+   * claim about the present made from the past, and a caller that cannot tell the difference will
+   * eventually present stale data as current. `freshnessLabel()` turns it into something to show.
+   */
+  async moduleRecordsCached(
+    pid: string, key: string, onFresh?: (rows: ModuleRecord[]) => void,
+  ): Promise<Cached<ModuleRecord[]>> {
+    const { recordsKey, swr } = await import("./recordCache");
+    return swr<ModuleRecord[]>(
+      recordsKey(pid, key),
+      () => this.json<ModuleRecord[]>(`/projects/${pid}/modules/${key}`),
+      onFresh ? { onFresh } : {},
+    );
   }
   moduleRecord(pid: string, key: string, rid: string) {
     return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}`);
