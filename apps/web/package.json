@@ -1,10 +1,10 @@
 {
   "name": "@aec/web",
-  "version": "0.3.750",
+  "version": "0.3.751",
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "predev": "node scripts/copy-wasm.mjs",

@@ -5,7 +5,7 @@
 # Pin the fragments/web-ifc pair to the SAME versions as the client parser (apps/web/package.json).
 # CI enforces this (scripts/check-fragments-version.mjs) — a mismatch means the server emits .frag the
 # browser can't parse.
-FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS converter
+FROM node:24-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS converter
 WORKDIR /conv
 ARG FRAGMENTS_VERSION=3.4.5
 ARG WEBIFC_VERSION=0.0.77

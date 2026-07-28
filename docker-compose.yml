@@ -8,7 +8,7 @@
 # `deploy.resources.limits` is honored by `docker compose up` (v2); no Swarm required.
 services:
   postgres:
-    image: postgres:16
+    image: postgres:17
     environment:
       POSTGRES_USER: "${POSTGRES_USER:-bim}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-bim}"

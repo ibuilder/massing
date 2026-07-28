@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.751 — off end-of-life Node, onto the LTS that lasts
+
+- **Both Nodes this repo targeted are end-of-life.** Confirmed against `nodejs/Release/schedule.json`
+  rather than recollection: **v20 died 2026-04-30**, v18 in 2025. Every container was building on an
+  unsupported runtime receiving no security patches.
+- **Node 24, not the 22 that PR #69 proposed.** v22 entered *maintenance* in Oct 2025 with 276 days
+  left; **v24 is in active LTS to 2028-04-30 — 642 days**. The branch was written before v24 went
+  LTS. Taking 22 would have meant repeating this inside a year. `@capacitor/cli` wants
+  `node >=22.0.0` — a floor, not a ceiling, so 24 satisfies it.
+- `engines` → `>=24`, all three Dockerfiles → `node:24-slim`, **Postgres 16 → 17**, and `nginx:alpine`
+  → `1.31-alpine` (a mutable tag is not a pin).
+- **The migration drift-guard was still on `postgres:16`.** CI would have verified migrations against
+  a different major than production runs — and this repo has already been burned once by that
+  workflow silently not proving what it claimed. Now 17 on both sides.
+- Deliberately **not** in this release: `FRAGMENTS_VERSION 3.4.5 → 3.4.6` (fragments is version-coupled
+  to `@thatopen/components`; that pair moves on its own so a geometry regression is not competing with
+  Node, Postgres and nginx for blame) and **Capacitor 7 → 8**, which needs a regenerated lock from
+  `lockfile.yml` — never resolved on a dev box.
+- Verified on the local Node 20: 599 tests, lint and typecheck clean. `engine-strict` is unset, so the
+  raised floor warns rather than blocks until the runtime is installed.
+
 ## v0.3.750 — Pulse is wired, and a test says so
 
 - v0.3.748/749 built the pulse and its renderer, and **nothing imported either**. That is this
