@@ -153,6 +153,30 @@ check("...and reading from it is a clean miss", s.read("anything.mass") is None)
 
 os.environ.pop("AEC_SAMPLES_DIR", None)
 
+# --- the DEFAULT directory, which no test had ever exercised ------------------------------------
+#
+# Every check above sets AEC_SAMPLES_DIR, so `_DEFAULT_DIR` was never measured. It was wrong: four
+# `dirname` hops from `services/api/src/aec_api/samples.py` reach `services/`, not the repo root, so
+# the default pointed at `<repo>/services/samples` — a directory that has never existed. The library
+# returned `[]` with the containers sitting in `<repo>/samples`, and I recorded that empty list as
+# correct behaviour.
+#
+# The lesson generalises past this bug: a test that configures the thing it is testing never tests
+# the configuration's default, and defaults are what actually ship.
+import os.path as _p  # noqa: E402
+
+from aec_api import samples as _s  # noqa: E402
+
+_root = _s._REPO_ROOT
+check("the repo root is the repo root", _p.isdir(_p.join(_root, "services")) and _p.isdir(_p.join(_root, "apps")),
+      f"got {_root!r} — must contain services/ and apps/")
+check("the default library is <repo>/samples", _p.basename(_s._DEFAULT_DIR) == "samples"
+      and _p.dirname(_s._DEFAULT_DIR) == _root, f"got {_s._DEFAULT_DIR!r}")
+check("...and it is NOT services/samples", "services" not in _p.relpath(_s._DEFAULT_DIR, _root),
+      "four dirname hops instead of five is exactly the bug this guards")
+check("the shipped library directory exists on disk", _p.isdir(_s._DEFAULT_DIR),
+      "samples/ is committed; if this fails the default has drifted again")
+
 # --- the routes are actually reachable ---------------------------------------------------------
 #
 # Not optional. Seven engines once shipped here with no route to them, because every gate measured

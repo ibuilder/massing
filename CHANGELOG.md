@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.757 — the sample library has never worked, and now does
+
+- **`_DEFAULT_DIR` was off by one `dirname`.** From `services/api/src/aec_api/samples.py` it took four
+  hops and landed on `<repo>/services/samples` — a directory that has never existed. So `GET /samples`
+  returned `[]` for a library sitting in `<repo>/samples`, and **I recorded that empty list as correct
+  behaviour** across two releases. Every test set `AEC_SAMPLES_DIR`, so the default the constant
+  computes was never once exercised. A test that configures the thing it tests never tests the
+  default — and defaults are what ship.
+- **First sample packaged and served**: `riverside_house.mass`, 4 elements, geometry, real table
+  counts, listed by the live API.
+- **`build_samples.py` now FAILS on an unusable container** instead of printing "verified". It wrote
+  one holding neither `model.frag` nor the element index and reported success, because `has_geometry`
+  accepts `.frag` **or** `.ifc` and a source IFC was present — the single check that should have
+  caught it passed for the wrong reason. It now asserts geometry, index and a non-zero element count,
+  and on failure names the likely cause: `STORAGE_DIR`/`DATABASE_URL` not matching the API.
+- Both packaging failures were **environment, not product**: the script defaulted to a different DB
+  and a different blob directory than the running server. Worth stating because the symptom — an
+  empty, cheerful "0 elements" — is identical to a project with no model.
+
 ## v0.3.756 — the mobile gate caught a real break on its first run
 
 - **The Android build failed, and it was right to.** 30+ `Duplicate resources` errors: the default

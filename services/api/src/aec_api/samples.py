@@ -26,10 +26,19 @@ import zipfile
 from functools import lru_cache
 from typing import Any
 
-#: Where the packaged containers live. An operator can point this elsewhere; the default sits beside
-#: the repo so a checkout is demonstrable with no configuration.
-_DEFAULT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))))), "samples")
+#: Where the packaged containers live — `<repo>/samples`. An operator can point this elsewhere with
+#: `AEC_SAMPLES_DIR`; the default sits in the repo so a checkout is demonstrable with no config.
+#:
+#: This file is `<repo>/services/api/src/aec_api/samples.py`, so reaching the repo root takes FIVE
+#: `dirname` hops: aec_api → src → api → services → repo. The original had four and resolved to
+#: `<repo>/services/samples`, a directory that has never existed — so `GET /samples` returned `[]`
+#: for a library that was sitting right there, and I reported that empty list as correct behaviour.
+#: Every test set `AEC_SAMPLES_DIR`, so the default this constant computes was never once exercised.
+#: Hence `_REPO_ROOT` as a named step: a path built from a countable number of hops should show its
+#: working, not hide it inside nested calls nobody re-counts.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))))))
+_DEFAULT_DIR = os.path.join(_REPO_ROOT, "samples")
 
 #: A sample is refused rather than served if it is implausibly large — the library is curated content
 #: we package ourselves, so anything here at hundreds of megabytes is a packaging mistake, not a user
