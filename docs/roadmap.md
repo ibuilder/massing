@@ -41,6 +41,32 @@ So: **correctness a user would feel** first, **capacity** second, **capability**
 Completed work leaves this list and lives in the CHANGELOG. A NOW list holding finished items is a
 list nobody trusts.
 
+1. **🧱 SCALE-SEAM — `client.ts` is the breakpoint, and it is measurable.** *Build; now the top,
+   ahead of feature work.* Measured 2026-07-28:
+
+   | file | lines | commits / 14d |
+   |---|---|---|
+   | `api/client.ts` | **4,956** | **152** |
+   | `viewer/app.ts` | 4,565 | 114 |
+   | `portal/portal.ts` | 2,699 | 24 |
+   | `main.ts` | 1,440 | 17 |
+
+   `client.ts` carries **631 methods on one class** and is touched ~11×/day. Every feature adds to it,
+   nothing ever removes from it, and it must be opened to add any endpoint. That is the definition of
+   a file that stops being editable — not because it is long, but because **length × churn** means
+   every change competes with every other change for the same window of attention.
+
+   **The fix is a seam, not a rewrite.** Split by domain the way the routers already are — the server
+   side solved this exact problem with `routers/*.py`, and the client never followed. `client.ts`
+   becomes a thin composition of `api/model.ts`, `api/cost.ts`, `api/coordination.ts`, … each owning
+   its endpoints. Nothing changes for callers; `ApiClient` keeps its shape.
+   **Do it incrementally and prove it**: extract one domain, assert the public surface is unchanged
+   (method-name set equality, asserted in a test), ship, repeat. A big-bang split of a file with
+   152 commits a fortnight will collide with everything in flight.
+
+   `viewer/app.ts` is the same disease and comes second. `schema.d.ts` (32k lines) is **generated** —
+   not a comprehension problem, leave it.
+
 1. **📄 PDF-ADOPT ② — move the takeoff flow onto the vendored engine.** *Build; ① shipped v0.3.740.*
    `@massingcloud/pdf-viewer` is vendored at `65e9011` — aliased through the one map, zero local
    patches, 5 reachability tests, **no new dependency**, **not in the eager bundle** (entry stayed
