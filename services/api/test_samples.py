@@ -174,8 +174,21 @@ check("the default library is <repo>/samples", _p.basename(_s._DEFAULT_DIR) == "
       and _p.dirname(_s._DEFAULT_DIR) == _root, f"got {_s._DEFAULT_DIR!r}")
 check("...and it is NOT services/samples", "services" not in _p.relpath(_s._DEFAULT_DIR, _root),
       "four dirname hops instead of five is exactly the bug this guards")
+# This next pair failed in CI on every run for a day while passing locally, and the reason is in the
+# sentence it used to carry: "samples/ is committed". It was not — `.gitignore` held `samples/`
+# outright, so the directory existed only on the machine that wrote the test. **A rationale written
+# in a test is a claim like any other, and this one was never checked.** Fixed in v0.3.769 by
+# shipping what the library actually serves: `samples.py` reads `.mass` containers only, so the
+# containers and the README are tracked and the multi-hundred-megabyte source IFCs stay ignored.
 check("the shipped library directory exists on disk", _p.isdir(_s._DEFAULT_DIR),
-      "samples/ is committed; if this fails the default has drifted again")
+      "samples/*.mass is committed (see .gitignore); if this fails the default has drifted again")
+# ...and it is NOT empty. A directory with no containers passes an isdir() check and serves nothing,
+# which is the same "a check that examined nothing must not report clean" failure this file exists
+# to prevent — the first-run picker would offer an empty library and look broken.
+_shipped = [n for n in (os.listdir(_s._DEFAULT_DIR) if _p.isdir(_s._DEFAULT_DIR) else [])
+            if n.lower().endswith(".mass")]
+check("...and it ships at least one .mass container", len(_shipped) >= 1,
+      f"the library serves .mass only; found {_shipped!r}")
 
 # --- the routes are actually reachable ---------------------------------------------------------
 #

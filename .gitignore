@@ -42,7 +42,16 @@ venv/
 *.bcfzip
 /data/
 /tmp/
-samples/
+# The sample library SHIPS — it is the showcase a first run opens, and `samples.py` serves `.mass`
+# containers only. So track the containers and the README, and keep the multi-hundred-megabyte source
+# IFC/frag fixtures out: they are dev inputs, not library entries, and two of them are 52 MB each.
+#
+# This was `samples/` outright until v0.3.769, which meant `test_samples` -- whose comment read
+# "samples/ is committed" -- passed locally because the directory happened to exist on the machine
+# that wrote it, and failed in CI on every run. The rationale in a test is a claim like any other.
+samples/*
+!samples/README.md
+!samples/*.mass
 
 # object storage local volumes
 minio-data/

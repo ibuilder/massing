@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.769 — the sample library actually ships (CI had been red all day)
+
+`test_samples` was failing **every CI run**, while passing locally on every run. The failing check
+carried its own explanation:
+
+> `the shipped library directory exists on disk` — *"samples/ is committed"*
+
+It was not. `.gitignore` held `samples/` outright, so the directory existed only on the machine that
+wrote the test. **A rationale written into a test is a claim like any other, and this one was never
+checked.** The test passed locally for an incidental reason — the files happened to be sitting there
+— which is the most durable way for a gate to be wrong.
+
+The fix ships what the library actually serves. `samples.py` reads **`.mass` containers only**, so
+the containers and the README are now tracked (37 KB) and the multi-hundred-megabyte source IFCs stay
+ignored — two of them are 52 MB each and were never library entries to begin with. A fresh clone now
+has a sample library, which is what the first-run picker has been promising since v0.3.757.
+
+The assertion is stronger too: a directory with **no containers** would satisfy an `isdir()` check
+and serve nothing, so the library must now contain at least one `.mass`. Same failure this file
+exists to prevent — a check that examined nothing reporting clean.
+
+**Worth stating plainly:** CI had been failing on every run for a day, and earlier notes in this
+project described those releases as CI-verified. They were verified by the local suite, `ruff`, the
+web gate and live checks — all of which were green and all of which I ran — but the CI *workflow*
+itself was red, and I should have been reading its conclusion rather than the conclusions of the
+seven faster workflows beside it.
+
 ## v0.3.768 — sub-rooms: a room with 39 registers gets a second level
 
 Design owns 39 registers and Schedule 41. A flat list at that size is exactly the wall the spine was
