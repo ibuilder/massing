@@ -41,6 +41,43 @@ So: **correctness a user would feel** first, **capacity** second, **capability**
 Completed work leaves this list and lives in the CHANGELOG. A NOW list holding finished items is a
 list nobody trusts.
 
+1. **📦 MASS-FIRST — the container is the project, everywhere.** *Build. Backend landed v0.3.744;
+   these are the remaining halves.* User direction, 2026-07-28:
+
+   - **② Package real samples.** `samples/` and its API exist and are tested, but the library is
+     **empty** — `GET /samples` returns `[]`. Run `build_samples.py --project <pid>` against real
+     projects (a house, a tower, a fit-out) and commit the containers. Nothing ships as a showcase
+     until this is done; the machinery is not the feature.
+   - **② One "Load sample", from the library.** Replace the three hard-coded `.frag` menu entries in
+     `main.ts` (`/school_str.frag`, `/school_arq.frag`, `/basichouse.frag`) with a single entry that
+     lists `GET /samples` and opens the chosen container. Those three are the last place the product
+     shows geometry-without-data.
+   - **② A sample opens on first load.** An empty app should already be showing a populated project,
+     not an empty canvas asking to be filled.
+   - **② Every model gets a `.mass`.** Loading an IFC with no container creates a blank one, so a
+     project is never "geometry with data bolted on later" — it is a container from the first second.
+   - **③ Re-cut Create / Open / Save.** Evaluate the current dropdowns against the container model
+     and **reinvent if they do not make sense** — the user's words. "New project" must be obvious;
+     today it is not. Do this *after* the four above, so the menu is designed against how the
+     product actually behaves rather than how it behaved.
+
+   The through-line: geometry stopped being the unit of work here a long time ago, and the file
+   menu never noticed.
+
+2. **🔀 BRANCH-DRAIN — two long-lived branches, each its own release.** *User: do both.*
+   - `chore/deps-upgrades-2026` (PR #69) — Capacitor 7→8, Postgres 16→17. 190 commits behind and it
+     crosses two majors, so: rebase, full backend suite, full web gate, desktop build, **then** ship
+     alone. Never bundled with feature work — a two-major bump that breaks something must be
+     bisectable to itself.
+   - `security/audit-2026-07` — 56 commits behind; R1–R4 were waiting on a decision that has now
+     been given. Land it as its own release with the findings written up in the commit.
+
+3. **📊 SAMPLE-DATA-REAL — populate the samples with real historical figures.** *User: use public
+   historical data; it is the best available until there are users.* This unblocks nothing on its
+   own, but it is what makes R26-V-TIMING and plugin pricing measurable later: a sample carrying
+   plausible real cost/schedule history is a dataset those two can be evaluated against. Public
+   sources only, and **no real party names, addresses or contract values** — the repo is public.
+
 1. **🧱 SCALE-SEAM — `client.ts` is the breakpoint, and it is measurable.** *Build; now the top,
    ahead of feature work.* Measured 2026-07-28:
 
