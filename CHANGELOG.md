@@ -4,6 +4,16 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.747 — the ☰ button can explain itself
+
+- A user looked at the top-left of the app and asked what the three lines do. That question *was* the
+  bug: the control's whole explanation was `aria-label="Toggle panel"` — which names no panel, never
+  changes (so after collapsing, a button that will now REVEAL the panel still read "Toggle panel"),
+  and carried `(\)` as its shortcut because `\` in HTML is two literal backslashes.
+- Now `Hide side panel` / `Show side panel`, describing the **next action**, with `aria-expanded` and
+  `aria-controls` so the button and the panel can be **asserted to agree** rather than eyeballed.
+  Without a machine-readable state, "the label is right" is an opinion.
+
 ## v0.3.746 — a `.mass` now carries the element index
 
 - **Every container exported before this held a model you could SEE and could not QUERY.** It

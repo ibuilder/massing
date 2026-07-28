@@ -62,6 +62,34 @@ time. Every room, every destination, console clean, no empty panels. Then the ha
 "better": first-paint and interaction cost vs classic, keyboard reachability, and behaviour at
 mobile width. Findings become S1 work, not a footnote. **Nothing else ships until this is honest.**
 
+**S1 findings so far (2026-07-28).** The audit ran against an API that **died mid-run**
+(`OSError: [WinError 64]` on socket accept, then `ERR_CONNECTION_REFUSED`). Everything it said about
+empty rooms is therefore **void** — `portal-nav`/`portal-content` mounting with 0 children was a
+dead-backend artifact, not a proven product defect. Re-run on Postgres before believing any of it.
+I twice began writing up a product bug (hanging handler, then exhausted threadpool) from that
+evidence; the server log said `GET /rooms → 200 OK` the whole time.
+
+These stand on their own — no backend involved, all visible in the user's screenshot:
+- **`?` MORE is an overflow bin** — MEASURE/MODIFY/SHARE in one long list with a *horizontal*
+  scrollbar and help text truncated mid-sentence. Fixed toolbar grouping, no h-scroll.
+- **Two dropdowns open at once** over the model, neither dismissing the other.
+- **A third-party watermark renders in our viewport.**
+- **☰ could not explain itself** — "Toggle panel" named no panel, never changed, and its shortcut
+  showed `(\)` because `\` in HTML is two literal backslashes. **Fixed v0.3.747** with
+  `aria-expanded`/`aria-controls` so a test can assert the button and the panel agree.
+
+**S1a · DATABASE — decide the engine split explicitly.** *User question, 2026-07-28: Postgres or
+SQLite?* The answer is **both, which is already the case** — `DATABASE_URL` is a SQLAlchemy URL, the
+desktop/preview build uses SQLite and the server uses Postgres. A Tauri app that requires the user to
+install Postgres is not a desktop app. SQLite's limit is **concurrent writers, not size**; Postgres is
+right for anything multi-user.
+The real risk is neither: it is a feature **silently depending on one engine**. That has already
+happened once — the FTS GIN indexes are Postgres-only and were never created, and nobody noticed
+because the migration workflow never ran ([[drift-guard-fts-incident]]). So: name the Postgres-only
+capabilities, make the SQLite path degrade **visibly** rather than silently, and run the backend
+suite against **both** engines in CI. Today it runs against one, which means the other is asserted by
+hope.
+
 **S2 · HARDEN — enterprise hygiene, each its own release.**
 `chore/deps-upgrades-2026` (PR #69, Capacitor 7→8 + Postgres 16→17, 190 commits behind, crosses two
 majors — rebase, full suites, desktop build, ship alone so a break is bisectable to itself). Then

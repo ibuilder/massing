@@ -545,7 +545,28 @@ personaSel.value = localStorage.getItem("persona") || "all";
 personaSel.onchange = () => { localStorage.setItem("persona-manual", "1"); applyPersona(personaSel.value, true); };
 
 // ---- rail collapse + drag-to-resize (persisted) -----------------------------
-function toggleRail() { appEl.classList.toggle("rail-collapsed"); }
+/**
+ * Show/hide the side panel, and *say* which state it is in.
+ *
+ * A user asked what the ☰ button does, which is the whole finding: its only explanation was a
+ * tooltip reading "Toggle panel" — it never named the panel, never said whether it was about to open
+ * or close, and its shortcut rendered as `(\\)` because `\\` in HTML is two literal backslashes.
+ * A control whose label is a verb with no object cannot be understood before clicking it.
+ *
+ * `aria-expanded` matters beyond screen readers here: it is the only machine-readable statement of
+ * the panel's state, so a test can assert the button and the panel agree. Toggling a class and
+ * leaving the label frozen is how a control ends up lying about what it will do.
+ */
+function toggleRail() {
+  const collapsed = appEl.classList.toggle("rail-collapsed");
+  const btn = document.getElementById("rail-toggle");
+  if (btn) {
+    btn.setAttribute("aria-expanded", String(!collapsed));
+    const label = collapsed ? "Show side panel" : "Hide side panel";
+    btn.setAttribute("aria-label", label);
+    btn.title = `${label} (\\)`;      // one backslash: the actual key
+  }
+}
 (document.getElementById("rail-toggle") as HTMLButtonElement).onclick = toggleRail;
 const savedW = localStorage.getItem("rail-w");
 if (savedW) appEl.style.setProperty("--rail-w", savedW);
