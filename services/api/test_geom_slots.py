@@ -60,40 +60,47 @@ check("the slot is fully released after nesting unwinds", geomconf._SLOTS.acquir
 geomconf._SLOTS.release()
 
 # --- the slot actually excludes across threads -----------------------------------------------------
+# Event-driven, not sleep-driven. A `sleep(0.2)` that has to land inside a window flakes both ways
+# under the parallel gate — and a concurrency test that fails intermittently teaches people to
+# re-run it rather than read it.
 geomconf._SLOTS = threading.BoundedSemaphore(1)
-order, hold = [], threading.Event()
+order = []
+a_in, release_a, b_in = threading.Event(), threading.Event(), threading.Event()
 
 
 def worker(name):
     with geomconf.geometry_slot():
         order.append(f"{name}-in")
+        (a_in if name == "a" else b_in).set()
         if name == "a":
-            hold.wait(2.0)
+            release_a.wait(5.0)
         order.append(f"{name}-out")
 
 
 ta = threading.Thread(target=worker, args=("a",)); ta.start()
-time.sleep(0.2)
+check("the first thread enters", a_in.wait(5.0))
 tb = threading.Thread(target=worker, args=("b",)); tb.start()
-time.sleep(0.2)
-check("a second thread WAITS while the slot is held", order == ["a-in"], f"saw {order}")
-hold.set(); ta.join(3); tb.join(3)
-check("...and proceeds once it is released", order == ["a-in", "a-out", "b-in", "b-out"], f"saw {order}")
+check("a second thread WAITS while the slot is held", not b_in.wait(0.5), f"saw {order}")
+release_a.set()
+check("...and proceeds once it is released", b_in.wait(5.0))
+ta.join(5); tb.join(5)
+check("both ran in order", order == ["a-in", "a-out", "b-in", "b-out"], f"saw {order}")
 
 # --- a timeout proceeds; it does not fail the request -------------------------------------------------
 geomconf._SLOTS = threading.BoundedSemaphore(1)
 geomconf._WAIT_S = 0.3
-blocked = threading.Event()
+blocked, hogging = threading.Event(), threading.Event()
 done = []
 
 
 def hog():
     with geomconf.geometry_slot():
-        blocked.wait(2.0)
+        hogging.set()               # signal that the slot is REALLY taken, do not guess with sleep
+        blocked.wait(5.0)
 
 
 th = threading.Thread(target=hog); th.start()
-time.sleep(0.1)
+check("the hog holds the only slot", hogging.wait(5.0))
 t0 = time.time()
 with geomconf.geometry_slot():          # cannot get a slot; must proceed anyway
     done.append(time.time() - t0)
@@ -253,14 +260,81 @@ check("a failed iterator construction RELEASES its slot", free_slots() == 1,
 # --- sizing: the formula that silently collapsed to 1 ------------------------------------------------
 import multiprocessing  # noqa: E402
 
+# run_tests.py exports AEC_GEOM_WORKERS=1, so geom_workers() short-circuits on the override and the
+# formula below was NEVER evaluated by the gate — the invariant check could not fail. Clear it here.
+_saved_env = os.environ.pop("AEC_GEOM_WORKERS", None)
 real_cpu = multiprocessing.cpu_count
-for cpu in (4, 8, 16, 32):
-    multiprocessing.cpu_count = lambda c=cpu: c
-    sl, wk = geomconf.geom_slots(), geomconf.geom_workers()
-    check(f"cpu={cpu}: more than one pass may run (got {sl})", sl > 1,
-          "cpu//(cpu-1) was 1 for every cpu>=3 — serialising all geometry while looking bounded")
-    check(f"cpu={cpu}: slots x workers stays near the cores ({sl}x{wk}={sl*wk})", sl * wk <= cpu + 1)
-multiprocessing.cpu_count = real_cpu
+try:
+    for cpu in (1, 2, 3, 4, 8, 16, 32):
+        multiprocessing.cpu_count = lambda c=cpu: c
+        sl = geomconf.geom_slots()
+        if cpu >= 2:
+            check(f"cpu={cpu}: more than one pass may run (got {sl})", sl > 1,
+                  "min(4, cpu//2) still gave 1 on 2- and 3-core hosts — the worse-than-nothing state")
+        # a LONE pass must still get the machine; this is the regression the slot-count divisor caused
+        geomconf._INFLIGHT[0] = 1
+        check(f"cpu={cpu}: a lone render still gets ~the box ({geomconf.geom_workers()})",
+              geomconf.geom_workers() >= max(1, cpu - 1))
+        # and concurrent passes must divide it rather than multiply past it
+        geomconf._INFLIGHT[0] = sl
+        wk = geomconf.geom_workers()
+        check(f"cpu={cpu}: {sl} concurrent x {wk} workers = {sl*wk} stays near {cpu}", sl * wk <= cpu + 1)
+finally:
+    multiprocessing.cpu_count = real_cpu
+    geomconf._INFLIGHT[0] = 0
+    if _saved_env is not None:
+        os.environ["AEC_GEOM_WORKERS"] = _saved_env
+
+# --- #5: a cross-thread drop must not poison the creating thread's re-entrancy marker ------------
+geomconf._SLOTS = threading.BoundedSemaphore(2)
+geomconf._depth = threading.local()
+geomconf._INFLIGHT[0] = 0
+
+holder = {}
+
+
+def make_on_other_thread():
+    holder["it"] = geomconf.bounded_iterator(FakeGeom(FakeIt(n=99)), None, None)
+    holder["depth_after_create"] = getattr(geomconf._depth, "n", 0)
+
+
+t = threading.Thread(target=make_on_other_thread); t.start(); t.join(5)
+check("the creating thread marked itself in-pass", holder["depth_after_create"] == 1)
+
+# Drop it from THIS thread — i.e. what the garbage collector does. The old code decremented the
+# collector's thread-local, leaving the creator permanently at 1 and silently unable to ever take a
+# slot again — the bound switching itself off for a pooled worker, forever, invisibly.
+del holder["it"]
+gc.collect()
+check("a cross-thread drop still releases the slot", free_slots() == 2)
+
+depth_seen = {}
+
+
+def check_depth_on_creator():
+    depth_seen["n"] = getattr(geomconf._depth, "n", 0)
+
+
+t2 = threading.Thread(target=check_depth_on_creator); t2.start(); t2.join(5)
+check("a fresh thread is not left marked in-pass", depth_seen["n"] == 0,
+      "the collector must not decrement somebody else's thread-local")
+check("in-flight returns to zero", geomconf._INFLIGHT[0] == 0)
+
+# --- #6: special methods resolve on the TYPE, so a forwarding __getattr__ never sees them ---------
+geomconf._SLOTS = threading.BoundedSemaphore(2)
+geomconf._depth = threading.local()
+
+
+class IterableIt(FakeIt):
+    def __iter__(self):
+        return iter(["s0", "s1"])
+
+
+it = geomconf.bounded_iterator(FakeGeom(IterableIt()), None, None)
+check("the wrapper is iterable, as a drop-in must be", list(it) == ["s0", "s1"],
+      "`for shape in ...` is the first idiom people reach for; __getattr__ does not cover it")
+del it
+gc.collect()
 
 print()
 if FAILED:

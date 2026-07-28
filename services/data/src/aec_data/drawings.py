@@ -152,7 +152,7 @@ def world_bounds(model: ifcopenshell.file) -> tuple[list[float], list[float]] | 
     """PERF-2: the model's world-space AABB [min_xyz, max_xyz] (metres) without building any trimesh —
     just min/max over the geom-iterator verts. Reuses the bake cache when the model was already baked
     for a drawing (free), else runs a lean vert-only pass. None when the model has no geometry."""
-    hit = _BAKE_CACHE.get(id(model))
+    hit = _BAKE_CACHE.get(_bake_key(model))   # keyed by content since v0.3.722; id() never hit
     if hit is not None and hit[0] is model and hit[1]:
         pts = np.vstack([m.bounds for _, m in hit[1] if getattr(m, "bounds", None) is not None])
         return list(pts.min(axis=0)), list(pts.max(axis=0))

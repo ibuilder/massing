@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.735 — a single drawing gets the whole machine again
+
+Yesterday's change to share the machine between simultaneous drawings went too far in the other
+direction: it divided the machine by how many drawings were *allowed* to run at once rather than how
+many actually were, so one person waiting on one drawing got a fraction of the computer for no reason.
+A lone drawing now uses the machine as it always did, and the sharing only kicks in when there is
+something to share with.
+
+Three other faults in the same work, none of which would have announced themselves:
+
+A cached calculation of the model's overall size was being looked up under an old name and could never
+be found, so it was recomputed from scratch every time — and, since yesterday, took a turn in the
+queue to do it.
+
+Cleaning up after a finished drawing could be handled by a background housekeeping thread rather than
+the one that started it, and the bookkeeping was written against whichever thread happened to do the
+cleaning. That left the original worker permanently marked as busy — quietly opting itself out of the
+sharing, for good.
+
+And on machines with two or three processors the limit still worked out to one drawing at a time,
+which is the exact state the code was written to avoid.
+
+Two of the checks covering this could not fail — one compared a value against itself, another was
+skipped entirely by the test settings. Both now run and were confirmed to catch the old behaviour.
+
 ## v0.3.734 — the server shares itself out between simultaneous drawings
 
 Preparing a model's geometry is the heaviest thing this server does, and until now each request took

@@ -13,18 +13,23 @@ import os
 
 
 def geom_workers() -> int:
-    """Worker-process count for an ifcopenshell geometry iterator. `AEC_GEOM_WORKERS` overrides it
-    (e.g. `1` under a parallel test/CI runner); the default is `cpu_count() - 1`, floored at 1."""
+    """Worker processes for ONE ifcopenshell geometry iterator. `AEC_GEOM_WORKERS` overrides it.
+
+    Scaled by how many passes are **actually running right now**, not by how many are permitted. A
+    lone render still gets the machine (`cpu - 1`, as it always did); four concurrent renders get a
+    quarter each. Dividing by the slot *count* instead was a regression — it cut a single render on an
+    8-core box from 7 workers to 2 to protect against contention that was not happening.
+    """
     override = os.environ.get("AEC_GEOM_WORKERS")
     if override:
         try:
             return max(1, int(override))
         except ValueError:
             pass
-    # Divide the machine among the concurrent passes rather than giving each one the whole box.
-    # `slots x workers` then stays near the core count instead of multiplying past it, which is the
-    # oversubscription this module exists to prevent. Falls back to cpu-1 when only one pass can run.
-    return max(1, multiprocessing.cpu_count() // max(1, geom_slots()))
+    cpu = multiprocessing.cpu_count()
+    with _INFLIGHT_LOCK:
+        busy = max(1, _INFLIGHT[0])
+    return max(1, (cpu - 1) if busy <= 1 else cpu // busy)
 
 
 # --- PERF-THREADS: bound how many geometry passes run at once -----------------------------------
@@ -65,10 +70,22 @@ def geom_slots() -> int:
             return max(1, int(override))
         except ValueError:
             pass
-    return max(1, min(4, multiprocessing.cpu_count() // 2))
+    cpu = multiprocessing.cpu_count()
+    # Floor of 2 on anything but a single-core box: one slot is the "worse than nothing" state this
+    # docstring warns about — every queued pass waits the full timeout and then proceeds unbounded.
+    # `cpu // 2` alone still produced exactly that on 2- and 3-core hosts.
+    return 1 if cpu < 2 else max(2, min(4, cpu // 2))
 
 
 _SLOTS = threading.BoundedSemaphore(geom_slots())
+
+#: Passes running right now, across all threads. Drives `geom_workers` so a lone render still gets
+#: the machine. A plain list because it is mutated under `_INFLIGHT_LOCK` and must not be rebound.
+_INFLIGHT = [0]
+_INFLIGHT_LOCK = threading.Lock()
+
+#: Re-entrancy marker. Genuinely per-thread — "am *I* already inside a pass" is a thread question.
+#: But it must only ever be touched BY that thread; see `_SlottedIterator._finish`.
 _depth = threading.local()
 
 #: How long a pass waits for a slot before going ahead anyway. This is a fairness guard, not a
@@ -130,18 +147,29 @@ class _SlottedIterator:
     — never to a deadlock. That property is what makes wiring it safe rather than clever.
     """
 
-    __slots__ = ("_it", "_rel", "_done")
+    __slots__ = ("_it", "_rel", "_done", "_owner")
 
     def __init__(self, it, release):
         self._it, self._rel, self._done = it, release, False
+        self._owner = threading.get_ident()   # only this thread may touch its own thread-local
 
     def _finish(self):
-        if not self._done:
-            self._done = True
-            try:
-                self._rel()
-            except Exception:   # noqa: BLE001 — releasing must never raise into a render
-                pass
+        """Release the slot exactly once.
+
+        `__del__` can run on **any** thread — the garbage collector's, not the creator's. The first
+        version decremented a thread-local from whichever thread happened to collect the object,
+        which left the creating thread (a long-lived pooled worker) permanently marked "already
+        inside a pass". That thread would then never take a slot again: the bound silently switched
+        itself off for that worker, forever, with nothing to see. So the depth marker is only touched
+        on the owning thread; the semaphore itself is thread-agnostic and is always released.
+        """
+        if self._done:
+            return
+        self._done = True
+        try:
+            self._rel(threading.get_ident() == self._owner)
+        except Exception:   # noqa: BLE001 — releasing must never raise into a render
+            pass
 
     def initialize(self):
         try:
@@ -169,6 +197,13 @@ class _SlottedIterator:
     def __getattr__(self, name):        # anything else (get_native, etc.) passes straight through
         return getattr(self._it, name)
 
+    def __iter__(self):
+        """Explicit because Python resolves special methods on the TYPE, never through
+        `__getattr__` — so a wrapper that forwards everything else is still not iterable, and
+        `for shape in bounded_iterator(...)` would raise despite the real iterator supporting it.
+        That would make the "drop-in" claim false in exactly the idiom people reach for first."""
+        return iter(self._it)
+
     def __del__(self):
         self._finish()
 
@@ -189,9 +224,14 @@ def bounded_iterator(geom_module, settings, model, num_threads=None):
     if not got:
         _log.warning("geometry slot wait exceeded %.0fs — proceeding unbounded", _WAIT_S)
     _depth.n = getattr(_depth, "n", 0) + 1
+    with _INFLIGHT_LOCK:
+        _INFLIGHT[0] += 1
 
-    def _release():
-        _depth.n = max(0, getattr(_depth, "n", 1) - 1)
+    def _release(own_thread=True):
+        if own_thread:
+            _depth.n = max(0, getattr(_depth, "n", 1) - 1)
+        with _INFLIGHT_LOCK:
+            _INFLIGHT[0] = max(0, _INFLIGHT[0] - 1)
         if got:
             _SLOTS.release()
 
