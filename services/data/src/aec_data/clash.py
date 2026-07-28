@@ -18,7 +18,7 @@ import ifcopenshell
 import ifcopenshell.geom as geom
 import numpy as np
 
-from .geomconf import geom_workers
+from .geomconf import bounded_iterator
 from .ifc_loader import open_model
 
 try:
@@ -42,7 +42,7 @@ class ElementGeom:
 def _compute_geometry(model: ifcopenshell.file, keep_mesh: bool) -> list[ElementGeom]:
     settings = geom.settings()
     out: list[ElementGeom] = []
-    it = geom.iterator(settings, model, geom_workers())
+    it = bounded_iterator(geom, settings, model)
     if not it.initialize():
         return out
     while True:

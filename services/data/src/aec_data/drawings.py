@@ -19,7 +19,7 @@ import numpy as np
 import trimesh
 
 from .drawings_render import _dim_h, _dim_v, render_sheet_dxf, render_sheet_pdf, render_sheet_svg  # noqa: F401
-from .geomconf import geom_workers
+from .geomconf import bounded_iterator
 from .ifc_loader import open_model
 
 warnings.filterwarnings("ignore")
@@ -156,7 +156,7 @@ def world_bounds(model: ifcopenshell.file) -> tuple[list[float], list[float]] | 
     if hit is not None and hit[0] is model and hit[1]:
         pts = np.vstack([m.bounds for _, m in hit[1] if getattr(m, "bounds", None) is not None])
         return list(pts.min(axis=0)), list(pts.max(axis=0))
-    it = geom.iterator(_world_settings(geom), model, geom_workers())
+    it = bounded_iterator(geom, _world_settings(geom), model)
     if not it.initialize():
         return None
     mn = np.array([np.inf, np.inf, np.inf])
@@ -172,7 +172,7 @@ def world_bounds(model: ifcopenshell.file) -> tuple[list[float], list[float]] | 
 
 
 def _bake_uncached(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
-    it = geom.iterator(_world_settings(geom), model, geom_workers())
+    it = bounded_iterator(geom, _world_settings(geom), model)
     meshes: list[tuple[str, trimesh.Trimesh]] = []
     if not it.initialize():
         return meshes
