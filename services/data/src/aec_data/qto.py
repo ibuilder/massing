@@ -382,3 +382,44 @@ def takeoff_file(ifc_path: str, cost_map_path: str | None = None,
         _TAKEOFF_CACHE.pop(next(iter(_TAKEOFF_CACHE)))   # evict oldest (dict preserves insert order)
     _TAKEOFF_CACHE[key] = rows
     return rows
+
+
+def element_centroids(model, guids) -> dict:
+    """World-space centre of each element, by GlobalId — `{guid: (x, y, z)}`.
+
+    Exists so an issue tied to an element can be *placed* without anyone storing a coordinate. A
+    stored anchor is a copy of where the element was; this is where the element **is**, which is the
+    only version that survives the element being moved. IFC is the source of truth, so the pin is
+    derived from it rather than kept alongside it.
+
+    The centre of the bounding box, not the centroid of mass: for a wall the box centre is the middle
+    of the wall, which is where a reader expects the balloon. Elements that cannot be meshed are
+    omitted rather than defaulted to the origin — a pin at (0,0) is a pin pointing at the wrong place,
+    and the caller can say "not located" instead.
+    """
+    if not _GEOM_OK or not guids:
+        return {}
+    want = {g for g in guids if g}
+    # WORLD coordinates, and this is the whole correctness of the function. `settings()` defaults
+    # `use-world-coords` to False, so `geometry.verts` come back in the element's LOCAL frame with the
+    # placement left in `shape.transformation`. Every centroid then lands near the origin — pins that
+    # render confidently in the wrong place, which is worse than pins that do not render. The quantity
+    # helpers above never noticed because volume and area are placement-invariant; position is not.
+    settings = _geom.settings()
+    settings.set("use-world-coords", True)
+    out: dict = {}
+    for el in model.by_type("IfcProduct"):
+        gid = getattr(el, "GlobalId", None)
+        if gid not in want:
+            continue
+        try:
+            shape = _geom.create_shape(settings, el)
+            verts = _np.asarray(shape.geometry.verts, dtype=float).reshape(-1, 3)
+            if verts.size:
+                lo, hi = verts.min(axis=0), verts.max(axis=0)
+                out[gid] = tuple(float(v) for v in (lo + hi) / 2.0)
+        except Exception:   # noqa: BLE001 — an unmeshable element is unlocated, not an error
+            continue
+        if len(out) == len(want):
+            break
+    return out

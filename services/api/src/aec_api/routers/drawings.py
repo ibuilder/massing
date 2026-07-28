@@ -483,10 +483,11 @@ def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str =
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
-    svg = drawings.plan_svg(open_model(_source_ifc(db, pid)), elevation, cut_height, title,
+    _m = open_model(_source_ifc(db, pid))
+    svg = drawings.plan_svg(_m, elevation, cut_height, title,
                             rooms=rooms, callouts=callouts, view_depth=view_depth,
                             by_discipline=by_discipline,
-                            pins=_plan_pins(db, pid, elevation, cut_height) if pins else None)
+                            pins=_plan_pins(db, pid, elevation, cut_height, _m) if pins else None)
     return _svg(svg)
 
 
@@ -495,30 +496,29 @@ def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str =
 _PIN_BAND_M = 2.0
 
 
-def _plan_pins(db: Session, pid: str, elevation: float, cut_height: float) -> list[dict]:
-    """Anchored issues for this plan, as plain dicts for the drawing engine.
+def _plan_pins(db: Session, pid: str, elevation: float, cut_height: float, model=None) -> list[dict]:
+    """Pins for this plan, as plain dicts for the drawing engine.
 
-    The engine never learns what a Topic is — `aec_data` may not import `aec_api`, and a drawing
-    module has no business knowing about the issue tracker. It receives positions and labels.
+    The engine never learns what a Topic or a record is — `aec_data` may not import `aec_api`, and a
+    drawing module has no business knowing about the issue tracker. It receives positions and labels.
 
-    Pins are filtered to the storey by their Z against the cut, so a three-storey building does not
-    print every issue in the project onto the ground-floor plan. A pin with no Z is **kept**, not
-    dropped: it is genuinely located in plan and we do not know its level, and showing it on the
-    sheet the user asked for beats hiding it on every sheet.
+    Resolution is shared with the viewer (`aec_api.pins`), so one issue means the same thing on the
+    sheet and in 3D. Pins are filtered to the storey by Z against the cut, so a tall building does not
+    print every issue in the project onto the ground floor. A pin with no Z is **kept**: it is
+    genuinely located in plan and we do not know its level, and showing it on the sheet asked for
+    beats hiding it on every sheet. A pin with no position at all is kept too, unplaced — the engine
+    counts it in a note rather than letting the sheet under-report.
     """
-    from ..models import Topic
-    rows = (db.query(Topic)
-            .filter(Topic.project_id == pid, Topic.anchor.isnot(None))
-            .order_by(Topic.created_at.asc()).limit(500).all())
+    from .. import pins as pin_engine
+    rows = pin_engine.resolve_pins(db, pid, model=model)
     lo, hi = elevation - _PIN_BAND_M, elevation + cut_height + _PIN_BAND_M
     out: list[dict] = []
-    for t in rows:
-        a = t.anchor if isinstance(t.anchor, dict) else {}
-        z = a.get("z")
+    for p in rows:
+        z = p.get("z")
         if z is not None and not (lo <= float(z) <= hi):
             continue
-        out.append({"x": a.get("x"), "y": a.get("y"), "kind": t.type,
-                    "label": t.title or "", "guid": t.guid})
+        out.append({"x": p.get("x"), "y": p.get("y"), "kind": p.get("kind"),
+                    "label": p.get("label") or "", "guid": p.get("guid")})
     return out
 
 

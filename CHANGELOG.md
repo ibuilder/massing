@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.729 — an issue means the same thing wherever you raised it
+
+Raise an RFI in the register, tie it to a wall, and it now appears on the model and on the drawing —
+while still being the same record that carries the question, the answer and the workflow through to
+closed.
+
+Until now those were two different things that happened to share a name. One kind of issue could be
+placed on the model and seen; the other kind could be answered and closed. Tying a register RFI to a
+wall reported success and produced nothing you could look at. You could track an issue to completion
+or you could see where it was, and choosing one meant giving up the other.
+
+A pin is now simply any issue that is attached to something — however it was created. Its position
+comes from the element it refers to rather than being written down beside it, so moving a wall moves
+its pins with it instead of leaving them pointing at empty air.
+
+Not every register belongs on a drawing. An RFI, a punch item, an observation are about a place you
+can stand; a change order or a submittal is about the project as a whole. Only the ones that mean
+"look here" are drawn.
+
+Where a position cannot be worked out — no model loaded, or an element that will not build — the
+issue is still listed and counted as unlocated rather than quietly left out, so the number you see
+and the number that exists never disagree.
+
 ## v0.3.728 — the issue you raised now appears on the drawing
 
 Pin an RFI to a wall and it shows up on the plan: a numbered balloon at the place in the building it

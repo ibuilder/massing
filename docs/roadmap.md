@@ -27,100 +27,61 @@ non-gated work**.
 
 ## ▶ NOW — priority order (sprints of large chunks; one full-suite release per sprint)
 
-**Re-prioritized 2026-07-26 at v0.3.710, after a day that changed what the top of this list should
-be.** The lesson was not about features. Twice over, the thing that looked finished was not:
+**Re-prioritized 2026-07-27 at v0.3.728, after a live end-to-end test on an authored house.** Building
+a real 12x8 m building and driving a real RFI through it found things no unit test was positioned to
+see — a costing error of roughly 2x, a pin that never reached the sheet, and an index that goes behind
+the model in silence. The ordering below reflects that: **correctness a user would feel** first,
+**capacity and capability** after.
 
-*Our evidence was measuring nothing.* A render audit that had never been pointed at the shell it was
-built for. The same audit scoring an empty-state placeholder as content — a false pass, which ships
-rather than getting investigated. A "browser limitation" that was five handlers blocking the event
-loop. A suite run that never started, indistinguishable from one that passed.
+Every item here says what it is and why it is where it is. Completed work moves to the CHANGELOG and
+out of this list — a NOW list containing finished items is a list nobody trusts.
 
-*Our capability was unreachable.* **Seven of eleven things built that day shipped with no route** —
-tested, CI-green, and impossible to call. Every gate here measures the module; none measures whether a
-request can arrive.
-
-So the ordering below puts **reachability and evidence above new capability**, and will stay that way
-until the backlog of built-but-uncallable work is zero.
-
-### Actually open — 6 things
-
-Each line says what KIND of work it is, because "10 items" that mixes finished work, decisions
-already made, and things blocked on users reads as far more load than it is. Everything resolved has
-moved to [roadmap-completed.md](roadmap-completed.md); it is not listed here just because it was
-recently true.
-
-1. ~~**📌 PIN-TO-DRAWING**~~ **DONE v0.3.728.** `plan.svg?pins=true` renders numbered balloons at
-   world position, storey-filtered, kind-coloured. The route had NO `pins` parameter at all, so the
-   original `?pins=1` was silently ignored by FastAPI — accepted request, complete-looking sheet,
-   nothing on it. Off-extent pins are clamped and marked, not dropped; unlocatable pins are counted
-   in a note, not invented. 14 tests incl. label escaping into the SVG document.
-2. **🔗 RFI-PIN-DUALITY — two different objects are both called an RFI.** *Same test.* A register
-   record (`modules/rfi`, has the workflow, reaches `closed`) and a `Topic` with `type="rfi"` (has the
-   anchor, appears in `/pins`) are separate tables. Binding a register RFI to a wall via
-   `{rid}/elements` returns `count: 1` and produces **no pin**. So today you get workflow-to-closure
-   OR a pin, never both on one thing. Decide which is canonical and bridge it — probably: a register
-   record with element bindings should project an anchored Topic.
-3. **🕰 INDEX-STALE — the element index goes behind the model, silently.** *Diagnosed 07-27; the
-   "elements undercount" was this.* `/elements` reads a pre-computed `props.json` snapshot; the
-   takeoff reads the live IFC. Authoring edits change the IFC and do **not** refresh the index — only
-   an explicit `POST /projects/{pid}/publish` does. Proved: before republish `/elements`=2, after
-   `reindexed: 7` and `/elements`=7, matching the takeoff exactly. So neither number was wrong; the
-   snapshot was old and **nothing said so**. Do NOT reconvert per edit (expensive) — report freshness,
-   the same discipline `recordCache` already applies to record lists. Until then a model browser can
-   show a fraction of what you just drew and look correct doing it.
-4. **🌍 GEO-REF — we have no georeferencing of our own.** The kernel now ships `project-schema/geo.ts`
-   (CRS codes, linear units, `GeoReference`, `Extent`, accuracy). Our only georeferencing code is
-   inside ifcopenshell's own package. CLAUDE.md calls this out as a watch-out and nothing implements it.
-5. **📦 MASS-FILE — build the `.mass` container adapter.** The kernel ships the container *contract*
-   and one storage-backed reference adapter; there is no file writer (no zip lib in the tree at all).
-   Upstream issue [#6](https://github.com/MassingCloud/massingifc/issues/6) asks whether it belongs
-   there or here. A project package a user can save and send is ours to want.
+1. **🕰 INDEX-STALE — the element index goes behind the model, silently.** *Build; now the top.*
+`/elements` reads
+   a `props.json` snapshot; the takeoff reads the live IFC. Authoring edits move the IFC and leave the
+   snapshot until an explicit publish — proved live: `/elements` 2 → 7 after republish, matching the
+   takeoff exactly. Neither number was wrong; the snapshot was old and **nothing said so**. Do not
+   reconvert per edit (expensive) — report freshness, the discipline `recordCache` already applies to
+   record lists. A model browser can currently show a fraction of what you just drew and look correct.
+3. **🗃 CACHE — byte-bound, then share.** *Build, 2 deps approved.* See
+   [caching-research.md](caching-research.md). ~~Re-key by content~~ DONE v0.3.722. Remaining:
+   (a) byte-bound both caches with an explicit budget [`cachetools`, MIT]; (b) share baked geometry
+   across workers [`diskcache`, Apache-2.0]. Baking is the expensive half, so sharing it shrinks the
+   unshareable model cache — affinity may end up not being worth doing. Deps go in `requirements.in`
+   and the lock is regenerated by the `lockfile.yml` workflow, never on a dev box.
+4. **⚙ PERF-THREADS — bound concurrent MODEL work.** *Build, design settled.* One semaphore around
+   the IFC sites only, not a global cap. Deliberately deferred out of two long sessions because it is
+   a concurrency change and wants a fresh head, not a tired one.
+5. **🌍 GEO-REF — we have no georeferencing of our own.** *Build.* The kernel now ships
+   `project-schema/geo.ts` (CRS codes, linear units, `GeoReference`, `Extent`, accuracy). Our only
+   georeferencing code today lives inside ifcopenshell's package. CLAUDE.md names this as a watch-out
+   ("preserve real coordinates for export, render near scene origin") and nothing implements it.
 6. **🧩 KERNEL-ADOPT ③ — a capability onto the kernel.** *Build.* ① the identity boundary (v0.3.713)
    and ② markup through the plugin host (v0.3.717) both closed real defects; pick ③ from a real pain,
    not from the kernel's feature list. **Undo is not a candidate** — checked: model-level undo via
    versioned source IFC is stronger for authoring.
-2. **🗃 CACHE — byte-bound, then share.** *Build, needs 2 deps.* See
-   [caching-research.md](caching-research.md). ~~Re-key by content~~ DONE v0.3.722. Remaining:
-   (a) byte-bound both caches with an explicit budget [`cachetools`, MIT]; (b) share baked geometry
-   across workers [`diskcache`, Apache-2.0]. Baking is the expensive half, so sharing it shrinks the
-   unshareable model cache — affinity may end up not being worth doing.
-3. ~~**🌐 CACHE-JSON**~~ **DONE v0.3.723 + v0.3.726.** Three read views cached (ledger batches,
-   concept renders, proforma CIP) on top of the work-order list. **The earlier note here was wrong**:
-   it listed `aiassist` and `portal:1850` as consumers, and both are cases that must NEVER be cached.
-   Rule now in the code: SWR is for read views, never for the options of a control that writes or
-   sends. Four sites deliberately excluded — reference dropdowns (write path, no place for a label),
-   the bid-package picker (feeds real invitations), proforma listings (creates on empty → duplicate),
-   turnover certs (mixed freshness in one card).
-4. ~~**🔐 QUEUE-SCOPE**~~ **DONE v0.3.725.** Both offline queues (field captures, portal uploads)
-   now tag each entry with its creator and filter reads to it. Legacy untagged entries stay visible
-   and are never reassigned — the recommended default, taken. `identityScope` moved to `api/identity.ts`
-   as the one definition shared by the queues and the record cache. The load-bearing test is the
-   merge-on-write one: `loadQueue` returns a filtered view, so a naive save would delete other
-   people's unsent captures — mutation-checked.
-5. **⚙ PERF-THREADS — bound concurrent MODEL work.** *Build, design settled.* One small semaphore
-   around the IFC sites only, NOT a global cap — that would throttle ~70 cheap I/O calls to protect
-   ~10 expensive ones. Wants a session with room to think about starvation, not an appended hour.
-5. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** *Build.* `rdflib` approved; pin it in the
-   change that first uses it.
-6. **🖼 Demo regeneration + 📐 R27 tail + 🧱 decomposition carry-overs.** *Build, low stakes.* The
-   demo snapshot is stale since `expected_finish`; R27's tail is LAYOUT ①(b), CLAIM-TYPE in the
-   Inspector, FIRM-MEMORY, SKILL-GAP.
+7. **📦 MASS-FILE — build the `.mass` container adapter.** *Build, scope confirmed.* The kernel ships
+   the container *contract* (manifest, entries, `formatId`, the unity guarantee) and one storage-backed
+   reference adapter; there is **no file writer** — no zip library in the tree at all. Upstream
+   [issue #6](https://github.com/MassingCloud/massingifc/issues/6) asks whether it belongs there or
+   here. A project package a user can save and send is ours to want either way.
+8. **📄 PDF-LIB — adopt `@massingcloud/pdf-viewer`.** *Decide, then build.* MIT, deps `pdfjs-dist` +
+   `pdf-lib` (both permissive, pdf-lib already ours). 12,275 lines across 46 files against our
+   423-line `pdfTakeoff.ts` — a genuine superset, structured markup records rather than annotation
+   ink. Not yet published to npm, so adoption means vendoring (as with the kernel) or publishing
+   first. Open: [issue #9](https://github.com/MassingCloud/massing-pdf/issues/9) on public metadata.
+9. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** *Build.* `rdflib` approved; pin it in the
+   lock via the workflow.
+10. **🖼 Demo regeneration + 📐 R27 tail + 🧱 decomposition carry-overs.** *Build, low stakes.* The
+    demo snapshot predates the QTO fix, so its estimate numbers are the old doubled ones — regenerate
+    before anyone reads them as current.
 
-### Not work — decided, or waiting on something that is not effort
-
-* **UN-VENDOR the kernel — DECIDED: don't.** A registry publish or a submodule both cost more than
-  ~5.3k vendored lines with zero local patches and a `cp` to refresh. Revisit only if we adopt much
-  more of the kernel, or a third consumer appears and the copy becomes a fork.
-* **LAYOUT-IA — blocked on users, not on effort.** Parity is proven ([layout-parity.md](layout-parity.md)):
-  46/46 destinations roomed, nothing lost in any workspace, no empty rooms. What remains is *shape* —
-  `work` holds 3 against `model`'s 17 — and that wants **R26-V-TIMING** data rather than another
-  opinion.
-* **R26-V-TIMING — needs real users.** First-task completion per persona. Cannot be manufactured, and
-  three open questions above resolve the moment it exists.
-* **Owner decisions, not tasks:** `bcf-client` packaging exclusion is DONE (v0.3.720); the plugin
-  free/paid line is settled ([plugin-architecture-plan.md](plugin-architecture-plan.md)); what remains
-  is pricing, which wants customers.
-
+### Not effort — waiting on something
+- **`chore/deps-upgrades-2026`** (PR #69) — Capacitor 7→8, Postgres 16→17. Its own release, its own
+  suite run; 190 commits behind and crosses two majors.
+- **`security/audit-2026-07`** — findings R1–R4 need a decision from the user before it can land.
+- **R26-V-TIMING** — needs real users. Left open deliberately.
+- **Plugin pricing** — needs customers, not code.
 
 ## 🏗 R21 — LOD 400→500 DOCUMENTATION RING *(from a real LOD 400 shop-drawing set, 2026-07-25)*
 

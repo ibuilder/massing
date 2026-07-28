@@ -623,6 +623,35 @@ def list_pins(pid: str, limit: int = 2000, db: Session = Depends(get_db),
     return rows
 
 
+@router.get("/projects/{pid}/pins/all")
+def list_all_pins(pid: str, db: Session = Depends(get_db),
+                  _sec: str = Depends(require_role("viewer"))):
+    """Every pin, however it was attached — the union the sheet already draws.
+
+    `GET /pins` above returns only Topics with an explicit anchor, which is what the viewer has always
+    consumed. It misses the case a user is most likely to create: an RFI raised in the register and
+    tied to a wall. That record has the workflow and reaches `closed`; it just never had a position,
+    so nothing showed it. Here it does.
+
+    Positions for element-tied issues are derived from the model, so a pin follows its element instead
+    of pointing at where the element used to be. `unlocated` counts what could not be placed, because
+    a list that silently returns fewer pins than exist is the failure this endpoint was added to end.
+    """
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import pins as pin_engine
+    from ..deps import source_ifc_path
+    model = None
+    try:
+        model = open_model(source_ifc_path(db, pid))
+    except Exception:   # noqa: BLE001 — no model: anchored pins still resolve, element-tied ones report unlocated
+        model = None
+    rows = pin_engine.resolve_pins(db, pid, model=model)
+    placed = pin_engine.located(rows)
+    return {"pins": placed, "total": len(rows), "unlocated": len(rows) - len(placed),
+            "model_available": model is not None}
+
+
 # --- comments ----------------------------------------------------------------
 @router.post("/projects/{pid}/topics/{tid}/comments", response_model=CommentOut, status_code=201)
 def add_comment(pid: str, tid: str, body: CommentIn, db: Session = Depends(get_db),
