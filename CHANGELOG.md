@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.728 — the issue you raised now appears on the drawing
+
+Pin an RFI to a wall and it shows up on the plan: a numbered balloon at the place in the building it
+actually refers to, coloured by what kind of issue it is, labelled, and listed in order so the sheet
+can be read against an issue log.
+
+Until now it did not. Asking a plan for its pins was accepted and answered with a sheet that had no
+pins on it — the request looked fine, the drawing looked finished, and the thing you had flagged was
+simply absent. A drawing that quietly leaves out the open question is worse than one that never
+offered to show it.
+
+Two things it refuses to do. A pin that falls outside the drawn area is still drawn, pulled to the
+edge and marked, rather than dropped — an issue nobody can see is an issue nobody closes. And a pin
+with no usable position is not placed somewhere plausible; the sheet says how many it could not
+locate, so the count you see and the count that exists always agree.
+
+Pins are filtered to the storey being drawn, so a tall building does not print every issue in the
+project onto the ground floor. Ask for a plan without pins and you get exactly what you got before.
+
 ## v0.3.727 — a roof is priced by the roof, not by both sides of it
 
 A model-based estimate was measuring the wrong thing. Where a drawing carries no stated quantities,

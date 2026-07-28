@@ -49,10 +49,11 @@ already made, and things blocked on users reads as far more load than it is. Eve
 moved to [roadmap-completed.md](roadmap-completed.md); it is not listed here just because it was
 recently true.
 
-1. **📌 PIN-TO-DRAWING — a pin does not reach the generated drawing.** *Found by the 07-27 live
-   house test.* An anchored Topic appears correctly in `GET /pins`, but `plan.svg?pins=1` renders
-   **zero** pin markers — searched the output, nothing. The sheet generator never consumes pins. This
-   is the exact workflow "raise an RFI, pin it, see it on the drawing" and it stops at the last step.
+1. ~~**📌 PIN-TO-DRAWING**~~ **DONE v0.3.728.** `plan.svg?pins=true` renders numbered balloons at
+   world position, storey-filtered, kind-coloured. The route had NO `pins` parameter at all, so the
+   original `?pins=1` was silently ignored by FastAPI — accepted request, complete-looking sheet,
+   nothing on it. Off-extent pins are clamped and marked, not dropped; unlocatable pins are counted
+   in a note, not invented. 14 tests incl. label escaping into the SVG document.
 2. **🔗 RFI-PIN-DUALITY — two different objects are both called an RFI.** *Same test.* A register
    record (`modules/rfi`, has the workflow, reaches `closed`) and a `Topic` with `type="rfi"` (has the
    anchor, appears in `/pins`) are separate tables. Binding a register RFI to a wall via
