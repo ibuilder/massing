@@ -5,6 +5,7 @@ import { countNarrative, statusChip } from "../ui/chips";
 import { confirmModal, modalShell, promptModal } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
+import { buildPulse, pulseRailEl } from "./panels/pulse";
 import type { PanelContext } from "./panelContext";
 import { SECTIONS_BY_PERSONA, pushRecent, readCollapsedStages, readDensity, readFavs, readRecents, readRoomOpen, setDensity, setRoomOpen, setStageCollapsed, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
@@ -705,6 +706,53 @@ export class PortalUI {
     this.root.classList.toggle("dense", readDensity() === "compact");
   }
 
+  /**
+   * Fetch the five pulse inputs and insert the rail, or do nothing at all.
+   *
+   * Every source is asked **in parallel and independently** — `allSettled`, not `all` — because the
+   * whole point of a pulse is that it degrades. A project with no proforma still has a schedule; if
+   * one rejection could blank the rail, the panel would be least useful exactly on the messy jobs
+   * that need it most.
+   *
+   * The mapping from each engine's payload to `PulseInput` is the only place Pulse touches shapes it
+   * does not own, so it is kept narrow and optional-chained throughout: a renamed field costs a
+   * missing card, never a thrown home panel.
+   */
+  private async renderPulse(pid: string, root: HTMLElement) {
+    try {
+      const api = this.host.api as unknown as Record<string, (p: string) => Promise<unknown>>;
+      const call = async (name: string) => {
+        if (typeof api[name] !== "function") return null;
+        try { return await api[name]!(pid); } catch { return null; }
+      };
+      const [model, cost, sched, work, deal] = await Promise.all(
+        ["modelHealth", "costSummary", "scheduleVariance", "workQueue", "proformaLive"].map(call));
+
+      const n = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+      const g = (o: unknown, k: string): unknown => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined);
+
+      const cards = buildPulse({
+        model: model ? { score: n(g(model, "score")), issues: n(g(model, "issues")) } : null,
+        cost: cost ? { variancePct: n(g(cost, "variance_pct")) } : null,
+        schedule: sched ? { floatDays: n(g(sched, "float_days")) } : null,
+        work: work ? {
+          open: n(g(work, "count")) ?? (Array.isArray(g(work, "items")) ? (g(work, "items") as unknown[]).length : null),
+          mine: n(g(work, "mine")),
+          overdue: Array.isArray(g(work, "overdue")) ? (g(work, "overdue") as string[]).slice(0, 3) : null,
+        } : null,
+        deal: deal ? { irrPct: n(g(deal, "irr")) } : null,
+      });
+
+      const rail = pulseRailEl(cards);
+      // The home panel may have been re-rendered while this was in flight — appending into a root
+      // that is no longer on screen would leave a rail nobody can see and a duplicate on the next
+      // pass. Check before touching the DOM.
+      if (rail && root.isConnected) root.prepend(rail);
+    } catch {
+      /* a pulse that cannot be built is simply absent */
+    }
+  }
+
   private async renderHome() {
     this.root.innerHTML = "";
     const pid = this.host.projectId()!;
@@ -726,6 +774,14 @@ export class PortalUI {
     paintDens();
     densRow.append(densBtn);
     root.append(densRow);
+
+    // PROJECT PULSE — five numbers, each with a sentence naming what is at risk. Appended before the
+    // rest of the home panel so the state of the job is the first thing read, not the last.
+    //
+    // Deliberately fire-and-forget and fully fail-open: a summary must never be able to break the
+    // page it summarises. If an engine is slow or missing, the rail simply does not appear — which
+    // is also why `pulseRailEl` returns null for an empty pulse rather than an empty heading.
+    void this.renderPulse(pid, root);
 
     // cross-module search
     const search = el("input") as HTMLInputElement;

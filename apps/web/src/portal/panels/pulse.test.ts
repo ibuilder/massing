@@ -199,3 +199,19 @@ describe("rendering honours the rules the logic sets", () => {
     expect(pulseRailEl(buildPulse({ model: { score: 90 } }))).not.toBeNull();
   });
 });
+
+/**
+ * Reachability. This repo's most expensive recurring defect is building something correct that
+ * nothing calls — seven engines once shipped with no route, and every gate measured the engine while
+ * none measured the path to it. Pulse was in exactly that state for one release: tested, rendered,
+ * and imported by nobody.
+ */
+describe("the portal actually calls it", () => {
+  it("portal.ts imports and invokes the pulse", async () => {
+    const src = (await import("../portal.ts?raw") as { default: string }).default;
+    expect(typeof src, "?raw did not resolve — the assertions below would be vacuous").toBe("string");
+    expect(src.length).toBeGreaterThan(1000);
+    expect(src).toMatch(/from "\.\/panels\/pulse"/);
+    expect(src, "defined but never called is the orphan case").toMatch(/this\.renderPulse\(/);
+  });
+});

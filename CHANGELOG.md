@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.750 — Pulse is wired, and a test says so
+
+- v0.3.748/749 built the pulse and its renderer, and **nothing imported either**. That is this
+  repo's most expensive recurring defect — seven engines once shipped with no route, every gate
+  measuring the engine and none measuring the path to it. `portal.ts` now calls it on the home panel,
+  and a test asserts both the import and the call site so it cannot regress to an orphan.
+- **Sources are fetched independently and it degrades on purpose.** A project with no proforma still
+  has a schedule; one rejection must not blank the rail. Missing engine, renamed field or slow call
+  costs a card, never the page — `renderPulse` is fire-and-forget and swallows its own failures,
+  because a summary that can break the page it summarises is worse than no summary.
+- Guards against re-entrancy: the home panel can re-render while the fetch is in flight, so the rail
+  is only inserted if its root is still `isConnected` — otherwise you get an invisible rail now and a
+  duplicate on the next pass.
+
 ## v0.3.749 — Pulse renders, and the renderer keeps the logic's promises
 
 - `pulseCardEl` / `pulseRailEl`, kept **beside** the logic on purpose. "A card may say nothing" is
