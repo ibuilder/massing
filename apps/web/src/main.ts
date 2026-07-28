@@ -5,7 +5,8 @@ import { toast, escapeHtml, safeUrl } from "./ui/feedback";
 import { showResult } from "./ui/result";
 import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTabs";
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
-import { spineEnabled } from "./shell/spine";
+import { pinnedItems, renderPinnedRail } from "./shell/pinnedRail";
+import { destRoom, spineEnabled } from "./shell/spine";
 import { setRoomOpen } from "./portal/prefs";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
 import { maybeResumeTour, maybeRolePrompt, maybeWelcome, showWelcome, valueMomentPrompt } from "./ui/onboarding";
@@ -576,6 +577,25 @@ function goToRoom(roomId: string) {
   }, 120);
 }
 
+/**
+ * Paint the pinned rail. Reads `readFavs()`/`readRecents()` directly — they are the state, and a
+ * copy held here would be a second answer to "what is pinned".
+ */
+function paintPinnedRail() {
+  const host = document.getElementById("pinned-rail");
+  if (!host) return;
+  renderPinnedRail(host, pinnedItems(), null, (key) => {
+    // A pin points at a destination, and destinations live in rooms — so open the room that owns it
+    // rather than guessing a workspace. `destRoom` is the same mapping the portal rail uses.
+    // `destRoom` returns the room id or null — a destination the map does not place falls to Work,
+    // which is where anything unclassified belongs rather than nowhere.
+    goToRoom(destRoom(key) ?? "work");
+    setTimeout(() => {
+      document.querySelector<HTMLElement>(`[data-dest="${CSS.escape(key)}"]`)?.click();
+    }, 200);
+  });
+}
+
 let roomTabsActive = "model";
 function paintRoomTabs(active?: string) {
   if (active) roomTabsActive = active;
@@ -629,6 +649,7 @@ if (spineEnabled()) {
   // The five rooms ARE the navigation. They already existed as a sub-rail inside three of seven
   // workspaces; this promotes them, it does not invent them.
   paintRoomTabs(roomForWorkspace(localStorage.getItem("workspace") || "model"));
+  paintPinnedRail();
 } else {
   for (const w of WORKSPACES) {
     const b = document.createElement("button");

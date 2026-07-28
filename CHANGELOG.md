@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.764 — the pinned rail, and the live pass that was the real gate
+
+- **The rail renders state that already existed.** `readFavs()`/`readRecents()` have persisted since
+  the portal shipped; the rail was the missing surface, not missing data — the same finding as the
+  room tabs.
+- **An unpinned rail shows recents, labelled RECENT.** A new user has no favourites, and an empty
+  column beside a populated app reads as broken. But a recents list captioned PINNED would be worse:
+  the rail would look identical before and after somebody pinned anything, teaching them that
+  pinning does nothing. Never both lists at once — two identical rows meaning "I chose this" and "I
+  happened to be here" is a list nobody can read.
+- **Stale keys are dropped**, and that behaviour proved itself immediately: my own live probe seeded
+  `rfi`/`submittal`, which are not destination keys, and the filter silently removed them. The rail
+  was right and my test data was wrong.
+- **The live pass closed the gap I flagged in v0.3.763.** With a model loaded and the viewer mounted:
+  opening the More menu **closed** the Open menu (`openMenuClosed: true`) — the popup-pairing fix
+  that previously rested on source assertions only is now verified. No watermark. No console errors.
+  Five tabs, Work badge 70 matching that project's queue, "Close ACT-001 →" in the header.
+
 ## v0.3.763 — the three chrome defects from the screenshot
 
 - **The More menu no longer scrolls sideways.** `overflow: auto` permits *both* axes, so anything

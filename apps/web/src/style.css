@@ -1027,3 +1027,31 @@ body.embed #workspaces { display: none; }
 .nba-btn.nba-urgent { background: var(--warn, #d08324); }
 /* a phone has no room for a header CTA next to five tabs — the queue itself carries it there */
 @media (max-width: 900px) { #next-action { display: none; } }
+
+/* --- pinned rail (S4) ------------------------------------------------------------------------ */
+#pinned-rail {
+  grid-area: pins; display: flex; flex-direction: column; gap: 2px;
+  width: 72px; padding: 8px 4px; border-right: 1px solid var(--line);
+  background: var(--panel, #212327); overflow-y: auto; overflow-x: hidden;
+}
+#pinned-rail[hidden] { display: none; }
+.pin-cap {
+  font-size: 9px; letter-spacing: .09em; opacity: .5; text-transform: uppercase;
+  text-align: center; padding: 2px 0 6px;
+}
+.pin-item {
+  background: none; border: 0; color: var(--muted); cursor: pointer; font: inherit;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 7px 2px; border-radius: 6px; width: 100%;
+}
+.pin-item:hover { background: rgba(255,255,255,.08); color: var(--text); }
+.pin-item.active { background: rgba(255,255,255,.13); color: var(--text); }
+.pin-item:focus-visible { outline: 2px solid var(--accent, #4b9fff); outline-offset: -2px; }
+.pin-icon { font-size: 16px; line-height: 1; }
+/* the label is what makes this a rail rather than a row of riddles — it wraps, it does not clip */
+.pin-label {
+  font-size: 9.5px; line-height: 1.15; text-align: center; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+/* a phone cannot spare 72px of width for shortcuts */
+@media (max-width: 900px) { #pinned-rail { display: none; } }
