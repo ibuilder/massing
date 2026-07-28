@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.733 — the sample project's figures are rebuilt on the corrected measurements
+
+The demo dataset was captured on 23 July, before the measurement fix in v0.3.727, so some of the
+quantities it showed were the old inflated ones. It has been recaptured.
+
+The change is smaller and more specific than expected, which is worth saying plainly rather than
+rounding up. Only the items whose quantities are worked out from the shape were ever wrong: the
+ceiling and floor finishes drop from 506 m² to 252 m², which is the doubling being undone. The slabs
+do not move at all, because the sample model states its own slab quantities and those were always
+read directly. The project total goes from $837,344 to $823,383.
+
+That distinction is the whole shape of the original fix: it only ever affected drawings that carry no
+stated quantities. Everything else was, and stays, correct.
+
 ## v0.3.732 — groundwork for keeping the server responsive under load
 
 Preparing a model's geometry is the heaviest thing this server does, and each pass already spreads
