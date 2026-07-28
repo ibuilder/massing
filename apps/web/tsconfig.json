@@ -42,7 +42,9 @@
   },
   "include": [
     "src",
-    "scripts"
+    "scripts",
+    "capacitor.config.ts",
+    "vendorAlias.ts"
   ],
   "exclude": [
     "src/vendor/**/*.test.ts"

@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.753 — four review findings, including one where I mis-stated the facts
+
+- **v0.3.752 said the desktop/mobile build was "CI's" job. No such job exists.** A grep for
+  `capacitor|gradle|android|mobile` across all nine workflows returns nothing — CI runs npm ci, lint,
+  vitest, vite build and Tauri. **The Capacitor 8 major is verified nowhere.** I wrote a reassuring
+  sentence and did not check whether the reassurance was true, which is worse than saying "unverified"
+  because it stops anyone else looking.
+- **`capacitor.config.ts` was outside every gate** — tsconfig `include` was `["src","scripts"]` and
+  lint globbed `src/**/*.ts`, so the repo's only Capacitor consumer was invisible to typecheck and
+  lint. That is *why* "no web source imports Capacitor" read as true. Both now cover it, and with the
+  file inside typecheck the v8 `CapacitorConfig` type is confirmed compatible — the first actual
+  evidence the major is safe. `vendorAlias.ts` was in the same blind spot and is now included too.
+- **Version drift, reintroduced by the commit that fixed it.** The lock recorded `apps/web` at
+  0.3.751 against a 0.3.752 manifest, because the lock was regenerated *before* the bump. It had
+  been wrong since **0.3.655** — ~100 releases — because `npm ci` compares dependency edges, not
+  version fields, and nothing else reads it. `versionConsistency.test.ts` now asserts manifest,
+  `tauri.conf.json` and lock agree; mutation-checked against a planted 0.3.651.
+- **`engines: ">=24"` against CI pinned to Node 22.** ci/desktop/pages/security all said 22 while the
+  Dockerfile built on `node:24-slim`. With `engine-strict` unset this only ever surfaced as an
+  EBADENGINE warning. All four now run 24.
+
 ## v0.3.752 — Capacitor 8, resolved by the npm CI will actually use
 
 - `@capacitor/{android,cli,core,ios}` **7.6.8 → 8.4.2**, manifest and lock together. `npm ci

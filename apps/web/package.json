@@ -1,6 +1,6 @@
 {
   "name": "@aec/web",
-  "version": "0.3.752",
+  "version": "0.3.753",
   "private": true,
   "type": "module",
   "engines": {
@@ -16,7 +16,7 @@
     "build:desktop": "tsc --noEmit && vite build --mode desktop",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" capacitor.config.ts",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "lint:fast": "oxlint src",
     "test": "vitest run",
