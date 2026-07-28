@@ -5,11 +5,15 @@ The geometry-slot semaphore — the mechanism for PERF-THREADS.
 should run at once", and that second number is what thrashes a server: eight concurrent requests each
 starting a cpu-1 iterator asks for 8x(cpu-1) processes on a machine that has cpu.
 
-**The mechanism ships here; the 13 call sites are NOT yet wired to it.** Wiring means the slot has to
-be held for the iterator's *consumption*, not its creation, and every site has its own loop shape and
-early returns. That is a real refactor with a lifetime question in it, not a mechanical edit, and a
-half-wired concurrency guard reads as protection that is not there. These tests pin the primitive so
-the wiring is the only thing left to get right.
+All 13 sites are wired via `bounded_iterator`, which is what made this a one-line change per site
+rather than thirteen restructures: the slot has to span the iterator's **consumption**, not its
+construction, so the wrapper owns the lifetime instead of every differently-shaped loop.
+
+The safety argument, which is why wiring was reasonable at all: release is deterministic on both
+normal endings (`initialize()` False, `next()` False) and on exceptions, with `__del__` only as a
+backstop for an early `break`. And if the backstop ever misses, `geometry_slot` acquires with a
+timeout and proceeds anyway — so a leaked slot degrades to the unbounded behaviour we already had,
+never to a deadlock. The tests below assert every one of those paths.
 """
 import sys
 import threading
@@ -103,6 +107,107 @@ check("a timed-out pass does not release a slot it never held",
       geomconf._SLOTS.acquire(timeout=1),
       "over-releasing a BoundedSemaphore raises, and would do so far from the cause")
 geomconf._SLOTS.release()
+
+# --- the wrapper: does the slot span CONSUMPTION and get released every way a read ends? ------------
+geomconf._SLOTS = threading.BoundedSemaphore(1)
+geomconf._depth = threading.local()
+geomconf._WAIT_S = 0.2
+
+
+class FakeIt:
+    """Stands in for an ifcopenshell iterator. `n` shapes, then next() -> False."""
+
+    def __init__(self, n=2, init=True, raise_on=None):
+        self.n, self.init_ok, self.raise_on, self.i = n, init, raise_on, 0
+
+    def initialize(self):
+        if self.raise_on == "initialize":
+            raise RuntimeError("boom")
+        return self.init_ok
+
+    def get(self):
+        return f"shape{self.i}"
+
+    def next(self):
+        if self.raise_on == "next":
+            raise RuntimeError("boom")
+        self.i += 1
+        return self.i < self.n
+
+    def some_other_method(self):
+        return "passthrough"
+
+
+class FakeGeom:
+    def __init__(self, it): self._it = it
+    def iterator(self, settings, model, workers=None): return self._it
+
+
+def free_slots():
+    """How many slots are currently takeable."""
+    got = []
+    while geomconf._SLOTS.acquire(blocking=False):
+        got.append(1)
+    for _ in got:
+        geomconf._SLOTS.release()
+    return len(got)
+
+
+# exhausting the iterator releases
+it = geomconf.bounded_iterator(FakeGeom(FakeIt(n=2)), None, None)
+check("the wrapper holds a slot while reading", free_slots() == 0)
+it.initialize()
+while it.next():
+    pass
+check("exhausting the read RELEASES the slot", free_slots() == 1)
+
+# initialize() False releases immediately — nothing to iterate
+it = geomconf.bounded_iterator(FakeGeom(FakeIt(init=False)), None, None)
+it.initialize()
+check("initialize()==False releases at once", free_slots() == 1,
+      "a model with no geometry must not hold a slot for nothing")
+
+# an exception mid-read releases
+it = geomconf.bounded_iterator(FakeGeom(FakeIt(raise_on="next")), None, None)
+it.initialize()
+try:
+    it.next()
+except RuntimeError:
+    pass
+check("an exception during the read releases the slot", free_slots() == 1,
+      "a failed render must not permanently consume capacity")
+
+# early break relies on the GC backstop
+import gc  # noqa: E402
+
+it = geomconf.bounded_iterator(FakeGeom(FakeIt(n=99)), None, None)
+it.initialize(); it.next()
+check("an unfinished read still holds its slot", free_slots() == 0)
+del it
+gc.collect()
+check("dropping an unfinished reader releases it (GC backstop)", free_slots() == 1)
+
+# double release must never happen — it would raise on a BoundedSemaphore
+it = geomconf.bounded_iterator(FakeGeom(FakeIt(n=1)), None, None)
+it.initialize()
+it.next()          # exhausts -> releases
+it._finish()       # explicit second finish
+del it; gc.collect()
+check("release is idempotent — no double-release", free_slots() == 1,
+      "over-releasing a BoundedSemaphore raises, far from the cause")
+
+# unknown attributes pass through to the real iterator
+it = geomconf.bounded_iterator(FakeGeom(FakeIt()), None, None)
+check("unknown methods forward to the wrapped iterator", it.some_other_method() == "passthrough")
+del it; gc.collect()
+
+# nested: an inner pass must NOT take a second slot
+geomconf._SLOTS = threading.BoundedSemaphore(1)
+with geomconf.geometry_slot():
+    inner = geomconf.bounded_iterator(FakeGeom(FakeIt()), None, None)
+    check("a pass inside an existing slot does not take another", free_slots() == 0,
+          "and crucially does not block waiting for one")
+    del inner
 
 print()
 if FAILED:

@@ -33,7 +33,7 @@ import ifcopenshell.geom as geom
 import numpy as np
 
 from . import assembly_thermal
-from .geomconf import geom_workers
+from .geomconf import bounded_iterator
 
 # IFC class → (gbXML surfaceType, IDF surface type, IDF outside boundary condition)
 _SURFACE_KINDS: dict[str, tuple[str, str, str]] = {
@@ -159,7 +159,7 @@ def build(model: ifcopenshell.file) -> dict[str, Any]:
     surfaces: list[dict[str, Any]] = []
     default_construction_used: dict[str, int] = {}
     settings = geom.settings()
-    it = geom.iterator(settings, model, geom_workers())
+    it = bounded_iterator(geom, settings, model)
     if it.initialize():
         while True:
             shape = it.get()

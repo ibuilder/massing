@@ -80,7 +80,7 @@ from .edit_struct import (  # noqa: F401 — re-exported: routers/RECIPES/genera
     set_extrusion_depth,
     set_wall_slope,
 )
-from .geomconf import geom_workers
+from .geomconf import bounded_iterator
 from .ifc_loader import open_model
 
 _DTYPE = {"bool": "IfcBoolean", "str": "IfcLabel", "float": "IfcReal", "int": "IfcInteger"}
@@ -192,7 +192,7 @@ def add_spaces(model: ifcopenshell.file, rooms_per_storey: int = 4,
     building = {"ifcwall", "ifcwallstandardcase", "ifcslab", "ifcroof", "ifcwindow",
                 "ifcdoor", "ifccolumn", "ifcbeam", "ifcstair", "ifccovering"}
     settings = geom.settings()
-    it = geom.iterator(settings, model, geom_workers())
+    it = bounded_iterator(geom, settings, model)
     mn = np.array([1e18, 1e18, 1e18]); mx = -mn
     if it.initialize():
         while True:
@@ -514,7 +514,7 @@ def furnish_spaces(model: ifcopenshell.file, item: str = "desk", per_room: int =
 
     # per-space footprint bbox from the baked geometry (SI metres, as add_spaces reads it)
     settings = geom.settings()
-    it = geom.iterator(settings, model, geom_workers())
+    it = bounded_iterator(geom, settings, model)
     boxes: dict[str, tuple] = {}
     if it.initialize():
         while True:
@@ -594,7 +594,7 @@ def program_fit(model: ifcopenshell.file, program: dict, item: str = "desk") -> 
 
     # capacity per space from the baked footprint (same math as furnish_spaces)
     settings = geom.settings()
-    it = geom.iterator(settings, model, geom_workers())
+    it = bounded_iterator(geom, settings, model)
     rooms: list[dict] = []
     if it.initialize():
         while True:
@@ -672,7 +672,7 @@ def _furnish_allocated(model: ifcopenshell.file, allocation: dict, item: str) ->
     targets = {s["guid"]: s["seats"] for a in allocation.values() for s in a["spaces"]}
 
     settings = geom.settings()
-    it = geom.iterator(settings, model, geom_workers())
+    it = bounded_iterator(geom, settings, model)
     boxes: dict[str, tuple] = {}
     if it.initialize():
         while True:

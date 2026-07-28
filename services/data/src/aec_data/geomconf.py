@@ -96,3 +96,85 @@ def geometry_slot():
         _depth.n = 0
         if got:
             _SLOTS.release()
+
+
+class _SlottedIterator:
+    """An ifcopenshell geometry iterator that holds a concurrency slot for as long as it is being read.
+
+    The slot has to span **consumption**, not construction — the work is in `next()`, not in building
+    the object. Wrapping the iterator instead of the call site is what makes this a one-line change at
+    thirteen places rather than thirteen restructures of loops that all differ.
+
+    Release is deterministic on both ways a read ends normally:
+      - `initialize()` returning False — nothing to iterate, so let go immediately;
+      - `next()` returning False — exhausted.
+    `__del__` is a **backstop only**, for a caller that breaks out early or raises. It is not the
+    primary path, because relying on GC for a concurrency primitive is how you get a hang that
+    reproduces once a week.
+
+    **And if the backstop misses entirely, nothing breaks.** `geometry_slot` acquires with a timeout
+    and proceeds regardless, so a leaked slot degrades this to the unbounded behaviour we already had
+    — never to a deadlock. That property is what makes wiring it safe rather than clever.
+    """
+
+    __slots__ = ("_it", "_rel", "_done")
+
+    def __init__(self, it, release):
+        self._it, self._rel, self._done = it, release, False
+
+    def _finish(self):
+        if not self._done:
+            self._done = True
+            try:
+                self._rel()
+            except Exception:   # noqa: BLE001 — releasing must never raise into a render
+                pass
+
+    def initialize(self):
+        try:
+            ok = self._it.initialize()
+        except Exception:
+            self._finish()
+            raise
+        if not ok:
+            self._finish()
+        return ok
+
+    def get(self):
+        return self._it.get()
+
+    def next(self):
+        try:
+            ok = self._it.next()
+        except Exception:
+            self._finish()
+            raise
+        if not ok:
+            self._finish()
+        return ok
+
+    def __getattr__(self, name):        # anything else (get_native, etc.) passes straight through
+        return getattr(self._it, name)
+
+    def __del__(self):
+        self._finish()
+
+
+def bounded_iterator(geom_module, settings, model):
+    """`geom.iterator(settings, model, geom_workers())`, bounded by a concurrency slot.
+
+    Drop-in: the returned object answers `initialize` / `get` / `next` like the real iterator and
+    forwards everything else. Use this at every geometry site so the number of simultaneous
+    tessellations is bounded, while each pass keeps its own worker processes.
+    """
+    if getattr(_depth, "n", 0):          # already inside a slot on this thread — do not take another
+        return geom_module.iterator(settings, model, geom_workers())
+    got = _SLOTS.acquire(timeout=_WAIT_S)
+    if not got:
+        _log.warning("geometry slot wait exceeded %.0fs — proceeding unbounded", _WAIT_S)
+
+    def _release():
+        if got:
+            _SLOTS.release()
+
+    return _SlottedIterator(geom_module.iterator(settings, model, geom_workers()), _release)

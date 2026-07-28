@@ -80,7 +80,8 @@ def per_element_deviation(model, points: Any, tolerance: float = 0.05,
     with contextlib.suppress(Exception):
         settings.set(settings.USE_WORLD_COORDS, True)
     out: list[dict[str, Any]] = []
-    it = geom.iterator(settings, model)
+    from aec_data.geomconf import bounded_iterator  # type: ignore
+    it = bounded_iterator(geom, settings, model)
     if not it.initialize():
         return {"elements": [], "tolerance": tolerance, "scan_points": int(len(pts)),
                 "error": "no geometry in model", "covered": 0, "uncovered": 0,
@@ -202,7 +203,8 @@ def model_surface_points(model, max_points: int = 200000):
 
     settings = geom.settings()
     verts: list = []
-    it = geom.iterator(settings, model)
+    from aec_data.geomconf import bounded_iterator  # type: ignore
+    it = bounded_iterator(geom, settings, model)
     if it.initialize():
         while True:
             shape = it.get()
