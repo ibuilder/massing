@@ -1,7 +1,8 @@
 /**
- * Where `@massingifc/*` resolves — defined **once**.
+ * Where the vendored packages resolve — defined **once**.
  *
- * The vendored kernel (`src/vendor/massingifc`) is copied verbatim from the upstream repo, which
+ * The vendored packages (`src/vendor/massingifc`, `src/vendor/massingpdf`) are copied verbatim from
+ * their upstream repos, which
  * means its cross-package imports say `@massingifc/core-kernel` rather than a relative path. Three
  * tools need to be told what that means: `tsc` (via `paths` in tsconfig.json), the app build (Vite)
  * and the tests (Vitest).
@@ -21,6 +22,7 @@ export const VENDOR_ENTRIES: Readonly<Record<string, string>> = {
   "@massingifc/core-kernel": "./src/vendor/massingifc/core-kernel/index.ts",
   "@massingifc/plugin-sdk": "./src/vendor/massingifc/plugin-sdk/index.ts",
   "@massingifc/project-schema": "./src/vendor/massingifc/project-schema/index.ts",
+  "@massingcloud/pdf-viewer": "./src/vendor/massingpdf/index.ts",
 };
 
 /** The same map as absolute paths, which is what Vite and Vitest want. */

@@ -43,11 +43,13 @@ out of this list — a NOW list containing finished items is a list nobody trust
    hidden in Construction. **Two of my own diagnoses here were wrong**, both from asserting on things
    that looked like evidence: `.portal-filter` also exists in the modelling rail, and the control
    labelled "Home" is a Finance sub-tab (`data-fin=home`) inside a hidden workspace.
-1. **📄 PDF-LIB — adopt `@massingcloud/pdf-viewer`.** *Build; now the top.* MIT, deps `pdfjs-dist`
-   + `pdf-lib` (already ours). 12,275 lines / 46 files against our 423-line `pdfTakeoff.ts` — a
-   genuine superset: structured markup RECORDS (author, sheet revision, discipline, what it measures,
-   spec clause, IFC object, review status) rather than annotation ink. **Not on npm**, so adoption
-   means vendoring as we did the kernel.
+1. **📄 PDF-ADOPT ② — move the takeoff flow onto the vendored engine.** *Build; ① vendored
+   v0.3.740.* `@massingcloud/pdf-viewer` is copied at `65e9011`, aliased through the one map, zero
+   local patches, 5 reachability tests, **no new dependency** (its only externals are `pdfjs-dist`
+   and `pdf-lib`, both already ours) and **not in the eager bundle** (entry stayed 346 KB).
+   `drawings/pdfTakeoff.ts` still owns the flow. Replace it in slices — open/render first, then
+   markup, then calibrated takeoff — so a regression stays bisectable. Publishing upstream to npm
+   would let us drop the vendoring entirely; that is a decision, not a blocker.
 2. Reconciled **2026-07-27 at v0.3.726**.
 
 **The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`

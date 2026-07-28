@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.740 — the drawing-review engine is in the building
+
+The engine behind PDF drawing review — viewing, markup, calibrated takeoff, issue pinning, revision
+compare — now lives in this repository and is wired in. Nothing has changed about how takeoff works
+today; this is the groundwork under it.
+
+It treats a markup as a **record** rather than as ink: who drew it, against which sheet revision, in
+which discipline, what it measures, which spec clause it cites, which object in the model it refers
+to, and where it stands in review. What you see on the sheet is one view of that record. The same
+record is also what gets exported, handed to another tool, or counted in a quantity.
+
+**Nothing has been replaced yet, deliberately.** Bringing in twelve thousand lines and re-pointing
+the interface at them in one move would mean that if drawing review broke, there would be no way to
+tell which half did it. The existing takeoff still runs the flow; moving to the new engine is a
+separate, checkable step.
+
+It brings no new third-party code with it — everything it needs was already here — and it adds
+nothing to what the browser downloads on startup.
+
 ## v0.3.739 — opening a project takes you to the project
 
 Opening a project now puts you where your job starts. A superintendent lands in Construction, an

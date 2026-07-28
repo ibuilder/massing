@@ -33,6 +33,9 @@
       ],
       "@massingifc/project-schema": [
         "./src/vendor/massingifc/project-schema/index.ts"
+      ],
+      "@massingcloud/pdf-viewer": [
+        "./src/vendor/massingpdf/index.ts"
       ]
     },
     "baseUrl": "."

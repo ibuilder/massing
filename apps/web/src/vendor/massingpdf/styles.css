@@ -1,0 +1,756 @@
+/**
+ * Viewer chrome. Every colour is a CSS custom property so a host can re-theme without forking the
+ * stylesheet — Massing overrides `--mpdf-*` from its own tokens and gets a viewer that matches the
+ * rest of the app. Defaults are dark, which is what a drawing on a white sheet wants around it.
+ */
+
+.mpdf-root {
+  --mpdf-bg: #1b1d22;
+  --mpdf-panel: #23262d;
+  --mpdf-panel-2: #2a2e36;
+  --mpdf-line: #3a3f47;
+  --mpdf-fg: #e8eaed;
+  --mpdf-muted: #98a0ab;
+  --mpdf-accent: #4a8cff;
+  --mpdf-danger: #e2554a;
+  --mpdf-warn: #d8a200;
+  --mpdf-ok: #33d17a;
+  --mpdf-canvas: #33363d;
+  --mpdf-radius: 6px;
+  --mpdf-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--mpdf-bg);
+  color: var(--mpdf-fg);
+  font-family: var(--mpdf-font);
+  font-size: 13px;
+  outline: none;
+}
+
+/* ---- toolbar ------------------------------------------------------------ */
+
+.mpdf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--mpdf-line);
+  background: var(--mpdf-panel);
+}
+
+.mpdf-tb-group {
+  display: flex;
+  gap: 2px;
+  padding-right: 6px;
+  margin-right: 2px;
+  border-right: 1px solid var(--mpdf-line);
+}
+.mpdf-tb-group:last-of-type { border-right: none; }
+
+.mpdf-tb-btn {
+  min-width: 30px;
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: var(--mpdf-radius);
+  background: transparent;
+  color: var(--mpdf-fg);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mpdf-tb-btn:hover:not(:disabled) { background: var(--mpdf-panel-2); border-color: var(--mpdf-line); }
+.mpdf-tb-btn:disabled { opacity: 0.35; cursor: default; }
+.mpdf-tb-btn.is-active {
+  background: color-mix(in srgb, var(--mpdf-accent) 22%, transparent);
+  border-color: var(--mpdf-accent);
+  color: #fff;
+}
+
+.mpdf-tb-spacer { flex: 1 1 auto; }
+
+.mpdf-tb-page { display: flex; align-items: center; gap: 4px; color: var(--mpdf-muted); }
+.mpdf-page-input {
+  width: 52px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--mpdf-line);
+  border-radius: var(--mpdf-radius);
+  background: var(--mpdf-bg);
+  color: var(--mpdf-fg);
+  font: inherit;
+  text-align: right;
+}
+
+/* ---- body --------------------------------------------------------------- */
+
+.mpdf-body { display: flex; flex: 1; min-height: 0; }
+
+.mpdf-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 268px;
+  min-width: 0;
+  padding: 10px;
+  overflow-y: auto;
+  background: var(--mpdf-panel);
+}
+.mpdf-side-left { border-right: 1px solid var(--mpdf-line); }
+.mpdf-side-right { border-left: 1px solid var(--mpdf-line); }
+
+.mpdf-panel { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.mpdf-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mpdf-muted);
+}
+.mpdf-panel-body { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+
+.mpdf-scroll {
+  position: relative;
+  flex: 1;
+  overflow: auto;
+  background: var(--mpdf-canvas);
+  /* The viewer implements pinch itself (see `updatePinch`), so the browser's own must stay out of
+     it — two zooms applied to a canvas that is already re-rasterising fight each other. One-finger
+     behaviour is set on `.mpdf-pages` at runtime: it scrolls in select mode and draws when a tool
+     is armed. */
+  touch-action: pan-x pan-y;
+  overscroll-behavior: contain;
+}
+
+.mpdf-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--mpdf-page-gap, 16px);
+  padding: 16px;
+  min-width: min-content;
+}
+
+.mpdf-page-wrap {
+  position: relative;
+  flex: none;
+  background: #fff;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 45%);
+}
+
+.mpdf-page { position: absolute; inset: 0; line-height: 0; }
+.mpdf-tile { display: block; }
+
+.mpdf-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  /* The overlay must not eat clicks meant for the page; annotation groups opt back in. */
+  pointer-events: none;
+  overflow: visible;
+}
+.mpdf-annot { pointer-events: none; }
+.mpdf-handle, .mpdf-sel-box { pointer-events: none; }
+
+/* ---- status bar --------------------------------------------------------- */
+
+.mpdf-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--mpdf-line);
+  background: var(--mpdf-panel);
+  color: var(--mpdf-muted);
+  font-size: 11px;
+}
+.mpdf-status-left { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mpdf-status-right { margin-left: auto; white-space: nowrap; }
+
+.mpdf-notice {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 8px;
+  border-radius: var(--mpdf-radius);
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 140ms ease, transform 140ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mpdf-notice.is-shown { opacity: 1; transform: none; }
+.mpdf-notice[data-level="success"] { color: var(--mpdf-ok); }
+.mpdf-notice[data-level="warn"] { color: var(--mpdf-warn); }
+.mpdf-notice[data-level="error"] { color: var(--mpdf-danger); }
+.mpdf-notice[data-level="info"] { color: var(--mpdf-accent); }
+
+/* ---- form controls ------------------------------------------------------ */
+
+.mpdf-input, .mpdf-select {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--mpdf-line);
+  border-radius: var(--mpdf-radius);
+  background: var(--mpdf-bg);
+  color: var(--mpdf-fg);
+  font: inherit;
+  font-size: 12px;
+}
+.mpdf-select { padding-right: 4px; }
+
+.mpdf-icon-btn {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mpdf-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mpdf-icon-btn:hover { background: var(--mpdf-panel-2); border-color: var(--mpdf-line); color: var(--mpdf-fg); }
+
+.mpdf-empty { margin: 6px 0; color: var(--mpdf-muted); font-size: 12px; line-height: 1.45; }
+.mpdf-warn { color: var(--mpdf-warn); }
+
+/* ---- markup list -------------------------------------------------------- */
+
+.mpdf-list-controls { display: flex; gap: 4px; }
+.mpdf-list-controls .mpdf-select { flex: 1; }
+
+.mpdf-chips { display: flex; flex-direction: column; gap: 4px; }
+.mpdf-chip-group { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
+.mpdf-chip-label {
+  width: 100%;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mpdf-muted);
+}
+.mpdf-chip {
+  --chip-color: var(--mpdf-muted);
+  padding: 2px 7px;
+  border: 1px solid var(--mpdf-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mpdf-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.mpdf-chip:hover { border-color: var(--chip-color); color: var(--mpdf-fg); }
+.mpdf-chip.is-on {
+  border-color: var(--chip-color);
+  background: color-mix(in srgb, var(--chip-color) 22%, transparent);
+  color: #fff;
+}
+.mpdf-chip-clear { border-style: dashed; }
+
+.mpdf-list-summary { color: var(--mpdf-muted); font-size: 11px; }
+.mpdf-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+.mpdf-list-group {
+  margin-top: 8px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--mpdf-line);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mpdf-muted);
+}
+
+.mpdf-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--mpdf-radius);
+  cursor: pointer;
+}
+.mpdf-row:hover { background: var(--mpdf-panel-2); }
+.mpdf-row.is-selected { border-color: var(--mpdf-accent); background: color-mix(in srgb, var(--mpdf-accent) 12%, transparent); }
+.mpdf-row-swatch { flex: none; width: 4px; align-self: stretch; border-radius: 2px; }
+.mpdf-row-main { flex: 1; min-width: 0; }
+.mpdf-row-title { font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.mpdf-row-meta { margin-top: 2px; color: var(--mpdf-muted); font-size: 10.5px; }
+.mpdf-row-note { margin-top: 3px; color: var(--mpdf-muted); font-size: 11px; line-height: 1.4; }
+.mpdf-row-replies { margin-top: 3px; color: var(--mpdf-accent); font-size: 10.5px; }
+.mpdf-row-qty { flex: none; color: var(--mpdf-fg); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---- issues ------------------------------------------------------------- */
+
+.mpdf-issues-bar { display: flex; gap: 4px; }
+.mpdf-issues-list { display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
+
+.mpdf-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--mpdf-radius);
+  cursor: pointer;
+}
+.mpdf-issue:hover { background: var(--mpdf-panel-2); }
+.mpdf-issue.is-selected { border-color: var(--mpdf-accent); }
+.mpdf-issue-badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+.mpdf-issue-main { flex: 1; min-width: 0; }
+.mpdf-issue-title { font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.mpdf-issue-meta { margin-top: 2px; color: var(--mpdf-muted); font-size: 10.5px; }
+.mpdf-issue-tools { display: flex; gap: 1px; }
+
+/* ---- takeoff ------------------------------------------------------------ */
+
+.mpdf-takeoff { display: flex; flex-direction: column; gap: 6px; }
+.mpdf-takeoff-scale { color: var(--mpdf-muted); font-size: 11px; }
+
+.mpdf-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.mpdf-table th {
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--mpdf-line);
+  color: var(--mpdf-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mpdf-table td { padding: 3px 4px; border-bottom: 1px solid color-mix(in srgb, var(--mpdf-line) 55%, transparent); }
+.mpdf-table td:nth-child(2), .mpdf-table td:nth-child(3) { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---- tool chest --------------------------------------------------------- */
+
+.mpdf-chest-name { color: var(--mpdf-muted); font-size: 11px; font-weight: 600; }
+.mpdf-chest-grid { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 6px; }
+.mpdf-chest-tool {
+  padding: 4px 8px;
+  border: 1px solid var(--mpdf-line);
+  border-left: 3px solid var(--mpdf-accent);
+  border-radius: 4px;
+  background: var(--mpdf-bg);
+  color: var(--mpdf-fg);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.mpdf-chest-tool:hover { background: var(--mpdf-panel-2); }
+
+/* ---- sheet index -------------------------------------------------------- */
+
+.mpdf-sheet-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+.mpdf-sheet-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--mpdf-line);
+  border-radius: var(--mpdf-radius);
+  background: var(--mpdf-bg);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mpdf-sheet-card:hover { border-color: var(--mpdf-muted); }
+.mpdf-sheet-card.is-current { border-color: var(--mpdf-accent); box-shadow: 0 0 0 1px var(--mpdf-accent); }
+.mpdf-sheet-thumb { min-height: 60px; background: #fff; border-radius: 3px; overflow: hidden; }
+.mpdf-sheet-thumb canvas { display: block; width: 100%; height: auto; }
+.mpdf-sheet-cap { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.mpdf-sheet-cap strong { font-size: 12px; }
+.mpdf-sheet-cap span {
+  color: var(--mpdf-muted);
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mpdf-sheet-tag { color: var(--mpdf-accent); font-size: 10px; font-style: normal; }
+.mpdf-sheet-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  min-width: 16px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: var(--mpdf-danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ---- text layer --------------------------------------------------------- */
+
+.mpdf-textlayer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  transform-origin: 0 0;
+  /* Glyph boxes only — the text is invisible, the selection highlight is not. */
+  opacity: 1;
+  line-height: 1;
+  user-select: text;
+}
+.mpdf-textlayer span { position: absolute; color: transparent; white-space: pre; cursor: text; }
+.mpdf-textlayer ::selection { background: color-mix(in srgb, var(--mpdf-accent) 45%, transparent); }
+.mpdf-textlayer ::-moz-selection { background: rgb(74 140 255 / 45%); }
+
+/* ---- search ------------------------------------------------------------- */
+
+.mpdf-search-results { max-height: 46vh; }
+.mpdf-hit-source {
+  flex: none;
+  align-self: flex-start;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--mpdf-panel-2);
+  color: var(--mpdf-muted);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.mpdf-hit-source[data-source="markup"] { color: var(--mpdf-accent); }
+.mpdf-hit-source[data-source="sheet"] { color: var(--mpdf-ok); }
+.mpdf-hit-source[data-source="submittal"] { color: var(--mpdf-accent); }
+.mpdf-hit-source[data-source="quality"] { color: var(--mpdf-warn); }
+.mpdf-hit-source[data-source="warranty"] { color: var(--mpdf-ok); }
+.mpdf-hit-source[data-source="closeout"] { color: #a24bd0; }
+.mpdf-hit-mark { background: color-mix(in srgb, var(--mpdf-warn) 45%, transparent); color: inherit; border-radius: 2px; }
+
+.mpdf-search-flash {
+  border: 2px solid var(--mpdf-warn);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--mpdf-warn) 20%, transparent);
+  animation: mpdf-flash 2.2s ease-out forwards;
+}
+@keyframes mpdf-flash {
+  0%, 60% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mpdf-search-flash { animation: none; }
+}
+
+/* ---- specifications ----------------------------------------------------- */
+
+.mpdf-spec-list { max-height: 52vh; }
+.mpdf-spec-section { border-bottom: 1px solid var(--mpdf-line); }
+.mpdf-spec-heading {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 5px 2px;
+  cursor: pointer;
+  list-style: none;
+}
+.mpdf-spec-heading::-webkit-details-marker { display: none; }
+.mpdf-spec-heading strong { font-variant-numeric: tabular-nums; font-size: 12px; }
+.mpdf-spec-heading span {
+  color: var(--mpdf-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mpdf-spec-heading:hover span { color: var(--mpdf-fg); }
+
+.mpdf-spec-clause {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 3px 2px 3px 10px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.mpdf-spec-clause:hover { background: var(--mpdf-panel-2); }
+.mpdf-spec-clause[data-depth="0"] { font-weight: 700; padding-left: 4px; }
+.mpdf-spec-clause[data-depth="1"] { font-weight: 600; padding-left: 10px; }
+.mpdf-spec-clause[data-depth="2"] { padding-left: 20px; }
+.mpdf-spec-clause[data-depth="3"] { padding-left: 32px; color: var(--mpdf-muted); }
+.mpdf-spec-ref {
+  flex: none;
+  min-width: 34px;
+  color: var(--mpdf-accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+}
+.mpdf-spec-clause .mpdf-icon-btn { margin-left: auto; opacity: 0; }
+.mpdf-spec-clause:hover .mpdf-icon-btn { opacity: 1; }
+
+/* ---- provenance --------------------------------------------------------- */
+
+.mpdf-provenance { display: flex; flex-direction: column; gap: 4px; }
+.mpdf-prov-row { display: flex; gap: 8px; align-items: baseline; font-size: 11.5px; }
+.mpdf-prov-key { flex: none; width: 82px; color: var(--mpdf-muted); font-size: 10.5px; }
+.mpdf-prov-val {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mpdf-fg);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mpdf-prov-val:hover { border-color: var(--mpdf-line); background: var(--mpdf-bg); }
+.mpdf-prov-val.is-empty { color: var(--mpdf-muted); }
+
+.mpdf-transcript {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--mpdf-accent);
+  background: var(--mpdf-bg);
+  color: var(--mpdf-fg);
+  font-size: 11.5px;
+  font-style: italic;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* ---- attachments -------------------------------------------------------- */
+
+.mpdf-attachments { display: flex; flex-direction: column; gap: 8px; }
+.mpdf-dropzone {
+  padding: 14px 10px;
+  border: 1px dashed var(--mpdf-line);
+  border-radius: var(--mpdf-radius);
+  color: var(--mpdf-muted);
+  font-size: 11.5px;
+  text-align: center;
+  cursor: pointer;
+}
+.mpdf-dropzone:hover, .mpdf-dropzone.is-over { border-color: var(--mpdf-accent); color: var(--mpdf-fg); }
+
+.mpdf-attach-list { display: flex; flex-direction: column; gap: 4px; }
+.mpdf-attach {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 5px;
+  border: 1px solid var(--mpdf-line);
+  border-radius: var(--mpdf-radius);
+  cursor: pointer;
+}
+.mpdf-attach:hover { background: var(--mpdf-panel-2); }
+.mpdf-attach-thumb { flex: none; width: 40px; height: 40px; border-radius: 3px; object-fit: cover; }
+.mpdf-attach-glyph { flex: none; width: 40px; font-size: 20px; text-align: center; }
+
+/* ---- compare ------------------------------------------------------------ */
+
+.mpdf-compare-overlay { mix-blend-mode: multiply; }
+
+/* ---- split view --------------------------------------------------------- */
+
+.mpdf-split {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 45%;
+  min-width: 0;
+  border-left: 1px solid var(--mpdf-line);
+}
+.mpdf-split-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--mpdf-line);
+  background: var(--mpdf-panel);
+  font-size: 11.5px;
+}
+.mpdf-split-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--mpdf-muted);
+}
+.mpdf-split-body { position: relative; flex: 1; min-height: 0; }
+/* The nested viewer supplies its own chrome; the split pane only needs the sheet. */
+.mpdf-split-body .mpdf-toolbar,
+.mpdf-split-body .mpdf-side,
+.mpdf-split-body .mpdf-status { display: none; }
+
+/* ---- tracing overlay ---------------------------------------------------- */
+
+.mpdf-tracing-controls {
+  position: absolute;
+  right: 16px;
+  bottom: 44px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--mpdf-line);
+  border-radius: var(--mpdf-radius);
+  background: var(--mpdf-panel);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 40%);
+  font-size: 11.5px;
+}
+.mpdf-tracing-controls input[type="range"] { width: 120px; }
+
+/* ---- voice recording ---------------------------------------------------- */
+
+.mpdf-recording {
+  position: absolute;
+  left: 50%;
+  bottom: 44px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--mpdf-danger);
+  border-radius: 999px;
+  background: var(--mpdf-panel);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 45%);
+  transform: translateX(-50%);
+  font-size: 12px;
+}
+.mpdf-recording-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--mpdf-danger);
+  animation: mpdf-pulse 1.2s ease-in-out infinite;
+}
+.mpdf-recording-time { font-variant-numeric: tabular-nums; min-width: 34px; }
+@keyframes mpdf-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .mpdf-recording-dot { animation: none; } }
+
+.mpdf-attach-audio { width: 150px; height: 32px; }
+
+/* ---- spec cross-references ---------------------------------------------- */
+
+.mpdf-spec-refs {
+  flex: none;
+  color: var(--mpdf-accent);
+  font-size: 10px;
+  font-style: normal;
+  cursor: pointer;
+}
+.mpdf-spec-refs:hover { text-decoration: underline; }
+
+/* ---- narrow / field layout ---------------------------------------------- */
+
+@media (max-width: 900px) {
+  .mpdf-side { position: absolute; z-index: 20; top: 0; bottom: 0; width: 84vw; max-width: 320px; }
+  .mpdf-side-left { left: 0; box-shadow: 6px 0 18px rgb(0 0 0 / 40%); }
+  .mpdf-side-right { right: 0; box-shadow: -6px 0 18px rgb(0 0 0 / 40%); }
+  .mpdf-side:empty, .mpdf-side[hidden] { display: none; }
+  /* Bigger targets: this is the one-thumb, gloved-hand case. */
+  .mpdf-tb-btn { min-width: 38px; height: 36px; font-size: 16px; }
+  .mpdf-icon-btn { width: 30px; height: 30px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mpdf-notice { transition: none; }
+}
+
+/* ---- accessibility ------------------------------------------------------ */
+
+/*
+ * Available to a screen reader, invisible on screen.
+ *
+ * `display: none` and `visibility: hidden` both remove an element from the accessibility tree, so
+ * neither works for a live region. This is the clip-rect technique, which keeps it rendered.
+ */
+.mpdf-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/*
+ * A visible focus ring on everything reachable by keyboard.
+ *
+ * `:focus-visible` rather than `:focus`, so a mouse click does not leave a ring behind — that is
+ * what usually leads someone to remove focus styling altogether, which is what makes an interface
+ * unusable without a mouse.
+ */
+.mpdf-root :focus-visible,
+/*
+ * Arrow-key navigation sets this explicitly. Engines disagree about whether a programmatic
+ * `focus()` following an arrow key counts as keyboard-initiated for `:focus-visible` — Firefox
+ * says no, which would leave someone arrowing a list with no visible focus at all.
+ */
+.mpdf-root [data-kbd-focus="true"] {
+  outline: 2px solid var(--mpdf-focus, #2563eb);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* The rows are custom widgets, so they need the selected state stated, not only coloured. */
+.mpdf-root [role="option"][aria-selected="true"] { background: var(--mpdf-selected-bg, #e0ecff); }
+.mpdf-root [role="option"] { cursor: pointer; }
+
+/*
+ * Respect a reduced-motion preference.
+ *
+ * Vestibular disorders make smooth scrolling and transitions genuinely unpleasant, and a viewer
+ * that pans and zooms is a worst case for it.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .mpdf-root *,
+  .mpdf-root *::before,
+  .mpdf-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Windows High Contrast Mode replaces authored colours with system ones, so anything that conveys
+ * meaning through background colour alone disappears. Restore a border for those states.
+ */
+@media (forced-colors: active) {
+  .mpdf-root [role="option"][aria-selected="true"],
+  .mpdf-root .mpdf-tb-btn[aria-pressed="true"] {
+    border: 2px solid Highlight;
+    forced-color-adjust: none;
+  }
+  .mpdf-root :focus-visible,
+  .mpdf-root [data-kbd-focus="true"] { outline: 2px solid Highlight; }
+}
