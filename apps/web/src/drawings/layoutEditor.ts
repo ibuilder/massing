@@ -1,4 +1,5 @@
 import type { ApiClient } from "../api/client";
+import { sanitizeSvg } from "../ui/sanitizeSvg";
 
 /** SHEET-VIEWPORTS — the interactive paper-space editor over the v0.3.449 layout endpoints.
  *
@@ -131,7 +132,8 @@ export function openLayoutEditor(api: ApiClient, pid: string, mount: HTMLElement
                                meta: { number: numberIn.value, title: titleIn.value } }),
       });
       if (!res.ok) { status.textContent = `compose failed: ${res.status}`; return; }
-      preview.innerHTML = await res.text();
+      // SEC: same as the sheet renderer — model-derived SVG is sanitised before it goes live.
+      preview.innerHTML = sanitizeSvg(await res.text());
       const svg = preview.querySelector("svg");
       if (svg) { svg.style.maxWidth = "100%"; svg.style.height = "auto"; svg.style.display = "block"; }
       drawOverlays();

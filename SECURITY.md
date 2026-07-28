@@ -39,6 +39,8 @@ Set these environment variables for a team/cloud deployment:
 | `AEC_LOGIN_MAX_FAILS` / `AEC_LOGIN_WINDOW_SEC` | Login brute-force lockout (default 8 fails / 5 min → `429`). |
 | `AEC_RATE_LIMIT_RPM=<n>` (+ `AEC_REDIS_URL`) | Per-IP rate limiting (multi-worker via Redis). |
 | `AEC_REDIS_URL=redis://redis:6379/0` | Shares the rate-limit **and** login-lockout counters across workers (the API runs multi-worker). Fail-open: any Redis error falls back to per-process counters. |
+| `AEC_IFC_CODE_TIMEOUT=5` | Wall-clock budget (seconds) for a sandboxed `execute_ifc_code` snippet. Only relevant when `AEC_ALLOW_IFC_CODE=1`. |
+| `AEC_WEBHOOK_ALLOW_PRIVATE=0` | **Set for hosted/multi-tenant.** Refuses webhook targets that resolve to private/loopback addresses (blocks cloud-metadata + intranet probing). Default `1` suits on-prem/LAN listeners. |
 | `AEC_TRUST_XUSER` | **Leave unset in production.** The `X-User` header is a dev-only impersonation shim, honored only when RBAC is off or this flag is set. |
 
 The bundled `docker-compose.prod.yml` sets these (RBAC, require-secret, HSTS, secure cookie, strict CSP,
@@ -84,7 +86,12 @@ DB during the deploy for those. Take a backup first; the additive sync intention
   vulnerabilities (build-only tooling is excluded from the shipped app).
 - **IFC is the source of truth** and the in-viewer authoring round-trips through `ifcopenshell` recipes
   (not arbitrary code); the optional Bonsai/Blender desktop bridge that can run Python is gated and
-  off by default.
+  off by default. The opt-in `execute_ifc_code` escape hatch is AST-allowlisted, denied any IO through
+  the objects it is handed, and bounded by a wall-clock budget.
+- **Outbound requests** to operator-set URLs (webhooks, bridges) are scheme-validated on the initial
+  URL *and on every redirect hop*, so a 3xx cannot walk the guard to an internal address.
+- **Rendered drawings** are sanitised before entering the DOM — model-derived SVG is parsed inertly
+  and stripped of script/handlers, so a hostile IFC cannot become stored XSS.
 
 ## Disclosure
 We credit reporters (unless you prefer to remain anonymous) and note fixes in the

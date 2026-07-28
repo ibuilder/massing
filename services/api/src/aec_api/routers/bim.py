@@ -751,7 +751,7 @@ def list_attachments(pid: str, tid: str, db: Session = Depends(get_db), _sec: st
 def _download_allowed(request: Request, db: Session, pid: str | None, user: str) -> bool:
     """A download is allowed by a valid signed URL OR (when RBAC is on) project membership."""
     qp = request.query_params
-    if signing.verify_path(request.url.path, qp.get("sig"), qp.get("exp")):
+    if signing.verify_path(request.scope.get("path") or request.url.path, qp.get("sig"), qp.get("exp")):
         return True
     return not rbac.RBAC_ON or (pid is not None and rbac.role_for(db, pid, user) is not None)
 

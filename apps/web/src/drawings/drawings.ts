@@ -2,6 +2,7 @@ import type { ApiClient, DrawingMarkupItem } from "../api/client";
 import type { Measure } from "./pdfTakeoff";
 import { noProjectHtml } from "../ui/empty";
 import { askText } from "../ui/prompt";
+import { sanitizeSvg } from "../ui/sanitizeSvg";
 
 /** 2D Drawings Set — a sheet-set browser for the server-generated plans / elevations / sections
  *  (cf. PlanGrid plan room + Bluebeam markup + Fieldlens field pins). Left: a sheet register;
@@ -162,7 +163,9 @@ export class DrawingsUI {
     try {
       const res = await fetch(url, { headers: this.host_.api.authHeaders() });
       if (!res.ok) throw new Error(String(res.status));
-      this.svgHost.innerHTML = await res.text();
+      // SEC: server SVG is model-derived and SVG is not inert — strip script/handlers before
+      // it enters the live document (see ui/sanitizeSvg).
+      this.svgHost.innerHTML = sanitizeSvg(await res.text());
       const svg = this.svgHost.querySelector("svg");
       if (svg) { svg.removeAttribute("width"); svg.removeAttribute("height"); svg.style.display = "block"; }
       this.fit();

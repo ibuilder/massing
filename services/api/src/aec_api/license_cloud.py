@@ -30,7 +30,7 @@ import json
 import urllib.request
 from typing import Any
 
-from .net import validate_outbound_url
+from .net import safe_urlopen
 
 _DEFAULT_URL = "https://www.massing.cloud/wp-json/massing/v1"
 _TIMEOUT = 15
@@ -70,12 +70,12 @@ def status() -> dict[str, Any]:
 
 # --- transport seam (monkeypatched in tests; no real network in the suite) --------------------------
 def _http_json(url: str, secret: str, payload: dict) -> dict[str, Any]:
-    validate_outbound_url(url, require_https=True, label="MASSING_CLOUD_URL")   # https-only, no file://
     body = json.dumps(payload).encode()
     req = urllib.request.Request(url, data=body, method="POST", headers={
         "Content-Type": "application/json", "Accept": "application/json",
         "X-Massing-Secret": secret, "User-Agent": "Massing-App"})
-    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:   # noqa: S310 — url validated above
+    # SEC: safe_urlopen re-validates every redirect hop, not just this URL (SSRF via 302).
+    with safe_urlopen(req, timeout=_TIMEOUT, require_https=True, label="MASSING_CLOUD_URL") as resp:
         return json.loads(resp.read().decode() or "{}")
 
 

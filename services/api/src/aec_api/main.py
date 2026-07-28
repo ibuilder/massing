@@ -479,6 +479,18 @@ _PROTECTED_PREFIXES = ("/projects", "/proforma", "/connections", "/settings", "/
                        "/convert", "/interop")
 
 
+def _routed_path(request: Request) -> str:
+    """The path the router actually matched on.
+
+    Security decisions must key off `scope["path"]`, not `request.url.path`. The latter is
+    *reconstructed* by re-parsing "http://{host}{path}", so a Host header carrying "/", "?" or "#"
+    can make it disagree with the path that routing used — the bug class behind CVE-2026-48710.
+    The pinned Starlette validates the Host header, so this is defence in depth rather than a live
+    hole; it removes the dependency of an auth gate on a transport-layer parsing detail.
+    """
+    return request.scope.get("path") or request.url.path
+
+
 def _has_identity(request: Request) -> bool:
     """A valid signed bearer / API key / cookie / signed-URL (or the dev X-User header when trusted)."""
     from . import auth as _auth
@@ -486,7 +498,7 @@ def _has_identity(request: Request) -> bool:
     from . import signing as _signing
     # a valid signed download URL authorizes exactly that path (lets the gate pass without a session)
     qp = request.query_params
-    if _signing.verify_path(request.url.path, qp.get("sig"), qp.get("exp")):
+    if _signing.verify_path(_routed_path(request), qp.get("sig"), qp.get("exp")):
         return True
     authz = request.headers.get("authorization", "")
     if authz.startswith("Bearer "):
@@ -510,7 +522,8 @@ async def security(request: Request, call_next):
         return JSONResponse({"detail": "payload too large"}, status_code=413)
     # 2) RBAC gate: when enabled, anonymous callers can't reach protected prefixes at all
     if (_rbac.RBAC_ON and request.method != "OPTIONS"
-            and request.url.path.startswith(_PROTECTED_PREFIXES) and not _has_identity(request)):
+            and _routed_path(request).startswith(_PROTECTED_PREFIXES)
+            and not _has_identity(request)):
         return JSONResponse({"detail": "authentication required"}, status_code=401)
     resp = await call_next(request)
     # 3) hardening headers on every response (safe set — does not restrict resource loading)

@@ -1,7 +1,7 @@
 import "./style.css";
 import { PortalUI } from "./portal/portal";   // eager: the default Construction/Developer workspace
 import { ApiClient, type MassingParams } from "./api/client";
-import { toast, escapeHtml } from "./ui/feedback";
+import { toast, escapeHtml, safeUrl } from "./ui/feedback";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
 import { maybeResumeTour, maybeRolePrompt, maybeWelcome, showWelcome, valueMomentPrompt } from "./ui/onboarding";
 import { mountChecklist, reopenChecklist } from "./ui/checklist";
@@ -994,13 +994,13 @@ function settingsModal() {
       // open mode: everything available, licence optional — don't nag, just inform
       lic.innerHTML = `<b>Licence:</b> open mode — all features available, a key is <b>optional</b>.`
         + (l.key_configured ? ` (key ${escapeHtml(l.key_masked || "set")}${warn ? ", invalid format" : ""})` : "")
-        + ` <a class="ref-link" href="${l.manage_url}" target="_blank" rel="noopener">massing.cloud</a>`;
+        + ` <a class="ref-link" href="${safeUrl(l.manage_url)}" target="_blank" rel="noopener">massing.cloud</a>`;
     } else {
       lic.innerHTML = `<b>Licence:</b> ${escapeHtml(l.tier_label)} plan`
         + (l.key_configured ? ` · key ${escapeHtml(l.key_masked || "set")}` : " · no key (Free)")
         + (warn ? ` · <span style="color:#e2554a">invalid key format</span>` : "")
         + `<br><span style="opacity:.75">Unlocks: ${escapeHtml(unlocked)}</span>`
-        + ` — <a class="ref-link" href="${l.manage_url}" target="_blank" rel="noopener">manage at massing.cloud</a>`;
+        + ` — <a class="ref-link" href="${safeUrl(l.manage_url)}" target="_blank" rel="noopener">manage at massing.cloud</a>`;
     }
     // CLOUD-BRIDGE: when online validation is configured, offer a "validate now" action (admin-gated
     // server-side; non-admins get a graceful 403 message). The shared secret is never shown here.

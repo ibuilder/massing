@@ -13,6 +13,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 import urllib.parse
+import urllib.request
 
 _SAFE_SCHEMES = ("http", "https")
 
@@ -49,3 +50,39 @@ def validate_outbound_url(url: str, *, require_https: bool = False, allow_privat
         if not ip.is_global or ip.is_loopback or ip.is_link_local:
             raise ValueError(f"{label} resolves to a private/loopback address; refused to prevent "
                              "server-side request forgery.")
+
+
+class _ValidatingRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Re-run `validate_outbound_url` on every redirect target.
+
+    Validating only the URL we were handed is not enough: `urlopen` follows 3xx redirects by default,
+    so a validated https://vendor.example endpoint that answers `302 -> http://169.254.169.254/…`
+    walks the guard straight past its own check and reaches cloud metadata / the intranet. Every hop
+    has to clear the same bar as hop zero.
+    """
+
+    def __init__(self, *, require_https: bool, allow_private: bool, label: str):
+        self._require_https = require_https
+        self._allow_private = allow_private
+        self._label = label
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        validate_outbound_url(newurl, require_https=self._require_https,
+                              allow_private=self._allow_private,
+                              label=f"{self._label} redirect target")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def safe_urlopen(req, *, timeout: float, require_https: bool = False, allow_private: bool = True,
+                 label: str = "URL"):
+    """`urlopen` for operator-settable URLs: validates the initial URL *and* every redirect hop.
+
+    Use this instead of `urllib.request.urlopen` wherever the target comes from configuration rather
+    than from a constant — see `_ValidatingRedirectHandler` for why the initial check alone is a hole.
+    """
+    url = req.full_url if isinstance(req, urllib.request.Request) else str(req)
+    validate_outbound_url(url, require_https=require_https, allow_private=allow_private, label=label)
+    opener = urllib.request.build_opener(
+        _ValidatingRedirectHandler(require_https=require_https, allow_private=allow_private,
+                                   label=label))
+    return opener.open(req, timeout=timeout)

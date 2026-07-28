@@ -103,7 +103,7 @@ def investor_statement(pid: str, iid: str, db: Session = Depends(get_db),
 
 
 @router.post("/projects/{pid}/investors/{iid}/share")
-def investor_statement_share(pid: str, iid: str, ttl: int = Query(30 * 24 * 3600, ge=60),
+def investor_statement_share(pid: str, iid: str, ttl: int = Query(30 * 24 * 3600, ge=60, le=365 * 24 * 3600),
                              db: Session = Depends(get_db), _: str = Depends(rbac.require_role("viewer"))):
     """Mint a signed, expiring link to an investor's statement PDF — the investor opens it with no
     session (the LP-portal share). Default TTL 30 days. The signature authorizes exactly that path."""
@@ -117,7 +117,7 @@ def investor_statement_public(pid: str, iid: str, request: Request, db: Session 
     """Read-only investor statement behind a valid signed link (HMAC) — no session required.
     Publishes only this investor's own capital-account statement."""
     qp = request.query_params
-    if not signing.verify_path(request.url.path, qp.get("sig"), qp.get("exp")):
+    if not signing.verify_path(request.scope.get("path") or request.url.path, qp.get("sig"), qp.get("exp")):
         raise HTTPException(403, "a valid signed link is required")
     pdf, ref = _statement_pdf(db, pid, iid)
     return _pdf_response(pdf, ref)
@@ -474,7 +474,7 @@ def securities_syndicate(pid: str, db: Session = Depends(get_db),
 
 
 @router.post("/projects/{pid}/listings/{lid}/share")
-def listing_share(pid: str, lid: str, ttl: int = Query(7 * 24 * 3600, ge=60),
+def listing_share(pid: str, lid: str, ttl: int = Query(7 * 24 * 3600, ge=60, le=365 * 24 * 3600),
                   db: Session = Depends(get_db), _: str = Depends(rbac.require_role("viewer"))):
     """Mint a signed, expiring URL to the public listing JSON (for a QR / shared link). The signature
     authorizes exactly that path until it expires — no session needed by the recipient."""
@@ -489,7 +489,7 @@ def listing_public(pid: str, lid: str, request: Request, db: Session = Depends(g
     URL (HMAC) regardless of RBAC; publishes only listing-safe fields (no internal financials beyond
     what the owner put in the public description / asking price)."""
     qp = request.query_params
-    if not signing.verify_path(request.url.path, qp.get("sig"), qp.get("exp")):
+    if not signing.verify_path(request.scope.get("path") or request.url.path, qp.get("sig"), qp.get("exp")):
         raise HTTPException(403, "a valid signed link is required")
     rec = me.get_record(db, "listing", pid, lid)
     d = rec.get("data") or {}

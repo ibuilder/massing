@@ -8,6 +8,21 @@ export function escapeHtml(v: unknown): string {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
+/** Escape a value for use as an `href`/`src` attribute, and neutralise dangerous schemes.
+ *
+ *  `escapeHtml` alone is NOT sufficient for a URL attribute: it stops an attacker breaking out of the
+ *  quotes, but `javascript:alert(1)` contains no escapable character and still executes on click.
+ *  Anything that is not a same-origin/relative or http(s)/mailto/tel URL collapses to "#". */
+export function safeUrl(v: unknown): string {
+  const raw = String(v ?? "").trim();
+  if (!raw) return "#";
+  // strip control chars/whitespace that browsers ignore when resolving a scheme ("java\tscript:")
+  const probe = raw.replace(/[^\x21-\x7E]/g, "").toLowerCase();
+  if (/^(javascript|data|vbscript|blob|file):/.test(probe)) return "#";
+  if (/^[a-z][a-z0-9+.-]*:/.test(probe) && !/^(https?|mailto|tel):/.test(probe)) return "#";
+  return escapeHtml(raw);
+}
+
 let toastHost: HTMLElement | null = null;
 
 function host(): HTMLElement {

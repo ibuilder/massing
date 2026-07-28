@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.755 — the security audit branch lands
+
+- `security/audit-2026-07` merged after **105 commits** apart, with **zero conflicts** — it adds new
+  files and makes surgical edits rather than restructuring, which is why it aged well. Finished
+  security work that had been protecting nobody while it sat on a branch.
+- **`net.py` — a shared SSRF guard**, applied across `esign_bridge`, `license_cloud`, `re_bridge`,
+  `securities_bridge` and `webhooks`. Closes **SSRF-via-redirect**: validating the URL you request
+  proves nothing when a 302 sends the client somewhere else, so the redirect target is validated too.
+- **`sandbox.py` hardening** — IO and DoS escapes in the IFC-code sandbox. Related standing lesson:
+  a denylist cannot see methods reached through an injected object, and banning `while` does not
+  bound execution.
+- **SVG sanitisation** on rendered real-estate output, and the auth gate keyed to the **routed** path
+  rather than the raw one.
+- Verified before merging: `test_security_audit` passes (111 lines, and it is registered in
+  `run_tests.py` rather than orphaned), ruff clean, and `test_license_cloud` / `test_reachable` /
+  `test_route_authz` / `test_sandbox` / `test_webhooks` all pass against the merge — the surface the
+  SSRF change actually touches. The full 416-suite gate runs in CI.
+
 ## v0.3.754 — the mobile gate that should have existed before Capacitor 8
 
 - **iOS and Android are real targets, so the Android SDK job is justified.** `mobile.yml` builds the

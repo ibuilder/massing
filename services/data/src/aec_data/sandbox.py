@@ -12,13 +12,23 @@ Defense-in-depth (this is arbitrary-code territory — treat every layer as load
      /`__subclasses__` escapes).
   4. **Curated builtins + denied names** — `open/eval/exec/getattr/setattr/__import__/type/globals/…` are
      unavailable; only a small safe set (`range/len/float/…`) plus `model` and `ifcopenshell` are in scope.
+  5. **No IO through the exposed objects** — removing `open` from the namespace is not enough on its own:
+     `model` is a real `ifcopenshell.file` and brings its own API surface, including file IO that a
+     builtins denylist cannot see. Its file-touching attributes are denied by name.
+  6. **Bounded runtime** — banning `while` does not bound execution (`for i in range(10**9)` is the same
+     unbounded loop), so a wall-clock deadline (`AEC_IFC_CODE_TIMEOUT`, default 5s) is enforced by a
+     line-level trace hook, and integer-blowup shapes (`9**9**9`) are rejected at the AST.
 
 Not a claim of perfect isolation — it is a gated, authenticated, editor-only, opt-in escape hatch, layered.
+Known residual limit: the deadline is enforced between *snippet* lines, so a single call into a slow
+library routine is bounded only by that routine, not by the hook.
 """
 from __future__ import annotations
 
 import ast
 import os
+import sys
+import time
 from typing import Any
 
 # statement/expression node types that may appear. Everything else is rejected.
@@ -59,8 +69,22 @@ _DENIED_ATTRS = frozenset({
     "system", "popen", "spawn", "spawnv", "spawnl", "spawnve", "execv", "execve", "execl", "fork", "kill",
     "import_module", "load_module", "exec_module", "get_data",
     "environ", "getenv", "putenv", "wrapped_data",
+    # SEC: `model` is a real ifcopenshell.file, and that object's public API carries its own IO
+    # surface. Removing `open` from the namespace is NOT enough, because a builtins denylist cannot
+    # see methods reached through an object we handed in. The snippet authors entities; persisting
+    # the model is the *caller's* job, so none of these have a legitimate use inside a snippet.
+    "write", "from_string", "from_pointer", "assign_header_from", "storage",
 })
 _MAX_LEN = 8000
+# SEC: wall-clock budget for a snippet. `while` is rejected by the AST allowlist, but `for` over a
+# large range is an equivalent unbounded loop and pins a uvicorn worker forever (a handful of requests
+# takes the API down). A line-level trace hook enforces the deadline portably (signal.setitimer is
+# POSIX-only and this also runs on Windows dev boxes).
+_MAX_SECONDS = float(os.environ.get("AEC_IFC_CODE_TIMEOUT", "5"))
+# SEC: a nested power (`9**9**9`) is a single bytecode op — it computes inside CPython's integer
+# routine where no trace hook can interrupt it, so the deadline above cannot catch it. IFC authoring
+# has no use for a tower of exponents, so reject the shape outright.
+_MAX_POW_EXPONENT = 1024
 
 
 class SandboxError(ValueError):
@@ -81,6 +105,13 @@ def _check(tree: ast.AST) -> None:
                 raise SandboxError(f"disallowed attribute: {node.attr}")
             if node.attr in _DENIED_ATTRS:
                 raise SandboxError(f"disallowed attribute: {node.attr}")
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
+            # a**b**c chains, or a single huge constant exponent, are integer-blowup DoS shapes
+            if isinstance(node.right, ast.BinOp) and isinstance(node.right.op, ast.Pow):
+                raise SandboxError("disallowed expression: chained ** (integer-blowup guard)")
+            if (isinstance(node.right, ast.Constant) and isinstance(node.right.value, int)
+                    and abs(node.right.value) > _MAX_POW_EXPONENT):
+                raise SandboxError(f"exponent too large (> {_MAX_POW_EXPONENT})")
 
 
 def enabled() -> bool:
@@ -124,12 +155,30 @@ def execute_ifc_code(model, code: str) -> dict[str, Any]:
     safe_builtins = {n: getattr(_b, n) for n in _SAFE_BUILTIN_NAMES if hasattr(_b, n)}
     before = len(list(model))
     ns: dict[str, Any] = {"__builtins__": safe_builtins, "model": model, "ifcopenshell": ifc_facade}
+    # SEC: enforce the wall-clock budget with a line-level trace hook. The hook fires per executed
+    # line *of the snippet only* (frames whose filename is our compiled unit), so a runaway `for`
+    # loop is interrupted while ifcopenshell's own internals run untraced and unslowed.
+    deadline = time.monotonic() + _MAX_SECONDS
+
+    def _guard(frame, event, arg):
+        if frame.f_code.co_filename != "<ifc_code>":
+            return None                      # don't trace into library code
+        if time.monotonic() > deadline:
+            raise TimeoutError(f"snippet exceeded the {_MAX_SECONDS:g}s budget")
+        return _guard
+
+    prev = sys.gettrace()
     try:
+        sys.settrace(_guard)
         exec(compile(tree, "<ifc_code>", "exec"), ns)  # noqa: S102 — sandboxed per the module docstring
     except SandboxError:
         raise
+    except TimeoutError as e:
+        raise SandboxError(str(e)) from e
     except Exception as e:  # noqa: BLE001 — surface the snippet's runtime error, don't leak a traceback
         raise SandboxError(f"runtime error: {type(e).__name__}: {e}") from e
+    finally:
+        sys.settrace(prev)
     after = len(list(model))
     return {"ok": True, "created": max(0, after - before), "deleted": max(0, before - after),
             "entities_before": before, "entities_after": after,

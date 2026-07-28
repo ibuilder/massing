@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from . import settings_store
-from .net import validate_outbound_url
+from .net import safe_urlopen
 
 _log = logging.getLogger("aec.webhooks")
 
@@ -84,8 +84,6 @@ def _allow_private() -> bool:
 
 def _send(url: str, body: bytes) -> int:
     """POST `body` to `url`, HMAC-signing it when a secret is set. Returns the HTTP status."""
-    validate_outbound_url(url, label="AEC_WEBHOOK_URLS entry",  # block file:// etc; see _allow_private
-                          allow_private=_allow_private())
     ts = str(int(time.time()))
     headers = {"Content-Type": "application/json", "User-Agent": "Massing-Webhook",
                "X-Massing-Event-Timestamp": ts}
@@ -94,7 +92,9 @@ def _send(url: str, body: bytes) -> int:
         headers["X-Massing-Signature"] = sig
     req = urllib.request.Request(url, data=body, method="POST", headers=headers)
     timeout = float(os.environ.get("AEC_WEBHOOK_TIMEOUT", "3"))
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 — scheme-validated above
+    # SEC: safe_urlopen re-validates every redirect hop, not just this URL (SSRF via 302).
+    with safe_urlopen(req, timeout=timeout, allow_private=_allow_private(),
+                      label="AEC_WEBHOOK_URLS entry") as resp:
         return getattr(resp, "status", 200) or 200
 
 

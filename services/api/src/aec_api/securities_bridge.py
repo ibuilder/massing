@@ -22,7 +22,7 @@ import urllib.request
 from typing import Any
 
 from . import settings_store
-from .net import validate_outbound_url
+from .net import safe_urlopen
 
 _TARGETS = {
     "generic": "Investor-management REST API",
@@ -103,11 +103,11 @@ def syndication_payload(project_name: str, cap_table: dict, disclosures: dict | 
 
 # --- transport seam (monkeypatched in tests) --------------------------------
 def _http_json(method: str, url: str, headers: dict[str, str], payload: dict | None) -> Any:
-    validate_outbound_url(url, label="SECURITIES_PLATFORM_URL")  # block file:// etc on the operator URL
     data = json.dumps(payload).encode() if payload is not None else None
     req = urllib.request.Request(url, data=data, method=method,
                                  headers={"Content-Type": "application/json", **headers})
-    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:  # noqa: S310 — operator URL, scheme-validated
+    # SEC: safe_urlopen re-validates every redirect hop, not just this URL (SSRF via 302).
+    with safe_urlopen(req, timeout=_TIMEOUT, label="SECURITIES_PLATFORM_URL") as resp:
         body = resp.read().decode() or "{}"
     return json.loads(body)
 
