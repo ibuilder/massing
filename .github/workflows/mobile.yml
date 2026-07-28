@@ -63,11 +63,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The web build IS the mobile payload — capacitor.config.ts sets webDir: "dist". If this is
-      # skipped, `cap add` fails on a missing dist rather than producing an empty app, which is the
-      # right failure but a confusing one to read.
-      - name: Build the web bundle
-        run: npm run build --workspace apps/web
+      # The web build IS the mobile payload — capacitor.config.ts sets webDir: "dist".
+      #
+      # `build:mobile`, NOT `build`. That is the whole of the first failure this gate caught: the
+      # default build emits pre-compressed `.br`/`.gz` siblings for a static server to serve, and
+      # Android's resource merger treats `foo.js` and `foo.js.gz` as the SAME resource — 30+
+      # "Duplicate resources" errors and a dead build. `vite.config.ts` already gets this right
+      # (`WEB_SERVED = !["desktop","mobile"].includes(mode)`); the workflow simply never passed the
+      # mode. The siblings are also pure waste in an APK: a WebView loads from the filesystem, so
+      # there is no content negotiation to serve them.
+      #
+      # `--mode mobile` additionally reads `.env.mobile`, which is where VITE_API_URL points at the
+      # hosted API — a phone has no local backend.
+      - name: Build the web bundle for mobile
+        run: npm run build:mobile --workspace apps/web
+
+      # The payload must contain no pre-compressed siblings. Asserted rather than assumed, because
+      # this failure only surfaces 40 seconds into Gradle with an error that names resources rather
+      # than the build mode that produced them.
+      - name: Assert no pre-compressed siblings in the payload
+        run: |
+          FOUND=$(find apps/web/dist -name "*.gz" -o -name "*.br" | head -5)
+          test -z "$FOUND" || { echo "::error::pre-compressed assets in the mobile payload — wrong build mode"; echo "$FOUND"; exit 1; }
+          echo "dist is clean: no .gz/.br siblings"
 
       - name: Generate the Android platform
         working-directory: apps/web

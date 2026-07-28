@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.756 — the mobile gate caught a real break on its first run
+
+- **The Android build failed, and it was right to.** 30+ `Duplicate resources` errors: the default
+  web build emits pre-compressed `.br`/`.gz` siblings for a static server, and Android's resource
+  merger treats `foo.js` and `foo.js.gz` as the **same resource**. Measured: **120 siblings** on
+  `npm run build`, **0** on `npm run build:mobile`, with all 67 JS assets still present.
+- **The bug was mine, in the workflow — not in the build and not in Capacitor.** `vite.config.ts`
+  already had `WEB_SERVED = !["desktop","mobile"].includes(mode)` and gates compression on it
+  correctly. I wrote `npm run build` in `mobile.yml` instead of `npm run build:mobile`, so the mode
+  was never passed. **This would have broken identically on Capacitor 7** — nothing had ever built
+  the app, which is the entire reason the gate exists.
+- `--mode mobile` also reads `.env.mobile`, where `VITE_API_URL` points at the hosted API. A phone
+  has no local backend, so the previous command was producing a payload aimed at `localhost` as well.
+- **Added an explicit assertion** that `dist` contains no `.gz`/`.br` before `cap add`. The Gradle
+  failure names *resources*, not the build mode that produced them — 40 seconds of log that points
+  away from the cause. The new step fails in one line, at the right place.
+
 ## v0.3.755 — the security audit branch lands
 
 - `security/audit-2026-07` merged after **105 commits** apart, with **zero conflicts** — it adds new
