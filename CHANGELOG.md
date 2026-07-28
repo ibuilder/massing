@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.744 — the sample library: showcase projects, not bare meshes
+
+- **`GET /samples` + `POST /samples/{id}/open`, backed by `samples/`.** "Load a sample" meant one of
+  three `.frag` files: geometry, and nothing else. You could orbit the model and that was the whole
+  demonstration — no estimate, no schedule, no RFIs, no drawings. Every number the product exists to
+  produce was missing from the thing meant to show it off. A sample is now a **`.mass` container**,
+  so it opens as a project.
+- **Nothing new was invented.** A sample opens through `bundle.import_bundle`, the identical path a
+  user's own `.mass` takes; a demo on its own private code path eventually demonstrates behaviour the
+  product does not have. And the catalog describes each container **from its own manifest** rather
+  than a hand-kept catalog file — a catalog beside the artifacts is a promise, the manifest is a
+  measurement.
+- **Ids resolve by enumeration, never by joining.** `read()` selects from the directory listing, so a
+  traversal id is simply absent rather than validated-against; there is no path to escape because no
+  path is built from input. Asserted at both layers, including over HTTP.
+- **Branch protection on `main`**: force-push and deletion blocked, no review requirement — version
+  numbered direct pushes keep working, published history cannot be rewritten.
+
 ## v0.3.743 — SCALE-SEAM ①: the client starts splitting, provably
 
 - **`api/surface.test.ts` first, extraction second.** The split is only safe if "I moved code" can be

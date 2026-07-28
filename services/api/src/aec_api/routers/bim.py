@@ -508,6 +508,33 @@ async def import_bundle(file: UploadFile = File(...), name: str | None = Form(No
     return _with_kind(_project(db, new_pid))
 
 
+@router.get("/samples")
+def list_samples():
+    """The showcase library — packaged `.mass` containers, each described from its own manifest.
+
+    Not project-scoped, and deliberately unauthenticated: this is the content a first-time visitor
+    sees before they have an account, and it is the same content we ship in the repo. Nothing here
+    reads the database."""
+    from .. import samples as samples_io
+    return {"samples": samples_io.catalog()}
+
+
+@router.post("/samples/{sample_id}/open", response_model=ProjectOut, status_code=201)
+async def open_sample(sample_id: str, name: str | None = Form(None), db: Session = Depends(get_db)):
+    """Open a library sample as a new project.
+
+    Runs through `import_bundle` — the identical path a user's own `.mass` takes — so a sample can
+    never demonstrate behaviour the product does not actually have. A separate "load the demo" code
+    path is how a demo drifts away from the thing it is demonstrating."""
+    from .. import bundle as bundle_io
+    from .. import samples as samples_io
+    data = samples_io.read(sample_id)              # resolved by enumeration; no path is built
+    if data is None:
+        raise HTTPException(404, "no such sample")
+    new_pid = await run_in_threadpool(bundle_io.import_bundle, db, data, new_name=name)
+    return _with_kind(_project(db, new_pid))
+
+
 @router.patch("/projects/{pid}", response_model=ProjectOut)
 def patch_project(pid: str, body: ProjectPatch, db: Session = Depends(get_db),
                   actor: str = Depends(require_role("admin"))):
