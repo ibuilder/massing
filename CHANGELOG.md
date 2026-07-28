@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.754 — the mobile gate that should have existed before Capacitor 8
+
+- **iOS and Android are real targets, so the Android SDK job is justified.** `mobile.yml` builds the
+  web bundle, runs `cap add android` + `cap sync`, and **assembles a debug APK with Gradle**. That
+  last step is the assertion: everything before it can pass while Gradle still refuses to build,
+  which is precisely how a Capacitor major breaks a project.
+- **The platform is generated from scratch every run**, because `apps/web/android/` is gitignored.
+  That is the point rather than a workaround — it proves the *committed config alone* suffices to
+  produce an app. A checked-in `android/` can drift into working-by-accident.
+- **The APK is size-checked, not just existence-checked.** A build can "succeed" without its payload;
+  a green step is not evidence of an artifact.
+- **iOS is deliberately excluded**: macOS runners cost ~10× the minutes and it cannot build without
+  signing assets. Android catches the same class of breakage — plugin API changes, Gradle/AGP
+  incompatibility, a missing `webDir` — at a fraction of the cost. Stated so nobody reads "Mobile ✅"
+  as covering both.
+- JDK 21, since Capacitor 8's Android platform fails on 17.
+
 ## v0.3.753 — four review findings, including one where I mis-stated the facts
 
 - **v0.3.752 said the desktop/mobile build was "CI's" job. No such job exists.** A grep for
