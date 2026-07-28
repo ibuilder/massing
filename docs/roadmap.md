@@ -36,28 +36,36 @@ the model in silence. The ordering below reflects that: **correctness a user wou
 Every item here says what it is and why it is where it is. Completed work moves to the CHANGELOG and
 out of this list — a NOW list containing finished items is a list nobody trusts.
 
-1. **🏛 SPINE-DEFAULT — the portal never mounts; the rail is downstream of that.** *Build; top.*
-   Traced live 07-28 with the API on :8093 and a project loaded (`?project=9db00892…`):
+1. **🏛 SPINE-DEFAULT — the layout WORKS and is already default. The gap is discoverability.**
+   *Verified live 07-28 — and this entry replaces two earlier ones that were both wrong.*
 
-   | checked | result |
-   |---|---|
-   | `spineEnabled()` default | **true** — `shell-spine` unset, nothing opted out |
-   | `GET /rooms` | **healthy** — 5 rooms, real counts (model room = 38 modules) |
-   | `.portal-nav` in DOM | **0** |
-   | `.pnav-item` in DOM | **0** |
-   | active workspace after clicking Home | still **`#ws-model`** |
+   Traced with the API on :8093 and a project loaded. The room rail renders in **all three portal
+   workspaces**, with every room and its job string:
 
-   **The rail is not the bug — the portal shell never builds.** `portal.ts:170` early-returns when no
-   project is open, but a project WAS open and it still did not mount; the Home tab click did not
-   change the active workspace. So either the tab needs a real user gesture that a synthetic
-   `.click()` does not produce (plausible — see [[dom-audit-measurement-traps]]), or workspace
-   switching to the portal is genuinely broken. **That is the next thing to determine, and it is one
-   experiment, not a redesign.**
+   | workspace | `.portal-nav` | nav items | all 5 rooms |
+   |---|---|---|---|
+   | Construction | yes | 153 | yes |
+   | Developer | yes | 221 | yes |
+   | Design | yes | 298 | yes |
 
-   ⚠️ **Measurement trap already hit here:** `.portal-filter` elements DO exist in the DOM and look
-   like proof the portal built. They are in `#panel-tools` inside the modelling rail — the class name
-   is reused. I nearly concluded "the portal mounted four times" from it. Assert on `.portal-nav` or
-   `.pnav-item`, never on `.portal-filter`.
+   `spineEnabled()` defaults true, `/rooms` is healthy, the rail draws. **Nothing is broken.**
+
+   **My two earlier diagnoses were both artefacts of my own probe.** I clicked a control labelled
+   "Home" and concluded first that the rail did not render, then that the portal never mounted. That
+   control is `class="fintab" data-fin="home"` — a **Finance sub-tab**, already active inside a
+   *hidden* workspace. I was operating a button belonging to `ws-finance` while `ws-model` was on
+   screen, then reporting what `ws-model` contained. Two confident, wrong conclusions from one
+   mis-identified element.
+
+   **The real finding is the user's question.** They asked "where is the new layout?" while it was
+   on, default, and rendering — because you only reach it by choosing Construction, Developer or
+   Design, and nothing on the landing screen says so. **A shell nobody can find is not shipped**, and
+   that is a navigation problem, not a shell problem. That is what SPINE-DEFAULT now means.
+
+   ⚠️ Two measurement traps recorded, both hit here: `.portal-filter` also exists in the *modelling*
+   rail (`#panel-tools`) so it proves nothing about the portal — assert on `.portal-nav` /
+   `.pnav-item`. And a `[role="tab"]` is not necessarily a workspace tab; check `data-fin` /
+   `class` before believing a click switched anything.
 
 1. **📄 PDF-LIB — adopt `@massingcloud/pdf-viewer`.** *Build; now the top.* MIT, deps `pdfjs-dist`
    + `pdf-lib` (already ours). 12,275 lines / 46 files against our 423-line `pdfTakeoff.ts` — a
