@@ -53,10 +53,15 @@ list nobody trusts.
    (v0.3.713) and ② markup through the plugin host (v0.3.717) each closed a real defect; pick ③ from
    a real pain, not from the kernel's feature list. **Undo is not a candidate** — checked: model-level
    undo via the versioned source IFC is stronger for authoring.
-4. **📐 R27 tail + 🧱 decomposition carry-overs.** *Build, low stakes.* Two of eight R27 items remain;
-   the carry-overs are named in their own section below.
-5. **🖼 Demo + docs refresh.** *Build, low stakes.* The snapshot was regenerated at v0.3.733 after the
-   QTO fix; README/guide still quote pre-v0.3.723 numbers in places.
+4. **🖼 Demo + docs refresh.** *Build, low stakes.* The snapshot was regenerated at v0.3.733 after
+   the QTO fix; README/guide still quote pre-v0.3.723 numbers in places.
+5. **🔍 TRIAGE — R27 tail + 🧱 decomposition carry-overs.** *Analyse first, then decide — LAST
+   deliberately.* This was one bucket holding two unrelated things because neither felt big enough
+   alone, which is exactly how items go stale unread. It stays last **and the first step is not
+   building** — it is going through what is actually in there and deciding, item by item, what earns
+   a place and what gets deleted. A carry-over that has survived this long without hurting anyone is
+   evidence about its own priority. **Default answer is drop, not do**; anything kept has to justify
+   itself against whatever else is on the list by then.
 
 ### 🤔 Decisions, not effort — these want your call, not my time
 - **`chore/deps-upgrades-2026` (PR #69)** — Capacitor 7→8, Postgres 16→17. Its own release, its own
