@@ -3,6 +3,9 @@ import { PortalUI } from "./portal/portal";   // eager: the default Construction
 import { ApiClient, type MassingParams } from "./api/client";
 import { toast, escapeHtml, safeUrl } from "./ui/feedback";
 import { showResult } from "./ui/result";
+import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTabs";
+import { spineEnabled } from "./shell/spine";
+import { setRoomOpen } from "./portal/prefs";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
 import { maybeResumeTour, maybeRolePrompt, maybeWelcome, showWelcome, valueMomentPrompt } from "./ui/onboarding";
 import { mountChecklist, reopenChecklist } from "./ui/checklist";
@@ -544,12 +547,76 @@ window.addEventListener("aec:workspace", (e) => {
   if (WORKSPACES.some((w) => w.key === key)) setWorkspace(key);
 });
 const wsEl = $("workspaces");
-for (const w of WORKSPACES) {
-  const b = document.createElement("button");
-  b.className = "ws-btn"; b.dataset.ws = w.key; b.textContent = w.label;
-  b.setAttribute("role", "tab"); b.setAttribute("aria-selected", "false");
-  b.onclick = () => setWorkspace(w.key);
-  wsEl.appendChild(b);
+
+/**
+ * Which workspace hosts each room.
+ *
+ * The inverse of `WORKSPACE_ROOM`, and it is NOT a bijection — `cost` and `work` have no workspace
+ * of their own, because they were only ever destinations inside the construction portal. That
+ * asymmetry is the honest reason the five rooms were never the top-level navigation: two of them had
+ * nowhere to live. Routing them at the construction portal is what makes the promotion possible
+ * without restructuring every panel first.
+ */
+const ROOM_HOST: Record<string, string> = {
+  model: "model", cost: "construction", schedule: "construction",
+  deal: "developer", work: "construction",
+};
+
+/** Switch to a room: go to the workspace that hosts it, and open that room's section in the rail. */
+function goToRoom(roomId: string) {
+  setRoomOpen(roomId, true);            // the rail persists open/closed per room
+  setWorkspace(ROOM_HOST[roomId] ?? "construction");
+  paintRoomTabs(roomId);
+  // The rail is rebuilt by the workspace switch, so scroll the room into view afterwards rather
+  // than against a node that is about to be replaced — clicking rebuilds the nav and detaches it.
+  setTimeout(() => {
+    document.querySelector<HTMLElement>(`.portal-nav [data-room="${roomId}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, 120);
+}
+
+let roomTabsActive = "model";
+function paintRoomTabs(active?: string) {
+  if (active) roomTabsActive = active;
+  renderRoomTabs(wsEl, buildRoomTabs(null, workQueueCount), roomTabsActive, goToRoom);
+}
+
+/** Ball-in-your-court count for the Work badge — the one number the tab bar carries. */
+let workQueueCount: number | null = null;
+
+/**
+ * Fetch the ball-in-your-court count and repaint the Work badge.
+ *
+ * Fail-open and fire-and-forget: a badge is the least important thing on screen, and a navigation
+ * bar that cannot render because a count request failed would be an absurd trade. `null` on failure
+ * renders no badge rather than a zero — "we do not know" and "nothing owed" are different claims,
+ * and showing 0 for the first is how somebody misses work.
+ */
+async function refreshWorkBadge(pid: string | null) {
+  if (!pid) { workQueueCount = null; paintRoomTabs(); return; }
+  try {
+    const q = await api.workQueue(pid) as { count?: number; items?: unknown[] } | null;
+    const n = typeof q?.count === "number" ? q.count
+      : Array.isArray(q?.items) ? q.items.length : null;
+    workQueueCount = n;
+  } catch {
+    workQueueCount = null;
+  }
+  paintRoomTabs();
+}
+
+if (spineEnabled()) {
+  // The five rooms ARE the navigation. They already existed as a sub-rail inside three of seven
+  // workspaces; this promotes them, it does not invent them.
+  paintRoomTabs(roomForWorkspace(localStorage.getItem("workspace") || "model"));
+} else {
+  for (const w of WORKSPACES) {
+    const b = document.createElement("button");
+    b.className = "ws-btn"; b.dataset.ws = w.key; b.textContent = w.label;
+    b.setAttribute("role", "tab"); b.setAttribute("aria-selected", "false");
+    b.onclick = () => setWorkspace(w.key);
+    wsEl.appendChild(b);
+  }
 }
 
 document.querySelectorAll<HTMLButtonElement>(".fintab").forEach((t) => {
@@ -1360,6 +1427,7 @@ async function startup() {
     setStatus(demo ? "demo — pick a sample from Open ▾ to view"
                    : "offline — open a .frag to view (API not reachable)");
   }
+  if (spineEnabled()) void refreshWorkBadge(projectId);
   if (projectId && !demo) connectNotifications();   // SSE needs a backend
   void applyCapabilities();
   if (!demo) void autoCheck();          // show a banner if a newer release is published

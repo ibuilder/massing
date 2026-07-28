@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.761 — S4: the five rooms become the navigation
+
+- **Model · Cost · Schedule · Deal · Work** replace the seven workspace buttons. Verified live: five
+  tabs, zero `.ws-btn`, each carrying its room's *job* as the tooltip, no console errors.
+- **The five tabs already existed.** `ROOM_IDS` has been `model/cost/schedule/deal/work` since the
+  spine shipped; `GET /rooms` allocates every module to one, and `parity.test.ts` already proved none
+  is unroomed. They were rendered as a **sub-rail inside three of seven workspaces** while the top bar
+  showed the seven. This is a promotion of an IA that was built and buried, not a redesign — which is
+  why it is ~100 lines rather than a rewrite.
+- **Two rooms had no workspace of their own** — `cost` and `work` were only ever destinations inside
+  the construction portal. That asymmetry is the honest reason the rooms were never top-level. They
+  route via `ROOM_HOST`, and clicking **Cost** (the riskiest path) was checked live: correct
+  workspace, Cost room present in the rail.
+- **Only Work carries a count**, and that is the thesis: you never browse for work, work comes to
+  you. A badge on every tab is a dashboard; a badge on one is a summons. Mutation-checked — giving
+  every tab a count turns 3 tests red.
+- The badge reads the real queue, fails open, and shows **nothing** rather than `0` when the request
+  fails: "we don't know" and "nothing owed" are different claims, and conflating them is how somebody
+  misses work.
+- Rooms are matched by id, never by position — a reordered response would silently relabel every tab,
+  and labels are what people navigate by.
+
 ## v0.3.760 — a first run never lands on an empty canvas
 
 - With **zero projects**, startup opens the sample library. Nothing to render, price or coordinate is
