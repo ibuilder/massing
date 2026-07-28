@@ -201,13 +201,66 @@ it = geomconf.bounded_iterator(FakeGeom(FakeIt()), None, None)
 check("unknown methods forward to the wrapped iterator", it.some_other_method() == "passthrough")
 del it; gc.collect()
 
-# nested: an inner pass must NOT take a second slot
-geomconf._SLOTS = threading.BoundedSemaphore(1)
+# nested: an inner pass must NOT take a second slot.
+#
+# The first version of this test used BoundedSemaphore(1) and asserted `free_slots() == 0` inside the
+# outer slot — which is true whether or not the inner call took anything, because the outer already
+# holds the only slot. It passed with the re-entrancy guard removed entirely. A test that cannot fail
+# is not evidence, and this file is the last place that should have contained one.
+#
+# With TWO slots the assertion has teeth: outer takes one, so a guarded inner leaves exactly one free
+# and an unguarded inner leaves zero.
+geomconf._SLOTS = threading.BoundedSemaphore(2)
+geomconf._depth = threading.local()
 with geomconf.geometry_slot():
+    check("  (baseline) the outer slot is held, one remains", free_slots() == 1)
     inner = geomconf.bounded_iterator(FakeGeom(FakeIt()), None, None)
-    check("a pass inside an existing slot does not take another", free_slots() == 0,
-          "and crucially does not block waiting for one")
+    check("a pass inside an existing slot does not take a SECOND", free_slots() == 1,
+          "an unguarded inner call would leave 0 free here")
     del inner
+gc.collect()
+check("both slots are free once the outer unwinds", free_slots() == 2)
+
+# and the wrapper's own depth tracking must guard a wrapper INSIDE a wrapper
+geomconf._SLOTS = threading.BoundedSemaphore(2)
+geomconf._depth = threading.local()
+outer = geomconf.bounded_iterator(FakeGeom(FakeIt()), None, None)
+check("  (baseline) the wrapper took one slot", free_slots() == 1)
+nested = geomconf.bounded_iterator(FakeGeom(FakeIt()), None, None)
+check("a wrapper created inside a wrapper takes no second slot", free_slots() == 1,
+      "bounded_iterator READ _depth without ever SETTING it — the guard covered geometry_slot only")
+del nested, outer
+gc.collect()
+check("both slots return after the wrappers are dropped", free_slots() == 2)
+
+# --- the leak the review caught: a constructor that raises must not eat a slot forever -------------
+geomconf._SLOTS = threading.BoundedSemaphore(1)
+geomconf._depth = threading.local()
+
+
+class ExplodingGeom:
+    def iterator(self, settings, model, workers=None):
+        raise RuntimeError("iterator construction failed")
+
+
+try:
+    geomconf.bounded_iterator(ExplodingGeom(), None, None)
+except RuntimeError:
+    pass
+check("a failed iterator construction RELEASES its slot", free_slots() == 1,
+      "the slot is taken before the constructor runs; with no wrapper built, __del__ never fires")
+
+# --- sizing: the formula that silently collapsed to 1 ------------------------------------------------
+import multiprocessing  # noqa: E402
+
+real_cpu = multiprocessing.cpu_count
+for cpu in (4, 8, 16, 32):
+    multiprocessing.cpu_count = lambda c=cpu: c
+    sl, wk = geomconf.geom_slots(), geomconf.geom_workers()
+    check(f"cpu={cpu}: more than one pass may run (got {sl})", sl > 1,
+          "cpu//(cpu-1) was 1 for every cpu>=3 — serialising all geometry while looking bounded")
+    check(f"cpu={cpu}: slots x workers stays near the cores ({sl}x{wk}={sl*wk})", sl * wk <= cpu + 1)
+multiprocessing.cpu_count = real_cpu
 
 print()
 if FAILED:

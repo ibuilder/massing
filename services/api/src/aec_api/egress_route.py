@@ -138,7 +138,7 @@ def _centroids(model, classes: tuple[str, ...]) -> list[dict[str, Any]]:
     want = {c.lower() for c in classes}
     out: list[dict[str, Any]] = []
     from aec_data.geomconf import bounded_iterator  # type: ignore
-    it = bounded_iterator(geom, settings, model)
+    it = bounded_iterator(geom, settings, model, num_threads=1)
     if not it.initialize():
         return out
     while True:

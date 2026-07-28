@@ -80,8 +80,12 @@ def per_element_deviation(model, points: Any, tolerance: float = 0.05,
     with contextlib.suppress(Exception):
         settings.set(settings.USE_WORLD_COORDS, True)
     out: list[dict[str, Any]] = []
+    # num_threads=1 deliberately. This scan SAMPLES (`max_points_per_element`) and BREAKS early, so
+    # what it returns depends on the order elements arrive in. ifcopenshell's default is single-
+    # threaded file order; letting the shared worker count apply here would make identical requests
+    # return different subsets run to run — a nondeterministic answer that still looks like an answer.
     from aec_data.geomconf import bounded_iterator  # type: ignore
-    it = bounded_iterator(geom, settings, model)
+    it = bounded_iterator(geom, settings, model, num_threads=1)
     if not it.initialize():
         return {"elements": [], "tolerance": tolerance, "scan_points": int(len(pts)),
                 "error": "no geometry in model", "covered": 0, "uncovered": 0,
@@ -204,7 +208,7 @@ def model_surface_points(model, max_points: int = 200000):
     settings = geom.settings()
     verts: list = []
     from aec_data.geomconf import bounded_iterator  # type: ignore
-    it = bounded_iterator(geom, settings, model)
+    it = bounded_iterator(geom, settings, model, num_threads=1)
     if it.initialize():
         while True:
             shape = it.get()

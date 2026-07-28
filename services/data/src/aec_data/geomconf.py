@@ -21,7 +21,10 @@ def geom_workers() -> int:
             return max(1, int(override))
         except ValueError:
             pass
-    return max(1, multiprocessing.cpu_count() - 1)
+    # Divide the machine among the concurrent passes rather than giving each one the whole box.
+    # `slots x workers` then stays near the core count instead of multiplying past it, which is the
+    # oversubscription this module exists to prevent. Falls back to cpu-1 when only one pass can run.
+    return max(1, multiprocessing.cpu_count() // max(1, geom_slots()))
 
 
 # --- PERF-THREADS: bound how many geometry passes run at once -----------------------------------
@@ -43,16 +46,26 @@ import threading
 
 _log = logging.getLogger("aec.geom")
 
-#: Concurrent geometry passes allowed in this process. Derived so that slots x per-pass workers stays
-#: near the core count, floored at 1 — one pass must always be able to run or nothing renders at all.
 def geom_slots() -> int:
+    """How many geometry passes may run at once in this process.
+
+    **Concurrency is chosen first, and the machine is divided among the passes** — not the other way
+    round. The first version of this derived `slots = cpu // geom_workers()`, and since `geom_workers`
+    defaults to `cpu - 1`, that is `cpu // (cpu-1)` = **1 on every host with three or more cores**.
+    Bounding every pass to a single slot does not protect anything: it serialises all geometry, makes
+    each queued request wait the full timeout, and then lets it proceed unbounded anyway. Worse than
+    doing nothing, and the test suite could not see it because nothing there renders concurrently.
+
+    Capped at 4 because past that the passes contend for memory bandwidth rather than cores, and a
+    server that renders four drawings at once is already responsive.
+    """
     override = os.environ.get("AEC_GEOM_SLOTS")
     if override:
         try:
             return max(1, int(override))
         except ValueError:
             pass
-    return max(1, multiprocessing.cpu_count() // max(1, geom_workers()))
+    return max(1, min(4, multiprocessing.cpu_count() // 2))
 
 
 _SLOTS = threading.BoundedSemaphore(geom_slots())
@@ -160,21 +173,35 @@ class _SlottedIterator:
         self._finish()
 
 
-def bounded_iterator(geom_module, settings, model):
+def bounded_iterator(geom_module, settings, model, num_threads=None):
     """`geom.iterator(settings, model, geom_workers())`, bounded by a concurrency slot.
 
     Drop-in: the returned object answers `initialize` / `get` / `next` like the real iterator and
     forwards everything else. Use this at every geometry site so the number of simultaneous
     tessellations is bounded, while each pass keeps its own worker processes.
     """
+    workers = geom_workers() if num_threads is None else max(1, int(num_threads))
+
     if getattr(_depth, "n", 0):          # already inside a slot on this thread — do not take another
-        return geom_module.iterator(settings, model, geom_workers())
+        return geom_module.iterator(settings, model, workers)
+
     got = _SLOTS.acquire(timeout=_WAIT_S)
     if not got:
         _log.warning("geometry slot wait exceeded %.0fs — proceeding unbounded", _WAIT_S)
+    _depth.n = getattr(_depth, "n", 0) + 1
 
     def _release():
+        _depth.n = max(0, getattr(_depth, "n", 1) - 1)
         if got:
             _SLOTS.release()
 
-    return _SlottedIterator(geom_module.iterator(settings, model, geom_workers()), _release)
+    # Construct INSIDE the guard. The slot is already held at this point, and if the iterator
+    # constructor raises there is no `_SlottedIterator` to be finalised — so `__del__` never runs and
+    # the slot is gone for the life of the process. One such failure would permanently shrink the
+    # pool and add the full timeout to every later pass, silently, because callers upstream turn this
+    # exception into a 400.
+    try:
+        return _SlottedIterator(geom_module.iterator(settings, model, workers), _release)
+    except BaseException:
+        _release()
+        raise
