@@ -41,6 +41,42 @@ So: **correctness a user would feel** first, **capacity** second, **capability**
 Completed work leaves this list and lives in the CHANGELOG. A NOW list holding finished items is a
 list nobody trusts.
 
+## RELEASE THE NEW LAYOUT — four sprints, in this order
+
+The five-room spine has been the **default since v0.3.715**, with `?shell=classic` as an opt-out. So
+"release it" does not mean turning it on. It means earning the right to **delete the escape hatch**,
+which is the only version of this that is irreversible — and the user's bar is explicit: *enterprise
+production grade, and better than the old version, first.*
+
+What we can already prove: `shell/parity.test.ts` enforces that **nothing the old rail reached became
+unreachable** — every destination has exactly one room, no stale mappings, room rail a strict
+superset per workspace. That is "not worse", and it is build-enforced rather than asserted in a
+comment.
+
+What we have NOT proved: that every room actually **renders**. The render audit on record measured
+the **classic** shell — it contains zero references to the spine — so "all 7 workspaces ok" was never
+a statement about the default layout. An unattached measurement drifts to whatever claim wants it.
+
+**S1 · PROVE — the gate.** Audit what the spine actually renders, stating the configuration this
+time. Every room, every destination, console clean, no empty panels. Then the harder half of
+"better": first-paint and interaction cost vs classic, keyboard reachability, and behaviour at
+mobile width. Findings become S1 work, not a footnote. **Nothing else ships until this is honest.**
+
+**S2 · HARDEN — enterprise hygiene, each its own release.**
+`chore/deps-upgrades-2026` (PR #69, Capacitor 7→8 + Postgres 16→17, 190 commits behind, crosses two
+majors — rebase, full suites, desktop build, ship alone so a break is bisectable to itself). Then
+`security/audit-2026-07` (56 commits behind; R1–R4 now decided).
+
+**S3 · SHOWCASE — the thing that makes the layout demonstrable.** Author one real project end to
+end: elements, a full estimate, a schedule, RFIs driven to closed, generated sheets. Package it
+(`build_samples.py`), replace the three hard-coded `.frag` menu entries with one library-backed
+"Load sample", open it on first load. Containers carry the element index as of v0.3.746, so this is
+now authoring work only.
+
+**S4 · RELEASE — delete the hatch.** Remove `?shell=classic` and the classic rail, refresh
+docs/demo/Pages, ship. Only after S1 is green and S3 exists: an escape hatch removed while the new
+path is unproven is not a release, it is a one-way door with no handle.
+
 1. **📦 MASS-FIRST — the container is the project, everywhere.** *Build. Backend landed v0.3.744;
    these are the remaining halves.* User direction, 2026-07-28:
 
