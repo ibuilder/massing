@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.734 — the server shares itself out between simultaneous drawings
+
+Preparing a model's geometry is the heaviest thing this server does, and until now each request took
+as much of the machine as it could get. Two people asking for drawings at the same moment did not get
+half each — they got a fight, and both waited longer than either would have alone.
+
+The work is now shared out: a few drawings prepare at once, each with a fair portion of the machine,
+and the rest queue briefly rather than piling on. A drawing that cannot get a turn still goes ahead
+rather than leaving anybody waiting indefinitely; the limit exists to stop a pile-up, not to decide
+whether somebody gets their sheet.
+
+Two scans that read only part of a model — the survey-deviation check and the egress route trace —
+deliberately keep reading it in a fixed order. Both stop early once they have enough, so the order
+decides which parts they looked at; letting that vary would mean the same question returned a
+different answer each time it was asked.
+
+The first version of this change was reviewed before release and was wrong in a way that mattered: it
+would have let only one drawing prepare at a time on any normal machine, making every other request
+wait for nothing. Four further faults were found in the same pass. All five are fixed, and the checks
+that now cover them were confirmed to fail against the old behaviour rather than merely passing
+against the new.
+
 ## v0.3.733 — the sample project's figures are rebuilt on the corrected measurements
 
 The demo dataset was captured on 23 July, before the measurement fix in v0.3.727, so some of the
