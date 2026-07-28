@@ -122,6 +122,25 @@ lock drift → run `lockfile.yml` by `workflow_dispatch` and commit the artifact
 full web gate → desktop build → ship alone. Then
 `security/audit-2026-07` (56 commits behind; R1–R4 now decided).
 
+**S2 remaining — Capacitor 7 → 8 only. Everything else landed in v0.3.751.**
+Node 24 + Postgres 17 + the nginx pin + the migration-guard fix are on `main` and verified. What is
+left is four lines in `apps/web/package.json` (`@capacitor/{android,cli,core,ios}` `^7` → `^8`) plus
+a regenerated `package-lock.json`.
+
+**Why it was not done in the same pass, and why that is not laziness:** `lockfile.yml` is
+**pip-compile only** — it locks `services/api/requirements.in` and has nothing to do with npm. So the
+npm lock has to come from a real `npm install`, and a `package.json` bumped without a matching lock
+is a **broken build on `main`** — `npm ci` fails outright when the two disagree. Half of this change
+is strictly worse than none of it, so it is all-or-nothing in a single commit.
+
+Do it **on Node 24**, not on the current Node 20: the resolver writes `engines`-influenced trees and
+CI will run 24, so a lock generated here would be a lock nobody else reproduces. Then:
+`npm install` → `npm ci` to prove the lock → full web gate → **desktop build** (Capacitor majors
+break the Tauri/mobile packaging path far more often than the web one) → ship alone.
+
+Also still deliberately parked: `FRAGMENTS_VERSION 3.4.5 → 3.4.6`, which must move as a **pair** with
+`@thatopen/components`.
+
 **S3 · SHOWCASE — the thing that makes the layout demonstrable.** Author one real project end to
 end: elements, a full estimate, a schedule, RFIs driven to closed, generated sheets. Package it
 (`build_samples.py`), replace the three hard-coded `.frag` menu entries with one library-backed
