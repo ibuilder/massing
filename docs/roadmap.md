@@ -151,6 +151,22 @@ break the Tauri/mobile packaging path far more often than the web one) → ship 
 Also still deliberately parked: `FRAGMENTS_VERSION 3.4.5 → 3.4.6`, which must move as a **pair** with
 `@thatopen/components`.
 
+**MOBILE-GATE — decide whether the mobile platforms are real.** *Deferred 2026-07-28, deliberately.*
+Capacitor 8 shipped (v0.3.752) with its packaging path **verified nowhere**. What exists now is
+narrow but honest: `capacitor.config.ts` is inside typecheck, so the v8 `CapacitorConfig` type is
+confirmed compatible. That proves the config compiles — **not** that `cap sync` produces a working
+Android build.
+
+A genuine gate needs the Android SDK, Java and Gradle in CI plus `cap add` to regenerate the
+gitignored `android/` scaffolding. Anything cheaper (`cap doctor`, importing the config) adds nearly
+nothing over the typecheck and *looks* like coverage, which is the failure this very release had to
+correct: v0.3.752 claimed CI verified the build when no such job existed.
+
+So the question is not "add a job", it is **are iOS/Android real targets?** If yes, the SDK job is
+justified and should exist before anyone ships a mobile artifact. If no, **delete the Capacitor
+dependencies and the platform config** — carrying four untested packages that a major bump can break
+silently is worse than not having them. Do not leave it in the middle, which is where it is today.
+
 **S3 · SHOWCASE — the thing that makes the layout demonstrable.** Author one real project end to
 end: elements, a full estimate, a schedule, RFIs driven to closed, generated sheets. Package it
 (`build_samples.py`), replace the three hard-coded `.frag` menu entries with one library-backed
