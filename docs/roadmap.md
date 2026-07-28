@@ -1,144 +1,75 @@
 # Roadmap
 
-The single product roadmap — **open items only**, reconciled + re-prioritized **2026-07-26 at
-v0.3.711**. The 🏛 R26, 💵 R25, 🏢 R19, 🏛 R18 and 🏙 R20 rings and the whole 07-24 NOW list are
-**complete and archived**; 📐 R27 has shipped six of eight. Everything ever shipped lives in [roadmap-completed.md](roadmap-completed.md); per-release
-detail is in [CHANGELOG.md](../CHANGELOG.md). Supporting detail:
-[production-readiness.md](production-readiness.md) · [gc-portal.md](gc-portal.md) ·
+The single product roadmap — **open items only**. Everything shipped lives in
+[roadmap-completed.md](roadmap-completed.md); per-release detail is in [CHANGELOG.md](../CHANGELOG.md).
+Supporting detail: [production-readiness.md](production-readiness.md) · [gc-portal.md](gc-portal.md) ·
 [ops-dr.md](ops-dr.md) · [mobile.md](mobile.md).
 
 Three pillars on one IFC-keyed model: **BIM authoring/viewer** · **GC portal** ·
-**developer/finance**. All three now have depth: finance and CRE from R19 + R20, authoring from R18,
-the 5D/4D spine from R25, and the interaction surface from R26. **What is thin now is the drawing** —
-the sheet is still handled as an image with text behind it rather than as data (📐 R27), and the
-structural carry-overs that keep the codebase workable are still outstanding.
+**developer/finance**. All three have depth — finance and CRE from R19 + R20, authoring from R18, the
+5D/4D spine from R25, the interaction surface from R26. **What is thin now is the drawing**: the sheet
+is still handled as an image with text behind it rather than as data (📐 R27).
 
-**Status:** CodeQL 0 open alerts · backend suite green (**408** suites) · vitest **541** (incl. 152 vendored kernel tests) · single-source version in
-`apps/web/package.json` · CI on Node 22. Reconciled **2026-07-27 at v0.3.726**.
+**Status — reconciled 2026-07-28 at v0.3.740.** CodeQL **0** open · backend **416** suites green ·
+vitest **557** (incl. vendored kernel + PDF engine) · single-source version in `apps/web/package.json`
+· CI on Node 22 · 3 remote branches, 1 open PR.
 
-**The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
-reverts. R26 is otherwise complete — what gates making it the default is named in that section.
+**The five-room shell is the DEFAULT and is reachable.** It renders in the Construction, Developer and
+Design workspaces; opening a project lands on the persona's home and every other workspace carries a
+`← Project home` signpost (v0.3.739). `?shell=classic` opts out and sticks.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
-[⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
-non-gated work**.
+[⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below is **only non-gated
+work**.
+
+> **Housekeeping note, 2026-07-28.** This file had accumulated **three duplicate NOW sections** with
+> contradictory content — items shipped hours earlier still listed as pending, numbering running
+> 1, 2, 1, 5, 6, and a header claiming the new shell was opt-in after it had been made default. Cause:
+> scripted edits that *inserted* a NOW section instead of replacing one, repeated over several
+> releases. Rebuilt by hand here. **If you are editing this file with a script, replace between the
+> section markers — never splice at a matched string.**
 
 ---
 
-## ▶ NOW — priority order (sprints of large chunks; one full-suite release per sprint)
+## ▶ NOW — priority order (one full-suite release per item; sprints where they group)
 
-**Re-prioritized 2026-07-27 at v0.3.728, after a live end-to-end test on an authored house.** Building
-a real 12x8 m building and driving a real RFI through it found things no unit test was positioned to
-see — a costing error of roughly 2x, a pin that never reached the sheet, and an index that goes behind
-the model in silence. The ordering below reflects that: **correctness a user would feel** first,
-**capacity and capability** after.
+**Re-prioritized 2026-07-28 at v0.3.740.** The ordering came out of a live end-to-end test: authoring
+a real 12×8 m house and driving an RFI through it found a ~2× costing error, a pin that never reached
+the sheet, and an index silently behind the model — none of which any unit test was positioned to see.
+So: **correctness a user would feel** first, **capacity** second, **capability** third.
 
-Every item here says what it is and why it is where it is. Completed work moves to the CHANGELOG and
-out of this list — a NOW list containing finished items is a list nobody trusts.
+Completed work leaves this list and lives in the CHANGELOG. A NOW list holding finished items is a
+list nobody trusts.
 
-1. ~~**🏛 SPINE-DEFAULT**~~ **DONE v0.3.739.** The rail always worked; it could not be found.
-   `initNav` now lands on the persona's declared `home` (the field existed and nothing read it), and
-   a `← Project home` signpost sits in the tab strip of every non-portal workspace. 11 tests over the
-   landing rule and the signpost rule; verified live — visible in Model and Drawings, correctly
-   hidden in Construction. **Two of my own diagnoses here were wrong**, both from asserting on things
-   that looked like evidence: `.portal-filter` also exists in the modelling rail, and the control
-   labelled "Home" is a Finance sub-tab (`data-fin=home`) inside a hidden workspace.
-1. **📄 PDF-ADOPT ② — move the takeoff flow onto the vendored engine.** *Build; ① vendored
-   v0.3.740.* `@massingcloud/pdf-viewer` is copied at `65e9011`, aliased through the one map, zero
-   local patches, 5 reachability tests, **no new dependency** (its only externals are `pdfjs-dist`
-   and `pdf-lib`, both already ours) and **not in the eager bundle** (entry stayed 346 KB).
-   `drawings/pdfTakeoff.ts` still owns the flow. Replace it in slices — open/render first, then
+1. **📄 PDF-ADOPT ② — move the takeoff flow onto the vendored engine.** *Build; ① shipped v0.3.740.*
+   `@massingcloud/pdf-viewer` is vendored at `65e9011` — aliased through the one map, zero local
+   patches, 5 reachability tests, **no new dependency**, **not in the eager bundle** (entry stayed
+   346 KB). `drawings/pdfTakeoff.ts` still owns the flow. Replace in slices — open/render, then
    markup, then calibrated takeoff — so a regression stays bisectable. Publishing upstream to npm
-   would let us drop the vendoring entirely; that is a decision, not a blocker.
-2. Reconciled **2026-07-27 at v0.3.726**.
+   would let us drop the vendoring; that is a decision, not a blocker.
+2. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (the UI half).** *Build.* `rdflib` approved; add it to
+   `requirements.in` and regenerate the lock via the `lockfile.yml` workflow — never on a dev box.
+3. **🧩 KERNEL-ADOPT ③ — one more capability onto the kernel.** *Build.* ① the identity boundary
+   (v0.3.713) and ② markup through the plugin host (v0.3.717) each closed a real defect; pick ③ from
+   a real pain, not from the kernel's feature list. **Undo is not a candidate** — checked: model-level
+   undo via the versioned source IFC is stronger for authoring.
+4. **📐 R27 tail + 🧱 decomposition carry-overs.** *Build, low stakes.* Two of eight R27 items remain;
+   the carry-overs are named in their own section below.
+5. **🖼 Demo + docs refresh.** *Build, low stakes.* The snapshot was regenerated at v0.3.733 after the
+   QTO fix; README/guide still quote pre-v0.3.723 numbers in places.
 
-**The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
-reverts. R26 is otherwise complete — what gates making it the default is named in that section.
-
-**Read the gating honestly.** A large block of what remains is genuinely blocked — see
-[⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
-non-gated work**.
-
----
-
-## ▶ NOW — priority order (sprints of large chunks; one full-suite release per sprint)
-
-**Re-prioritized 2026-07-27 at v0.3.728, after a live end-to-end test on an authored house.** Building
-a real 12x8 m building and driving a real RFI through it found things no unit test was positioned to
-see — a costing error of roughly 2x, a pin that never reached the sheet, and an index that goes behind
-the model in silence. The ordering below reflects that: **correctness a user would feel** first,
-**capacity and capability** after.
-
-Every item here says what it is and why it is where it is. Completed work moves to the CHANGELOG and
-out of this list — a NOW list containing finished items is a list nobody trusts.
-
-1. **🌍 GEO-REF — we have no georeferencing of our own.** *Build; now the top.* The kernel ships
-   `project-schema/geo.ts` (CRS codes, linear units, `GeoReference`, `Extent`, accuracy). Our only
-   georeferencing code lives inside ifcopenshell's package. CLAUDE.md names this as a watch-out
-   ("preserve real coordinates for export, render near scene origin") and nothing implements it.
-2. Reconciled **2026-07-27 at v0.3.726**.
-
-**The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
-reverts. R26 is otherwise complete — what gates making it the default is named in that section.
-
-**Read the gating honestly.** A large block of what remains is genuinely blocked — see
-[⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
-non-gated work**.
-
----
-
-## ▶ NOW — priority order (sprints of large chunks; one full-suite release per sprint)
-
-**Re-prioritized 2026-07-27 at v0.3.728, after a live end-to-end test on an authored house.** Building
-a real 12x8 m building and driving a real RFI through it found things no unit test was positioned to
-see — a costing error of roughly 2x, a pin that never reached the sheet, and an index that goes behind
-the model in silence. The ordering below reflects that: **correctness a user would feel** first,
-**capacity and capability** after.
-
-Every item here says what it is and why it is where it is. Completed work moves to the CHANGELOG and
-out of this list — a NOW list containing finished items is a list nobody trusts.
-
-1. **🗃 CACHE ② — share baked geometry across workers.** *Build; `diskcache==5.6.3` LOCKED and
-   installed, no importer yet.* The in-process byte budget bounds ONE worker; under N uvicorn workers
-   the same model is tessellated N times because a dict cannot span processes. Key on the existing
-   content key, store the baked meshes, and let the byte budget govern the on-disk half too.
-5. **🌍 GEO-REF — we have no georeferencing of our own.** *Build.* The kernel now ships
-   `project-schema/geo.ts` (CRS codes, linear units, `GeoReference`, `Extent`, accuracy). Our only
-   georeferencing code today lives inside ifcopenshell's package. CLAUDE.md names this as a watch-out
-   ("preserve real coordinates for export, render near scene origin") and nothing implements it.
-6. **🧩 KERNEL-ADOPT ③ — a capability onto the kernel.** *Build.* ① the identity boundary (v0.3.713)
-   and ② markup through the plugin host (v0.3.717) both closed real defects; pick ③ from a real pain,
-   not from the kernel's feature list. **Undo is not a candidate** — checked: model-level undo via
-   versioned source IFC is stronger for authoring.
-7. **📦 MASS-FILE — ~~build~~ *correct the record*, then decide about the kernel.** **We already
-   have a working `.mass` and I said otherwise.** Verified live 07-28: `GET /projects/{pid}/bundle`
-   emits an 11-entry zip (project.json + data/*.json + geometry/model.frag + the source IFC), and
-   `POST /projects/import-bundle` re-opens it — an RFI survived with its `closed` state and the
-   estimate rebuilt to the identical total. `bundle.py` has done this the whole time.
-   **What was actually true:** the *kernel* ships a container CONTRACT and one storage-backed
-   adapter, with no file writer — that is what upstream
-   [issue #6](https://github.com/MassingCloud/massingifc/issues/6) asks about, and it stands. The
-   error was reporting "the kernel has no `.mass` writer" as "there is no `.mass` output". Open
-   question is now the reverse of what I wrote: do we push OUR adapter up to the kernel, or keep it
-   product-side? Nothing to build to have the feature.
-8. **📄 PDF-LIB — adopt `@massingcloud/pdf-viewer`.** *Decide, then build.* MIT, deps `pdfjs-dist` +
-   `pdf-lib` (both permissive, pdf-lib already ours). 12,275 lines across 46 files against our
-   423-line `pdfTakeoff.ts` — a genuine superset, structured markup records rather than annotation
-   ink. Not yet published to npm, so adoption means vendoring (as with the kernel) or publishing
-   first. Open: [issue #9](https://github.com/MassingCloud/massing-pdf/issues/9) on public metadata.
-9. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** *Build.* `rdflib` approved; pin it in the
-   lock via the workflow.
-10. **📐 R27 tail + 🧱 decomposition carry-overs.** *Build, low stakes.* ~~Demo regeneration~~ DONE
-    v0.3.733 — and narrower than assumed: only `IfcCovering` had been doubled (505.84 → 252.00);
-    slabs never moved because that model states its own `Qto` quantities. The fix's scope was always
-    "elements without stated quantities", and the demo proved it.
-
-### Not effort — waiting on something
-- **`chore/deps-upgrades-2026`** (PR #69) — Capacitor 7→8, Postgres 16→17. Its own release, its own
+### 🤔 Decisions, not effort — these want your call, not my time
+- **`chore/deps-upgrades-2026` (PR #69)** — Capacitor 7→8, Postgres 16→17. Its own release, its own
   suite run; 190 commits behind and crosses two majors.
-- **`security/audit-2026-07`** — findings R1–R4 need a decision from the user before it can land.
-- **R26-V-TIMING** — needs real users. Left open deliberately.
-- **Plugin pricing** — needs customers, not code.
+- **`security/audit-2026-07`** — findings R1–R4 need a decision before it can land. 56 commits behind.
+- **`.mass` ownership** — we already have a working container (`bundle.py`; verified live 07-28: an
+  11-entry zip that re-opens with an RFI still `closed` and the estimate rebuilt to the identical
+  total). The *kernel* has the contract and no file writer — upstream
+  [issue #6](https://github.com/MassingCloud/massingifc/issues/6). Push ours up, or keep it
+  product-side? Nothing to build either way.
+- **Branch protection** — `main` is unprotected and public. Recommend blocking force-push and deletion
+  only; direct version-numbered pushes keep working, published history cannot be rewritten.
+- **R26-V-TIMING** — needs real users. **Plugin pricing** — needs customers.
 
 ## 🏗 R21 — LOD 400→500 DOCUMENTATION RING *(from a real LOD 400 shop-drawing set, 2026-07-25)*
 
@@ -400,7 +331,9 @@ Every item shipped, R26-ICONS last (v0.3.708). The render audit **ran under the 
 7/7 workspaces, five rooms, 153 destinations — and it is trustworthy because the false-pass hole was
 closed first.
 
-**Flipping `?shell=spine` to the default is a product call, not a technical gate.** One item remains
+**The spine IS the default** — and was made so back at v0.3.715, with the reachability work finished
+at v0.3.739 (persona-home landing + `← Project home` signpost). Verified live 07-28: the room rail
+renders in Construction, Developer and Design, all five rooms with their job strings. One item remains
 and cannot gate it:
 
 - **R26-V-TIMING** *(M — needs real users)* — instrument first-task completion per persona against the
