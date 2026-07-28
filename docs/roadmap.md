@@ -41,176 +41,30 @@ So: **correctness a user would feel** first, **capacity** second, **capability**
 Completed work leaves this list and lives in the CHANGELOG. A NOW list holding finished items is a
 list nobody trusts.
 
-## RELEASE THE NEW LAYOUT — four sprints, in this order
+## ✅ RELEASE THE NEW LAYOUT — **COMPLETE v0.3.751–764**, one item left
 
-The five-room spine has been the **default since v0.3.715**, with `?shell=classic` as an opt-out. So
-"release it" does not mean turning it on. It means earning the right to **delete the escape hatch**,
-which is the only version of this that is irreversible — and the user's bar is explicit: *enterprise
-production grade, and better than the old version, first.*
+Shipped, each live-verified against a running stack rather than by test alone:
 
-What we can already prove: `shell/parity.test.ts` enforces that **nothing the old rail reached became
-unreachable** — every destination has exactly one room, no stale mappings, room rail a strict
-superset per workspace. That is "not worse", and it is build-enforced rather than asserted in a
-comment.
+- **S1 PROVE** — the layout renders. `/rooms` 200 in 18 ms, all three portal workspaces populated.
+  The "empty rooms" scare was a **dead backend**; I built a case for a product defect twice from a
+  corpse whose own log read `200 OK`. See [[prove-the-backend-is-alive]].
+- **S2 HARDEN** — Node 24 (not the branch's 22 — v22 had 276 days left, v24 has 642), Postgres 17,
+  Capacitor 8, the security-audit branch (SSRF-via-redirect, sandbox, SVG), the Android build gate,
+  and a version-consistency gate that had been silently wrong for ~100 releases.
+- **S3 SHOWCASE** — `maple_grove_house.mass`: 23 elements, served, opens as a project. Plus the
+  library-directory bug that meant `GET /samples` **never worked**, and empty-first-run onboarding.
+- **S4 SHELL** — the five rooms as primary navigation, NEXT BEST ACTION in the header, the pinned
+  rail, and the three chrome defects from the 07-28 screenshot.
 
-What we have NOT proved: that every room actually **renders**. The render audit on record measured
-the **classic** shell — it contains zero references to the spine — so "all 7 workspaces ok" was never
-a statement about the default layout. An unattached measurement drifts to whatever claim wants it.
+**The one thing left: delete `?shell=classic`.** Held deliberately, and this is the reasoning rather
+than hesitation. The classic rail is already **unreachable in normal use** — the seven workspace
+buttons are gone when the spine is on — so it costs nothing sitting there, while deleting it is the
+only irreversible step in the whole ring. `pulse.ts` renders on the portal home but has never been
+watched populating against real engine data; only its logic is tested. And nobody outside this
+session has used the new shell for a day's work.
 
-**S1 · PROVE — the gate.** Audit what the spine actually renders, stating the configuration this
-time. Every room, every destination, console clean, no empty panels. Then the harder half of
-"better": first-paint and interaction cost vs classic, keyboard reachability, and behaviour at
-mobile width. Findings become S1 work, not a footnote. **Nothing else ships until this is honest.**
-
-**S1 VERDICT (2026-07-28): the layout renders. The empty-rooms finding was entirely a dead
-backend.** Re-run against a fresh API: `/rooms` 200 in **18 ms** (five rooms, 38 modules in `model`),
-`/modules` 200 in 40 ms, and all three portal workspaces populate — construction 24 rail items,
-developer 20, design 18, each showing its room and its job line. Nothing to fix here.
-
-The lesson is about method, not the product. I built a case for a product defect **twice** — a
-hanging handler, then an exhausted threadpool — from a backend that was dying and then dead, while
-its own log read `GET /rooms → 200 OK` throughout. Two independent diagnoses, both confident, both
-measuring a corpse. Before diagnosing a frontend that shows no data, **prove the backend is alive**;
-`ERR_CONNECTION_REFUSED` in the console is that proof and it was there the whole time.
-
-**S1 remaining (real, no backend involved):** The audit ran against an API that **died mid-run**
-(`OSError: [WinError 64]` on socket accept, then `ERR_CONNECTION_REFUSED`). Everything it said about
-empty rooms is therefore **void** — `portal-nav`/`portal-content` mounting with 0 children was a
-dead-backend artifact, not a proven product defect. Re-run on Postgres before believing any of it.
-I twice began writing up a product bug (hanging handler, then exhausted threadpool) from that
-evidence; the server log said `GET /rooms → 200 OK` the whole time.
-
-These stand on their own — no backend involved, all visible in the user's screenshot:
-- **`?` MORE is an overflow bin** — MEASURE/MODIFY/SHARE in one long list with a *horizontal*
-  scrollbar and help text truncated mid-sentence. Fixed toolbar grouping, no h-scroll.
-- **Two dropdowns open at once** over the model, neither dismissing the other.
-- **A third-party watermark renders in our viewport.**
-- **☰ could not explain itself** — "Toggle panel" named no panel, never changed, and its shortcut
-  showed `(\)` because `\` in HTML is two literal backslashes. **Fixed v0.3.747** with
-  `aria-expanded`/`aria-controls` so a test can assert the button and the panel agree.
-
-**S1a · DATABASE — decide the engine split explicitly.** *User question, 2026-07-28: Postgres or
-SQLite?* The answer is **both, which is already the case** — `DATABASE_URL` is a SQLAlchemy URL, the
-desktop/preview build uses SQLite and the server uses Postgres. A Tauri app that requires the user to
-install Postgres is not a desktop app. SQLite's limit is **concurrent writers, not size**; Postgres is
-right for anything multi-user.
-The real risk is neither: it is a feature **silently depending on one engine**. That has already
-happened once — the FTS GIN indexes are Postgres-only and were never created, and nobody noticed
-because the migration workflow never ran ([[drift-guard-fts-incident]]). So: name the Postgres-only
-capabilities, make the SQLite path degrade **visibly** rather than silently, and run the backend
-suite against **both** engines in CI. Today it runs against one, which means the other is asserted by
-hope.
-
-**S2 · HARDEN — enterprise hygiene, each its own release.**
-`chore/deps-upgrades-2026` (PR #69). **Attempted 2026-07-28; stopped on a real blocker, repo left
-clean.** It is **231** commits behind (not 190), with 10 of its own. A test-merge conflicts in
-**8 files, every one a dependency declaration** — `package-lock.json`, `requirements.in`,
-`requirements.txt`, three Dockerfiles, `Cargo.toml`, `dependabot.yml`. The viewer `.ts` changes merge
-cleanly, so the code is not the problem; only the pins are, and pins are not hand-resolved here — the
-lock must come from `lockfile.yml`, never a dev box.
-
-**The blocker is Node.** The branch sets `engines` to `"node": ">=22"` and every Dockerfile to
-`node:22-slim`. **This machine has Node 20.3.1 (Program Files) and v18.8.0 on the default PATH.**
-Merging as-is makes the local build unrunnable here. That is a decision, not a conflict: *install
-Node 22 and keep the bump, or drop the Node change and take only Capacitor 8 + Postgres 17.*
-Also in the diff and easy to miss: `nginx:alpine → 1.31-alpine`, `minio/minio` → a pinned release,
-and `FRAGMENTS_VERSION 3.4.5 → 3.4.6` — fragments is version-coupled to `@thatopen/components`, so
-that **pair** needs checking rather than bumping one side.
-
-Sequence once decided: re-apply the intent onto current `main` rather than merging 231 commits of
-lock drift → run `lockfile.yml` by `workflow_dispatch` and commit the artifact → full backend suite →
-full web gate → desktop build → ship alone. Then
-`security/audit-2026-07` (56 commits behind; R1–R4 now decided).
-
-**S2 remaining — Capacitor 7 → 8 only. Everything else landed in v0.3.751.**
-Node 24 + Postgres 17 + the nginx pin + the migration-guard fix are on `main` and verified. What is
-left is four lines in `apps/web/package.json` (`@capacitor/{android,cli,core,ios}` `^7` → `^8`) plus
-a regenerated `package-lock.json`.
-
-**Why it was not done in the same pass, and why that is not laziness:** `lockfile.yml` is
-**pip-compile only** — it locks `services/api/requirements.in` and has nothing to do with npm. So the
-npm lock has to come from a real `npm install`, and a `package.json` bumped without a matching lock
-is a **broken build on `main`** — `npm ci` fails outright when the two disagree. Half of this change
-is strictly worse than none of it, so it is all-or-nothing in a single commit.
-
-**Attempted 2026-07-28 on Node 20 with `--package-lock-only`; reverted, `main` untouched.** It
-looked like it worked — `npm install --package-lock-only --workspace apps/web @capacitor/...@^8`
-**exited 0**, printed a normal summary, rewrote 334 lines of the lock, and bumped the manifest to
-`^8`. The lock's Capacitor entries were **still 7.6.8**. Manifest `^8` + lock `7.6.8` is a build that
-fails on `npm ci`, and every signal npm gave said success. The 334 changed lines were unrelated
-reordering, which is exactly what made it look like work had been done.
-
-**So the check is: read the version out of the lock, never trust the exit code.**
-`python -c "import json;print({k:v['version'] for k,v in json.load(open('package-lock.json'))['packages'].items() if '@capacitor' in k})"`
-
-Do it **on Node 24**, not on the current Node 20: the resolver writes `engines`-influenced trees and
-CI will run 24, so a lock generated here would be a lock nobody else reproduces. Then:
-`npm install` → `npm ci` to prove the lock → full web gate → **desktop build** (Capacitor majors
-break the Tauri/mobile packaging path far more often than the web one) → ship alone.
-
-Also still deliberately parked: `FRAGMENTS_VERSION 3.4.5 → 3.4.6`, which must move as a **pair** with
-`@thatopen/components`.
-
-**MOBILE-GATE — decide whether the mobile platforms are real.** *Deferred 2026-07-28, deliberately.*
-Capacitor 8 shipped (v0.3.752) with its packaging path **verified nowhere**. What exists now is
-narrow but honest: `capacitor.config.ts` is inside typecheck, so the v8 `CapacitorConfig` type is
-confirmed compatible. That proves the config compiles — **not** that `cap sync` produces a working
-Android build.
-
-A genuine gate needs the Android SDK, Java and Gradle in CI plus `cap add` to regenerate the
-gitignored `android/` scaffolding. Anything cheaper (`cap doctor`, importing the config) adds nearly
-nothing over the typecheck and *looks* like coverage, which is the failure this very release had to
-correct: v0.3.752 claimed CI verified the build when no such job existed.
-
-So the question is not "add a job", it is **are iOS/Android real targets?** If yes, the SDK job is
-justified and should exist before anyone ships a mobile artifact. If no, **delete the Capacitor
-dependencies and the platform config** — carrying four untested packages that a major bump can break
-silently is worse than not having them. Do not leave it in the middle, which is where it is today.
-
-## THE FINAL SPRINT — S3 + S4, written to be executed cold
-
-S1 is green, S2 is landed (v0.3.751–755). These two are what remain, and they are ordered because
-**S3 produces the content S4 needs to look like anything.** Building the shell first means demoing
-it against an empty project.
-
-### S3 · SHOWCASE — author one real project (do this first)
-Prerequisites are all met: `.mass` carries the element index (v0.3.746), `build_samples.py`
-self-verifies, `GET /samples` is live and correctly returns `[]`.
-1. Start the API (`preview_start api`) and **prove it is alive** — `curl /health`, `status=000` means
-   dead. Do not skip; two wrong diagnoses today came from a corpse.
-2. Author a house end to end through the running app: elements → QTO → a full estimate → a CPM
-   schedule → 3–4 RFIs driven to `closed` → generated plan + schedule sheets.
-3. `build_samples.py --project <pid> --out ../../samples` — it verifies the container reads back and
-   warns if geometry is missing. Commit the `.mass`.
-4. Replace the three hard-coded `.frag` entries in `main.ts` (`/school_str.frag`, `/school_arq.frag`,
-   `/basichouse.frag`) with one library-backed "Load sample" reading `GET /samples`.
-5. Open a sample on first load so an empty app is never an empty canvas.
-
-### S4 · SHELL — the five-tab layout
-Already built and wired: `workQueue.ts`, `pulse.ts` (`buildPulse`/`nextBestAction`/`pulseRailEl`,
-called from `portal.renderHome`). What is missing is the frame:
-- **Five tabs** — Model · Cost · Schedule · Deal · Work — replacing the seven `ws-btn` workspaces in
-  `main.ts`. Nouns a builder uses, not workspaces an org chart uses.
-- **Next Best Action in the header**, fed by `nextBestAction()`. One item, never a list.
-- **A thin pinned rail** (~6 entries), icon + label.
-- **Then delete `?shell=classic`** and the classic rail — last, and only once the above renders
-  against the S3 project. An escape hatch removed while the new path is unproven is a one-way door
-  with no handle.
-
-**Known UI defects to fix inside S4** (all server-independent, all seen in the 07-28 screenshot):
-the "More" menu is an overflow bin with a horizontal scrollbar and help text truncated mid-sentence;
-two dropdowns open simultaneously over the model with neither dismissing the other; a third-party
-watermark renders in our viewport.
-
-**S3 · SHOWCASE — the thing that makes the layout demonstrable.** Author one real project end to
-end: elements, a full estimate, a schedule, RFIs driven to closed, generated sheets. Package it
-(`build_samples.py`), replace the three hard-coded `.frag` menu entries with one library-backed
-"Load sample", open it on first load. Containers carry the element index as of v0.3.746, so this is
-now authoring work only.
-
-**S4 · RELEASE — delete the hatch.** Remove `?shell=classic` and the classic rail, refresh
-docs/demo/Pages, ship. Only after S1 is green and S3 exists: an escape hatch removed while the new
-path is unproven is not a release, it is a one-way door with no handle.
+**The gate: one real user runs a day through it.** Then this is a one-line release. Tidiness is not
+worth spending the way back on.
 
 1. **📦 MASS-FIRST — the container is the project, everywhere.** *Build. Backend landed v0.3.744;
    these are the remaining halves.* User direction, 2026-07-28:
