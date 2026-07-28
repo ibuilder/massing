@@ -167,6 +167,41 @@ justified and should exist before anyone ships a mobile artifact. If no, **delet
 dependencies and the platform config** — carrying four untested packages that a major bump can break
 silently is worse than not having them. Do not leave it in the middle, which is where it is today.
 
+## THE FINAL SPRINT — S3 + S4, written to be executed cold
+
+S1 is green, S2 is landed (v0.3.751–755). These two are what remain, and they are ordered because
+**S3 produces the content S4 needs to look like anything.** Building the shell first means demoing
+it against an empty project.
+
+### S3 · SHOWCASE — author one real project (do this first)
+Prerequisites are all met: `.mass` carries the element index (v0.3.746), `build_samples.py`
+self-verifies, `GET /samples` is live and correctly returns `[]`.
+1. Start the API (`preview_start api`) and **prove it is alive** — `curl /health`, `status=000` means
+   dead. Do not skip; two wrong diagnoses today came from a corpse.
+2. Author a house end to end through the running app: elements → QTO → a full estimate → a CPM
+   schedule → 3–4 RFIs driven to `closed` → generated plan + schedule sheets.
+3. `build_samples.py --project <pid> --out ../../samples` — it verifies the container reads back and
+   warns if geometry is missing. Commit the `.mass`.
+4. Replace the three hard-coded `.frag` entries in `main.ts` (`/school_str.frag`, `/school_arq.frag`,
+   `/basichouse.frag`) with one library-backed "Load sample" reading `GET /samples`.
+5. Open a sample on first load so an empty app is never an empty canvas.
+
+### S4 · SHELL — the five-tab layout
+Already built and wired: `workQueue.ts`, `pulse.ts` (`buildPulse`/`nextBestAction`/`pulseRailEl`,
+called from `portal.renderHome`). What is missing is the frame:
+- **Five tabs** — Model · Cost · Schedule · Deal · Work — replacing the seven `ws-btn` workspaces in
+  `main.ts`. Nouns a builder uses, not workspaces an org chart uses.
+- **Next Best Action in the header**, fed by `nextBestAction()`. One item, never a list.
+- **A thin pinned rail** (~6 entries), icon + label.
+- **Then delete `?shell=classic`** and the classic rail — last, and only once the above renders
+  against the S3 project. An escape hatch removed while the new path is unproven is a one-way door
+  with no handle.
+
+**Known UI defects to fix inside S4** (all server-independent, all seen in the 07-28 screenshot):
+the "More" menu is an overflow bin with a horizontal scrollbar and help text truncated mid-sentence;
+two dropdowns open simultaneously over the model with neither dismissing the other; a third-party
+watermark renders in our viewport.
+
 **S3 · SHOWCASE — the thing that makes the layout demonstrable.** Author one real project end to
 end: elements, a full estimate, a schedule, RFIs driven to closed, generated sheets. Package it
 (`build_samples.py`), replace the three hard-coded `.frag` menu entries with one library-backed
