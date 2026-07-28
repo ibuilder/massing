@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.737 — a test that only worked on one operating system
+
+The checks covering the shared geometry cache included one that deliberately points it at an
+unusable location, to confirm that a cache which cannot be opened is quietly skipped rather than
+stopping a drawing being made.
+
+The location chosen for that check was rejected by Linux before the test could even begin, so on the
+build servers it did not check anything — it simply stopped. On Windows, where it was written, it ran
+fine. The check now uses a location that is unusable in the same way everywhere, and it fails for the
+reason it was written to test.
+
+No change to how the product behaves.
+
 ## v0.3.736 — prepared geometry can be shared between server processes
 
 A busy server runs several copies of itself. Each kept its own prepared geometry, so opening the same

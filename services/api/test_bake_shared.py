@@ -82,12 +82,23 @@ with tempfile.TemporaryDirectory() as d:
     bs.close()      # Windows will not delete a directory whose SQLite file is still open
 
 # --- an unusable directory must degrade, never break rendering ---------------------------------------
-bs = fresh("\x00:/definitely/not/a/valid/path")
+#
+# The path must be invalid for OPENING while remaining an ordinary string. A null byte is not: on
+# Linux `os.environ[...] = "\0..."` raises `ValueError: embedded null byte` at the ASSIGNMENT, before
+# the code under test runs at all. The first version therefore tested the harness — it passed on
+# Windows, which tolerates it, and failed on the Linux gate. Pointing a directory path *inside an
+# existing file* fails identically on every platform, and fails for the reason we actually care about.
+_blocker = tempfile.NamedTemporaryFile(delete=False)
+_blocker.write(b"not a directory")
+_blocker.close()
+
+bs = fresh(os.path.join(_blocker.name, "cache"))
 check("an unopenable cache degrades to no-sharing", bs.get("k") is None)
 check("...and a write reports failure rather than raising", bs.put("k", [1]) is False)
 check("...and stats explain it", bs.stats().get("enabled") is False)
 
 os.environ.pop("AEC_BAKE_SHARE_DIR", None)
+os.unlink(_blocker.name)
 
 print()
 if FAILED:
