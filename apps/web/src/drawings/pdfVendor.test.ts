@@ -41,11 +41,51 @@ describe("the vendored PDF engine", () => {
     expect(deps["pdf-lib"], "pdf-lib").toBeTruthy();
   });
 
-  it("has not replaced the shipping takeoff flow yet — adoption is incremental", async () => {
-    // Landing ~12k lines AND re-pointing the UI in one move makes a regression impossible to
-    // bisect. `pdfTakeoff` still owns the flow; this asserts the seam is honest about that, so
-    // nobody reads the vendored directory as "the takeoff is now the library's".
+  it("still exposes the takeoff entry point — adoption is by slice, not by rewrite", async () => {
     const takeoff = await import("./pdfTakeoff");
     expect(typeof takeoff.openPdfTakeoff).toBe("function");
+  });
+});
+
+/**
+ * The takeoff source, as text.
+ *
+ * No `catch(() => "")` and no `if (!src) return` — that escape hatch was in the first draft and it is
+ * the exact can't-fail shape this repo has been bitten by four times today: a test that quietly
+ * passes when its subject is unreachable measures nothing while reporting success. `?raw` was
+ * verified to resolve here (28,480 chars). If it ever stops, this must go RED, not green.
+ */
+async function readSource(): Promise<string> {
+  const mod = await import("./pdfTakeoff?raw");
+  const src = (mod as { default: string }).default;
+  expect(typeof src, "?raw did not return source — the assertions below would be vacuous").toBe("string");
+  expect(src.length).toBeGreaterThan(1000);
+  return src;
+}
+
+describe("PDF-ADOPT slice 1 — opening and page access run through the engine", () => {
+  it("the takeoff no longer drives pdf.js directly", async () => {
+    const src = await readSource();
+    expect(src, "raw pdfjs getDocument should be gone").not.toMatch(/pdfjsLib\.getDocument/);
+    expect(src, "raw getPage should be gone").not.toMatch(/doc\.getPage\(/);
+    expect(src).toMatch(/PdfDocument\.load/);
+    expect(src).toMatch(/configureWorker\(/);
+  });
+
+  it("page proxies are memoised — this flow asks for the same page repeatedly", async () => {
+    // The old code called `doc.getPage(n)` on every render AND again for every page during export.
+    // `PdfDocument.page` caches, so the win is real rather than cosmetic; if that ever stops being
+    // true the swap loses its main justification and should be revisited.
+    const { PdfDocument } = await import("@massingcloud/pdf-viewer");
+    expect(typeof PdfDocument.load).toBe("function");
+    expect(typeof PdfDocument.prototype.page).toBe("function");
+  });
+
+  it("the worker is still bundled locally — offline is non-negotiable", async () => {
+    const src = await readSource();
+    // CLAUDE.md: the viewer must run fully offline. A CDN worker URL would break that silently —
+    // it works on the dev machine and fails on a site with no connection, which is where it matters.
+    expect(src).toMatch(/pdfjs-dist\/build\/pdf\.worker\.min\.mjs\?url/);
+    expect(src).not.toMatch(/https?:\/\/[^"']*pdf\.worker/);
   });
 });

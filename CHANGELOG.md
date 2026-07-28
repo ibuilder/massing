@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.741 — drawing review starts using the new engine
+
+Opening a PDF and moving between its pages now goes through the drawing-review engine brought in last
+release. Marking up and measuring are unchanged and move across later.
+
+Two things get better immediately. Pages are remembered rather than re-read: this screen asked for the
+same page again on every redraw, and once more for every page when exporting. And the awkward business
+of copying the file's bytes before handing them over — needed because the reader can take ownership of
+them and leave the export with nothing — is now handled properly inside the engine instead of guarded
+by hand here.
+
+The worker that does the reading is still bundled with the application rather than fetched from the
+internet, and there is now a check that fails the build if that ever changes. Offline has to keep
+working on a site with no signal, which is exactly where nobody can debug it.
+
 ## v0.3.740 — the drawing-review engine is in the building
 
 The engine behind PDF drawing review — viewing, markup, calibrated takeoff, issue pinning, revision

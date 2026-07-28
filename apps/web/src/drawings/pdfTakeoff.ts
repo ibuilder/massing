@@ -6,12 +6,18 @@
  * you zoom. pdf.js renders the page; an SVG overlay carries the vector tools. The worker is bundled
  * locally (Vite ?url) — offline, no CDN (CLAUDE.md).
  */
-import * as pdfjsLib from "pdfjs-dist";
+import { PdfDocument, configureWorker } from "@massingcloud/pdf-viewer";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { toast } from "../ui/feedback";
 import { askText } from "../ui/prompt";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// PDF-ADOPT slice 1 of 3: opening and page access now go through the vendored drawing-review engine
+// (`@massingcloud/pdf-viewer`). Markup and calibrated takeoff are still ours and move in later
+// slices — landing all three at once would make a regression in drawing review impossible to
+// bisect. `PdfDocument` memoises page proxies, which this file used to re-fetch on every render and
+// again for every page during export; and it keeps its own copy of the bytes, which is the detach
+// hazard the hand-rolled `slice(0)` below existed to dodge.
+configureWorker(workerUrl);
 
 type Mode = "pan" | "distance" | "area" | "count" | "rect" | "calibrate" | "text" | "stamp";
 interface Pt { x: number; y: number }                       // PDF user-space
@@ -66,9 +72,10 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
     if (!f) return;
     docName = f.name; srcBuf = await f.arrayBuffer();
   }
-  let doc: pdfjsLib.PDFDocumentProxy;
-  // pdf.js may transfer/detach its input buffer — hand it a private copy, keep srcBuf for pdf-lib export.
-  try { doc = await pdfjsLib.getDocument({ data: new Uint8Array(srcBuf.slice(0)) }).promise; }
+  let doc: PdfDocument;
+  // The engine hands pdf.js its own private copy, so `srcBuf` stays intact for the pdf-lib export
+  // path — the detach hazard the old `slice(0)` guarded against is handled inside `load`.
+  try { doc = await PdfDocument.load(srcBuf); }
   catch (e) { toast(`couldn't open PDF: ${(e as Error).message}`, "error"); return; }
 
   let pageNum = 1, scale = 1, mode: Mode = "distance";
@@ -199,7 +206,7 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
 
   // ---- page render ---------------------------------------------------------
   async function render() {
-    const page = await doc.getPage(pageNum);
+    const page = await doc.page(pageNum);
     const vp = page.getViewport({ scale });
     canvas.width = vp.width; canvas.height = vp.height;
     canvas.style.width = `${vp.width}px`; canvas.style.height = `${vp.height}px`;
@@ -369,7 +376,7 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
   const _pageDims = new Map<number, { w: number; h: number }>();
   async function pageDims(n: number): Promise<{ w: number; h: number }> {
     if (!_pageDims.has(n)) {
-      const vp = (await doc.getPage(n)).getViewport({ scale: 1 });
+      const vp = (await doc.page(n)).getViewport({ scale: 1 });
       _pageDims.set(n, { w: vp.width, h: vp.height });
     }
     return _pageDims.get(n)!;
