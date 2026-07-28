@@ -316,7 +316,8 @@ def _leader_callout(sx: float, sy: float, lx: float, ly: float, text: str, color
 def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
                      grid: dict | None = None, dims: bool = True, width: int = 1200,
                      tags: list[dict] | None = None, callouts: list[dict] | None = None,
-                     below: list[np.ndarray] | None = None, by_discipline: bool = False) -> str:
+                     below: list[np.ndarray] | None = None, by_discipline: bool = False,
+                     pins: list[dict] | None = None) -> str:
     classed = cut_baked_classed(meshes, "plan", elevation + cut_height) if by_discipline else None
     polys = [p for _, p in classed] if classed is not None \
         else cut_baked(meshes, "plan", elevation + cut_height)
@@ -443,9 +444,73 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
                    f'stroke-width="0.8" stroke-dasharray="5 3"/>'
                    f'<text x="{pad+28}" y="{ly:.0f}" font-family="sans-serif" font-size="10" '
                    f'fill="#777">below cut (view depth)</text>')
+    out.append(_pin_layer(pins, T, mn, mx))
     out.append(_titleblock_band(width, height, pad, title, elevation + cut_height, scale, grid))
     out.append("</svg>")
     return "".join(out)
+
+
+# One colour per pin kind, matching the viewer's marker colours so the same issue reads the same way
+# on the sheet as it does in 3D. A kind we do not know draws grey rather than being dropped — an
+# unrendered pin is an issue nobody sees, which is the failure this whole feature exists to prevent.
+_PIN_FILL = {"rfi": "#b45309", "punch": "#b91c1c", "clash": "#7c3aed", "info": "#1d4ed8"}
+
+
+def _pin_layer(pins, T, mn, mx) -> str:
+    """Draw issue pins on the plan — the thing that makes a coordination sheet worth printing.
+
+    A pin is a real position in the building, so it is drawn at that position: the same world→sheet
+    transform as the linework, not a legend off to one side. Each marker is a numbered balloon with
+    a leader dot, numbered in the order given so the sheet can be read against a list.
+
+    Two deliberate refusals:
+
+    - **A pin outside the drawn extent is still drawn, clamped to the edge, and marked with a caret.**
+      Silently dropping it would produce a sheet that looks complete and is not; an issue you cannot
+      see is one nobody closes. The caret says "this is off-sheet" rather than lying about where it is.
+    - **A pin with no usable position is not invented.** It is skipped and counted in the legend, so
+      the sheet says "2 pins not located" instead of quietly showing fewer pins than exist.
+    """
+    if not pins:
+        return ""
+    parts: list[str] = ['<g id="pins">']
+    unlocated = 0
+    n = 0
+    for p in pins:
+        x, y = p.get("x"), p.get("y")
+        if x is None or y is None:
+            unlocated += 1
+            continue
+        n += 1
+        offsheet = not (mn[0] <= x <= mx[0] and mn[1] <= y <= mx[1])
+        cx, cy = T(min(max(float(x), mn[0]), mx[0]), min(max(float(y), mn[1]), mx[1]))
+        fill = _PIN_FILL.get(str(p.get("kind") or "info").lower(), "#6b7280")
+        parts.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="2.5" fill="{fill}"/>')
+        parts.append(f'<circle cx="{cx:.1f}" cy="{cy - 16:.1f}" r="9" fill="{fill}" stroke="#fff" '
+                     f'stroke-width="1.2"/>')
+        parts.append(f'<line x1="{cx:.1f}" y1="{cy - 7:.1f}" x2="{cx:.1f}" y2="{cy - 2:.1f}" '
+                     f'stroke="{fill}" stroke-width="1.2"/>')
+        parts.append(f'<text x="{cx:.1f}" y="{cy - 12.5:.1f}" text-anchor="middle" '
+                     f'font-family="sans-serif" font-size="9" fill="#fff">{n}</text>')
+        if offsheet:
+            parts.append(f'<text x="{cx:.1f}" y="{cy - 26:.1f}" text-anchor="middle" '
+                         f'font-family="sans-serif" font-size="9" fill="{fill}">^</text>')
+        label = _esc(str(p.get("label") or ""))[:48]
+        if label:
+            parts.append(f'<text x="{cx + 12:.1f}" y="{cy - 13:.1f}" font-family="sans-serif" '
+                         f'font-size="9" fill="#333">{label}</text>')
+    if unlocated:
+        parts.append(f'<text x="12" y="16" font-family="sans-serif" font-size="10" fill="#b45309">'
+                     f'{unlocated} pin(s) not located on this sheet</text>')
+    parts.append("</g>")
+    return "".join(parts)
+
+
+def _esc(s: str) -> str:
+    """XML-escape pin labels. They are user text going straight into an SVG document, and an SVG is
+    served to a browser — an unescaped `&` breaks the sheet and an unescaped `<` is worse."""
+    return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+             .replace('"', "&quot;").replace("'", "&apos;"))
 
 
 # General notes shown on every plan sheet (standard-of-care boilerplate; NOT project-specific claims).
@@ -567,7 +632,8 @@ def element_callouts(model: ifcopenshell.file, classes=("IfcDoor", "IfcWindow"),
 def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2,
              title: str = "PLAN", grid: bool = True, dims: bool = True,
              rooms: bool = True, callouts: bool | list[str] = False,
-             view_depth: float | None = None, by_discipline: bool = False) -> str:
+             view_depth: float | None = None, by_discipline: bool = False,
+             pins: list[dict] | None = None) -> str:
     meshes = bake(model)
     cut_z = elevation + cut_height                 # the horizontal cut plane — tags/callouts filter to it
     g = grid_from_meshes(meshes) if grid else {"x": [], "y": []}
@@ -582,7 +648,8 @@ def plan_svg(model: ifcopenshell.file, elevation: float, cut_height: float = 1.2
     if view_depth and view_depth > 0:
         below = below_footprint_baked(meshes, cut_z, cut_z - float(view_depth))
     return plan_drawing_svg(meshes, elevation, cut_height, title, g, dims,
-                            tags=tags, callouts=co, below=below, by_discipline=by_discipline)
+                            tags=tags, callouts=co, below=below, by_discipline=by_discipline,
+                            pins=pins)
 
 
 # --- elevations (orthographic outline projections) --------------------------

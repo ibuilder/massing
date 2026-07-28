@@ -474,7 +474,7 @@ def model_grid(pid: str, db: Session = Depends(get_db), _sec: str = Depends(requ
 @router.get("/projects/{pid}/drawings/plan.svg")
 def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str = "PLAN",
          rooms: bool = True, callouts: bool = False, view_depth: float | None = None,
-         by_discipline: bool = False,
+         by_discipline: bool = False, pins: bool = False,
          db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Schematic plan (SVG) cut at `elevation + cut_height`. VIEW-RANGE: pass `view_depth` (metres below
     the cut) to also draw the footprint of anything under the cut but within that depth — foundations/
@@ -485,8 +485,41 @@ def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str =
 
     svg = drawings.plan_svg(open_model(_source_ifc(db, pid)), elevation, cut_height, title,
                             rooms=rooms, callouts=callouts, view_depth=view_depth,
-                            by_discipline=by_discipline)
+                            by_discipline=by_discipline,
+                            pins=_plan_pins(db, pid, elevation, cut_height) if pins else None)
     return _svg(svg)
+
+
+#: How far above/below the cut a pin can sit and still belong to this plan. A storey's worth either
+#: way — an issue tagged at ceiling height is still an issue on that floor's sheet.
+_PIN_BAND_M = 2.0
+
+
+def _plan_pins(db: Session, pid: str, elevation: float, cut_height: float) -> list[dict]:
+    """Anchored issues for this plan, as plain dicts for the drawing engine.
+
+    The engine never learns what a Topic is — `aec_data` may not import `aec_api`, and a drawing
+    module has no business knowing about the issue tracker. It receives positions and labels.
+
+    Pins are filtered to the storey by their Z against the cut, so a three-storey building does not
+    print every issue in the project onto the ground-floor plan. A pin with no Z is **kept**, not
+    dropped: it is genuinely located in plan and we do not know its level, and showing it on the
+    sheet the user asked for beats hiding it on every sheet.
+    """
+    from ..models import Topic
+    rows = (db.query(Topic)
+            .filter(Topic.project_id == pid, Topic.anchor.isnot(None))
+            .order_by(Topic.created_at.asc()).limit(500).all())
+    lo, hi = elevation - _PIN_BAND_M, elevation + cut_height + _PIN_BAND_M
+    out: list[dict] = []
+    for t in rows:
+        a = t.anchor if isinstance(t.anchor, dict) else {}
+        z = a.get("z")
+        if z is not None and not (lo <= float(z) <= hi):
+            continue
+        out.append({"x": a.get("x"), "y": a.get("y"), "kind": t.type,
+                    "label": t.title or "", "guid": t.guid})
+    return out
 
 
 @router.get("/projects/{pid}/drawings/section.svg")

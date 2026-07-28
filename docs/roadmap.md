@@ -59,10 +59,14 @@ recently true.
    `{rid}/elements` returns `count: 1` and produces **no pin**. So today you get workflow-to-closure
    OR a pin, never both on one thing. Decide which is canonical and bridge it — probably: a register
    record with element bindings should project an anchored Topic.
-3. **🔍 ELEMENTS-UNDERCOUNT — `/elements` returned 2 for a 7-element model.** *Same test.* QTO
-   reported `element_count: 7` on the same project while `GET /projects/{pid}/elements?limit=200`
-   returned 2 rows (1 wall of 4). One of the two is wrong; the takeoff is the one being trusted for
-   money, so this needs settling.
+3. **🕰 INDEX-STALE — the element index goes behind the model, silently.** *Diagnosed 07-27; the
+   "elements undercount" was this.* `/elements` reads a pre-computed `props.json` snapshot; the
+   takeoff reads the live IFC. Authoring edits change the IFC and do **not** refresh the index — only
+   an explicit `POST /projects/{pid}/publish` does. Proved: before republish `/elements`=2, after
+   `reindexed: 7` and `/elements`=7, matching the takeoff exactly. So neither number was wrong; the
+   snapshot was old and **nothing said so**. Do NOT reconvert per edit (expensive) — report freshness,
+   the same discipline `recordCache` already applies to record lists. Until then a model browser can
+   show a fraction of what you just drew and look correct doing it.
 4. **🌍 GEO-REF — we have no georeferencing of our own.** The kernel now ships `project-schema/geo.ts`
    (CRS codes, linear units, `GeoReference`, `Extent`, accuracy). Our only georeferencing code is
    inside ifcopenshell's own package. CLAUDE.md calls this out as a watch-out and nothing implements it.
