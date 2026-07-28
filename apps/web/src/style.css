@@ -989,3 +989,35 @@ body.embed #workspaces { display: none; }
   border-color: var(--fg);
   background: var(--bg-elev, transparent);
 }
+
+/* --- five-room navigation + next best action (S4) ------------------------------------------- */
+.room-tab {
+  background: none; border: 0; color: var(--fg, #cfd8e3); cursor: pointer;
+  padding: 7px 13px; border-radius: 7px; font: inherit; font-size: 13.5px;
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+}
+.room-tab:hover { background: rgba(255,255,255,.07); }
+.room-tab.active { background: rgba(255,255,255,.12); font-weight: 600; }
+.room-tab:focus-visible { outline: 2px solid var(--accent, #4b9fff); outline-offset: 1px; }
+/* the one badge in the bar — Work, and only when something is owed */
+.room-tab-count {
+  background: var(--accent, #4b9fff); color: #fff; border-radius: 999px;
+  font-size: 11px; font-weight: 700; min-width: 18px; padding: 1px 5px; text-align: center;
+}
+#next-action { display: inline-flex; align-items: center; gap: 9px; margin-left: 14px; }
+#next-action[hidden] { display: none; }
+.nba-cap {
+  font-size: 10px; letter-spacing: .09em; opacity: .55; text-transform: uppercase;
+  white-space: nowrap;
+}
+.nba-btn {
+  background: var(--accent, #4b9fff); color: #fff; border: 0; border-radius: 7px;
+  padding: 6px 13px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  white-space: nowrap; max-width: 42ch; overflow: hidden; text-overflow: ellipsis;
+}
+.nba-btn:hover { filter: brightness(1.08); }
+.nba-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* overdue / due-today reads as amber rather than the calm accent */
+.nba-btn.nba-urgent { background: var(--warn, #d08324); }
+/* a phone has no room for a header CTA next to five tabs — the queue itself carries it there */
+@media (max-width: 900px) { #next-action { display: none; } }

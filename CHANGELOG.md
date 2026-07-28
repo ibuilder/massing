@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.762 — NEXT BEST ACTION in the header
+
+- One button, one verb, in the top bar. The room tabs say *how much* is in your court; this says
+  *what to do about it*. Verified live: **"Close ACT-001 →"** beside a Work badge reading **74**,
+  which matches the queue's real total.
+- **One fetch feeds both** the badge and the CTA. Two requests would be two answers, and a count that
+  disagrees with the action it summarises is exactly the contradiction this shell exists to remove.
+- **Only offers what the caller can actually run.** `blocked_actions` are gated behind required
+  fields — offering one as *the* next best action sends somebody to a form and calls it a
+  recommendation.
+- **Due dates compare calendar days, not instants.** An item due today at 09:00 is not overdue at
+  17:00; telling somebody they are late for something due today is how a queue loses credibility.
+  A missing or unparseable date is `null`, never `0` — a fabricated deadline is worse than none.
+- **The server's action id is not a label.** It returns `close`, which rendered as "close ACT-001" —
+  reads like a typo rather than an instruction. `verbLabel()` capitalises for display while leaving
+  the id intact for anything that dispatches on it. Caught by looking at the live header, not by a
+  test.
+- Renders **nothing** when there is nothing to do, rather than "Nothing to do" — a claim that ages
+  badly between polls and teaches people to stop reading the one place urgency lives.
+
 ## v0.3.761 — S4: the five rooms become the navigation
 
 - **Model · Cost · Schedule · Deal · Work** replace the seven workspace buttons. Verified live: five

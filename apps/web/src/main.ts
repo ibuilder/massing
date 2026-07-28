@@ -4,6 +4,7 @@ import { ApiClient, type MassingParams } from "./api/client";
 import { toast, escapeHtml, safeUrl } from "./ui/feedback";
 import { showResult } from "./ui/result";
 import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTabs";
+import { headerAction, renderHeaderAction } from "./shell/nextAction";
 import { spineEnabled } from "./shell/spine";
 import { setRoomOpen } from "./portal/prefs";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
@@ -593,14 +594,33 @@ let workQueueCount: number | null = null;
  * and showing 0 for the first is how somebody misses work.
  */
 async function refreshWorkBadge(pid: string | null) {
-  if (!pid) { workQueueCount = null; paintRoomTabs(); return; }
+  const host = document.getElementById("next-action");
+  if (!pid) {
+    workQueueCount = null;
+    paintRoomTabs();
+    if (host) renderHeaderAction(host, null, () => {});
+    return;
+  }
   try {
-    const q = await api.workQueue(pid) as { count?: number; items?: unknown[] } | null;
-    const n = typeof q?.count === "number" ? q.count
-      : Array.isArray(q?.items) ? q.items.length : null;
-    workQueueCount = n;
+    const q = await api.workQueue(pid);
+    workQueueCount = typeof q?.total === "number" ? q.total : null;
+    // ONE fetch feeds both the badge and the header CTA. Two requests would be two answers, and the
+    // count disagreeing with the action it summarises is the contradiction this shell is meant to
+    // remove — see the single-sourced-numbers rule the portal already follows.
+    if (host) {
+      renderHeaderAction(host, headerAction(q), (a) => {
+        goToRoom("work");
+        // The queue rebuilds on the room switch, so scroll to the row afterwards rather than
+        // against a node that is about to be replaced.
+        setTimeout(() => {
+          document.querySelector<HTMLElement>(`[data-ref="${CSS.escape(a.ref)}"]`)
+            ?.scrollIntoView({ block: "center" });
+        }, 250);
+      });
+    }
   } catch {
     workQueueCount = null;
+    if (host) renderHeaderAction(host, null, () => {});
   }
   paintRoomTabs();
 }
