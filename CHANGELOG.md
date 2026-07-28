@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.739 — opening a project takes you to the project
+
+Opening a project now puts you where your job starts. A superintendent lands in Construction, an
+architect in Design, a developer in theirs — each looking at the five rooms that organise the work:
+Model, Cost, Schedule, Deal, Work.
+
+That layout has been the default for a while and has been drawing correctly the whole time. What it
+lacked was a way of being found: you only arrived at it by knowing to pick one of three particular
+workspaces, and nothing said so. Every role already declared where its home was; nothing was reading
+it. Now it does.
+
+And from anywhere that is not the project home — the modelling canvas, the drawing sheets — there is
+a plain **← Project home** in the tab strip. It is a link, not a redirect: someone drawing a wall is
+in the right place and should not be moved out of it. It disappears in the workspaces where the rooms
+are already on screen, and when no project is open there is nothing to go back to, so it stays away.
+
+An explicit choice still wins. Pick a workspace and it is remembered — unless your role cannot reach
+it, in which case you land at your own home rather than on a blank screen.
+
 ## v0.3.738 — the model knows where on earth it is
 
 A model can now say where it actually stands: coordinates, the reference system they are given in,

@@ -36,37 +36,13 @@ the model in silence. The ordering below reflects that: **correctness a user wou
 Every item here says what it is and why it is where it is. Completed work moves to the CHANGELOG and
 out of this list — a NOW list containing finished items is a list nobody trusts.
 
-1. **🏛 SPINE-DEFAULT — the layout WORKS and is already default. The gap is discoverability.**
-   *Verified live 07-28 — and this entry replaces two earlier ones that were both wrong.*
-
-   Traced with the API on :8093 and a project loaded. The room rail renders in **all three portal
-   workspaces**, with every room and its job string:
-
-   | workspace | `.portal-nav` | nav items | all 5 rooms |
-   |---|---|---|---|
-   | Construction | yes | 153 | yes |
-   | Developer | yes | 221 | yes |
-   | Design | yes | 298 | yes |
-
-   `spineEnabled()` defaults true, `/rooms` is healthy, the rail draws. **Nothing is broken.**
-
-   **My two earlier diagnoses were both artefacts of my own probe.** I clicked a control labelled
-   "Home" and concluded first that the rail did not render, then that the portal never mounted. That
-   control is `class="fintab" data-fin="home"` — a **Finance sub-tab**, already active inside a
-   *hidden* workspace. I was operating a button belonging to `ws-finance` while `ws-model` was on
-   screen, then reporting what `ws-model` contained. Two confident, wrong conclusions from one
-   mis-identified element.
-
-   **The real finding is the user's question.** They asked "where is the new layout?" while it was
-   on, default, and rendering — because you only reach it by choosing Construction, Developer or
-   Design, and nothing on the landing screen says so. **A shell nobody can find is not shipped**, and
-   that is a navigation problem, not a shell problem. That is what SPINE-DEFAULT now means.
-
-   ⚠️ Two measurement traps recorded, both hit here: `.portal-filter` also exists in the *modelling*
-   rail (`#panel-tools`) so it proves nothing about the portal — assert on `.portal-nav` /
-   `.pnav-item`. And a `[role="tab"]` is not necessarily a workspace tab; check `data-fin` /
-   `class` before believing a click switched anything.
-
+1. ~~**🏛 SPINE-DEFAULT**~~ **DONE v0.3.739.** The rail always worked; it could not be found.
+   `initNav` now lands on the persona's declared `home` (the field existed and nothing read it), and
+   a `← Project home` signpost sits in the tab strip of every non-portal workspace. 11 tests over the
+   landing rule and the signpost rule; verified live — visible in Model and Drawings, correctly
+   hidden in Construction. **Two of my own diagnoses here were wrong**, both from asserting on things
+   that looked like evidence: `.portal-filter` also exists in the modelling rail, and the control
+   labelled "Home" is a Finance sub-tab (`data-fin=home`) inside a hidden workspace.
 1. **📄 PDF-LIB — adopt `@massingcloud/pdf-viewer`.** *Build; now the top.* MIT, deps `pdfjs-dist`
    + `pdf-lib` (already ours). 12,275 lines / 46 files against our 423-line `pdfTakeoff.ts` — a
    genuine superset: structured markup RECORDS (author, sheet revision, discipline, what it measures,

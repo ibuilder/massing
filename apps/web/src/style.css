@@ -968,3 +968,24 @@ body.embed #workspaces { display: none; }
 .insp-empty-t { font-weight: 600; font-size: 12px; margin-bottom: 3px; }
 .insp-warn { margin-top: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
   background: var(--panel2); }
+
+/* The way back to the five-room project home from any workspace that is not it. Sits in the tab
+   strip so it reads as navigation rather than an alert — nothing is wrong, you are just somewhere
+   else. Muted until hovered: it must be findable without competing with the workspace you chose. */
+.home-signpost {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.home-signpost:hover, .home-signpost:focus-visible {
+  color: var(--fg);
+  border-color: var(--fg);
+  background: var(--bg-elev, transparent);
+}

@@ -467,6 +467,7 @@ function setWorkspace(key: string) {
     b.setAttribute("aria-selected", String(on));
   });
   document.querySelectorAll(".workspace").forEach((w) => w.classList.toggle("active", w.id === `ws-${key}`));
+  showProjectHomeSignpost(key);
   if (key === "drawings") openDrawingsTab();
   if (key === "studio") void openStudioTab();
   if (key === "design") openDesignTab();
@@ -1328,11 +1329,58 @@ async function startup() {
   });
 }
 
+/** The three workspaces that host the project home — the five-room rail lives in these. */
+const PORTAL_WORKSPACES = ["construction", "developer", "design"] as const;
+
+/**
+ * A visible way back to the project home from anywhere that is not it.
+ *
+ * The room rail is the default shell and renders correctly, and it was still possible to open a
+ * project, look at the screen, and ask where it had gone — because reaching it meant knowing to pick
+ * Construction, Developer or Design, and nothing said so. Landing on the persona's home fixes the
+ * first visit; this fixes every visit after someone navigates away.
+ *
+ * Deliberately a **link back, not a redirect**. Somebody in the Model workspace is authoring and
+ * moving them would be worse than leaving them; the fix for "I cannot find it" is a sign, not a
+ * shove. It hides itself in the portal workspaces, where the rail is already on screen, and when no
+ * project is open, where there is no home to go to.
+ */
+function showProjectHomeSignpost(key: string) {
+  const id = "project-home-signpost";
+  document.getElementById(id)?.remove();
+  const hasProject = !!new URLSearchParams(location.search).get("project");
+  if (!hasProject || (PORTAL_WORKSPACES as readonly string[]).includes(key)) return;
+
+  const cfg = PERSONAS[personaSel?.value ?? "all"];
+  const dest = (cfg?.ws ?? []).find((w) => (PORTAL_WORKSPACES as readonly string[]).includes(w))
+    ?? (PORTAL_WORKSPACES as readonly string[]).find((w) => cfg?.ws == null || cfg.ws.includes(w))
+    ?? "construction";
+
+  const bar = document.createElement("button");
+  bar.id = id;
+  bar.type = "button";
+  bar.className = "home-signpost";
+  bar.title = "The five-room project home: Model, Cost, Schedule, Deal, Work";
+  bar.innerHTML = `<span aria-hidden="true">←</span> Project home`;
+  bar.onclick = () => { setWorkspace(dest); localStorage.setItem("workspace", dest); };
+  const host = document.querySelector(".ws-tabs, [role=\"tablist\"]") ?? document.body;
+  host.appendChild(bar);
+}
+
 function initNav() {
   applyPersona(personaSel.value);
   const savedWs = localStorage.getItem("workspace");
-  const allowWs = PERSONAS[personaSel.value]?.ws ?? null;
-  setWorkspace(savedWs && (!allowWs || allowWs.includes(savedWs)) ? savedWs : currentWs);
+  const cfg = PERSONAS[personaSel.value];
+  const allowWs = cfg?.ws ?? null;
+  // No saved choice -> the persona's declared HOME, not the module-level `currentWs` default.
+  //
+  // Every persona already names its seat (`home`), and nothing used it on load: a first-time user
+  // landed in the Model workspace whatever their role, and the five-room project home — which is the
+  // default shell and has been rendering correctly all along — was reachable only by knowing to pick
+  // Construction, Developer or Design. A default nobody is shown is not a default. `currentWs` stays
+  // the last-resort fallback for a persona with no home declared.
+  const fallback = cfg?.home ?? currentWs;
+  setWorkspace(savedWs && (!allowWs || allowWs.includes(savedWs)) ? savedWs : fallback);
 }
 
 // Embeddable mode: `?embed=1` hides the app chrome (top bar, rails, tabs) and shows just the 3D
