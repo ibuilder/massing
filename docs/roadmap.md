@@ -62,7 +62,18 @@ time. Every room, every destination, console clean, no empty panels. Then the ha
 "better": first-paint and interaction cost vs classic, keyboard reachability, and behaviour at
 mobile width. Findings become S1 work, not a footnote. **Nothing else ships until this is honest.**
 
-**S1 findings so far (2026-07-28).** The audit ran against an API that **died mid-run**
+**S1 VERDICT (2026-07-28): the layout renders. The empty-rooms finding was entirely a dead
+backend.** Re-run against a fresh API: `/rooms` 200 in **18 ms** (five rooms, 38 modules in `model`),
+`/modules` 200 in 40 ms, and all three portal workspaces populate — construction 24 rail items,
+developer 20, design 18, each showing its room and its job line. Nothing to fix here.
+
+The lesson is about method, not the product. I built a case for a product defect **twice** — a
+hanging handler, then an exhausted threadpool — from a backend that was dying and then dead, while
+its own log read `GET /rooms → 200 OK` throughout. Two independent diagnoses, both confident, both
+measuring a corpse. Before diagnosing a frontend that shows no data, **prove the backend is alive**;
+`ERR_CONNECTION_REFUSED` in the console is that proof and it was there the whole time.
+
+**S1 remaining (real, no backend involved):** The audit ran against an API that **died mid-run**
 (`OSError: [WinError 64]` on socket accept, then `ERR_CONNECTION_REFUSED`). Everything it said about
 empty rooms is therefore **void** — `portal-nav`/`portal-content` mounting with 0 children was a
 dead-backend artifact, not a proven product defect. Re-run on Postgres before believing any of it.
