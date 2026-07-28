@@ -116,6 +116,30 @@ with tempfile.TemporaryDirectory() as d:
 
     check("an unknown id is a clean miss, not an error", s.read("nope.mass") is None)
 
+    # --- the SHAPE, not just the behaviour ------------------------------------------------------
+    # v0.3.744 checked membership and then opened `os.path.join(samples_dir(), sample_id)`. Every
+    # behavioural test above passed, because the membership check does make it safe. CodeQL flagged
+    # it anyway (`py/path-injection`) and was right to: dataflow cannot see a guard several lines
+    # away, and neither can the next person to edit this. Safety that lives in a check somewhere
+    # else is safety a later edit can remove without noticing.
+    #
+    # So assert the shape. `read()` must select a path the filesystem produced, never compose one
+    # from the argument — if this ever fails, the behavioural tests will still be green and the
+    # regression will be invisible without it.
+    # Parsed with `ast`, not grepped. The first version of this check stripped lines by prefix and
+    # then searched the whole source — which flagged the *docstring*, where `os.path.join` appears
+    # while explaining why it is no longer used. A shape test that reads prose measures prose.
+    import ast
+    import inspect
+
+    fn = ast.parse(inspect.getsource(s.read).lstrip()).body[0]
+    stmts = fn.body[1:] if (isinstance(fn.body[0], ast.Expr)
+                            and isinstance(fn.body[0].value, ast.Constant)) else fn.body
+    code = "\n".join(ast.dump(st) for st in stmts)
+    check("read() does not join caller input onto a root", "'join'" not in code,
+          "a guard the scanner cannot see is a guard the next editor cannot see either")
+    check("read() selects from the listing instead", "_entry_paths" in code)
+
     # --- the catalog re-reads when the library changes ----------------------------------------------
     write_mass(os.path.join(d, "third.mass"), "Third", {"element": 1})
     check("a newly packaged sample appears without a restart",

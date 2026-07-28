@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.745 — resolve the three CodeQL alerts: one real, two false
+
+- **`py/path-injection` in `samples.py` was mine, from yesterday's release, and it was right.** The
+  docstring said the id "is never joined onto a root"; the code checked membership and then did
+  `open(os.path.join(samples_dir(), sample_id))`. Safe in practice — the check means the id must
+  equal a real listing entry — but the code contradicted its own stated design, and the scanner
+  cannot see a guard several lines away any more than the next person to edit it can. `read()` now
+  selects the path the filesystem produced. There is no longer a check that could be relaxed.
+- **A shape test, mutation-checked.** Every behavioural test passed against the flawed version,
+  because the membership check really did make it safe — so behaviour was the wrong thing to assert.
+  `test_samples` now parses `read()` with `ast` and fails if a join reappears. Its own first draft
+  read the *docstring*, which mentions `os.path.join` while explaining the history: a shape test that
+  greps prose measures prose.
+- **The two vendored `js/xss-through-dom` HIGHs are false positives**, dismissed with reasons.
+  `img.src` is `URL.createObjectURL(file)`, which returns a `blob:` URL by construction;
+  `parseFromString(xml, "application/xml")` executes nothing and `fromXfdf` returns plain data. The
+  sink side was checked rather than assumed — all 24 `innerHTML` uses in the library are clears or
+  static literals, none interpolate.
+- Upstream `massing-pdf#10`, which I had filed calling them real, is **withdrawn and closed** with
+  the analysis.
+
 ## v0.3.744 — the sample library: showcase projects, not bare meshes
 
 - **`GET /samples` + `POST /samples/{id}/open`, backed by `samples/`.** "Load a sample" meant one of

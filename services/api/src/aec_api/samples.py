@@ -41,23 +41,34 @@ def samples_dir() -> str:
     return os.environ.get("AEC_SAMPLES_DIR") or _DEFAULT_DIR
 
 
-def _entries() -> list[str]:
-    """Every `.mass` file in the library, by bare filename. The only source of valid ids."""
+def _entry_paths() -> list[tuple[str, str]]:
+    """Every `.mass` file in the library as `(id, path)`, both derived from `os.listdir`.
+
+    The path is built here, from a name the *filesystem* produced — never from a name a caller
+    supplied. That is the whole point: `read()` then picks a path out of this list rather than
+    composing one, so caller input is only ever compared, never concatenated.
+    """
     d = samples_dir()
     try:
         names = sorted(os.listdir(d))
     except OSError:
         return []
-    out = []
+    out: list[tuple[str, str]] = []
     for n in names:
         if not n.lower().endswith(".mass"):
             continue
+        p = os.path.join(d, n)                    # n came from listdir, not from a request
         try:
-            if os.path.isfile(os.path.join(d, n)) and os.path.getsize(os.path.join(d, n)) <= MAX_SAMPLE_BYTES:
-                out.append(n)
+            if os.path.isfile(p) and os.path.getsize(p) <= MAX_SAMPLE_BYTES:
+                out.append((n, p))
         except OSError:
             continue
     return out
+
+
+def _entries() -> list[str]:
+    """Every `.mass` file in the library, by bare filename. The only source of valid ids."""
+    return [n for n, _ in _entry_paths()]
 
 
 def _describe(path: str, name: str) -> dict[str, Any]:
@@ -134,14 +145,23 @@ def catalog() -> list[dict[str, Any]]:
 def read(sample_id: str) -> bytes | None:
     """The bytes of one sample, or None if there is no such sample.
 
-    The id is matched against the directory listing; it is never joined onto a root. A caller sending
-    `../../etc/passwd` finds no match in the listing and gets None, which is the same answer as a
-    typo — there is no path to traverse because no path was ever built from the input.
+    The id is matched against the directory listing and the **listing's own path** is opened. A
+    caller sending `../../etc/passwd` finds no match and gets None, which is the same answer as a
+    typo — there is no path to traverse because no path is ever built from the input.
+
+    The first version of this checked membership and *then* did
+    `open(os.path.join(samples_dir(), sample_id))`. That is safe in practice — the check means the id
+    must equal a real listing entry — but it contradicted the sentence above, and CodeQL flagged it
+    as `py/path-injection` because a guard several lines away is not something dataflow can see.
+    Both objections point the same way, and the scanner's is the cheaper one to respect: keeping the
+    join meant the code's safety depended on a check a later edit could relax without noticing, while
+    selecting the path means there is nothing to relax.
     """
-    if sample_id not in _entries():
-        return None
-    try:
-        with open(os.path.join(samples_dir(), sample_id), "rb") as fh:
-            return fh.read()
-    except OSError:
-        return None
+    for name, path in _entry_paths():
+        if name == sample_id:
+            try:
+                with open(path, "rb") as fh:
+                    return fh.read()
+            except OSError:
+                return None
+    return None
