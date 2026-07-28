@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.758 — a real house in the sample library
+
+- **`maple_grove_house.mass`** — 12 x 8 m, two storeys, **23 elements**: 7 walls, 3 slabs, a roof,
+  2 doors, 4 windows, 6 openings, plus rooms and seeded project records. 34 KB, served by the live
+  API. The library finally shows the platform rather than a mesh.
+- **`build_showcase.py`** authors it entirely over HTTP, deliberately. A script reaching into the
+  database would build a project the product cannot build, and a showcase that demonstrates a private
+  path demonstrates nothing.
+- **Publishing is asynchronous, and that is the whole story of this release.** The first draft fired
+  ten edits with `publish=False` and one bare `POST /publish`; every `/edit` returned 200 and the
+  model ended up with **one slab**. Each edit had raced the in-flight publish and overwritten the
+  last — ten reported passes for a one-element house. `e2e_modeling.py` already had the barrier
+  (publish per edit, then poll `/publish/status`); reading it first would have skipped the detour.
+- Second race, same shape: `/elements` answers `404 no properties index for project` for a moment
+  after publish. Querying immediately reported "0 walls", which reads exactly like authoring failed.
+  The script now waits on the condition. Worth flagging as a product observation: to a client that
+  404 is indistinguishable from *no such project* — "not ready" and "not there" deserve different
+  answers.
+
 ## v0.3.757 — the sample library has never worked, and now does
 
 - **`_DEFAULT_DIR` was off by one `dirname`.** From `services/api/src/aec_api/samples.py` it took four
