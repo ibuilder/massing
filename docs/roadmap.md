@@ -50,9 +50,19 @@ ages into fiction.
 
 ### What is actually left
 
-**One real orphan — fix this:**
-- **R22-ITP-NCR** — the `itp` module exists with **no route**. Built, unreachable. Exactly the defect
-  `test_reachable.py` was written for, which means the guard is not covering module-only surfaces.
+**No orphan. That finding was mine and it was wrong — corrected within the hour.**
+- **R22-ITP-NCR is SHIPPED AND REACHABLE.** `itp` is registered as "Inspection & Test Plan" (one of
+  132 config modules) and `GET /projects/{pid}/modules/itp` returns **200**.
+- The probe searched `routers/` for the literal string `itp` and found none, so it reported an
+  orphan. **There are two different things called a "module" here, with different reachability
+  rules**, and the probe applied the wrong one:
+  - **engine modules** (`src/aec_api/*.py`) need a route, and `test_reachable.py` walks the import
+    graph to prove it;
+  - **config modules** (`services/api/modules/*/module.json`) are served by the *generic* module CRUD
+    the moment they are registered — a dedicated route would be the anomaly, not the requirement.
+- So the gate proposed alongside this finding is **not needed**, and building it would have hardened
+  a rule that is false for half the things it names. Registration already is the reachability
+  guarantee for config modules, and the engine loads all 132 from disk.
 
 **Two genuinely unbuilt, both already on the NOW list:**
 - **R28-ICDD** (SPRINT C) — no source trace. Needs `rdflib`.
