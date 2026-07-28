@@ -19,10 +19,16 @@ describe("the vendored PDF engine", () => {
     expect(VENDOR_ENTRIES["@massingcloud/pdf-viewer"]).toBe("./src/vendor/massingpdf/index.ts");
   });
 
+  // 20s, not the 5s default. This is the FIRST import of the vendored engine in the run, so it pays
+  // the whole transform cost for a ~20k-line library at once. Alone it takes ~800ms; under the full
+  // suite it reliably crossed 5s and failed — a real gate breaking on a real cost, not a flake.
+  // Raising the budget is right here: the assertion is "the alias resolves", and how long a cold
+  // transform takes is not what it is testing. If this ever needs raising again, the vendored copy
+  // has grown enough to be worth a second look.
   it("actually imports through the alias, not just through a relative path", async () => {
     const mod = await import("@massingcloud/pdf-viewer");
     expect(mod).toBeTruthy();
-  });
+  }, 20_000);
 
   it("exposes the surface the takeoff flow will need", async () => {
     const mod = await import("@massingcloud/pdf-viewer");

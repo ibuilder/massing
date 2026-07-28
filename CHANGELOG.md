@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.752 — Capacitor 8, resolved by the npm CI will actually use
+
+- `@capacitor/{android,cli,core,ios}` **7.6.8 → 8.4.2**, manifest and lock together. `npm ci
+  --dry-run` resolves clean; no web source imports Capacitor, so this is mobile packaging only.
+- **Resolved with a checksum-verified portable Node 24.18.0 / npm 11.16.0**, not the Node 20 on this
+  machine. That mattered: the earlier attempt with the local npm 9 **exited 0, rewrote 334 lines, and
+  left the lock on 7.6.8**. A lock is only trustworthy from the toolchain that will consume it.
+- **The PATH hazard bit again mid-fix** — an `export PATH=…` put the portable Node first and the shell
+  still resolved `node` to the laragon **v18.8.0**. Absolute paths to `node.exe` and `npm-cli.js` were
+  the only reliable way to pick a runtime on this machine. One more argument for retiring the extra
+  installs rather than layering another.
+- **`pdfVendor` "imports through the alias" was a broken gate, not a flake.** It reliably hit 5024 ms
+  against vitest's 5 s default under full-suite load — it pays the entire transform cost of a ~20k-line
+  vendored library on first import. Alone it takes ~800 ms. Budget raised to 20 s with the reasoning
+  recorded, since the assertion is "the alias resolves", not "a cold transform is fast".
+- **Unverified here, deliberately stated:** the desktop/mobile build. A Capacitor major breaks
+  packaging far more often than it breaks the web bundle, and that job runs in CI.
+
 ## v0.3.751 — off end-of-life Node, onto the LTS that lasts
 
 - **Both Nodes this repo targeted are end-of-life.** Confirmed against `nodejs/Release/schedule.json`
