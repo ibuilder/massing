@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.732 — groundwork for keeping the server responsive under load
+
+Preparing a model's geometry is the heaviest thing this server does, and each pass already spreads
+itself across most of the machine's cores. That is right when one person is waiting for one drawing.
+It is wrong when eight requests arrive together, because each one asks for the whole machine and they
+end up fighting rather than finishing.
+
+This release adds the piece that limits how many of those passes run at the same time, along with the
+tests that prove it behaves under contention — including that a nested pass cannot lock up, and that a
+pass which cannot get a turn goes ahead anyway rather than leaving somebody waiting indefinitely. The
+limit is there to stop a pile-up, not to decide whether a drawing gets made.
+
+**It is not yet connected to the thirteen places that prepare geometry**, and that is deliberate. Each
+of those reads its results differently, so connecting them is a change with real care required rather
+than a search and replace. Connecting some but not all would be the worst outcome: it would look like
+the server was protected while most of the load was still unlimited. Behaviour is unchanged in this
+release; the groundwork is in place and tested.
+
 ## v0.3.731 — the geometry cache is limited by size, and desktop installers publish again
 
 Two unrelated things, both cases of a number that was not measuring what it appeared to.

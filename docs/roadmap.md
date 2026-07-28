@@ -36,8 +36,14 @@ the model in silence. The ordering below reflects that: **correctness a user wou
 Every item here says what it is and why it is where it is. Completed work moves to the CHANGELOG and
 out of this list — a NOW list containing finished items is a list nobody trusts.
 
-1. **⚙ PERF-THREADS — bound concurrent MODEL work.** *Build, design settled; now the top.* One
-   semaphore around the IFC sites only, not a global cap.
+1. **⚙ PERF-THREADS ② — WIRE the 13 sites.** *Build; mechanism shipped v0.3.732, wiring is the work.*
+   `geomconf.geometry_slot()` exists, is re-entrant, and has 10 tests (deadlock, cross-thread
+   exclusion, timeout-proceeds, over-release). **Nothing calls it yet.** The roadmap previously said
+   "one semaphore around the IFC sites" — it is **13 sites across 8 files** (clash, drawings x2,
+   edit x4, energy, energy_export, gltf_export, egress_route, scan_deviation), and the slot must be
+   held for the iterator's **consumption**, not its creation. Each site has its own loop shape and
+   early returns, so this is a restructure with a lifetime question, not a mechanical edit. **Do not
+   wire a subset** — partial bounding reads as protection that is not there. Wants a clear head.
 2. **🗃 CACHE ② — share baked geometry across workers.** *Needs `diskcache` (Apache-2.0).* ① byte-
    bounding shipped v0.3.731 **without `cachetools`** — checked the blocker before paying for it: it
    would have saved ~20 lines and cost a dependency plus a lockfile round-trip. `diskcache` still
