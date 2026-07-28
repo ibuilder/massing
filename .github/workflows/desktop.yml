@@ -243,11 +243,24 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Publish BY RELEASE ID, not by tag. `gh release edit <tag>` resolves through the
+      # get-by-tag endpoint, which does not return DRAFT releases — so this step failed with
+      # "release not found" against a draft `create-release` had just made. It went unnoticed
+      # because the job only runs when both upstream jobs succeed, and a skipped job does not
+      # fail a workflow: green meant "publish did not run", not "publish worked". Nothing has
+      # actually been published since v0.3.576 as a result.
+      #
+      # `create-release` already resolves the draft via the LIST endpoint and outputs its id.
+      # Using that id is the same lookup that works there, and removes the tag round-trip.
       - name: Publish the draft release (mark latest)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
         run: |
-          gh release edit "$TAG" --repo "$REPO" --draft=false --latest
-          echo "published $TAG"
+          if [ -z "$RELEASE_ID" ]; then
+            echo "::error::create-release produced no release id for $TAG"
+            exit 1
+          fi
+          gh api -X PATCH "repos/$REPO/releases/$RELEASE_ID"             -F draft=false -F make_latest=true --jq '"published \(.tag_name) -> \(.html_url)"'

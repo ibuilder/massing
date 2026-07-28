@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.731 — the geometry cache is limited by size, and desktop installers publish again
+
+Two unrelated things, both cases of a number that was not measuring what it appeared to.
+
+**The cache kept four models.** Four of anything is not an amount of memory: four houses are a few
+megabytes and four towers are several gigabytes, and the limit said "four" either way. It now works to
+a size — a gigabyte by default, adjustable — and drops the least recently used until it fits. A model
+larger than the whole budget is still kept rather than thrown away the moment it is prepared, because
+discarding it would mean rebuilding it for every single view; a cache that costs more than it saves is
+worse than none.
+
+**Desktop installers have not actually been published since v0.3.576.** Every release built them and
+attached them to a draft, and the final step that makes the draft public was looking the release up in
+a way that cannot see drafts. It failed — but only ever ran when everything before it had succeeded,
+and a step that is skipped does not turn a build red. So the build reported success for months while
+the installers sat unpublished. The step now refers to the release directly, and refuses loudly if it
+has nothing to publish rather than passing quietly.
+
 ## v0.3.730 — the element list can tell you when it is out of date
 
 Draw a wall and the model has it immediately. The searchable list of elements behind it — the one the

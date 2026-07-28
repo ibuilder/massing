@@ -7,6 +7,7 @@ plain SVG so it embeds in the viewer, prints, or drops onto a sheet with a title
 from __future__ import annotations
 
 import logging
+import os
 import warnings
 from typing import Any
 from xml.sax.saxutils import escape as _xesc
@@ -69,8 +70,60 @@ def _world_settings(geom_mod):
 # A model opened directly (`ifcopenshell.open`, bypassing `open_model`) carries no key; those fall
 # back to identity, which is the previous behaviour and correct — an UNKNOWN identity must not
 # collide with a known one, so it is never given a shared key.
-_BAKE_CACHE: dict[Any, tuple[Any, list[tuple[str, trimesh.Trimesh]]]] = {}
+_BAKE_CACHE: dict[Any, tuple[Any, list[tuple[str, trimesh.Trimesh]], int]] = {}
 _BAKE_CACHE_MAX = 4
+
+#: Byte budget for baked geometry, over the whole cache rather than per entry.
+#:
+#: A count of four was never a size. Four small houses are a few megabytes; four towers can be several
+#: gigabytes, and the count reports "4" in both cases — a limit that cannot tell the difference between
+#: those is not bounding anything, it is just a number that happens to be small most of the time. The
+#: count stays as a secondary cap so a pathological number of tiny models cannot accumulate either.
+#:
+#: Deliberately built on the standard library. `cachetools` would have saved about twenty lines and
+#: cost a dependency, a lockfile round trip and the supply-chain surface that comes with both. The
+#: cross-worker half of this work still wants `diskcache`, where the alternative is writing a
+#: lock-correct disk cache by hand and that trade goes the other way.
+_BAKE_CACHE_BYTES = int(os.environ.get("AEC_BAKE_CACHE_MB", "1024")) * 1024 * 1024
+
+
+def _mesh_bytes(meshes) -> int:
+    """Roughly how much memory a baked set occupies — vertices + faces of every mesh.
+
+    An underestimate by design: it counts the arrays that dominate and ignores per-object overhead.
+    A cache budget wants a number that is monotonic in the real size and cheap to compute on every
+    insert; precision here would cost more than the eviction it informs.
+    """
+    total = 0
+    for _, m in meshes:
+        for attr in ("vertices", "faces"):
+            arr = getattr(m, attr, None)
+            nbytes = getattr(arr, "nbytes", None)
+            if nbytes:
+                total += int(nbytes)
+    return total
+
+
+def _evict_to_budget() -> None:
+    """Drop least-recently-inserted entries until the cache fits both its byte and count budgets.
+
+    Always leaves at least one entry standing. A model larger than the whole budget would otherwise
+    be evicted immediately after being baked, so every view would re-tessellate it — turning a cache
+    into a tax. Serving one oversized model and going over budget is the better failure.
+    """
+    while len(_BAKE_CACHE) > 1 and (
+            len(_BAKE_CACHE) > _BAKE_CACHE_MAX
+            or sum(e[2] for e in _BAKE_CACHE.values()) > _BAKE_CACHE_BYTES):
+        _BAKE_CACHE.pop(next(iter(_BAKE_CACHE)))
+
+
+def bake_cache_stats() -> dict:
+    """What the cache is actually holding. Exists so the budget can be observed rather than assumed —
+    a cache nobody can measure is a cache nobody can size."""
+    return {"entries": len(_BAKE_CACHE),
+            "bytes": sum(e[2] for e in _BAKE_CACHE.values()),
+            "budget_bytes": _BAKE_CACHE_BYTES,
+            "max_entries": _BAKE_CACHE_MAX}
 
 
 def _bake_key(model: ifcopenshell.file) -> tuple[str, Any]:
@@ -90,9 +143,8 @@ def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
         # key does not: it names the file, so any model object opened from it is interchangeable.
         return hit[1]
     meshes = _bake_uncached(model)
-    if len(_BAKE_CACHE) >= _BAKE_CACHE_MAX:
-        _BAKE_CACHE.pop(next(iter(_BAKE_CACHE)))  # evict oldest (dict is insertion-ordered)
-    _BAKE_CACHE[key] = (model, meshes)
+    _BAKE_CACHE[key] = (model, meshes, _mesh_bytes(meshes))
+    _evict_to_budget()          # bounded by BYTES first, count second (dict is insertion-ordered)
     return meshes
 
 
