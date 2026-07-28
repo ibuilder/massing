@@ -79,3 +79,27 @@ describe("the Open menu uses the library, not a hard-coded list", () => {
     expect(src).toMatch(/escapeHtml\(s\.name\)/);
   });
 });
+
+describe("first load never lands on an empty canvas", () => {
+  it("offers the library when there are zero projects", async () => {
+    const src = await mainSource();
+    expect(src).toMatch(/projects\.length === 0/);
+    expect(src).toMatch(/if \(!demo && projects\.length === 0\)[\s\S]{0,120}openSampleLibrary\(\)/);
+  });
+
+  it("OPENS the picker rather than auto-importing", async () => {
+    const src = await mainSource();
+    // Importing writes a real project into the user's database. Doing that unasked on first load is
+    // a side effect nobody consented to. The startup path must reach the picker, never openSample().
+    const startup = src.slice(src.indexOf("async function startup"));
+    const guard = startup.slice(0, startup.indexOf("connectNotifications"));
+    expect(guard, "startup must not import a sample by itself").not.toMatch(/api\.openSample\(/);
+    expect(guard).toMatch(/openSampleLibrary\(\)/);
+  });
+
+  it("does not interrupt somebody who already has projects", async () => {
+    const src = await mainSource();
+    // `=== 0`, not `< 2` or a truthiness check: a user with work opening the app wants their work.
+    expect(src).not.toMatch(/projects\.length\s*<\s*[12][\s\S]{0,80}openSampleLibrary/);
+  });
+});

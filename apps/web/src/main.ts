@@ -1341,8 +1341,21 @@ async function startup() {
     const chosen = projects.find((p) => p.id === wanted) ?? projects[0];
     projectId = chosen?.id ?? null;
     projectName = chosen?.name ?? "";
-    setStatus(projectId ? `connected • ${projectName}` : "connected • no project — ＋ New to start");
+    setStatus(projectId ? `connected • ${projectName}` : "connected • no project — open a sample or ＋ New");
     buildProjectPicker(projects);   // always (shows ＋ New even with zero projects)
+
+    // A first run should never land on an empty canvas. With zero projects there is nothing to
+    // render, nothing to price and nothing to coordinate — the product looks like a blank viewer,
+    // which is exactly the impression the sample library exists to prevent.
+    //
+    // The picker OPENS; it does not auto-import. Importing writes a real project into the user's
+    // database, and doing that unasked on first load is a side effect nobody consented to — the
+    // difference between "here is something to look at" and "I made you something". They pick.
+    // Deliberately only when the list is EMPTY: somebody with projects opening the app wants their
+    // work, not a demo.
+    if (!demo && projects.length === 0) {
+      void openSampleLibrary();
+    }
   } else {
     setStatus(demo ? "demo — pick a sample from Open ▾ to view"
                    : "offline — open a .frag to view (API not reachable)");

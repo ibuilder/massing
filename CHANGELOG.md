@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.760 — a first run never lands on an empty canvas
+
+- With **zero projects**, startup opens the sample library. Nothing to render, price or coordinate is
+  exactly the impression the library exists to prevent.
+- **It opens the picker; it does not auto-import.** Importing writes a real project into the user's
+  database, and doing that unasked on first load is a side effect nobody consented to — the
+  difference between "here is something to look at" and "I made you something". Asserted: the startup
+  path may reach `openSampleLibrary()`, never `api.openSample()`.
+- **`=== 0`, not `< 2`.** Somebody opening the app with work in it wants their work, not a demo.
+  Also asserted, because a later "helpful" loosening is exactly how this becomes an interruption.
+- **Verified live, end to end**: the Open menu now carries one sample entry (was three), the picker
+  renders "Maple Grove House — 23 elements · 34 KB" from the container's own manifest, and opening it
+  produced a project with all 23 elements queryable — 7 walls, 3 slabs, a roof, 2 doors, 4 windows,
+  6 openings.
+
 ## v0.3.759 — one "Load sample project", fetched not hard-coded
 
 - **Three hard-coded `.frag` menu entries → one library-backed picker.** Those three shipped geometry
