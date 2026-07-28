@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.748 — PROJECT PULSE + NEXT BEST ACTION, the two halves that never got built
+
+- The R26 work-queue design was the best shell this repo has had, and only half of it survived: the
+  ball-in-court list lives on in `workQueue.ts`, while `PROJECT PULSE` and `NEXT BEST ACTION` had
+  **zero occurrences anywhere in the codebase**. The list became one destination among ~130 modules,
+  reached through the catalog it was explicitly meant to replace ("you never browse for work, work
+  comes to you").
+- **`portal/panels/pulse.ts`** — five cards, each a number with a sentence naming what is at risk.
+  The number is not the point: "Cost −0.7%" is what a chart already tells you; "3 changes unpriced
+  could take that to +1.4%" is what makes somebody act. Pure function, engines in / cards out; every
+  input already exists (`modelHealth`, `costSummary`/`evm`, `scheduleVariance`, `workQueue`,
+  `proformaLive`) so Pulse invents no number of its own and cannot become a sixth source of truth
+  that disagrees with the five panels it summarises.
+- **Cards with no data are omitted, never rendered as zero.** A project with no proforma has no deal
+  position; "0.0%" would be a claim nobody made.
+- **It is allowed to say nothing.** `risk: null` renders as nothing rather than reassuring filler —
+  a panel that is always calming gets ignored within a week, and then the week it should have been
+  alarming, nobody is reading it.
+- **`nextBestAction` returns ONE item, never a ranked list** — a ranked list is just another queue to
+  triage, which is the problem the work queue already solves.
+- Mutation-checked: deleting the overdue item *names* while keeping the count turns 2 tests red.
+
 ## v0.3.747 — the ☰ button can explain itself
 
 - A user looked at the top-left of the app and asked what the three lines do. That question *was* the
