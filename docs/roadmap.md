@@ -68,9 +68,10 @@ out of this list — a NOW list containing finished items is a list nobody trust
    first. Open: [issue #9](https://github.com/MassingCloud/massing-pdf/issues/9) on public metadata.
 9. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (UI half).** *Build.* `rdflib` approved; pin it in the
    lock via the workflow.
-10. **🖼 Demo regeneration + 📐 R27 tail + 🧱 decomposition carry-overs.** *Build, low stakes.* The
-    demo snapshot predates the QTO fix, so its estimate numbers are the old doubled ones — regenerate
-    before anyone reads them as current.
+10. **📐 R27 tail + 🧱 decomposition carry-overs.** *Build, low stakes.* ~~Demo regeneration~~ DONE
+    v0.3.733 — and narrower than assumed: only `IfcCovering` had been doubled (505.84 → 252.00);
+    slabs never moved because that model states its own `Qto` quantities. The fix's scope was always
+    "elements without stated quantities", and the demo proved it.
 
 ### Not effort — waiting on something
 - **`chore/deps-upgrades-2026`** (PR #69) — Capacitor 7→8, Postgres 16→17. Its own release, its own
