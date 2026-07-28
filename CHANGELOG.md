@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.742 — a size budget on the files we edit most
+
+- **`test_file_sizes` — a ratchet, not a rule.** Measures every hand-written tracked source file and
+  fails over a ceiling. Generated and vendored files are exempt **by name** (`schema.d.ts`, alembic
+  `versions/`, `src/vendor/`) — exempting by size is how a budget dies.
+- The ceiling is set deliberately **above** today's worst file. A guard that ships red is a guard
+  everyone learns to ignore; this one holds the line while SCALE-SEAM brings the number down, and
+  lowering it is part of that work. Every run prints the top eight with their headroom, so a file
+  approaching the limit is visible before it blocks somebody mid-sprint.
+- **CLAUDE.md said `node v20.3.1 — OK`. The `node` on this machine's PATH is v18.8.0, and v18 breaks
+  the web build.** It was describing the Node you get *after* fixing the PATH. Corrected, along with
+  the run-the-suite-from-`services/api` rule, and a short "verify, don't recall" section: if a rule
+  matters, write it as a test, because anything held only as prose drifts — including the prose in
+  that file.
+
 ## v0.3.741 — drawing review starts using the new engine
 
 Opening a PDF and moving between its pages now goes through the drawing-review engine brought in last

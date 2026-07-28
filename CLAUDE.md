@@ -32,7 +32,20 @@ Phase 0 smoke tests → 1 conversion → 2 large-model → 3 viewer/tools → 4 
 - Set-origin/georeferencing: preserve real coordinates for export, render near scene origin.
 
 ## Local environment notes (this machine)
-- node v20.3.1, npm 9.6.7, docker 24.0.6 — OK.
+- **`node` on the default PATH is v18.8.0, and v18 BREAKS the web build.** Node 20 is installed but
+  not first on PATH, so every web command must start with:
+  `export PATH="/c/Program Files/nodejs:$PATH"` → v20.3.1. (This file claimed "node v20.3.1 — OK"
+  for months. It was describing the Node you get *after* fixing the PATH, which is not the Node you
+  get. A config file that is subtly wrong is worse than one that is silent.)
 - python 3.10.6 — guide targets ≥ 3.11. Works for ifcopenshell 0.8.x / FastAPI / pydantic v2,
   but prefer a 3.11+ interpreter for the `services/` venvs if available.
 - Repo root: C:\Server\modelmaker (Windows / PowerShell).
+- Backend suite runs **from `services/api`**, never the repo root — the root exits 127 and reports
+  "0 failures", which reads exactly like a pass.
+
+## Verify, don't recall
+Long sessions drift: instructions written early lose influence, and stale file contents linger in
+context beside current ones. The countermeasure is not a better memory, it is **checks that fail**:
+`test_reachable.py` (is it wired?), `ties.test.ts` (do the aliases agree?), `test_no_competitors.py`,
+the size guard in `check_file_sizes.py`. If a rule matters, write it as a test — anything held only
+as prose will drift, including the prose in this file.
