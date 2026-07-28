@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { FALLBACK_ROOMS, ROOM_IDS, orderRooms, preselectedRoom, roomBadge, spineEnabled } from "./spine";
+import { FALLBACK_ROOMS, ROOM_HOME, ROOM_IDS, destRoom, orderRooms, preselectedRoom, roomBadge, spineEnabled } from "./spine";
 import type { RoomDef } from "../api/types";
 
 /**
@@ -116,5 +116,40 @@ describe("the rail degrades its badges, not the whole shell (v0.3.718)", () => {
     const ordered = orderRooms([...FALLBACK_ROOMS], "construction");
     expect(ordered[0]?.id).toBe(preselectedRoom("construction"));
     expect(ordered).toHaveLength(FALLBACK_ROOMS.length);
+  });
+});
+
+describe("every room opens onto something", () => {
+  /**
+   * The defect this locks down shipped in the primary navigation and survived every gate: Cost,
+   * Schedule and Work all resolved to the same host workspace, so clicking any of them rendered the
+   * identical screen. Nothing was broken in a way a unit test could see — each room had its
+   * destinations, the tab bar built all five, the allocation endpoint placed 132 modules. The
+   * missing piece was the one nobody had written down: *where a room opens*.
+   */
+  it("names a home for every room, so no tab can be decorative", () => {
+    for (const id of ROOM_IDS) {
+      expect(Object.prototype.hasOwnProperty.call(ROOM_HOME, id), `no ROOM_HOME entry for "${id}"`)
+        .toBe(true);
+    }
+  });
+
+  it("a room's home belongs to that room", () => {
+    // The check that makes the table safe to keep. A home pointing into another room would navigate
+    // somewhere real and look fine, while quietly making two tabs synonyms again.
+    for (const [room, home] of Object.entries(ROOM_HOME)) {
+      if (home === null) continue;
+      expect(destRoom(home), `${room}'s home "${home}" is not in the ${room} room`).toBe(room);
+    }
+  });
+
+  it("only Design has no destination home — because the viewer is the room", () => {
+    const nulls = Object.entries(ROOM_HOME).filter(([, v]) => v === null).map(([k]) => k);
+    expect(nulls).toEqual(["design"]);
+  });
+
+  it("no two rooms share a home", () => {
+    const homes = Object.values(ROOM_HOME).filter((h): h is string => h !== null);
+    expect(new Set(homes).size).toBe(homes.length);
   });
 });

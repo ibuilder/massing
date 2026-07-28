@@ -1,5 +1,5 @@
 /**
- * The five rooms as PRIMARY navigation — Model · Cost · Schedule · Deal · Work.
+ * The rooms as PRIMARY navigation — Design · Planning · Cost · Schedule · Deal · Work.
  *
  * The surprise, on going to build this: **the five tabs already existed.** `ROOM_IDS` has been
  * `["model","cost","schedule","deal","work"]` since the spine shipped, `GET /rooms` allocates every

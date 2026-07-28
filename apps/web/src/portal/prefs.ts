@@ -44,7 +44,7 @@ export function setStageCollapsed(key: string, collapsed: boolean): void {
  * Spine rooms need a **tri-state** memory, which is why they do not reuse the stage store.
  *
  * A stage defaults to open, so recording only what the user collapsed is enough. A room defaults to
- * *closed* unless it is the workspace's own room — five rooms holding 45 destinations all expanded is
+ * *closed* unless it is the workspace's own room — every room expanded at once is
  * the same wall of options the spine exists to end. That means three distinct states: the user opened
  * it, the user closed it, and the user has said nothing yet. Collapsing that to a single set would
  * make "I have never touched this" indistinguishable from one of the two answers, and the rail would

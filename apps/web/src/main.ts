@@ -6,7 +6,7 @@ import { showResult } from "./ui/result";
 import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTabs";
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
 import { pinnedItems, renderPinnedRail } from "./shell/pinnedRail";
-import { destRoom, spineEnabled } from "./shell/spine";
+import { ROOM_HOME, destRoom, spineEnabled } from "./shell/spine";
 import { setRoomOpen } from "./portal/prefs";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
 import { maybeResumeTour, maybeRolePrompt, maybeWelcome, showWelcome, valueMomentPrompt } from "./ui/onboarding";
@@ -555,26 +555,64 @@ const wsEl = $("workspaces");
  *
  * The inverse of `WORKSPACE_ROOM`, and it is NOT a bijection — `cost` and `work` have no workspace
  * of their own, because they were only ever destinations inside the construction portal. That
- * asymmetry is the honest reason the five rooms were never the top-level navigation: two of them had
+ * asymmetry is the honest reason the rooms were never the top-level navigation: two of them had
  * nowhere to live. Routing them at the construction portal is what makes the promotion possible
  * without restructuring every panel first.
  */
 const ROOM_HOST: Record<string, string> = {
-  model: "model", cost: "construction", schedule: "construction",
-  deal: "developer", work: "construction",
+  design: "model", planning: "construction", cost: "construction",
+  schedule: "construction", deal: "developer", work: "construction",
 };
 
-/** Switch to a room: go to the workspace that hosts it, and open that room's section in the rail. */
+/**
+ * Switch to a room: go to the workspace that hosts it, open its group in the rail, and land on the
+ * room's home destination.
+ *
+ * That last step is the one that was missing. Three rooms share the `construction` host, so
+ * switching the workspace alone left Cost, Schedule and Work rendering the identical screen — the
+ * tab lit up and nothing moved.
+ *
+ * The rail-open write was also going nowhere: the rail reads `readRoomOpen("<workspace>:<room>")`
+ * and this wrote the bare room id, so the two never met. Same class of defect as the format tables
+ * that drift — a writer and a reader that disagree about a key fail silently, because a write to a
+ * slot nobody reads looks exactly like a write that worked.
+ */
 function goToRoom(roomId: string) {
-  setRoomOpen(roomId, true);            // the rail persists open/closed per room
-  setWorkspace(ROOM_HOST[roomId] ?? "construction");
+  const host = ROOM_HOST[roomId] ?? "construction";
+  setRoomOpen(`${host}:${roomId}`, true);   // composite key — the shape `buildNav` actually reads
+  setWorkspace(host);
   paintRoomTabs(roomId);
-  // The rail is rebuilt by the workspace switch, so scroll the room into view afterwards rather
-  // than against a node that is about to be replaced — clicking rebuilds the nav and detaches it.
-  setTimeout(() => {
+  // The rail is rebuilt by the workspace switch, so act afterwards rather than against a node that
+  // is about to be replaced — clicking rebuilds the nav and detaches it.
+  //
+  // Retry until the navigation STICKS, rather than until the button exists.
+  //
+  // Waiting for the node was the obvious fix and it was still wrong. The rail renders all five room
+  // groups in every workspace, so the home button is present in the *outgoing* rail too: the click
+  // landed at 120ms on a node the pending workspace rebuild then discarded, and the room displayed
+  // whatever the previous room had — lagging by exactly one, which looks like a caching bug and is
+  // not one. Existence was never the condition worth waiting for; the condition is arrival.
+  const home = ROOM_HOME[roomId];
+  // Scoped to `.portal-nav`: the pinned rail carries `data-dest` too, and an unscoped query matches
+  // whichever comes first in the document — which is how the pinned rail came to click itself.
+  const sel = home ? `.portal-nav [data-dest="${CSS.escape(home)}"]` : "";
+  const arrived = () =>
+    document.querySelector<HTMLElement>(".portal-nav .pnav-item.active")?.dataset.dest === home;
+  let tries = 0;
+  const land = () => {
+    // Abandon if the user has moved on. Without this, a poll left over from a slow room fights the
+    // room they actually want and drags them back — the retry has to lose that race, not win it.
+    if (roomTabsActive !== roomId) return;
+    if (home && !arrived()) {
+      document.querySelector<HTMLElement>(sel)?.click();
+      // 4s. Deal changes workspace and its rebuild outlasted a 1.6s window, so the tab fell back to
+      // showing the previous room. The poll costs nothing once it lands — it stops on arrival.
+      if (!arrived() && ++tries < 40) { setTimeout(land, 100); return; }
+    }
     document.querySelector<HTMLElement>(`.portal-nav [data-room="${roomId}"]`)
       ?.scrollIntoView({ block: "nearest" });
-  }, 120);
+  };
+  setTimeout(land, 120);
 }
 
 /**
@@ -591,7 +629,10 @@ function paintPinnedRail() {
     // which is where anything unclassified belongs rather than nowhere.
     goToRoom(destRoom(key) ?? "work");
     setTimeout(() => {
-      document.querySelector<HTMLElement>(`[data-dest="${CSS.escape(key)}"]`)?.click();
+      // `.portal-nav` scope is load-bearing. The pinned rail's own buttons carry `data-dest`, and
+      // before the rail buttons had the attribute at all they were the ONLY matches — so this line
+      // found the pin the user had just clicked and clicked it again. It never navigated anywhere.
+      document.querySelector<HTMLElement>(`.portal-nav [data-dest="${CSS.escape(key)}"]`)?.click();
     }, 200);
   });
 }
@@ -646,7 +687,7 @@ async function refreshWorkBadge(pid: string | null) {
 }
 
 if (spineEnabled()) {
-  // The five rooms ARE the navigation. They already existed as a sub-rail inside three of seven
+  // The rooms ARE the navigation. They already existed as a sub-rail inside three of seven
   // workspaces; this promotes them, it does not invent them.
   paintRoomTabs(roomForWorkspace(localStorage.getItem("workspace") || "model"));
   paintPinnedRail();
@@ -1527,7 +1568,7 @@ async function startup() {
   });
 }
 
-/** The three workspaces that host the project home — the five-room rail lives in these. */
+/** The three workspaces that host the project home — the room rail lives in these. */
 const PORTAL_WORKSPACES = ["construction", "developer", "design"] as const;
 
 /**
@@ -1558,7 +1599,7 @@ function showProjectHomeSignpost(key: string) {
   bar.id = id;
   bar.type = "button";
   bar.className = "home-signpost";
-  bar.title = "The five-room project home: Model, Cost, Schedule, Deal, Work";
+  bar.title = "The project home: Design, Planning, Cost, Schedule, Deal, Work";
   bar.innerHTML = `<span aria-hidden="true">←</span> Project home`;
   bar.onclick = () => { setWorkspace(dest); localStorage.setItem("workspace", dest); };
   const host = document.querySelector(".ws-tabs, [role=\"tablist\"]") ?? document.body;
@@ -1573,7 +1614,7 @@ function initNav() {
   // No saved choice -> the persona's declared HOME, not the module-level `currentWs` default.
   //
   // Every persona already names its seat (`home`), and nothing used it on load: a first-time user
-  // landed in the Model workspace whatever their role, and the five-room project home — which is the
+  // landed in the Model workspace whatever their role, and the project home — which is the
   // default shell and has been rendering correctly all along — was reachable only by knowing to pick
   // Construction, Developer or Design. A default nobody is shown is not a default. `currentWs` stays
   // the last-resort fallback for a persona with no home declared.

@@ -182,7 +182,7 @@ export interface RoomAuditReport {
 }
 
 /**
- * Judge one room of the five-room rail.
+ * Judge one room of the room rail.
  *
  * A room is judged by what it *contains*, not by whether its `<details>` exists: a rendered room with
  * no destinations is worse than an absent one, because it looks like a place to go. `open` is
@@ -207,7 +207,7 @@ export function judgeRoom(det: HTMLElement | null, id: string): RoomReport {
 }
 
 /**
- * Audit the five-room rail — the surface the redesign actually introduced.
+ * Audit the room rail — the surface the redesign actually introduced.
  *
  * `auditWorkspaces` walks workspace tabs, which both shells share; it therefore says nothing about
  * the rail itself. This is the part that only exists under the spine, and it was entirely unmeasured.

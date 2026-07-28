@@ -17,10 +17,11 @@ actions + timing) or follow it as a **written click-through**. Pairs with the
 > platform, and a handover tool — none of them talking. This is all of it, on one model."
 *On screen:* the landing page hero, then cut into the app on the Model workspace.
 
-**0:15 — One model, three workspaces**
+**0:15 — One model, six rooms**
 > "Everything keys off the building's IFC model — and you can author it right here in the browser, not
-> just view it. Three workspaces — Model, Construction, Finance — share it."
-*On screen:* click between the Model / Construction / Finance tabs; open a sample, orbit once, click an
+> just view it. Six rooms — Design, Planning, Cost, Schedule, Deal, Work — share it, and they are in
+> the same place whoever you are."
+*On screen:* click along the room tabs; open a sample, orbit once, click an
 element to show its docked Properties; flash the authoring rail — **New model**, the **Draft** tools,
 **◈ Edit in place** dragging an element, the **model browser** grouping by discipline.
 
@@ -71,7 +72,7 @@ element for its **5D** cost readout, then the **cost heatmap** coloring the buil
 ---
 
 ## Written click-through (no narration)
-1. **Model** workspace → **Open ▾ → a sample** → orbit, click an element for its docked **📋 Properties**
+1. **Design** room → **Open ▾ → Sample library** (a fresh install offers this on first run) → orbit, click an element for its docked **📋 Properties**
    (Type/Instance). Open the **model browser** (Tree): switch **group-by** (level / discipline / IFC
    class / type) and **search** to filter; click a leaf to select. Save a search as a **selection set**
    (Layers panel) and isolate it in one click.

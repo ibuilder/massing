@@ -87,7 +87,14 @@ describe("the catalog itself", () => {
     }
   });
 
-  it("uses `goto` only for the one destination that hops workspaces", () => {
-    expect(ALL_DESTS.filter((d) => d.goto).map((d) => d.key)).toEqual(["__uw__"]);
+  it("uses `goto` only for destinations that genuinely live in another workspace", () => {
+    // Two, and both are deliberate: underwriting renders in the finance workspace, and the drawing
+    // set is its own full-page surface rather than a portal panel.
+    //
+    // `goto` has a real cost, which is why this list is pinned: such a destination CANNOT be a
+    // room's landing target. It switches workspace instead of activating a rail item, so nothing can
+    // observe it having arrived — Deal lands on Portfolio for exactly this reason.
+    expect(ALL_DESTS.filter((d) => d.goto).map((d) => d.key).sort())
+      .toEqual(["__drawings__", "__uw__"]);
   });
 });

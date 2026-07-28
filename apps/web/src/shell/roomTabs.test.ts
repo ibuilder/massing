@@ -4,7 +4,7 @@ import { ROOM_IDS } from "./spine";
 import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./roomTabs";
 
 /**
- * The five rooms as primary navigation.
+ * The rooms as primary navigation.
  *
  * Worth recording what building this actually found: **the five tabs already existed.** `ROOM_IDS`
  * has been `model/cost/schedule/deal/work` since the spine shipped, the server allocates every
@@ -14,7 +14,7 @@ import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./roomTabs";
  */
 
 describe("the tab model", () => {
-  it("is exactly the five rooms, in order", () => {
+  it("is exactly the rooms in ROOM_IDS, in order", () => {
     expect(buildRoomTabs().map((t) => t.id)).toEqual([...ROOM_IDS]);
   });
 
@@ -33,10 +33,10 @@ describe("the tab model", () => {
     // labels are the one thing a user navigates by.
     const shuffled = [
       { id: "work", label: "WORK!", job: "j", count: 0, modules: [] },
-      { id: "model", label: "MODEL!", job: "j", count: 0, modules: [] },
+      { id: "design", label: "DESIGN!", job: "j", count: 0, modules: [] },
     ];
     const tabs = buildRoomTabs(shuffled as never);
-    expect(tabs.find((t) => t.id === "model")!.label).toBe("MODEL!");
+    expect(tabs.find((t) => t.id === "design")!.label).toBe("DESIGN!");
     expect(tabs.find((t) => t.id === "work")!.label).toBe("WORK!");
     // the three the server omitted still appear, from the fallback
     expect(tabs.map((t) => t.id)).toEqual([...ROOM_IDS]);
@@ -74,11 +74,14 @@ describe("only Work carries a count", () => {
 });
 
 describe("legacy workspace links still land", () => {
-  it("the seven collapse into the five", () => {
-    expect(roomForWorkspace("model")).toBe("model");
-    expect(roomForWorkspace("drawings")).toBe("model");
-    expect(roomForWorkspace("studio")).toBe("model");
-    expect(roomForWorkspace("design")).toBe("model");
+  it("the seven workspaces collapse into the rooms", () => {
+    // All four authoring workspaces land in Design — which is the point of renaming it. Under the
+    // old name a user in "drawings" arrived in a room called "Model" and had to infer that drawings
+    // were a kind of model.
+    expect(roomForWorkspace("model")).toBe("design");
+    expect(roomForWorkspace("drawings")).toBe("design");
+    expect(roomForWorkspace("studio")).toBe("design");
+    expect(roomForWorkspace("design")).toBe("design");
     expect(roomForWorkspace("construction")).toBe("schedule");
     expect(roomForWorkspace("finance")).toBe("deal");
     expect(roomForWorkspace("developer")).toBe("deal");
@@ -102,7 +105,7 @@ describe("rendering", () => {
   beforeEach(() => { host = document.createElement("div"); });
 
   it("draws one button per room, as a tablist", () => {
-    renderRoomTabs(host, buildRoomTabs(), "model", () => {});
+    renderRoomTabs(host, buildRoomTabs(), "design", () => {});
     expect(host.getAttribute("role")).toBe("tablist");
     expect(host.querySelectorAll(".room-tab").length).toBe(ROOM_IDS.length);
     expect([...host.querySelectorAll(".room-tab")].every((b) => b.getAttribute("role") === "tab")).toBe(true);
@@ -116,20 +119,23 @@ describe("rendering", () => {
   });
 
   it("the tooltip is the room's job", () => {
-    renderRoomTabs(host, buildRoomTabs(), "model", () => {});
+    renderRoomTabs(host, buildRoomTabs(), "design", () => {});
     const cost = host.querySelector<HTMLElement>('[data-room="cost"]')!;
-    expect(cost.title).toMatch(/price it/i);
+    expect(cost.title).toMatch(/budget it/i);
+    // Cost stopped being the room that prices the job when Planning took the estimating with it.
+    const planning = host.querySelector<HTMLElement>('[data-room="planning"]')!;
+    expect(planning.title).toMatch(/estimate it/i);
   });
 
   it("clicking reports the room id", () => {
     const picked: string[] = [];
-    renderRoomTabs(host, buildRoomTabs(), "model", (id) => picked.push(id));
+    renderRoomTabs(host, buildRoomTabs(), "design", (id) => picked.push(id));
     host.querySelector<HTMLButtonElement>('[data-room="deal"]')!.click();
     expect(picked).toEqual(["deal"]);
   });
 
   it("re-rendering replaces rather than appends", () => {
-    renderRoomTabs(host, buildRoomTabs(), "model", () => {});
+    renderRoomTabs(host, buildRoomTabs(), "design", () => {});
     renderRoomTabs(host, buildRoomTabs(), "work", () => {});
     expect(host.querySelectorAll(".room-tab").length).toBe(ROOM_IDS.length);
   });

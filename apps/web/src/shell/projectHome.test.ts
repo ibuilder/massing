@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 /**
  * Landing on the project home, and being able to get back to it.
  *
- * The five-room shell has been the default and rendering correctly since v0.3.715 — and a user still
+ * The room shell has been the default and rendering correctly since v0.3.715 — and a user still
  * opened a project and asked where it had gone. Both of my own diagnoses of that were wrong, in the
  * same way: I asserted on things that *looked* like evidence.
  *

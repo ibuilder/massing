@@ -29,7 +29,7 @@
 > rest one keystroke away. See the [design audit & interface plan](docs/design-audit.md) and the **R24
 > interface ring** in [the roadmap](docs/roadmap.md).
 
-**What it is** — three pillars on one IFC-keyed model, switched by a Model / Construction / Finance bar:
+**What it is** — three pillars on one IFC-keyed model, reached through six rooms — **Design · Planning · Cost · Schedule · Deal · Work** — that stay in the same place for every role:
 
 - 🧊 **BIM platform** — a genuine **in-browser authoring tool** on That Open Fragments, from a blank model
   to a permit-ready set: draw/edit walls (incl. **sloped-top parapet/shed/gable**), columns, slabs,
@@ -292,10 +292,22 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **A new shell you can turn on today — and the 5D chain closed (v0.3.684–v0.3.702, current).**
+- **The new shell is the app now — and it opens with something in it (v0.3.703–v0.3.765, current).**
+  The five-room shell stopped being a preview and **became the default in v0.3.715** (**`?shell=classic`**
+  still reverts, and the choice sticks). Since then it grew the parts that make a first run make sense:
+  a **sample library** shipped as `.mass` project containers rather than loose IFC files, a **showcase
+  house** authored by the same recipes a user drives, and a **first-run picker** so an empty install
+  offers a way in instead of an empty screen. The rooms became the primary navigation —
+  **Design · Planning · Cost · Schedule · Deal · Work**, with a live count on Work — beside a
+  **NEXT BEST ACTION** button that names one thing to do and renders nothing when there is nothing, and a
+  pinned rail that shows recents honestly labelled **RECENT** until you pin something.
+
+  Underneath: **Node 24** and **Postgres 17**, a **mobile build gate** that actually compiles the Android
+  app in CI, and a **version-consistency gate** after a drift that had run since v0.3.655.
+
+- **The shell's first cut — and the 5D chain closed (v0.3.684–v0.3.702).**
   The app was restructured around **five rooms constant for every role**, so a module lives in one
-  canonical place instead of a different one per persona. It ships **opt-in**: append **`?shell=spine`**
-  to turn it on (it persists), **`?shell=classic`** to revert. Alongside it: an **Inspector** that
+  canonical place instead of a different one per persona. Alongside it: an **Inspector** that
   puts a six-state lifecycle strip over four tabs (Properties · Cost · Schedule · Field), 27 unlabeled
   toolbar glyphs replaced by labeled contextual verbs, a **ball-in-court work queue** you act on
   inline, and a **colour contract** — one meaning per colour, enforced by a test that reads the

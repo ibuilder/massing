@@ -9,7 +9,7 @@
  * Moving it here buys three things the literal could not:
  *
  * * **The rail is built from the catalog, not the other way round.** Both the current stage rail and
- *   the five-room spine read the same entries, so the two shells cannot drift apart on what exists.
+ *   the room spine read the same entries, so the two shells cannot drift apart on what exists.
  * * **`needs` is declarative.** A destination that only makes sense when a module is installed says
  *   so; previously that was a `this.mods.some(...)` spread inline, easy to forget on a new entry.
  * * **It can be checked.** `ALL_DESTS` is the exact set a test asserts is fully roomed — a
@@ -76,6 +76,14 @@ export const STAGES_BY_WS: Record<string, [string, Dest[]][]> = {
       { key: "__conceptrender__", icon: "🖼", label: "Concept Renders" },
       { key: "__lifecycle__", icon: "🧭", label: "Project Lifecycle" },
       { key: "__masterbuilder__", icon: "🏛", label: "Master Builder" },
+    ]],
+    // The documents the model exists to produce. Drawings had NO destination at all until v0.3.766 —
+    // reachable only from the legacy workspace bar, so from the room navigation the drawing set was
+    // simply missing, and specifications were filed under Preconstruction and therefore under Cost.
+    // Both belong with the model that generates them.
+    ["Documents", [
+      { key: "__drawings__", icon: "\u{1F4D0}", label: "Drawings", goto: "drawings" },
+      { key: "__documents__", icon: "\u{1F4C1}", label: "Documents" },
     ]],
     // Split from "Analyse & check" for the same reason as Build/Money: you set standards once and
     // check the model continuously. Two sittings, two stages.

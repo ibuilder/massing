@@ -58,9 +58,15 @@ for r in alloc["rooms"]:
 assert len(seen) == len(mods), (len(seen), len(mods))
 
 # ---- the spine itself ----------------------------------------------------------------------------
-assert [r["id"] for r in rooms.ROOMS] == ["model", "cost", "schedule", "deal", "work"]
+# v0.3.766 renamed Model -> Design and split Planning out of Cost. Both were deliberate, and both
+# broke this line first, which is what it is here for: "Model" named one *output* of that room, so
+# drawings and specifications read as though they lived elsewhere — and specifications actually did,
+# filed under Preconstruction and therefore under Cost. Planning split for the mirror-image reason:
+# taking off and buying out are preconstruction work, and sharing a room with the general ledger put
+# a quantity surveyor and an accounts clerk behind the same tab.
+assert [r["id"] for r in rooms.ROOMS] == ["design", "planning", "cost", "schedule", "deal", "work"]
 # professional terms are primary — this was an explicit decision, and a rename should break the test
-assert [r["label"] for r in rooms.ROOMS] == ["Model", "Cost", "Schedule", "Deal", "Work"]
+assert [r["label"] for r in rooms.ROOMS] == ["Design", "Planning", "Cost", "Schedule", "Deal", "Work"]
 for r in rooms.ROOMS:
     assert len(r["job"]) > 25, f"{r['id']} needs a plain statement of what it is for"
 

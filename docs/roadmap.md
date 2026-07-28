@@ -31,6 +31,30 @@ work**.
 
 ---
 
+## NOW — the IA restructure's remaining half (v0.3.766)
+
+The room *tabs* are correct as of v0.3.766. The *rail* is not yet, and the gap is measured rather
+than suspected:
+
+- **ROOM-RAIL-MODULES — a room's modules do not render inside its rail group.** Planning owns 16
+  modules per `GET /rooms`; its rail group shows **2**. The other 14 are reachable — 250 rail items
+  render with "show all modules" on — but they group by their own section elsewhere instead of under
+  the room that owns them. Same shape as the defect that started this: the grouping exists, the
+  content does not route into it. Fix in `portal.ts::buildNav`, where `byRoom` is built from
+  `ALL_DESTS` only and never from `this.mods`.
+- **DEST-GOTO-ASYMMETRY — two destinations switch workspace instead of rendering a panel.**
+  `__uw__` (Underwriting) and `__drawings__`. The cost is concrete: such a destination **cannot be a
+  room's landing target**, because nothing can observe it having arrived — which is why Deal lands on
+  Portfolio rather than on Underwriting, its natural home. Either give them real panels or teach the
+  landing check to recognise a workspace hop.
+- **SUB-ROOMS — Design needs a second level.** Model · Drawings · Specs · Analysis, so one room can
+  hold an architect's whole day without becoming a 39-item list. Design currently owns 39 modules,
+  the largest of the six, and a flat list at that size is the wall the spine exists to replace.
+
+Not yet decided, and left for review rather than guessed: whether **Quality** (inspections/ITP)
+belongs in Design, where it sits today because an inspection checks the built thing against the
+design, or in Schedule with the field work that produces it.
+
 ## 🔎 RING RECONCILIATION — 2026-07-28, v0.3.765
 
 **The backlog was mostly already built.** 61 ring items were checked against the codebase, not

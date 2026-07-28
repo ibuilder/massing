@@ -230,7 +230,7 @@ export interface ModuleDef {
    *  taxonomy — inventing one per workspace is how four different rails came to exist. */
   room?: string | null;
 }
-/** R26 — the five-room spine. Constant for every role; a workspace weights it, never replaces it. */
+/** R26 — the room spine. Constant for every role; a workspace weights it, never replaces it. */
 /** R26-INSPECTOR — one state of the six-state element lifecycle strip.
  *  `unknown` means the platform could not consult that state. It is NOT `none`: an element nobody
  *  priced and an element priced at zero are different facts, and so are "no" and "we did not ask". */

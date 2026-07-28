@@ -2821,7 +2821,7 @@ export class ApiClient extends withLibrary(withAuthoring(HttpCore)) {
   modules() {
     return this.json<ModuleDef[]>(`/modules`);
   }
-  /** R26 — the five-room spine plus the allocation of every module to exactly one room. */
+  /** R26 — the room spine plus the allocation of every module to exactly one room. */
   rooms() {
     return this.json<RoomAllocation>(`/rooms`);
   }

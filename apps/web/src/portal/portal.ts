@@ -203,7 +203,7 @@ export class PortalUI {
     home.onclick = () => { this.activeKey = null; void this.renderHome(); this.buildNav(); };
     nav.appendChild(home);
 
-    // The rail's upper half is the five-room spine (the default since v0.3.715) or — for anyone who
+    // The rail's upper half is the room spine (the default since v0.3.715) or — for anyone who
     // opted out with `?shell=classic` — the lifecycle-stage grouping. Both read the SAME destination
     // catalog, so the two shells cannot drift on what exists.
     const dests = this.destDispatch();
@@ -288,6 +288,11 @@ export class PortalUI {
   private destButton(d: Dest, dests: Record<string, () => unknown>): HTMLButtonElement {
     const b = document.createElement("button");
     b.className = "pnav-item pnav-home" + (this.activeKey === d.key ? " active" : "");
+    // Addressable by key. Without this the rail is navigable only by a human clicking it: the pinned
+    // rail and the room tabs both try to reach a destination with `[data-dest="…"]`, and until now
+    // the ONLY nodes carrying that attribute were the pinned rail's own buttons — so its
+    // "open what I pinned" handler matched itself and clicked itself instead of navigating.
+    b.dataset.dest = d.key;
     b.innerHTML = `<span class="ic">${d.icon}</span> ${d.label.replace(/&/g, "&amp;").replace(/</g, "&lt;")}`;
     b.onclick = d.goto
       ? () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: d.goto }))
@@ -316,7 +321,7 @@ export class PortalUI {
   }
 
   /**
-   * The five-room spine: **Model · Cost · Schedule · Deal · Work**, the same five for every role.
+   * The room spine: **Design · Planning · Cost · Schedule · Deal · Work**, the same for every role.
    *
    * A workspace *weights* the spine — its room comes first and opens — but never removes a room. A
    * room that disappears in one workspace is a room the user has to relearn where to find, which is
@@ -328,7 +333,7 @@ export class PortalUI {
    */
   private buildRoomRail(nav: HTMLElement, dests: Record<string, () => unknown>) {
     // Degrade the BADGES, not the shell. `GET /rooms` supplies the allocation and the
-    // ball-in-your-court counts; the five rooms themselves are a fixed set both sides already agree
+    // ball-in-your-court counts; the rooms themselves are a fixed set both sides already agree
     // on. Silently rebuilding the old rail when that request fails — which is what happened until
     // v0.3.718 — hands somebody the previous shell with no explanation, and is indistinguishable
     // from the redesign never having shipped.

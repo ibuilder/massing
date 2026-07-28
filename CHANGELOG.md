@@ -4,6 +4,88 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.766 — the rooms go somewhere, and they are named for the work
+
+### The Cost room was decorative
+
+Reported from use: "the cost room doesnt seem to exist". It did not. Clicking **Cost** and clicking
+**Schedule** rendered **byte-identical screens** — the tab highlighted, the content did not move, and
+the room's nine destinations (Budget, Cost-code Margin, Earned Value, WIP Schedule, General Ledger,
+Cost Traceability, Benchmarks, Selections, Risk & Cost) sat one collapsed group away with nothing
+routing to them. Three defects underneath, each invisible to every gate we own:
+
+- **No room named where it opens.** Cost, Schedule and Work share the `construction` host workspace,
+  so switching the workspace — the whole of what a tab did — left all three on the same screen.
+  Rooms now declare a home (`ROOM_HOME`), and a test asserts each home belongs to the room claiming
+  it, so the table cannot drift from `DEST_ROOM`.
+- **A writer and a reader disagreed about a key.** `goToRoom` wrote `setRoomOpen("cost")`; the rail
+  reads `readRoomOpen("construction:cost")`. The write landed in a slot nothing reads, which is
+  indistinguishable from a write that worked.
+- **The pinned rail clicked itself.** Rail buttons carried no `data-dest`, so the only nodes with
+  that attribute were the pinned rail's own — and its "open what I pinned" handler matched itself.
+  Rail destinations are now addressable (46 of them, from none), which fixes both.
+
+Landing now retries until it **arrives** rather than waiting a fixed delay. Two guesses failed first:
+120ms (too short once a room changes workspace) and then waiting for the button to exist — the rail
+renders all five room groups in every workspace, so the button was present in the *outgoing* rail and
+the click was discarded by the rebuild, leaving each room showing the previous one's content.
+Existence was never the condition; arrival was.
+
+Cost → Budget · Schedule → Schedule · Deal → Portfolio · Work → My Work, verified live in any order.
+Deal lands on Portfolio because `__uw__` is the only destination in the app carrying `goto` — it
+switches workspace instead of opening a panel, so nothing can land on it.
+
+### Model became Design, and Planning split out of Cost
+
+Two renames, both from use, both of which broke a gate before they broke anything else.
+
+**Design.** "Model" named one *output* of that room, so drawings and specifications read as though
+they lived somewhere else — and specifications actually did: `spec_section` was filed under
+Preconstruction, and Preconstruction sat under Cost. An architect looking for the spec they are
+writing had to go to the money room. Design now holds the model, the drawings, the specs and the
+analysis, which is what one discipline actually does.
+
+**Drawings had no destination at all.** Not misplaced — absent. `openDrawingsTab()` was reachable
+only from the legacy workspace bar, so from the room navigation the drawing set did not exist. It is
+now a Design destination alongside Documents.
+
+**Planning.** Estimating, taking off, bidding and buying out are preconstruction work whose *outcome*
+is money, which is not the same as being accounting. Filing them under Cost put a quantity surveyor
+and an accounts clerk behind one tab and buried the takeoff a precon lead opens daily under a general
+ledger they never open. Planning takes the Preconstruction and Contracts sections — estimates,
+estimate sets, bid packages, solicitations, submissions, buyout, prequalification, value engineering,
+assumptions, the decision log, the charter and the RACI. Cost keeps budget, change, billing and
+accounting.
+
+All 132 modules still resolve to exactly one room and none is unplaced:
+**Design 39 · Planning 16 · Cost 20 · Schedule 41 · Deal 16 · Work 0**, verified against the running
+API rather than the table that produced it.
+
+**Known gap, measured not guessed:** a room's *modules* do not render inside its rail group. Planning
+shows its 2 first-class destinations; its 16 modules are reachable but sit elsewhere in the rail. So
+the room tabs are now correct and the rail is not yet — that is the next change, and it is the same
+shape as the defect above: the grouping exists, the content does not route into it.
+
+### And the tools moved to the room that owns them
+
+Four destinations were sitting in rooms that did not describe them:
+
+- **Risk Review** and **AI Assist** were in **Work**, whose job is *"whatever is in your court right
+  now"*. Neither is — the source calls that pair "preconstruction intelligence": read an incoming
+  contract for risky clauses, find scope gaps, level bids. Both moved to **Planning**. Work is now
+  purely the queue, which is the only way a queue keeps meaning anything.
+- **Energy** was in **Deal**. It is an engineering analysis run off the model geometry → **Design**.
+- **Issue Board** was in **Schedule**. It records clashes and coordination questions raised *against
+  the model* → **Design**.
+
+### The README described a shell that stopped being optional 50 releases ago
+
+It told readers to append `?shell=spine` "to turn it on". It has been the default since v0.3.715, so
+following that instruction changed nothing and read as a broken feature. The walkthrough still had
+users clicking a three-tab bar the five rooms replaced. Both corrected, and `docsCurrent.test.ts` now
+**calls `spineEnabled()` and reads `ROOM_IDS`** and requires the prose to agree — it asserts nothing
+of its own, so it cannot agree with itself while both drift from the product.
+
 ## v0.3.764 — the pinned rail, and the live pass that was the real gate
 
 - **The rail renders state that already existed.** `readFavs()`/`readRecents()` have persisted since

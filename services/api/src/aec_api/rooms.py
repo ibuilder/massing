@@ -24,10 +24,12 @@ from typing import Any
 #: The five rooms. Professional terms are primary — the users are builders, developers, architects
 #: and engineers who already own the vocabulary; there is deliberately no second string table.
 ROOMS: list[dict[str, str]] = [
-    {"id": "model", "label": "Model",
-     "job": "Author, coordinate and document the building"},
+    {"id": "design", "label": "Design",
+     "job": "Model it, draw it, specify it — the architect's and engineer's room"},
+    {"id": "planning", "label": "Planning",
+     "job": "Take it off, estimate it, bid it, buy it out and contract it"},
     {"id": "cost", "label": "Cost",
-     "job": "Price it, buy it out, change it and pay for it"},
+     "job": "Budget it, change it, bill it and account for it"},
     {"id": "schedule", "label": "Schedule",
      "job": "Sequence it, run the field, and track what got built"},
     {"id": "deal", "label": "Deal",
@@ -41,21 +43,30 @@ ROOM_IDS = {r["id"] for r in ROOMS}
 #: `test_module_rooms` fails the build if one is missing, so a new section is a deliberate decision
 #: rather than an accident.
 ROOM_OF_SECTION: dict[str, str] = {
-    # ── Model: the building and everything that describes it ────────────────────────────────────
-    "BIM": "model",
-    "Design": "model",
-    "Design Phases": "model",
-    "Engineering": "model",
-    "Information Management": "model",
-    "Programming": "model",
-    "Quality": "model",              # inspections/ITP describe the built thing against the design
-    "Sustainability": "model",
-    "Resilience": "model",
-    # ── Cost: money against the building ────────────────────────────────────────────────────────
+    # ── Design: the building and everything that describes it ───────────────────────────────────
+    # Named for the *discipline*, not the artifact. "Model" described one output of this room and
+    # left drawings and specifications looking like they belonged somewhere else — which is exactly
+    # where specifications had ended up (filed under Preconstruction, and therefore under Cost).
+    # An architect or engineer does all of it here: model, draw, specify, analyse.
+    "BIM": "design",
+    "Design": "design",
+    "Design Phases": "design",
+    "Engineering": "design",
+    "Specifications": "design",      # the written half of the documents; the drawings are the other
+    "Information Management": "design",
+    "Programming": "design",
+    "Quality": "design",             # inspections/ITP describe the built thing against the design
+    "Sustainability": "design",
+    "Resilience": "design",
+    # ── Planning: turning a design into a bought, contracted scope ──────────────────────────────
+    # Split out of Cost. Estimating, taking off and buying out are *planning* work with an outcome
+    # in money — filing them under Cost put a quantity surveyor and an accounts clerk in one room,
+    # and buried the takeoff a preconstruction lead uses daily under a general ledger they never open.
+    "Preconstruction": "planning",
+    "Contracts": "planning",
+    # ── Cost: money against the building, once the scope is bought ──────────────────────────────
     "Cost": "cost",
-    "Preconstruction": "cost",       # estimating + bidding are how a cost first exists
     "Change Management": "cost",
-    "Contracts": "cost",
     "Capital": "cost",
     # ── Schedule: time, and the field that consumes it ──────────────────────────────────────────
     "Schedule": "schedule",
