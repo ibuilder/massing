@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.743 — SCALE-SEAM ①: the client starts splitting, provably
+
+- **`api/surface.test.ts` first, extraction second.** The split is only safe if "I moved code" can be
+  told apart from "I changed behaviour", and a typecheck cannot do that — deleting a method and
+  deleting its last caller both compile clean. So the runtime method surface is captured and
+  asserted. Writing it first paid immediately: it caught three method names I had guessed wrong
+  (`createRecord`/`updateRecord`/`topics` are really `createModuleRecord`/`updateModuleRecord`/
+  `topicsBoard`) and surfaced an ordering constraint — the SSE methods call a `private` `liveStream`,
+  which a sibling mixin cannot reach, so they cannot move until it drops into `HttpCore`.
+- **`api/authoring.ts` — 15 methods, 113 lines, out of `client.ts`.** IFC edit recipes, the family
+  shelf, the compute graph, the massing generator. A **mixin**, so `api.editIfc(...)` resolves
+  exactly as before and no call site in the app changed. Chosen as the first cut precisely because it
+  reaches nothing but `HttpCore`'s `json`/`url`/`authHeaders`.
+- **The first floor I wrote was 620 against a real surface of 689** — it would have sat green through
+  losing every method the extraction moved. Corrected to 685. A threshold far below the truth is a
+  test that cannot fail, which is the defect this suite keeps finding in its own tests.
+
 ## v0.3.742 — a size budget on the files we edit most
 
 - **`test_file_sizes` — a ratchet, not a rule.** Measures every hand-written tracked source file and

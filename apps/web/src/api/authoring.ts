@@ -1,0 +1,187 @@
+/** Authoring: server-side IFC edit recipes, the family/content shelf, the compute graph and the
+ *  massing generator — the endpoints that WRITE to the model rather than read from it.
+ *
+ *  First extraction of roadmap SCALE-SEAM. `client.ts` was measured at 4,956 lines with 152 commits
+ *  in a fortnight and 631 methods on one class: it had to be opened to add any endpoint, so every
+ *  change to it competed with every other change. The server solved this long ago by splitting into
+ *  `routers/*.py`; the client kept the seams as comments and never cut along them.
+ *
+ *  This is a **mixin**, not a separate client, so `api.editIfc(...)` still resolves exactly as it did
+ *  — no call site in the app changes. `api/surface.test.ts` asserts that: it captures the runtime
+ *  method surface and fails if an extraction drops one, which a typecheck cannot catch (deleting a
+ *  method and deleting its last caller both compile clean).
+ *
+ *  Chosen as the first cut because it reaches nothing but HttpCore's `json`/`url`/`authHeaders`.
+ *  The SSE methods cannot follow yet: they call the `private` `liveStream`, and a mixin cannot see a
+ *  sibling's private member — that has to move into HttpCore first.
+ */
+import { HttpCore } from "./httpCore";
+
+type Ctor<T> = new (...args: any[]) => T;
+
+export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
+  return class Authoring extends Base {
+    editIfc(pid: string, recipe: string, params: Record<string, unknown>, publish = true) {
+      return this.json<{ recipe: string; changed: number | string; published: unknown }>(
+        `/projects/${pid}/edit`, { method: "POST", body: JSON.stringify({ recipe, params, publish }) });
+    }
+    /** IFCPATCH-LIB — dry-run maintenance scan: how many entities each cleanup recipe would remove. */
+    modelMaintenance(pid: string) {
+      return this.json<{ total_entities: number; cleanable: number;
+        recipes: { recipe: string; label: string; removable: number; sample: string[] }[] }>(
+        `/projects/${pid}/model/maintenance`);
+    }
+    /** Incremental one-element preview fragment (real geometry, fast) while the full model republishes.
+     *  Returns the fragment bytes + new element GUID, or null (fail-open → the viewer keeps its proxy). */
+    async editPreview(pid: string, recipe: string, params: Record<string, unknown>):
+        Promise<{ frag: ArrayBuffer; guid: string } | null> {
+      try {
+        const res = await fetch(this.url(`/projects/${pid}/edit-preview`), {
+          method: "POST", headers: { "Content-Type": "application/json", ...this.authHeaders() },
+          body: JSON.stringify({ recipe, params }),
+        });
+        if (!res.ok) return null;
+        return { frag: await res.arrayBuffer(), guid: res.headers.get("X-Element-Guid") || "" };
+      } catch { return null; }
+    }
+    /** Starter IFC family library (furniture / sanitary / appliances / plants) — generated
+     *  parametrically, so it's placeable into any model incl. a from-scratch massing model. */
+    /** Drafting grid (real IfcGrid or derived from columns) + snap intersections + storey levels. */
+    modelGrid(pid: string) {
+      return this.json<{
+        grid: { source: string;
+          axes: { tag: string; dir: "u" | "v"; start: [number, number]; end: [number, number] }[];
+          intersections: { x: number; y: number; label: string }[];
+          bounds: { min: [number, number]; max: [number, number] } | null; note?: string };
+        levels: { name: string | null; elevation: number }[];
+      }>(`/projects/${pid}/model/grid`);
+    }
+    familyCatalog() {
+      return this.json<{ count: number; categories: Record<string, FamilyItem[]> }>("/families/catalog");
+    }
+    /** The shippable IFC family library: the generated parametric catalog (grouped) plus the
+     *  generated `library.ifc` and any curated external `.ifc` files. */
+    familyLibrary() {
+      return this.json<{ count: number; categories: Record<string, FamilyItem[]>;
+        generated_library: { exists: boolean; size_bytes: number };
+        external: { name: string; size_bytes: number }[];
+        shelf: { count: number; manifest: boolean;
+          totals: { packs: number; families: number; types: number; size_bytes: number; undescribed: number };
+          packs: FamilyPack[] } }>("/families/library");
+    }
+    /** Import a family pack already on the server's external shelf — no download-and-re-upload round
+     *  trip. `pack` is a plain file name from `familyLibrary().shelf.packs`. */
+    importFamilyPack(pid: string, pack: string, publish = false) {
+      return this.json<{ imported: string[]; count: number; pack: string; sha256: string;
+        described: boolean; discipline?: string | null; declared_types?: number | null;
+        note?: string; publish?: string }>(
+        `/projects/${pid}/families/import-pack`,
+        { method: "POST", body: JSON.stringify({ pack, publish }) });
+    }
+    /** Place a library family (thin wrapper over the add_family recipe). */
+    placeFamily(pid: string, family: string, position?: [number, number] | null) {
+      return this.json<{ recipe: string; changed: number | string; publish?: string }>(
+        `/projects/${pid}/families/place`, { method: "POST",
+        body: JSON.stringify({ family, position: position || undefined, publish: true }) });
+    }
+    /** Place a starter-library family on a storey (optionally at an [E,N] point in metres), then
+     *  publish the round-trip. Reuses the `add_family` edit recipe. */
+    addFamily(pid: string, family: string, position?: [number, number] | null, storey?: string | null) {
+      const params: Record<string, unknown> = { family };
+      if (position) params.position = position;
+      if (storey) params.storey = storey;
+      return this.editIfc(pid, "add_family", params, true);
+    }
+    /** Import external IFC type content (manufacturer / 3rd-party families) from an uploaded IFC into
+     *  the project; imported types then appear in the place-family picker. */
+    async importFamilies(pid: string, file: File, publish = true) {
+      const fd = new FormData(); fd.append("file", file);
+      const res = await fetch(this.url(`/projects/${pid}/families/import?publish=${publish}`), {
+        method: "POST", body: fd, headers: this.authHeaders() });
+      if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `import -> ${res.status}`); }
+      return res.json() as Promise<{ imported: { guid: string; name: string; ifc_class: string }[]; count: number; publish?: string }>;
+    }
+    publish(pid: string) {
+      return this.json<{ state: string }>(
+        `/projects/${pid}/publish`, { method: "POST", body: JSON.stringify({ reconvert: true }) });
+    }
+    /** Computational-graph (M4) node palette — each node's input/output ports for the visual editor. */
+    computeNodes() {
+      return this.json<{ nodes: ComputeNodeSpec[] }>("/compute/nodes");
+    }
+    /** Run a {nodes, edges} compute graph; returns each node's outputs + the execution order. */
+    runGraph(graph: ComputeGraph) {
+      return this.json<{ order: string[]; results: Record<string, Record<string, unknown>>; node_count: number }>(
+        "/compute/graph", { method: "POST", body: JSON.stringify(graph) });
+    }
+    publishStatus(pid: string) {
+      return this.json<{ state: "idle" | "running" | "done" | "error"; detail?: Record<string, unknown> }>(
+        `/projects/${pid}/publish/status`);
+    }
+    /** Generative massing — zoning envelope → program (+ proforma) WITHOUT writing a model. Instant. */
+    previewMassing(params: MassingParams) {
+      return this.json<MassingResult>("/generate/massing/preview", { method: "POST", body: JSON.stringify(params) });
+    }
+    /** Generate an IFC massing model from a zoning envelope, set it as the project's source IFC,
+     *  publish it (off-thread), and return the program + a starter acquisition proforma. */
+    generateMassing(pid: string, params: MassingParams) {
+      return this.json<MassingResult & { source_ifc: string; publish: string }>(
+        `/projects/${pid}/generate/massing`, { method: "POST", body: JSON.stringify(params) });
+    }
+    /** Create a blank authoring model (base IFC + levels + ground datum) — the from-scratch start for
+     *  the in-browser modeler; sets it as the project's source IFC + publishes. */
+    createBlankModel(pid: string, opts?: { name?: string; storeys?: number; storey_height?: number }) {
+      return this.json<{ storeys: number; storey_height: number; source_ifc: string; publish: string }>(
+        `/projects/${pid}/model/blank`, { method: "POST", body: JSON.stringify(opts || {}) });
+    }
+  };
+}
+
+export interface FamilyItem {
+  key: string; label: string; ifc_class: string; category: string; dims: [number, number, number];
+}
+export interface FamilyPack {
+  name: string; size_bytes: number; described: boolean;
+  discipline?: string; families?: number; types?: number; tiers?: string[];
+  licence?: string; version?: string;
+}
+export interface ComputeNodeSpec {
+  key: string; label: string; category: string; doc: string;
+  inputs: { name: string; default: number | string | null }[];
+  outputs: string[];
+}
+export interface ComputeGraph {
+  nodes: { id: string; type: string; params: Record<string, number | string> }[];
+  edges: { from: string; from_port: string; to: string; to_port: string }[];
+}
+export interface MassingParams {
+  name?: string; use_type?: "residential" | "commercial";
+  lot_width?: number | null; lot_depth?: number | null; lot_area?: number | null;
+  far?: number; coverage_max?: number; front_setback?: number; rear_setback?: number;
+  side_setback?: number; height_limit?: number | null; floor_to_floor?: number;
+  efficiency?: number; avg_unit_m2?: number;
+  frame?: boolean; bay_m?: number; units?: boolean; envelope?: boolean; wwr?: number; core?: boolean;
+  unit_layout?: "grid" | "corridor"; parking?: number;
+  shape?: "box" | "dome"; dome_radius?: number;
+  land_cost?: number; hard_cost_psf?: number; rent_per_unit_month?: number; rent_psf_year?: number;
+  exit_cap?: number; ltc?: number; rate?: number;
+}
+export interface MassingMetrics {
+  lot_area_m2: number; far: number; far_achieved: number; footprint_m2: number;
+  plate_w: number; plate_d: number; floors: number; floor_to_floor: number;
+  building_height_m: number; buildable_gfa_m2: number; buildable_gfa_sf: number;
+  net_sellable_m2: number; units: number; binding_constraint: string;
+  structure?: { system: string; lateral_system: string; rationale: string; load_path: string;
+    slenderness: number; members_mm: { slab: number; beam_depth: number; column: number; uses_beams: boolean };
+    column_schedule?: { floor: number; floors_carried: number; side_mm: number }[];
+    base_column_mm?: number; top_column_mm?: number;
+    lateral_core?: { provided: boolean; plan_w_m: number; plan_d_m: number; wall_mm: number; note: string };
+    flags: string[] };
+}
+export interface MassingResult {
+  metrics: MassingMetrics;
+  proforma: { assumptions: Record<string, unknown>;
+    returns?: { equity_irr?: number; equity_multiple?: number } | null;
+    sources_uses?: { total_uses?: number; equity?: number; loan_amount?: number } | null;
+    solve_error?: string };
+}
