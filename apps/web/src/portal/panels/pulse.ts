@@ -159,3 +159,39 @@ export function nextBestAction(items: ActionCandidate[]): ActionCandidate | null
     (i.dueInDays ?? 99);
   return [...items].sort((a, b) => score(b) - score(a))[0]!;
 }
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+
+import { escapeHtml as esc } from "../../ui/feedback";
+
+/** Card -> DOM. Kept beside the logic deliberately: the rule "a card may say nothing" is only
+ *  honoured if the renderer also declines to draw an empty line, and splitting the two is how a
+ *  `null` risk turns back into a blank row that looks like a loading state. */
+export function pulseCardEl(c: PulseCard): HTMLElement {
+  const el = document.createElement("article");
+  el.className = `pulse-card pulse-${c.tone}`;
+  el.setAttribute("data-pulse", c.key);
+  const risk = c.risk ? `<p class="pulse-risk">${esc(c.risk)}</p>` : "";
+  el.innerHTML =
+    `<header class="pulse-head"><span class="pulse-dot" aria-hidden="true"></span>` +
+    `<h4>${esc(c.label)}</h4><span class="pulse-value">${esc(c.value)}</span></header>` +
+    `<p class="pulse-headline">${esc(c.headline)}</p>${risk}`;
+  return el;
+}
+
+/** The whole rail. Returns null when there is nothing to show, so a caller can omit the column
+ *  rather than render an empty panel captioned "Project Pulse". */
+export function pulseRailEl(cards: PulseCard[]): HTMLElement | null {
+  if (!cards.length) return null;
+  const wrap = document.createElement("aside");
+  wrap.className = "pulse-rail";
+  wrap.setAttribute("aria-label", "Project pulse");
+  const h = document.createElement("h3");
+  h.className = "pulse-title";
+  h.textContent = "PROJECT PULSE";
+  wrap.appendChild(h);
+  for (const c of cards) wrap.appendChild(pulseCardEl(c));
+  return wrap;
+}

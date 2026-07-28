@@ -161,3 +161,41 @@ describe("next best action returns exactly one thing", () => {
     expect(r!.ref).toBe("B");
   });
 });
+
+describe("rendering honours the rules the logic sets", () => {
+  it("a card with no risk draws NO risk line — not an empty one", async () => {
+    const { pulseCardEl } = await import("./pulse");
+    const [c] = buildPulse({ cost: { variancePct: -0.7, unpricedChanges: 0 } });
+    const el = pulseCardEl(c!);
+    expect(el.querySelector(".pulse-risk")).toBeNull();
+    expect(el.textContent).toContain("−0.7%");
+  });
+
+  it("a card with a risk draws it", async () => {
+    const { pulseCardEl } = await import("./pulse");
+    const [c] = buildPulse({ cost: { variancePct: -0.7, unpricedChanges: 3, exposurePct: 1.4 } });
+    expect(pulseCardEl(c!).querySelector(".pulse-risk")?.textContent).toContain("+1.4%");
+  });
+
+  it("the tone reaches the DOM so colour is not decided twice", async () => {
+    const { pulseCardEl } = await import("./pulse");
+    const [c] = buildPulse({ schedule: { floatDays: -2 } });
+    expect(pulseCardEl(c!).className).toContain("pulse-risk");
+  });
+
+  it("free text is escaped — risk strings come from server data", async () => {
+    const { pulseCardEl } = await import("./pulse");
+    const el = pulseCardEl({
+      key: "model", label: "Model health", value: "82", tone: "risk",
+      headline: "x", risk: '<img src=x onerror="alert(1)">',
+    });
+    expect(el.querySelector("img")).toBeNull();
+    expect(el.innerHTML).toContain("&lt;img");
+  });
+
+  it("an empty pulse renders NOTHING rather than a titled empty panel", async () => {
+    const { pulseRailEl } = await import("./pulse");
+    expect(pulseRailEl([])).toBeNull();
+    expect(pulseRailEl(buildPulse({ model: { score: 90 } }))).not.toBeNull();
+  });
+});

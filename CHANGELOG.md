@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.749 — Pulse renders, and the renderer keeps the logic's promises
+
+- `pulseCardEl` / `pulseRailEl`, kept **beside** the logic on purpose. "A card may say nothing" is
+  only true if the renderer also declines to draw an empty line; split the two and a `null` risk
+  becomes a blank row that reads as a loading state.
+- `pulseRailEl([])` returns **null**, so a caller omits the column entirely rather than showing a
+  panel captioned "PROJECT PULSE" with nothing under it.
+- Risk strings are server-derived free text and go through `esc()` — asserted, since this repo has a
+  standing `js/xss-through-dom` lesson about exactly that.
+- Tone reaches the DOM as a class so colour is decided once, in the logic, not again in CSS.
+
 ## v0.3.748 — PROJECT PULSE + NEXT BEST ACTION, the two halves that never got built
 
 - The R26 work-queue design was the best shell this repo has had, and only half of it survived: the
