@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.746 — a `.mass` now carries the element index
+
+- **Every container exported before this held a model you could SEE and could not QUERY.** It
+  packed `geometry/model.frag` and every project table, and omitted `props.json` — the element
+  index. Import one and there is no model browser, no element list, no takeoff, no element-scoped
+  cost or 4D, because all of those read `_INDEX`, which is a cache over that one object. Containers
+  now carry `index/props.json` and restore it under the new project id.
+- **Real effect, measured through the actual export**: Verification House **0 → 7 elements**,
+  Maple Street House **0 → 8**. Seven is exactly what the live authoring test built.
+- **Why two exhaustive inventories both missed it.** `_project_tables()` finds tables by their
+  `project_id` column; `_attachment_keys()` finds blobs by their owning record. props.json is
+  neither, so each rule was complete *by its own definition* and the union still had a hole. Two
+  exhaustive-looking rules with a gap between them look exactly like coverage — and the manifest's
+  `entries` list inventoried everything present, because an inventory can only enumerate what it was
+  handed.
+- The new test asserts the **capability** (can this project be queried after a round trip), not the
+  file list — including that GlobalIds survive the copy unchanged, since a re-keyed GUID silently
+  orphans every pin, RFI, cost line and 4D task pointing at it. A test checking "manifest lists N
+  entries" would have passed throughout.
+- Investigated but deliberately **not** built: a persisted `element` table. `ensure_loaded` already
+  rehydrates from object storage, so props.json *is* the durable index and the dict is a cache. A
+  table would have duplicated the source of truth to fix a packaging gap.
+
 ## v0.3.745 — resolve the three CodeQL alerts: one real, two false
 
 - **`py/path-injection` in `samples.py` was mine, from yesterday's release, and it was right.** The

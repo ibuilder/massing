@@ -145,6 +145,24 @@ def export_bundle(db: Session, pid: str) -> bytes:
         has_frag = storage.exists(f"{pid}/model.frag")
         if has_frag:
             z.writestr("geometry/model.frag", storage.get(f"{pid}/model.frag"))
+        # The element index. Without it a container holds a model you can SEE and cannot QUERY: no
+        # model browser, no element list, no takeoff, no element-scoped cost or 4D — every one of
+        # those reads `_INDEX`, which is a cache over this exact object.
+        #
+        # It was missed because it is the one piece of project data that is neither a table nor an
+        # attachment: `_project_tables()` finds tables by their `project_id` column and
+        # `_attachment_keys()` finds blobs by their owning record, and props.json is neither. So both
+        # inventories were complete by their own definition and the container was still missing the
+        # thing that makes it a project rather than a mesh.
+        elements = 0
+        if storage.exists(f"{pid}/props.json"):
+            raw = storage.get(f"{pid}/props.json")
+            z.writestr("index/props.json", raw)
+            try:
+                elements = len(json.loads(raw).get("elements", []))
+            except (ValueError, UnicodeDecodeError, AttributeError):
+                elements = 0            # unreadable index still travels; the count is just unknown
+        counts["element"] = elements
         if p.source_ifc and Path(p.source_ifc).exists():
             z.writestr(f"geometry/{Path(p.source_ifc).name}", Path(p.source_ifc).read_bytes())
         for key in _attachment_keys(db, pid):
@@ -232,6 +250,12 @@ def import_bundle(db: Session, data: bytes, *, new_name: str | None = None) -> s
     db.flush()                                   # project row must exist before FK children (Postgres)
     if "geometry/model.frag" in names:
         storage.put(f"{new_pid}/model.frag", z.read("geometry/model.frag"))
+    # The element index, restored under the NEW project id. Element identity inside it is by IFC
+    # GlobalId, which is stable across the copy by design, so nothing in the payload needs rewriting
+    # — only the key it lives under. Without this the import produces a project you can look at and
+    # cannot query, which is the state every `.mass` was in before v0.3.746.
+    if "index/props.json" in names:
+        storage.put(f"{new_pid}/props.json", z.read("index/props.json"))
 
     tables = {t.name: t for t in Base.metadata.sorted_tables}
     table_rows = {n[5:-5]: json.loads(z.read(n)) for n in names
