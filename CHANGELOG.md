@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.736 — prepared geometry can be shared between server processes
+
+A busy server runs several copies of itself. Each kept its own prepared geometry, so opening the same
+model on a second copy did the slowest work in the system all over again — and a third, and a fourth.
+
+They can now share. Point the server at a directory and the first copy to prepare a model writes the
+result where the others can find it; they read it instead of repeating the work. Nothing is shared
+between different files: the identity used is the one that already distinguishes a file from a
+re-published version of itself, so a changed model is never mistaken for the old one.
+
+**Off unless a directory is chosen.** A cache that quietly starts writing gigabytes somewhere nobody
+picked is not a feature, and on a single-copy install there is nothing to share anyway. When it is
+enabled it can be inspected — how many models, how much disk, what limit — because a cache nobody can
+measure is a cache nobody can size.
+
+What is stored is the plain geometry, not the internal objects of the library that builds it. If that
+library changes shape in a future version, a stored entry is either read back exactly as it was
+written or ignored — never turned into something subtly different.
+
+If the directory cannot be written, or an entry cannot be read back, the drawing is simply prepared
+the old way. Sharing is a saving, and losing it is never a failure.
+
 ## v0.3.735 — a single drawing gets the whole machine again
 
 Yesterday's change to share the machine between simultaneous drawings went too far in the other

@@ -142,9 +142,32 @@ def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
         # An id() key still needs the identity check — the address may have been reused. A content
         # key does not: it names the file, so any model object opened from it is interchangeable.
         return hit[1]
+    # Cross-process: another worker may already have tessellated this exact file. Only content keys
+    # are shared — an `id()` key names an address in ONE process's heap and would be a collision
+    # waiting to happen if it were ever written somewhere other processes read.
+    shared_key = key[1] if key[0] == "content" else None
+    if shared_key:
+        from . import bake_shared
+        payload = bake_shared.get(shared_key)
+        if payload:
+            try:
+                meshes = [(cls, trimesh.Trimesh(vertices=v, faces=f, process=False))
+                          for cls, v, f in payload]
+                _BAKE_CACHE[key] = (model, meshes, _mesh_bytes(meshes))
+                _evict_to_budget()
+                return meshes
+            except Exception:   # noqa: BLE001 — an entry we cannot rebuild is a miss, not a failure
+                log.debug("shared bake entry unusable for %s; re-baking", shared_key)
+
     meshes = _bake_uncached(model)
     _BAKE_CACHE[key] = (model, meshes, _mesh_bytes(meshes))
     _evict_to_budget()          # bounded by BYTES first, count second (dict is insertion-ordered)
+    if shared_key:
+        from . import bake_shared
+        # Arrays, not trimesh objects: a pickled third-party object is a format that moves when that
+        # library upgrades, and an entry that deserialises into something subtly different is worse
+        # than a miss.
+        bake_shared.put(shared_key, [(cls, m.vertices, m.faces) for cls, m in meshes])
     return meshes
 
 

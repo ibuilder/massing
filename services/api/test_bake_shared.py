@@ -1,0 +1,96 @@
+"""
+Baked geometry shared across worker processes.
+
+The byte budget bounds ONE worker. A server runs several, and a dict cannot span processes, so the
+same model was tessellated once per worker — the most expensive operation in the system, paid N times
+for nothing.
+
+This is where `diskcache` earns its dependency: the store has to be correct when several processes
+write the same key at once, and hand-rolling that over SQLite is the class of code that passes tests
+and corrupts under load. `cachetools` was declined for the in-process half precisely because that
+trade went the other way.
+"""
+import os
+import sys
+import tempfile
+
+sys.path.insert(0, "src")
+sys.path.insert(0, "../data/src")
+
+FAILED = []
+
+
+def check(label, ok, detail=""):
+    print(f"{'PASS' if ok else 'FAIL'}  {label}" + (f"   {detail}" if detail else ""))
+    if not ok:
+        FAILED.append(label)
+
+
+def fresh(env_dir=None):
+    """Re-import with a chosen environment — the module memoises its store deliberately.
+
+    `importlib.reload`, NOT `sys.modules.pop` + `from aec_data import bake_shared`: the parent
+    package keeps an attribute pointing at the old module object, so the plain import hands back the
+    stale one and every assertion afterwards measures the previous environment. Cost me a full round
+    of "the product is broken" before the product turned out to be fine.
+    """
+    import importlib
+
+    if env_dir is None:
+        os.environ.pop("AEC_BAKE_SHARE_DIR", None)
+    else:
+        os.environ["AEC_BAKE_SHARE_DIR"] = env_dir
+    from aec_data import bake_shared
+    return importlib.reload(bake_shared)
+
+
+# --- off by default -------------------------------------------------------------------------------
+bs = fresh(None)
+check("sharing is OFF unless a directory is chosen", bs.enabled() is False,
+      "a cache that silently writes gigabytes somewhere the operator did not pick is a surprise")
+check("a read while disabled is a clean miss, not an error", bs.get("k") is None)
+check("a write while disabled reports that it did not store", bs.put("k", [1]) is False)
+check("stats say why it is off", bs.stats().get("enabled") is False and "reason" in bs.stats())
+
+# --- on, and it actually round-trips ---------------------------------------------------------------
+with tempfile.TemporaryDirectory() as d:
+    bs = fresh(d)
+    check("sharing is ON once a directory is set", bs.enabled() is True)
+    check("a miss is None before anything is stored", bs.get("model-A") is None)
+
+    payload = [("IfcWall", [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], [[0, 1, 0]])]
+    check("a store reports success", bs.put("model-A", payload) is True)
+    got = bs.get("model-A")
+    check("what comes back is what went in", got == payload)
+    check("a different key is still a miss", bs.get("model-B") is None)
+
+    st = bs.stats()
+    check("the cache can be measured", st.get("enabled") and st.get("entries", 0) >= 1,
+          f"entries={st.get('entries')} bytes={st.get('bytes')}")
+
+    # --- a SECOND process must see the first one's work: the whole point --------------------------
+    import subprocess
+    code = (
+        "import os,sys; os.environ['AEC_BAKE_SHARE_DIR']=%r; sys.path.insert(0,%r);"
+        "from aec_data import bake_shared as b; v=b.get('model-A');"
+        "print('HIT' if v==%r else 'MISS')" % (d, os.path.abspath("../data/src"), payload)
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+    check("a SEPARATE PROCESS reads the same entry", "HIT" in out.stdout,
+          (out.stdout + out.stderr).strip()[:160] or "no output")
+
+    bs.close()      # Windows will not delete a directory whose SQLite file is still open
+
+# --- an unusable directory must degrade, never break rendering ---------------------------------------
+bs = fresh("\x00:/definitely/not/a/valid/path")
+check("an unopenable cache degrades to no-sharing", bs.get("k") is None)
+check("...and a write reports failure rather than raising", bs.put("k", [1]) is False)
+check("...and stats explain it", bs.stats().get("enabled") is False)
+
+os.environ.pop("AEC_BAKE_SHARE_DIR", None)
+
+print()
+if FAILED:
+    print("FAILED:", ", ".join(FAILED))
+    sys.exit(1)
+print("test_bake_shared OK")
