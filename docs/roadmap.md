@@ -31,6 +31,46 @@ work**.
 
 ---
 
+## 🔎 RING RECONCILIATION — 2026-07-28, v0.3.765
+
+**The backlog was mostly already built.** 61 ring items were checked against the codebase, not
+against their own descriptions. The test was reachability, because a word in a doc is not a feature
+and this repo has paid for that confusion before (seven engines, no route).
+
+**16 of 18 verified candidates are SHIPPED AND ROUTED** — entitlement, golden thread, provenance,
+sub-prequalification, cross-project memory, DXF/CAD import, the accounting seam, design options as
+objects, the portfolio pipeline, preventive-maintenance contracts, jurisdiction packs, the model
+digest, the Gantt, CMMS operations, and site/parcel work. They were carried as backlog for weeks
+while sitting in `routers/`.
+
+**This is the same shape as S4.** The five room tabs already existed and were rendered as a sub-rail;
+`bundle.py` already round-tripped; favourites already persisted. **A research ring records what was
+missing on the day it was written, and nothing re-reads it afterwards.** The ring is a snapshot that
+ages into fiction.
+
+### What is actually left
+
+**One real orphan — fix this:**
+- **R22-ITP-NCR** — the `itp` module exists with **no route**. Built, unreachable. Exactly the defect
+  `test_reachable.py` was written for, which means the guard is not covering module-only surfaces.
+
+**Two genuinely unbuilt, both already on the NOW list:**
+- **R28-ICDD** (SPRINT C) — no source trace. Needs `rdflib`.
+- **R22-REPORT-BUILDER** — no source trace; `reports.py` has the registry but no builder UI.
+
+**Seven greenfield, no trace anywhere:** R21-MULTISCALE, R21-DIM-COMPONENT, R22-NOTICE-CLOCK,
+R23-STOREY-LOD, R23-SYMBOL-COUNT, R24-RUNS-INBOX, PHOTO-PIN.
+
+**Nine partial** (1–2 files — a seam exists, the feature may not): R22-ITP-NCR, R22-REPORT-BUILDER,
+R23-GLTF-COMPRESS, R23-PREFAB-KIT, R24-DENSITY, R24-FIELD-MODE, R24-TERMS, R28-ICDD, PERF-RATE.
+
+**So the honest backlog is ~16 items, not 61.** The rings below are kept for their *reasoning*, which
+is still good; their status claims are not to be trusted without a reachability check first.
+
+**The durable fix is a gate, not another audit.** `test_reachable.py` checks routers; it did not
+catch a module with no route. Extending it to assert every `services/api/modules/*` is reachable
+would have found R22-ITP-NCR the day it landed — and would stop the next one.
+
 ## ▶ NOW — priority order (one full-suite release per item; sprints where they group)
 
 **Re-prioritized 2026-07-28 at v0.3.740.** The ordering came out of a live end-to-end test: authoring
