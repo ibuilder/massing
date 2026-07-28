@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.759 — one "Load sample project", fetched not hard-coded
+
+- **Three hard-coded `.frag` menu entries → one library-backed picker.** Those three shipped geometry
+  and nothing else: you could orbit a school and see no estimate, no schedule, no RFIs. A sample now
+  opens as a **project**, through the same `import_bundle` path a user's own `.mass` takes.
+- **The list is fetched.** A hard-coded list is a promise that drifts from what is actually packaged;
+  `GET /samples` describes each container from its own manifest, so the card cannot overstate what is
+  inside. Counts shown per sample come from that manifest.
+- **`api/library.ts` — a NEW domain landing as a mixin**, not two more methods on `client.ts`. The
+  seam only helps if new work goes through it; otherwise extraction is a treadmill — carve 15 methods
+  out one week, add 15 back the next. Asserted by a test.
+- **One entry point**: the menu item and the command shortcut both call `openSampleLibrary()`, so
+  they cannot disagree about what "a sample" means. The shortcut previously opened a different,
+  hard-coded model.
+- Sample names pass through `escapeHtml` — manifest text is file-derived, which is exactly the
+  `js/xss-through-dom` path this repo has a standing rule about. Asserted.
+
 ## v0.3.758 — a real house in the sample library
 
 - **`maple_grove_house.mass`** — 12 x 8 m, two storeys, **23 elements**: 7 walls, 3 slabs, a roof,

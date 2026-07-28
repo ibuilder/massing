@@ -2,6 +2,7 @@
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
 import { withAuthoring } from "./authoring";
+import { withLibrary } from "./library";
 import { HttpCore } from "./httpCore";
 import type { Cached } from "./recordCache";
 
@@ -9,6 +10,7 @@ import type { Cached } from "./recordCache";
 // `import { … } from "../api/client"` sites across the app keep resolving unchanged.
 export * from "./types";
 export * from "./authoring";
+export * from "./library";
 import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
@@ -24,7 +26,7 @@ export interface LiveStream { readonly connected: boolean; close(): void }
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withAuthoring(HttpCore) {
+export class ApiClient extends withLibrary(withAuthoring(HttpCore)) {
   // --- auth ---------------------------------------------------------------
   /** Enabled SSO providers (Google/Microsoft/Procore) for the login UI. */
   authProviders() {

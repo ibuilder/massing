@@ -2,6 +2,7 @@ import "./style.css";
 import { PortalUI } from "./portal/portal";   // eager: the default Construction/Developer workspace
 import { ApiClient, type MassingParams } from "./api/client";
 import { toast, escapeHtml, safeUrl } from "./ui/feedback";
+import { showResult } from "./ui/result";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
 import { maybeResumeTour, maybeRolePrompt, maybeWelcome, showWelcome, valueMomentPrompt } from "./ui/onboarding";
 import { mountChecklist, reopenChecklist } from "./ui/checklist";
@@ -261,9 +262,7 @@ buildMenu("open-menu", "Open ▾", [
   { label: "Add basemap (self-hosted tiles)…", onClick: () => void addBasemapFlow() },
   { label: "Add site context (OSM buildings)…", onClick: () => void addSiteContextFlow() },
   { label: "Sample models", sep: true },
-  { label: "School — Structural", onClick: () => withViewer((v) => void v.loadSample("/school_str.frag", "School (Structural)")) },
-  { label: "School — Architectural", onClick: () => withViewer((v) => void v.loadSample("/school_arq.frag", "School (Architectural)")) },
-  { label: "BasicHouse", onClick: () => withViewer((v) => void v.loadSample("/basichouse.frag", "BasicHouse")) },
+  { label: "Load sample project…", onClick: () => void openSampleLibrary() },
   { label: "Import from Revit / CAD", sep: true },
   { label: "Free: export IFC from Revit (no bridge)…", onClick: () => showFreeImportHelp() },
   { label: "Revit (.rvt) — paid Autodesk bridge…", onClick: () => void importRvtFlow() },
@@ -371,6 +370,60 @@ function openProjectBundle() {
     } catch { toast("Couldn't open that bundle (.mmproj expected)", "error"); }
   };
   inp.click();
+}
+
+/**
+ * The sample library — one entry replacing three hard-coded `.frag` files.
+ *
+ * Those three shipped geometry and nothing else: you could orbit a school and see no estimate, no
+ * schedule, no RFIs. A sample is now a `.mass` container that opens as a **project**, through the
+ * same `import_bundle` path a user's own file takes.
+ *
+ * The list is fetched, never hard-coded — that is the point. A hard-coded list is a promise that
+ * drifts from what is actually packaged; `GET /samples` describes each container from its own
+ * manifest, so what you see is what is there.
+ */
+async function openSampleLibrary() {
+  let items: Awaited<ReturnType<typeof api.samples>>["samples"] = [];
+  try {
+    items = (await api.samples()).samples || [];
+  } catch {
+    toast("Couldn't reach the sample library", "error");
+    return;
+  }
+  if (!items.length) {
+    toast("No samples are packaged in this build", "info");
+    return;
+  }
+  showResult("Sample projects", (body) => {
+    const list = document.createElement("div");
+    list.style.cssText = "display:flex;flex-direction:column;gap:8px";
+    for (const s of items) {
+      const row = document.createElement("button");
+      row.className = "tool-btn";
+      row.style.cssText = "display:block;text-align:left;padding:10px 12px;width:100%";
+      // Counts come from the container's manifest, so the card cannot overstate what is inside.
+      const bits = [
+        s.elements ? `${s.elements} elements` : null,
+        s.contents?.topic ? `${s.contents.topic} issues` : null,
+        `${Math.round(s.bytes / 1024)} KB`,
+      ].filter(Boolean).join(" · ");
+      row.innerHTML = `<strong>${escapeHtml(s.name)}</strong>` +
+        `<div style="opacity:.7;font-size:12px;margin-top:3px">${escapeHtml(bits)}</div>` +
+        (s.readable ? "" : `<div style="color:var(--warn,#c80);font-size:12px">unreadable container</div>`);
+      row.onclick = async () => {
+        toast(`Opening ${s.name}…`, "info");
+        try {
+          const p = await api.openSample(s.id);
+          window.location.search = `?project=${p.id}`;
+        } catch {
+          toast("Couldn't open that sample", "error");
+        }
+      };
+      list.appendChild(row);
+    }
+    body.appendChild(list);
+  });
 }
 
 // ---- workspaces + left icon rail --------------------------------------------
@@ -851,7 +904,9 @@ function onboardCtx() {
     signIn: () => { void import("./account/accountUI").then((m) => m.openSignIn()); },
     newProject: () => void newProject(),
     startModeling: () => void startModeling(),
-    openSample: () => { setWorkspace("model"); withViewer((v) => void v.loadSample("/basichouse.frag", "BasicHouse")); },
+    // Was a hard-coded geometry-only fragment path. One entry point for samples now, so the
+    // shortcut and the menu cannot disagree about what "a sample" means.
+    openSample: () => { void openSampleLibrary(); },
     generate: () => {
       setWorkspace("finance");
       // finance now lands on the Home tab — switch to the Proforma tab, then reveal the
