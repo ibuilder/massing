@@ -36,7 +36,7 @@ work**.
 The room *tabs* are correct as of v0.3.766. The *rail* is not yet, and the gap is measured rather
 than suspected:
 
-- **ROOM-RAIL-MODULES — a room's modules do not render inside its rail group.** Planning owns 16
+- ~~**ROOM-RAIL-MODULES**~~ — **DONE v0.3.767.** Was: Planning owns 16
   modules per `GET /rooms`; its rail group shows **2**. The other 14 are reachable — 250 rail items
   render with "show all modules" on — but they group by their own section elsewhere instead of under
   the room that owns them. Same shape as the defect that started this: the grouping exists, the

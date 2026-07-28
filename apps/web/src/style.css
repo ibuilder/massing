@@ -1055,3 +1055,13 @@ body.embed #workspaces { display: none; }
 }
 /* a phone cannot spare 72px of width for shortcuts */
 @media (max-width: 900px) { #pinned-rail { display: none; } }
+
+/* Registers inside a room group: a quiet divider between the room's panels and its tables. Without
+   it a 39-item Design room reads as one undifferentiated list, which is the wall the spine replaced. */
+.pnav-subhead {
+  padding: 6px 10px 2px;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  opacity: .62;
+}

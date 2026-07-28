@@ -4,6 +4,36 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.767 — one rail, one taxonomy: a room holds its registers
+
+v0.3.766 gave the rooms the right names and the right tabs. The rail underneath was still filing
+things twice.
+
+A room group listed only its **panels**. Its **registers** — the ~130 config modules — were grouped
+separately by *section* further down the same rail. Two taxonomies in one column, which is the exact
+failure the spine was built to end, and it was visible in the numbers: Planning owned 16 modules and
+its group showed 2.
+
+Every register now renders inside the room that owns it, read from the `room` the API already states
+per module rather than re-derived here — re-deriving is how four competing rails came to exist. The
+section grouping is dropped under the spine, so nothing appears twice; Favourites and Recent stay,
+because a personal shortcut is not a second filing system. Panels come first, then a quiet
+`Registers (n)` divider, because a panel answers a question and a register is a table you keep.
+
+Verified live against the API's own allocation — the rail and `GET /rooms` agree exactly:
+
+| Room | Panels | Registers | API |
+|---|---|---|---|
+| Design | 20 | 39 | 39 |
+| Planning | 4 | 16 | 16 |
+| Cost | 7 | 20 | 20 |
+| Schedule | 4 | 41 | 41 |
+| Deal | 11 | 16 | 16 |
+| Work | 1 | 0 | 0 |
+
+**Zero duplicate module keys** anywhere in the rail, down from a column that rendered many of them
+twice. Total rail items 250 → 181.
+
 ## v0.3.766 — the rooms go somewhere, and they are named for the work
 
 ### The Cost room was decorative

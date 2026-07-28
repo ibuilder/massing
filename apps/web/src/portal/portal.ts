@@ -218,14 +218,7 @@ export class PortalUI {
     const persona = document.body.dataset.persona || localStorage.getItem("persona") || "all";
     const openSecs = SECTIONS_BY_PERSONA[persona];
 
-    const item = (m: ModuleDef) => {
-      const b = document.createElement("button");
-      b.className = "pnav-item" + (this.activeKey === m.key ? " active" : "");
-      b.dataset.modname = m.name.toLowerCase();
-      b.innerHTML = `<span class="ic">${m.icon || "•"}</span> ${m.name}`;
-      b.onclick = () => { this.activeKey = m.key; void this.openModule(m); this.buildNav(); };
-      return b;
-    };
+    const item = (m: ModuleDef) => this.moduleButton(m);
     const group = (title: string, mods: ModuleDef[], open: boolean) => {
       const det = document.createElement("details"); det.open = open; det.className = "pnav-group"; det.dataset.sec = title;
       const sum = document.createElement("summary"); sum.textContent = title; det.appendChild(sum);
@@ -243,8 +236,14 @@ export class PortalUI {
       .map((k) => visible.find((m) => m.key === k))
       .filter((m): m is ModuleDef => !!m && !favs.has(m.key));
     if (recentMods.length) group("🕘 Recent", recentMods, true);
+    // Under the spine every register is already listed inside its room, so grouping them AGAIN by
+    // section here would show each module twice under two different taxonomies — which is the exact
+    // condition the spine was built to remove. Favourites and Recent stay: they are one module
+    // appearing under a personal shortcut, not a second filing system.
     const sections = new Map<string, ModuleDef[]>();
-    for (const m of visible) { const s = m.section || "Other"; (sections.get(s) ?? sections.set(s, []).get(s)!).push(m); }
+    if (!spineEnabled()) {
+      for (const m of visible) { const s = m.section || "Other"; (sections.get(s) ?? sections.set(s, []).get(s)!).push(m); }
+    }
     // if the persona's preferred sections don't exist in this workspace (e.g. a GC browsing the
     // Developer registers), open everything rather than render a fully-collapsed nav.
     const anyMatch = !openSecs || [...sections.keys()].some((s) => openSecs.includes(s));
@@ -282,6 +281,22 @@ export class PortalUI {
         if (q) (det as HTMLDetailsElement).open = true;
       });
     };
+  }
+
+  /**
+   * A rail button for a module register. Shared by the room rail and the section list, for the same
+   * reason `destButton` is shared: two places building the same button is how they come to differ.
+   */
+  private moduleButton(m: ModuleDef): HTMLButtonElement {
+    const b = document.createElement("button");
+    b.className = "pnav-item" + (this.activeKey === m.key ? " active" : "");
+    b.dataset.modname = m.name.toLowerCase();
+    b.dataset.mod = m.key;
+    // Server-supplied name and icon: escaped, because a module.json is a file on disk and the rail
+    // renders on every screen.
+    b.innerHTML = `<span class="ic">${esc(m.icon || "•")}</span> ${esc(m.name)}`;
+    b.onclick = () => { this.activeKey = m.key; void this.openModule(m); this.buildNav(); };
+    return b;
   }
 
   /** A rail button for a first-class destination. Shared by both shells so they cannot diverge. */
@@ -367,6 +382,17 @@ export class PortalUI {
       const said = readRoomOpen(skey);
       det.open = items.some((d) => d.key === this.activeKey) || (said ?? room.id === home);
       det.ontoggle = () => setRoomOpen(skey, det.open);
+      // The room's MODULES, not only its first-class destinations.
+      //
+      // Until v0.3.767 `byRoom` was built from `ALL_DESTS` alone, so a room group showed only its
+      // panels while its registers were grouped by *section* in a second list further down the rail.
+      // That is two taxonomies in one rail — the exact failure the spine was built to end — and it
+      // showed: Planning owned 16 modules and its group displayed 2. The room is authoritative and
+      // the server already states it per module (`ModuleDef.room`), so it is read here rather than
+      // re-derived, which is how the four competing rails came to exist in the first place.
+      const roomMods = this.mods
+        .filter((m) => m.room === room.id)
+        .sort((a, b) => a.name.localeCompare(b.name));
       const sum = document.createElement("summary"); sum.className = "pnav-stage";
       // The job line is the room's whole justification — "Cost" alone is a noun, "price it, buy it
       // out, change it and pay for it" is what you came here to do.
@@ -374,6 +400,16 @@ export class PortalUI {
       sum.title = room.job;
       det.appendChild(sum);
       for (const d of items) det.appendChild(this.destButton(d, dests));
+      // Registers after panels, and separated: a panel answers a question, a register is a table you
+      // keep. Same room, different kind of thing, so the eye should be able to tell them apart
+      // without reading every label.
+      if (roomMods.length) {
+        const rule = document.createElement("div");
+        rule.className = "pnav-subhead meta";
+        rule.textContent = `Registers (${roomMods.length})`;
+        det.appendChild(rule);
+        for (const m of roomMods) det.appendChild(this.moduleButton(m));
+      }
       nav.appendChild(det);
     }
     const orphans = unroomedDests([...seen]);
