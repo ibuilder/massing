@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.738 — the model knows where on earth it is
+
+A model can now say where it actually stands: coordinates, the reference system they are given in,
+the height datum, and how far project north is from true north. Ask a project and it answers.
+
+It also says **how it knows**, which matters more than it sounds. A proper survey transform and a
+rough site coordinate are both "the location", and they are not interchangeable — one is good enough
+to set out a building from, the other is good enough to put a pin on a map. Reading them as the same
+number is how a building ends up in the wrong place on site. And a model with no location at all says
+so, rather than answering with zero — which is a real spot in the Atlantic.
+
+Writing coordinates back round-trips exactly. That is less obvious than it sounds: the format stores
+an angle as degrees, minutes, seconds and millionths of a second, and for a place just west of
+Greenwich the degrees and minutes are both zero — the entire "west" lives in the seconds. Reading the
+direction from the degrees alone, which is the obvious way, puts the Royal Observatory on the wrong
+side of its own meridian.
+
 ## v0.3.737 — a test that only worked on one operating system
 
 The checks covering the shared geometry cache included one that deliberately points it at an

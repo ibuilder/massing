@@ -549,6 +549,25 @@ def constraints_solve(pid: str, body: dict = Body(default={}),
         raise HTTPException(422, _CONSTRAINT_REFUSED) from None
 
 
+@router.get("/projects/{pid}/georeference")
+def project_georeference(pid: str, db: Session = Depends(get_db),
+                         _: str = Depends(require_role("viewer"))):
+    """Where this model sits on the earth, in the kernel's `GeoReference` shape.
+
+    `method` matters as much as the coordinates: `map-conversion` is a survey transform out of IFC4's
+    `IfcMapConversion`, `site-coordinates` is only `IfcSite` lat/long (all IFC2X3 can carry), and
+    `null` means the model is not georeferenced at all. Those differ by orders of magnitude in what
+    they can be used for — a site coordinate will put a pin on a map and must not be used to set out.
+
+    A model with no georeferencing reports `georeferenced: false` rather than defaulting to (0, 0):
+    null island is a real place, and a wrong answer shaped like a right one is the failure this
+    codebase keeps finding.
+    """
+    from aec_data import geo  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+    return geo.read(open_model(_source_ifc(db, pid)))
+
+
 @router.get("/projects/{pid}/drawings/sheet-regions")
 def sheet_regions_endpoint(pid: str, preset: str = "key", page: str = "A1",
                            db: Session = Depends(get_db),

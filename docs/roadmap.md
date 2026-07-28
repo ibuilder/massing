@@ -36,6 +36,33 @@ the model in silence. The ordering below reflects that: **correctness a user wou
 Every item here says what it is and why it is where it is. Completed work moves to the CHANGELOG and
 out of this list — a NOW list containing finished items is a list nobody trusts.
 
+1. **📄 PDF-LIB — adopt `@massingcloud/pdf-viewer`.** *Build; now the top.* MIT, deps `pdfjs-dist`
+   + `pdf-lib` (already ours). 12,275 lines / 46 files against our 423-line `pdfTakeoff.ts` — a
+   genuine superset: structured markup RECORDS (author, sheet revision, discipline, what it measures,
+   spec clause, IFC object, review status) rather than annotation ink. **Not on npm**, so adoption
+   means vendoring as we did the kernel.
+2. Reconciled **2026-07-27 at v0.3.726**.
+
+**The new look is opt-in, not default.** `?shell=spine` turns on the five-room spine; `?shell=classic`
+reverts. R26 is otherwise complete — what gates making it the default is named in that section.
+
+**Read the gating honestly.** A large block of what remains is genuinely blocked — see
+[⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below contains **only
+non-gated work**.
+
+---
+
+## ▶ NOW — priority order (sprints of large chunks; one full-suite release per sprint)
+
+**Re-prioritized 2026-07-27 at v0.3.728, after a live end-to-end test on an authored house.** Building
+a real 12x8 m building and driving a real RFI through it found things no unit test was positioned to
+see — a costing error of roughly 2x, a pin that never reached the sheet, and an index that goes behind
+the model in silence. The ordering below reflects that: **correctness a user would feel** first,
+**capacity and capability** after.
+
+Every item here says what it is and why it is where it is. Completed work moves to the CHANGELOG and
+out of this list — a NOW list containing finished items is a list nobody trusts.
+
 1. **🌍 GEO-REF — we have no georeferencing of our own.** *Build; now the top.* The kernel ships
    `project-schema/geo.ts` (CRS codes, linear units, `GeoReference`, `Extent`, accuracy). Our only
    georeferencing code lives inside ifcopenshell's package. CLAUDE.md names this as a watch-out
