@@ -102,8 +102,24 @@ suite against **both** engines in CI. Today it runs against one, which means the
 hope.
 
 **S2 · HARDEN — enterprise hygiene, each its own release.**
-`chore/deps-upgrades-2026` (PR #69, Capacitor 7→8 + Postgres 16→17, 190 commits behind, crosses two
-majors — rebase, full suites, desktop build, ship alone so a break is bisectable to itself). Then
+`chore/deps-upgrades-2026` (PR #69). **Attempted 2026-07-28; stopped on a real blocker, repo left
+clean.** It is **231** commits behind (not 190), with 10 of its own. A test-merge conflicts in
+**8 files, every one a dependency declaration** — `package-lock.json`, `requirements.in`,
+`requirements.txt`, three Dockerfiles, `Cargo.toml`, `dependabot.yml`. The viewer `.ts` changes merge
+cleanly, so the code is not the problem; only the pins are, and pins are not hand-resolved here — the
+lock must come from `lockfile.yml`, never a dev box.
+
+**The blocker is Node.** The branch sets `engines` to `"node": ">=22"` and every Dockerfile to
+`node:22-slim`. **This machine has Node 20.3.1 (Program Files) and v18.8.0 on the default PATH.**
+Merging as-is makes the local build unrunnable here. That is a decision, not a conflict: *install
+Node 22 and keep the bump, or drop the Node change and take only Capacitor 8 + Postgres 17.*
+Also in the diff and easy to miss: `nginx:alpine → 1.31-alpine`, `minio/minio` → a pinned release,
+and `FRAGMENTS_VERSION 3.4.5 → 3.4.6` — fragments is version-coupled to `@thatopen/components`, so
+that **pair** needs checking rather than bumping one side.
+
+Sequence once decided: re-apply the intent onto current `main` rather than merging 231 commits of
+lock drift → run `lockfile.yml` by `workflow_dispatch` and commit the artifact → full backend suite →
+full web gate → desktop build → ship alone. Then
 `security/audit-2026-07` (56 commits behind; R1–R4 now decided).
 
 **S3 · SHOWCASE — the thing that makes the layout demonstrable.** Author one real project end to
