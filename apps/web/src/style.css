@@ -1065,3 +1065,12 @@ body.embed #workspaces { display: none; }
   text-transform: uppercase;
   opacity: .62;
 }
+
+/* Sub-room heading inside a room group. Indented under the Registers rule, and quieter than it —
+   a room has one list of tables, divided; not two lists at the same level. */
+.pnav-subsec {
+  padding: 5px 10px 1px 18px;
+  font-size: 10px;
+  letter-spacing: .05em;
+  opacity: .5;
+}

@@ -47,7 +47,7 @@ than suspected:
   room's landing target**, because nothing can observe it having arrived — which is why Deal lands on
   Portfolio rather than on Underwriting, its natural home. Either give them real panels or teach the
   landing check to recognise a workspace hop.
-- **SUB-ROOMS — Design needs a second level.** Model · Drawings · Specs · Analysis, so one room can
+- ~~**SUB-ROOMS**~~ — **DONE v0.3.768**, by section (a refinement of the room table, not a new one). Was: Model · Drawings · Specs · Analysis, so one room can
   hold an architect's whole day without becoming a 39-item list. Design currently owns 39 modules,
   the largest of the six, and a flat list at that size is the wall the spine exists to replace.
 

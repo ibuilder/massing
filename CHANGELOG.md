@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.768 — sub-rooms: a room with 39 registers gets a second level
+
+Design owns 39 registers and Schedule 41. A flat list at that size is exactly the wall the spine was
+built to replace, so a room now groups its registers one level down.
+
+**The grouping key is the module's `section` — which is already what decides its room.** That makes
+this a strict *refinement* of the table in `rooms.py`, not a second taxonomy competing with it.
+Inventing a separate sub-room list would have recreated the drift this restructure just removed.
+Rooms below 8 registers, or with only one section, stay flat: below that the headings cost more than
+they explain, which is why Work renders unchanged.
+
+What an architect now sees under **Design** — the "sub-rooms for all the tools an architect or
+engineer needs" in one room:
+
+    Engineering 15 · Quality 7 · Design 3 · Information Management 3 · Sustainability 3
+    Resilience 3 · BIM 2 · Specifications 1 · Design Phases 1 · Programming 1
+
+And the others: **Planning** Preconstruction 12 · Contracts 4 — **Cost** Cost 10 · Change
+Management 9 · Capital 1 — **Schedule** Field 14 · Resources 10 · Closeout 7 · Safety 7 · Schedule 2
+· Project Controls 1 — **Deal** Operations 10 · Acquisition 2 · Market & Sales 2 · Feasibility 1 ·
+Finance 1.
+
+Verified live: **132 registers rendered, zero duplicate keys**, and every room's sub-counts sum to
+its own total.
+
 ## v0.3.767 — one rail, one taxonomy: a room holds its registers
 
 v0.3.766 gave the rooms the right names and the right tabs. The rail underneath was still filing

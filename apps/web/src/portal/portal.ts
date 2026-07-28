@@ -404,11 +404,37 @@ export class PortalUI {
       // keep. Same room, different kind of thing, so the eye should be able to tell them apart
       // without reading every label.
       if (roomMods.length) {
+        // Sub-rooms, by SECTION.
+        //
+        // Design owns 39 registers and Schedule 41 — a flat list at that size is precisely the wall
+        // the spine was built to replace, so the room needs a second level. The grouping key is the
+        // module's `section`, which is *already* what decides its room: this is a strict refinement
+        // of the existing table, not a new taxonomy competing with it. Inventing a separate
+        // sub-room table would recreate the drift this whole restructure removed.
+        //
+        // Below SUBGROUP_MIN the headings cost more than they explain, so a small room stays flat.
+        const SUBGROUP_MIN = 8;
+        const bySection = new Map<string, ModuleDef[]>();
+        for (const m of roomMods) {
+          const sec = m.section || "Other";
+          (bySection.get(sec) ?? bySection.set(sec, []).get(sec)!).push(m);
+        }
+        const subgroup = roomMods.length >= SUBGROUP_MIN && bySection.size > 1;
         const rule = document.createElement("div");
         rule.className = "pnav-subhead meta";
         rule.textContent = `Registers (${roomMods.length})`;
         det.appendChild(rule);
-        for (const m of roomMods) det.appendChild(this.moduleButton(m));
+        if (subgroup) {
+          for (const [sec, mods] of [...bySection].sort((a, b) => a[0].localeCompare(b[0]))) {
+            const h = document.createElement("div");
+            h.className = "pnav-subsec meta";
+            h.textContent = `${sec} · ${mods.length}`;
+            det.appendChild(h);
+            for (const m of mods) det.appendChild(this.moduleButton(m));
+          }
+        } else {
+          for (const m of roomMods) det.appendChild(this.moduleButton(m));
+        }
       }
       nav.appendChild(det);
     }
