@@ -198,7 +198,10 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 /* the overflow menu: label AND description, so the long tail is scannable as text rather than as a
    second grid of glyphs — a wider wall of options is still a wall */
 .vt-menu { position: absolute; top: 100%; right: 5px; margin-top: 4px; z-index: 20;
-  min-width: 260px; max-width: 340px; max-height: 60vh; overflow: auto;
+  min-width: 260px; max-width: 340px; max-height: 60vh;
+  /* `overflow: auto` allows BOTH axes, so anything wider than max-width grew a horizontal
+     scrollbar — a menu you scroll sideways to read is not a menu. Vertical only. */
+  overflow-x: hidden; overflow-y: auto;
   padding: 6px; border-radius: 8px; border: 1px solid var(--line);
   background: rgba(43, 45, 49, 0.97); backdrop-filter: blur(4px); box-shadow: 0 6px 20px #0008; }
 .vt-menu[hidden] { display: none; }
@@ -206,10 +209,13 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .vt-group-h { font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
   color: var(--muted); padding: 2px 4px 4px; }
 #viewer-tools .vt-row { width: 100%; justify-content: flex-start; text-align: left;
-  background: transparent; border-color: transparent; padding: 4px 6px; }
+  background: transparent; border-color: transparent; padding: 4px 6px;
+  /* `.vt-note` asks for `flex: 1 0 100%` — its own line. Without wrap enabled that request
+     is silently ignored and the hint runs off the right edge instead. */
+  flex-wrap: wrap; min-width: 0; }
 #viewer-tools .vt-row:hover { background: rgba(255, 255, 255, 0.12); }
 .vt-note { flex: 1 0 100%; padding-left: 19px; font-size: 10px; color: var(--muted);
-  white-space: normal; }
+  white-space: normal; min-width: 0; overflow-wrap: anywhere; }
 
 /* CONSTRUCTION / FINANCE: full-width workspaces */
 #ws-construction.active, #ws-finance.active { display: block; }

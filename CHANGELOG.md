@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.763 — the three chrome defects from the screenshot
+
+- **The More menu no longer scrolls sideways.** `overflow: auto` permits *both* axes, so anything
+  past the 340px cap grew a horizontal scrollbar — a menu you scroll sideways to read is not a menu.
+- **Hints take their own line.** `.vt-note` already asked for `flex: 1 0 100%`, but the row never had
+  `flex-wrap`, so the request was silently ignored and the text ran off the edge mid-sentence. Long
+  unbroken tokens now break rather than widening the panel.
+- **One popup at a time.** Open/Save dismissed each other because both are `.menu-panel`; the
+  viewer's `.vt-menu` was a separate system neither knew about — which is how two dropdowns ended up
+  stacked over the model. Fixed with a shared `CLOSE_POPUPS` channel rather than another selector
+  bolted onto another `querySelectorAll`, because two systems that cannot see each other will always
+  reproduce this.
+- **The That Open Company mark is off**, and the credit moved to `docs/credits.md` rather than
+  vanishing. It is a deliberate, documented feature (`renderer.showLogo`, default `true`) whose own
+  docs name "white-label embed, customer-branded surface" as fair reasons to disable it. MIT does not
+  require the logo; it requires the notice, which travels with the source. The reasoning sits beside
+  the flag — a bare `showLogo = false` reads as somebody hiding an attribution.
+- **Verified live**: the room tabs, the header CTA, the Open menu. **Not verified live**: the
+  popup-pairing fix needs a loaded model for the viewer toolbar to mount, so it rests on source
+  assertions only. Said plainly because "fixed" and "proven fixed" are different claims.
+- Three of today's tests matched **the comment explaining the fix** rather than the code. The CSS
+  check now strips comments before asserting — rewording prose each time treats the symptom.
+
 ## v0.3.762 — NEXT BEST ACTION in the header
 
 - One button, one verb, in the top bar. The room tabs say *how much* is in your court; this says

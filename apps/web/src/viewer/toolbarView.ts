@@ -11,6 +11,7 @@
  * that was deliberately removed, and the next person to notice is a user who needed it.
  */
 import { icon } from "../ui/icons";
+import { CLOSE_POPUPS, closeMenus } from "../ui/menus";
 import { GROUP_LABELS, type ToolContext, TOOLS, describe, iconFor, primaryTitles, specFor, unlaidTitles } from "./toolbarLayout";
 
 export interface ToolbarView {
@@ -61,7 +62,18 @@ export function installToolbarView(host: HTMLElement): ToolbarView {
     moreBtn.setAttribute("aria-expanded", String(open));
     moreBtn.classList.toggle("on", open);
   };
-  moreBtn.onclick = (e) => { e.stopPropagation(); setOpen(menu.hidden); };
+  moreBtn.onclick = (e) => {
+    e.stopPropagation();
+    const opening = menu.hidden;
+    // Opening dismisses every other popup first. Without this the More menu stacked on top of an
+    // open Open/Save panel, two dropdowns over the model with neither yielding.
+    if (opening) closeMenus(menu);
+    setOpen(opening);
+  };
+  // ...and the reverse: another popup opening closes this one.
+  window.addEventListener(CLOSE_POPUPS, (e) => {
+    if ((e as CustomEvent<{ keep?: Element }>).detail?.keep !== menu) setOpen(false);
+  });
   // Clicking a tool inside More runs it and closes the menu: a menu that stays open after you have
   // chosen from it covers the very model you just acted on.
   menu.addEventListener("click", (e) => {

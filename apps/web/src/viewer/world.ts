@@ -53,6 +53,18 @@ export function createViewer(container: HTMLElement): Viewer {
     alpha: true,
     stencil: false,
   });
+  // The That Open Company mark, off.
+  //
+  // It is a deliberate, documented feature of `@thatopen/components` (`showLogo`, default `true`),
+  // not a bug — the library's own docs ask you to consider leaving it on, because it is how the team
+  // funding this open-source stack gets discovered, and name "white-label embed, customer-branded
+  // surface" as fair reasons to turn it off. This is that case: a customer-branded product surface.
+  //
+  // Turning it off is NOT the end of the obligation. MIT requires the copyright notice to travel
+  // with the source, which it does, and we credit the stack in the docs — see `docs/credits.md`.
+  // If that credit ever disappears, this line should go back.
+  world.renderer.showLogo = false;
+
   world.camera = new OBC.OrthoPerspectiveCamera(components);
 
   components.init();

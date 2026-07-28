@@ -9,10 +9,24 @@ export interface MenuItem {
   onClick?: () => void;
 }
 
+/**
+ * The one event every popup in the app listens to.
+ *
+ * The Open and Save menus already dismissed each other, because both are `.menu-panel` and
+ * `closeMenus` knew that class. The viewer's own `.vt-menu` is a separate system that neither knew
+ * about — which is how two dropdowns ended up open at once, stacked over the model. Two popup
+ * systems that cannot see each other will always produce that; a shared channel is the fix, not
+ * another selector added to another querySelectorAll.
+ */
+export const CLOSE_POPUPS = "aec:close-popups";
+
+/** Ask every popup in the app to close. `keep` survives, so a menu can dismiss its rivals. */
 export function closeMenus(keep?: Element): void {
   document.querySelectorAll(".menu-panel").forEach((p) => {
     if (p !== keep) (p as HTMLElement).hidden = true;
   });
+  // Anything not built by `buildMenu` — the viewer toolbar's More menu today — closes on the event.
+  window.dispatchEvent(new CustomEvent(CLOSE_POPUPS, { detail: { keep } }));
 }
 
 export function buildMenu(mountId: string, label: string, items: MenuItem[], onOpen?: () => void): void {
