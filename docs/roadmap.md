@@ -48,11 +48,17 @@ out of this list — a NOW list containing finished items is a list nobody trust
    and ② markup through the plugin host (v0.3.717) both closed real defects; pick ③ from a real pain,
    not from the kernel's feature list. **Undo is not a candidate** — checked: model-level undo via
    versioned source IFC is stronger for authoring.
-7. **📦 MASS-FILE — build the `.mass` container adapter.** *Build, scope confirmed.* The kernel ships
-   the container *contract* (manifest, entries, `formatId`, the unity guarantee) and one storage-backed
-   reference adapter; there is **no file writer** — no zip library in the tree at all. Upstream
-   [issue #6](https://github.com/MassingCloud/massingifc/issues/6) asks whether it belongs there or
-   here. A project package a user can save and send is ours to want either way.
+7. **📦 MASS-FILE — ~~build~~ *correct the record*, then decide about the kernel.** **We already
+   have a working `.mass` and I said otherwise.** Verified live 07-28: `GET /projects/{pid}/bundle`
+   emits an 11-entry zip (project.json + data/*.json + geometry/model.frag + the source IFC), and
+   `POST /projects/import-bundle` re-opens it — an RFI survived with its `closed` state and the
+   estimate rebuilt to the identical total. `bundle.py` has done this the whole time.
+   **What was actually true:** the *kernel* ships a container CONTRACT and one storage-backed
+   adapter, with no file writer — that is what upstream
+   [issue #6](https://github.com/MassingCloud/massingifc/issues/6) asks about, and it stands. The
+   error was reporting "the kernel has no `.mass` writer" as "there is no `.mass` output". Open
+   question is now the reverse of what I wrote: do we push OUR adapter up to the kernel, or keep it
+   product-side? Nothing to build to have the feature.
 8. **📄 PDF-LIB — adopt `@massingcloud/pdf-viewer`.** *Decide, then build.* MIT, deps `pdfjs-dist` +
    `pdf-lib` (both permissive, pdf-lib already ours). 12,275 lines across 46 files against our
    423-line `pdfTakeoff.ts` — a genuine superset, structured markup records rather than annotation
