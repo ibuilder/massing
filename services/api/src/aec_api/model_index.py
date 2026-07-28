@@ -66,7 +66,7 @@ def _touch(pid: str) -> None:
 def load(pid: str, payload: dict) -> int:
     """Populate the cache for `pid` from a parsed props.json payload. Returns the element count."""
     with _INDEX_LOCK:
-        _META[pid] = {k: payload.get(k) for k in ("schema", "project", "counts", "facets")}
+        _META[pid] = {k: payload.get(k) for k in ("schema", "project", "counts", "facets", "source_key")}
         _INDEX[pid] = {e["guid"]: e for e in payload.get("elements", [])}
         _touch(pid)
         return len(_INDEX[pid])

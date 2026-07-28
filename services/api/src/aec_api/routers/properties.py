@@ -7,8 +7,10 @@ import json
 import os
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
+from sqlalchemy.orm import Session
 
 from .. import ai, classification, storage
+from ..db import get_db
 from ..rbac import require_role
 
 router = APIRouter()
@@ -93,6 +95,53 @@ def list_elements(pid: str, ifc_class: str | None = None, storey: str | None = N
         if len(out) >= limit:
             break
     return out
+
+
+@router.get("/projects/{pid}/elements/freshness")
+def elements_freshness(pid: str, db: Session = Depends(get_db),
+                       _: str = Depends(require_role("viewer"))):
+    """Whether the element index still matches the model, and by how much.
+
+    The index is a snapshot written at publish time; the model is the IFC on disk. Authoring edits
+    move the IFC and leave the snapshot behind until the next publish, so `/elements` can return a
+    fraction of what the takeoff sees — and used to do it in complete silence. Nothing was wrong with
+    either number; they were answers about different moments, and only one of them said which.
+
+    A stale index is not an error and is not repaired here: rebuilding it means reconverting geometry,
+    which is far too expensive to trigger from a read. What it must do is **say so**, so a browser can
+    show "5 elements added since this list was built — republish to see them" instead of quietly
+    looking like a smaller building.
+
+    `stale` is None, not False, when either side has no fingerprint — an index written before this was
+    stamped, or a project with no source file. Unknown and current are different claims and this
+    endpoint refuses to conflate them.
+    """
+    _ensure_loaded(pid)
+    if pid not in _INDEX:
+        raise HTTPException(404, "no properties index for project")
+    indexed = len(_INDEX[pid])
+    built_from = (_META.get(pid) or {}).get("source_key")
+
+    current = None
+    try:
+        from aec_data.ifc_loader import content_key  # type: ignore
+
+        from ..deps import source_ifc_path
+        src = source_ifc_path(db, pid)
+        st = os.stat(src)
+        current = content_key(src, (st.st_mtime_ns, st.st_size))
+    except Exception:   # noqa: BLE001 — no reachable source: we can still report what we have
+        current = None
+
+    stale = None if (not built_from or not current) else (built_from != current)
+    return {
+        "indexed_elements": indexed,
+        "stale": stale,
+        "built_from_source": bool(built_from),
+        "model_reachable": current is not None,
+        "hint": ("republish to rebuild the index from the current model"
+                 if stale else None),
+    }
 
 
 # --- thematic colouring + data-QA (built-world analytics over the property index) ---------------

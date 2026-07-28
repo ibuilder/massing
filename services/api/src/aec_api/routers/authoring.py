@@ -1296,6 +1296,17 @@ def _publish(p: Project, reconvert: bool = True) -> dict:
             out["reconvert_error"] = str(e)[:300]
     # 2. rebuild + hot-load the properties index
     idx = properties_index.index_file(p.source_ifc)
+    # Stamp WHICH source this index was built from. Without it the index cannot tell anyone it has
+    # gone behind the model — and it does go behind, because authoring edits rewrite the IFC and only
+    # a publish rebuilds this. An index that is stale and silent reads as a smaller building.
+    try:
+        import os as _os
+
+        from aec_data.ifc_loader import content_key  # type: ignore
+        _st = _os.stat(p.source_ifc)
+        idx["source_key"] = content_key(p.source_ifc, (_st.st_mtime_ns, _st.st_size))
+    except Exception:   # noqa: BLE001 — a missing stamp means "unknown", which we report honestly
+        idx["source_key"] = None
     props_router._load(p.id, idx)  # hot-swap the in-memory index
     storage.put(f"{p.id}/props.json", __import__("json").dumps(idx).encode("utf-8"))
     out["reindexed"] = idx["counts"]["elements"]

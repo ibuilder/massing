@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.730 — the element list can tell you when it is out of date
+
+Draw a wall and the model has it immediately. The searchable list of elements behind it — the one the
+model browser and the property panels read — is a snapshot, and it is rebuilt when you publish, not on
+every edit. Rebuilding means re-processing the geometry, which is far too slow to do while you work.
+
+That was always true. What was missing is that the list had no way to mention it. A list built ten
+edits ago and a list built a second ago looked exactly alike, so a browser could show a fraction of
+what you had just drawn and look entirely correct doing it.
+
+It can now be asked, and it answers with one of three things: up to date, behind the model, or **not
+sure**. The third is the one that matters. A list built before this release genuinely does not know
+whether it is current, and saying "up to date" in that case would be a guess presented as a fact —
+which is the whole failure being fixed, in a new place.
+
+Nothing rebuilds automatically. Reading a list should not silently start minutes of geometry work.
+When it is behind, it says so, and republishing brings it level.
+
 ## v0.3.729 — an issue means the same thing wherever you raised it
 
 Raise an RFI in the register, tie it to a wall, and it now appears on the model and on the drawing —

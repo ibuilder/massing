@@ -36,14 +36,8 @@ the model in silence. The ordering below reflects that: **correctness a user wou
 Every item here says what it is and why it is where it is. Completed work moves to the CHANGELOG and
 out of this list — a NOW list containing finished items is a list nobody trusts.
 
-1. **🕰 INDEX-STALE — the element index goes behind the model, silently.** *Build; now the top.*
-`/elements` reads
-   a `props.json` snapshot; the takeoff reads the live IFC. Authoring edits move the IFC and leave the
-   snapshot until an explicit publish — proved live: `/elements` 2 → 7 after republish, matching the
-   takeoff exactly. Neither number was wrong; the snapshot was old and **nothing said so**. Do not
-   reconvert per edit (expensive) — report freshness, the discipline `recordCache` already applies to
-   record lists. A model browser can currently show a fraction of what you just drew and look correct.
-3. **🗃 CACHE — byte-bound, then share.** *Build, 2 deps approved.* See
+1. **🗃 CACHE — byte-bound, then share.** *Build, 2 deps approved; now the top.*
+See
    [caching-research.md](caching-research.md). ~~Re-key by content~~ DONE v0.3.722. Remaining:
    (a) byte-bound both caches with an explicit budget [`cachetools`, MIT]; (b) share baked geometry
    across workers [`diskcache`, Apache-2.0]. Baking is the expensive half, so sharing it shrinks the
