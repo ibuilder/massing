@@ -36,6 +36,26 @@ the model in silence. The ordering below reflects that: **correctness a user wou
 Every item here says what it is and why it is where it is. Completed work moves to the CHANGELOG and
 out of this list — a NOW list containing finished items is a list nobody trusts.
 
+1. **🏛 SPINE-DEFAULT — prove the room rail renders, then make it the whole-app default.** *Build;
+   now the top, and the flag is NOT the work.* Established live 07-28:
+   - `spineEnabled()` already returns **true by default** — `shell-spine` is unset, so nothing is
+     opted out. "Turn it on" is already true; the switch was never the problem.
+   - `GET /rooms` is **healthy** — 5 rooms with real counts (the model room carries 38 modules). An
+     earlier 404 was my own probe hitting `/projects/{pid}/rooms`, which is not the route.
+   - **I could not get the room rail to render.** Reaching the portal via the Home tab lands on
+     `panel-portal-design` with the modelling rail (NAVIGATE / AUTHOR / COORDINATE) and the Project
+     Browser spine (Plans & views / Sheets / Schedules) — neither of which is R26's room rail.
+     No Model/Cost/Schedule/Deal/Work rail appeared.
+
+   So the state is: flag on, data good, **rail unseen**. Either `buildRoomRail` is not reached on the
+   path a user actually takes, or it renders somewhere I did not look. That distinction is the whole
+   task and it wants a focused session with the live stack, not another inference.
+
+   **The user's own question is the primary evidence.** They asked "where is the new layout?" while
+   the flag said it was on — a shell nobody can find is not shipped, whatever the flag says. Do not
+   mark this done on a passing `spineEnabled()` assertion; the R26-V-LIVE audit exists precisely
+   because a flag check is not a render check, and this is the third time that gap has bitten.
+
 1. **📄 PDF-LIB — adopt `@massingcloud/pdf-viewer`.** *Build; now the top.* MIT, deps `pdfjs-dist`
    + `pdf-lib` (already ours). 12,275 lines / 46 files against our 423-line `pdfTakeoff.ts` — a
    genuine superset: structured markup RECORDS (author, sheet revision, discipline, what it measures,
