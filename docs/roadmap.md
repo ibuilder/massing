@@ -44,10 +44,21 @@ list nobody trusts.
 1. **📦 MASS-FIRST — the container is the project, everywhere.** *Build. Backend landed v0.3.744;
    these are the remaining halves.* User direction, 2026-07-28:
 
-   - **② Package real samples.** `samples/` and its API exist and are tested, but the library is
-     **empty** — `GET /samples` returns `[]`. Run `build_samples.py --project <pid>` against real
-     projects (a house, a tower, a fit-out) and commit the containers. Nothing ships as a showcase
-     until this is done; the machinery is not the feature.
+   - **② Package real samples — blocked on CONTENT, not on tooling.** `build_samples.py` works and
+     self-verifies; measured 2026-07-28 against all 24 projects in the dev DB. The problem is what
+     is in them: the three plausible candidates (Verification House, two Maple Street Houses)
+     package to **~10 KB with 0 elements** — tables are `jobs`, `model_versions`, `record_activity`,
+     `ref_counters`, `project_members`, and at best one `topic`. No estimate, no schedule, no
+     drawings. Committing those would reproduce the exact defect this feature exists to fix: a
+     "sample" that demonstrates nothing.
+     So the real work is **authoring a showcase project**, not packaging one — the live house test
+     extended with a full estimate, a schedule, several RFIs through to closed, and generated
+     sheets. Then `build_samples.py --project <pid>` and commit. Until that exists, `GET /samples`
+     correctly returns `[]`, and the three hard-coded `.frag` menu entries must stay.
+     (Also noted while probing: the dev SQLite DB has **no `element` table at all**, so where
+     element rows live — and whether `bundle.py` captures them — needs settling before a packaged
+     sample can claim an element count. Do that first; a sample whose manifest says `0 elements`
+     for a real building is a wrong number, not a small one.)
    - **② One "Load sample", from the library.** Replace the three hard-coded `.frag` menu entries in
      `main.ts` (`/school_str.frag`, `/school_arq.frag`, `/basichouse.frag`) with a single entry that
      lists `GET /samples` and opens the chosen container. Those three are the last place the product
