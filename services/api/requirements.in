@@ -35,6 +35,13 @@ pyarrow>=16.0          # columnar Parquet export of the model element set (model
 signxml>=3.2           # SAML 2.0 assertion XML-DSig signature verification (saml.py)
 ezdxf>=1.1             # DXF quantity takeoff — 2D CAD estimating (dxf_takeoff.py); MIT, pure-Python
 
+# --- caching ---
+# Cross-process cache for baked geometry. The in-process byte budget (v0.3.731) bounds ONE worker;
+# under gunicorn/uvicorn with N workers the same model is tessellated N times because a dict cannot
+# span processes. diskcache is a lock-correct SQLite-backed store — the part that is genuinely hard to
+# write by hand, which is why this dependency earns its place where `cachetools` did not.
+diskcache>=5.6            # Apache-2.0, pure-Python, no C extension
+
 # --- optional (lazy-imported, only when the matching env var is set) ---
 redis>=5.0             # shared rate-limit + login-lockout counters (AEC_REDIS_URL)
 anthropic>=0.69        # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY
