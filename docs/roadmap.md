@@ -133,6 +133,16 @@ npm lock has to come from a real `npm install`, and a `package.json` bumped with
 is a **broken build on `main`** — `npm ci` fails outright when the two disagree. Half of this change
 is strictly worse than none of it, so it is all-or-nothing in a single commit.
 
+**Attempted 2026-07-28 on Node 20 with `--package-lock-only`; reverted, `main` untouched.** It
+looked like it worked — `npm install --package-lock-only --workspace apps/web @capacitor/...@^8`
+**exited 0**, printed a normal summary, rewrote 334 lines of the lock, and bumped the manifest to
+`^8`. The lock's Capacitor entries were **still 7.6.8**. Manifest `^8` + lock `7.6.8` is a build that
+fails on `npm ci`, and every signal npm gave said success. The 334 changed lines were unrelated
+reordering, which is exactly what made it look like work had been done.
+
+**So the check is: read the version out of the lock, never trust the exit code.**
+`python -c "import json;print({k:v['version'] for k,v in json.load(open('package-lock.json'))['packages'].items() if '@capacitor' in k})"`
+
 Do it **on Node 24**, not on the current Node 20: the resolver writes `engines`-influenced trees and
 CI will run 24, so a lock generated here would be a lock nobody else reproduces. Then:
 `npm install` → `npm ci` to prove the lock → full web gate → **desktop build** (Capacitor majors
