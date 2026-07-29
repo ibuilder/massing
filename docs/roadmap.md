@@ -1205,6 +1205,28 @@ removed. Remaining, in priority order:
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
+- ⭐ **SEC-GLOBAL-AUTHZ** *(S)* — **there is no authz gate for platform-global routes, and a HIGH got
+  through the hole on 2026-07-29.** `test_route_authz` enumerates `/projects/{pid}` routes and
+  asserts each carries `require_role`; it passed on 695 routes while three brand-new routes with no
+  `{pid}` in the path — `GET`/`POST`/`DELETE /jurisdiction/packs` (PR #101) — were reachable
+  **unauthenticated**. Measured with RBAC on and no credentials: `200` / **`201`** / `200`, with
+  `GET /admin/errors` correctly `403` in the same run.
+
+  The mechanism generalises past that PR and is the reason this is a ring item rather than a bug
+  note: **`Depends(current_user)` identifies, it does not authorise.** With RBAC on and no bearer
+  token, cookie or trusted header it returns the literal string `"anonymous"`, so a route guarded
+  only by it *has a name attached and no gate* — and the signature reads like a gate, which is how it
+  survives review. Any non-`{pid}` route that mutates shared state has the same exposure and nothing
+  currently checks for it.
+
+  The work: a companion to `test_route_authz` that enumerates **mutating routes with no `{pid}`** and
+  fails any whose dependency chain is only `current_user`. Then audit the existing ones — this was
+  found on new code and nobody has looked at the routes already on `main`. Note the second-order
+  trap when writing it: every jurisdiction suite popped `AEC_RBAC`, and with RBAC **off**
+  `current_user` returns the `X-User` header, so the bug **cannot appear** — the new test must run
+  RBAC-**on** and lead with a control assertion, or it passes for the wrong reason.
+  *(Fixed on the branch: writes → `require_admin_user`, reads → a `require_identified` that refuses
+  `anonymous`; `test_jurisdiction_authz.py` pins it. The general gate is what remains.)*
 - **REL-4 leaves** *(M)* — `portal.ts` next leaf + `viewer/app.ts` leaves.
 - **REL-7** — evidence-gated dead-code removal *(needs RT-KNIP first — see Gated)*.
 
