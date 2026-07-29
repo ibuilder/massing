@@ -4215,7 +4215,10 @@ export class ApiClient extends withLibrary(withAuthoring(HttpCore)) {
   costTraceability(pid: string) {
     return this.json<{ total_cost: number; traceable_cost: number; untraceable_cost: number;
       coverage_pct: number; elements_referenced: number; line_count: number;
-      by_cost_code: { cost_code: string; total: number; traceable: number; coverage_pct: number }[];
+      // `element_count` is the exact total; `guids` is a capped sample (200) — enough to select in
+      // the viewer without turning a panel fetch into a megabyte on a large cost code.
+      by_cost_code: { cost_code: string; total: number; traceable: number; coverage_pct: number;
+        element_count: number; guids: string[] }[];
       note: string }>(`/projects/${pid}/cost/traceability`);
   }
   /** Every cost line (budget / commitment / direct cost / sub invoice) tagged to one IFC element. */

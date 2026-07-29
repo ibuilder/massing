@@ -79,7 +79,7 @@ to shortcut this by marking the workspace hand-off active; the marker never clea
 click reported arrival for a navigation that never ran. Reverted in v0.3.771, and `spine.test.ts`
 now asserts no room's home carries `goto`.
 
-### 5 · R25/R24-TRACE-UI *(M)* — hoisted out of the "archived" R25 ring
+### ~~5 · R25/R24-TRACE-UI~~ — **DONE v0.3.775**: the coverage figure opens onto its elements. Was:
 The 5D chain made visible: figure → cost line → the elements behind it. The engines all exist; this
 is the last mile that makes the differentiator discoverable by clicking rather than by reading docs.
 

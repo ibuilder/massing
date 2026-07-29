@@ -4,6 +4,39 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.775 — TRACE-UI: a coverage number you can open
+
+The 5D chain ran one way. You could ask *"what did this element cost?"* — paste a GlobalId, get the
+budget, commitment, direct-cost and sub-invoice lines behind it. You could not ask the reverse:
+**"which elements make up this number?"**
+
+The evidence was already there and being discarded. `traceability.summary()` reads `ln["guids"]` for
+every cost line, uses them to decide whether the line counts as traceable — and then aggregates only
+the money, dropping the GlobalIds at the cost-code level. The figure survived; what proved it did not.
+**A coverage percentage you cannot open is a claim, not a trace.**
+
+Each cost-code row now carries `element_count` (exact) and `guids` (capped at 200), and the panel
+makes the row a disclosure: click it, see the elements behind that figure, click any one of them to
+run the existing "what did this cost?" lookup — the same implementation, not a second answer to the
+same question.
+
+Two details that are the point rather than polish:
+
+- **A row with no elements is not clickable.** Offering a disclosure that opens onto an empty box is
+  exactly the failure the coverage number exists to warn you about.
+- **A truncated list says it is truncated** — "412 elements — showing the first 200". The count is
+  always exact. A capped list presented as complete is the same defect as a fabricated number, which
+  is the rule the vitals strip was built on two releases ago.
+
+Keyboard-operable (`Enter`/`Space`, `aria-expanded`) since it is a real disclosure, not a hover trick.
+
+Verified against the engine's own aggregation: two cost lines tagged `G1,G2` and `G2,G3` on one code
+yield `element_count: 3` — deduped across lines, not summed — and an untagged code yields `0` with no
+disclosure offered.
+
+Gates: web 708/708, typecheck + eslint clean; `test_traceability`, `test_cost`, `test_cost_spine`,
+`test_cde`, `test_disciplines`, `test_element_facts` all pass; ruff clean.
+
 ## v0.3.774 — VITE-8: Vite 6 → 8 (Rolldown) + Vitest 3 → 4, and a vendor split that had stopped splitting
 
 The one genuinely outstanding item from the closed PR #69. Its other runtime bumps were already on

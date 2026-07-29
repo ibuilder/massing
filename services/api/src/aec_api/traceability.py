@@ -52,6 +52,11 @@ def _lines(db: Session, pid: str) -> list[dict]:
     return out
 
 
+#: How many GlobalIds a cost code carries in the summary payload. The count is always exact; this
+#: caps only the sample, so a 4000-element cost code does not turn a panel fetch into a megabyte.
+_GUID_SAMPLE = 200
+
+
 def element_costs(db: Session, pid: str, guid: str) -> dict[str, Any]:
     """Every cost line that references this IFC element (by GlobalId)."""
     lines = [ln for ln in _lines(db, pid) if guid in ln["guids"]]
@@ -100,15 +105,29 @@ def summary(db: Session, pid: str) -> dict[str, Any]:
     for r in me.list_records(db, "cost_code", pid, limit=100_000) if "cost_code" in me.TABLES else []:
         d = r.get("data") or {}
         cc_label[r["id"]] = " · ".join(x for x in [d.get("code") or r.get("title"), d.get("description")] if x)
+    # The elements behind each cost code, not just the money.
+    #
+    # The chain this module exists to prove runs both ways: element → what it cost (`element_costs`),
+    # and **figure → the elements behind it**, which had no answer. The GlobalIds were already being
+    # read here, per line, and discarded at the cost-code level — the number survived, its evidence
+    # did not. A coverage percentage you cannot open is a claim, not a trace.
+    code_guids: dict[str, set[str]] = {}
     for ln in lines:
         guids.update(ln["guids"])
-        b = by_code.setdefault(ln["cost_code"] or "(unassigned)", {"total": 0.0, "traceable": 0.0})
+        key = ln["cost_code"] or "(unassigned)"
+        b = by_code.setdefault(key, {"total": 0.0, "traceable": 0.0})
         b["total"] += ln["amount"]
         if ln["guids"]:
             b["traceable"] += ln["amount"]
+            code_guids.setdefault(key, set()).update(ln["guids"])
     by_cost_code = [{"cost_code": cc_label.get(k, k if k == "(unassigned)" else "(cost code)"),
                      "total": round(v["total"], 2), "traceable": round(v["traceable"], 2),
-                     "coverage_pct": round(v["traceable"] / v["total"] * 100, 1) if v["total"] else 0.0}
+                     "coverage_pct": round(v["traceable"] / v["total"] * 100, 1) if v["total"] else 0.0,
+                     # Full count, capped sample. A cost code can carry thousands of elements and this
+                     # payload renders on a panel — the count is the honest total, `guids` is enough to
+                     # select in the viewer without making the response the bottleneck.
+                     "element_count": len(code_guids.get(k, ())),
+                     "guids": sorted(code_guids.get(k, ()))[:_GUID_SAMPLE]}
                     for k, v in by_code.items()]
     by_cost_code.sort(key=lambda x: x["total"], reverse=True)
     return {"total_cost": total, "traceable_cost": traceable, "untraceable_cost": round(total - traceable, 2),

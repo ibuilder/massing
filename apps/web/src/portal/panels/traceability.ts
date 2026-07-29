@@ -65,18 +65,75 @@ export async function renderTraceability(ctx: PanelContext) {
   gi.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") void lookup(); });
   row.append(gi, go); look.append(row, out); body.append(look);
 
-  // per-cost-code coverage
+  // per-cost-code coverage — and the elements behind each figure
   if (s.by_cost_code.length) {
+    const h = el("div", "meta"); h.style.cssText = "font-weight:700;margin:6px 0 2px";
+    h.textContent = "Coverage by cost code";
+    const hint = el("div", "meta"); hint.style.cssText = "font-size:11px;margin-bottom:4px";
+    hint.textContent = "Click a row to see the model elements behind that number.";
     const tbl = el("table", "portal-table") as HTMLTableElement; tbl.style.cssText = "width:100%;font-size:12px";
     tbl.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Cost code</th><th scope="col">Total</th>`
-      + `<th scope="col">Traceable</th><th scope="col">Coverage</th></tr></thead><tbody>`
-      + s.by_cost_code.map((r) => {
-        const c = r.coverage_pct >= 75 ? "var(--status-good)" : r.coverage_pct >= 40 ? "var(--status-warn)" : "var(--status-crit)";
-        return `<tr><td>${esc(r.cost_code)}</td><td style="text-align:right">${usd(r.total)}</td>`
-          + `<td style="text-align:right">${usd(r.traceable)}</td>`
-          + `<td style="text-align:right;color:${c}">${r.coverage_pct}%</td></tr>`;
-      }).join("") + `</tbody>`;
-    const h = el("div", "meta"); h.style.cssText = "font-weight:700;margin:6px 0 2px"; h.textContent = "Coverage by cost code";
-    body.append(h, tbl);
+      + `<th scope="col">Traceable</th><th scope="col">Elements</th><th scope="col">Coverage</th></tr></thead>`;
+    const tb = el("tbody") as HTMLTableSectionElement;
+
+    for (const r of s.by_cost_code) {
+      const c = r.coverage_pct >= 75 ? "var(--status-good)"
+        : r.coverage_pct >= 40 ? "var(--status-warn)" : "var(--status-crit)";
+      const tr = el("tr") as HTMLTableRowElement;
+      // Only rows with elements are openable. A row with nothing behind it must not offer a
+      // disclosure that reveals an empty box — that is the "click here for nothing" pattern the
+      // coverage number is meant to warn you about in the first place.
+      const openable = r.element_count > 0;
+      if (openable) { tr.style.cursor = "pointer"; tr.tabIndex = 0; tr.setAttribute("aria-expanded", "false"); }
+      tr.innerHTML = `<td>${openable ? "<span class=\"trc-caret\">▸</span> " : ""}${esc(r.cost_code)}</td>`
+        + `<td style="text-align:right">${usd(r.total)}</td>`
+        + `<td style="text-align:right">${usd(r.traceable)}</td>`
+        + `<td style="text-align:right">${r.element_count || "—"}</td>`
+        + `<td style="text-align:right;color:${c}">${r.coverage_pct}%</td>`;
+      tb.appendChild(tr);
+
+      if (!openable) continue;
+      const det = el("tr") as HTMLTableRowElement;
+      det.hidden = true;
+      const cell = el("td") as HTMLTableCellElement;
+      cell.colSpan = 5; cell.style.cssText = "padding:6px 10px;background:var(--hover,rgba(255,255,255,.03))";
+      // The count is exact; the list may be a sample. Say so rather than letting 200 rows imply 200
+      // elements — a truncated list presented as complete is the same defect as a fabricated number.
+      const shown = r.guids.length;
+      const capped = shown < r.element_count;
+      const lead = el("div", "meta");
+      lead.style.cssText = "font-size:11px;margin-bottom:4px";
+      lead.textContent = capped
+        ? `${r.element_count} elements — showing the first ${shown}`
+        : `${r.element_count} element${r.element_count === 1 ? "" : "s"}`;
+      const list = el("div");
+      list.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;max-height:150px;overflow:auto";
+      for (const g of r.guids) {
+        const b = el("button", "portal-btn") as HTMLButtonElement;
+        b.type = "button";
+        b.style.cssText = "font-family:ui-monospace,monospace;font-size:10px;padding:1px 5px";
+        b.textContent = g;                                   // textContent: a GUID is server data
+        b.title = `Look up what ${g} cost`;
+        // Reuse the lookup that already exists rather than adding a second way to ask the same
+        // question — one implementation, one answer.
+        b.addEventListener("click", () => { gi.value = g; void lookup(); look.scrollIntoView({ block: "nearest" }); });
+        list.appendChild(b);
+      }
+      cell.append(lead, list); det.appendChild(cell); tb.appendChild(det);
+
+      const toggle = () => {
+        det.hidden = !det.hidden;
+        tr.setAttribute("aria-expanded", String(!det.hidden));
+        const caret = tr.querySelector(".trc-caret");
+        if (caret) caret.textContent = det.hidden ? "▸" : "▾";
+      };
+      tr.addEventListener("click", toggle);
+      tr.addEventListener("keydown", (e) => {
+        const k = (e as KeyboardEvent).key;
+        if (k === "Enter" || k === " ") { e.preventDefault(); toggle(); }
+      });
+    }
+    tbl.appendChild(tb);
+    body.append(h, hint, tbl);
   }
 }
