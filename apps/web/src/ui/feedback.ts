@@ -16,11 +16,40 @@ export function escapeHtml(v: unknown): string {
 export function safeUrl(v: unknown): string {
   const raw = String(v ?? "").trim();
   if (!raw) return "#";
+  return schemeAllowed(raw) ? escapeHtml(raw) : "#";
+}
+
+/**
+ * The scheme check, shared by `safeUrl` and `safeHref` so the two cannot drift.
+ *
+ * Extracted rather than duplicated: two copies of an allowlist is how one of them quietly stops
+ * matching the other, and the failure mode is a scheme that one caller blocks and the other does not.
+ */
+function schemeAllowed(raw: string): boolean {
   // strip control chars/whitespace that browsers ignore when resolving a scheme ("java\tscript:")
   const probe = raw.replace(/[^\x21-\x7E]/g, "").toLowerCase();
-  if (/^(javascript|data|vbscript|blob|file):/.test(probe)) return "#";
-  if (/^[a-z][a-z0-9+.-]*:/.test(probe) && !/^(https?|mailto|tel):/.test(probe)) return "#";
-  return escapeHtml(raw);
+  if (/^(javascript|data|vbscript|blob|file):/.test(probe)) return false;
+  if (/^[a-z][a-z0-9+.-]*:/.test(probe) && !/^(https?|mailto|tel):/.test(probe)) return false;
+  return true;
+}
+
+/**
+ * The same scheme guard, for **property or attribute assignment** — `a.href = …`, `setAttribute`.
+ *
+ * `safeUrl` is for interpolation into an HTML string, so it HTML-escapes. Reaching for it in a DOM
+ * context is the plausible wrong move: it would rewrite `?a=1&b=2` into `?a=1&amp;b=2` and break the
+ * link, because the browser is not parsing HTML at that point. Same allowlist, no escaping.
+ *
+ * Why this exists at all: an `href` is a sink that neither `textContent` nor the `innerHTML` ratchet
+ * covers. `javascript:alert(1)` contains nothing to escape, so an escape-based defence sees a clean
+ * string — and `innerHtmlGuard.test.ts` only watches `.innerHTML` interpolation, so an unguarded
+ * `href` assignment passes every gate in the repo. Found by review on the job tray's Download link,
+ * where the URL is server-derived today only in the sense that a *fixed path* is built from an id.
+ */
+export function safeHref(v: unknown): string {
+  const raw = String(v ?? "").trim();
+  if (!raw) return "#";
+  return schemeAllowed(raw) ? raw : "#";
 }
 
 let toastHost: HTMLElement | null = null;

@@ -138,6 +138,34 @@ describe("rendering", () => {
     expect(links[0]!.getAttribute("href")).toBe("/x/a");
   });
 
+  /**
+   * The Download `href`, which is a different sink class from everything else here.
+   *
+   * `textContent` does not cover it, and `innerHtmlGuard.test.ts` does not either — that ratchet
+   * watches interpolation into `.innerHTML`, and this is an attribute assignment. A `javascript:`
+   * URL contains nothing to escape, so an escape-based defence sees a clean string. Every gate in
+   * the repo would pass.
+   *
+   * It is safe today because `artifactUrl` *builds* a fixed path from an id. These assertions are
+   * about the day it stops doing that.
+   */
+  it("neutralises a hostile artifact URL instead of trusting the caller", () => {
+    const host = document.createElement("div");
+    renderJobTray(host, [J({ state: "done", result: { artifact_key: "k" } })], {
+      artifactUrl: () => "javascript:alert(1)",
+    });
+    expect(host.querySelector("a")!.getAttribute("href")).toBe("#");
+  });
+
+  it("leaves a legitimate URL byte-for-byte alone, query string included", () => {
+    const host = document.createElement("div");
+    const url = "/projects/p1/jobs/j1/artifact?v=2&inline=true";
+    renderJobTray(host, [J({ state: "done", result: { artifact_key: "k" } })], { artifactUrl: () => url });
+    // The assertion that catches somebody "fixing" this with `safeUrl`, which HTML-escapes and would
+    // turn `&inline` into `&amp;inline` — a broken link that still looks defended.
+    expect(host.querySelector("a")!.getAttribute("href")).toBe(url);
+  });
+
   it("a plugin-supplied kind is written as text, never as markup", () => {
     const host = document.createElement("div");
     renderJobTray(host, [J({ kind: "<img src=x onerror=alert(1)>" })]);

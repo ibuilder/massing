@@ -19,6 +19,35 @@ from the code it describes and starts granting permission it was never asked for
 Found and fixed by the security-audit session; landed here so it stops sitting uncommitted in a
 shared tree. Verified standalone: 29/29 across the guard and the schedule panel.
 
+## v0.3.784 — `safeHref`: the sink that no gate in this repo was watching
+
+Found by review of the v0.3.780 job tray, not by a scanner — which is the point of the entry.
+
+The tray's Download link assigns `a.href = artifactUrl(job)`. That is a **different sink class** from
+everything else in the module, and three separate defences all miss it:
+
+- `textContent` does not apply — this is an attribute, not text.
+- `escapeHtml`/`safeUrl` do not help on their own: **`javascript:alert(1)` contains nothing to
+  escape**, so an escape-based defence sees a perfectly clean string.
+- `innerHtmlGuard.test.ts` watches interpolation into `.innerHTML`. An `href` assignment is outside
+  it entirely, so the repo-wide ratchet would never go red.
+
+It was safe, and it was safe *by argument* rather than by construction: `artifactUrl` resolves to
+`api.jobArtifactUrl(pid, id)`, which **builds** a fixed path on a fixed origin. Nothing
+plugin-controlled reaches the scheme. But the invariant holding it up — *builds a URL rather than
+passing one through* — is one line away from being false. Wire it to a server-supplied
+`job.result.artifact_url` and it goes live, having passed every gate on the way in.
+
+So `ui/feedback.ts` gains **`safeHref`**: the same scheme allowlist as `safeUrl`, without the HTML
+escaping, for property and attribute assignment. The two now share one `schemeAllowed()` predicate
+rather than a copied regex, because two copies of an allowlist is how one of them quietly stops
+matching the other.
+
+**Why it is not just `safeUrl`,** which is the plausible wrong fix: `safeUrl` HTML-escapes, correct
+when interpolating into an HTML string and wrong here — it rewrites `?v=2&inline=true` into
+`?v=2&amp;inline=true`, producing a broken link that still looks defended. There is now a test
+asserting a legitimate query string comes back byte-for-byte, specifically to fail on that fix.
+
 ## v0.3.783 — R24-CHARTS-GRAMMAR: an empty chart now says so
 
 The audit's finding 15 is that `ui/charts.ts` is a dependency-free SVG kit "that has not been given a

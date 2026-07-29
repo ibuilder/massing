@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { safeUrl } from "./feedback";
+import { safeHref, safeUrl } from "./feedback";
 import { sanitizeSvg } from "./sanitizeSvg";
 
 /** Sheet SVG is generated from the project IFC, and IFC files arrive from consultants, subs and
@@ -67,5 +67,30 @@ describe("safeUrl", () => {
   it("collapses empty/absent values to a harmless href", () => {
     expect(safeUrl(undefined)).toBe("#");
     expect(safeUrl("")).toBe("#");
+  });
+
+  /**
+   * `safeHref` is the same guard for **property assignment** (`a.href = …`), where HTML-escaping is
+   * wrong rather than merely unnecessary. The pair exists because an `href` is a sink that neither
+   * `textContent` nor the `.innerHTML` ratchet covers, and `javascript:` has nothing to escape — so
+   * an escape-based defence sees a clean string and every other gate in the repo passes it.
+   */
+  describe("safeHref — the DOM-assignment sibling", () => {
+    it("blocks exactly what safeUrl blocks", () => {
+      for (const bad of ["javascript:alert(1)", "JaVaScRiPt:alert(1)", "java\tscript:alert(1)",
+                         " javascript:alert(1)", "data:text/html,<script>1</script>", "vbscript:x"]) {
+        expect(safeHref(bad)).toBe("#");
+        expect(safeUrl(bad)).toBe("#");        // the shared allowlist, asserted from both sides
+      }
+      expect(safeHref(undefined)).toBe("#");
+      expect(safeHref("")).toBe("#");
+    });
+
+    it("does NOT html-escape — the whole reason it is not safeUrl", () => {
+      const url = "/projects/p1/jobs/j1/artifact?v=2&inline=true";
+      expect(safeHref(url)).toBe(url);
+      // safeUrl would mangle the same string into a broken link that still looks defended.
+      expect(safeUrl(url)).toContain("&amp;");
+    });
   });
 });

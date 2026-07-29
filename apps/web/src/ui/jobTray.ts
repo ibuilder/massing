@@ -30,6 +30,7 @@
  * self-contained overlay and keeping it out of the global sheet means it cannot drift with the shell.
  */
 import type { Job, JobState } from "../api/types";
+import { safeHref } from "./feedback";
 
 /**
  * Human labels for the registered kinds (`jobs.py:294-300`).
@@ -186,7 +187,14 @@ export function renderJobTray(host: HTMLElement, jobs: readonly Job[], opts: Job
 
     if (opts.artifactUrl && hasArtifact(j)) {
       const a = document.createElement("a");
-      a.href = opts.artifactUrl(j);
+      // `href` is a sink that neither `textContent` nor the innerHTML ratchet covers — `javascript:`
+      // has nothing to escape, so an escape-based defence sees a clean string and the ratchet never
+      // looks at attribute assignment at all. Today `artifactUrl` BUILDS a fixed path from an id and
+      // is safe by construction; this keeps it safe the day somebody rewires it to a server-supplied
+      // `job.result.artifact_url`, which is a one-line change that would pass every other gate.
+      // `safeHref`, not `safeUrl`: the latter HTML-escapes, which is right for an innerHTML string
+      // and would corrupt a query string here.
+      a.href = safeHref(opts.artifactUrl(j));
       a.textContent = "Download";
       a.style.cssText = "font-size:11px;flex:0 0 auto";
       a.setAttribute("download", "");
