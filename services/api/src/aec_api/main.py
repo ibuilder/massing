@@ -28,6 +28,7 @@ from .routers import (
     bidding,
     bim,
     carbon,
+    classify,
     client_portal,
     closeout,
     codecheck,
@@ -417,6 +418,7 @@ app.include_router(payapp.router, tags=["payapp"])
 app.include_router(accounting.router, tags=["accounting"])
 app.include_router(carbon.router, tags=["carbon"])
 app.include_router(codecheck.router, tags=["codecheck"])
+app.include_router(classify.router, tags=["classify"])
 app.include_router(ids.router, tags=["ids"])
 app.include_router(procurement.router, tags=["procurement"])
 app.include_router(conceptual.router, tags=["conceptual"])
