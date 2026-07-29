@@ -55,6 +55,7 @@ from .routers import (
     payapp,
     payroll,
     plugins,
+    prefab,
     prequal,
     pricing,
     procurement,
@@ -398,6 +399,7 @@ app.include_router(cost.router, tags=["cost"])
 app.include_router(contracts.router, tags=["contracts"])
 app.include_router(reports.router, tags=["reports"])
 app.include_router(schedule.router, tags=["schedule"])
+app.include_router(prefab.router, tags=["prefab"])
 app.include_router(site.router, tags=["site"])
 app.include_router(bidding.router, tags=["bidding"])
 app.include_router(templates.router, tags=["templates"])

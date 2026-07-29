@@ -31,6 +31,8 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          # previously not wired into the gate (glob would have caught these) — now covered:
          "test_analytics", "test_discipline", "test_gbxml", "test_review", "test_interop",
          "test_module_config", "test_module_schema", "test_throttle", "test_route_order",
+         # R23-PREFAB-KIT — the kit join + its register routes:
+         "test_prefab_kit", "test_prefab_route",
          # Tier-1 competitive upgrades:
          "test_drafting", "test_bid_leveling", "test_benchmarking",
          # Tier-2/3 competitive upgrades:
