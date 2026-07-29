@@ -89,7 +89,10 @@ _KEYWORDS: dict[str, list[tuple[str, tuple[str, ...], str, str]]] = {
         (r"cast[- ]?in[- ]?place|\bcip\b|\bconcrete\b", ("IfcWall", "IfcWallStandardCase", "IfcColumn",
                                                          "IfcSlab", "IfcBeam"),
          "03 30 00", "Cast-in-Place Concrete"),
-        (r"\bsteel\b|\bhss\b|\bw\d+x\d+", ("IfcColumn", "IfcBeam", "IfcMember", "IfcPlate"),
+        # `\d{1,4}` not `\d+`: a W-shape designation is W14x90 — four digits is already generous, and
+        # an unbounded quantifier on attacker-authored text is the ReDoS shape this repo has already
+        # paid for once (py/polynomial-redos, v0.3.492).
+        (r"\bsteel\b|\bhss\b|\bw\d{1,4}x\d{1,4}", ("IfcColumn", "IfcBeam", "IfcMember", "IfcPlate"),
          "05 12 00", "Structural Steel Framing"),
         (r"acoustic(al)? (ceiling|tile)|\bact\b|suspended ceiling", (),
          "09 50 00", "Ceilings"),
@@ -165,9 +168,20 @@ _ALIASES: dict[str, frozenset[str]] = {
 }
 
 
+#: Longest run of model-derived free text any regex here will scan.
+#:
+#: Every string these patterns see comes out of an IFC file — an element's Name or its type's Name —
+#: which is to say out of a file somebody else authored. A 2 MB name is not a realistic label but it
+#: is a perfectly legal one, and `re` is happy to spend the afternoon on it. Bounding the SCAN is the
+#: half that holds regardless of which pattern is added next; bounding the QUANTIFIERS (below) is the
+#: half that stops any single pattern going polynomial. A classification keyword that needs more than
+#: 4 kB of context to match is not a keyword.
+_MAX_SCAN = 4096
+
+
 def _norm(s: Any) -> str:
     """Lowercase, collapse internal whitespace, strip. Nothing else — no substring games."""
-    return re.sub(r"\s+", " ", str(s or "")).strip().lower()
+    return re.sub(r"\s+", " ", str(s or "")[:_MAX_SCAN]).strip().lower()
 
 
 def _declared_for(entries: list[dict[str, Any]] | None, system: str) -> dict[str, Any] | None:
@@ -190,7 +204,9 @@ def _declared_for(entries: list[dict[str, Any]] | None, system: str) -> dict[str
 
 
 def _keyword_hit(text: str, ifc_class: str, system: str) -> tuple[str, str, str] | None:
-    low = (text or "").lower()
+    # Cap BEFORE lowering: the scan bound has to apply to what the regex sees, and `.lower()` on a
+    # multi-megabyte string is itself work done on a caller's behalf for no benefit.
+    low = (text or "")[:_MAX_SCAN].lower()
     for pattern, applies, code, title in _KEYWORDS.get(system, []):
         if applies and ifc_class not in applies:
             continue

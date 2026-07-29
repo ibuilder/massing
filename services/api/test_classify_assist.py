@@ -204,6 +204,29 @@ empty = ca.propose([], "masterformat", {})
 check("no elements is not a crash", empty["total"] == 0 and empty["classified_pct"] is None)
 check("  and the headline says so", "no elements" in empty["headline"])
 
+# --- ReDoS: bound the quantifiers AND cap the scan (qodo review of PR #97) -------------------------
+# Every string these patterns see comes out of an IFC file somebody else authored. The repo has paid
+# for this class once already (py/polynomial-redos, v0.3.492), and the fix has two halves: cap the
+# INPUT so the scan is bounded whatever pattern is added next, and bound the QUANTIFIERS so no single
+# pattern can go polynomial. Both are asserted, because either alone leaves the door open.
+import time as _t
+
+hostile = "w" + ("9" * 200_000) + "x"          # feeds the steel pattern's two \d quantifiers
+t0 = _t.perf_counter()
+ca._keyword_hit(hostile, "IfcBeam", "masterformat")
+elapsed = _t.perf_counter() - t0
+check("a 200k-digit hostile name is scanned in well under a second", elapsed < 1.0, f"{elapsed:.3f}s")
+
+check("the scan is capped, not merely fast on this input", ca._MAX_SCAN <= 8192, ca._MAX_SCAN)
+check("_norm caps before collapsing whitespace too",
+      len(ca._norm("a" + " " * 500_000 + "b")) < 8192)
+
+steel = [p for p, _a, code, _t2 in ca._KEYWORDS["masterformat"] if code == "05 12 00"][0]
+check("the steel pattern has no unbounded numeric quantifier", "\d+" not in steel, steel)
+check("  and still matches a real W-shape",
+      ca._keyword_hit("W14x90 column", "IfcBeam", "masterformat") is not None)
+check("  and still matches plain steel", ca._keyword_hit("steel beam", "IfcBeam", "masterformat") is not None)
+
 print()
 if FAILED:
     print(f"classify_assist: {len(FAILED)} FAILED — {FAILED}")
