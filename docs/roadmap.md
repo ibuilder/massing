@@ -340,9 +340,24 @@ stakes we are missing.
 - **R22-PROCURE-DEPTH** *(M)* — sub **prequalification** (bonding/EMR/capacity), **contract-clause
   risk extraction**, and **vendor scorecards persisting across projects**. Bid leveling covers one
   step of five.
-- **R22-MEMORY** *(M/L)* — **cross-project cost + decision memory** keyed to our own quantity codes.
-  The only item here that *compounds*: every bid result makes the next estimate better, and our
-  structured QTO makes it cleaner than any document-scraping competitor's.
+- 🟡 **R22-MEMORY** *(was M/L; remainder is S/M)* — **two-thirds already built.** Verified 2026-07-29
+  by reading the file, not the entry: `benchmarking.cost_benchmarks()` already mines `direct_cost`
+  records **across all the caller's projects** and returns a low/p25/median/p75/high distribution per
+  **cost code**, with a `min_samples` floor, routed via `routers/benchmarking.py`. Cross-project
+  pull-planning stats, RFI/submittal response rates and space utilisation are there too. So *"every
+  bid result makes the next estimate better"* is true today at the cost-code level.
+  **What is missing is exactly the half the entry called the differentiator.** `grep -i
+  "qto\|quantity\|unit_rate\|guid" benchmarking.py` returns **zero**. It knows what a cost code cost,
+  never what it cost **per measured unit** — and a cost-code distribution is what anyone with an
+  accounting export can build. `$/m² of IfcWall, from our own actuals, cross-project` is the part
+  that needs the QTO spine and the part that does not exist.
+  **Remainder, correctly sized:** *unit-rate memory* — join `direct_cost` actuals to the estimate's
+  measured quantities so the distribution is per unit rather than per code.
+  *Third entry in one day whose estimate was set by a description that had drifted from the code, and
+  the third distinct flavour: R23-RECIPE-ARTIFACT said "already is X" and nothing existed;
+  R22-CLASSIFY-AI described a harmless failure that was really a confident wrong number; this one
+  describes an unbuilt feature that is mostly shipped. All three were visible only by opening the
+  file.*
 
 **Tier 3 — on-ramps and reach**
 
