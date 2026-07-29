@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.800 — SCALE-SEAM ②, and the item was filed complete while the god-file stayed 4.8k
+
+`client.ts` 4,844 → **4,637**: the 26 `/schedule` methods move to `api/schedule.ts` as a `withSchedule`
+mixin, so `api.scheduleCpm(...)` resolves exactly as before and no call site changes. Typecheck clean,
+**907/907** web tests — the same count as before the move, which is the point.
+
+**The status defect is the more useful half.** `roadmap-completed.md` records SCALE-SEAM as **complete**,
+measuring ① — the `authoring.ts` cut, 112 lines, **2%** — after which the item was closed with the file
+still at 4.8k. Eleven other stale estimates found today all *understated* what existed, so somebody
+eventually trips over the truth. This one overstates it, so nobody looks again. Reopened as ③+, and the
+completed entry annotated rather than deleted, because how it came to be marked done is the lesson.
+
+**And the plan it described cannot work as written.** Classifying all 669 methods by the route each calls
+— the only honest basis, since the `// --- section ---` comments label the start of a run and the file
+then continues with other domains — gives **219 route-groups**. The largest is 4.5% of the file; the top
+six are 20%. That is ~25 releases of one group each, not one refactor. Anyone sizing it as an L is
+reading the comments rather than the routes.
+
+Two gates were needed and they catch different things. `surface.test.ts` captures the runtime method
+surface, which is what distinguishes "I moved code" from "I changed behaviour" — **a typecheck cannot**,
+since deleting a method and deleting its last caller both compile clean. Verified by dropping
+`scheduleCpm`: the surface test fails by name, and tsc independently fails at its two real call sites.
+
+That mutation took three attempts, which is worth recording. The first broke the file syntactically and
+vitest reported **"no tests"** — not a passing gate, but it reads like one. The second deleted a
+*docstring* line naming the method. Both times the gate was green for reasons unconnected to the gate.
+**A mutation you have not confirmed landed tells you nothing.**
+
 ## v0.3.799 — three R22/R23 merges, and the glTF index-width bug no fixture could reach
 
 Release for #104, #106 and #105, all merged and verified by content on `origin/main` rather than by

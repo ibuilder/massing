@@ -2766,8 +2766,17 @@ worth spending the way back on.
    plausible real cost/schedule history is a dataset those two can be evaluated against. Public
    sources only, and **no real party names, addresses or contract values** — the repo is public.
 
-1. **🧱 SCALE-SEAM — `client.ts` is the breakpoint, and it is measurable.** *Build; now the top,
-   ahead of feature work.* Measured 2026-07-28:
+1. **🧱 SCALE-SEAM — `client.ts` is the breakpoint, and it is measurable.**
+   > **CORRECTION 2026-07-29 — this entry is filed as complete and the work is not done.** It records
+   > ①, the `authoring.ts` extraction, which took `client.ts` from 4,956 to 4,844 — **112 lines, 2%** —
+   > and the item was then closed with the god-file intact. ② shipped v0.3.800 (`schedule.ts`, 207 more
+   > lines). Reopened as **SCALE-SEAM ③+** in `roadmap.md`, with the measurement that should have set
+   > the scope: 669 methods across **219 route-groups**, largest 4.5% of the file, so ~25 releases of
+   > one group each rather than one refactor. Left in place rather than deleted because *how* it came to
+   > be marked done is the lesson — a first slice landing is not the item landing, and a completed pile
+   > is where a claim goes to stop being checked.
+
+   *Build; now the top, ahead of feature work.* Measured 2026-07-28:
 
    | file | lines | commits / 14d |
    |---|---|---|

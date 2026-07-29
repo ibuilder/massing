@@ -1178,6 +1178,31 @@ removed. Remaining, in priority order:
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
+- ⭐ **SCALE-SEAM ③+ — `client.ts` is still a god-file, and the item was closed too early.** ② shipped
+  v0.3.800 (`schedule.ts`, 26 methods / 207 lines; 4,844 → 4,637). **`roadmap-completed.md` records
+  SCALE-SEAM as complete, measuring ① — a 112-line reduction, 2% — while the file stayed at 4.8k.**
+  That is the dangerous direction of drift: eleven other stale estimates today *understated* what
+  existed, so someone eventually trips over the truth; this one overstates it, so nobody looks again.
+
+  **There is no big cut left, and this is the number that should set the estimate.** Classify all 669
+  methods by the route each calls — the only honest basis, since the `// --- section ---` comments label
+  the *start* of a run and the file then continues with other domains, so they no longer delimit
+  anything. That gives **219 route-groups**; the largest is `/model` at 221 lines (**4.5%** of the file)
+  and the top six together are 20%. So this is roughly **25 releases of one group each**, not a
+  big-bang split. Anyone scoping it as an L-sized refactor is reading the section comments.
+
+  Next groups by size: `/model` (221 lines, 29 methods) · `/modules` (206, 34) · `/estimate` (132, 12) ·
+  `/procurement` (89, 9) · `/elements` (83, 11).
+
+  **The method is safe and worth reusing verbatim.** `api/surface.test.ts` captures the runtime method
+  surface, so "I moved code" is distinguishable from "I changed behaviour" — which **a typecheck cannot
+  do**, since deleting a method and deleting its last caller both compile clean. Both gates are needed
+  and they catch different things: dropping `scheduleCpm` fails the surface test by name *and* fails tsc
+  at the two real call sites. Mutation-verified on ②, and it took three attempts to mutate correctly —
+  the first broke the file syntactically (vitest reported "no tests", which is **not** a passing gate)
+  and the second deleted a docstring line naming the method. **A mutation you have not confirmed landed
+  tells you nothing.**
+
 - **SEC-PLUGIN-SANDBOX** *(L)* — **plugin Python executes inside the API process.**
   `plugin_registry.py:136-141` does `spec_from_file_location` → `module_from_spec` →
   `spec.loader.exec_module(mod)`, then calls `mod.register(PluginApi(...))`. Whatever the entry
