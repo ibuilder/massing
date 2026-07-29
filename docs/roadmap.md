@@ -623,9 +623,23 @@ refute one, so this goes first even though it is the least visible.
   **call sites**, not components: render it in RFI, estimate line, pay app and COBie row. Extract from
   `viewer/inspectorTabs.ts` into a viewer-independent module first, since those four surfaces must not
   pull in three/@thatopen.
-- ⭐ **R24-TRACE-UI ②** *(M)* — the proforma chain, IRR → GlobalId, tagged **model-derived /
-  overridden / market assumption**. `traceability.py` already walks model→cost→GL. This is the
-  on-stage demo and the entire reason to be IFC-keyed.
+- ⭐ **R24-TRACE-UI ②** *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
+  **proforma emit its own derivation**: each headline figure carrying its inputs and a
+  **model-derived / overridden / market-assumption** tag, terminating in a GlobalId where one exists.
+  `proforma/solve.py` · `returns.py` · `operations.py`. The UI half is genuinely small once the data
+  exists, and the v0.3.791 element card is already the right terminus.
+
+  **This entry read as a ready-to-build M and was not.** It said *"`traceability.py` already walks
+  model→cost→GL by GlobalId; this is the surface for it"* — true of **cost**, false of the proforma.
+  Measured on `e653473b`: `traceability.py` is cost-only (its docstring scopes it to `element_costs`
+  / `summary`; **0** mentions of proforma/IRR/NOI/rent), and `proforma/*.py` contains **zero**
+  `GlobalId` / `guid` references, so no figure links to a model element at any layer. The lone
+  `"basis"` string in `entitlement_risk.py` names which population was averaged — not a chain.
+
+  Building the UI first would have meant **inventing provenance in the client**: a trace that looks
+  like it walks to a GlobalId while actually asserting one. That is the fabrication shape this repo
+  has spent a day naming, and it would have been shipped as the on-stage demo. Whoever picked up
+  Sprint 2 would have started in the client and found nothing to render.
 - **R24-RUNS-INBOX** *(M)* — clash, IDS, cost and energy become durable Runs (inputs, timestamp,
   author, artifact, **diff against the previous run**) with a per-project inbox. Most externally
   validated item in the ring — see the corroboration note above.
