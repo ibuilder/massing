@@ -2985,3 +2985,215 @@ that unasked is the side effect the sample picker already refuses to commit. The
 re-cut by what the thing *is*: Project · Model geometry · Site context · Import. "Sample models"
 stopped being a category when a sample became a real `.mass`.
 
+## Reconciled 2026-07-29 at v0.3.796 — items completed after v0.3.777
+
+### from 🏗 R21 — LOD 400→500 DOCUMENTATION RING *(from a real LOD 400 shop-drawing set, 2026-07-25)*
+
+- ✅ **R21-HATCH** *(shipped v0.3.676)* — **material hatch patterns on cut geometry.** The reference details separate
+  concrete (stipple), reinforced concrete (crosshatch), steel (diagonal), insulation, masonry and
+  earth by *pattern*. `drawings.py` poché (v0.3.673) fills by class group with flat grey tones, which
+  cannot make those distinctions at 1:10. Needs an SVG `<pattern>` library keyed to IFC material, and
+  a scale-aware pattern density so a 1:100 section and a 1:10 detail do not use the same spacing.
+- ✅ **R21-KEYNOTE-SECT** *(shipped v0.3.677)* — **keynote leaders with dot terminators on sections/details.** The
+  package annotates every layer of the assembly ("60mm MINERAL-GLASS WOOL BOARD INSULATION",
+  "RC SLAB AS PER STRUCTURAL DRAWINGS") in a left-hand text column with leaders to a dot on the
+  component. `drawing.py` has `_leader_callout` for PLANS only; sections have no annotation layer.
+- ✅ **R21-DETAIL-REF** *(shipped v0.3.677)* — **detail callout bubbles + the section↔detail cross-reference graph.**
+  Numbered bubbles on the wall section point at enlarged details on other sheets; each detail carries
+  its own bubble, title and scale ("12 / BRIDGE TOP DETAIL / 1:10"). Today nothing links a section to
+  its details, so a set cannot be navigated or checked for orphaned/dangling references.
+- ✅ **R21-VG-OVERRIDES** *(shipped v0.3.677)* — **object styles + rule-based view filters.** Per-category **cut vs
+  projection** line weight, colour and pattern, plus filters that override graphics by rule
+  ("fire rating ≠ None", "width > 900"). This is what makes output look like a drawing instead of a
+  dump. **Compose on `query_dsl.py`** — it is already THE element selector; a view filter is a stored
+  selector plus an override, not a new engine.
+
+**Tier 2 — coordination depth the set implies**
+- ✅ **R21-SOFT-CLASH** *(shipped v0.3.681)* — **clearance (soft) clash + a clash matrix.** Hard clash exists; the
+  reference material distinguishes hard / soft-clearance / workflow-4D. Soft clash is a *rules* problem
+  (NEC working space, valve access, coil pull, door swing) and the discipline-pair matrix declares
+  which combinations are tested at all. Without it, "clash-free" overstates what was checked.
+- ✅ **R21-TAGS** *(shipped v0.3.683)* — **element tags on drawings** (a door tagged `D2` carrying `900 x 2100`),
+  auto-placed with leader avoidance, driven by the same type data the schedules already read.
+- ✅ **R21-BREAKLINE** *(shipped v0.3.683)* — break lines + partial views, so a detail can stop mid-element honestly
+  instead of running to the sheet edge.
+
+**Tier 3 — set-level assembly**
+
+### from 🎯 R22 — COMPETITIVE GAP RING *(13 platforms scanned 2026-07-25; acquisition→turnover mission)*
+
+- ✅ **R22-GOLDEN-THREAD** — **already built** (`golden_thread.py`); verified 2026-07-29, not
+  re-listed as open. Was: design freeze + immutable approval log — named baseline model states, who
+  approved what and when, and a diff of everything after. Legally mandated in the UK (Building Safety
+  Act 2022). *Another entry that was open in prose and closed in code — check before building.*
+
+### from ⚡ R23 — ENGINEERING UPGRADE RING *(technical scan 2026-07-25; file:line evidence)*
+
+- ✅ **R23-PERF-TEST** *(shipped v0.3.678)* — runtime perf budget in vitest: assert `renderer.info.render.calls` under a
+  threshold, and that `renderer.info.memory.geometries/textures` returns to baseline after dispose.
+  The leak assertion is the one that pays — there is already a confirmed leak (below).
+- ✅ **R23-RENDERER-FLAGS** *(shipped v0.3.678)* — `viewer/world.ts:32` constructs `SimpleRenderer` with **no
+  parameters**, so it silently inherits `antialias: true` always and sets no `powerPreference`.
+  `antialias` is a context attribute — construction-only, so this cannot be fixed after the fact.
+  **Correction on implementation:** this entry's implied fix — drop `antialias` because the composer
+  already resolves 4× MSAA — was **wrong**, and the source disproved it before it shipped.
+  `setPresentationFx` is opt-in, so the ordinary BIM view renders straight to the canvas; disabling it
+  would have put jagged edges on every model to save work in a mode most users never enter. Shipped
+  as `powerPreference: "high-performance"` + `stencil: false`, with `antialias` kept on — all four
+  attributes verified on the live WebGL context.
+- ✅ **R23-UPDATE-COALESCE** *(shipped v0.3.678)* — `viewer/loader.ts:25-26` fires `fragments.core.update()` on **every**
+  camera-controls update event, unthrottled: the textbook expensive-pass-per-event mistake. Coalesce
+  to one per rAF, keeping the rest → `update(true)` full-quality pass.
+- ✅ **R23-RAF-LEAK** *(shipped v0.3.678)* — `pins/pins.ts:29-30` starts a **second permanent rAF with no cancellation
+  path**, alongside the engine's own uncapped loop. It survives viewer teardown.
+- ✅ **R23-PIXEL-GOVERNOR** *(shipped v0.3.678)* — pixel ratio is pinned at `min(dpr, 2)` with no adaptive downscale
+  under load. A frame-time-EMA governor is the cheapest large win on a 4K display with a tall tower.
+
+**Tier 2 — real work, high payoff**
+- ✅ **R23-SHADOW-COST** *(shipped v0.3.679)* — `viewer/world.ts:182-192` puts a 2048² shadow map over a **±140 m ortho
+  frustum** — catastrophic texel density on a 30-storey tower — on top of hemisphere + fill lights and
+  SSAO+Bloom through a 4× MSAA composer. Set `shadowMap.autoUpdate = false` with manual invalidation,
+  fit the frustum to visible bounds, and run post only on camera rest.
+- ✅ **R23-REVIT-EXPORT-CFG** *(shipped v0.3.680)* — script `IFCExportConfiguration` from the pyRevit bridge instead of
+  trusting the export dialog, and **enforce the `IfcGUID` shared parameter** so GlobalIds survive
+  re-export. That is our first non-negotiable (reference by GUID, never transient ids) and it is
+  currently left to a checkbox someone else ticks. Add a pre-publish model audit (warnings, unplaced
+  rooms, in-place families, imported CAD) — exactly the conditions that produce garbage IFC.
+
+**Tier 3 — worthwhile, lower urgency**
+
+### from Sprint 1 — instrument, then decide *(the audit's phase 0, never built)*
+
+- ✅ **R24-JOB-TRAY** — **SHIPPED v0.3.780.** Was *(S — was M)* — **re-scoped: this is wiring, not engineering.**
+  `services/api/src/aec_api/routers/jobs.py` already enqueues, polls and lists jobs with per-kind RBAC.
+  `grep -rn "/jobs" apps/web/src` returns **nothing** — no client has ever called it. Add the typed
+  surface to `api/client.ts`, a self-contained `ui/jobTray.ts`, then one mount point. Another instance
+  of the pattern in *what-did-we-build-that-nothing-calls*; the engine shipped and the path to it did not.
+
+### from Sprint 3 — the front door earns its keyboard
+
+- ✅ **R24-KEYS** — **SHIPPED v0.3.782.** One contract in `ui/keys.ts` (Anywhere · In the 3D view ·
+  Draw tools), replacing the six-second toast in `main.ts` *and* the viewer's separate draw-code
+  modal — `?` used to give a different answer depending on whether the 3D bundle had loaded, and
+  neither surface mentioned ⌘K. `keys.test.ts` asserts the contract against the handler and against
+  `keysDyn`'s code table in both directions.
+  **What was deliberately NOT published:** the audit's `G then M`, `J`/`K`, `A` = answer, and
+  `W S C B`. None of them exist — the draw codes are two-letter (WA · SL · CL · BM), Revit-style.
+  Building them is real work and belongs to whichever ring owns registers and authoring, not to a
+  help screen. A contract that lists keys nothing dispatches is how a contract stops being one.
+
+### from Sprint 4 — field, and the long tail
+
+- ✅ **R24-EMPTY-GUIDE ②** — **SHIPPED v0.3.787.** `ui/emptyGuide.ts` gives 24 registers a line
+  saying *where their rows come from* ("An RFI is a question asked against a drawing… raise one from
+  a drawing, or from an element in the model") instead of restating the "+ New" button. Curated,
+  never generated: the other 109 modules keep the generic copy, because an invented upstream is a
+  confident wrong answer somewhere the user cannot check it. `emptyGuide.test.ts` validates every key
+  against `services/api/modules/*/module.json` — it caught two non-existent keys (`change_order`,
+  `pay_app` → `change_event`, `owner_invoice`) on its first run.
+
+### from 📐 R27 — THE DRAWING IS DATA RING *(external research 2026-07-26: one paper + 16 sources)*
+
+* ✅ **R27-LAYOUT ②** *(shipped v0.3.706)* — **a takeoff scoped to the view it belongs to.**
+  [takeoff2d.py](../services/api/src/aec_api/takeoff2d.py) takes `regions` **from the caller** and a
+  `scale_units_per_px` **from the caller** — every quantity on a sheet is hand-traced and hand-
+  calibrated, and nothing checks that a traced polygon sits inside the view it is being priced
+  against. With ① landed: seed candidate regions from the detected viewports, and read the scale from
+  the titleblock's scale text or a detected scale bar so `calibration_scale` has something to *check*
+  rather than only something to accept. **The scale is proposed, never silently applied** — a takeoff
+  calibrated by a machine that was wrong is worse than one nobody calibrated, because it looks done.
+* ✅ **R27-LAYOUT ③** *(shipped v0.3.707)* — **a note attaches to what it governs.** Once regions exist, a general note, a
+  keynote and a revision cloud each belong to a *view*, not to a page number. This is what makes
+  `keynotes`/`DETAIL-REF` (R21) round-trip against received sheets rather than only our own.
+* ✅ **R27-CLAIM-TYPE** *(shipped v0.3.709)* — **what kind of statement is this?** The representation handbook's one durable
+  idea: a record should say whether it is an **intent** (specified), an **embodiment** (built),
+  an **evidence** (measured/observed) or an **inference** (derived). `element_facts.gather()` already
+  states a `source` per fact and `verified()` already prefers an IFC stamp over a field record — this
+  generalises that from one engine's convention into a field the whole fact spine carries. The payoff
+  is concrete: "this wall is fire-rated" sourced from a *specification* and from a *field
+  observation* are different claims, and today they render identically.
+* ✅ **R27-SOV-LOOP** *(shipped v0.3.702)* — **close takeoff → estimate → SOV → pay app.** Confirmed gap, not a suspicion: the
+  `estimate` and `sov` modules both exist, `cost.py` reads a G703, and **nothing anywhere builds an
+  SOV from an estimate**. The chain the whole cost pillar implies is broken at exactly one seam, and
+  it is currently bridged by re-keying. Build `sov_from_estimate()`: estimate lines → SOV line items,
+  carrying `quantity_source`/`rate_source` (shipped v0.3.699) forward so a pay-app line can be traced
+  back to the model element it was measured from.
+
+  **Shipped as `sov_build.from_estimate()` + `POST /projects/{pid}/cost/sov`.** The transformation is a
+  **regrouping** — an estimate is keyed by (code, basis, rate) because those price differently; a
+  contract bills the code — and the whole risk of a regrouping is money going missing inside it. Four
+  refusals: unpriced scope is **excluded and named**, never dropped (an SOV built only from the lines
+  that happened to price is smaller than the job and looks complete, because every line in it is
+  right); the **rounding residual is placed on the largest item and reported**, because rounding each
+  item then summing ≠ rounding the total once and that penny is what gets a G703 rejected; a
+  zero-markup result carries **`at_cost: true`**, since scheduled values are *contract* values while an
+  estimate is *cost*, and billing lump-sum off unmarked-up cost under-bills by the entire fee every
+  month; and each item keeps its **GlobalIds and quantity/rate sources**, collapsing to `mixed` rather
+  than rounding one measured element among fifty up to `declared`.
+
+  `/cost/estimate` and `/cost/sov` were also collapsed onto one shared `_run_estimate` helper — two
+  code paths computing "the estimate" is how a billed number stops matching the priced one.
+  `reconciles` is named honestly as a **conservation** check (it proves the regrouping lost no money,
+  not that the estimate was right) and is verified against **two independently-built accumulations** in
+  the source.
+* ✅ **R27-RISK-CALIBRATE** *(shipped v0.3.710)* — **the distribution comes from your own history, not a guess.**
+  [schedule_risk.py](../services/api/src/aec_api/schedule_risk.py) already runs Monte Carlo over the CPM
+  network and reports P10/P50/P80/P90 — the *shape* is done. What it lacks is a defensible
+  distribution: durations come from caller-supplied three-point estimates, i.e. somebody's opinion
+  entered three times. The industry answer is calibration against a large historical corpus, which we
+  will never have offline. **The project's own corpus we do have**: schedule baselines plus progress
+  actuals are planned-vs-actual per activity. Derive per-activity-type spread from that, report
+  `calibrated_from: n activities` — and when n is too small to mean anything, **say so and fall back
+  to the three-point, rather than dressing an opinion as a statistic.**
+* ✅ **R27-FIRM-MEMORY** *(shipped v0.3.778)* — **standards that outlive a project.**
+  [firm_standards.py](../services/api/src/aec_api/firm_standards.py) + `GET/PUT /firm/rules` and
+  `GET /projects/{pid}/rules/effective`. Firm rules reuse `rule_library`'s own blob path and validator
+  under a reserved scope, so there is one persistence path and one definition of a valid rule; a
+  project layers over them **by rule id, not by name** — matching on name would make a rename look
+  like a new rule and silently reinstate the firm's version alongside the project's. Every effective
+  rule states its `source`, and one that displaces a firm rule carries the version it replaced.
+  Overriding is legitimate; being *invisible* is not, because the failure here is not a wrong answer,
+  it is a firm discovering its standards were quietly optional. `PUT /firm/rules` is admin-only: a
+  project editor may override a standard on their own job, but changing what the firm stands for is
+  not a per-project act.
+
+  **The scope question, answered rather than assumed.** The item said "org-scoped", and this codebase
+  has **no `Organization` entity** — what `test_tenant_scoping` calls a tenant is RBAC over project
+  membership. Rather than invent a multi-tenant model nobody asked for, *firm* means **the
+  deployment**: a self-hosted install is one firm's install. Stated in the module rather than hidden;
+  if organisations arrive, `FIRM_SCOPE` becomes an org id and the inheritance logic is unchanged.
+
+## Release log v0.3.778 → v0.3.796 *(reconciled 2026-07-29)*
+
+`roadmap-completed.md` had stopped at **v0.3.777** while `main` was at **v0.3.796** — nineteen
+releases with no record here. That gap is the same doc-rot this ring keeps finding: nothing reads
+prose, so nothing failed. Recorded from `CHANGELOG.md`, newest first.
+
+- **v0.3.796 — R30-TOOLS: a register can finally say what it can DO**
+- **v0.3.795 — R24-MONO-DATA, and three tests of mine that were making other tests fail**
+- **v0.3.794 — the guard that would have failed a build over a dependency that exists**
+- **v0.3.793 — an allowlist entry with no referent is a hole waiting for a matching name**
+- **v0.3.792 — ReDoS on IFC-authored text, and the two halves of the fix**
+- **v0.3.791 — R24-ELEMENT-CARD ②: the strip goes where the element is named (and a broken import from v0.3.790)**
+- **v0.3.790 — an unsolvable draw was being priced at zero**
+- **v0.3.789 — the public site was sending visitors after a sample that no longer exists**
+- **v0.3.788 — the demo script did not know about two shipped features, and the log was out of order**
+- **v0.3.787 — R24-EMPTY-GUIDE ②: an empty register says where its rows come from**
+- **v0.3.786 — the public demo was serving a taxonomy the app cannot render**
+- **v0.3.785 — R24-REPORTS-BY-MOMENT: the Report Center stops being a list of nouns**
+- **v0.3.784 — `safeHref`: the sink that no gate in this repo was watching**
+- **v0.3.783 — R24-CHARTS-GRAMMAR: an empty chart now says so**
+- **v0.3.782 — R24-KEYS: one keyboard help, and it is true**
+- **v0.3.781 — SEC: an imported schedule's text is not ours to trust**
+- **v0.3.780 — the queue was always there; nothing had ever asked it**
+- **v0.3.779 — one front door, and the rooms keep their names**
+- **v0.3.778 — the R27 ring closes: a received sheet has regions, and a firm has standards**
+
+### R30-TOOLS — shipped v0.3.796 with no roadmap entry at all
+
+Worth naming because it was never a roadmap item: a module's `tools:` key, letting a register
+declare the destinations that operate on it. 56 modules, plus the `GET /modules` allowlist
+forwarding the new key (it drops anything it does not name — the failure would have been silent
+with all 56 files correct), plus `moduleTools.test.ts` asserting every `dest` resolves against
+`ALL_DESTS`. The engines existed the whole time; the seam from register to tool did not.
+
