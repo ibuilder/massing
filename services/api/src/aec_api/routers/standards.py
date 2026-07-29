@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .. import bim_kpi, bsdd, cde, ids_authoring, mcp_tools, openbim, openbim_quality, standards_expert
 from ..db import get_db
 from ..models import Project
-from ..rbac import current_user, require_role
+from ..rbac import current_user, require_identified, require_platform_admin, require_role
 
 router = APIRouter()
 
@@ -295,7 +295,7 @@ def rules_put(pid: str, rules: list[dict] = Body(..., embed=True),
 
 
 @router.get("/firm/rules")
-def firm_rules_get(_: str = Depends(require_role("viewer"))):
+def firm_rules_get(_: str = Depends(require_identified)):
     """R27-FIRM-MEMORY — the firm's standard rules, the ones that do not change per project.
 
     Not project-scoped, deliberately: a firm's standards are precisely what survives a job. Today they
@@ -307,10 +307,19 @@ def firm_rules_get(_: str = Depends(require_role("viewer"))):
 
 
 @router.put("/firm/rules")
-def firm_rules_put(rules: list[dict] = Body(..., embed=True), _: str = Depends(require_role("admin"))):
-    """Replace the firm library. Admin-only — a project editor may override a firm standard on their
+def firm_rules_put(rules: list[dict] = Body(..., embed=True),
+                   _: str = Depends(require_platform_admin)):
+    """Replace the firm library. **Platform**-admin only, not project-admin.
+
+    This route was gated `require_role("admin")`, which on a path with no `{pid}` turns `pid` into a
+    caller-supplied QUERY parameter — so the caller picked which project's role was checked. Any user
+    could register, create a throwaway project they own, and `PUT /firm/rules?pid=<that project>`;
+    verified returning `200 {"saved": 1}`. Since this replaces the library, it also deleted the firm's
+    real standards, leaving every project's rule-check to pass against nothing.
+
+    A project editor may override a firm standard on their
     own job (that is legitimate and stays visible), but changing what the firm stands for is not a
-    per-project act. Validated by the same QUERY-DSL check a project save uses: a rule invalid on a
+    per-project act — which is exactly what the old gate made it. Validated by the same QUERY-DSL check a project save uses: a rule invalid on a
     project must not be accepted merely because it was authored at the firm level."""
     from .. import firm_standards, rule_library
     try:

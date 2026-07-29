@@ -1015,13 +1015,14 @@ def _require_platform_admin(db: Session = Depends(get_db), user: str = Depends(c
     """Importing a vintage flips the GLOBAL `is_latest` flag → every unpinned project reprices. That is
     a platform operation, not a project edit: with RBAC off (dev / single-operator) it stays open like
     everything else; with RBAC on it requires a platform admin — a lone viewer-role member must never
-    be able to silently reprice all projects' estimates (the audit's pricing-corruption scenario)."""
+    be able to silently reprice all projects' estimates (the audit's pricing-corruption scenario).
+
+    The rule itself now lives in `rbac.require_platform_admin` and this delegates to it. It was
+    duplicated here first, which is why `PUT /firm/rules` — the same shape, a firm-wide write — reached
+    for `require_role("admin")` instead and shipped an escalation: the correct gate existed but was
+    private to this module. Two copies of one rule drift; a copy nobody can find does not get used."""
     from .. import rbac as _rbac
-    if not _rbac.RBAC_ON or _rbac.LOCAL_MODE or user == "api-key":
-        return user
-    from .auth import require_admin_user
-    require_admin_user(db=db, user=user)               # raises 403 unless AEC_ADMIN_EMAILS / legacy admin
-    return user
+    return _rbac.require_platform_admin(db=db, user=user)
 
 
 @router.get("/cost/datasets")

@@ -8,11 +8,11 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
-from .. import drawingset, issuance, pdfops, sheetgen
+from .. import audit, drawingset, issuance, pdfops, sheetgen
 from ..db import get_db
 from ..deps import source_ifc_path as _source_ifc
 from ..models import Project
-from ..rbac import current_user, require_role
+from ..rbac import require_identified, require_role
 from ..throttle import rate_limited
 
 _DATA_SRC = Path(__file__).resolve().parents[4] / "data" / "src"
@@ -317,7 +317,7 @@ async def _read_pdf(f: UploadFile) -> bytes:
 # PERF-1: pypdf work runs off the event loop (a 200-page set would otherwise block every request in
 # the process). Mirrors pdf_stamp/pdf_seal below, which already thread-pool.
 @router.post("/pdf/info")
-async def pdf_info(file: UploadFile = File(...), _: str = Depends(current_user)):
+async def pdf_info(file: UploadFile = File(...), _: str = Depends(require_identified)):
     """Page count + flags for an uploaded PDF."""
     from starlette.concurrency import run_in_threadpool
     data = await _read_pdf(file)
@@ -325,7 +325,7 @@ async def pdf_info(file: UploadFile = File(...), _: str = Depends(current_user))
 
 
 @router.post("/pdf/merge")
-async def pdf_merge(files: list[UploadFile] = File(...), _: str = Depends(current_user)):
+async def pdf_merge(files: list[UploadFile] = File(...), _: str = Depends(require_identified)):
     """Concatenate several uploaded PDFs into one (order = upload order)."""
     from starlette.concurrency import run_in_threadpool
     if len(files) < 2:
@@ -337,7 +337,7 @@ async def pdf_merge(files: list[UploadFile] = File(...), _: str = Depends(curren
 
 
 @router.post("/pdf/split")
-async def pdf_split(file: UploadFile = File(...), _: str = Depends(current_user)):
+async def pdf_split(file: UploadFile = File(...), _: str = Depends(require_identified)):
     """Split an uploaded PDF into one PDF per page, returned as a .zip."""
     from starlette.concurrency import run_in_threadpool
     data = await _read_pdf(file)
@@ -349,7 +349,7 @@ async def pdf_split(file: UploadFile = File(...), _: str = Depends(current_user)
 
 @router.post("/pdf/extract")
 async def pdf_extract(file: UploadFile = File(...), pages: str = Form(...),
-                      _: str = Depends(current_user)):
+                      _: str = Depends(require_identified)):
     """A new PDF of just the given pages (`pages` = '1,3,5-7', 1-based)."""
     from starlette.concurrency import run_in_threadpool
     sel = pdfops.parse_pages(pages)
@@ -363,7 +363,7 @@ async def pdf_extract(file: UploadFile = File(...), pages: str = Form(...),
 
 @router.post("/pdf/rotate")
 async def pdf_rotate(file: UploadFile = File(...), angle: int = Form(90), pages: str = Form(""),
-                     _: str = Depends(current_user)):
+                     _: str = Depends(require_identified)):
     """Rotate pages by `angle` (multiple of 90). `pages` (1-based, '1,3-5') limits it; blank = all."""
     from starlette.concurrency import run_in_threadpool
     sel = pdfops.parse_pages(pages) or None
@@ -384,8 +384,11 @@ def _json_form(raw: str) -> dict:
         raise HTTPException(422, "values/profile must be a JSON object") from e
 
 
+# Gated alongside the /pdf ops rather than left on `current_user`: both callers are already
+# authenticated flows (PDF markup, Report Center's stamp tool), and if you cannot stamp there is
+# no reason to enumerate the stamp catalogue. Deliberate, not incidental to the /pdf change.
 @router.get("/stamps/library")
-def stamps_library(_: str = Depends(current_user)):
+def stamps_library(_: str = Depends(require_identified)):
     """The A/E/C stamp template library — review (EJCDC + CSI), inspection, status, and seal templates.
     The client renders the picker and preview from this; the server is the source of truth."""
     from .. import stamps
@@ -396,7 +399,7 @@ def stamps_library(_: str = Depends(current_user)):
 async def pdf_stamp(file: UploadFile = File(...), template_id: str = Form(...),
                     page: int = Form(1), x: float = Form(36), y: float = Form(36),
                     disposition: str = Form(""), values: str = Form(""),
-                    _: str = Depends(current_user)):
+                    _: str = Depends(require_identified)):
     """Composite a review / inspection / status stamp onto a page (1-based). (x,y) = top-left of the
     stamp in PDF points from the page's top-left. `values` = JSON object of field values."""
     from .. import stamps
@@ -413,10 +416,27 @@ async def pdf_stamp(file: UploadFile = File(...), template_id: str = Form(...),
 async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
                    page: int = Form(1), x: float = Form(36), y: float = Form(36),
                    sign: bool = Form(True), profile: str = Form(...),
-                   _: str = Depends(current_user)):
+                   db: Session = Depends(get_db),
+                   actor: str = Depends(require_identified)):
     """Render a *visible* professional seal + signature block, then apply a tamper-evident PAdES
     signature LAST (unless `sign=false`). `profile` = JSON {name,license_no,state,expiration,date}.
-    The self-signed platform cert is demonstration / tamper-evidence, not board-accepted sealing."""
+    The self-signed platform cert is demonstration / tamper-evidence, not board-accepted sealing.
+
+    **Authorisation and attribution are both load-bearing here, and neither was present.** This route
+    guarded with `Depends(current_user)`, which identifies without authorising — so with RBAC on and no
+    credentials at all, an anonymous caller could upload any PDF and receive it back bearing a rendered
+    PE or RA seal with a name, licence number and state of their choosing. Verified end to end against
+    `seal-pe` and `seal-ra`; the attacker-supplied name and licence number extracted out of the
+    returned document. Applying a professional seal without authority is a criminal offence in most US
+    jurisdictions, so a platform doing it on request is not merely a technical exposure.
+
+    `profile` is still caller-supplied rather than derived from the signed-in user's own credentials —
+    an authenticated user can therefore seal in somebody else's name. Tying the seal to the account is
+    a product decision (it needs a licence record per user), so it is NOT silently changed here. What
+    is changed is that the act is now attributable: the audit row records who requested it, under which
+    licence number, and whether the crypto signature was applied. A professional act that leaves no
+    trace of who performed it cannot be investigated afterwards.
+    """
     from starlette.concurrency import run_in_threadpool
 
     from .. import stamps
@@ -428,6 +448,15 @@ async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
                                             prof, sign)
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
+    # Recorded AFTER the seal succeeds: a row for an attempt that raised would claim a document was
+    # sealed when none was. The licence number is kept because it is the field that identifies whose
+    # authority was asserted, which is the whole point of being able to look this up later.
+    audit.record(db, action="pdf.seal", actor=actor, method="POST", path="/pdf/seal",
+                 detail={"template_id": template_id, "signed": bool(meta.get("sealed")),
+                         "seal_name": str(prof.get("name") or "")[:120],
+                         "license_no": str(prof.get("license_no") or "")[:60],
+                         "state": str(prof.get("state") or "")[:16]})
+    db.commit()
     return Response(out, media_type="application/pdf", headers={
         "Content-Disposition": 'attachment; filename="sealed.pdf"',
         "X-Seal-Sealed": str(meta["sealed"]).lower(),

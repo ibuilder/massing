@@ -123,6 +123,38 @@ def require_identified(user: str = Depends(current_user)) -> str:
     return user
 
 
+def require_platform_admin(db: Session = Depends(get_db),
+                           user: str = Depends(current_user)) -> str:
+    """A caller allowed to change FIRM-WIDE state — for global routes with no owning project.
+
+    `require_role("admin")` is the wrong gate for a global route, and not merely a weaker one: its
+    dependency signature is `dep(pid: str, ...)`, so on a path with no `{pid}` FastAPI exposes `pid`
+    as a **caller-supplied query parameter**. The caller therefore chooses which project's role is
+    checked. `PUT /firm/rules` was gated that way, and the escalation is complete: register, create
+    your own throwaway project (you are its admin), then
+    `PUT /firm/rules?pid=<your own project>` → `200 {"saved": 1}`. Verified end to end. Because
+    `firm_standards.save_rules` REPLACES the library, the same call also erases the firm's real
+    standards — after which every project's rule-check passes with nothing left to check, which is
+    worse than a visible failure.
+
+    The pattern here is not new; it was already written correctly for the cost-vintage importer,
+    whose docstring names this exact threat ("a lone viewer-role member must never be able to
+    silently reprice all projects' estimates"). It lived privately in `routers/cost.py`, so the next
+    global route had nothing to reuse and reached for `require_role` instead. That is why it now
+    lives beside `require_identified` — a shared gate in a feature router is a gate the next author
+    will not find.
+
+    Open where the product is single-operator (RBAC off, LOCAL_MODE, or the api-key identity) so
+    desktop and dev are unchanged; otherwise it needs a platform admin. NB for operators: with RBAC
+    on, editing firm standards now requires `AEC_ADMIN_EMAILS` to name someone.
+    """
+    if not RBAC_ON or LOCAL_MODE or user == "api-key":
+        return user
+    from .routers.auth import require_admin_user  # deferred: routers import rbac, not the reverse
+    require_admin_user(db=db, user=user)           # raises 403 unless AEC_ADMIN_EMAILS / legacy admin
+    return user
+
+
 def member_project_ids(db: Session, user: str) -> set[str] | None:
     """The set of project ids the caller may see in a cross-project roll-up. Returns None when RBAC is
     off (dev) or for the api-key/admin identity, meaning "no restriction". Otherwise only the projects

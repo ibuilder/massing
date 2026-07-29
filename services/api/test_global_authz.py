@@ -14,7 +14,8 @@ TWO MECHANISMS PROTECT THESE ROUTES, and a route needs one of them:
    defect: adding a new prefix (`/jurisdiction`) silently opts out of the safety net and nothing
    fails. That is exactly what happened.
 2. The route's own dependency chain carrying something that AUTHORISES — `require_role` (tagged
-   `_role_gate`), `require_admin_user`, `_require_platform_admin`, `require_identified`,
+   `_role_gate`), `require_admin_user`, `require_platform_admin` /
+   `_require_platform_admin`, `require_identified`,
    `require_scim`.
 
 `Depends(current_user)` is neither. It **identifies**; with RBAC on and no credential it returns the
@@ -58,8 +59,11 @@ import aec_api.main as M  # noqa: E402
 #: ratchet silently and nothing fails. That is the `current_user` trap one level up: a name that
 #: reads like a gate. An allowlist entry with no referent is a pre-authorised hole waiting for a
 #: matching name, so the set is now verified against the source rather than trusted.
-AUTHORISING = {"require_admin_user", "_require_platform_admin", "require_identified",
-               "require_scim"}
+# `require_platform_admin` is the shared rbac.py gate for firm-wide writes; `_require_platform_admin`
+# is the private name in routers/cost.py that now delegates to it. Both names are kept because this
+# matches by NAME and both still appear as dependencies.
+AUTHORISING = {"require_admin_user", "require_platform_admin", "_require_platform_admin",
+               "require_identified", "require_scim"}
 
 MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -128,12 +132,15 @@ BASELINE = {
     ("POST", "/schedule/takt"), ("POST", "/schedule/takt/progress"),
     ("POST", "/estimate/assembly/price"), ("POST", "/parcels/analyze"), ("POST", "/parcels/screen"),
     ("POST", "/ids/build"), ("POST", "/ids/eir"),
-    ("POST", "/pdf/info"), ("POST", "/pdf/merge"), ("POST", "/pdf/split"), ("POST", "/pdf/extract"),
-    ("POST", "/pdf/rotate"), ("POST", "/pdf/stamp"), ("POST", "/pdf/seal"),
     ("POST", "/client-errors"),
     # (SCIM is NOT here: `require_scim` is in AUTHORISING, so the enumerator already clears those
     #  four routes. Listing them anyway would have been a silent lie about why they are safe — the
     #  first run of this test reported them as stale baseline entries, which is the check working.)
+    # (The seven POST /pdf/* routes were removed on 2026-07-29: FIXED, not re-frozen. They guarded with
+    #  `Depends(current_user)` and /pdf is outside _PROTECTED_PREFIXES, so an anonymous caller could
+    #  reach them. /pdf/seal was the serious one — verified end to end, an unauthenticated request
+    #  returned a PDF bearing a rendered PE seal with an attacker-chosen name and licence number.
+    #  All now take require_identified, and sealing writes an audit row naming the actor.)
     # (The three entries that used to sit here — POST /templates, DELETE /templates/{tid} and
     #  POST /samples/{sample_id}/open — were removed on 2026-07-29 because they were FIXED rather than
     #  re-frozen. They were flagged in this file as "the entries in this list I would not defend if
@@ -200,9 +207,12 @@ print(f"GLOBAL-AUTHZ OK - {len(live)} platform-global mutating route(s) carry no
       f"cause is that _PROTECTED_PREFIXES is hand-maintained, so a NEW top-level prefix silently "
       f"opts out of the safety net and nothing fails. This freezes the set: a new one fails the "
       f"build. It is not a claim that each of the {len(live)} is safe - it is a claim that each is "
-      f"KNOWN, and the number can only go down. The three that this file flagged as indefensible "
-      f"(POST/DELETE /templates, POST /samples/{{id}}/open) were FIXED rather than re-frozen on "
-      f"2026-07-29 and take require_identified now; a frozen count stops a hole multiplying, it does "
-      f"not close one.")
+      f"KNOWN, and the number can only go down. Twelve routes were FIXED rather than re-frozen on "
+      f"2026-07-29: POST/DELETE /templates and POST /samples/{{id}}/open (the three this file had "
+      f"flagged as indefensible), the seven POST /pdf/* routes - /pdf/seal returned a rendered PE "
+      f"seal bearing a caller-chosen name and licence number to an UNAUTHENTICATED request - and "
+      f"GET/PUT /firm/rules, where require_role on a path with no {{pid}} made `pid` a caller-supplied "
+      f"query parameter, so any project-admin could replace the firm's standards by naming their own "
+      f"project. A frozen count stops a hole multiplying; it does not close one.")
 if gone:
     print(f"  ({len(gone)} baseline entr(ies) no longer present - delete from BASELINE: {gone})")
