@@ -45,6 +45,47 @@ class FieldDef(BaseModel):
         return v
 
 
+class ToolRef(BaseModel):
+    """R30-TOOLS — a register naming the panel that operates on it.
+
+    Every other optional key on a module is *presentation*: icon, list_columns, pinnable, ref_prefix,
+    title_field, workspace. None of them says what a register can **do**, and that omission is why a
+    register renders as a table, a form and a status chip — which is, exactly, a paper form.
+
+    The depth was never missing. `bid_leveling.py` builds a scope-adjusted comparison from
+    `bid_submission` records; `schedule_cpm.py` runs a real forward/backward pass over
+    `schedule_activity`; `fca.py` computes an FCI from `fca_element`. What was missing is the seam: a
+    user standing in the register had no way to reach the tool, and `destinations.ts` declared the
+    dependency in only one direction (`needs`) for a handful of panels. This is the other direction.
+
+    `dest` is a first-class destination key (`__evm__`). It is deliberately NOT validated here —
+    the catalog lives in TypeScript, and a Python schema that hard-coded a copy of it would be the
+    third table encoding one fact. `moduleTools.test.ts` reads these files and asserts every `dest`
+    resolves against `ALL_DESTS`, which is the same shape as `roomNames.test.ts` reading `rooms.py`.
+
+    `scope` says where the button belongs: on the register header (`register`, the default — the tool
+    operates on the whole set) or on an open record (`record`).
+    """
+    model_config = ConfigDict(extra="allow")
+    dest: str
+    label: str
+    scope: str = "register"
+
+    @field_validator("dest")
+    @classmethod
+    def _dest_shape(cls, v: str) -> str:
+        if not (v.startswith("__") and v.endswith("__") and len(v) > 4):
+            raise ValueError(f"tool dest {v!r} must be a destination key like '__evm__'")
+        return v
+
+    @field_validator("scope")
+    @classmethod
+    def _known_scope(cls, v: str) -> str:
+        if v not in ("register", "record"):
+            raise ValueError(f"unknown tool scope {v!r} (expected 'register' or 'record')")
+        return v
+
+
 class Transition(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
     from_: str = Field(alias="from")
@@ -78,6 +119,7 @@ class ModuleSchema(BaseModel):
     workflow: Workflow | None = None
     title_field: str | None = None
     list_columns: list[str] = Field(default_factory=list)
+    tools: list[ToolRef] = Field(default_factory=list)
 
 
 def validate_module(mod: dict, *, known_modules: set[str] | None = None,
@@ -117,6 +159,12 @@ def validate_module(mod: dict, *, known_modules: set[str] | None = None,
                 errors.append(f"{key}.{f.name}: reference target module {f.module!r} does not exist")
         if f.type in ("select", "multiselect") and not f.options:
             errors.append(f"{key}.{f.name}: {f.type} field has no options")
+
+    seen_dest: set[str] = set()
+    for t in m.tools:
+        if t.dest in seen_dest:
+            errors.append(f"{key}: duplicate tool dest {t.dest!r}")
+        seen_dest.add(t.dest)
 
     nameset = set(names)
     if m.title_field and m.title_field not in nameset:

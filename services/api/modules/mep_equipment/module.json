@@ -106,13 +106,19 @@
         "from": "proposed",
         "to": "selected",
         "action": "select",
-        "party": ["Engineer", "PM"]
+        "party": [
+          "Engineer",
+          "PM"
+        ]
       },
       {
         "from": "selected",
         "to": "installed",
         "action": "install",
-        "party": ["GC", "PM"]
+        "party": [
+          "GC",
+          "PM"
+        ]
       }
     ]
   },
@@ -121,5 +127,11 @@
     "system",
     "capacity"
   ],
-  "workspace": "design|construction"
+  "workspace": "design|construction",
+  "tools": [
+    {
+      "dest": "__mepfittings__",
+      "label": "MEP fittings"
+    }
+  ]
 }

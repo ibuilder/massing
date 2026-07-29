@@ -94,5 +94,15 @@
     "amount",
     "invoice_date"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__margin__",
+      "label": "Cost-code margin"
+    },
+    {
+      "dest": "__wip__",
+      "label": "WIP schedule"
+    }
+  ]
 }

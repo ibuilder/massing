@@ -1,7 +1,7 @@
 {
   "key": "meter_reading",
   "name": "Meter Readings",
-  "section": "Operations",
+  "section": "Facilities",
   "icon": "🔢",
   "ref_prefix": "RDG",
   "title_field": "subject",
@@ -54,5 +54,11 @@
     "reading_date",
     "consumption"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__energy__",
+      "label": "Energy & water"
+    }
+  ]
 }

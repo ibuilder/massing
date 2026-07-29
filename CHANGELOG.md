@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.796 — R30-TOOLS: a register can finally say what it can DO
+
+Every optional key a module carried was **presentation** — icon, list_columns, pinnable, ref_prefix,
+title_field, workspace. None said what the register can *do*, which is exactly why 133 registers
+rendered as a table, a form and a status chip: a paper form.
+
+The depth was never missing. `bid_leveling.py` builds a scope-adjusted comparison from
+`bid_submission`; `schedule_cpm.py` runs a real forward/backward pass over `schedule_activity`;
+`fca.py` computes an FCI from `fca_element`. **The seam was missing** — a user standing in the
+register had no route to the tool, and `destinations.ts` declared the dependency in one direction
+only, for a handful of panels. 56 modules now carry a `tools:` list naming the destinations that
+operate on them.
+
+Two things make it more than a data edit. `GET /modules` is an **allowlist** that silently drops any
+key it does not name, so a `tools` key nobody forwarded would have been invisible with every file
+correct — it is forwarded. And `moduleTools.test.ts` reads the JSON from disk and asserts every
+`dest` resolves against `ALL_DESTS`, so a typo or a renamed panel fails the build instead of
+rendering a dead button. Same shape as `roomNames.test.ts` reading `rooms.py`.
+
+Also: `docs/module-room-audit.md` records where all 133 modules sit and why; the demo capture and
+Pages guide are regenerated to match; and `.claude/launch.json` gains an `api-alt`/`web-alt` pair on
+:8097/:5183 so one session can verify its own build while another holds the default ports.
+
+Verified before landing rather than after: backend `test_module_rooms` (133 modules → exactly one
+room each), `test_modules`, `test_reachable` (306/310); web typecheck clean and **76 files / 823
+tests** green. The new gate was mutation-checked — an injected bogus `dest` fails it by name, and it
+passes again on restore.
+
 ## v0.3.795 — R24-MONO-DATA, and three tests of mine that were making other tests fail
 
 ### The face is decided once

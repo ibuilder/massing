@@ -1,7 +1,7 @@
 {
   "key": "transmittal",
   "name": "Transmittals",
-  "section": "Engineering",
+  "section": "Coordination",
   "icon": "➟",
   "ref_prefix": "TR",
   "title_field": "subject",

@@ -98,5 +98,11 @@
     "amount",
     "status"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__wip__",
+      "label": "WIP schedule"
+    }
+  ]
 }

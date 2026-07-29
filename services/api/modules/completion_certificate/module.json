@@ -82,5 +82,11 @@
     "type",
     "date"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__turnover__",
+      "label": "Certify substantial completion"
+    }
+  ]
 }

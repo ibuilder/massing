@@ -1,7 +1,7 @@
 {
   "key": "work_order",
   "name": "Work Orders",
-  "section": "Operations",
+  "section": "Facilities",
   "icon": "🔧",
   "ref_prefix": "WO",
   "title_field": "subject",
@@ -156,5 +156,11 @@
     "priority",
     "due_date"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__operations__",
+      "label": "CMMS & PM compliance"
+    }
+  ]
 }

@@ -1,6 +1,8 @@
 """GC portal engine test: module CRUD, role-gated workflow, change-order chain, pins,
 activity timeline. Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_modules.py"""
+import json
 import os
+import pathlib
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_mod.db"
 os.environ["STORAGE_DIR"] = "./test_storage"
@@ -12,6 +14,7 @@ for f in ("./test_mod.db",):
         os.remove(f)
 
 from fastapi.testclient import TestClient  # noqa: E402
+
 from aec_api.main import app  # noqa: E402
 
 
@@ -29,6 +32,24 @@ with TestClient(app) as c:
     for k in ("rfi", "cor", "change_event", "pco_request", "proposal", "submittal"):
         refs = [f for f in mods[k]["fields"] if f.get("type") == "reference" and f.get("module") == "cost_code"]
         assert refs, f"{k} should reference cost_code"
+
+    # ---- R30-TOOLS: a register's declared tools SURVIVE the wire ---------------------------------
+    # `/modules` projects a hand-written allowlist of keys rather than returning the module dict, and
+    # that allowlist is a silent-drop seam: a key added to module.json and to the web's ModuleDef type
+    # still arrives as undefined, and an undefined list renders as no buttons — which looks exactly
+    # like "the feature isn't built" rather than "the feature isn't served". That is what happened to
+    # `tools` on the first pass, and it was only caught by querying a running server. So the gate is
+    # here now: whatever a module declares, this asserts the client can see it.
+    declared = json.loads((pathlib.Path(__file__).parent / "modules" / "bid_submission"
+                           / "module.json").read_text(encoding="utf-8"))
+    assert declared.get("tools"), "bid_submission should declare a tool (fixture for the check below)"
+    assert mods["bid_submission"]["tools"] == declared["tools"], (
+        "tools[] was dropped by the /modules projection — the register cannot reach its own tool")
+    with_tools = {k: m for k, m in mods.items() if m.get("tools")}
+    assert len(with_tools) >= 30, f"only {len(with_tools)} registers advertise a tool"
+    for k, m in with_tools.items():
+        for t in m["tools"]:
+            assert t.get("dest", "").startswith("__") and t.get("label"), (k, t)
 
     # module-relations graph — nodes = modules, edges = reference + rollup links
     g = c.get("/modules/graph").json()
@@ -178,7 +199,8 @@ with TestClient(app) as c:
            json={"data": {"subject": "Sprinkler routing"}})
     bcf = c.get(f"/projects/{pid}/modules/coordination_issue/bcf/export", headers=H("gc"))
     assert bcf.status_code == 200 and bcf.content[:2] == b"PK", bcf.status_code   # a real zip
-    import io as _bio, zipfile as _bz
+    import io as _bio
+    import zipfile as _bz
     z = _bz.ZipFile(_bio.BytesIO(bcf.content))
     assert "bcf.version" in z.namelist() and sum(n.endswith("markup.bcf") for n in z.namelist()) == 2, z.namelist()
     assert any(n.endswith(".bcfv") for n in z.namelist()), "pinned issue carries a viewpoint"
@@ -357,6 +379,6 @@ with TestClient(app) as c:
 
     print("GC MODULES OK")
     print(f"  modules loaded: {len(mods)}  |  project={pid}")
-    print(f"  RFI lifecycle gated (sub blocked from answering: 403)")
+    print("  RFI lifecycle gated (sub blocked from answering: 403)")
     print(f"  change-order chain: PCO->NOC->DIR->PROP->COR (approved, {len(linked['links'])} links)")
     print(f"  model pins: {sorted(refs)}")

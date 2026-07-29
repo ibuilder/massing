@@ -1,7 +1,7 @@
 {
   "key": "issue",
   "name": "Issues",
-  "section": "Engineering",
+  "section": "Coordination",
   "icon": "!",
   "ref_prefix": "ISS",
   "title_field": "subject",

@@ -1,7 +1,7 @@
 {
   "key": "poe",
   "name": "Post-Occupancy Evaluations",
-  "section": "Operations",
+  "section": "Facilities",
   "icon": "🧪",
   "ref_prefix": "POE",
   "title_field": "subject",

@@ -1,7 +1,7 @@
 {
   "key": "meter",
   "name": "Utility Meters",
-  "section": "Operations",
+  "section": "Facilities",
   "icon": "⏲️",
   "ref_prefix": "MTR",
   "title_field": "subject",
@@ -76,5 +76,11 @@
     "utility",
     "unit"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__energy__",
+      "label": "Energy & water"
+    }
+  ]
 }

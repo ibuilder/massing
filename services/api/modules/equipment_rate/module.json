@@ -1,7 +1,7 @@
 {
   "key": "equipment_rate",
   "name": "Equipment Rates",
-  "section": "Resources",
+  "section": "Reference Data",
   "icon": "$",
   "ref_prefix": "ER",
   "title_field": "equipment",

@@ -1,7 +1,7 @@
 {
   "key": "resource_assignment",
   "name": "Resource Assignments",
-  "section": "Resources",
+  "section": "Schedule",
   "icon": "👷",
   "ref_prefix": "RA",
   "title_field": "resource_name",
@@ -126,5 +126,11 @@
     "trade",
     "units"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__resload__",
+      "label": "Resource loading"
+    }
+  ]
 }

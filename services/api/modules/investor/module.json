@@ -1,7 +1,7 @@
 {
   "key": "investor",
   "name": "Investors",
-  "section": "Capital",
+  "section": "Finance",
   "icon": "💼",
   "ref_prefix": "INV",
   "title_field": "investor",

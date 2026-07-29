@@ -113,5 +113,11 @@
     "bfe_ft",
     "flood_design_class"
   ],
-  "workspace": "design|developer"
+  "workspace": "design|developer",
+  "tools": [
+    {
+      "dest": "__resilience__",
+      "label": "Flood exposure"
+    }
+  ]
 }

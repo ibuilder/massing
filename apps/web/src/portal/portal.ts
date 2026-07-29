@@ -1485,12 +1485,26 @@ export class PortalUI {
     if (this.readColPrefs(m.key)) colBtn.classList.add("on");   // signal a non-default column set is active
     colBtn.onclick = () => this.columnPicker(m, colNames, filter);
     actions.append(newBtn, boardBtn, csvBtn, impBtn, impFile, pasteBtn, editBtn, tplBtn, colBtn, fbox, stateSel, viewSel, saveView);
-    // the Schedule module is the relational home for the same activities behind Gantt / LOB / CPM /
-    // the 3D 4D scrub — surface those views here so linear + gantt live with the GC schedule.
-    if (m.key === "schedule_activity") {
-      const sv = document.createElement("button"); sv.className = "tool-btn"; sv.textContent = "📊 Views";
-      sv.onclick = () => this.renderScheduleViews(m);
-      actions.append(sv);
+    // R30-TOOLS — the tools this register declares, rendered from `module.json` rather than hardcoded.
+    //
+    // The audit's finding was that every optional key a module could carry was presentation — icon,
+    // columns, pinnable — and none said what the register could *do*. So a register rendered as a
+    // table, a form and a status chip, which is exactly a paper form, while `bid_leveling.py`,
+    // `schedule_cpm.py` and `fca.py` sat one unlinked screen away. `tools[]` is that link, and the
+    // hardcoded `schedule_activity` "Views" button that used to live here is the reason it is
+    // declarative now: one register got a door because someone remembered to write the branch.
+    //
+    // An unknown dest renders nothing rather than a dead button — `goToDest` no-ops on a key it does
+    // not know, and a button that silently does nothing is worse than an absent one.
+    const dispatch = this.destDispatch();          // built once, not once per declared tool
+    for (const t of m.tools ?? []) {
+      if ((t.scope ?? "register") !== "register") continue;   // record-scoped tools render on the record
+      if (!dispatch[t.dest]) continue;
+      const tb = document.createElement("button"); tb.className = "tool-btn"; tb.dataset.dest = t.dest;
+      tb.textContent = `⚙ ${t.label}`;
+      tb.title = `Open ${t.label} — the tool that works on these ${m.name.toLowerCase()}`;
+      tb.onclick = () => this.goToDest(t.dest);
+      actions.append(tb);
     }
     // coordination issues round-trip via BCF with other BIM tools (Solibri/ACC/BIMcollab)
     if (m.key === "coordination_issue") {

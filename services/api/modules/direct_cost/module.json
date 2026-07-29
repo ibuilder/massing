@@ -77,5 +77,11 @@
     "amount",
     "date"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__margin__",
+      "label": "Cost-code margin"
+    }
+  ]
 }

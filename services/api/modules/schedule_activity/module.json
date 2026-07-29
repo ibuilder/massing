@@ -1,7 +1,7 @@
 {
   "key": "schedule_activity",
   "name": "Schedule",
-  "section": "Field",
+  "section": "Schedule",
   "icon": "â–¸",
   "ref_prefix": "ACT",
   "title_field": "name",
@@ -186,5 +186,19 @@
     "finish",
     "percent"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__schedule__",
+      "label": "Gantt & CPM"
+    },
+    {
+      "dest": "__resload__",
+      "label": "Resource loading"
+    },
+    {
+      "dest": "__evm__",
+      "label": "Earned value"
+    }
+  ]
 }

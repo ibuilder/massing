@@ -1,7 +1,7 @@
 {
   "key": "labor_rate",
   "name": "Labor Rates",
-  "section": "Resources",
+  "section": "Reference Data",
   "icon": "$",
   "ref_prefix": "LR",
   "title_field": "trade",

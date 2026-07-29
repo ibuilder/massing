@@ -1,7 +1,7 @@
 {
   "key": "warranty",
   "name": "Warranties",
-  "section": "Closeout",
+  "section": "Handover",
   "icon": "▣",
   "ref_prefix": "WAR",
   "title_field": "name",

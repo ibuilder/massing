@@ -65,5 +65,15 @@
     "original",
     "revised"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__budget__",
+      "label": "Budget"
+    },
+    {
+      "dest": "__margin__",
+      "label": "Cost-code margin"
+    }
+  ]
 }

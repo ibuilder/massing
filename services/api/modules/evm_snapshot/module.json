@@ -103,5 +103,11 @@
     "spi",
     "percent_complete"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__evm__",
+      "label": "Earned value"
+    }
+  ]
 }

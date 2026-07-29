@@ -1,7 +1,7 @@
 {
   "key": "company",
   "name": "Companies",
-  "section": "Resources",
+  "section": "Directory",
   "icon": "🏢",
   "ref_prefix": "ORG",
   "title_field": "name",

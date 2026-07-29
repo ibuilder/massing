@@ -64,11 +64,62 @@ assert len(seen) == len(mods), (len(seen), len(mods))
 # filed under Preconstruction and therefore under Cost. Planning split for the mirror-image reason:
 # taking off and buying out are preconstruction work, and sharing a room with the general ledger put
 # a quantity surveyor and an accounts clerk behind the same tab.
-assert [r["id"] for r in rooms.ROOMS] == ["design", "planning", "cost", "schedule", "deal", "work"]
+#
+# R30 added **Operate** as the seventh, between Schedule and Deal. Facilities management had been
+# sectioned "Operations" and therefore filed under Deal, so the registers that accrue the most records
+# over an asset's life lived in a room whose stated job is underwriting and disposition.
+#
+# The ORDER is the user's, set 2026-07-29: the deal first because it authorizes everything after it,
+# the finished asset last because operating it is the longest phase. It is the *unweighted* order —
+# `orderRooms()` promotes a workspace's own room to the front, so a Construction user still opens on
+# Schedule. `roomNames.test.ts` asserts this same sequence with toEqual across the language boundary.
+assert [r["id"] for r in rooms.ROOMS] == ["deal", "design", "planning", "schedule", "cost",
+                                          "work", "operate"]
 # professional terms are primary — this was an explicit decision, and a rename should break the test
-assert [r["label"] for r in rooms.ROOMS] == ["Design", "Planning", "Cost", "Schedule", "Deal", "Work"]
+assert [r["label"] for r in rooms.ROOMS] == ["Deal", "Design", "Planning", "Schedule", "Cost",
+                                             "Work", "Operate"]
 for r in rooms.ROOMS:
     assert len(r["job"]) > 25, f"{r['id']} needs a plain statement of what it is for"
+
+# ---- THE ALLOCATION ITSELF, not just its wellformedness ------------------------------------------
+# The gate above proves every module has *a* room. It cannot tell you the module has the *right* one,
+# and that is the failure the audit actually found: `work_order` was reachable the whole time, from
+# Deal, and being reachable is what made it invisible as a defect. So the specific placements that
+# were argued for are asserted by name. Moving one of these is then a deliberate edit to a test with
+# the reasoning next to it, rather than a section string changed in passing.
+ROOM_OF_MODULE = {
+    # Operate exists for these. If one drifts back to Deal or Schedule, say so loudly.
+    "operate": ["asset_register", "building_system", "capital_plan", "commissioning", "fca_element",
+                "meter", "meter_reading", "om_manual", "pm_schedule", "poe", "warranty",
+                "work_order"],
+    # Quality is executed in the field, not drawn in the design room.
+    "schedule": ["compliance_evidence", "deficiency", "inspection", "itp", "ncr", "test_record",
+                 # the schedule lives in the Schedule room *and* the Schedule section (it did not)
+                 "schedule_activity", "resource_assignment", "staffing", "risk"],
+    # One approvals spine; rate libraries and the vendor book feed estimating, not sequencing.
+    "planning": ["permit", "entitlement", "cost_code", "labor_rate", "material_rate",
+                 "equipment_rate", "price_observation", "company", "contact"],
+    # Equity is a deal, not a ledger entry.
+    "deal": ["investor", "lease", "cam_expense"],
+}
+for room_id, keys in ROOM_OF_MODULE.items():
+    for key in keys:
+        assert seen.get(key) == room_id, (
+            f"{key} is in {seen.get(key)!r}, expected {room_id!r}. This placement was argued for in "
+            "docs/module-room-audit.md; if it is being changed, change it here too and say why."
+        )
+
+# Sections that were retired, and must not come back by copy-paste. Each had exactly one problem:
+# "Resources" sounded like resource loading and held a rate library; "Capital" was a one-module
+# section whose module belonged to Deal.
+for dead in ("Resources", "Capital"):
+    assert dead not in rooms.ROOM_OF_SECTION, f"{dead!r} was retired in R30 — see the audit"
+    assert dead not in sections, f"a module is still sectioned {dead!r}"
+
+# Every mapped section is actually used. A section→room entry with no modules is a decision nobody
+# can see the effect of, and it is how the table silently accumulates fiction.
+unused = sorted(set(rooms.ROOM_OF_SECTION) - sections)
+assert not unused, f"ROOM_OF_SECTION maps {unused}, which no module uses"
 
 # no room may be empty except Work, which holds records rather than modules — a room nobody can fill
 # is a tab that always disappoints

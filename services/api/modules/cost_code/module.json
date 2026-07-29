@@ -1,7 +1,7 @@
 {
   "key": "cost_code",
   "name": "Cost Codes",
-  "section": "Resources",
+  "section": "Reference Data",
   "icon": "#",
   "ref_prefix": "CC",
   "title_field": "code",
@@ -111,5 +111,15 @@
   "list_columns": [
     "division"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__margin__",
+      "label": "Cost-code margin"
+    },
+    {
+      "dest": "__traceability__",
+      "label": "Cost traceability"
+    }
+  ]
 }

@@ -1,7 +1,7 @@
 {
   "key": "pm_schedule",
   "name": "PM Schedules",
-  "section": "Operations",
+  "section": "Facilities",
   "icon": "🔁",
   "ref_prefix": "PM",
   "title_field": "subject",
@@ -84,5 +84,11 @@
     "frequency_days",
     "next_due"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__operations__",
+      "label": "Generate PM work orders"
+    }
+  ]
 }

@@ -601,7 +601,8 @@ const wsEl = $("workspaces");
  */
 const ROOM_HOST: Record<string, string> = {
   design: "model", planning: "construction", cost: "construction",
-  schedule: "construction", deal: "developer", work: "construction",
+  schedule: "construction", operate: "developer", deal: "developer",
+  work: "construction",
 };
 
 /**

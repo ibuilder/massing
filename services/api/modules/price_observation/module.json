@@ -1,7 +1,7 @@
 {
   "key": "price_observation",
   "name": "Price Observations",
-  "section": "Resources",
+  "section": "Reference Data",
   "icon": "📈",
   "ref_prefix": "PX",
   "title_field": "material",

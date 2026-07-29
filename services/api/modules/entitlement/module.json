@@ -1,7 +1,7 @@
 {
   "key": "entitlement",
   "name": "Entitlements",
-  "section": "Acquisition",
+  "section": "Approvals",
   "icon": "🏛️",
   "ref_prefix": "ENT",
   "title_field": "subject",

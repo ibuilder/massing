@@ -1,7 +1,7 @@
 {
   "key": "commissioning",
   "name": "Commissioning",
-  "section": "Closeout",
+  "section": "Handover",
   "icon": "◉",
   "ref_prefix": "CX",
   "title_field": "system",
@@ -98,5 +98,11 @@
     "system",
     "status"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__operations__",
+      "label": "Cx dossier"
+    }
+  ]
 }

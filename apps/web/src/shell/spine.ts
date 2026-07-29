@@ -3,8 +3,8 @@
  *
  * The audit's first finding: seven workspaces carry **four different left-rail taxonomies**, so
  * nothing a user learns in one transfers to the next, and modules land in more than one of them.
- * The spine replaces that with one constant structure — **Design · Planning · Cost · Schedule · Deal
- * · Work** — identical for every role. (Model became **Design** in v0.3.766: the room was named for
+ * The spine replaces that with one constant structure — **Deal · Design · Planning · Schedule · Cost
+ * · Work · Operate** — identical for every role. (Model became **Design** in v0.3.766: the room was named for
  * one of its outputs, which left drawings and specifications looking like they belonged elsewhere —
  * and specifications actually had, filed under Preconstruction and therefore under Cost. **Planning**
  * split from Cost in the same change, so taking off and buying out stopped sharing a room with the
@@ -76,7 +76,7 @@ export function roomBadge(room: RoomDef, inCourt: Record<string, number>): numbe
 }
 
 /** The room ids, in canonical order. Mirrors `rooms.ROOMS` server-side. */
-export const ROOM_IDS = ["design", "planning", "cost", "schedule", "deal", "work"] as const;
+export const ROOM_IDS = ["deal", "design", "planning", "schedule", "cost", "work", "operate"] as const;
 
 /**
  * The rooms with no server behind them (v0.3.718).
@@ -95,12 +95,13 @@ export const ROOM_IDS = ["design", "planning", "cost", "schedule", "deal", "work
  * lists cannot drift.
  */
 export const FALLBACK_ROOMS: readonly RoomDef[] = [
-  { id: "design", label: "Design", job: "Model it, draw it, specify it — the architect's and engineer's room", count: 0, modules: [] },
-  { id: "planning", label: "Planning", job: "Take it off, estimate it, bid it, buy it out and contract it", count: 0, modules: [] },
-  { id: "cost", label: "Cost", job: "Budget it, change it, bill it and account for it", count: 0, modules: [] },
-  { id: "schedule", label: "Schedule", job: "Sequence it, run the field, and track what got built", count: 0, modules: [] },
   { id: "deal", label: "Deal", job: "Underwrite it, fund it, lease it and dispose of it", count: 0, modules: [] },
+  { id: "design", label: "Design", job: "Model it, draw it, specify it — the architect's and engineer's room", count: 0, modules: [] },
+  { id: "planning", label: "Planning", job: "Take it off, estimate it, bid it, buy it out, contract it and get it approved", count: 0, modules: [] },
+  { id: "schedule", label: "Schedule", job: "Sequence it, run the field, and track what got built", count: 0, modules: [] },
+  { id: "cost", label: "Cost", job: "Budget it, change it, bill it and account for it", count: 0, modules: [] },
   { id: "work", label: "Work", job: "Whatever is in your court right now", count: 0, modules: [] },
+  { id: "operate", label: "Operate", job: "Hand it over, maintain it, meter it and plan its renewal", count: 0, modules: [] },
 ];
 
 /**
@@ -139,11 +140,17 @@ export const DEST_ROOM: Record<string, string> = {
   // ── Schedule: time, and the field that consumes it ────────────────────────────────────────────
   __schedule__: "schedule", __resload__: "schedule", __equipment__: "schedule",
    __turnover__: "schedule",
+  // ── Operate: the asset in service (R30) ───────────────────────────────────────────────────────
+  // These three were filed under Deal because facilities management was sectioned as "Operations"
+  // and Operations meant the landlord. A technician opening a work order was landing in a room whose
+  // stated job is underwriting and disposition. `__assets__` moves with them: the asset register is
+  // the handover artifact the CMMS reads, and splitting it from the work orders is what severed the
+  // COBie chain in the first place.
+  __operations__: "operate", __fca__: "operate", __assets__: "operate",
   // ── Deal: the asset as an investment ──────────────────────────────────────────────────────────
   __uw__: "deal", __land__: "deal", __massingopt__: "deal", __diligence__: "deal",
   __market__: "deal", __lifecycle__: "deal", __portfolio__: "deal",
-  __operations__: "deal", __fca__: "deal",  __esg__: "deal",
-  __assets__: "deal",
+  __esg__: "deal",
   // ── Work: whatever is in your court ───────────────────────────────────────────────────────────
   __workqueue__: "work",
 };
@@ -176,6 +183,7 @@ export const ROOM_HOME: Record<string, string | null> = {
   // home never carries `goto` — the rule the old comment stated but nothing enforced.
   //
   // Deal reaching Underwriting needs `__uw__` to become a real portal panel. Tracked as R27-UW-PANEL.
+  operate: "__operations__",
   deal: "__portfolio__",
   work: "__workqueue__",
 };

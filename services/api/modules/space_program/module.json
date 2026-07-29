@@ -110,5 +110,15 @@
     "target_area_sf",
     "quantity"
   ],
-  "workspace": "design"
+  "workspace": "design",
+  "tools": [
+    {
+      "dest": "__program__",
+      "label": "Space program"
+    },
+    {
+      "dest": "__spaceutil__",
+      "label": "Space utilization"
+    }
+  ]
 }

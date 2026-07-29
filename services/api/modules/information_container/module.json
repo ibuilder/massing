@@ -173,5 +173,11 @@
     "suitability_code",
     "revision"
   ],
-  "workspace": "design"
+  "workspace": "design",
+  "tools": [
+    {
+      "dest": "__standards__",
+      "label": "CDE status"
+    }
+  ]
 }

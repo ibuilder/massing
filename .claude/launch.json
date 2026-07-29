@@ -25,6 +25,32 @@
       }
     },
     {
+      "_comment": "A second API on its own port, so a session can verify its own changes while another session's API holds 8093. The module registry is read at startup, so sharing a server means verifying someone else's build.",
+      "name": "api-alt",
+      "runtimeExecutable": "services/api/.venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "aec_api.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8097",
+        "--app-dir",
+        "services/api/src"
+      ],
+      "env": {
+        "PYTHONPATH": "C:\\Server\\modelmaker\\services\\api\\src;C:\\Server\\modelmaker\\services\\data\\src",
+        "DATABASE_URL": "sqlite:///./preview.db",
+        "STORAGE_DIR": "./preview_storage",
+        "AEC_LOCAL_MODE": "1",
+        "PYTHONUTF8": "1",
+        "AEC_CORS_ORIGINS": "http://localhost:5183,http://127.0.0.1:5183,http://localhost:5173,http://127.0.0.1:5173"
+      },
+      "autoPort": false,
+      "port": 8097
+    },
+    {
       "name": "web",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
@@ -81,6 +107,23 @@
         "apps/web/dist"
       ],
       "port": 8911
+    },
+    {
+      "_comment": "A second Vite on its own port, so a session can verify its own build while another session holds 5173.",
+      "name": "web-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "apps/web",
+        "--",
+        "--port",
+        "5183",
+        "--strictPort"
+      ],
+      "port": 5183,
+      "autoPort": false
     }
   ]
 }

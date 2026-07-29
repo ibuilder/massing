@@ -470,6 +470,11 @@ with TestClient(app) as c:
     # --- crawl the GET endpoints the web app calls ---
     snap["GET /projects"] = [{"id": pid, "name": "Demo Tower", "model_kind": None}]
     grab(c, "/modules"); grab(c, "/modules/graph"); grab(c, "/portfolio/executive"); grab(c, "/portfolio/construction"); grab(c, "/proforma/portfolio")
+    # /rooms was missing from the crawl, so the public demo's room rail always came from the web's
+    # FALLBACK_ROOMS rather than the served allocation — which is why a taxonomy change could rot the
+    # demo silently: the fallback still rendered *something* plausible. Captured now, so the demo shows
+    # the same rooms, counts and badges a real deployment does.
+    grab(c, "/rooms")
     grab(c, "/benchmarks/costs?min_samples=3"); grab(c, "/benchmarks/response-rates")
     grab(c, "/ids/templates"); grab(c, "/energy/benchmark-status"); grab(c, "/reports")
     grab(c, "/estimate/conceptual/catalog"); grab(c, "/mcp/tools"); grab(c, "/market/snapshot")

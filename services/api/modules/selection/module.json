@@ -100,5 +100,11 @@
     "actual_cost",
     "due_date"
   ],
-  "workspace": "design"
+  "workspace": "design",
+  "tools": [
+    {
+      "dest": "__selections__",
+      "label": "Selections & allowances"
+    }
+  ]
 }

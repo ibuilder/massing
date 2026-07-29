@@ -1,7 +1,7 @@
 {
   "key": "permit",
   "name": "Permitting",
-  "section": "Engineering",
+  "section": "Approvals",
   "icon": "\u25a3",
   "ref_prefix": "PMT",
   "title_field": "name",

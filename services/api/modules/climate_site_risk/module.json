@@ -119,5 +119,11 @@
     "season",
     "severity"
   ],
-  "workspace": "construction|design|developer"
+  "workspace": "construction|design|developer",
+  "tools": [
+    {
+      "dest": "__resilience__",
+      "label": "Climate risk"
+    }
+  ]
 }

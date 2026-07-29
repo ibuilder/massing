@@ -225,6 +225,11 @@ export interface ModuleDef {
   relations?: { label: string; module: string }[];
   list_columns?: string[];
   revisable?: boolean;
+  /** R30-TOOLS — first-class destinations that operate on this register. The inverse of `Dest.needs`:
+   *  `needs` lets a panel say which register it requires, `tools` lets a register say which panels
+   *  can act on it. Both directions are needed, and only one existed. `moduleTools.test.ts` asserts
+   *  every `dest` here resolves against `ALL_DESTS`. */
+  tools?: { dest: string; label: string; scope?: "register" | "record" }[];
   /** R26 — the ONE canonical room this module lives in ("model" | "cost" | "schedule" | "deal").
    *  Served by the API from a single section→room table, so no shell has to invent its own
    *  taxonomy — inventing one per workspace is how four different rails came to exist. */

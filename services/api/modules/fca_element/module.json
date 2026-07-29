@@ -1,7 +1,7 @@
 {
   "key": "fca_element",
   "name": "Facility Condition",
-  "section": "Operations",
+  "section": "Facilities",
   "icon": "🏥",
   "ref_prefix": "FCA",
   "title_field": "element",
@@ -154,5 +154,11 @@
     "condition_rating",
     "deficiency_cost"
   ],
-  "workspace": "construction|developer"
+  "workspace": "construction|developer",
+  "tools": [
+    {
+      "dest": "__fca__",
+      "label": "Facility condition index"
+    }
+  ]
 }

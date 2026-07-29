@@ -1,7 +1,7 @@
 {
   "key": "om_manual",
   "name": "O&M Manuals",
-  "section": "Closeout",
+  "section": "Handover",
   "icon": "▤",
   "ref_prefix": "OM",
   "title_field": "name",

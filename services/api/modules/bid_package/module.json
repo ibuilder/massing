@@ -124,5 +124,11 @@
     "trade",
     "due_date"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__aiassist__",
+      "label": "Scope gap & leveling"
+    }
+  ]
 }

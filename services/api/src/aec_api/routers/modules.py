@@ -50,6 +50,10 @@ def list_modules():
          "title_field": m.get("title_field"), "ref_prefix": m.get("ref_prefix"),
          "fields": m.get("fields", []), "workflow": m.get("workflow", {}),
          "relations": m.get("relations", []), "list_columns": m.get("list_columns"),
+         # R30-TOOLS: the destinations that operate on this register. Without this the register can
+         # only render itself — a table, a form and a status chip, which is a paper form — while the
+         # engine that makes it a tool sits one unlinked screen away.
+         "tools": m.get("tools", []),
          # R26-MODULE-HOME: the ONE canonical room this module lives in. Derived from its section by
          # a single table so a module cannot end up in two rooms, and served here so the shell never
          # has to invent its own taxonomy — which is how four different rails came to exist.

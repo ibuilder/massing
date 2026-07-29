@@ -18,8 +18,8 @@ likely to cause and least likely to notice. Same rule the rest of the codebase f
 of an answer is not an answer.
 
 **ROOM-NAMING — settled 2026-07-29: professional terms, not plain language.** The prototype named
-these Building · Budget · Timeline · Money · My to-do. We ship **Design · Planning · Cost · Schedule
-· Deal · Work**, and this is now a decision rather than an open question.
+these Building · Budget · Timeline · Money · My to-do. We ship **Deal · Design · Planning · Schedule
+· Cost · Work · Operate**, and this is now a decision rather than an open question.
 
 The reason is not formality. *These are the words the work already has*: an architect issues a
 **design**, a contractor runs a **schedule** and reports **cost**, a developer works a **deal**.
@@ -30,28 +30,57 @@ to use in exactly the moments that matter.
 
 The labels are duplicated in `apps/web/src/shell/spine.ts` (`FALLBACK_ROOMS`), which is what renders
 when `/rooms` fails — load-bearing since the classic shell was deleted in v0.3.779. Two tables
-encoding one decision drift, so `roomNames.test.ts` reads THIS file and asserts they agree label for
-label, and that no prototype name has crept back.
+encoding one decision drift, so `roomNames.test.ts` reads THIS file and asserts they agree on **id,
+label AND `job`**, in order, and that no prototype name has crept back.
+
+The `job` half was added on 2026-07-29 after it drifted within a day of the labels being guarded:
+Approvals moved into Planning, this file widened Planning's job to "…and get it approved", and the
+fallback still said "…buy it out and contract it" — green the whole time. A gate measures what it was
+written for and stays silent about the thing beside it, so the fix is to widen the gate rather than to
+remember harder.
+
+**R30-OPERATE — the seventh room, added 2026-07-29.** Facilities management was filed under
+`Operations` and therefore under **Deal**, so a technician logging a work order opened a room labelled
+*"Underwrite it, fund it, lease it and dispose of it"*. Eight registers — `work_order`, `pm_schedule`,
+`meter`, `meter_reading`, `building_system`, `fca_element`, `poe`, `capital_plan` — were doing a job
+the room they lived in did not describe, and they are the registers that accrue the most records over
+an asset's life. The platform already serves that job deeply (`cmms.py`, `fca.py`, `reserve.py`,
+`twin.py`, `energy.py`), so the room was the only thing missing.
+
+The same change reunites the **handover package** with its consumer. `asset_register`, `om_manual`,
+`warranty` and `commissioning` were filed under `Closeout` — the end of the construction sequence,
+which is where they are *produced* — while every system that reads them sits in operations. That is
+the COBie chain (assets, warranties, spares, PM schedules moving into the CMMS on day one) cut in half
+by a room boundary. They move to a `Handover` section in **operate**; what genuinely belongs to the
+end of construction — `completion_certificate`, `as_built`, `lessons_learned` — stays in `Closeout`.
 """
 from __future__ import annotations
 
 from typing import Any
 
-#: The five rooms. Professional terms are primary — the users are builders, developers, architects
+#: The seven rooms. Professional terms are primary — the users are builders, developers, architects
 #: and engineers who already own the vocabulary; there is deliberately no second string table.
+#:
+#: **Order is the user's, set 2026-07-29**: the deal comes first because it is what authorizes
+#: everything after it, and the finished asset comes last because operating it is the longest and
+#: final phase. This is the *unweighted* order — `orderRooms()` promotes a workspace's own room to
+#: the front, so a Construction user still sees Schedule first. That is the spine weighting working,
+#: not a bug.
 ROOMS: list[dict[str, str]] = [
+    {"id": "deal", "label": "Deal",
+     "job": "Underwrite it, fund it, lease it and dispose of it"},
     {"id": "design", "label": "Design",
      "job": "Model it, draw it, specify it — the architect's and engineer's room"},
     {"id": "planning", "label": "Planning",
-     "job": "Take it off, estimate it, bid it, buy it out and contract it"},
-    {"id": "cost", "label": "Cost",
-     "job": "Budget it, change it, bill it and account for it"},
+     "job": "Take it off, estimate it, bid it, buy it out, contract it and get it approved"},
     {"id": "schedule", "label": "Schedule",
      "job": "Sequence it, run the field, and track what got built"},
-    {"id": "deal", "label": "Deal",
-     "job": "Underwrite it, fund it, lease it and dispose of it"},
+    {"id": "cost", "label": "Cost",
+     "job": "Budget it, change it, bill it and account for it"},
     {"id": "work", "label": "Work",
      "job": "Whatever is in your court right now"},
+    {"id": "operate", "label": "Operate",
+     "job": "Hand it over, maintain it, meter it and plan its renewal"},
 ]
 ROOM_IDS = {r["id"] for r in ROOMS}
 
@@ -68,35 +97,51 @@ ROOM_OF_SECTION: dict[str, str] = {
     "Design": "design",
     "Design Phases": "design",
     "Engineering": "design",
+    "Coordination": "design",        # RFIs, meetings, transmittals — project-wide, but raised against
+                                     # the documents, so they sit beside the documents
     "Specifications": "design",      # the written half of the documents; the drawings are the other
     "Information Management": "design",
     "Programming": "design",
-    "Quality": "design",             # inspections/ITP describe the built thing against the design
     "Sustainability": "design",
     "Resilience": "design",
-    # ── Planning: turning a design into a bought, contracted scope ──────────────────────────────
+    # ── Planning: turning a design into a bought, contracted, approved scope ────────────────────
     # Split out of Cost. Estimating, taking off and buying out are *planning* work with an outcome
     # in money — filing them under Cost put a quantity surveyor and an accounts clerk in one room,
     # and buried the takeoff a preconstruction lead uses daily under a general ledger they never open.
     "Preconstruction": "planning",
     "Contracts": "planning",
+    # Approvals are one spine — zoning, entitlement, permit, certificate of occupancy are successive
+    # gates on the same path — and they had been cut in two: `permit` sat under Engineering (design)
+    # and `entitlement` under Acquisition (deal), so the two halves of one chase never met.
+    "Approvals": "planning",
+    # Rate libraries and the vendor book are *reference data* consumed by estimating and buyout. They
+    # spent the last revision in Schedule because the section was called "Resources", which sounded
+    # like resource loading and is not.
+    "Reference Data": "planning",
+    "Directory": "planning",
     # ── Cost: money against the building, once the scope is bought ──────────────────────────────
     "Cost": "cost",
     "Change Management": "cost",
-    "Capital": "cost",
-    # ── Schedule: time, and the field that consumes it ──────────────────────────────────────────
+    # ── Schedule: time, the field that consumes it, and the quality of what it produces ─────────
     "Schedule": "schedule",
     "Field": "schedule",
-    "Resources": "schedule",
     "Safety": "schedule",            # safety is a field-operations concern, logged where work happens
     "Project Controls": "schedule",
-    "Closeout": "schedule",          # the end of the sequence
+    # Quality moved out of Design (R30). The old reasoning — "inspections/ITP describe the built thing
+    # against the design" — is true of the reference standard and false of the *user*: an ITP hold
+    # point is released by a field engineer standing at the pour, and an NCR is written by a
+    # superintendent. `deficiency` and `ncr` are near-twins of `punchlist`, which was already here.
+    "Quality": "schedule",
+    "Closeout": "schedule",          # the end of the sequence — what construction *finishes*
+    # ── Operate: the asset in service, which is most of its life ────────────────────────────────
+    "Handover": "operate",           # what operations *receives*; see the R30 note above
+    "Facilities": "operate",
     # ── Deal: the asset as an investment ────────────────────────────────────────────────────────
     "Acquisition": "deal",
     "Feasibility": "deal",
     "Finance": "deal",
     "Market & Sales": "deal",
-    "Operations": "deal",            # operating the asset is the back half of owning it
+    "Operations": "deal",            # leasing and recoveries — the landlord's half of owning it
 }
 
 

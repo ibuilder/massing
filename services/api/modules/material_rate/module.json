@@ -1,7 +1,7 @@
 {
   "key": "material_rate",
   "name": "Material Rates",
-  "section": "Resources",
+  "section": "Reference Data",
   "icon": "$",
   "ref_prefix": "MR",
   "title_field": "material",

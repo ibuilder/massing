@@ -1,7 +1,7 @@
 {
   "key": "material_request",
   "name": "Material Requests",
-  "section": "Resources",
+  "section": "Field",
   "icon": "📦",
   "ref_prefix": "MRQ",
   "title_field": "material",

@@ -1,7 +1,7 @@
 {
   "key": "location",
   "name": "Locations",
-  "section": "Resources",
+  "section": "Design",
   "icon": "◎",
   "ref_prefix": "LOC",
   "title_field": "name",

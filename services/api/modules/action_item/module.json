@@ -1,7 +1,7 @@
 {
   "key": "action_item",
   "name": "Action Items",
-  "section": "Engineering",
+  "section": "Coordination",
   "icon": "□",
   "ref_prefix": "AI",
   "title_field": "subject",

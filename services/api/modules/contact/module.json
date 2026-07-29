@@ -1,7 +1,7 @@
 {
   "key": "contact",
   "name": "Contacts",
-  "section": "Resources",
+  "section": "Directory",
   "icon": "👤",
   "ref_prefix": "PER",
   "title_field": "name",

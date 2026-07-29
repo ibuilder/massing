@@ -118,5 +118,15 @@
   "close_requires_attachment": [
     "verified"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__operations__",
+      "label": "Cx dossier"
+    },
+    {
+      "dest": "__turnover__",
+      "label": "Turnover readiness"
+    }
+  ]
 }

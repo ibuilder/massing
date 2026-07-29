@@ -115,5 +115,11 @@
     "amount",
     "status"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__aiassist__",
+      "label": "Level bids"
+    }
+  ]
 }

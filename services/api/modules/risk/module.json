@@ -1,7 +1,7 @@
 {
   "key": "risk",
   "name": "Risk Register",
-  "section": "Quality",
+  "section": "Project Controls",
   "icon": "!",
   "ref_prefix": "RISK",
   "title_field": "title",
@@ -150,5 +150,11 @@
     "response_strategy",
     "cost_exposure"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__riskcost__",
+      "label": "Risk & cost"
+    }
+  ]
 }

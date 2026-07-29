@@ -91,5 +91,11 @@
     "phase",
     "target_lod"
   ],
-  "workspace": "design"
+  "workspace": "design",
+  "tools": [
+    {
+      "dest": "__standards__",
+      "label": "LOD assessment"
+    }
+  ]
 }

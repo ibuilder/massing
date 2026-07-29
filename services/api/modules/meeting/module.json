@@ -1,7 +1,7 @@
 {
   "key": "meeting",
   "name": "Meetings",
-  "section": "Engineering",
+  "section": "Coordination",
   "icon": "☷",
   "ref_prefix": "MTG",
   "title_field": "subject",

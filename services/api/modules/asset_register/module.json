@@ -1,7 +1,7 @@
 {
   "key": "asset_register",
   "name": "Asset Register",
-  "section": "Closeout",
+  "section": "Handover",
   "icon": "▦",
   "ref_prefix": "AST",
   "title_field": "name",
@@ -163,5 +163,15 @@
     "location",
     "warranty_expires"
   ],
-  "workspace": "construction"
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__assets__",
+      "label": "Model assets"
+    },
+    {
+      "dest": "__operations__",
+      "label": "Operations"
+    }
+  ]
 }
