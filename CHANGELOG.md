@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.770 — Deal opens on Underwriting, and Quality stays put
+
+**A workspace hand-off is now a navigation like any other.** Two destinations — Underwriting
+(→ finance) and Drawings (→ its own full-page surface) — carry `goto`: they switch workspace instead
+of rendering a portal panel. They did not mark themselves active on the way out, which cost two
+things. The rail lost its active marker entirely on the jump, so nothing on screen said where you
+were. And **arrival became unobservable** — the room tabs land by retrying until the target is
+active, so a `goto` destination could never be a room's home.
+
+That is why Deal had been landing on Portfolio since v0.3.766 rather than on Underwriting, which is
+what "underwrite it, fund it, lease it and dispose of it" actually starts with. Setting the key
+before the hand-off fixes both. Verified live: Deal → **Underwriting**, repeatably, with Cost and
+Schedule unaffected.
+
+**Quality stays in Design — because the task already reaches Work.** The question was whether
+inspections belong in Work rather than Design. They already do: the live work queue carries
+`INS-001 "Level 2 deck pour"`, `DEF-001` and `NCR-001` right now. Work is a **queue over every
+module**, not a register home — it has zero registers by design. Moving the `inspection` register
+there would split one discipline across two rooms, leaving ITP, NCR, Test Records, Deficiencies and
+Compliance Evidence behind, and would duplicate what the queue already does. The register belongs
+with its discipline; the task belongs in your court; those are different objects and the app already
+gets it right.
+
 ## v0.3.769 — the sample library actually ships (CI had been red all day)
 
 `test_samples` was failing **every CI run**, while passing locally on every run. The failing check

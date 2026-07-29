@@ -180,12 +180,14 @@ export const ROOM_HOME: Record<string, string | null> = {
   planning: "__benchmarks__",
   cost: "__budget__",
   schedule: "__schedule__",
-  // Portfolio, not Underwriting — and the reason is a wrinkle worth knowing. `__uw__` is the only
-  // destination in the app carrying `goto`, so it *switches workspace* instead of opening a panel.
-  // Nothing can land on it: the active item never becomes `__uw__`, so the room would sit on
-  // whatever the previous room had shown. Portfolio is the deal-level overview and is a real panel.
-  // That one destination behaving unlike the other sixty is the actual defect; see R27 in the roadmap.
-  deal: "__portfolio__",
+  // Underwriting — the room's actual job, restored in v0.3.770.
+  //
+  // This said `__portfolio__` for three releases because `__uw__` carries `goto`: it switches
+  // workspace rather than opening a panel, and the landing retry gives up when nothing ever becomes
+  // active. The fix was not to keep working around it but to make the hand-off mark itself active
+  // like any other navigation (`destButton`), so "did it arrive?" has an answer. Deal opens on the
+  // proforma again, which is what "underwrite it, fund it, lease it and dispose of it" starts with.
+  deal: "__uw__",
   work: "__workqueue__",
 };
 

@@ -310,7 +310,19 @@ export class PortalUI {
     b.dataset.dest = d.key;
     b.innerHTML = `<span class="ic">${d.icon}</span> ${d.label.replace(/&/g, "&amp;").replace(/</g, "&lt;")}`;
     b.onclick = d.goto
-      ? () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: d.goto }))
+      // A destination that lives in another workspace (Underwriting → finance, Drawings → its own
+      // full-page surface) still marks itself active before handing off.
+      //
+      // It did not, and that cost two things. The rail lost its active marker entirely on the jump,
+      // so nothing on screen said where you were. And **arrival became unobservable**: the room tabs
+      // land by retrying until the target is active, so a `goto` destination could never be a room's
+      // home — Deal had to settle for Portfolio instead of Underwriting, which is its actual job.
+      // Setting the key first makes the hand-off a navigation like any other.
+      ? () => {
+          this.activeKey = d.key;
+          this.buildNav();
+          window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: d.goto }));
+        }
       : () => { this.activeKey = d.key; void dests[d.key]?.(); this.buildNav(); };
     return b;
   }
