@@ -607,6 +607,32 @@ def sheet_regions_endpoint(pid: str, preset: str = "key", page: str = "A1",
     return out
 
 
+@router.post("/projects/{pid}/drawings/received-regions")
+async def received_sheet_regions(pid: str, file: UploadFile = File(...), page_index: int = Query(0, ge=0),
+                                 _db: Session = Depends(get_db),
+                                 _sec: str = Depends(require_role("viewer"))):
+    """R27-LAYOUT ①(b) — the layout layer of a sheet we did **not** draw.
+
+    `sheet-regions` above answers "what occupies which rectangle" for our own sheets, by keeping the
+    numbers `compose_viewports` computed. Every consultant sheet had no such answer: `sheet_extract`
+    regexes the text layer with no notion of *where on the page* anything sits, so a note, a takeoff
+    or a revision could only attach to a page number. This reads the rectangles out of the page's own
+    content stream and classifies them.
+
+    Each region reports `basis: "vector"`. `to_page` is **null for every region** — the page↔world
+    mapping cannot be recovered from a received sheet, and an identity would silently report page
+    points as metres. Any scale printed on the sheet comes back as `scale_denom_proposed`, for a
+    calibration step to accept: a takeoff auto-calibrated wrong looks finished, which is worse than
+    one nobody calibrated. A page whose vectors are gone (a scan) returns a stated **unknown** region
+    rather than an empty list — an empty list is a claim about the drawing, unknown is a claim about us.
+    """
+    from .. import sheet_recover
+    data = await file.read()
+    if not data:
+        raise HTTPException(422, "empty upload")
+    return sheet_recover.recover_regions(data, page_index)
+
+
 @router.post("/projects/{pid}/takeoff/2d")
 def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
                _sec: str = Depends(require_role("viewer"))):

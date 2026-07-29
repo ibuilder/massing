@@ -10,9 +10,13 @@ Three pillars on one IFC-keyed model: **BIM authoring/viewer** · **GC portal** 
 5D/4D spine from R25, the interaction surface from R26. **What is thin now is the drawing**: the sheet
 is still handled as an image with text behind it rather than as data (📐 R27).
 
-**Status — reconciled 2026-07-28 at v0.3.740.** CodeQL **0** open · backend **416** suites green ·
-vitest **557** (incl. vendored kernel + PDF engine) · single-source version in `apps/web/package.json`
-· CI on Node 22 · 3 remote branches, 1 open PR.
+**Status — reconciled 2026-07-29 at v0.3.778.** CodeQL **0** open (queried from the alerts API, not
+inferred from a green run) · backend **423** suites · vitest **715** (incl. vendored kernel + PDF
+engine) · `test_reachable` **301/305** modules callable · single-source version in
+`apps/web/package.json` · all 18 CI runs green across v0.3.776–777.
+
+*The previous status block claimed 416 / 557 as of v0.3.740 — thirty-eight releases stale. A status
+line nobody re-derives is just an old measurement wearing the present tense.*
 
 **The five-room shell is the DEFAULT and is reachable.** It renders in the Construction, Developer and
 Design workspaces; opening a project lands on the persona's home and every other workspace carries a
@@ -500,11 +504,23 @@ you have thrown the vectors away; we mostly have not. Rasters fall back to "unkn
   rather than against a second implementation of the same arithmetic — the 4D binding round-tripped
   perfectly through its own writer+reader pair while encoding the wrong IFC relation.
 
-  **(b) Received sheets.** Recover rectangles from the page content stream via `pypdf` and classify
-  them with the ADIRO-style vocabulary (titleblock · revision table · legend · general notes ·
-  view/viewport · key plan · scale bar), returning page coordinates with a per-region `basis` of
-  `sidecar` | `vector` | `unknown`. **A sheet whose vectors are gone returns `unknown`, never an empty
-  region list** — the unknown ≠ none rule that ten engines now enforce.
+  ✅ **(b) Received sheets** *(shipped v0.3.778)* — [sheet_recover.py](../services/api/src/aec_api/sheet_recover.py),
+  `POST /projects/{pid}/drawings/received-regions`. Rectangles come from the page's own content stream
+  and are classified with the ADIRO-style vocabulary; `basis` is `sidecar` | `vector` | `unknown`, and
+  a page with no vectors returns a **stated unknown, never an empty list** — an empty list is a claim
+  about the drawing, unknown is a claim about us. `to_page` is null for every region and never
+  identity: the page↔world mapping is not recoverable from a sheet we did not draw. A printed scale
+  comes back as `scale_denom_proposed` for calibration to accept, never applied — a takeoff
+  auto-calibrated wrong *looks finished*, which is worse than one nobody calibrated.
+
+  Two things the first cut got wrong, both caught by making the test disagree with the code:
+  **rectangles must be transformed through the CTM stack** (reading `re` operands raw is the obvious
+  version and is wrong on every sheet whose views are placed with `cm`), and **a region's kind must be
+  decided by the text it *owns*, not all text inside it** — a revision table nests in the titleblock,
+  so reading contained text made the titleblock a "revision table". The border check also passed
+  vacuously at first because it restated the implementation's own 0.98 threshold; it now asserts
+  against the rectangle the test actually drew, and the border it was supposed to catch was in fact
+  still in the output.
 
   Evidence: arXiv:2607.18997 §layout-layer. Read-side gap confirmed in
   [sheet_extract.py](../services/api/src/aec_api/sheet_extract.py), which walks pages via `pypdf` and
@@ -566,12 +582,23 @@ you have thrown the vectors away; we mostly have not. Rasters fall back to "unkn
   `calibrated_from: n activities` — and when n is too small to mean anything, **say so and fall back
   to the three-point, rather than dressing an opinion as a statistic.**
 
-* **R27-FIRM-MEMORY — standards that outlive a project.** `rule_library` is per-project (`load(pid)`
-  / `save(pid)`); `design_standards` and `standards_expert` are likewise project-scoped. A firm's
-  actual standards are the thing that *does not* change per project, and today they are re-authored
-  or copied. Add an org-scoped tier that a project inherits and may override, with the override
-  visible as an override. Deliberately **not** an AI feature: the sources selling "institutional
-  memory" all reduce to clean extraction plus safe write-back, both of which we have.
+* ✅ **R27-FIRM-MEMORY** *(shipped v0.3.778)* — **standards that outlive a project.**
+  [firm_standards.py](../services/api/src/aec_api/firm_standards.py) + `GET/PUT /firm/rules` and
+  `GET /projects/{pid}/rules/effective`. Firm rules reuse `rule_library`'s own blob path and validator
+  under a reserved scope, so there is one persistence path and one definition of a valid rule; a
+  project layers over them **by rule id, not by name** — matching on name would make a rename look
+  like a new rule and silently reinstate the firm's version alongside the project's. Every effective
+  rule states its `source`, and one that displaces a firm rule carries the version it replaced.
+  Overriding is legitimate; being *invisible* is not, because the failure here is not a wrong answer,
+  it is a firm discovering its standards were quietly optional. `PUT /firm/rules` is admin-only: a
+  project editor may override a standard on their own job, but changing what the firm stands for is
+  not a per-project act.
+
+  **The scope question, answered rather than assumed.** The item said "org-scoped", and this codebase
+  has **no `Organization` entity** — what `test_tenant_scoping` calls a tenant is RBAC over project
+  membership. Rather than invent a multi-tenant model nobody asked for, *firm* means **the
+  deployment**: a self-hosted install is one firm's install. Stated in the module rather than hidden;
+  if organisations arrive, `FIRM_SCOPE` becomes an org id and the inheritance logic is unchanged.
 
 ## 📦 R28 — ONE PROJECT, ONE FILE *(research 2026-07-26; the model/project split)*
 

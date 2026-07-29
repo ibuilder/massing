@@ -4,6 +4,105 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.778 — the R27 ring closes: a received sheet has regions, and a firm has standards
+
+### R27-LAYOUT (b) — the layout layer of a sheet we did not draw
+
+The platform treats the model as data and the drawing as a picture with some text behind it. For
+sheets *we* generate that stopped being true in v0.3.702: `sheet_regions()` keeps the rectangles
+`compose_viewports` already computed, so a takeoff can be scoped to a viewport without calibration.
+
+Every sheet that arrives from a consultant still had no answer. `sheet_extract` reads the text layer
+and regexes sheet numbers out of it with **no notion of where on the page anything sits**, so a note,
+a takeoff and a revision could only ever attach to a page number — not to the view they govern.
+
+`sheet_recover.recover_regions()` reads the layout layer back out, served at
+`POST /projects/{pid}/drawings/received-regions`.
+
+**Deterministic vector geometry, not a document-layout model.** The layout-analysis paper this ring
+is built on reports that pre-training on general document layout actively *hurts* on construction
+sheets — **0.589 against 0.727** for the same architecture randomly initialised. Construction sheets
+are not documents with unusual furniture; they are a different distribution, and a model that has
+learned "this is a paragraph" is confidently wrong about them. Meanwhile the regions are not inferred
+at all: titleblock borders, viewport frames and table rules are literally `re` operators in the
+content stream. Detection is what you need once the vectors are gone. Where they are, this says so.
+
+**What it refuses to do.** `to_page` is `null` for every region and never identity — the page↔world
+affine cannot be recovered from a sheet we did not draw, and an identity would silently report page
+points as metres. A scale printed on the sheet is a *claim on paper*, not a measurement, so it comes
+back as `scale_denom_proposed` for a calibration step to accept. A takeoff auto-calibrated wrong looks
+finished, which is worse than one nobody calibrated. A page whose vectors are gone returns a stated
+`unknown` region rather than an empty list: an empty list is a claim about the drawing, `unknown` is a
+claim about us.
+
+### Two defects the tests caught by disagreeing with the code
+
+**Rectangles must be transformed through the CTM stack.** Reading `re` operands raw is the obvious
+implementation and it is wrong on every sheet whose views are placed with `cm` — which is most of
+them. The test draws a 150×120 rect inside a 2× scaled, translated graphics state and asserts it comes
+back as 300×240 at the page origin it actually occupies.
+
+**A region's kind is decided by the text it owns, not all text inside it.** Sheets nest: a revision
+table sits inside the titleblock column. Reading all contained text let the innermost box's vocabulary
+classify every ancestor, so the titleblock came back as a "revision table". Text is now charged to the
+smallest rectangle that holds it, which is what "which region is this?" actually means.
+
+And one about the test itself: the border check first asserted "no region covers ≥98% of the page" —
+**restating the implementation's own constant**. It passed while the drawing border sat in the output
+classified as a viewport, because a border inset 10pt on an A4 is only 97.6% of the page. It now
+asserts against the rectangle the test drew. A test that repeats the code's threshold measures nothing.
+
+Verified through two independent implementations of the PDF spec: the fixtures are written by
+reportlab and read by pypdf. A round-trip through one library's own writer+reader pair passes just as
+happily on a wrong understanding of the format — which is exactly how the 4D binding once shipped
+encoding the wrong IFC relation while its own test round-tripped perfectly.
+
+`test_reachable` confirms the module is callable rather than merely correct: across v0.3.701–710,
+seven of eleven things built shipped with no route at all.
+
+
+### R27-FIRM-MEMORY — standards that outlive a project
+
+`rule_library` is scoped per project; so are `design_standards` and `standards_expert`. But a firm's
+standards are precisely the thing that does *not* change per project — "every L1 door needs a fire
+rating" is true on the next job too. Re-authoring it per job turns one standard into forty slightly
+different ones, with no way to say which is the standard.
+
+Firm rules now live under a reserved storage scope, reusing `rule_library`'s own blob path **and its
+validator** — one persistence path, one definition of a valid rule. A rule that would be rejected on a
+project is not accepted merely because it was authored at the firm level, and the save stays atomic at
+both tiers.
+
+A project layers over the firm's **by rule id, not by name**. Matching on name would make a rename
+look like a new rule and silently reinstate the firm's version alongside the project's — one rule
+applying twice under one id is worse than either version alone.
+
+**The override is the point.** A job whose client standard differs from the firm's is completely
+normal, so overriding is legitimate. What is not legitimate is it being invisible: every effective
+rule states its `source`, and one that displaces a firm rule carries the version it replaced. The
+failure mode here is not a wrong answer — the project passes its checks either way — it is a firm
+discovering its standards had quietly become optional. `PUT /firm/rules` is admin-only for the same
+reason: a project editor may override a standard on their own job; changing what the firm stands for
+is not a per-project act.
+
+**The scope question, answered rather than assumed.** The item asked for an "org-scoped" tier, and
+this codebase has no `Organization` entity — what `test_tenant_scoping` calls a tenant is RBAC over
+project membership. Rather than invent a multi-tenant model nobody asked for, *firm* means **the
+deployment**: a self-hosted install is one firm's install. That limitation is written into the module
+rather than papered over; if organisations arrive later, `FIRM_SCOPE` becomes an org id and the
+inheritance logic does not change.
+
+Deliberately not an AI feature — the products selling "institutional memory" reduce to clean
+extraction plus safe write-back. Both already existed; what was missing was somewhere for a rule to
+live that is not a project.
+
+**This completes the R27 ring.**
+
+Gates: backend **423/423** suites with `test_sheet_recover` (19 checks) and `test_firm_standards`
+(14 checks) registered; `test_reachable` 301/305 — both new modules are callable, not merely
+correct, which across v0.3.701-710 was the difference seven of eleven shipped things got wrong;
+ruff clean.
+
 ## v0.3.777 — every model gets a container, and the viewer stops guessing which one
 
 ### The viewer picked geometry by matching the project's NAME
