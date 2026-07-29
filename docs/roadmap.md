@@ -634,14 +634,30 @@ offline/field path trustworthy on one bar of signal, judged from a phone rather 
 Four sessions are live in this repo. R24 is **`apps/web` outside `src/shell/`**. Specifically:
 
 - **Owned elsewhere, do not edit:** `apps/web/src/shell/*` (Massing Core session). **`services/api` +
-  `services/data`** carried six backend PRs, of which **#94 R23-DIGEST, #96 R23-PREFAB-KIT and
-  #99 R22-ENTITLE-RISK are merged** as of 2026-07-29; **#95 R22-NOTICE-CLOCK, #97 R22-CLASSIFY-AI and
-  #98 R23-RECIPE-ARTIFACT remain open.**
+  `services/data`** carried six backend PRs; **#94 #95 #96 #97 #99 merged** on 2026-07-29 (by the
+  user, not by an agent), **#98 R23-RECIPE-ARTIFACT** open, plus **#100** fixing the alert below.
   *Status stated with its method rather than its conclusion, which is the habit worth copying:*
-  CodeQL **0 open** — queried from the **alerts API**, not inferred from a green run. #94/#96/#99 API
-  gates **PASS**; #95/#97/#98 gates re-running after two security fixes. 15/15 pairwise clean **by
-  `git merge-tree`**, which is *not* a merged-and-tested result and must not be read as one
-  ([[tests-that-cannot-reach-the-failure]]).
+  #94/#96/#99 API gates **PASS**; 15/15 pairwise clean **by `git merge-tree`**, which is *not* a
+  merged-and-tested result and must not be read as one ([[tests-that-cannot-reach-the-failure]]).
+- **How to count CodeQL alerts, because a wrong zero was reported here twice on one day.**
+  ```bash
+  gh api "repos/{owner}/{repo}/code-scanning/alerts?state=open&per_page=100" --paginate -q '.[].number' | wc -l
+  ```
+  **`--paginate` applies a `-q` filter PER PAGE and prints one result per page**, so
+  `--paginate -q 'length'` emits `1\n0\n…` and anything reading the first line reports the first
+  page's count as the total. Count *lines of ids*, never a per-page `length`. A bare
+  `--jq 'length'` without `--paginate` is correct only while there are ≤100 alerts — it degrades
+  silently past that, which is the worst moment for it to.
+  **And a green CodeQL *run* is not zero alerts** — that was already in memory
+  ([[codeql-monitoring]], [[ci-green-means-the-ci-job]]); the new half is that a *badly counted alerts
+  query* is not zero alerts either.
+- **Read the alert's own `start_line` before applying a remembered fix.** Alert #108
+  (`py/stack-trace-exposure`) named `routers/prefab.py:64-67` — the `return pk.assess(...)` in the GET
+  detail route. It was diagnosed here as line 87's `raise HTTPException(422, str(e))` **because that
+  matched the pattern in memory**, and the memory won over the data the alert supplied. The real
+  source was `prefab_kit.resolve()` returning `{"error": f"bad selector: {e}"}` — a *dict field*, not
+  a raise — feeding **three** response paths (`register`, `assess`, `freeze`). Fixing the raise would
+  have left two tainted and the alert open. *Recalling a known fix is what stopped the reading.*
   **Merge protocol, agreed between sessions and binding:** whoever merges pings the release lane
   first and waits for *"not mid-release"* before the first merge. The window that bites is
   **bump → tag** — a merge landing inside it yields a tag and a `package.json` that disagree, and
