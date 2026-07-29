@@ -30,6 +30,16 @@ either reproduces the edit or says it cannot.
 **Replay is a plan, not an execution.** `replay_plan()` returns the steps in order for the caller to
 apply through the existing `/edit/batch` path. Re-running edits is exactly the kind of thing that
 should have one author and one audit row, and a log that could re-run itself would have neither.
+
+**The storage ceiling, stated so it is a decision rather than a surprise.** `_MAX` (500 entries) ×
+`_MAX_ENTRY` (256 KB) = **~131 MB** worst case per project, and `_load()` re-parses the whole file on
+every edit, so that figure is also the ceiling on per-edit cost. It is bounded, which the first
+version was not (an unbounded params dict measured 602 MB), but bounded is not the same as small.
+Reaching it takes an editor posting maximum-size parameters on 500 consecutive edits; a realistic log
+is a few hundred bytes per entry. The cap is kept at 256 KB rather than lowered because a smaller one
+elides legitimate parameters, and every elision is a replay this module can no longer reproduce —
+which is the capability it exists to provide. If that trade ever looks wrong, lower `_MAX_ENTRY`
+first: it costs fidelity on large edits, whereas lowering `_MAX` costs history outright.
 """
 from __future__ import annotations
 
@@ -159,7 +169,12 @@ def _redact_names(value: Any, _depth: int = 0) -> tuple[Any, bool]:
     depth should cost a stub, not a RecursionError inside an edit that has already succeeded.
     """
     if _depth > 12:
-        return value, False
+        # FAIL CLOSED. Returning the sub-tree verbatim here meant a credential nested 13 deep was
+        # stored in the clear — and the deeper it was buried the safer it was from the scrubber,
+        # which is precisely backwards for a guard whose job is to not persist secrets. The stub
+        # also marks the entry elided, so `replay_plan` refuses it like every other elision path.
+        return {"__elided__": True, "type": type(value).__name__,
+                "reason": "beyond the maximum nesting depth the denylist can scan"}, True
     if isinstance(value, dict):
         out: dict[Any, Any] = {}
         hit = False

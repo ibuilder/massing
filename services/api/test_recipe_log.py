@@ -262,6 +262,30 @@ check("pathological nesting costs a stub, not a RecursionError",
       rl.entry("deep", {"a": _deep_nest(60)}, actor="a", source_in="a",
                source_out="b")["params"] is not None)
 
+# The depth cap must FAIL CLOSED. It first returned the sub-tree verbatim past the limit, so a
+# credential nested 13 deep was stored in the clear — and the deeper it was buried the safer it was
+# from the scrubber, which is backwards for a guard whose job is to not persist secrets. The
+# docstring said "should cost a stub"; the code cost the redaction instead.
+def _bury(depth, secret="DEEPSECRET"):
+    node = {"api_key": secret}
+    for _ in range(depth):
+        node = {"n": node}
+    return node
+
+
+for depth in (0, 1, 5, 11, 12, 13, 20, 40):
+    e = rl.entry("x", {"cfg": _bury(depth)}, actor="a", source_in="a", source_out="b")
+    check(f"a credential nested {depth} deep never reaches the log",
+          "DEEPSECRET" not in json.dumps(e))
+deep = rl.entry("x", {"cfg": _bury(20)}, actor="a", source_in="a", source_out="b")
+check("  past the depth cap the sub-tree is stubbed, not passed through",
+      deep["params_elided"] is True)
+try:
+    rl.replay_plan([deep])
+    check("  and replay refuses it, like every other elision path", False, "no exception")
+except rl.ReplayError:
+    check("  and replay refuses it, like every other elision path", True)
+
 # 8c. The cap has to be total. Elision replaces VALUES, so an entry whose bulk is in its KEY NAMES
 # runs the loop out of candidates while still far over.
 keyheavy = rl.entry("x", {("k%04d" % i) + "y" * 200: 1 for i in range(4000)},
