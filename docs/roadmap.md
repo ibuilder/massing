@@ -489,8 +489,11 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
 - **R23-BATCH-OVERLAYS** *(S)* — app-authored overlays (pins, grid, snap markers, dimensions, clash
   markers) use **zero** instancing; `three@0.184.0` has `BatchedMesh`. Keep the default BIM pass off
   `MeshStandardMaterial` (presentation mode only); make FOV/FAR responsive by viewport class.
-- 🔜 **R23-GLTF-COMPRESS** *(S/M; **PR #105 — OPEN, not merged as of 2026-07-29 22:20Z**)* — built and
-  awaiting merge; `gltf_export.py` + `test_gltf_compress.py` are on the branch, **not** on `main`.
+- ✅ **R23-GLTF-COMPRESS** *(S/M; **PR #105**, merged 2026-07-29 — `services/data/src/aec_data/gltf_export.py`
+  + `test_gltf_compress.py` / `test_gltf_export.py`)* — verified on `main` by content: `draco_available()`
+  present, the 65536 ceiling present, `DracoPy==1.7.0` in `requirements-dev.txt`, and **nothing added to
+  `requirements.in`** — the hash lock is deliberately untouched. Note the module is in **`aec_data`**, the
+  engine layer, not `aec_api`; `aec_api` may import `aec_data` and never the reverse.
   Shipped in two halves, split by what each costs the consumer. **Per-mesh index width** is free and on
   by default: measured first, indices were **60%** of a 175 KB export and every mesh was far under the
   ceiling, so a fixed uint32 was paying double. uint16 is core glTF 2.0 — no extension, ~30% off every
@@ -499,9 +502,17 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   decoder reads nothing. Verified against **headless Blender 3.5**, which decodes Draco; trimesh does
   NOT, and returns the right vertex and triangle counts with every position at (0,0,0) while raising
   nothing — see the note under R22-ACCT-SEAM on what an independent-reader check actually proves.
-  `DracoPy==1.7.0` pinned in `requirements-dev.txt` on the branch — 2.0.0 ships **Windows wheels only**,
-  and `requirements.in` would force a hash-lock recompile. Shipping it in the API image is a
-  `requirements.in` line + a Lockfile-workflow run, not done here.
+  `DracoPy==1.7.0` pinned in `requirements-dev.txt` — 2.0.0 ships **Windows wheels only**, and
+  `requirements.in` would force a hash-lock recompile. Shipping it in the API image is a
+  `requirements.in` line + a Lockfile-workflow run, **not done here**.
+
+  **The review finding is worth more than the feature.** The **uint32 fallback branch was unreachable by
+  every fixture in the suite** — all of them ran on ~960-vertex meshes, so nothing could cross a 65,536
+  ceiling. It was reached by synthesising the mesh and substituting the producer at the seam, and then
+  mutating the ceiling by one exposed the real corruption: index 65,536 reads back as **65,535** — same
+  byte length, valid glTF, wrong triangle. **If no fixture can reach a branch, manufacture the input at
+  the seam rather than concluding the branch is fine.** Third instance of that shape in one day, with the
+  trimesh case above and the room-count gate that passed on a word in an unrelated sentence.
 - **R23-SYMBOL-COUNT** *(M)* — deterministic template-match symbol counting in the **existing** pdf.js
   takeoff worker: mark one instance, normalised cross-correlation, non-maximum suppression.
   **Zero new dependencies**, offline, auditable — which matters for quantities that feed a bid.
