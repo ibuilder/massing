@@ -4,6 +4,8 @@
  *  self-install is the Tauri updater path — see docs/deploy.md — which additionally needs a signing
  *  key configured as a CI secret.) */
 
+import { safeHref } from "./feedback";
+
 const REPO = "ibuilder/massing";
 
 export function currentVersion(): string {
@@ -50,7 +52,12 @@ export function showUpdateBanner(info: UpdateInfo): void {
   const msg = document.createElement("span");
   msg.textContent = `Update available — v${info.version} (you have v${currentVersion()}).`;
   const dl = document.createElement("a");
-  dl.href = info.url || `https://github.com/${REPO}/releases`; dl.target = "_blank"; dl.rel = "noopener";
+  // safeHref(): `info.url` is `html_url` off the GitHub releases API — a value from outside this
+  // codebase assigned straight to an href. It is safe because GitHub does not return a `javascript:`
+  // URL, which is an argument rather than a check; `safeHref` makes it a check. escapeHtml would be
+  // wrong here (a scheme has nothing to escape, and escaping a DOM property corrupts a query string).
+  dl.href = safeHref(info.url || `https://github.com/${REPO}/releases`);
+  dl.target = "_blank"; dl.rel = "noopener";
   dl.textContent = "Download →";
   dl.style.cssText = "color:#fff;font-weight:600;text-decoration:underline";
   const x = document.createElement("button");
