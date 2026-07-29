@@ -600,7 +600,15 @@ refute one, so this goes first even though it is the least visible.
   to the UI by R24-JOB-TRAY) plus a delivery surface. That is a real feature, not a grouping change.
 - **R24-TOOLS-SPLIT** *(S, reinstated)* — authoring verbs act instantly; analyses produce an artifact
   after a wait. Split them; the analyses half lands in `R24-RUNS-INBOX` and the job tray.
-- **R24-EMPTY-GUIDE ②** *(S)* · **R24-TERMS** *(S)* · **R24-MONO-DATA** *(S)* — the long tail.
+- ✅ **R24-EMPTY-GUIDE ②** — **SHIPPED v0.3.787.** `ui/emptyGuide.ts` gives 24 registers a line
+  saying *where their rows come from* ("An RFI is a question asked against a drawing… raise one from
+  a drawing, or from an element in the model") instead of restating the "+ New" button. Curated,
+  never generated: the other 109 modules keep the generic copy, because an invented upstream is a
+  confident wrong answer somewhere the user cannot check it. `emptyGuide.test.ts` validates every key
+  against `services/api/modules/*/module.json` — it caught two non-existent keys (`change_order`,
+  `pay_app` → `change_event`, `owner_invoice`) on its first run.
+- **R24-TERMS** *(S)* · **R24-MONO-DATA** *(S)* · **R24-TOOLS-SPLIT** *(S)* · **R24-DENSITY ②** *(M)*
+  — the remaining long tail.
 
 **Explicitly NOT in scope: the audit's visual identity** (ink canvas `#080C12`, IBM Plex Sans/Mono,
 the 24 px/192 px brand grid at 5–7%). It is the most seductive item in the document and the least

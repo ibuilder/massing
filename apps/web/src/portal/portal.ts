@@ -4,6 +4,7 @@ import { progressBar } from "../ui/charts";
 import { countNarrative, statusChip } from "../ui/chips";
 import { confirmModal, modalShell, promptModal } from "../ui/modal";
 import { noProjectHtml } from "../ui/empty";
+import { emptyHint } from "../ui/emptyGuide";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 import { buildPulse, pulseRailEl } from "./panels/pulse";
 import type { PanelContext } from "./panelContext";
@@ -1527,10 +1528,21 @@ export class PortalUI {
     this.root.appendChild(actions);
 
     if (!records.length) {
+      // R24-EMPTY-GUIDE ② — an empty register says where its rows come from. "Use + New" restates a
+      // button three inches away; what the user cannot see is that an RFI is asked against a drawing
+      // and a submittal is driven by a spec section. Curated per module, generic where it is not —
+      // an invented upstream would be a confident wrong answer somewhere nobody can check it.
       const e = document.createElement("div"); e.className = "empty-state";
-      e.innerHTML = filter.q || filter.state
-        ? `No matching records<span class="es-hint">Try clearing the filter or state.</span>`
-        : `No ${m.name.toLowerCase()} yet<span class="es-hint">Use “+ New” to create the first one.</span>`;
+      if (filter.q || filter.state) {
+        e.innerHTML = `No matching records<span class="es-hint">Try clearing the filter or state.</span>`;
+      } else {
+        // textContent for the module name: it is server-supplied and this is an innerHTML sink.
+        e.textContent = `No ${m.name.toLowerCase()} yet`;
+        const hint = document.createElement("span");
+        hint.className = "es-hint";
+        hint.textContent = emptyHint(m.key);
+        e.appendChild(hint);
+      }
       this.root.appendChild(e);
       return;
     }

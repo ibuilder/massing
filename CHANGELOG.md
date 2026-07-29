@@ -19,6 +19,47 @@ from the code it describes and starts granting permission it was never asked for
 Found and fixed by the security-audit session; landed here so it stops sitting uncommitted in a
 shared tree. Verified standalone: 29/29 across the guard and the schedule panel.
 
+## v0.3.787 — R24-EMPTY-GUIDE ②: an empty register says where its rows come from
+
+The audit's finding 14 is that blank projects were hardened for **robustness**, not **guidance**.
+Running with no data is a real strength here and the app does it everywhere. The miss is what an
+empty module actually said:
+
+> **No RFIs yet**
+> Use "+ New" to create the first one.
+
+Mechanically true, and an answer to the wrong question. "+ New" is a button three inches away — the
+user can see *how*. What they cannot see is **what the register is for and where its rows normally
+arrive from**, and for most registers the answer is not "somebody types one". An RFI is asked against
+a drawing. A submittal is driven by a spec section. A punch item is captured on a phone, in the
+field, by someone not looking at this screen. That is the difference between a blank slate and a dead
+end, and it is the audit's own worked example.
+
+24 registers now carry a curated line — RFIs, submittals, spec sections, ASIs, punch items, safety
+observations, daily reports, inspections, NCRs, deliveries, budget, change events, commitments, owner
+invoices, cost codes, drawings, sets, as-builts, risk, assumptions, lessons learned, meetings and
+action items.
+
+**Guidance is curated, never generated, and the fallback is the old copy** — so no module gets worse.
+There are 133 modules and the other 109 keep the generic line on purpose: a plausible-sounding
+invented upstream is a **confident wrong answer in a place the user has no way to check it**, which
+is the failure mode running through this whole ring — the doubled `get_area`, the classification
+fallback that priced everything as `01 00 00` while reporting a complete takeoff, an empty chart
+frame that looks exactly like a chart. A well-formed artifact standing in for a missing answer.
+
+**The test earned itself before it was written.** `emptyGuide.test.ts` reads
+`services/api/modules/*/module.json` and asserts every key is a real module. The first draft of the
+table used `change_order` and `pay_app`; neither exists — they are `change_event` and `owner_invoice`.
+Two errors caught in the first run, and a rename now fails the build rather than leaving guidance
+pointing at a register that is gone. It also asserts the *shape*: each entry must name an upstream
+and must not contain "+ New", because guidance that restates the button is the thing being replaced.
+
+*Verified:* 793 tests, typecheck and lint clean; the app loads against the live API with the changed
+module engine, six room tabs, no console errors. **Not exercised end-to-end:** the empty branch
+itself — every module in the dev database has at least one record, and manufacturing an empty one
+would have meant writing to another session's dev data. The branch is unit-covered; the live check
+confirms the surrounding render path is intact.
+
 ## v0.3.786 — the public demo was serving a taxonomy the app cannot render
 
 The GitHub Pages demo reads a **captured** snapshot, `apps/web/src/demo/demoData.json`. A capture is a
