@@ -441,14 +441,34 @@ const RAIL_ICONS: Record<string, string> = {
   tools: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.4v2.1M8 12.5v2.1M1.4 8h2.1M12.5 8h2.1M3.3 3.3l1.5 1.5M11.2 11.2l1.5 1.5M3.3 12.7l1.5-1.5M11.2 4.8l1.5-1.5"/></svg>`,
   clash: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.6v3M8 11.4v3M1.6 8h3M11.4 8h3M3.4 3.4 5.5 5.5M10.5 10.5l2.1 2.1M12.6 3.4 10.5 5.5M5.5 10.5l-2.1 2.1"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>`,
   props: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="1.6"/><path d="M5 5.6h6M5 8h6M5 10.4h3.5"/></svg>`,
+  // Document cluster. A sheet with a title block, and a stack of written sections — drawn to read
+  // as siblings, because they are the two halves of one submission.
+  sheets: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.4" width="12.4" height="11.2" rx="1.1"/><path d="M1.8 10.6h12.4M9.7 10.6v3"/></svg>`,
+  specs: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 2.2h9.6v11.6H3.2z"/><path d="M5.4 5.2h5.2M5.4 8h5.2M5.4 10.8h3"/></svg>`,
 };
 // Rail toggles grouped into three workflow clusters (Navigate / Author / Coordinate) — the taxonomy
 // every reference tool uses (Revit, BlenderBIM/Bonsai, Bluebeam). A subtle group label separates them.
-const RAIL_ITEMS: { key: string; label: string; title: string; cluster: string }[] = [
+/**
+ * The viewer rail.
+ *
+ * `launch` marks an entry that opens a **full-page surface** instead of a side panel. Drawings and
+ * Specs are the two: a sheet set needs the whole canvas, not a 280px column, so cramming them into
+ * an `.rpanel` would have been the wrong shape for the sake of a uniform mechanism.
+ *
+ * They belong here because this is where an architect already is. Until now the only route to the
+ * drawing set was the legacy workspace bar — from inside the model there was no way to reach the
+ * drawings it generates, or the specs that describe them, without leaving the room. Model, drawings
+ * and specifications are one person's work; the rail is where that becomes true on screen.
+ */
+const RAIL_ITEMS: { key: string; label: string; title: string; cluster: string; launch?: () => void }[] = [
   { key: "tree", label: "Tree", title: "Model tree", cluster: "Navigate" },
   { key: "layers", label: "Layers", title: "Layers & visibility", cluster: "Navigate" },
   { key: "tools", label: "Tools", title: "Model tools & authoring", cluster: "Author" },
   { key: "props", label: "Props", title: "Properties — selected element", cluster: "Author" },
+  { key: "sheets", label: "Drawings", title: "Drawing set & sheets", cluster: "Document",
+    launch: () => setWorkspace("drawings") },
+  { key: "specs", label: "Specs", title: "Specification sections", cluster: "Document",
+    launch: () => openSpecs() },
   { key: "clash", label: "Clash", title: "Clash & coordination", cluster: "Coordinate" },
   { key: "issues", label: "Issues", title: "Issues / RFIs", cluster: "Coordinate" },
 ];
@@ -472,6 +492,10 @@ for (const it of RAIL_ITEMS) {
   b.innerHTML = `<span class="rail-ic">${RAIL_ICONS[it.key]}</span><span class="rail-lbl">${it.label}</span>`;
   b.title = `${it.cluster} · ${it.title}`; b.setAttribute("aria-label", `${it.cluster}: ${it.title}`);
   b.onclick = () => {
+    // A launcher opens a full surface and never becomes the rail's active *panel* — marking it
+    // active would claim a side panel is showing when none is, which is the same lie that made a
+    // `goto` destination unlandable in v0.3.770.
+    if (it.launch) { it.launch(); return; }
     const isActive = b.classList.contains("active") && !appEl.classList.contains("rail-collapsed");
     if (isActive) appEl.classList.add("rail-collapsed");
     else showRail(it.key);
@@ -914,6 +938,36 @@ function openProformaTab() {
 }
 
 let drawings: import("./drawings/drawings").DrawingsUI | null = null;
+/**
+ * Open the specification sections — the written half of the documents.
+ *
+ * Specs are a register, so they live in the portal rather than beside the viewport, and `design` is
+ * one of the three portal workspaces. Reaching them from the model therefore means switching to the
+ * Design room's portal and activating the `spec_section` register, which is addressable because
+ * v0.3.767 gave every rail button a `data-mod`.
+ *
+ * Retries until the register is ACTIVE rather than until its button exists — the rail is rebuilt by
+ * the workspace switch, so a button found immediately belongs to the outgoing rail and the click is
+ * discarded. That distinction cost two wrong fixes in v0.3.766 and a reverted release in v0.3.770.
+ */
+function openSpecs() {
+  setWorkspace("design");
+  let tries = 0;
+  const land = () => {
+    const sel = '.portal-nav [data-mod="spec_section"]';
+    const el = document.querySelector<HTMLElement>(sel);
+    const active = el?.classList.contains("active");
+    if (!active) {
+      el?.click();
+      if (!document.querySelector(sel)?.classList.contains("active") && ++tries < 40) {
+        setTimeout(land, 100); return;
+      }
+    }
+    document.querySelector<HTMLElement>(sel)?.scrollIntoView({ block: "nearest" });
+  };
+  setTimeout(land, 120);
+}
+
 function openDrawingsTab() {
   void import("./drawings/drawings").then(({ DrawingsUI }) => {
     if (!drawings) drawings = new DrawingsUI($("panel-drawings"), { api, projectId: () => projectId, setStatus });

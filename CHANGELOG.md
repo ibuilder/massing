@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.772 — a DOCUMENT cluster in the viewer rail: Drawings and Specs
+
+The rail an architect works in now reads:
+
+    NAVIGATE    Tree · Layers
+    AUTHOR      Tools · Props
+    DOCUMENT    Drawings · Specs      ← new
+    COORDINATE  Clash · Issues
+
+Until now, from inside the model there was **no route to the drawings it generates**, or to the
+specifications that describe them, without leaving the room via the legacy workspace bar. Model,
+drawings and specs are one person's work; the rail is where that becomes true on screen.
+
+Both are `launch` entries rather than side panels, and the distinction is deliberate: a sheet set
+needs the whole canvas, not a 280px column, so forcing them into an `.rpanel` for the sake of a
+uniform mechanism would have been the wrong shape. A launcher also never marks itself as the rail's
+active *panel* — claiming a side panel is open when none is, is the same lie that made a `goto`
+destination unlandable in v0.3.770.
+
+Specs open in the Design room's portal — `design` is one of the three portal workspaces — and the
+`spec_section` register is reachable because v0.3.767 gave every rail button a `data-mod`. The
+opener retries until the register is **active**, not until its button exists, since the workspace
+switch rebuilds the rail underneath it. That distinction has now cost two wrong fixes and one
+reverted release, so it is written into the code where it is used.
+
+Verified live by what renders: Drawings → `ws-drawings` showing "DRAWING SET · PDF Takeoff · Paper
+space"; Specs → `ws-design` with **§ Specifications** active.
+
 ## v0.3.771 — revert v0.3.770's landing hack; the rule is now a test, not a comment
 
 Code review caught a regression I shipped an hour earlier, and it was right on every point.
