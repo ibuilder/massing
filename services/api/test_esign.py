@@ -100,6 +100,80 @@ with TestClient(app) as c:
         for k in ("ESIGN_PROVIDER", "ESIGN_API_KEY", "ESIGN_BASE_URL"):
             os.environ.pop(k, None)
 
+# --- SEC: the provider webhook is an anonymous, internet-facing write into the AUDIT table --------
+# It is anonymous by necessity (a provider holds no user credential) and carries no authority — it
+# cannot mark a contract signed. The exposure was the audit row it writes per request, with
+# caller-chosen strings of unbounded length: flooding it buries the real trail, which is what an
+# audit log exists to prevent. So it now verifies an HMAC over the RAW body when a secret is set,
+# throttles, caps the payload, and records WHICH posture produced each row.
+import hashlib                                               # noqa: E402
+import hmac                                                  # noqa: E402
+import json as _json                                         # noqa: E402
+
+from aec_api.db import SessionLocal                          # noqa: E402
+from aec_api.models import AuditLog                          # noqa: E402
+
+_PAY = {"event_type": "form.completed",
+        "data": {"submission_id": "S" * 5000, "email": "e" * 5000}}   # deliberately huge
+_RAW = _json.dumps(_PAY).encode()
+_JSON_HDR = {"content-type": "application/json"}
+
+os.environ.pop("AEC_ESIGN_WEBHOOK_SECRET", None)
+with TestClient(app) as c:
+    # No secret configured: stays open on purpose. Silently dropping callbacks would break an operator
+    # relying on this today; the bounding and throttling apply regardless.
+    r = c.post("/esign/webhook", content=_RAW, headers=_JSON_HDR)
+    assert r.status_code == 200, r.text
+    # NB: AuditLog.id is a UUID string, so `order_by(id.desc())` sorts lexicographically and returns
+    # an arbitrary row while reading exactly like "the newest one". Assert over the SET instead.
+    _db = SessionLocal()
+    _rows = _db.query(AuditLog).filter(AuditLog.action == "contract.esign_webhook").all()
+    _db.close()
+    # Select by this block's own marker payload. An earlier test in this file posts a legitimate
+    # webhook, so "the only row" and "the newest row" are both wrong ways to find ours.
+    _mine = [r.detail for r in _rows if str((r.detail or {}).get("submission_id", "")).startswith("SSS")]
+    assert len(_mine) == 1, f"expected 1 marker row, got {len(_mine)} of {len(_rows)} webhook rows"
+    _d = _mine[0]
+    # The SHAPE was always fixed to four keys by parse_completion; the SIZE was not. 5000 -> 200.
+    assert len(_d["submission_id"]) == 200, len(_d["submission_id"])
+    assert len(_d["signer"]) == 200, len(_d["signer"])
+    # An unverified row must never be readable as a verified one.
+    assert _d["signature_verified"] is False, _d
+    assert c.post("/esign/webhook", content=b'{"a":"' + b"x" * 200000 + b'"}',
+                  headers=_JSON_HDR).status_code == 413
+    assert c.post("/esign/webhook", content=b"not json", headers=_JSON_HDR).status_code == 400
+    # A JSON array parses fine but is not a mapping — parse_completion would have raised on .get().
+    assert c.post("/esign/webhook", content=b"[1,2]", headers=_JSON_HDR).status_code == 400
+
+os.environ["AEC_ESIGN_WEBHOOK_SECRET"] = "provider-shared-secret"
+try:
+    with TestClient(app) as c:
+        assert c.post("/esign/webhook", content=_RAW, headers=_JSON_HDR).status_code == 403
+        assert c.post("/esign/webhook", content=_RAW,
+                      headers={**_JSON_HDR, "X-Signature": "deadbeef"}).status_code == 403
+        _good = hmac.new(b"provider-shared-secret", _RAW, hashlib.sha256).hexdigest()
+        r = c.post("/esign/webhook", content=_RAW,
+                   headers={**_JSON_HDR, "X-Signature": "sha256=" + _good})
+        assert r.status_code == 200, r.text
+        # The signature must cover the BODY, not merely exist: replaying a good signature against a
+        # different payload is the whole attack a naive "is a signature present?" check permits.
+        assert c.post("/esign/webhook", content=b'{"event_type":"x"}',
+                      headers={**_JSON_HDR, "X-Signature": _good}).status_code == 403
+        _db = SessionLocal()
+        _flags = [r.detail.get("signature_verified") for r in
+                  _db.query(AuditLog).filter(AuditLog.action == "contract.esign_webhook").all()
+                  if str((r.detail or {}).get("submission_id", "")).startswith("SSS")]
+        _db.close()
+        # Exactly one signed call succeeded, so exactly one row may claim verification — and the
+        # unverified row from the no-secret block must still be there saying so.
+        assert _flags.count(True) == 1, _flags
+        assert _flags.count(False) == 1, _flags
+finally:
+    os.environ.pop("AEC_ESIGN_WEBHOOK_SECRET", None)
+
 print("ESIGN OK - PAdES signature embedded + detected; stable cert fingerprint; status gating "
       "(self-signed available, 3rd-party bridge off); digital-sign attaches signed PDF + records signer; "
-      "DocuSeal bridge: gated off->409, send routes template+submission, stores submission, webhook parsed")
+      "DocuSeal bridge: gated off->409, send routes template+submission, stores submission, webhook parsed; "
+      "webhook hardening: HMAC over the raw body when AEC_ESIGN_WEBHOOK_SECRET is set (a good signature "
+      "replayed onto a different payload is refused), 413 oversized, 400 non-object, audit strings capped "
+      "at 200 chars and each row stamped signature_verified")

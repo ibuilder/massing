@@ -3,15 +3,20 @@ fetch the scope-clause library, and capture signatures on a contract record. Doc
 the existing config-driven contract modules (no new tables); signatures live on the record `data`."""
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
+import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from .. import audit, contracts, esign, esign_bridge, scope_library
 from .. import modules as me
 from ..db import get_db
 from ..rbac import current_user, require_role
+from ..throttle import rate_limited
 
 router = APIRouter()
 
@@ -103,13 +108,67 @@ def send_for_signature(pid: str, key: str, rid: str, body: dict = Body(default={
     return result
 
 
+_ESIGN_HOOK_THROTTLE = rate_limited("esign_webhook", 60)
+
+
+def _esign_hook_secret() -> str:
+    """Shared secret for provider webhook signatures. Set AEC_ESIGN_WEBHOOK_SECRET to the value
+    configured in the e-signature provider; unset leaves the endpoint unauthenticated (see below)."""
+    return os.environ.get("AEC_ESIGN_WEBHOOK_SECRET", "").strip()
+
+
 @router.post("/esign/webhook")
-def esign_webhook(body: dict = Body(default={}), db: Session = Depends(get_db)):
-    """Receive a provider completion webhook (e.g. DocuSeal form.completed). Anonymous surface — the
-    payload carries no authority; we only log the normalized completion for audit/reconciliation."""
-    info = esign_bridge.parse_completion(body or {})
+async def esign_webhook(request: Request, db: Session = Depends(get_db),
+                        _t: None = Depends(_ESIGN_HOOK_THROTTLE)):
+    """Receive a provider completion webhook (e.g. DocuSeal form.completed).
+
+    Anonymous by necessity — the provider cannot hold a user credential — and the payload carries no
+    authority: nothing here marks a contract signed, it only records a normalized completion for
+    reconciliation. That design is what keeps a forged callback from executing a contract, and it is
+    worth stating because the obvious fear is the wrong one.
+
+    The real exposure was the audit table itself. This wrote a row per request with
+    caller-controlled `submission_id`, `event` and `signer` of unbounded length, from the internet,
+    unauthenticated and unthrottled. That is write access to the record the platform relies on to say
+    who did what: flood it and real entries are buried in noise (and the table grows without limit),
+    which is indistinguishable from tampering when someone later needs the trail. An audit log an
+    anonymous caller can write to is not an audit log.
+
+    So: verify an HMAC-SHA256 signature over the RAW body when a secret is configured, throttle per
+    caller, and bound every stored string. When no secret is set the endpoint stays open, because
+    silently dropping callbacks would break an operator who is relying on it today — but it is then
+    only rate-limited and bounded, and `signature_verified` records which posture produced the row so
+    an unverified entry can never be read as a verified one.
+    """
+    raw = await request.body()
+    if len(raw) > 64 * 1024:                       # a completion callback is ~1 KB; refuse a bulk write
+        raise HTTPException(413, "webhook payload too large")
+    secret = _esign_hook_secret()
+    verified = False
+    if secret:
+        # Providers differ on the header name; accept the common ones rather than force one provider.
+        sent = (request.headers.get("x-signature") or request.headers.get("x-docuseal-signature")
+                or request.headers.get("x-hub-signature-256") or "")
+        sent = sent.split("=", 1)[1] if sent.startswith("sha256=") else sent
+        expected = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+        # compare_digest: a plain `==` leaks the prefix length through timing, which is enough to
+        # recover a signature byte by byte given an endpoint that can be called at will.
+        if not (sent and hmac.compare_digest(sent.strip().lower(), expected)):
+            raise HTTPException(403, "invalid webhook signature")
+        verified = True
+    try:
+        body = json.loads(raw or b"{}")
+        if not isinstance(body, dict):
+            raise ValueError("payload must be a JSON object")
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(400, "webhook body must be a JSON object")
+    info = esign_bridge.parse_completion(body)
+    # Bound what reaches the audit row. parse_completion fixes the SHAPE to four keys, which is not
+    # the same as bounding the SIZE — every value in it is a string the caller chose.
+    detail = {k: (v[:200] if isinstance(v, str) else v) for k, v in info.items()}
+    detail["signature_verified"] = verified
     audit.record(db, action="contract.esign_webhook", actor="provider", method="POST",
-                 path="/esign/webhook", detail=info)
+                 path="/esign/webhook", detail=detail)
     db.commit()
     return {"ok": True, **info}
 
