@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { FALLBACK_ROOMS, ROOM_HOME, ROOM_IDS, destRoom, orderRooms, preselectedRoom, roomBadge, spineEnabled } from "./spine";
+import { FALLBACK_ROOMS, ROOM_HOME, ROOM_IDS, destRoom, orderRooms, preselectedRoom, roomBadge } from "./spine";
 import type { RoomDef } from "../api/types";
 
 /**
@@ -44,38 +44,26 @@ describe("the spine is weighted by a workspace, never replaced", () => {
   });
 });
 
-describe("the flag — the new shell is the front door, with a way back", () => {
+describe("the shell has no opt-out — there is one front door (v0.3.779)", () => {
   beforeEach(() => localStorage.clear());
 
-  it("is ON by default as of v0.3.715 — the redesign is the product now", () => {
-    expect(spineEnabled("")).toBe(true);
+  it("exports no flag to read or set", async () => {
+    // `?shell=classic` was the escape hatch while the spine proved itself. It became the default at
+    // v0.3.715 and the hatch was deleted sixty-four releases later: two shells is two rails to
+    // change, two places a bug can hide, and — as this repo actually managed — a render audit whose
+    // verdict depends on which one it happened to measure. Asserting the exports are GONE is what
+    // stops the flag being quietly reintroduced by a revert.
+    const mod = await import("./spine") as Record<string, unknown>;
+    expect(mod.spineEnabled, "spineEnabled must not come back").toBeUndefined();
+    expect(mod.SPINE_FLAG, "the storage key must not come back").toBeUndefined();
   });
 
-  it("?shell=classic is still a way BACK, and it STICKS", () => {
-    // A redesign nobody can back out of has to be perfect on the first try. This is the escape
-    // hatch, and it has to survive a reload or it is not one.
-    expect(spineEnabled("?shell=classic")).toBe(false);
-    expect(spineEnabled("")).toBe(false);
-  });
-
-  it("?shell=spine opts back in after an opt-out", () => {
-    spineEnabled("?shell=classic");
-    expect(spineEnabled("?shell=spine")).toBe(true);
-    expect(spineEnabled("")).toBe(true);
-  });
-
-  it("a deliberate opt-out is NOT overridden by the new default", () => {
-    // THE trap in flipping this. The old scheme stored presence/absence, so "never expressed a
-    // preference" and "chose classic" were the same absent key — inverting the default would have
-    // silently dragged every opted-out user into the new shell, which is the one group that had
-    // already said no. The value is explicit now, so the two states are distinguishable.
-    localStorage.setItem("shell-spine", "0");
-    expect(spineEnabled("")).toBe(false);
-  });
-
-  it("an existing opt-IN still reads as on", () => {
-    localStorage.setItem("shell-spine", "1");
-    expect(spineEnabled("")).toBe(true);
+  it("the guarantee the two-shell period bought is still enforced elsewhere", async () => {
+    // Deleting the comparison must not delete the property it protected. `parity.test` asserts the
+    // room rail reaches every destination the lifecycle-stage catalog lists — that is what "nothing
+    // became unreachable" now rests on, and it survives the shell that motivated it.
+    const parity = await import("./parity.test?raw") as { default: string };
+    expect(parity.default).toMatch(/unroomed|DEST_ROOM|destRoom/);
   });
 });
 

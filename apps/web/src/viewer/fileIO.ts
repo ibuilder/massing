@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 import type { ApiClient } from "../api/client";
 import { confirmModal } from "../ui/modal";
-import { fetchArrayBufferWithProgress, setLoadingLabel, withLoading } from "../ui/feedback";
+import { withLoading } from "../ui/feedback";
 import { loadReferenceModel } from "./referenceLoader";
 import type { ModelLoader } from "./loader";
 
@@ -77,9 +77,33 @@ export function installFileIO(d: FileIODeps) {
   // Open an IFC: small files parse in-browser for an instant view (and, with a project open, also
   // upload so drawings / clash / IDS / energy / exports / authoring regenerate server-side). Large
   // files route straight to the server pipeline and stream back the published fragments.
+  /** Land in a project once it is ready — main owns project state, and adopts from the query string. */
+  const enterProject = (id: string) => { window.location.search = `?project=${id}`; };
+
   async function openIfc(file: File) {
-    const pid = d.projectId();
+    let pid = d.projectId();
+    let created = false;
     const big = file.size > CLIENT_IFC_MAX;
+
+    // Connected, but nothing to put the model IN.
+    //
+    // This used to fall straight through to "view only": a mesh you can orbit, and nothing else — no
+    // quantities, no estimate, no schedule, nothing to pin an RFI to, and nothing kept when the tab
+    // closes. That is the viewer this product is explicitly not. A container is what makes a model a
+    // project, so offer to make one instead of quietly serving the lesser thing.
+    //
+    // Offer, not assume: creating a project writes a real row into the user's database, and doing
+    // that unasked is the same unconsented side effect the sample picker deliberately avoids.
+    if (d.connected() && !pid) {
+      const ok = await confirmModal(`Create a project for ${file.name}?`,
+        "Without one it opens view-only — no quantities, cost, schedule or issues, and nothing is saved.");
+      if (ok) {
+        try {
+          pid = (await d.api.createProject(file.name.replace(/\.[^.]+$/, "") || "New project")).id;
+          created = true;
+        } catch { d.notify("couldn't create a project (sign in as an editor?)", "error"); }
+      }
+    }
 
     // Large model + backend: server converts → we stream the published .frag. No in-browser parse.
     if (big && d.connected() && pid) {
@@ -92,6 +116,7 @@ export function installFileIO(d: FileIODeps) {
         await d.api.uploadSourceIfc(pid, file);          // saves + sets source_ifc + publishes off-thread
         const state = await d.waitForPublish(pid, (s) => d.setStatus(`processing model: ${s}…`));
         if (state === "done") {
+          if (created) { enterProject(pid); return; }     // brand-new container: land in it, fully wired
           await d.loadProjectModel();                    // stream the optimized fragments with progress
           void d.buildToolsPanel();
           d.notify(`${file.name} loaded — drawings, QA, energy & authoring are ready`, "success");
@@ -108,7 +133,12 @@ export function installFileIO(d: FileIODeps) {
       await d.loader.loadIfc(new Uint8Array(await file.arrayBuffer()), d.nextId(file.name));
       await d.fitToModels();
     });
-    if (!d.connected() || !pid) { d.notify(`loaded ${file.name} (no project — view only)`, "success"); return; }
+    if (!d.connected() || !pid) {
+      d.notify(d.connected()
+        ? `loaded ${file.name} — view only, no project to save it in`
+        : `loaded ${file.name} (offline — view only)`, "success");
+      return;
+    }
     let replace = true;
     try { if ((await d.api.project(pid)).has_source_ifc) replace = await confirmModal(`Replace this project's model with ${file.name}? Drawings & analysis will regenerate.`, ""); }
     catch { /* offline check — proceed */ }
@@ -122,6 +152,7 @@ export function installFileIO(d: FileIODeps) {
       d.notify(state === "done"
         ? `${file.name} is the project model — drawings, QA, energy & authoring are ready`
         : `model added; server processing: ${state}`, state === "done" ? "success" : "info");
+      if (created && state === "done") enterProject(pid);
     } catch (e) { d.notify(`couldn't add to project: ${(e as Error).message}`, "error"); }
   }
   async function loadFile(file: File, load: (b: Uint8Array, id: string) => Promise<unknown>, verb: string) {
@@ -129,19 +160,6 @@ export function installFileIO(d: FileIODeps) {
       await load(new Uint8Array(await file.arrayBuffer()), d.nextId(file.name));
       await d.fitToModels();
       d.notify(`loaded ${file.name}`, "success");
-    });
-  }
-  async function loadSample(file: string, label: string) {
-    await withLoading(d.container, `loading ${label}`, async () => {
-      const mb = (n: number) => (n / 1048576).toFixed(1);
-      const buffer = await fetchArrayBufferWithProgress(
-        import.meta.env.BASE_URL + file.replace(/^\//, ""), {},   // respect the deploy base
-        (loaded, total) => setLoadingLabel(d.container,
-          `downloading ${label} ${Math.round(loaded / total * 100)}% (${mb(loaded)}/${mb(total)} MB)`));
-      setLoadingLabel(d.container, "preparing geometry…");
-      await d.loader.loadFragments(buffer, d.nextId(label));
-      await d.fitToModels();
-      d.notify(`loaded ${label}`, "success");
     });
   }
   async function convertAndLoad(file: File) {
@@ -213,6 +231,6 @@ export function installFileIO(d: FileIODeps) {
     }
     window.open(d.api.url(`/projects/${pid}/source.ifc`), "_blank");
   }
-  return { openFile, addReferenceObject, openReference, loadSample, convertAndLoad,
+  return { openFile, addReferenceObject, openReference, convertAndLoad,
            exportFrag, exportIfc, triggerOpen, download };
 }

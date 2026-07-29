@@ -104,6 +104,25 @@ check("  ...and its own storey's hash", sm["Level 1"]["hash"] != storeys["Level 
 check("  ...and NOT the untouched storey's hash (this is what makes the tree worth having)",
       sm["Level 2"]["hash"] == storeys["Level 2"]["hash"])
 
+# The invariant the check above silently rests on, now pinned in its own right.
+#
+# `base` and `moved` are SEPARATELY authored, so every GlobalId differs. An element's hash excludes
+# its GUID on purpose — a re-export that renumbers every id should still compare — which means the
+# ordering used to roll children up must not depend on GUIDs either. The first version sorted
+# element records BY GUID while hashing them without it, so two identical storeys hashed differently
+# whenever the random GUID order happened to differ. It passed for a while by luck. A storey is a
+# SET of elements; nothing about iteration order should be able to say two identical ones differ.
+l2_base = [e for c in storeys["Level 2"]["children"] for e in c["children"]]
+l2_moved = [e for c in sm["Level 2"]["children"] for e in c["children"]]
+check("the untouched storey holds the same elements in both models",
+      len(l2_base) == len(l2_moved) and len(l2_base) == 2, (len(l2_base), len(l2_moved)))
+check("  their GlobalIds genuinely differ (separately authored)",
+      {e["guid"] for e in l2_base}.isdisjoint({e["guid"] for e in l2_moved}))
+check("  yet their element hashes match as a SET — GUID is excluded from the hash",
+      sorted(e["hash"] for e in l2_base) == sorted(e["hash"] for e in l2_moved))
+check("  so the rollup is content-ordered, not GUID-ordered",
+      sm["Level 2"]["hash"] == storeys["Level 2"]["hash"])
+
 # --- 5. diff names the field that moved --------------------------------------------------------
 # The GUIDs differ between the two files (they are separately authored), so a diff of independently
 # built models cannot match elements. Diff a model against an EDIT of itself instead, which is the

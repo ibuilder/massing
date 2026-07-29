@@ -252,7 +252,13 @@ def _class_nodes(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         by_class.setdefault(r["class"], []).append(r)
     nodes = []
     for cls in sorted(by_class):
-        members = sorted(by_class[cls], key=lambda r: r["guid"])
+        # Ordered by CONTENT, not by GlobalId. An element's own hash deliberately excludes its GUID
+        # (so a re-export that renumbers every id still compares), and ordering the list by GUID
+        # while hashing without it makes the parent hash depend on something the children do not —
+        # two models with identical elements then hash differently whenever the random GUID order
+        # happens to differ. That is a flake, not a difference in the building. GUID is the tiebreak
+        # so the emitted order is still stable within one file.
+        members = sorted(by_class[cls], key=lambda r: (r["hash"], r["guid"]))
         node = {
             "scale": "class",
             "key": cls,
@@ -278,7 +284,10 @@ def _node_hash(node: dict[str, Any]) -> str:
         "name": node.get("name"),
         "elements": node.get("elements"),
         "quantities": node.get("quantities"),
-        "children": [c["hash"] for c in node.get("children", [])],
+        # SORTED, so the hash describes the SET of children rather than the order they were emitted
+        # in. A storey is a collection of elements; two storeys holding the same elements are the
+        # same storey, and nothing about iteration order should be able to say otherwise.
+        "children": sorted(c["hash"] for c in node.get("children", [])),
     })
 
 

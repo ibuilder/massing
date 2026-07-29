@@ -90,7 +90,7 @@ export async function renderModuleGraph(ctx: PanelContext) {
       chart.innerHTML = graphSvg(g);
       hubs.innerHTML = `<div class="meta">Most-referenced hubs: `
         + g.most_referenced.slice(0, 6).map((h) => `<b>${esc(h.label)}</b> (${h.in_degree})`).join(" · ") + `</div>`;
-    } catch (e) { chart.innerHTML = `<div class="meta">Graph unavailable: ${(e as Error).message}</div>`; }
+    } catch (e) { chart.innerHTML = `<div class="meta">Graph unavailable: ${esc((e as Error).message)}</div>`; }
   };
   sel.onchange = () => void load();
   void load();

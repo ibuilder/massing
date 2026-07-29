@@ -200,7 +200,7 @@ export async function renderBudget(ctx: PanelContext) {
     const tb = document.createElement("tbody");
     const row = (name: string, c: { budget: number; committed: number; actual: number; eac?: number; variance: number }, opts: { bold?: boolean; indent?: boolean } = {}) => {
       const tr = document.createElement("tr"); if (opts.bold) tr.style.fontWeight = "700";
-      tr.innerHTML = `<td style="${opts.indent ? "padding-left:16px;color:var(--muted)" : ""}">${name}</td>`
+      tr.innerHTML = `<td style="${opts.indent ? "padding-left:16px;color:var(--muted)" : ""}">${esc(name)}</td>`
         + `<td style="text-align:right">${usd(c.budget)}</td><td style="text-align:right">${usd(c.committed)}</td>`
         + `<td style="text-align:right">${usd(c.actual)}</td><td style="text-align:right">${usd(c.eac ?? c.budget)}</td>`
         + `<td style="text-align:right;color:${vcol(c.variance)}">${usd(c.variance)}</td>`;
@@ -241,7 +241,7 @@ export async function renderBudget(ctx: PanelContext) {
     if (b.bid_packages.length) {
       for (const bp of b.bid_packages) {
         const r = document.createElement("div"); r.className = "meta"; r.style.margin = "1px 0";
-        r.innerHTML = `${bp.name ?? bp.ref}${bp.trade ? ` · ${bp.trade}` : ""} · budget <b>${usd(bp.budget)}</b>`
+        r.innerHTML = `${esc(bp.name ?? bp.ref)}${bp.trade ? ` · ${esc(bp.trade)}` : ""} · budget <b>${usd(bp.budget)}</b>`
           + (bp.bought_out
               ? ` · awarded <b>${usd(bp.awarded)}</b> · savings <span style="color:${vcol(bp.savings)}">${usd(bp.savings)}</span>`
               : ` · ${bp.submissions || 0} bids · <span style="color:var(--status-warn)">not bought out</span>`);

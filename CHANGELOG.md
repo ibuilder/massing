@@ -4,6 +4,260 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.779 — one front door, and the rooms keep their names
+
+### `?shell=classic` is gone
+
+The room spine became the default at v0.3.715 and the opt-out survived sixty-four releases after
+that. It has earned its removal.
+
+Two shells is two of everything: two rails to keep in step, two paths for a defect to hide in, and —
+as this repo actually managed — **a render audit whose verdict depends on which shell it happened to
+measure**. `liveAudit` carried a `shell` field for exactly that reason, added after a "all 7
+workspaces ok, 0 problems" result measured against the classic shell was read as evidence for the
+redesign it had never touched. An escape hatch nobody is escaping through is not safety, it is a
+second product.
+
+Deleted with it: the lifecycle-stage rail, the per-workspace stage-collapse memory that existed only
+to serve it, the workspace-button rail, and the `shell-spine` storage key. `spine.test` now asserts
+`spineEnabled` and `SPINE_FLAG` are **absent** — a revert should fail a test, not quietly restore a
+second shell.
+
+**What the two-shell period bought is kept.** Its real product was never the fallback, it was the
+guarantee that *nothing became unreachable*. `parity.test` still asserts the room rail reaches every
+destination the lifecycle-stage catalog lists, so `destinations.ts` stays — no longer as "the old
+rail" but as the spec of what must remain reachable. `compareShells` likewise survives as
+`compareRuns(before, after)`: the question was never really about shells, it was *did a pane that
+used to render stop rendering*, which any UI change can cause.
+
+One thing removed rather than kept: `summarise()`'s `shell` field. With a single configuration it is
+a constant, and a constant restating the only possibility is not a disclosure. The lesson it encoded
+is written where it will be read if a second shell ever returns.
+
+### ROOM-NAMING — settled on professional terms
+
+The prototype named the rooms Building · Budget · Timeline · Money · My to-do. We ship **Design ·
+Planning · Cost · Schedule · Deal · Work**, and that is now a decision rather than a pending question.
+
+Not formality — *these are the words the work already has*. An architect issues a **design**; a
+contractor runs a **schedule** and reports **cost**; a developer works a **deal**. A plain label reads
+friendlier right up until somebody has to decide whether "Money" means the budget, the commitment,
+the pay application or the equity draw, at which point the friendly word is a second vocabulary
+stacked on the real one. A tool for professionals that renames their own domain gets harder to use in
+exactly the moments that matter.
+
+**The part worth testing was never the taste — it was the drift.** The labels live in two tables:
+`rooms.ROOMS` in Python (what `/rooms` serves) and `FALLBACK_ROOMS` in TypeScript (what renders when
+that request fails). Nothing asserted they matched. With the classic shell deleted the fallback is
+load-bearing, so a divergence would rename the rail on someone's screen at the precise moment the API
+hiccuped. `roomNames.test.ts` reads `rooms.py` from disk and asserts the two agree label-for-label,
+that the set is exactly the settled six, and that no prototype name has crept back — verified by
+mutation: renaming Cost to "Money" in the Python table alone fails three of its four assertions.
+
+Gates: web 747/747, typecheck + eslint clean. No Python behaviour changed (`rooms.py` gained the
+decision record only).
+
+## v0.3.778 — the R27 ring closes: a received sheet has regions, and a firm has standards
+
+### R27-LAYOUT (b) — the layout layer of a sheet we did not draw
+
+The platform treats the model as data and the drawing as a picture with some text behind it. For
+sheets *we* generate that stopped being true in v0.3.702: `sheet_regions()` keeps the rectangles
+`compose_viewports` already computed, so a takeoff can be scoped to a viewport without calibration.
+
+Every sheet that arrives from a consultant still had no answer. `sheet_extract` reads the text layer
+and regexes sheet numbers out of it with **no notion of where on the page anything sits**, so a note,
+a takeoff and a revision could only ever attach to a page number — not to the view they govern.
+
+`sheet_recover.recover_regions()` reads the layout layer back out, served at
+`POST /projects/{pid}/drawings/received-regions`.
+
+**Deterministic vector geometry, not a document-layout model.** The layout-analysis paper this ring
+is built on reports that pre-training on general document layout actively *hurts* on construction
+sheets — **0.589 against 0.727** for the same architecture randomly initialised. Construction sheets
+are not documents with unusual furniture; they are a different distribution, and a model that has
+learned "this is a paragraph" is confidently wrong about them. Meanwhile the regions are not inferred
+at all: titleblock borders, viewport frames and table rules are literally `re` operators in the
+content stream. Detection is what you need once the vectors are gone. Where they are, this says so.
+
+**What it refuses to do.** `to_page` is `null` for every region and never identity — the page↔world
+affine cannot be recovered from a sheet we did not draw, and an identity would silently report page
+points as metres. A scale printed on the sheet is a *claim on paper*, not a measurement, so it comes
+back as `scale_denom_proposed` for a calibration step to accept. A takeoff auto-calibrated wrong looks
+finished, which is worse than one nobody calibrated. A page whose vectors are gone returns a stated
+`unknown` region rather than an empty list: an empty list is a claim about the drawing, `unknown` is a
+claim about us.
+
+### Two defects the tests caught by disagreeing with the code
+
+**Rectangles must be transformed through the CTM stack.** Reading `re` operands raw is the obvious
+implementation and it is wrong on every sheet whose views are placed with `cm` — which is most of
+them. The test draws a 150×120 rect inside a 2× scaled, translated graphics state and asserts it comes
+back as 300×240 at the page origin it actually occupies.
+
+**A region's kind is decided by the text it owns, not all text inside it.** Sheets nest: a revision
+table sits inside the titleblock column. Reading all contained text let the innermost box's vocabulary
+classify every ancestor, so the titleblock came back as a "revision table". Text is now charged to the
+smallest rectangle that holds it, which is what "which region is this?" actually means.
+
+And one about the test itself: the border check first asserted "no region covers ≥98% of the page" —
+**restating the implementation's own constant**. It passed while the drawing border sat in the output
+classified as a viewport, because a border inset 10pt on an A4 is only 97.6% of the page. It now
+asserts against the rectangle the test drew. A test that repeats the code's threshold measures nothing.
+
+Verified through two independent implementations of the PDF spec: the fixtures are written by
+reportlab and read by pypdf. A round-trip through one library's own writer+reader pair passes just as
+happily on a wrong understanding of the format — which is exactly how the 4D binding once shipped
+encoding the wrong IFC relation while its own test round-tripped perfectly.
+
+`test_reachable` confirms the module is callable rather than merely correct: across v0.3.701–710,
+seven of eleven things built shipped with no route at all.
+
+
+### R27-FIRM-MEMORY — standards that outlive a project
+
+`rule_library` is scoped per project; so are `design_standards` and `standards_expert`. But a firm's
+standards are precisely the thing that does *not* change per project — "every L1 door needs a fire
+rating" is true on the next job too. Re-authoring it per job turns one standard into forty slightly
+different ones, with no way to say which is the standard.
+
+Firm rules now live under a reserved storage scope, reusing `rule_library`'s own blob path **and its
+validator** — one persistence path, one definition of a valid rule. A rule that would be rejected on a
+project is not accepted merely because it was authored at the firm level, and the save stays atomic at
+both tiers.
+
+A project layers over the firm's **by rule id, not by name**. Matching on name would make a rename
+look like a new rule and silently reinstate the firm's version alongside the project's — one rule
+applying twice under one id is worse than either version alone.
+
+**The override is the point.** A job whose client standard differs from the firm's is completely
+normal, so overriding is legitimate. What is not legitimate is it being invisible: every effective
+rule states its `source`, and one that displaces a firm rule carries the version it replaced. The
+failure mode here is not a wrong answer — the project passes its checks either way — it is a firm
+discovering its standards had quietly become optional. `PUT /firm/rules` is admin-only for the same
+reason: a project editor may override a standard on their own job; changing what the firm stands for
+is not a per-project act.
+
+**The scope question, answered rather than assumed.** The item asked for an "org-scoped" tier, and
+this codebase has no `Organization` entity — what `test_tenant_scoping` calls a tenant is RBAC over
+project membership. Rather than invent a multi-tenant model nobody asked for, *firm* means **the
+deployment**: a self-hosted install is one firm's install. That limitation is written into the module
+rather than papered over; if organisations arrive later, `FIRM_SCOPE` becomes an org id and the
+inheritance logic does not change.
+
+Deliberately not an AI feature — the products selling "institutional memory" reduce to clean
+extraction plus safe write-back. Both already existed; what was missing was somewhere for a rule to
+live that is not a project.
+
+**This completes the R27 ring.**
+
+Gates: backend **423/423** suites with `test_sheet_recover` (19 checks) and `test_firm_standards`
+(14 checks) registered; `test_reachable` 301/305 — both new modules are callable, not merely
+correct, which across v0.3.701-710 was the difference seven of eleven shipped things got wrong;
+ruff clean.
+
+## v0.3.777 — every model gets a container, and the viewer stops guessing which one
+
+### The viewer picked geometry by matching the project's NAME
+
+`viewer/app.ts` held a function that mapped a project name to bundled `.frag` files:
+
+```ts
+if (/school/i.test(name)) return [["/school_str.frag", …], ["/school_arq.frag", …]];
+```
+
+A user project called "Riverside School" with no published model therefore rendered **an unrelated
+demo's structural frame** — presented as theirs, silently, with the panels reading from a different
+model entirely. With no project at all, the same two files loaded unconditionally. Two projects can
+share a word in their names and share nothing else; the only correct key is the project id.
+
+The gate meant to prevent this already existed and passed. `library.test.ts` asserted "the three
+hard-coded .frag samples are gone" — of `main.ts`, while all three lived in `viewer/app.ts`, as the
+default. **A check scoped to one file measures that file, not the behaviour.** It now reads the
+viewer too, and separately forbids a name-regex model picker; both assertions were mutation-checked
+by reintroducing the defect and confirming they fail.
+
+With nothing referencing them, the three `.frag` assets are deleted — **7.4 MB** off every web build
+and desktop installer. `loadSample`, the function that existed only to fetch a bare `.frag` by path,
+went with them: defined, re-exported on the viewer's public API, called by nobody.
+
+When there is no project model the canvas is now empty, which is the honest answer. The status bar
+already says what to do, and the sample library is the real way in.
+
+### Opening a model produced a mesh, not a project
+
+Opening an IFC with the backend reachable but no project selected fell through to `view only`. That
+is a thing you can orbit and nothing else: no quantities, no estimate, no schedule, nothing to pin an
+RFI to, and nothing kept when the tab closes. The server was reachable the whole time — the code
+simply had nowhere to put the model and gave up. The same branch also sent large files down the
+in-browser parser with a "this may be slow" warning, while the server-side conversion path sat one
+condition away.
+
+It now offers to create a container, uploads through the ordinary publish path, and lands you in the
+finished project. **Offers** — creating a project writes a real row into the user's database, and
+doing that unasked is precisely the unconsented side effect the sample picker deliberately refuses to
+commit. Decline, or be offline, and view-only remains; the two now read differently, because "offline"
+and "you said no" are not the same message.
+
+`fileIO.test.ts` gates the rule, including that the confirmation *precedes* the write — a consent
+check that runs after the row exists is decoration. Verified by mutation: removing the confirm fails
+the ordering assertion, and disabling the branch fails the branch assertion.
+
+### The menus say what things are
+
+Open ▾ led with "New model from scratch" — a create action, first item of a menu named Open — and
+filed samples under "Sample models" as though they were still bare meshes. Both dropdowns are now
+grouped by what the thing *is*: **Project** (new · open `.mass` · sample) · **Model geometry** ·
+**Site context** · **Import from Revit / CAD**. A sample is a project now, so it sits with projects.
+
+Gates: web 715/715, typecheck + eslint clean. No Python changed since the 421/421 backend run in
+v0.3.776.
+
+## v0.3.776 — a sample worth opening, and a ratchet on unescaped HTML
+
+The library had a house: 23 elements, seven walls, a roof. It earns its place — it was authored in
+the browser by the same edit recipes a user drives, so it proves the authoring path end to end. What
+it cannot do is look like a building. A first-time visitor opening a 23-element house learns that the
+viewer renders, and nothing else.
+
+`riverside_school_structural.mass` is the second container: **1551 elements** — 619 reinforcing bars,
+375 beams, 299 slabs, 203 columns, 22 members, 15 element assemblies, across 5 storeys. A structural
+frame with its reinforcement modelled, which is the point: the panels have something to measure.
+
+It was packaged through **the path a user takes**, not a fixture writer — `POST /projects`, then
+`POST /projects/{pid}/source-ifc?publish=true` with the real 8.4 MB IFC, publish, then
+`build_samples.py`. A sample built by a private route would sooner or later demonstrate behaviour the
+product does not have.
+
+**The school is structure only, and the vitals strip says so.** There is no `IfcSpace` in the model,
+so Area reads `—` ("no space areas recorded") and $/ft² follows it, because a figure over a missing
+denominator is not a figure. That is the em-dash rule from v0.3.773 doing exactly its job on the most
+visible model we ship. Showing `0 ft²` here would be the easier demo and the dishonest one.
+
+Both containers are now described in `samples/README.md` with what each demonstrates, so the library
+says why it has two rather than leaving the pair unexplained.
+
+Verified from the artifact, not the build log: `GET /samples` lists two entries; the school's
+manifest reads `readable: true`, `has_geometry: true`, `elements: 1551`, `format: massing.project`,
+`version: 2`. `test_samples` passes — its "ships at least one .mass" assertion now names both.
+
+### SEC — user text reaching `innerHTML` unescaped, and a ratchet so it stops coming back
+
+An audit pass found free text interpolated into `innerHTML` without `esc()` across nine files: a
+submittal title lifted from an **uploaded document**, a `trade` parameter echoed back, an upload
+filename, and server error strings — a 422 detail can quote the caller's own input. Each was one
+missed call from stored XSS, and in every case the surrounding lines in the *same function* already
+used `textContent`. The defect was inconsistency, not ignorance, which is precisely the kind that
+returns.
+
+So the fix is a ratchet, not a sweep. Escaping every site at once cannot be done safely — most
+interpolations are literals passed to helpers (`stat("Budget", n)`) and a few carry deliberate markup
+(rail icons), so blanket escaping would break UI to fix nothing. `ui/innerHtmlGuard.test.ts` instead
+records a per-file baseline of unescaped hot interpolations and enforces that **the number only ever
+goes down**: new code cannot add one, and a file that improves without lowering its baseline fails
+too — otherwise the ledger drifts from the code it describes and starts granting permission it was
+never asked for.
+
 ## v0.3.775 — TRACE-UI: a coverage number you can open
 
 The 5D chain ran one way. You could ask *"what did this element cost?"* — paste a GlobalId, get the

@@ -46,13 +46,33 @@ async function mainSource(): Promise<string> {
   return src;
 }
 
+/** Source of the viewer, which held the same filenames one file away from the check below. */
+async function viewerSource(): Promise<string> {
+  const mod = await import("../viewer/app.ts?raw");
+  const src = (mod as { default: string }).default;
+  expect(typeof src, "?raw did not resolve — the assertions below would be vacuous").toBe("string");
+  expect(src.length).toBeGreaterThan(1000);
+  return src;
+}
+
 describe("the Open menu uses the library, not a hard-coded list", () => {
   it("the three hard-coded .frag samples are gone", async () => {
-    const src = await mainSource();
-    // These shipped geometry with no project behind it — the exact thing the library replaces.
-    expect(src, "school_str.frag should no longer be a menu entry").not.toMatch(/school_str\.frag/);
-    expect(src, "school_arq.frag should no longer be a menu entry").not.toMatch(/school_arq\.frag/);
-    expect(src, "basichouse.frag should no longer be hard-coded").not.toMatch(/basichouse\.frag/);
+    // Scoped to main.ts, this assertion passed for releases while `viewer/app.ts` kept all three —
+    // and used them as its DEFAULT, picked by a regex on the project's name, so a project called
+    // "…School…" with no published model rendered an unrelated demo's geometry. A check scoped to
+    // one file measures that file, not the behaviour. Both files, now.
+    for (const src of [await mainSource(), await viewerSource()]) {
+      expect(src, "school_str.frag must not be hard-coded").not.toMatch(/school_str\.frag/);
+      expect(src, "school_arq.frag must not be hard-coded").not.toMatch(/school_arq\.frag/);
+      expect(src, "basichouse.frag must not be hard-coded").not.toMatch(/basichouse\.frag/);
+    }
+  });
+
+  it("the viewer does not choose geometry by matching the project's NAME", async () => {
+    const src = await viewerSource();
+    // The specific shape of the defect: a name regex deciding which model to load. Two projects can
+    // share a word in their names and share nothing else — the only correct key is the project id.
+    expect(src, "no name-regex model picker").not.toMatch(/fragsForProject/);
   });
 
   it("the menu calls the library instead", async () => {

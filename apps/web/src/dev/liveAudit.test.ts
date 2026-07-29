@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MIN_CHARS, auditRooms, auditWorkspaces, compareShells, isDisplayed, judgePane, judgeRoom, realText, summarise } from "./liveAudit";
+import { MIN_CHARS, auditRooms, auditWorkspaces, compareRuns, isDisplayed, judgePane, judgeRoom, realText, summarise } from "./liveAudit";
 
 /**
  * R26-V-LIVE. The audit that started R26 was a click-through, and click-throughs do not survive —
@@ -198,14 +198,20 @@ describe("trap 2 — a click rebuilds the nav, detaching anything you held", () 
 // This file shipped with zero references to the spine, so its "all 7 workspaces ok, 0 problems"
 // belonged to the CLASSIC shell — and was read as evidence for the redesign it never touched. An
 // audit that does not state its configuration produces results that migrate to the wrong claim.
-describe("a report states which shell it measured", () => {
-  it("carries the shell rather than leaving it to be assumed", () => {
-    const s = summarise([{ id: "a", verdict: "ok", chars: 99, controls: 1, detail: "" }], "spine");
-    expect(s.shell).toBe("spine");
-    expect(s.note).toContain("not evidence about the other");
-  });
-  it("defaults to classic rather than to the flattering answer", () => {
-    expect(summarise([]).shell).toBe("classic");
+describe("a report says what it could NOT judge, rather than scoring it", () => {
+  // This block used to assert the report named which shell it measured — a field added because its
+  // absence had let a classic-shell result be read as evidence for the spine. With one shell left
+  // (v0.3.779) that field is a constant, and a constant is not a disclosure. What still matters, and
+  // is what the field was really protecting, is that unjudgeable panes stay out of the pass count.
+  it("hidden and unknown panes are neither passes nor problems", () => {
+    const s = summarise([
+      { id: "a", verdict: "ok", chars: 99, controls: 1, detail: "" },
+      { id: "b", verdict: "hidden", chars: 0, controls: 0, detail: "" },
+      { id: "c", verdict: "unknown", chars: 0, controls: 0, detail: "" },
+    ]);
+    expect(s.ok).toBe(1);
+    expect(s.problems).toEqual([]);
+    expect(s.unknown.map((p) => p.id)).toEqual(["b", "c"]);
   });
 });
 
@@ -247,34 +253,34 @@ describe("judgeRoom — a room is judged by what it contains", () => {
   });
 });
 
-describe("compareShells — the gate on making the new shell the default", () => {
-  const rep = (shell: "spine" | "classic", panes: Array<[string, "ok" | "empty" | "slow"]>) =>
-    summarise(panes.map(([id, verdict]) => ({ id, verdict, chars: 0, controls: 0, detail: "" })), shell);
+describe("compareRuns — the gate on any change to the shell", () => {
+  const rep = (_label: string, panes: Array<[string, "ok" | "empty" | "slow"]>) =>
+    summarise(panes.map(([id, verdict]) => ({ id, verdict, chars: 0, controls: 0, detail: "" })));
 
   it("a pane that renders in classic and not under the spine is a REGRESSION", () => {
-    const d = compareShells(rep("classic", [["ws:Cost", "ok"]]), rep("spine", [["ws:Cost", "empty"]]));
+    const d = compareRuns(rep("classic", [["ws:Cost", "ok"]]), rep("spine", [["ws:Cost", "empty"]]));
     expect(d.regressions).toEqual(["ws:Cost"]);
     expect(d.gains).toEqual([]);
   });
   it("`slow` is a pass on both sides, so a slower-but-rendering pane is not a regression", () => {
-    const d = compareShells(rep("classic", [["ws:Model", "ok"]]), rep("spine", [["ws:Model", "slow"]]));
+    const d = compareRuns(rep("classic", [["ws:Model", "ok"]]), rep("spine", [["ws:Model", "slow"]]));
     expect(d.regressions).toEqual([]);
     expect(d.same).toBe(1);
   });
   it("a pane fixed by the new shell is a gain, not silence", () => {
-    const d = compareShells(rep("classic", [["ws:Field", "empty"]]), rep("spine", [["ws:Field", "ok"]]));
+    const d = compareRuns(rep("classic", [["ws:Field", "empty"]]), rep("spine", [["ws:Field", "ok"]]));
     expect(d.gains).toEqual(["ws:Field"]);
   });
   it("a pane present in only one run is INCOMPARABLE, never a regression", () => {
     // The two runs may have walked different tab sets; calling that a defect would block a release
     // on a measurement artifact rather than on a real one.
-    const d = compareShells(rep("classic", [["ws:Only", "ok"]]), rep("spine", [["ws:Other", "ok"]]));
+    const d = compareRuns(rep("classic", [["ws:Only", "ok"]]), rep("spine", [["ws:Other", "ok"]]));
     expect(d.regressions).toEqual([]);
     expect(d.incomparable).toEqual(["ws:Only", "ws:Other"]);
     expect(d.same).toBe(0);
   });
   it("identical runs report no regressions and no gains", () => {
-    const d = compareShells(rep("classic", [["a", "ok"], ["b", "ok"]]),
+    const d = compareRuns(rep("classic", [["a", "ok"], ["b", "ok"]]),
                             rep("spine", [["a", "ok"], ["b", "ok"]]));
     expect(d).toMatchObject({ regressions: [], gains: [], incomparable: [], same: 2 });
   });

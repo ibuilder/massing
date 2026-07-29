@@ -21,31 +21,18 @@
  *    survives as the fourth path rather than the only one.
  * 3. **It lived beside the old shell until it was demonstrably better** — behind a flag, because
  *    replacing a working front door on the strength of a mock is how you lose the parts that were
- *    already right. As of v0.3.715 it IS the front door: R26 is complete, and the live render audit
- *    passes against the spine specifically rather than against the classic shell it was once
- *    mistakenly run on. The flag survives inverted, as an opt-OUT, because a redesign nobody can
- *    back out of is a redesign that has to be perfect on the first try.
+ *    already right. It became the default at v0.3.715 and the opt-out was **deleted at v0.3.779**,
+ *    sixty-four releases later: two shells is two of everything — two rails to change, two paths for
+ *    a bug to hide in, and a live audit whose result depends on which one it happened to measure
+ *    (a mistake this repo actually made). The escape hatch earned its keep and then stopped being an
+ *    escape hatch, because nobody was escaping.
+ *
+ *    What replaces it is not "trust us": `parity.test` still asserts the room rail reaches every
+ *    destination the lifecycle-stage catalog lists, so the guarantee the two-shell period provided —
+ *    *nothing became unreachable* — outlives the shell that motivated it.
  */
 import type { ApiClient } from "../api/client";
 import type { RoomAllocation, RoomDef } from "../api/types";
-
-/**
- * **On by default since v0.3.715.** `?shell=classic` opts out and the choice sticks; `?shell=spine`
- * opts back in.
- *
- * The stored value is now explicit — `"1"` on, `"0"` off — rather than present/absent. That detail
- * matters for the flip: under the old scheme "no preference" and "opted out" were the same absent
- * key, so inverting the default would have silently overridden every deliberate opt-out. Anyone who
- * had opted IN still has `"1"` and sees no change.
- */
-export const SPINE_FLAG = "shell-spine";
-
-export function spineEnabled(search: string = location.search): boolean {
-  const q = new URLSearchParams(search).get("shell");
-  if (q === "spine") { localStorage.setItem(SPINE_FLAG, "1"); return true; }
-  if (q === "classic") { localStorage.setItem(SPINE_FLAG, "0"); return false; }
-  return localStorage.getItem(SPINE_FLAG) !== "0";      // unset = the new default = on
-}
 
 /**
  * Which room a workspace opens in. This is the whole of what a workspace does to the spine — it

@@ -187,7 +187,7 @@ export async function openReportCenter(api: ApiClient, projectId: string | null)
             body.insertAdjacentHTML("beforeend", `<div class="meta" style="margin:6px 0 2px">Sheet × issuance matrix</div>`);
             table(body, ["Sheet", "Discipline", ...cols], mx.rows.map((r) => [r.sheet_number, r.discipline ?? "", ...r.cells.map((c) => c ?? "—")]));
           }
-        } catch (e) { body.insertAdjacentHTML("beforeend", `<div class="meta">${escapeHtml((e as Error).message)}</div>`); }
+        } catch (e) { body.insertAdjacentHTML("beforeend", `<div class="meta">${(e as Error).message}</div>`); }
 
         // revision / delta register (AIA revision block, newest first, with the driving instrument)
         try {
@@ -371,7 +371,7 @@ export async function openReportCenter(api: ApiClient, projectId: string | null)
     const run = (create: boolean) => async () => {
       if (!ta.value.trim()) return; ex.disabled = cr.disabled = true; out.innerHTML = `<div class="meta">Extracting…</div>`;
       try { const r = await api.extractSubmittals(pid, ta.value, create);
-        out.innerHTML = `<div class="meta">${r.items.length} submittal(s) · source: ${r.source}${r.created_submittals != null ? ` · ${r.created_submittals} added to the log` : ""}${r.message ? " · " + escapeHtml(r.message) : ""}</div>`;
+        out.innerHTML = `<div class="meta">${r.items.length} submittal(s) · source: ${escapeHtml(r.source)}${r.created_submittals != null ? ` · ${r.created_submittals} added to the log` : ""}${r.message ? " · " + escapeHtml(r.message) : ""}</div>`;
         table(out, ["Section", "Submittal", "Type"], r.items.map((i) => [i.section_number ?? "", i.title, i.type])); }
       catch (e) { out.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
       finally { ex.disabled = cr.disabled = false; }

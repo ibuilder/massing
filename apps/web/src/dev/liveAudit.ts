@@ -24,12 +24,10 @@
  * not examine is `unknown`, never `ok` and never `empty`.
  */
 
-import { ROOM_IDS, spineEnabled } from "../shell/spine";
+import { ROOM_IDS } from "../shell/spine";
 
 export type Verdict = "ok" | "empty" | "slow" | "hidden" | "missing" | "unknown";
 
-/** Which shell a report was measured under. Never inferred — a result carries its configuration. */
-export type Shell = "spine" | "classic";
 
 export interface PaneReport {
   id: string;
@@ -43,8 +41,6 @@ export interface PaneReport {
 
 export interface LiveAuditReport {
   panes: PaneReport[];
-  /** The shell this run measured. A green result from one shell says nothing about the other. */
-  shell: Shell;
   ok: number;
   problems: PaneReport[];
   /** Verdicts the audit could not reach. Reported, never counted as passes. */
@@ -138,28 +134,24 @@ export function judgePane(id: string, host: HTMLElement | null, content?: HTMLEl
            detail: `only ${chars} chars and no controls — displayed but with nothing in it` };
 }
 
-export function summarise(panes: PaneReport[], shell: Shell = "classic"): LiveAuditReport {
+export function summarise(panes: PaneReport[]): LiveAuditReport {
   return {
     panes,
-    // WHICH SHELL THIS RESULT BELONGS TO. Recorded because its absence was a real defect: this file
+    // This used to carry a `shell` field, because its absence had been a real defect: the file once
     // shipped with no reference to the spine at all, so its "all 7 workspaces ok, 0 problems" was
-    // measured against the CLASSIC shell — and was then read as evidence for the redesign it never
-    // touched. An audit that does not state its configuration produces results that migrate.
-    shell,
+    // measured against the CLASSIC shell and then read as evidence for the redesign it never
+    // touched. With the classic shell deleted in v0.3.779 there is one configuration, so the field
+    // became a constant — and a constant that restates the only possibility is not a disclosure.
+    // The lesson stands: if a second shell ever returns, this report has to name which one it ran on.
+    //
     // `slow` is a pass: the pane rendered, it just took a second look to see it.
     ok: panes.filter((p) => p.verdict === "ok" || p.verdict === "slow").length,
     problems: panes.filter((p) => p.verdict === "empty" || p.verdict === "missing"),
     unknown: panes.filter((p) => p.verdict === "unknown" || p.verdict === "hidden"),
     note: ("`hidden` and `unknown` are NOT passes and NOT failures — they are panes this run could "
            + "not judge. Counting them either way is how an audit invents defects or hides them. "
-           + "`slow` IS a pass: the pane rendered, it just needed a second look. `shell` names the "
-           + "configuration measured — a result from one shell is not evidence about the other."),
+           + "`slow` IS a pass: the pane rendered, it just needed a second look."),
   };
-}
-
-/** Which shell the app is currently running. Read from the live flag, not assumed. */
-export function currentShell(): Shell {
-  return spineEnabled() ? "spine" : "classic";
 }
 
 export interface RoomReport {
@@ -172,7 +164,6 @@ export interface RoomReport {
 }
 
 export interface RoomAuditReport {
-  shell: Shell;
   rooms: RoomReport[];
   /** Rooms the spine promises but the rail did not render. */
   missing: string[];
@@ -209,15 +200,14 @@ export function judgeRoom(det: HTMLElement | null, id: string): RoomReport {
 /**
  * Audit the room rail — the surface the redesign actually introduced.
  *
- * `auditWorkspaces` walks workspace tabs, which both shells share; it therefore says nothing about
- * the rail itself. This is the part that only exists under the spine, and it was entirely unmeasured.
+ * `auditWorkspaces` walks workspace tabs and therefore says nothing about the rail itself. This is
+ * the rail, which was entirely unmeasured before this ring.
  */
 /** Selector for the nav container that HOLDS the rail. Its absence and a room's absence are
  *  different facts, and conflating them is the bug this constant exists to prevent. */
 export const NAV_SEL = ".portal-nav, .pnav";
 
 export function auditRooms(expected: readonly string[] = ROOM_IDS): RoomAuditReport {
-  const shell = currentShell();
   // WAS THE RAIL BUILT AT ALL? The first version of this function skipped this and reported every
   // room `missing` whenever the nav had not been constructed — which is what happens on the landing
   // page, before a project opens, and any time the portal shows its empty state. That verdict reads
@@ -233,7 +223,7 @@ export function auditRooms(expected: readonly string[] = ROOM_IDS): RoomAuditRep
             + "that omitted this room",
     }));
     return {
-      shell, rooms, missing: [], empty: [],
+      rooms, missing: [], empty: [],
       note: "NO NAV RENDERED — the portal has not built its rail (no project open, or an empty "
           + "state). Every room is `unknown`; none of this is evidence about the rail. Open a "
           + "project first, then re-run.",
@@ -242,23 +232,17 @@ export function auditRooms(expected: readonly string[] = ROOM_IDS): RoomAuditRep
   const rooms = expected.map((id) =>
     judgeRoom(nav.querySelector<HTMLElement>(`.pnav-room[data-room="${id}"]`), id));
   return {
-    shell,
     rooms,
     missing: rooms.filter((r) => r.verdict === "missing").map((r) => r.id),
     empty: rooms.filter((r) => r.verdict === "empty").map((r) => r.id),
-    note: (shell === "spine"
-      ? "Measured under the spine — the rail this ring introduced."
-      : "Measured under the CLASSIC shell, where the room rail does not exist: every room reads as "
-        + "`missing` and that is correct, not a defect. The spine is the DEFAULT since v0.3.715, so "
-        + "landing here means something opted out — clear the `shell-spine` key or pass ?shell=spine "
-        + "before reading this run as a verdict on the rail."),
+    note: "Measured against the room rail — the only shell since v0.3.779.",
   };
 }
 
 export interface ShellDiff {
-  /** Panes that render in the classic shell and do NOT under the spine. The release gate. */
+  /** Panes that rendered in the BEFORE run and do not in the AFTER run. The release gate. */
   regressions: string[];
-  /** Panes that render under the spine and did not before. */
+  /** Panes that render now and did not before. */
   gains: string[];
   /** Panes present in one report and absent from the other — not comparable, so not scored. */
   incomparable: string[];
@@ -267,20 +251,25 @@ export interface ShellDiff {
 }
 
 /**
- * Diff two runs: does the new shell render everything the old one did?
+ * Diff two runs: does everything that rendered before still render now?
+ *
+ * Born as `compareShells` to gate the spine against the classic shell. That shell was deleted in
+ * v0.3.779, but the question it answered was never really about shells — it was *did any pane that
+ * used to render stop rendering*, which is the regression any UI change can cause. So this keeps the
+ * comparison and drops the framing: run it before a change and after one.
  *
  * Pure on purpose. The browser-dependent half of this file is thin and the judgment half is where the
- * mistakes live, so the comparison that decides whether the redesign can ship by default is a
- * function a unit test can drive without a layout engine.
+ * mistakes live, so the comparison a release leans on is a function a unit test can drive without a
+ * layout engine.
  *
  * A pane in one report and not the other is **incomparable**, never a regression: the two runs may
  * have walked different tab sets, and calling that a defect would block a release on a measurement
  * artifact.
  */
-export function compareShells(classic: LiveAuditReport, spine: LiveAuditReport): ShellDiff {
+export function compareRuns(before: LiveAuditReport, after: LiveAuditReport): ShellDiff {
   const pass = (r: LiveAuditReport) => new Map(r.panes.map((p) => [p.id, p.verdict === "ok" || p.verdict === "slow"]));
-  const a = pass(classic);
-  const b = pass(spine);
+  const a = pass(before);
+  const b = pass(after);
   const regressions: string[] = [];
   const gains: string[] = [];
   const incomparable: string[] = [];
@@ -298,10 +287,10 @@ export function compareShells(classic: LiveAuditReport, spine: LiveAuditReport):
     gains: gains.sort(),
     incomparable: [...new Set(incomparable)].sort(),
     same,
-    note: ("A REGRESSION is a pane that renders in the classic shell and not under the spine — that "
-           + "is the gate on making the new shell the default. `incomparable` panes appeared in only "
-           + "one run and are deliberately unscored: the runs may have walked different tabs, and "
-           + "treating that as a defect would block a release on a measurement artifact."),
+    note: ("A REGRESSION is a pane that rendered in the BEFORE run and does not in the AFTER run — "
+           + "the gate on any change to the shell. `incomparable` panes appeared in only one run and "
+           + "are deliberately unscored: the runs may have walked different tabs, and treating that "
+           + "as a defect would block a release on a measurement artifact."),
   };
 }
 
@@ -352,14 +341,14 @@ export async function auditWorkspaces(
     }
     panes.push(r);
   }
-  return summarise(panes, currentShell());
+  return summarise(panes);
 }
 
 declare global {
   interface Window {
     __liveAudit?: typeof auditWorkspaces;
     __auditRooms?: typeof auditRooms;
-    __compareShells?: typeof compareShells;
+    __compareRuns?: typeof compareRuns;
   }
 }
 
@@ -367,5 +356,5 @@ declare global {
 export function installLiveAudit(): void {
   window.__liveAudit = auditWorkspaces;
   window.__auditRooms = auditRooms;
-  window.__compareShells = compareShells;
+  window.__compareRuns = compareRuns;
 }

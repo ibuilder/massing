@@ -16,6 +16,22 @@ allocation can be reviewed as a single readable list instead of by grepping a hu
 mis-sectioned module silently unreachable — which is exactly the failure an IA restructure is most
 likely to cause and least likely to notice. Same rule the rest of the codebase follows: the absence
 of an answer is not an answer.
+
+**ROOM-NAMING — settled 2026-07-29: professional terms, not plain language.** The prototype named
+these Building · Budget · Timeline · Money · My to-do. We ship **Design · Planning · Cost · Schedule
+· Deal · Work**, and this is now a decision rather than an open question.
+
+The reason is not formality. *These are the words the work already has*: an architect issues a
+**design**, a contractor runs a **schedule** and reports **cost**, a developer works a **deal**.
+Plain labels read as friendlier right until someone has to decide whether "Money" means the budget,
+the commitment, the pay application or the equity draw — at which point the friendly word is a second
+vocabulary layered on the real one. A tool for professionals that renames their own domain is harder
+to use in exactly the moments that matter.
+
+The labels are duplicated in `apps/web/src/shell/spine.ts` (`FALLBACK_ROOMS`), which is what renders
+when `/rooms` fails — load-bearing since the classic shell was deleted in v0.3.779. Two tables
+encoding one decision drift, so `roomNames.test.ts` reads THIS file and asserts they agree label for
+label, and that no prototype name has crept back.
 """
 from __future__ import annotations
 

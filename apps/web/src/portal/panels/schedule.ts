@@ -92,7 +92,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
         ? a.alerts.map((al) => `<div class="meta" style="margin:2px 0">${dot[al.level] ?? "•"} <b>${esc(al.title)}</b> — ${esc(al.detail)}${al.ref ? ` <span style="opacity:.6">[${esc(al.ref)}]</span>` : ""}</div>`).join("")
         : `<div class="meta">🟢 No schedule alerts.</div>`;
       showDrawer(`<div class="dash-card"><div class="section-title">🔔 Schedule alerts · ${a.counts.high} high · ${a.counts.medium} medium · ${a.counts.low} low</div>${rows}</div>`);
-    } catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Alerts unavailable: ${esc((e as Error).message)}</div></div>`); }
+    } catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Alerts unavailable: ${(e as Error).message}</div></div>`); }
   };
   esBtn.onclick = async () => {
     showDrawer(`<div class="dash-card"><div class="meta">Computing earned schedule…</div></div>`);
@@ -105,13 +105,13 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
         + ` · SV(t) ${es.sv_t_periods.toFixed(1)} periods`
         + (es.forecast_finish ? ` · forecast finish <b>${esc(es.forecast_finish)}</b>` : "")
         + (es.note ? `<br><span style="opacity:.7">${esc(es.note)}</span>` : "") + `</div></div>`);
-    } catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Earned schedule unavailable: ${esc((e as Error).message)}</div></div>`); }
+    } catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Earned schedule unavailable: ${(e as Error).message}</div></div>`); }
   };
   const drawBaselines = async () => {
     showDrawer(`<div class="dash-card"><div class="meta">Loading baselines…</div></div>`);
     let list;
     try { list = (await ctx.host.api.scheduleBaselines(pid)).baselines; }
-    catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Baselines unavailable: ${esc((e as Error).message)}</div></div>`); return; }
+    catch (e) { showDrawer(`<div class="dash-card"><div class="meta">Baselines unavailable: ${(e as Error).message}</div></div>`); return; }
     const card = document.createElement("div"); card.className = "dash-card";
     card.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "📌 Named baselines" }));
     const form = document.createElement("div"); form.style.cssText = "display:flex;gap:6px;margin:4px 0;flex-wrap:wrap";
@@ -205,7 +205,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
           + `<td style="text-align:center">${d.mean_slip_days}d</td></tr>`).join("") + `</tbody>`;
       riskBody.append(t);
     }
-  }).catch((e) => { riskBody.innerHTML = `<div class="meta">risk simulation failed: ${(e as Error).message}</div>`; });
+  }).catch((e) => { riskBody.innerHTML = `<div class="meta">risk simulation failed: ${esc((e as Error).message)}</div>`; });
 
   // --- Schedule acceleration (advisory): crash + fast-track levers off the critical path ----------
   const accCard = document.createElement("div"); accCard.className = "dash-card"; accCard.style.marginBottom = "10px";
@@ -233,7 +233,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
       accBody.append(n);
     }
     accBody.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:3px">Advisory only — the platform never rewrites your schedule.</div>`);
-  }).catch((e) => { accBody.innerHTML = `<div class="meta">acceleration analysis failed: ${(e as Error).message}</div>`; });
+  }).catch((e) => { accBody.innerHTML = `<div class="meta">acceleration analysis failed: ${esc((e as Error).message)}</div>`; });
 
   // --- SCHED-OPT: schedule optioneering — permute crews/zoning/overlap/sequence, score & rank --------
   const optCard = document.createElement("div"); optCard.className = "dash-card"; optCard.style.marginBottom = "10px";

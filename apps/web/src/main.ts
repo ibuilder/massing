@@ -6,7 +6,7 @@ import { showResult } from "./ui/result";
 import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTabs";
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
 import { pinnedItems, renderPinnedRail } from "./shell/pinnedRail";
-import { ROOM_HOME, destRoom, spineEnabled } from "./shell/spine";
+import { ROOM_HOME, destRoom } from "./shell/spine";
 import { renderVitals } from "./shell/vitalsBar";
 import { setRoomOpen } from "./portal/prefs";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
@@ -259,16 +259,22 @@ document.addEventListener("click", dismissMenusIfOutside, true);
 window.addEventListener("blur", () => closeMenus());
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenus(); });
 // pre-warm the viewer when the file menus open so triggerOpen/export resolve promptly
+// Ordered by what the thing IS, not by how it arrives. A project is the unit of work — it carries
+// geometry, quantities, cost, schedule and issues — so the three ways to get one come first. Geometry
+// and context are things you add TO a project, and read as such. "Sample models" stopped being its own
+// category when a sample became a real `.mass` project rather than a bare mesh.
 buildMenu("open-menu", "Open ▾", [
+  { label: "Project", sep: true },
   { label: "✏️ New model from scratch…", onClick: () => void startModeling() },
   { label: "Open Project (.mass)…", onClick: () => void openProjectBundle() },
+  { label: "Load sample project…", onClick: () => void openSampleLibrary() },
+  { label: "Model geometry", sep: true },
   { label: "Open IFC…", onClick: () => openModelFile("ifc") },
   { label: "Open Fragments (.frag)…", onClick: () => openModelFile("frag") },
   { label: "Open mesh / point cloud / GIS / reality capture…", onClick: () => openModelFile("ref") },
+  { label: "Site context", sep: true },
   { label: "Add basemap (self-hosted tiles)…", onClick: () => void addBasemapFlow() },
   { label: "Add site context (OSM buildings)…", onClick: () => void addSiteContextFlow() },
-  { label: "Sample models", sep: true },
-  { label: "Load sample project…", onClick: () => void openSampleLibrary() },
   { label: "Import from Revit / CAD", sep: true },
   { label: "Free: export IFC from Revit (no bridge)…", onClick: () => showFreeImportHelp() },
   { label: "Revit (.rvt) — paid Autodesk bridge…", onClick: () => void importRvtFlow() },
@@ -276,6 +282,7 @@ buildMenu("open-menu", "Open ▾", [
   { label: "Navisworks (.nwc) — paid bridge…", onClick: () => openModelFile("convert") },
 ], () => void ensureViewer());
 buildMenu("save-menu", "Save ▾", [
+  { label: "Project", sep: true },
   { label: "Save Project (.mass)", onClick: () => saveProjectBundle() },
   { label: "Turnover", sep: true },
   { label: "Closeout package (.zip)", onClick: () => exportCloseoutPackage() },
@@ -717,20 +724,11 @@ async function refreshWorkBadge(pid: string | null) {
   paintRoomTabs();
 }
 
-if (spineEnabled()) {
-  // The rooms ARE the navigation. They already existed as a sub-rail inside three of seven
-  // workspaces; this promotes them, it does not invent them.
-  paintRoomTabs(roomForWorkspace(localStorage.getItem("workspace") || "model"));
-  paintPinnedRail();
-} else {
-  for (const w of WORKSPACES) {
-    const b = document.createElement("button");
-    b.className = "ws-btn"; b.dataset.ws = w.key; b.textContent = w.label;
-    b.setAttribute("role", "tab"); b.setAttribute("aria-selected", "false");
-    b.onclick = () => setWorkspace(w.key);
-    wsEl.appendChild(b);
-  }
-}
+// The rooms ARE the navigation. They already existed as a sub-rail inside three of seven
+// workspaces; this promotes them, it does not invent them. The workspace-button rail this replaced
+// was removed with the `?shell=classic` opt-out in v0.3.779.
+paintRoomTabs(roomForWorkspace(localStorage.getItem("workspace") || "model"));
+paintPinnedRail();
 
 document.querySelectorAll<HTMLButtonElement>(".fintab").forEach((t) => {
   t.onclick = () => {
@@ -1617,7 +1615,7 @@ async function startup() {
     setStatus(demo ? "demo — pick a sample from Open ▾ to view"
                    : "offline — open a .frag to view (API not reachable)");
   }
-  if (spineEnabled()) void refreshWorkBadge(projectId);
+  void refreshWorkBadge(projectId);
   paintVitals();            // the six numbers, refreshed whenever the project changes
   syncStatusBarMode();
   if (projectId && !demo) connectNotifications();   // SSE needs a backend

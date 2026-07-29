@@ -294,6 +294,46 @@ def rules_put(pid: str, rules: list[dict] = Body(..., embed=True),
     return {"saved": len(saved), "rules": saved}
 
 
+@router.get("/firm/rules")
+def firm_rules_get(_: str = Depends(require_role("viewer"))):
+    """R27-FIRM-MEMORY — the firm's standard rules, the ones that do not change per project.
+
+    Not project-scoped, deliberately: a firm's standards are precisely what survives a job. Today they
+    get re-authored per project, which turns one standard into forty slightly different ones with no
+    way to say which is the standard.
+    """
+    from .. import firm_standards
+    return {"rules": firm_standards.load_rules(), "scope": firm_standards.FIRM_SCOPE}
+
+
+@router.put("/firm/rules")
+def firm_rules_put(rules: list[dict] = Body(..., embed=True), _: str = Depends(require_role("admin"))):
+    """Replace the firm library. Admin-only — a project editor may override a firm standard on their
+    own job (that is legitimate and stays visible), but changing what the firm stands for is not a
+    per-project act. Validated by the same QUERY-DSL check a project save uses: a rule invalid on a
+    project must not be accepted merely because it was authored at the firm level."""
+    from .. import firm_standards, rule_library
+    try:
+        saved = firm_standards.save_rules(rules)
+    except rule_library.QueryError as e:
+        raise HTTPException(422, str(e))
+    return {"saved": len(saved), "rules": saved}
+
+
+@router.get("/projects/{pid}/rules/effective")
+def rules_effective(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """The rules that actually apply here: the firm's, with this project's layered over them by rule id.
+
+    Every rule reports its `source`, and a project rule that displaces a firm one carries the version
+    it replaced under `overrides`. Overriding is legitimate — a client standard differing from the
+    firm's is normal — but it has to be **visible**, because the failure mode is not a wrong answer,
+    it is a firm discovering its standards were quietly optional.
+    """
+    from .. import firm_standards
+    _project(db, pid)
+    return firm_standards.effective_rules(pid)
+
+
 @router.get("/projects/{pid}/rules/space-pack")
 def space_pack_get(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """RULE-PACK FOLD — the project's per-IfcSpace rule pack (dimensional thresholds · needs-daylight ·
