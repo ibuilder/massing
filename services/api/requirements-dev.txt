@@ -6,3 +6,12 @@ pytest>=8.0          # optional: collects the run_tests gate
 pypdf>=4.0           # read generated PDFs in tests (contract documents)
 ruff>=0.6            # static-analysis gate (config in ruff.toml): dead code + real defects
 bandit>=1.7          # security static analysis (report-only in CI; run before shipping)
+# Optional glTF Draco compression (gltf_export.export_*(draco=True)) — here rather than in
+# requirements.in so the CI gate exercises the encoder without the runtime image carrying a 5 MB
+# native wheel for an opt-in export. `gltf_export` imports it lazily and raises DracoUnavailable with
+# an actionable message when it is absent, so the suite skips these checks loudly rather than failing.
+# PINNED, not floated: 2.0.0 publishes Windows wheels ONLY, so an unpinned install silently gives a
+# dev machine a different encoder from Linux CI. 1.7.0 is the newest with manylinux wheels.
+# To ship it in the API image: add to requirements.in and re-run the Lockfile workflow (it must be
+# compiled in the py3.12 Linux container, and the gate fails on any drift between the two).
+DracoPy==1.7.0       # Apache-2.0

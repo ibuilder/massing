@@ -19,6 +19,26 @@ left, not against the original file.
 truncates geometry on large meshes — a defect that produces a valid file with missing triangles,
 which is the worst shape available here.
 
+**Draco (opt-in) is verified here by Draco's own decoder, which is NOT an independent witness.** The
+independent check has to be run by hand, because no reader in this venv decodes the extension —
+trimesh returns the right vertex and triangle COUNTS with every position at (0,0,0) and raises
+nothing, so the obvious "an independent reader agrees" check passes on a file containing no
+recoverable geometry. That degenerate result is asserted below rather than hidden.
+
+The real cross-check, run 2026-07-29 against Blender 3.5's glTF importer (headless), which decodes
+Draco natively and shares no code with this module:
+
+    blender.exe -b --factory-startup --python <script importing both GLBs>
+
+    mesh        plain (verts/polys, bbox)        draco (verts/polys, bbox)
+    IfcColumn   960/1440  ±0.2,   z 0..3.0       960/1440  ±0.1999, z 0..3.0
+    IfcSlab       8/12    ±15.0,  z 0..0.05        8/12    ±15.0,   z 0..0.0494
+    IfcWall     960/1440  ±2.5,   z 0..3.0       960/1440  ±2.5,    z 0..3.0001
+
+Same topology, geometry recovered, deltas inside the quantization bound. Re-run it if the encoder,
+the attribute mapping, or the accessor bookkeeping changes — those are the parts a Draco-blind reader
+cannot check.
+
 Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_gltf_compress.py
 """
 import io as _io
@@ -140,6 +160,105 @@ check("  and that is a double-digit % of the geometry",
       f"{100 * saved / (pos_bytes + u32_bytes):.0f}%")
 print(f"      measured: positions {pos_bytes:,}B, indices {u32_bytes:,}B -> {u16_bytes:,}B "
       f"({100 * saved / (pos_bytes + u32_bytes):.0f}% of geometry saved)")
+
+# --- 7. Draco, the OPT-IN half -----------------------------------------------------------------------
+# The uint16 change above is free and universal. Draco is neither: it is a hard dependency and a
+# REQUIRED extension, so a consumer without the decoder reads nothing at all. That is the whole reason
+# it is opt-in and the default export is untouched — and it is what these checks are really pinning.
+check("draco is OFF by default, so the default export declares no required extension",
+      "extensionsRequired" not in doc, doc.get("extensionsRequired"))
+
+if not gltf_export.draco_available():
+    # Loud, not silent. A skipped check that prints nothing is indistinguishable from a passing one.
+    print("SKIP  Draco checks — DracoPy is not installed in this interpreter")
+    print("      (pip install DracoPy==1.7.0; it is in requirements-dev.txt, so CI runs these)")
+else:
+    dglb = gltf_export.export_glb_bytes(path, draco=True)
+    ddoc = json.loads(gltf_export.export_gltf_bytes(path, draco=True).decode("utf-8"))
+
+    check("a draco export declares the extension as REQUIRED, not merely used",
+          ddoc.get("extensionsRequired") == ["KHR_draco_mesh_compression"],
+          ddoc.get("extensionsRequired"))
+    check("  a loader without the decoder is therefore told to refuse the file, not to draw nothing",
+          ddoc.get("extensionsUsed") == ["KHR_draco_mesh_compression"])
+
+    for mesh in ddoc["meshes"]:
+        for prim in mesh["primitives"]:
+            ext = prim.get("extensions", {}).get("KHR_draco_mesh_compression")
+            check(f"{mesh['name']!r} carries the draco extension on its primitive", ext is not None)
+            # The accessors must NOT point at a bufferView — the geometry is inside the draco buffer.
+            # Leaving a stale bufferView is the classic way to write a file that half-decodes.
+            check("  its POSITION accessor has no bufferView (the draco buffer holds the data)",
+                  "bufferView" not in ddoc["accessors"][prim["attributes"]["POSITION"]])
+            check("  its index accessor likewise",
+                  "bufferView" not in ddoc["accessors"][prim["indices"]])
+            check("  the extension's attribute map points at a bufferView that exists",
+                  0 <= ext["bufferView"] < len(ddoc["bufferViews"]))
+
+    # The accessor counts must describe the DECODED mesh. Draco dedups and reorders vertices, so a
+    # count copied from the input is wrong in a way that still validates structurally.
+    import DracoPy  # noqa: E402
+    for mesh in ddoc["meshes"]:
+        for prim in mesh["primitives"]:
+            ext = prim["extensions"]["KHR_draco_mesh_compression"]
+            bv = ddoc["bufferViews"][ext["bufferView"]]
+            uri = ddoc["buffers"][0]["uri"]
+            import base64 as _b64
+            raw = _b64.b64decode(uri.split(",", 1)[1])
+            dm = DracoPy.decode(raw[bv["byteOffset"]:bv["byteOffset"] + bv["byteLength"]])
+            pa = ddoc["accessors"][prim["attributes"]["POSITION"]]
+            ia = ddoc["accessors"][prim["indices"]]
+            check(f"{mesh['name']!r} POSITION count matches what actually decodes",
+                  pa["count"] == len(np.asarray(dm.points).reshape(-1, 3)),
+                  (pa["count"], len(np.asarray(dm.points).reshape(-1, 3))))
+            check("  index count matches too",
+                  ia["count"] == np.asarray(dm.faces).size,
+                  (ia["count"], np.asarray(dm.faces).size))
+            check("  and the declared attribute id is the one the encoder assigned",
+                  ext["attributes"]["POSITION"] ==
+                  next(a["unique_id"] for a in dm.attributes if a.get("attribute_type") == 0))
+
+    # --- what a reader WITHOUT the decoder actually does, measured ------------------------------------
+    # This is the cost of the extension, and it is worse than "it fails". trimesh reads the container,
+    # honours the accessor counts, and returns the right NUMBER of vertices and triangles — every one
+    # of them at (0,0,0). It does not raise. So "the file loaded" and "the triangle count matched" are
+    # both TRUE of a file containing no recoverable geometry, and a check that stops there passes on a
+    # blank model. (It did, here, before this was measured.) Asserting the degenerate result is what
+    # keeps the claim honest: an unsupported required extension fails SILENTLY in at least one
+    # mainstream reader, which is exactly why draco stays opt-in.
+    dscene = trimesh.load(_io.BytesIO(dglb), file_type="glb")
+    dpts_all = np.vstack([np.asarray(g.vertices) for g in dscene.geometry.values()])
+    check("a reader without a draco decoder recovers NO geometry (all vertices collapse to origin)",
+          np.abs(dpts_all).max() == 0.0, np.abs(dpts_all).max())
+    check("  and it does so WITHOUT raising — the silent failure the required flag is meant to prevent",
+          len(dscene.geometry) == len(scene.geometry))
+
+    # --- the lossy half, measured through Draco's own decoder -------------------------------------------
+    # trimesh cannot be the witness here (it returned zeros), so the comparison is the ORIGINAL geometry
+    # against the bounds the document declares — and those were computed by decoding the draco buffer,
+    # not copied from the input. Draco is lossy and the error scales with MODEL SIZE, not detail.
+    worst_err, worst_extent = 0.0, 0.0
+    for mesh in ddoc["meshes"]:
+        g = scene.geometry[mesh["name"]]
+        pv = np.asarray(g.vertices)
+        pa = ddoc["accessors"][mesh["primitives"][0]["attributes"]["POSITION"]]
+        extent = float(max(pv.max(axis=0) - pv.min(axis=0)))
+        err = float(max(np.abs(np.array(pa["min"]) - pv.min(axis=0)).max(),
+                        np.abs(np.array(pa["max"]) - pv.max(axis=0)).max()))
+        check(f"{mesh['name']!r} decodes within the bound draco_accuracy() states",
+              err <= gltf_export.draco_accuracy(extent) + 1e-9,
+              (err, gltf_export.draco_accuracy(extent)))
+        if err > worst_err:
+            worst_err, worst_extent = err, extent
+    check("draco_accuracy scales with model size, so it cannot be quoted as one number",
+          gltf_export.draco_accuracy(1000.0) == 10 * gltf_export.draco_accuracy(100.0))
+    print(f"      measured: worst position error {worst_err:.6f} on a {worst_extent:.1f}-unit mesh "
+          f"(bound {gltf_export.draco_accuracy(worst_extent):.6f})")
+
+    saved_pct = 100 * (1 - len(dglb) / len(glb))
+    check("draco is a large win on top of the uint16 export, not a marginal one",
+          saved_pct > 50, f"{saved_pct:.0f}%")
+    print(f"      measured: GLB {len(glb):,}B -> {len(dglb):,}B ({saved_pct:.0f}% smaller)")
 
 print()
 if FAILED:
