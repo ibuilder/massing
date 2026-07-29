@@ -2,9 +2,13 @@
 promote one to the selected design.
 
 Each option is a lightweight snapshot of the metrics that decide a scheme — program (area, units,
-efficiency), economics (hard cost, cost/sf, energy EUI, IRR) — entered by hand or copied from the
-test-fit / proforma. `compare()` normalizes them, names the best-in-class per metric and the deltas
-vs the selected option, so switching direction is a decision, not a spreadsheet.
+efficiency), economics (hard cost, cost/sf, energy EUI, IRR) and **embodied carbon** — entered by hand
+or copied from the test-fit / proforma. Carbon is A1-A3 embodied and is NOT `energy_eui`, which is
+operational: different lifecycle stage, different units, and picking a scheme on one while believing
+it is the other is the mistake the separate `carbon_basis` field exists to prevent.
+
+`compare()` normalizes them, names the best-in-class per metric and the deltas vs the selected option,
+so switching direction is a decision, not a spreadsheet.
 """
 from __future__ import annotations
 
@@ -31,6 +35,12 @@ def _num(v: Any) -> float | None:
 def _option(r: dict) -> dict[str, Any]:
     d = _d(r)
     area, cost = _num(d.get("gross_area_sf")), _num(d.get("hard_cost"))
+    # Embodied carbon comes from `option_carbon`, not from a second copy of the rules here. It carries
+    # its own `carbon_basis` because the figure is sometimes declared, sometimes benchmarked and
+    # sometimes absent, and a card that shows the number without the basis invites comparing a real
+    # LCA against an area × intensity estimate as though they were the same claim.
+    from . import option_carbon
+    oc = option_carbon.option_carbon(r)
     return {
         "id": r.get("id"), "name": d.get("name", ""), "state": r.get("workflow_state", ""),
         "drawing_set": d.get("drawing_set"),
@@ -38,13 +48,19 @@ def _option(r: dict) -> dict[str, Any]:
         "efficiency_pct": _num(d.get("efficiency_pct")),
         "hard_cost": cost, "cost_per_sf": round(cost / area, 2) if area and cost else None,
         "energy_eui": _num(d.get("energy_eui")), "irr_pct": _num(d.get("irr_pct")),
+        "building_type": oc["building_type"],
+        "embodied_kgco2e": oc["embodied_kgco2e"], "kgco2e_per_sf": oc["kgco2e_per_sf"],
+        "carbon_basis": oc["basis"], "carbon_note": oc["note"],
     }
 
 
 # metric key -> (label, lower-is-better)
+# `_leader` skips options whose value is None, so an option with no carbon basis is never named
+# best-in-class — which is the whole reason `option_carbon` returns None instead of a placeholder.
 _METRICS = {
     "cost_per_sf": ("Lowest cost / sf", True),
     "energy_eui": ("Lowest energy EUI", True),
+    "kgco2e_per_sf": ("Lowest embodied carbon / sf", True),
     "irr_pct": ("Highest IRR", False),
     "gross_area_sf": ("Largest area", False),
     "efficiency_pct": ("Highest efficiency", False),
@@ -70,13 +86,16 @@ def compare(db: Session, pid: str) -> dict[str, Any]:
         for o in opts:
             o["delta_vs_selected"] = {
                 k: (round(o[k] - selected[k], 2) if o.get(k) is not None and selected.get(k) is not None else None)
-                for k in ("cost_per_sf", "irr_pct", "energy_eui", "gross_area_sf")}
+                for k in ("cost_per_sf", "irr_pct", "energy_eui", "gross_area_sf",
+                          "kgco2e_per_sf")}
 
     return {
         "count": len(opts), "options": opts, "leaders": leaders,
         "selected": selected["name"] if selected else None,
         "by_state": {s: sum(1 for o in opts if o["state"] == s)
                      for s in ("proposed", "shortlisted", "selected", "rejected")},
-        "note": "Options compared on program + economics; best-in-class named per metric. Promote one "
-                "to 'selected' to set the project's design direction (its drawing set becomes current).",
+        "note": "Options compared on program, economics and embodied carbon; best-in-class named per "
+                "metric. An option whose carbon_basis is 'unavailable' carries no figure and is never "
+                "named best-in-class. Promote one to 'selected' to set the project's design direction "
+                "(its drawing set becomes current).",
     }
