@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.799 — three R22/R23 merges, and the glTF index-width bug no fixture could reach
+
+Release for #104, #106 and #105, all merged and verified by content on `origin/main` rather than by
+merge status. Full backend suite on the merged tree: **446/446, zero failures** — worth running because
+"merges cleanly" and "still correct together" are different claims and three landed at once.
+
+- **#104 `unit_rate_memory`** — what a cost code actually cost PER UNIT across your projects, from
+  installed quantity rather than from a rate somebody typed.
+- **#106 `option_carbon`** — embodied carbon on the design-option card, carrying the basis it rests on.
+- **#105 `gltf_export`** — per-mesh index width, plus opt-in Draco (~88% smaller). Draco sits in
+  `requirements-dev.txt`, lazily imported, so the hash lock and the shipped image are untouched.
+
+**#105 shipped green with a silent-corruption bug, and the review question that found it is the
+transferable part.** Every fixture in that suite was ~960 vertices, so the uint32 index fallback was
+**unreachable by any test in it** — the branch existed, was correct, and was never executed. Asking what
+a suite is *structurally unable* to see, rather than reading what it asserts, is what surfaced it.
+
+The proof is the mutation. Widening the ceiling by one (`<= 65536` → `<= 65537`):
+
+```
+FAIL  a 65,537-vertex mesh uses uint32 indices — 5123
+FAIL  and index 65,536 survives the round trip (a wrap would read 0) — 65535
+```
+
+Index 65,536 comes back as **65,535**: same byte length, valid glTF, no exception — one wrong triangle
+in someone's model. Fixed with a synthesised >65,535-vertex mesh before the merge landed.
+
+Also verified on this tree, by content rather than by diff (`run_tests.py` packs ~200 entries per line,
+so any change renders as a whole-line `+`): **446 manifest entries, 446 `test_*.py` files, zero orphans
+in either direction** — nothing named without a file (green locally, broken on a fresh clone) and
+nothing present but unnamed (a test that never runs).
+
 ## v0.3.798 — every internal audit was being published to the live site
 
 `docs/` doubles as the web root, so the Pages workflow's `cp -r docs/. _site/` published **everything**
