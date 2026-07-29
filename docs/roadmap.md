@@ -511,8 +511,19 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   ceiling. It was reached by synthesising the mesh and substituting the producer at the seam, and then
   mutating the ceiling by one exposed the real corruption: index 65,536 reads back as **65,535** — same
   byte length, valid glTF, wrong triangle. **If no fixture can reach a branch, manufacture the input at
-  the seam rather than concluding the branch is fine.** Third instance of that shape in one day, with the
-  trimesh case above and the room-count gate that passed on a word in an unrelated sentence.
+  the seam rather than concluding the branch is fine.**
+
+  **Four instances of one shape in a single day, across three subsystems and three authors** — a check
+  standing where the failure cannot arrive:
+  1. this uint32 branch, unreachable by any fixture in the suite;
+  2. the trimesh reader "confirming" a Draco file whose every vertex was `(0,0,0)` (see R22-ACCT-SEAM);
+  3. the README room-count gate, satisfied by the word "operate" sitting in an unrelated sentence while
+     the README told readers there were six rooms and there were seven;
+  4. and the one worth the most, because the instrument itself was wrong: a check for "did #105 ship?"
+     that looked for `gltf_export.py` under `services/api/` — the wrong source root — and so would have
+     reported MISS for a file that existed. It gave the right answer only because `gh pr list` ran beside
+     it and the two disagreed. **Two independent signals is what turns a mis-aimed check into a caught
+     one**; a single confident negative is indistinguishable from a true one.
 - **R23-SYMBOL-COUNT** *(M)* — deterministic template-match symbol counting in the **existing** pdf.js
   takeoff worker: mark one instance, normalised cross-correlation, non-maximum suppression.
   **Zero new dependencies**, offline, auditable — which matters for quantities that feed a bid.
