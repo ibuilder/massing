@@ -451,9 +451,21 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   prefab kit is a `query_dsl.select()` scope + BOM + pull-plan task + delivery date. A join across
   spines we already have, not a new engine. Strong LOD-500 fit: kits are what actually get
   field-verified.
-- **R23-JURISDICTION-PACKS** *(M)* — jurisdiction-scoped data-requirement rule packs (a regulator
-  defines a pset spec a submitted model must satisfy). `query_dsl` + `rule_library` + IDS already carry
-  this shape; turnover data requirements are the same problem.
+- ✅ **R23-JURISDICTION-PACKS** *(M; **PR #101**, merged — `jurisdiction_packs.py` +
+  `routers/jurisdiction.py`)* — jurisdiction-scoped data-requirement rule packs. The shape was there
+  and the scoping was not: `rule_library` rules are per-project and hand-authored, `ids_authoring`
+  builds from a *use case* rather than a place, and `Project.jurisdiction` already resolved the IBC
+  edition while nothing read it for **data** requirements. Requirements are `rule_library`-shaped and
+  run through `rule_library.evaluate()` — the same evaluator, not a second one.
+  **Ships no regulatory claims on purpose:** one built-in `example` pack attributed to nobody, and
+  `authority` / `edition` / `source` required to store a real one, because a requirement nobody can
+  trace is indistinguishable from one somebody made up — and this pack fails other people's models.
+  Two defects its own tests caught, both the same shape: the example pack used
+  `Pset_WallCommon.FireRating`, which *parses* as a bare-field test, matches nothing, and passes on
+  every model forever (now refused at import — a rule that cannot fail is worse than a missing one);
+  and the fixture invented a flat pset shape when the index nests under `psets`.
+  **Its authz hole is the more useful legacy** — see SEC-GLOBAL-AUTHZ under Decomposition &
+  reliability.
 
 **Watch, not work:** WebGPU (`WebGPURenderer` exists in the pinned three, but Fragments targets WebGL
 — 2–3 year horizon) · browser-side IFC parsing (a streaming WASM parser now exists; server-side
