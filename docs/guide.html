@@ -118,8 +118,17 @@
   <h2 id="explore">Tutorial 1 · Explore a model</h2>
   <p class="sub">Learn to move around a 3D building and read its data.</p>
   <ol class="steps">
-    <li>Open the app and make sure you're in the <b>Model</b> workspace (top bar).</li>
-    <li>Click <b>Open ▾ → BasicHouse</b> (or any sample). The building loads in the viewer.</li>
+    <li>Open the app. You land in a <b>room</b> — the app has six, the same six whoever you are:
+      <b>Design · Planning · Cost · Schedule · Deal · Work</b>. A room is where a kind of work lives, so
+      what you learn in one transfers to the next. <b>Design</b> is where the model is.</li>
+    <li>Click <b>Open ▾ → Project → Load sample project</b>. A sample is a <b>.mass container</b> — a
+      portable file holding the geometry <em>and</em> every project table — so it opens as a project
+      rather than a bare mesh. <b>Riverside School</b> is a 1551-element structural frame;
+      <b>Maple Grove House</b> was authored in the browser by the same tools you'll use in Tutorial ✏️.</li>
+    <li>Glance at the <b>vitals strip</b> along the bottom: <b>LOD · area · $/ft² · float · IRR · health</b>.
+      It follows you into every room and is computed from the one model, so no two rooms can quote
+      different numbers. On the school you'll see <b>—</b> under Area: that model has no rooms defined,
+      and the strip says it doesn't know rather than printing a misleading <b>0</b>.</li>
     <li><b>Orbit</b> by dragging, <b>pan</b> with right-drag, <b>zoom</b> with the wheel. Click <b>⤢ Fit</b> to recenter.</li>
     <li>Click any element — its <b>properties</b> open on the right, grouped into <b>Attributes</b>,
       <b>Quantities</b> (areas / volumes / lengths) and each <b>Property Set</b>. <b>Filter</b> to find a field,

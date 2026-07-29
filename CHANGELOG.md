@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.789 — the public site was sending visitors after a sample that no longer exists
+
+`docs/guide.html` — the GitHub Pages tutorial, the first thing a stranger follows — said at step 2:
+
+> Click **Open ▾ → BasicHouse** (or any sample).
+
+**`BasicHouse` was deleted at v0.3.777**, along with the two other bundled `.frag` files, when the
+viewer stopped picking geometry by regex-matching the project's name. So a reader followed the
+instruction, found no such entry, and concluded the app was broken — which is a worse outcome than the
+step simply being absent. A wrong instruction spends the reader's trust; a missing one only spends
+their time.
+
+Rewritten to the path that exists — **Open ▾ → Project → Load sample project** — and, since the guide
+was silent on both, it now explains the two things a first-time reader most needs:
+
+* **What a sample is.** A `.mass` container holds the geometry *and* every project table, so it opens
+  as a **project** rather than a bare mesh. That difference is the entire distinction between this and
+  a viewer, and the old copy never mentioned it.
+* **The six rooms and the vitals strip.** `index.html` described three pillars and never named the
+  navigation a visitor actually lands in. It now names **Design · Planning · Cost · Schedule · Deal ·
+  Work**, and the strip — **LOD · area · $/ft² · float · IRR · health** — with the rule that makes it
+  worth trusting: *where a value cannot be computed it shows an em-dash and the reason, never a zero.*
+  A confident wrong number is worse than an absent one, because a blank gets chased and a number gets
+  cited.
+
+`docsCurrent.test.ts` now gates the Pages site too: each deleted sample name is asserted **individually**
+so a failure says which one came back, and `index.html` must name all six rooms. Mutation-checked by
+putting `BasicHouse` back, which fails the gate.
+
+This is the third staleness class found in the docs today, and they share a shape: **nothing in the
+build reads prose.** The room spine could be renamed under full test coverage while the demo snapshot,
+the walkthrough and the Pages tutorial each went on describing an older app. The fix is not care, it is
+that every doc sentence naming a flag, a count, a room or a file is now a claim some test reads.
+
 ## v0.3.788 — the demo script did not know about two shipped features, and the log was out of order
 
 ### The walkthrough

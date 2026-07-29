@@ -109,3 +109,34 @@ describe("the walkthrough describes the app as it ships now", () => {
     expect(WALKTHROUGH).not.toMatch(/\b(?:the\s+)?Model\s+room\b/i);
   });
 });
+
+describe("the public Pages site does not send visitors after things that were deleted", () => {
+  /**
+   * `docs/*.html` is the GitHub Pages site — the first thing a stranger reads, and the copy least
+   * likely to be re-read by anyone who works here. On 2026-07-29 `guide.html` step 2 still said
+   * "Open ▾ → BasicHouse", a sample **deleted at v0.3.777** along with the two other bundled `.frag`
+   * files. A reader follows that, finds no such entry, and concludes the app is broken — which is a
+   * worse outcome than the instruction simply being absent.
+   *
+   * The three deleted sample names are asserted individually rather than as a regex alternation so a
+   * failure names which one came back.
+   */
+  const GUIDE = doc("docs/guide.html");
+  const INDEX = doc("docs/index.html");
+
+  for (const gone of ["BasicHouse", "school_str", "school_arq"]) {
+    it(`does not offer the deleted "${gone}" sample`, () => {
+      expect(GUIDE, `guide.html still points at ${gone}`).not.toContain(gone);
+      expect(INDEX, `index.html still points at ${gone}`).not.toContain(gone);
+    });
+  }
+
+  it("names the rooms a visitor will actually land in", () => {
+    // Being silent about the entire navigation is its own kind of stale. The landing page describes
+    // what the product IS; six rooms is what it is.
+    for (const id of ROOM_IDS) {
+      const label = id[0]!.toUpperCase() + id.slice(1);
+      expect(INDEX, `index.html never names the ${label} room`).toContain(label);
+    }
+  });
+});
