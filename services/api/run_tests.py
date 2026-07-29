@@ -24,6 +24,8 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_evidence_gate", "test_cpm", "test_estimate", "test_bidding", "test_safety", "test_portfolio", "test_templates", "test_versions", "test_generate", "test_sso", "test_ai", "test_closeout", "test_security", "test_dev_budget", "test_specialty", "test_testfit", "test_structure", "test_research", "test_compute_graph", "test_ratelimit", "test_federated_clash", "test_classification",
          "test_contracts", "test_reports", "test_esign", "test_publish_status", "test_schedule_alerts",
          "test_schedule_optimize",
+         # R23-RECIPE-ARTIFACT — the edit-recipe log + its routes:
+         "test_recipe_log", "test_recipe_route",
          "test_bundle", "test_desktop", "test_localmode", "test_project_budget", "test_rvt_bridge",
          "test_bcf", "test_engines", "test_edge_cases", "test_opendata", "test_financials", "test_money", "test_leasemgmt", "test_changeorders",
          "test_migrate", "test_alembic_migrations", "test_appraisal", "test_marketing", "test_workflow_gate", "test_due_feed", "test_directory",

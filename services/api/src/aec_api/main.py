@@ -60,6 +60,7 @@ from .routers import (
     proforma,
     properties,
     realestate,
+    recipes,
     reports,
     research,
     responsibility,
@@ -396,6 +397,7 @@ app.include_router(modules.router, tags=["modules"])
 app.include_router(cost.router, tags=["cost"])
 app.include_router(contracts.router, tags=["contracts"])
 app.include_router(reports.router, tags=["reports"])
+app.include_router(recipes.router, tags=["recipes"])
 app.include_router(schedule.router, tags=["schedule"])
 app.include_router(site.router, tags=["site"])
 app.include_router(bidding.router, tags=["bidding"])
