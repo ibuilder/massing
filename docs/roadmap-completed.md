@@ -2627,3 +2627,275 @@ The 07-24 NOW list, finished. Per-release detail in [CHANGELOG.md](../CHANGELOG.
    quantity-derived with benchmark carbon is flagged as not like-for-like.
 
 *Reassess after sprint 3. Items 4–6 are genuinely optional ordering; 1–3 are not.*
+
+---
+
+# Archived from the active roadmap — 2026-07-28 (v0.3.772)
+
+Moved wholesale during a roadmap rebuild. **Three items in the SPRINT A-2 block below were listed as
+"built but unrouted" and were verified shipped at archive time** — `dim_constraints`
+(`routers/analysis.py:542`), `sheet_regions` (`routers/analysis.py:572`, live 200) and `iconFor`
+(consumed in `viewer/toolbarView.ts:15`). They are kept verbatim as a record of the claim, not as
+outstanding work.
+
+Two items were **hoisted back into the active roadmap** rather than archived with their rings,
+because they were open work sitting under a COMPLETE heading: **R25/R24-TRACE-UI** and
+**R26-V-TIMING**. That pattern is what hid R26-VITALS.
+
+
+## 🔎 RING RECONCILIATION — 2026-07-28, v0.3.765
+
+**The backlog was mostly already built.** 61 ring items were checked against the codebase, not
+against their own descriptions. The test was reachability, because a word in a doc is not a feature
+and this repo has paid for that confusion before (seven engines, no route).
+
+**16 of 18 verified candidates are SHIPPED AND ROUTED** — entitlement, golden thread, provenance,
+sub-prequalification, cross-project memory, DXF/CAD import, the accounting seam, design options as
+objects, the portfolio pipeline, preventive-maintenance contracts, jurisdiction packs, the model
+digest, the Gantt, CMMS operations, and site/parcel work. They were carried as backlog for weeks
+while sitting in `routers/`.
+
+**This is the same shape as S4.** The five room tabs already existed and were rendered as a sub-rail;
+`bundle.py` already round-tripped; favourites already persisted. **A research ring records what was
+missing on the day it was written, and nothing re-reads it afterwards.** The ring is a snapshot that
+ages into fiction.
+
+### What is actually left
+
+**No orphan. That finding was mine and it was wrong — corrected within the hour.**
+- **R22-ITP-NCR is SHIPPED AND REACHABLE.** `itp` is registered as "Inspection & Test Plan" (one of
+  132 config modules) and `GET /projects/{pid}/modules/itp` returns **200**.
+- The probe searched `routers/` for the literal string `itp` and found none, so it reported an
+  orphan. **There are two different things called a "module" here, with different reachability
+  rules**, and the probe applied the wrong one:
+  - **engine modules** (`src/aec_api/*.py`) need a route, and `test_reachable.py` walks the import
+    graph to prove it;
+  - **config modules** (`services/api/modules/*/module.json`) are served by the *generic* module CRUD
+    the moment they are registered — a dedicated route would be the anomaly, not the requirement.
+- So the gate proposed alongside this finding is **not needed**, and building it would have hardened
+  a rule that is false for half the things it names. Registration already is the reachability
+  guarantee for config modules, and the engine loads all 132 from disk.
+
+**Two genuinely unbuilt, both already on the NOW list:**
+- **R28-ICDD** (SPRINT C) — no source trace. Needs `rdflib`.
+- **R22-REPORT-BUILDER** — no source trace; `reports.py` has the registry but no builder UI.
+
+**Seven greenfield, no trace anywhere:** R21-MULTISCALE, R21-DIM-COMPONENT, R22-NOTICE-CLOCK,
+R23-STOREY-LOD, R23-SYMBOL-COUNT, R24-RUNS-INBOX, PHOTO-PIN.
+
+**Nine partial** (1–2 files — a seam exists, the feature may not): R22-ITP-NCR, R22-REPORT-BUILDER,
+R23-GLTF-COMPRESS, R23-PREFAB-KIT, R24-DENSITY, R24-FIELD-MODE, R24-TERMS, R28-ICDD, PERF-RATE.
+
+**So the honest backlog is ~16 items, not 61.** The rings below are kept for their *reasoning*, which
+is still good; their status claims are not to be trusted without a reachability check first.
+
+**The durable fix is a gate, not another audit.** `test_reachable.py` checks routers; it did not
+catch a module with no route. Extending it to assert every `services/api/modules/*` is reachable
+would have found R22-ITP-NCR the day it landed — and would stop the next one.
+
+## ✅ RELEASE THE NEW LAYOUT — **COMPLETE v0.3.751–764**, one item left
+
+Shipped, each live-verified against a running stack rather than by test alone:
+
+- **S1 PROVE** — the layout renders. `/rooms` 200 in 18 ms, all three portal workspaces populated.
+  The "empty rooms" scare was a **dead backend**; I built a case for a product defect twice from a
+  corpse whose own log read `200 OK`. See [[prove-the-backend-is-alive]].
+- **S2 HARDEN** — Node 24 (not the branch's 22 — v22 had 276 days left, v24 has 642), Postgres 17,
+  Capacitor 8, the security-audit branch (SSRF-via-redirect, sandbox, SVG), the Android build gate,
+  and a version-consistency gate that had been silently wrong for ~100 releases.
+- **S3 SHOWCASE** — `maple_grove_house.mass`: 23 elements, served, opens as a project. Plus the
+  library-directory bug that meant `GET /samples` **never worked**, and empty-first-run onboarding.
+- **S4 SHELL** — the five rooms as primary navigation, NEXT BEST ACTION in the header, the pinned
+  rail, and the three chrome defects from the 07-28 screenshot.
+
+**The one thing left: delete `?shell=classic`.** Held deliberately, and this is the reasoning rather
+than hesitation. The classic rail is already **unreachable in normal use** — the seven workspace
+buttons are gone when the spine is on — so it costs nothing sitting there, while deleting it is the
+only irreversible step in the whole ring. `pulse.ts` renders on the portal home but has never been
+watched populating against real engine data; only its logic is tested. And nobody outside this
+session has used the new shell for a day's work.
+
+**The gate: one real user runs a day through it.** Then this is a one-line release. Tidiness is not
+worth spending the way back on.
+
+1. **📦 MASS-FIRST — the container is the project, everywhere.** *Build. Backend landed v0.3.744;
+   these are the remaining halves.* User direction, 2026-07-28:
+
+   - **② Package real samples — blocked on CONTENT, not on tooling.** `build_samples.py` works and
+     self-verifies; measured 2026-07-28 against all 24 projects in the dev DB. The problem is what
+     is in them: the three plausible candidates (Verification House, two Maple Street Houses)
+     package to **~10 KB with 0 elements** — tables are `jobs`, `model_versions`, `record_activity`,
+     `ref_counters`, `project_members`, and at best one `topic`. No estimate, no schedule, no
+     drawings. Committing those would reproduce the exact defect this feature exists to fix: a
+     "sample" that demonstrates nothing.
+     So the real work is **authoring a showcase project**, not packaging one — the live house test
+     extended with a full estimate, a schedule, several RFIs through to closed, and generated
+     sheets. Then `build_samples.py --project <pid>` and commit. Until that exists, `GET /samples`
+     correctly returns `[]`, and the three hard-coded `.frag` menu entries must stay.
+     (Also noted while probing: the dev SQLite DB has **no `element` table at all**, so where
+     element rows live — and whether `bundle.py` captures them — needs settling before a packaged
+     sample can claim an element count. Do that first; a sample whose manifest says `0 elements`
+     for a real building is a wrong number, not a small one.)
+   - **② One "Load sample", from the library.** Replace the three hard-coded `.frag` menu entries in
+     `main.ts` (`/school_str.frag`, `/school_arq.frag`, `/basichouse.frag`) with a single entry that
+     lists `GET /samples` and opens the chosen container. Those three are the last place the product
+     shows geometry-without-data.
+   - **② A sample opens on first load.** An empty app should already be showing a populated project,
+     not an empty canvas asking to be filled.
+   - **② Every model gets a `.mass`.** Loading an IFC with no container creates a blank one, so a
+     project is never "geometry with data bolted on later" — it is a container from the first second.
+   - **③ Re-cut Create / Open / Save.** Evaluate the current dropdowns against the container model
+     and **reinvent if they do not make sense** — the user's words. "New project" must be obvious;
+     today it is not. Do this *after* the four above, so the menu is designed against how the
+     product actually behaves rather than how it behaved.
+
+   The through-line: geometry stopped being the unit of work here a long time ago, and the file
+   menu never noticed.
+
+2. **🔀 BRANCH-DRAIN — two long-lived branches, each its own release.** *User: do both.*
+   - `chore/deps-upgrades-2026` (PR #69) — Capacitor 7→8, Postgres 16→17. 190 commits behind and it
+     crosses two majors, so: rebase, full backend suite, full web gate, desktop build, **then** ship
+     alone. Never bundled with feature work — a two-major bump that breaks something must be
+     bisectable to itself.
+   - `security/audit-2026-07` — 56 commits behind; R1–R4 were waiting on a decision that has now
+     been given. Land it as its own release with the findings written up in the commit.
+
+3. **📊 SAMPLE-DATA-REAL — populate the samples with real historical figures.** *User: use public
+   historical data; it is the best available until there are users.* This unblocks nothing on its
+   own, but it is what makes R26-V-TIMING and plugin pricing measurable later: a sample carrying
+   plausible real cost/schedule history is a dataset those two can be evaluated against. Public
+   sources only, and **no real party names, addresses or contract values** — the repo is public.
+
+1. **🧱 SCALE-SEAM — `client.ts` is the breakpoint, and it is measurable.** *Build; now the top,
+   ahead of feature work.* Measured 2026-07-28:
+
+   | file | lines | commits / 14d |
+   |---|---|---|
+   | `api/client.ts` | **4,956** | **152** |
+   | `viewer/app.ts` | 4,565 | 114 |
+   | `portal/portal.ts` | 2,699 | 24 |
+   | `main.ts` | 1,440 | 17 |
+
+   `client.ts` carries **631 methods on one class** and is touched ~11×/day. Every feature adds to it,
+   nothing ever removes from it, and it must be opened to add any endpoint. That is the definition of
+   a file that stops being editable — not because it is long, but because **length × churn** means
+   every change competes with every other change for the same window of attention.
+
+   **The fix is a seam, not a rewrite.** Split by domain the way the routers already are — the server
+   side solved this exact problem with `routers/*.py`, and the client never followed. `client.ts`
+   becomes a thin composition of `api/model.ts`, `api/cost.ts`, `api/coordination.ts`, … each owning
+   its endpoints. Nothing changes for callers; `ApiClient` keeps its shape.
+   **Do it incrementally and prove it**: extract one domain, assert the public surface is unchanged
+   (method-name set equality, asserted in a test), ship, repeat. A big-bang split of a file with
+   152 commits a fortnight will collide with everything in flight.
+
+   `viewer/app.ts` is the same disease and comes second. `schema.d.ts` (32k lines) is **generated** —
+   not a comprehension problem, leave it.
+
+1. **📄 PDF-ADOPT ② — move the takeoff flow onto the vendored engine.** *Build; ① shipped v0.3.740.*
+   `@massingcloud/pdf-viewer` is vendored at `65e9011` — aliased through the one map, zero local
+   patches, 5 reachability tests, **no new dependency**, **not in the eager bundle** (entry stayed
+   346 KB). `drawings/pdfTakeoff.ts` still owns the flow. Replace in slices — open/render, then
+   markup, then calibrated takeoff — so a regression stays bisectable. Publishing upstream to npm
+   would let us drop the vendoring; that is a decision, not a blocker.
+2. **📦 SPRINT C — R28-ICDD ③ + R28-BUNDLE ② (the UI half).** *Build.* `rdflib` approved; add it to
+   `requirements.in` and regenerate the lock via the `lockfile.yml` workflow — never on a dev box.
+3. **🧩 KERNEL-ADOPT ③ — one more capability onto the kernel.** *Build.* ① the identity boundary
+   (v0.3.713) and ② markup through the plugin host (v0.3.717) each closed a real defect; pick ③ from
+   a real pain, not from the kernel's feature list. **Undo is not a candidate** — checked: model-level
+   undo via the versioned source IFC is stronger for authoring.
+4. **🖼 Demo + docs refresh.** *Build, low stakes.* The snapshot was regenerated at v0.3.733 after
+   the QTO fix; README/guide still quote pre-v0.3.723 numbers in places.
+5. **🔍 TRIAGE — R27 tail + 🧱 decomposition carry-overs.** *Analyse first, then decide — LAST
+   deliberately.* This was one bucket holding two unrelated things because neither felt big enough
+   alone, which is exactly how items go stale unread. It stays last **and the first step is not
+   building** — it is going through what is actually in there and deciding, item by item, what earns
+   a place and what gets deleted. A carry-over that has survived this long without hurting anyone is
+   evidence about its own priority. **Default answer is drop, not do**; anything kept has to justify
+   itself against whatever else is on the list by then.
+
+### 🤔 Decisions, not effort — these want your call, not my time
+- **`chore/deps-upgrades-2026` (PR #69)** — Capacitor 7→8, Postgres 16→17. Its own release, its own
+  suite run; 190 commits behind and crosses two majors.
+- **`security/audit-2026-07`** — findings R1–R4 need a decision before it can land. 56 commits behind.
+- **`.mass` ownership** — we already have a working container (`bundle.py`; verified live 07-28: an
+  11-entry zip that re-opens with an RFI still `closed` and the estimate rebuilt to the identical
+  total). The *kernel* has the contract and no file writer — upstream
+  [issue #6](https://github.com/MassingCloud/massingifc/issues/6). Push ours up, or keep it
+  product-side? Nothing to build either way.
+- **Branch protection** — `main` is unprotected and public. Recommend blocking force-push and deletion
+  only; direct version-numbered pushes keep working, published history cannot be rewritten.
+- **R26-V-TIMING** — needs real users. **Plugin pricing** — needs customers.
+
+## 🏛 R26 — THE SPINE *(ring COMPLETE, archived 2026-07-26 at v0.3.710)*
+
+Every item shipped, R26-ICONS last (v0.3.708). The render audit **ran under the spine and passed** —
+7/7 workspaces, five rooms, 153 destinations — and it is trustworthy because the false-pass hole was
+closed first.
+
+**The spine IS the default** — and was made so back at v0.3.715, with the reachability work finished
+at v0.3.739 (persona-home landing + `← Project home` signpost). Verified live 07-28: the room rail
+renders in Construction, Developer and Design, all five rooms with their job strings. One item remains
+and cannot gate it:
+
+- **R26-V-TIMING** *(M — needs real users)* — instrument first-task completion per persona against the
+  audit's baseline. Deliberately open: an *after* measurement cannot gate what it measures.
+
+---
+
+## 💵 R25 — 5D *(ring COMPLETE; archived 2026-07-26 at v0.3.702)*
+
+The model **is** the estimate, end to end: cost and 4D bindings written natively into IFC
+(`IfcRelAssignsToControl`→`IfcCostItem`, `IfcRelAssignsToProduct` for tasks), quantities measured from
+the model rather than supplied by the caller, rates carrying their source and vintage year, and two
+estimates diffable by GlobalId with every dollar attributed to a cause. Archived in full — see
+[roadmap-completed.md](roadmap-completed.md#-session-v03684702-2026-0725/26--the-spine-the-5d4d-rings-and-the-drawing-layer).
+
+The chain's last missing link closed in v0.3.702 as **R27-SOV-LOOP**: nothing had built a schedule of
+values *from* an estimate, so the numbers were re-keyed by hand at exactly the seam where somebody
+asks to be paid.
+
+Only one item remains, and it is tracked in R24 rather than duplicated here:
+
+- **R25/R24-TRACE-UI** *(M)* — the chain made visible in the UI: figure → cost line → the elements
+  behind it. The data is complete; this is the surface that shows it.
+
+---
+
+## ✅ SPRINT A-2 — the last three engines nobody can call — **SHIPPED v0.3.711**
+
+Sprint A wired four engines that had shipped tested and unreachable. Auditing for the rest found
+**three more**, one of them created during Sprint A itself. All three are now reachable, and
+`test_engine_routes` asserts it over real HTTP rather than by importing the module:
+
+* **A2-CONSTRAINTS** — `dim_constraints` (v0.3.701) has **no route and no MCP tool**. The solver is
+  fully tested and nothing in the platform can reach it; that entire release is currently inert.
+  **Done:** `POST /projects/{pid}/constraints/solve`. A malformed constraint is refused with 422
+  rather than dropped — a lock nobody applied is worse than an error, because the model then looks
+  constrained and is not. (An MCP tool is still open; the route was the blocker.)
+* **A2-SHEET-REGIONS** — `sheet_layout.sheet_regions()` (v0.3.702) is **not exposed**, yet
+  `POST /takeoff/2d` now *accepts* a `layout` object. The consumer was wired and the producer was
+  not, so a caller has no way to obtain what the route asks for — the same one-way asymmetry
+  R25-TASK-BIND existed to close, reintroduced while closing something else.
+  **Done:** `GET /projects/{pid}/drawings/sheet-regions`. One finding along the way — `presets()`
+  falls back to `key` for any unknown name, which is right for a library and wrong for a route, where
+  a typo would return a *different* layout labelled as the one asked for. The route keeps its own
+  whitelist, refuses before opening the model, and `test_sheet_layout` asserts the two lists cannot
+  drift.
+* **A2-ICON-RENDER** — `TOOL_ICON` + `iconFor()` (v0.3.708) are complete and tested, but
+  `toolbarView.ts` **never calls them**. The mapping is done; the rendering was never wired, so
+  nothing on screen changed. "All 27 verbs mapped" was true and misleading.
+  **Done:** `labelFor()` renders the vendored SVG, falling back to the original emoji glyph and
+  tagging the button `data-glyph-fallback` when a tool has no icon — half a bar of line icons beside
+  half a bar of emoji is ugly but readable, whereas a blank square is a tool the user cannot find.
+  Two traps here. The pre-existing test asserted the *emoji* survived, encoding the old behaviour
+  rather than its intent; it now asserts a mark of either kind. And the new tests passed while
+  silently using a `ToolContext` property that does not exist — **vitest does not typecheck**, so
+  `npm run typecheck` was the only gate that caught it.
+
+**The standing check this produces, to run every sprint:** *what did we build that nothing calls?*
+Of eleven things built on 2026-07-26, **seven were unreachable** — tests passing is not the same as a
+request being able to arrive. `grep` the new module name across `routers/` before calling an item
+done.
+
+---
