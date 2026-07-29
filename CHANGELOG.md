@@ -4,20 +4,39 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.781 — SEC: an imported schedule's text is not ours to trust
+## v0.3.788 — the demo script did not know about two shipped features, and the log was out of order
 
-Two `innerHTML` interpolations in the Schedule panel took an activity's **name** and **status tag**
-unescaped. Both arrive from an imported Primavera P6 (`.xer`) or MS-Project (`.xml`) export — a
-third-party file, produced elsewhere, by someone else. That is the same class as the submittal title
-lifted from an uploaded document in v0.3.776: not user input in the obvious sense, which is exactly
-why it reads as safe.
+### The walkthrough
 
-The ratchet in `innerHtmlGuard.test.ts` moves `portal/panels/schedule.ts` from **8 to 6**. Lowering
-the baseline is the half that keeps it honest — a ledger that only ever records the worst case drifts
-from the code it describes and starts granting permission it was never asked for.
+`docs/walkthrough.md` is what somebody reads before recording a demo, so **a scene missing from it
+does not get demoed.** It was otherwise current — it knew all six rooms, having been updated at
+v0.3.766 — and had **zero** mentions of the **vitals strip** (shipped v0.3.773) or the **`.mass`
+container**, which is what every sample in the library actually is.
 
-Found and fixed by the security-audit session; landed here so it stops sitting uncommitted in a
-shared tree. Verified standalone: 29/29 across the guard and the schedule panel.
+That is the shape of doc rot nothing catches. A wrong sentence gets noticed; a missing one does not.
+No spell-check, link-check or build finds it, and no reader misses what was never there.
+
+Added the vitals beat — the six numbers following you between rooms, and the em-dash: *"it tells you
+what it does not know; a number it cannot compute is a dash, not a nought"* — and what a sample **is**:
+a portable zip holding the geometry, every project table and the blobs, so it opens as a *project*
+rather than a mesh.
+
+`docsCurrent.test.ts` now gates all three claims, including the inverse failure the demo snapshot
+committed two releases ago — naming a `Model` room that was renamed `design` at v0.3.766.
+Mutation-checked: renaming "vitals" to "stats" in the walkthrough fails the gate.
+
+### The changelog was not newest-first
+
+Noticed while writing the entry above: **v0.3.781 was sitting at the very top, above 787 through 782.**
+
+The cause is concurrency, and it is worth naming because it will recur. Four sessions ship releases,
+and each prepends its entry above *the version it branched from*. When 781 landed above 780 that was
+correct. Then 782…787 each also inserted above 780's neighbourhood — every one of them correct
+relative to its own predecessor, and the result collectively wrong. No single edit was a mistake.
+
+Reordered strictly by version. The lasting fix is not vigilance: **insert above the highest version
+present, not above the one you branched from** — the difference only shows up when someone else ships
+between your branch and your push, which is now the normal case rather than the exception.
 
 ## v0.3.787 — R24-EMPTY-GUIDE ②: an empty register says where its rows come from
 
@@ -218,6 +237,21 @@ The test also pins the contract to the handler itself: every key `main.ts` forwa
 nothing extra may be claimed. That assertion failed on its first run — the published label is `Esc`
 and the dispatched `KeyboardEvent.key` is `escape` — which is the right failure, and it is resolved
 by mapping label to event name in the test rather than renaming the UI to match an event constant.
+
+## v0.3.781 — SEC: an imported schedule's text is not ours to trust
+
+Two `innerHTML` interpolations in the Schedule panel took an activity's **name** and **status tag**
+unescaped. Both arrive from an imported Primavera P6 (`.xer`) or MS-Project (`.xml`) export — a
+third-party file, produced elsewhere, by someone else. That is the same class as the submittal title
+lifted from an uploaded document in v0.3.776: not user input in the obvious sense, which is exactly
+why it reads as safe.
+
+The ratchet in `innerHtmlGuard.test.ts` moves `portal/panels/schedule.ts` from **8 to 6**. Lowering
+the baseline is the half that keeps it honest — a ledger that only ever records the worst case drifts
+from the code it describes and starts granting permission it was never asked for.
+
+Found and fixed by the security-audit session; landed here so it stops sitting uncommitted in a
+shared tree. Verified standalone: 29/29 across the guard and the schedule panel.
 
 ## v0.3.780 — the queue was always there; nothing had ever asked it
 
@@ -14186,3 +14220,4 @@ non-zero Sources & Uses. Full gate green (API 30/30).
   sensitivity + Monte Carlo.
 - **Generative massing + family library**; free single-project **desktop app** with signed,
   auto-updating releases.
+

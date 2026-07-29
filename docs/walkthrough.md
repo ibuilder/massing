@@ -25,6 +25,13 @@ actions + timing) or follow it as a **written click-through**. Pairs with the
 element to show its docked Properties; flash the authoring rail — **New model**, the **Draft** tools,
 **◈ Edit in place** dragging an element, the **model browser** grouping by discipline.
 
+> *Narration, over the room tabs:* "And along the bottom, the same six numbers follow you into every
+> room — LOD, area, cost per square foot, float, IRR, health. One model, so they cannot disagree."
+*On screen:* the **vitals strip**; move between two rooms and let the strip stay put.
+**Point out an em-dash if one is showing** — on the structural sample, Area reads `—` because the
+model has no spaces, and the strip says so rather than printing a zero. *"It tells you what it does
+not know. A number it cannot compute is a dash, not a nought."*
+
 **0:35 — Generate a building from zoning ⭐**
 > "Start from nothing but a lot and its zoning. Enter the lot, FAR, setbacks, a height limit…"
 *On screen:* Finance → the **Generate from zoning** panel; type the inputs; tick frame + units +
@@ -72,7 +79,14 @@ element for its **5D** cost readout, then the **cost heatmap** coloring the buil
 ---
 
 ## Written click-through (no narration)
-1. **Design** room → **Open ▾ → Sample library** (a fresh install offers this on first run) → orbit, click an element for its docked **📋 Properties**
+0. **The vitals strip** runs along the bottom in every room — **LOD · area · $/ft² · float · IRR ·
+   health** — computed from the one model, so no two rooms can quote different figures. A value it
+   cannot compute renders as **`—` with its reason**, never as `0`.
+1. **Design** room → **Open ▾ → Project → Load sample project** (a fresh install offers this on first
+   run). A sample is a **`.mass` container** — a portable zip holding the geometry, every project
+   table and the blobs — so it opens as a *project*, not a mesh: `riverside_school_structural.mass` is
+   a 1551-element structural frame; `maple_grove_house.mass` was authored in the browser by the same
+   recipes you are about to use. Then orbit, click an element for its docked **📋 Properties**
    (Type/Instance). Open the **model browser** (Tree): switch **group-by** (level / discipline / IFC
    class / type) and **search** to filter; click a leaf to select. Save a search as a **selection set**
    (Layers panel) and isolate it in one click.

@@ -80,3 +80,32 @@ describe("the docs name the navigation the user will actually see", () => {
     }
   });
 });
+
+describe("the walkthrough describes the app as it ships now", () => {
+  /**
+   * The walkthrough is the demo script — it is what somebody reads before recording, and a scene that
+   * is not in it does not get demoed. On 2026-07-29 it had **zero** mentions of the vitals strip
+   * (shipped v0.3.773) or the `.mass` container (the thing every sample actually IS), while being
+   * otherwise current: it knew all six rooms. Staleness here is not a wrong sentence, it is a missing
+   * one, which no spell-check or link-check finds and no reader misses.
+   *
+   * These assert on *features that exist*, not on prose. If one is deleted from the product, delete
+   * its line here too — that is a decision, and it should look like one.
+   */
+  it("mentions the vitals strip — the continuous proof of the one-model claim", () => {
+    expect(WALKTHROUGH.toLowerCase()).toContain("vitals");
+  });
+
+  it("says what a sample IS, not just that one exists", () => {
+    // "Sample library" alone reads as "some meshes to look at". The point of the library is that a
+    // sample opens as a PROJECT — geometry plus every table — which is the whole difference between
+    // this and a viewer.
+    expect(WALKTHROUGH).toMatch(/\.mass/);
+  });
+
+  it("does not offer a room the product does not have", () => {
+    // The inverse failure, and the one the demo snapshot actually committed: naming `model` as a room
+    // after it was renamed `design` at v0.3.766.
+    expect(WALKTHROUGH).not.toMatch(/\b(?:the\s+)?Model\s+room\b/i);
+  });
+});
