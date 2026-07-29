@@ -50,10 +50,43 @@ from fastapi.routing import APIRoute  # noqa: E402
 import aec_api.main as M  # noqa: E402
 
 #: Dependencies that AUTHORISE. `current_user` is deliberately absent — that is the whole point.
+#:
+#: Every name here MUST resolve to a real dependency (asserted below). `require_license` and
+#: `require_plan` were listed until 2026-07-29 and do not exist anywhere in `src/`. Dead today, since
+#: no route depends on them — but matching is BY NAME, so the day someone writes a `require_license`
+#: that checks a subscription *tier* rather than authorisation, every route using it leaves this
+#: ratchet silently and nothing fails. That is the `current_user` trap one level up: a name that
+#: reads like a gate. An allowlist entry with no referent is a pre-authorised hole waiting for a
+#: matching name, so the set is now verified against the source rather than trusted.
 AUTHORISING = {"require_admin_user", "_require_platform_admin", "require_identified",
-               "require_scim", "require_license", "require_plan"}
+               "require_scim"}
 
 MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _defined_in_source() -> set:
+    """Every `def <name>` under `src/`. Read as text: the point is to catch a name with no referent."""
+    found = set()
+    for root, _dirs, files in os.walk(os.path.join(os.path.dirname(__file__), "src")):
+        for fn in files:
+            if not fn.endswith(".py"):
+                continue
+            with open(os.path.join(root, fn), encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+            for name in AUTHORISING:
+                if f"def {name}(" in text:
+                    found.add(name)
+    return found
+
+
+_missing = AUTHORISING - _defined_in_source()
+if _missing:
+    print(f"FAIL - {len(_missing)} name(s) in AUTHORISING resolve to nothing in src/: "
+          f"{sorted(_missing)}")
+    print("  Matching is BY NAME. A name with no referent silently becomes an authoriser the day")
+    print("  someone happens to define it - which may be a subscription check, not a gate.")
+    print("  Either delete the name, or point it at a dependency that actually authorises.")
+    sys.exit(1)
 
 #: Known routes that are mutating, global, outside `_PROTECTED_PREFIXES`, and carry no authorising
 #: dependency. Frozen 2026-07-29 at v0.3.790. NOT a statement that each is safe — a statement that

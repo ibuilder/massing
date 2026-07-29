@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.793 — an allowlist entry with no referent is a hole waiting for a matching name
+
+`test_global_authz`'s `AUTHORISING` set — the list of dependencies that count as a real gate — carried
+two names, `require_license` and `require_plan`, that are **not defined anywhere in `src/`**. Dead
+today, since no route depends on them. The reason to remove them rather than shrug: matching is **by
+name**. The day someone writes a `require_license` that checks a subscription *tier* rather than
+authorisation, every route using it drops out of the ratchet silently, with nothing failing. That is
+the `current_user` trap the gate itself documents, one level up — a name that reads like a gate.
+
+The set is now **verified against the source instead of trusted**: a name in `AUTHORISING` with no
+`def` under `src/` fails the build and says why. Mutation-checked both ways (exit 0 clean, exit 1
+with a phantom restored), because a guard nobody has watched fail is prose.
+
+Also merged the two open branches after checking them: the jurisdiction packs work (its HIGH — three
+unauthenticated global pack routes — and all five review findings verified fixed on the branch first)
+and the global-authz ratchet itself, which I mutation-checked before merging rather than after. Its
+coverage was confirmed sound against the OpenAPI contract: 0 of the 51 global unprotected mutating
+routes are invisible to it.
+
 ## v0.3.792 — ReDoS on IFC-authored text, and the two halves of the fix
 
 `classify_assist` ran regexes with **unbounded quantifiers** against free text taken straight out of an
