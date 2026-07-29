@@ -531,9 +531,18 @@ refute one, so this goes first even though it is the least visible.
 
 - **R24-FIELD-MODE** *(L)* — capture-first home, 56 px targets, 7:1 outdoor contrast, permanently
   visible sync queue, dictation on notes. A mode, not a breakpoint.
-- **R24-CHARTS-GRAMMAR** *(S, reinstated)* — `ui/charts.ts` has 13 chart functions and no shared
-  contract. One tick style, one currency format, one legend position, one no-data state, colour
-  restricted to the four semantic hues `ui/colorContract.ts` already enforces.
+- 🟡 **R24-CHARTS-GRAMMAR** — **no-data rule SHIPPED v0.3.783**, the rest open. Only `histogram`
+  handled empty input; the other twelve drew their axes, gridlines and legend with nothing in them —
+  no `NaN`, nothing broken, and therefore indistinguishable from a chart whose data failed to load.
+  All nine framed charts now share `noData()`, and `CHART_KINDS` + `charts.test.ts` fail the build if
+  a new chart skips it.
+  **Still open:** one tick style, one legend position, one currency format.
+  **And one correction to the audit, made deliberately:** it says colour should be "restricted to the
+  four semantic hues". That is right for *status* and wrong for *series identity* — a seven-series
+  S-curve needs seven distinguishable colours, and collapsing them to four makes the chart unreadable
+  in service of a rule about badges. The split to enforce is **semantic hues for status, a
+  categorical ramp for series**, which is a different contract from `ui/colorContract.ts` (that one
+  governs CSS selectors; SVG fills are outside it entirely).
 - **R24-REPORTS-BY-MOMENT** *(S, reinstated)* — `reportCenter.ts:20` groups by `r.group`, which is
   still nouns. Group by the moment they are needed — monthly owner package, lender draw, investment
   committee, closeout — and let each be scheduled, not only downloaded.

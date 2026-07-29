@@ -33,6 +33,45 @@ export function compact(n: number): string {
 export const money = (n: number): string => (n < 0 ? "-$" : "$") + compact(Math.abs(n));
 
 type Fmt = (n: number) => string;
+
+/**
+ * R24-CHARTS-GRAMMAR — one no-data state, for every chart.
+ *
+ * The audit's finding 15: this is a dependency-free SVG kit that "has not been given a grammar", and
+ * without shared rules the charts drift apart as the surfaces multiply. The first rule is the one
+ * that was actually costing something: **only `histogram` handled empty input.** The other twelve
+ * rendered their frame — axes, four gridlines, a legend — with nothing in it.
+ *
+ * Nothing was broken (no `NaN` reached any path), which is exactly why it survived: an empty axis
+ * frame does not look like a defect, it looks like a chart. It is indistinguishable from one whose
+ * data failed to load, and it appears at the moment a user is least able to tell the difference — on
+ * a project that has not got there yet. That is the same failure `noProjectHtml` exists to prevent
+ * one layer up, and the same rule the vitals strip follows: an absent number renders as an em-dash
+ * with its reason, never as a plausible zero.
+ *
+ * `CHART_KINDS` below is the enforced part. `charts.test.ts` asserts every name in it returns this
+ * state for empty input, **and** that every exported function returning an `<svg>` is in the list —
+ * so a fourteenth chart added without an empty state fails the build rather than shipping a frame.
+ */
+export const NO_DATA_MARK = "no data";
+
+export function noData(title: string, height: number, vb = 150): string {
+  return wrap(vb, txt(150, vb / 2, NO_DATA_MARK, { anchor: "middle" }), title, height);
+}
+
+/**
+ * Every chart function, by name. The list a test walks — not documentation.
+ *
+ * `progressBar` and `sparkline` are deliberately absent: neither renders a frame (one is a div, the
+ * other a 90×20 inline squiggle), so there is no empty grid to mistake for data. `sparkline` already
+ * returns a blank `<svg>` under two points, which is the right answer for something that sits inside
+ * a table cell.
+ */
+export const CHART_KINDS = [
+  "lineChart", "scatterQuadrant", "groupedBar", "stackedBar",
+  "waterfall", "tornado", "histogram", "donut", "signedBars",
+] as const;
+
 const wrap = (vb: number, inner: string, title: string, h = 150): string =>
   `<svg viewBox="0 0 300 ${vb}" role="img" aria-label="${esc(title)}" preserveAspectRatio="none" `
   + `style="width:100%;height:${h}px;display:block;background:var(--panel2);border:1px solid var(--line);border-radius:6px">`
@@ -47,6 +86,7 @@ export function lineChart(series: { name: string; values: number[]; color?: stri
                           opts: { title?: string; fmt?: Fmt; xlabels?: string[]; height?: number } = {}): string {
   const fmt = opts.fmt ?? compact;
   const W = 300, H = 150, L = 34, R = 8, T = 12, B = 18;
+  if (!series.length || !series.some((s) => s.values.length)) return noData(opts.title ?? "chart", opts.height ?? 170);
   const n = Math.max(1, ...series.map((s) => s.values.length));
   const all = series.flatMap((s) => s.values);
   const max = Math.max(1, ...all), min = Math.min(0, ...all);
@@ -76,6 +116,7 @@ export function lineChart(series: { name: string; values: number[]; color?: stri
 export function scatterQuadrant(points: { label: string; x: number; y: number; kind?: string }[],
                                 opts: { title?: string; center?: number; xLabel?: string; yLabel?: string; height?: number } = {}): string {
   const W = 300, H = 220, L = 30, R = 10, T = 12, B = 24;
+  if (!points.length) return noData(opts.title ?? "CPI–SPI quadrant", opts.height ?? 230, H);
   const c = opts.center ?? 1.0;
   const span = Math.max(0.25, 0.5, ...points.flatMap((p) => [Math.abs(p.x - c), Math.abs(p.y - c)]));
   const lo = c - span * 1.15, hi = c + span * 1.15;
@@ -107,6 +148,7 @@ export function groupedBar(groups: { label: string; bars: { name: string; value:
                            opts: { title?: string; fmt?: Fmt; height?: number } = {}): string {
   const fmt = opts.fmt ?? compact;
   const W = 300, H = 150, L = 34, R = 6, T = 14, B = 26;
+  if (!groups.length) return noData(opts.title ?? "grouped bar", opts.height ?? 170);
   const max = Math.max(1, ...groups.flatMap((g) => g.bars.map((b) => b.value)));
   const gw = (W - L - R) / Math.max(1, groups.length);
   const names = groups[0]?.bars.map((b) => b.name) ?? [];
@@ -134,6 +176,7 @@ export function stackedBar(groups: { label: string; segments: { name: string; va
                            opts: { title?: string; fmt?: Fmt; height?: number } = {}): string {
   const fmt = opts.fmt ?? compact;
   const W = 300, H = 150, L = 34, R = 6, T = 14, B = 22;
+  if (!groups.length) return noData(opts.title ?? "stacked bar", opts.height ?? 170);
   const totals = groups.map((g) => g.segments.reduce((a, s) => a + Math.max(0, s.value), 0));
   const negs = groups.map((g) => g.segments.reduce((a, s) => a + Math.min(0, s.value), 0));
   const max = Math.max(1, ...totals), min = Math.min(0, ...negs);
@@ -163,6 +206,7 @@ export function waterfall(steps: { label: string; value: number; total?: boolean
                           opts: { title?: string; fmt?: Fmt; height?: number } = {}): string {
   const fmt = opts.fmt ?? compact;
   const W = 300, H = 150, L = 34, R = 6, T = 12, B = 26;
+  if (!steps.length) return noData(opts.title ?? "waterfall", opts.height ?? 170);
   let run = 0; const tops: number[] = []; const bots: number[] = [];
   let peak = 0;
   for (const s of steps) {
@@ -191,6 +235,7 @@ export function tornado(rows: { label: string; low: number; high: number }[],
                         opts: { title?: string; base?: number; fmt?: Fmt; height?: number } = {}): string {
   const fmt = opts.fmt ?? ((n: number) => n.toFixed(1) + "%");
   const W = 300, H = Math.max(60, 18 * rows.length + 24), L = 96, R = 8, T = 6;
+  if (!rows.length) return noData(opts.title ?? "tornado", opts.height ?? 70, 60);
   const base = opts.base ?? 0;
   const span = Math.max(0.01, ...rows.flatMap((r) => [Math.abs(r.low - base), Math.abs(r.high - base)]));
   const x = (v: number) => (L + W) / 2 + ((v - base) / span) * ((W - L - R) / 2);
@@ -210,7 +255,7 @@ export function tornado(rows: { label: string; low: number; high: number }[],
 export function histogram(values: number[], opts: { title?: string; bins?: number; fmt?: Fmt; markers?: { label: string; value: number }[]; height?: number } = {}): string {
   const fmt = opts.fmt ?? compact;
   const W = 300, H = 150, L = 8, R = 8, T = 10, B = 18;
-  if (!values.length) return wrap(H, txt(W / 2, H / 2, "no data", { anchor: "middle" }), opts.title ?? "histogram", opts.height ?? 160);
+  if (!values.length) return noData(opts.title ?? "histogram", opts.height ?? 160);
   const bins = opts.bins ?? 24;
   const lo = Math.min(...values), hi = Math.max(...values), w = (hi - lo) / bins || 1;
   const counts = new Array(bins).fill(0);
@@ -236,6 +281,7 @@ export function donut(slices: { label: string; value: number; color?: string }[]
                       opts: { title?: string; center?: string; height?: number } = {}): string {
   const total = slices.reduce((a, s) => a + Math.max(0, s.value), 0) || 1;
   const cx = 75, cy = 75, r = 55, ri = 34;
+  if (!slices.length) return noData(opts.title ?? "donut", opts.height ?? 160);
   let a0 = -Math.PI / 2, g = "";
   slices.forEach((s, i) => {
     const frac = Math.max(0, s.value) / total, a1 = a0 + frac * 2 * Math.PI;
@@ -273,6 +319,7 @@ export function sparkline(values: number[], opts: { color?: string; width?: numb
 export function signedBars(values: number[], opts: { title?: string; fmt?: Fmt; height?: number } = {}): string {
   const fmt = opts.fmt ?? compact;
   const W = 300, H = 90, pad = 6, mid = H / 2;
+  if (!values.length) return noData(opts.title ?? "cash flow", opts.height ?? 90, H);
   const max = Math.max(1, ...values.map((v) => Math.abs(v)));
   const bw = (W - 2 * pad) / Math.max(1, values.length);
   const bars = values.map((v, i) => {

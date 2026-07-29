@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import * as Charts from "./charts";
 import {
+  CHART_KINDS, NO_DATA_MARK,
   compact, money, chartColor, lineChart, groupedBar, stackedBar, waterfall,
   tornado, histogram, donut, progressBar, sparkline, signedBars, scatterQuadrant,
 } from "./charts";
@@ -109,5 +111,43 @@ describe("chart primitives produce valid svg", () => {
     expect(svg).toContain("&lt;cc&gt;");            // label escaped in the <title>
     expect(svg).not.toContain("<cc>");
     expect(scatterQuadrant([])).toContain("<svg");   // empty is safe (no points)
+  });
+});
+
+/**
+ * R24-CHARTS-GRAMMAR — the first shared rule, enforced.
+ *
+ * "Empty is safe" was the old bar, and every chart cleared it: none of them emitted `NaN`. But safe
+ * is not the same as honest. Twelve of thirteen rendered their axes, gridlines and legend with
+ * nothing plotted, which is indistinguishable from a chart whose data failed to load — and it
+ * appears exactly where a user cannot tell the difference, on a project that has not got there yet.
+ *
+ * The reason these assertions are written as a loop over `CHART_KINDS`, rather than one `it()` per
+ * chart, is drift: a fourteenth chart is added by writing a function, and nothing about writing a
+ * function reminds anyone that empty input has a house style. The second test closes that by
+ * checking the *list itself* against the module's exports.
+ */
+describe("every chart says 'no data' rather than drawing an empty frame", () => {
+  /** Minimal empty input per chart — all of them take an array first. */
+  const EMPTY: Record<string, unknown[]> = Object.fromEntries(CHART_KINDS.map((k) => [k, [[]]]));
+
+  for (const kind of CHART_KINDS) {
+    it(`${kind} renders the shared no-data state`, () => {
+      const fn = (Charts as unknown as Record<string, (...a: unknown[]) => string>)[kind]!;
+      const out = fn(...EMPTY[kind]!);
+      expect(out).toContain(NO_DATA_MARK);
+      expect(out).toContain("<svg");            // still a valid, sized box — the layout must not jump
+      expect(out).not.toMatch(/NaN|Infinity/);
+    });
+  }
+
+  it("CHART_KINDS lists every chart the module exports — so a new one cannot skip the rule", () => {
+    const exported = Object.entries(Charts as unknown as Record<string, unknown>)
+      .filter(([name, v]) => typeof v === "function" && !["esc", "compact", "money", "chartColor", "noData"].includes(name))
+      .map(([name]) => name);
+    // progressBar returns a <div> and sparkline a bare inline <svg>; neither draws a frame that could
+    // be mistaken for data, and both are documented as deliberate omissions in charts.ts.
+    const framed = exported.filter((n) => !["progressBar", "sparkline"].includes(n));
+    expect([...framed].sort()).toEqual([...CHART_KINDS].sort());
   });
 });

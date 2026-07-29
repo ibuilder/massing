@@ -19,6 +19,34 @@ from the code it describes and starts granting permission it was never asked for
 Found and fixed by the security-audit session; landed here so it stops sitting uncommitted in a
 shared tree. Verified standalone: 29/29 across the guard and the schedule panel.
 
+## v0.3.783 — R24-CHARTS-GRAMMAR: an empty chart now says so
+
+The audit's finding 15 is that `ui/charts.ts` is a dependency-free SVG kit "that has not been given a
+grammar" — thirteen chart functions with no shared rules for axes, legends or empty states, which
+will drift apart as the surfaces multiply. This is the first rule, and it turned out to be the one
+already costing something.
+
+**Only `histogram` handled empty input.** The other twelve rendered their frame — axes, four
+gridlines, a legend — with nothing plotted. Probing all of them first showed no `NaN` and no
+`Infinity` reached any path, so nothing was *broken*, and that is exactly why it survived a year of
+review: an empty axis frame does not look like a defect, it looks like a chart. It is
+indistinguishable from one whose data failed to load, and it shows up precisely where the user cannot
+tell the difference — on a project that has not got there yet.
+
+That is the same failure `noProjectHtml` prevents one layer up, and the same rule the vitals strip
+follows: an absent number renders as an em-dash with its reason, never as a plausible zero. All nine
+framed charts now return one shared `noData()` state, and `histogram`'s hand-rolled copy was replaced
+by it.
+
+The enforced half is `CHART_KINDS`. `charts.test.ts` walks it and asserts each chart returns the
+shared state for empty input **and** that the list matches the module's own exports — so a fourteenth
+chart added without an empty state fails the build. That guard was checked by temporarily adding a
+chart and confirming the test goes red, because a drift guard nobody has seen fail is a guard nobody
+knows works. `progressBar` and `sparkline` are documented exclusions: neither draws a frame that
+could be mistaken for data.
+
+The old bar was "empty is safe", and every chart cleared it. Safe is not the same as honest.
+
 ## v0.3.782 — R24-KEYS: one keyboard help, and it is true
 
 The audit asks for a **published keyboard contract** and supplies one: ⌘K · `G then M` · `J`/`K` ·
