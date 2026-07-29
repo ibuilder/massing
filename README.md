@@ -292,7 +292,21 @@ Deliverables** — with a sticky live-solved returns bar.
 > **The full log lives in [CHANGELOG.md](CHANGELOG.md)** (every release, newest first). The highlights below
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
-- **The new shell is the app now — and it opens with something in it (v0.3.703–v0.3.765, current).**
+- **The drawing became data, and a firm got standards (v0.3.776–v0.3.786, current).**
+  A **received sheet now has regions**: the rectangles a consultant's PDF was drawn with are read back
+  out of its own content stream and classified — titleblock, revision table, legend, viewport — so a
+  note or a takeoff attaches to *the view it governs* rather than to a page number. Deterministic
+  vector geometry, not a document-AI dependency. Where the vectors are gone it returns a stated
+  **`unknown`** rather than an empty list, and it never invents the page↔world scale: a scale printed
+  on paper is a claim, offered for calibration to accept, never applied on its own.
+  **Firm standards** now outlive a project — rule libraries live above the job and a project layers
+  over them, with any override *visible as an override*, because the failure here is not a wrong answer
+  but a firm discovering its standards had quietly become optional.
+  The sample library gained a **real building**: a 1551-element school structure, packaged through the
+  same publish path a user drives. It is structure-only, so Area and $/ft² read `—` with their reasons
+  — the strip working, not a gap hidden.
+
+- **The new shell is the app now — and it opens with something in it (v0.3.703–v0.3.775).**
   The six-room shell stopped being a preview and **became the default in v0.3.715**; the opt-out was
   **deleted in v0.3.779** — one front door, no second rail to keep in step. Since then it grew the
   parts that make a first run make sense:
