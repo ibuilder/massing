@@ -42,6 +42,22 @@
       "fieldset": "Contract"
     },
     {
+      "name": "notice_family",
+      "label": "Notice provisions (contract family)",
+      "type": "select",
+      "options": [
+        "AIA A201-2017",
+        "FIDIC Red Book 2017",
+        "FIDIC Red Book 1999",
+        "NEC4 ECC",
+        "ConsensusDocs 200",
+        "EJCDC C-700 2018",
+        "US Federal (FAR)"
+      ],
+      "help": "Which form's notice periods this contract runs on. Verify against the executed contract before relying on it - an amended sub-clause changes the number.",
+      "fieldset": "Contract"
+    },
+    {
       "name": "value",
       "label": "Original Value",
       "type": "currency",
