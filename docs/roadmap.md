@@ -276,6 +276,17 @@ competitor's AI touches geometry.** They all read documents *about* the building
 read the building. Items marked ⭐ are the ones that convert that into product; the rest are table
 stakes we are missing.
 
+> **Read every entry in this ring against the code before sizing it.** Four in a row on 2026-07-29
+> turned out to be wrong in the same direction — the machinery existed and only its **reach** was
+> missing (R22-MEMORY: cross-project cost-code distributions existed, per-*unit* did not.
+> R22-CARBON-OPTION: three carbon paths existed, the option card had none), or nothing was missing at
+> all (R22-ACCT-SEAM: the whole seam shipped, including an exact double-entry assertion; the correct
+> deliverable was *reporting that*, not adding a redundant gate). The entries over-estimate because
+> they were written from a competitive scan rather than from the files, and they are never re-read
+> **precisely because they sound like the check already happened**. An entry that says "build X" and
+> means "extend X by 20%" costs more than an entry that says nothing — a named prerequisite is not
+> evidence of a missing one.
+
 **Tier 1 — closes the mission's own gaps**
 
 - ⭐ **R22-PRODUCTION** *(L)* — **field production tracking against model quantities.** Crews claim
@@ -320,7 +331,8 @@ stakes we are missing.
 - **R22-PROCURE-DEPTH** *(M)* — sub **prequalification** (bonding/EMR/capacity), **contract-clause
   risk extraction**, and **vendor scorecards persisting across projects**. Bid leveling covers one
   step of five.
-- 🟡 **R22-MEMORY** *(was M/L; remainder is S/M)* — **two-thirds already built.** Verified 2026-07-29
+- ✅ **R22-MEMORY** *(**PR #104**, merged 2026-07-29 — `unit_rate_memory.py` is on `main`)* —
+  **two-thirds already built.** Verified 2026-07-29
   by reading the file, not the entry: `benchmarking.cost_benchmarks()` already mines `direct_cost`
   records **across all the caller's projects** and returns a low/p25/median/p75/high distribution per
   **cost code**, with a `min_samples` floor, routed via `routers/benchmarking.py`. Cross-project
@@ -333,6 +345,13 @@ stakes we are missing.
   that needs the QTO spine and the part that does not exist.
   **Remainder, correctly sized:** *unit-rate memory* — join `direct_cost` actuals to the estimate's
   measured quantities so the distribution is per unit rather than per code.
+  **Shipped in PR #104** (`unit_rate_memory.py`): cost ÷ **installed quantity**, joining `direct_cost`
+  to `production_quantity` — two modules owned by different engines that had never been read together.
+  Rates are computed **per project then distributed**, never Σcost ÷ Σquantity, which is a weighted
+  average wearing a distribution's clothes; the pooled figure is reported alongside and labelled. Units
+  are grouped, never converted. A review caught the totals being summed from **display-rounded** values
+  — 6000.00 against a true 6000.30, and a pooled rate contradicting the formula printed beside it;
+  aggregates now come from raw values, mutation-checked.
   *Third entry in one day whose estimate was set by a description that had drifted from the code, and
   the third distinct flavour: R23-RECIPE-ARTIFACT said "already is X" and nothing existed;
   R22-CLASSIFY-AI described a harmless failure that was really a confident wrong number; this one
@@ -344,11 +363,29 @@ stakes we are missing.
 - **R22-CAD-IMPORT** *(M)* — **DWG/DXF/PDF base-plan import.** The existing building stock is legacy
   CAD; today feasibility and test-fit only run on models we authored. This is the on-ramp for every
   non-BIM firm.
-- ⭐ **R22-CARBON-OPTION** *(M)* — **embodied carbon per design option**, on the option card beside
-  cost and area, computed from model quantities we already have. Increasingly a hard requirement in
-  institutional underwriting.
-- **R22-ACCT-SEAM** *(M)* — **AP/GL/cost-code export + ERP connectors.** Do *not* build a ledger;
-  build the seam so actuals stop being hand-fed into EAC.
+- 🔜 **R22-CARBON-OPTION** *(M; **PR #106 — OPEN, not merged as of 2026-07-29 22:20Z**)* — built and
+  awaiting merge; `option_carbon.py` is on the branch, **not** on `main`. The premise was right about
+  the capability and wrong about its REACH. `option_score` already scored **generated** massing variants
+  on carbon, `option_takeoff.embodied()` computed it bottom-up, `carbon.py` rolled up a whole project —
+  and `design_options.compare()`, the card a project keeps its schemes on, had none. `energy_eui` was
+  not standing in: that is **operational** energy, a different lifecycle stage. Every row now states its
+  basis — `declared` / `benchmark` / `unavailable` — and unmeasurable options are listed but never
+  ranked, because an option with no area is not an option with zero carbon. The intensity table is
+  **imported** from `option_score`, never copied, and a test asserts this module defines none of its own.
+- ✅ **R22-ACCT-SEAM** *(M; already shipped — verified on `main` 2026-07-29, no new code)* — the seam
+  exists in full and the entry had simply not been re-read. Outbound: `accounting.py` (GL CSV,
+  QuickBooks IIF bills, journal entries, trial balance, approval-gated frozen batches). Inbound:
+  `imports.py` (generic CSV/Excel → any module, incl. `direct_cost`) + `fin_ingest.py` (budget↔actuals
+  two-way reconcile on the cost-code spine, unmatched surfaced BOTH ways and never netted, plus import
+  lineage). Credentials: `connectors.py` (quickbooks / sage-erp / procore / acc). All routed via
+  `routers/accounting.py`, and `test_accounting.py` **value-checks** the double-entry invariant exactly
+  — `abs(dr - cr) < 0.01 and abs(dr - 125000) < 0.01`, not a range. **Remaining and genuinely blocked:**
+  a live API *pull* needs real credentials, so it belongs in the gated table, not the open list.
+
+  *Reporting "already covered" was the deliverable here.* The session that checked went in expecting to
+  add a missing double-entry balance gate, found the assertion already exact, and wrote nothing rather
+  than landing a redundant gate so the day would show a commit. That is the right call and the harder
+  one.
 - **R22-OPTION-OBJECT** *(S/M)* — make **option the primary object**: geometry + unit mix + cost +
   carbon + IRR as one comparable record, so no massing is ever evaluated without its returns.
 - **R22-ENTITLE-RISK** *(S/M; **PR #99** — `proforma/entitlement_risk.py` + `POST /proforma/entitlement-risk`;
@@ -450,8 +487,19 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
 - **R23-BATCH-OVERLAYS** *(S)* — app-authored overlays (pins, grid, snap markers, dimensions, clash
   markers) use **zero** instancing; `three@0.184.0` has `BatchedMesh`. Keep the default BIM pass off
   `MeshStandardMaterial` (presentation mode only); make FOV/FAR responsive by viewport class.
-- **R23-GLTF-COMPRESS** *(S/M)* — Draco or meshopt on the server-side glTF export path (permissive,
-  server-side only, no browser dependency added). 90–95% size reduction.
+- 🔜 **R23-GLTF-COMPRESS** *(S/M; **PR #105 — OPEN, not merged as of 2026-07-29 22:20Z**)* — built and
+  awaiting merge; `gltf_export.py` + `test_gltf_compress.py` are on the branch, **not** on `main`.
+  Shipped in two halves, split by what each costs the consumer. **Per-mesh index width** is free and on
+  by default: measured first, indices were **60%** of a 175 KB export and every mesh was far under the
+  ceiling, so a fixed uint32 was paying double. uint16 is core glTF 2.0 — no extension, ~30% off every
+  export, nothing to check on the reader. **Draco is opt-in** (`draco=True`): 42,592 B → 5,040 B
+  (**88%**), but `KHR_draco_mesh_compression` is *required*, not optional, so a consumer without the
+  decoder reads nothing. Verified against **headless Blender 3.5**, which decodes Draco; trimesh does
+  NOT, and returns the right vertex and triangle counts with every position at (0,0,0) while raising
+  nothing — see the note under R22-ACCT-SEAM on what an independent-reader check actually proves.
+  `DracoPy==1.7.0` pinned in `requirements-dev.txt` on the branch — 2.0.0 ships **Windows wheels only**,
+  and `requirements.in` would force a hash-lock recompile. Shipping it in the API image is a
+  `requirements.in` line + a Lockfile-workflow run, not done here.
 - **R23-SYMBOL-COUNT** *(M)* — deterministic template-match symbol counting in the **existing** pdf.js
   takeoff worker: mark one instance, normalised cross-correlation, non-maximum suppression.
   **Zero new dependencies**, offline, auditable — which matters for quantities that feed a bid.
