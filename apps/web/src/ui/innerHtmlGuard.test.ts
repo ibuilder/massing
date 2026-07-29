@@ -47,7 +47,7 @@ const BASELINE: Record<string, number> = {
   "portal/panels/evm.ts": 1,
   "portal/panels/operations.ts": 5,
   "portal/panels/resourceLoading.ts": 1,
-  "portal/panels/schedule.ts": 8,
+  "portal/panels/schedule.ts": 6,
   "portal/panels/standards.ts": 8,
   "portal/panels/traceability.ts": 1,
   "portal/panels/wip.ts": 1,

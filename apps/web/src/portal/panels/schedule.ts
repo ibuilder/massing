@@ -589,7 +589,9 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
         const row = document.createElement("div"); row.className = "meta"; row.style.margin = "1px 0";
         const fv = a.finish_var; const tag = fv == null ? a.status : fv > 0 ? `+${fv}d late` : `${fv}d early`;
         const col = fv != null && fv > 0 ? "var(--status-crit)" : fv != null && fv < 0 ? "var(--status-good)" : "var(--muted)";
-        row.innerHTML = `<span style="color:${col}">◷</span> ${a.name} · <span style="color:${col}">${tag}</span>`;
+        // esc(): activity names and statuses arrive from an imported Primavera P6 (.xer) or
+        // MS-Project (.xml) export — a third-party file, so the text in it is not ours to trust.
+        row.innerHTML = `<span style="color:${col}">◷</span> ${esc(a.name)} · <span style="color:${col}">${esc(tag)}</span>`;
         blBody.appendChild(row);
       }
     }).catch(() => { blBody.innerHTML = `<div class="meta">No baseline set — click <b>📌 Set baseline</b> to snapshot the current plan and start tracking slip.</div>`; });

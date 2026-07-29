@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.781 — SEC: an imported schedule's text is not ours to trust
+
+Two `innerHTML` interpolations in the Schedule panel took an activity's **name** and **status tag**
+unescaped. Both arrive from an imported Primavera P6 (`.xer`) or MS-Project (`.xml`) export — a
+third-party file, produced elsewhere, by someone else. That is the same class as the submittal title
+lifted from an uploaded document in v0.3.776: not user input in the obvious sense, which is exactly
+why it reads as safe.
+
+The ratchet in `innerHtmlGuard.test.ts` moves `portal/panels/schedule.ts` from **8 to 6**. Lowering
+the baseline is the half that keeps it honest — a ledger that only ever records the worst case drifts
+from the code it describes and starts granting permission it was never asked for.
+
+Found and fixed by the security-audit session; landed here so it stops sitting uncommitted in a
+shared tree. Verified standalone: 29/29 across the guard and the schedule panel.
+
 ## v0.3.780 — the queue was always there; nothing had ever asked it
 
 ### R24-JOB-TRAY — heavy work you can walk away from
