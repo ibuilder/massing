@@ -1053,6 +1053,36 @@ removed. Remaining, in priority order:
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
+- **SEC-PLUGIN-SANDBOX** *(L)* — **plugin Python executes inside the API process.**
+  `plugin_registry.py:136-141` does `spec_from_file_location` → `module_from_spec` →
+  `spec.loader.exec_module(mod)`, then calls `mod.register(PluginApi(...))`. Whatever the entry
+  module does at import time runs with the API's full privileges: its DB session, its filesystem, its
+  network, its environment.
+
+  **What is already right, so nobody re-does it:** discovery is **opt-in and off by default**
+  (`AEC_PLUGINS_ENABLED=1`), the manifest is validated before the entry is touched, `api_version`
+  major must match, and a plugin that raises is refused non-fatally with its recipes rolled back out
+  of `edit.RECIPES`. That is a careful loader. It is not a boundary — every one of those checks
+  happens *before* `exec_module`, and none of them constrains what the code then does.
+
+  The work is a real boundary, not more validation: run registration in a **separate process** with
+  a narrow IPC contract (register-only, returning recipe names), a wall-clock and memory cap, and no
+  ambient DB or storage handle. Signing is the weaker alternative — it answers *who wrote this*, not
+  *what it may do*, and this repo already learned from [[sandbox-object-api-surface]] that a denylist
+  cannot see methods reached through an injected object. Gate the design on that lesson.
+
+- ❌ **SRI for the offline WASM/fragment assets — considered 2026-07-29 and REJECTED.** An external
+  audit recommended Subresource Integrity for the WASM and fragment assets. **It does not apply
+  here**, and the reason is worth recording because the next outside reading will recommend it again:
+  SRI exists so a document can pin the bytes it expects from a *different* origin. Checked — there
+  are **no remote asset URLs** anywhere in `apps/web/src/` or `index.html`; everything is bundled and
+  self-hosted, which CLAUDE.md requires (the viewer must run fully offline, local WASM, self-hosted
+  tiles). Same-origin, content-hashed bundles get nothing from it: anyone who can alter the bundle
+  can alter the `integrity=` attribute in the HTML that names it, in the same write. Adding it would
+  be ceremony that reads as a control. **A hardening measure that does not narrow an attacker's
+  options is worse than none — it spends review attention and returns a false sense of coverage.**
+
+
 **External corroboration — Repowise re-index, 2026-07-29.** Worth recording because it was reviewed
 once before and judged mostly not actionable; re-indexed, it independently names the same five files
 this section and [[web-godfile-decomposition]] already target, ranked by *churn × prior bug fixes*:
