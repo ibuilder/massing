@@ -657,14 +657,30 @@ Four sessions are live in this repo. R24 is **`apps/web` outside `src/shell/`**.
 - **The version lives in THREE files**, not the two the `ship-release` skill names: `apps/web/package.json`,
   `apps/web/src-tauri/tauri.conf.json`, **and `package-lock.json` (~line 23)**.
   `shell/versionConsistency.test.ts` fails the web suite if the lockfile disagrees.
-- **`ui/innerHtmlGuard.test.ts` is a one-directional ratchet** (repo-wide unescaped `${…}` into
-  `.innerHTML`, currently capped at 88). If it goes red after a UI change it is not flaky — you added
-  an unescaped interpolation; wrap it in `esc()` (`ui/charts`) or `escapeHtml()` (`ui/feedback`).
-  **Only on lines assigning to `.innerHTML`.** Never escape into `toast()`, `notify()`, `setStatus()`
-  or `.textContent` — `toast` sets `textContent`, so escaping there makes users read `&amp;lt;`
-  literally. The worst offenders if you are in them anyway: `proforma/proforma.ts` 16 ·
-  `portal/portal.ts` 14 · `portal/panels/standards.ts` 8 · `portal/panels/analytics.ts` 6 ·
-  `viewer/app.ts` 6.
+- **The web app's three escaping layers have DISTINCT scopes.** Stated once, because assuming one
+  covers another is how the gap between them gets used:
+
+  | layer | watches | baseline |
+  |---|---|---|
+  | `ui/innerHtmlGuard.test.ts` | unescaped `${…}` interpolated into `.innerHTML` | ratchet at **88** |
+  | `ui/hrefGuard.test.ts` | an **external field** (`info.url`, `d.html_url`, `att.fileUrl`) assigned straight to a URL attribute | **zero** |
+  | `safeUrl` / `safeHref` (`ui/feedback`) | the helpers both gates point you at | — |
+
+  **None of them sees `textContent`, and that is correct** — nothing needs to.
+  * `innerHtmlGuard` red = you added an unescaped interpolation. Wrap it in `esc()` (`ui/charts`) or
+    `escapeHtml()`. **Only on lines assigning to `.innerHTML`.** Never escape into `toast()`,
+    `notify()`, `setStatus()` or `.textContent` — `toast` sets `textContent`, so escaping there makes
+    users read `&amp;lt;` literally. Worst offenders if you are in them anyway: `proforma/proforma.ts` 16 ·
+    `portal/portal.ts` 14 · `portal/panels/standards.ts` 8 · `portal/panels/analytics.ts` 6 ·
+    `viewer/app.ts` 6.
+  * `safeUrl` **HTML-escapes** (for interpolation into a string); `safeHref` **does not** (for
+    `el.href = …`). Using `safeUrl` on a DOM property rewrites `?a=1&b=2` into `&amp;` — a broken link
+    that still looks defended.
+  * **Known blind spot, deliberately:** `hrefGuard` does not cover `img.src` / `audio.src` fed a
+    *local variable*, because a line-local regex cannot do dataflow and a zero-baseline version of
+    that flagged **eleven safe sites**. Eleven false alarms is how a check gets switched off, and then
+    the real twelfth goes through. So `safeMediaUrl` in the vendored attachment plugin is doing real
+    work that **no gate backs up** — keep it if that file is ever refactored.
 - **Free for R24:** `apps/web/src/ui/*`, `apps/web/src/api/client.ts`, `apps/web/src/field/*`,
   `apps/web/src/reportCenter.ts`, and any new file.
 - **Sequencing rule:** prefer a new self-contained module plus one small mount point over an edit

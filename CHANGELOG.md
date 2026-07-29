@@ -19,6 +19,36 @@ from the code it describes and starts granting permission it was never asked for
 Found and fixed by the security-audit session; landed here so it stops sitting uncommitted in a
 shared tree. Verified standalone: 29/29 across the guard and the schedule panel.
 
+## v0.3.786 — the public demo was serving a taxonomy the app cannot render
+
+The GitHub Pages demo reads a **captured** snapshot, `apps/web/src/demo/demoData.json`. A capture is a
+photograph, and this one was taken before the room spine moved twice.
+
+Measured, not suspected. The old snapshot held **132 modules across four rooms** — `model` 38 ·
+`schedule` 41 · `cost` 37 · `deal` 16. The app has **six**, and three of those four names were wrong:
+`model` was renamed **`design`** at v0.3.766, and `planning` and `work` did not exist in the file at
+all. So the public demo — the thing a first-time visitor sees — served **38 modules pointing at a room
+id the shell cannot render**, with rooms missing entirely.
+
+Regenerated: **133 modules** across `design` 39 · `schedule` 42 · `cost` 20 · `planning` 16 ·
+`deal` 16. Five, not six, and that is correct rather than a remaining gap: **`work` owns no sections
+by design** — it is the ball-in-court queue, filled from what is in your court right now, not a home
+for registers. Verified against `ROOM_OF_SECTION`, which maps zero sections to it.
+
+**The interesting part is why nothing caught this.** Every gate here measures the *app*: `rooms.py`
+fails the build if a section has no room, `test_module_rooms` enforces it, `roomNames.test.ts` now ties
+the Python and TypeScript label tables together. None of them read the snapshot, because the snapshot
+is data, not code — so the room spine could be renamed with full test coverage while the demo quietly
+kept describing the old one. A capture rots silently by construction: nothing fails when the thing it
+was copied from moves.
+
+Also folded in: five backend PRs merged after their own CI gates — **#94** R23-DIGEST, **#95**
+R22-NOTICE-CLOCK, **#96** R23-PREFAB-KIT, **#97** R22-CLASSIFY-ASSIST, **#99** R22-ENTITLE-RISK. Each
+arrived without version files or CHANGELOG so its branch could not fight a release commit; this is the
+batch that picks them up. **#98 was deliberately not merged** — it carries a genuine CodeQL HIGH
+(`py/clear-text-logging-sensitive-data`), and a security gate is not something to merge past because
+the finding looks harmless.
+
 ## v0.3.785 — R24-REPORTS-BY-MOMENT: the Report Center stops being a list of nouns
 
 The audit's finding 16, and the numbers make the case better than the finding did: **56 reports under

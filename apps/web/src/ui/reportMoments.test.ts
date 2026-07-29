@@ -44,10 +44,24 @@ describe("the catalog can actually be read from reports.py", () => {
 });
 
 describe("every moment names reports that exist", () => {
+  /**
+   * **This is a cross-lane tripwire, so its failure message has to be an instruction.**
+   *
+   * A backend rename fails a *web* test. That is the whole value — a renamed report id is otherwise
+   * free at build, free at runtime, and shows up as a package one row shorter on the Friday it is
+   * due. But it also means the red suite lands in front of whoever is holding the **backend** lane,
+   * and "why is the web suite failing at me" is a bad first five minutes. The message therefore names
+   * the file, the ids, the file to edit, and why it matters — the same reason `test_module_rooms` and
+   * `test_reachable` should say what to do rather than only what is wrong.
+   */
   it("no moment references a report the server does not serve", () => {
     const missing = missingReportIds(REPORT_MOMENTS, pythonCatalog());
-    // The failure this exists for: a report renamed in Python, a package silently one row shorter.
-    expect(missing, `moments name reports that reports.py does not define: ${missing.join(", ")}`).toEqual([]);
+    expect(missing, missing.length
+      ? `reports.py no longer defines: ${missing.join(", ")}.\n`
+        + "If a report was renamed there, update REPORT_MOMENTS in apps/web/src/ui/reportMoments.ts "
+        + "to match. This is not a web defect — a report package that silently loses a row still "
+        + "looks complete to the person assembling it."
+      : "").toEqual([]);
   });
 
   it("reports the gap rather than throwing, so the Report Center still opens", () => {
