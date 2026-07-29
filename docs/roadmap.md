@@ -126,6 +126,71 @@ test read.
   nothing and is not reversible after an accident.
 - **R26-V-TIMING** — needs real users. **Plugin pricing** — needs customers. Both correctly parked.
 
+### External analysis tools — reviewed 2026-07-29, mostly NOT actionable *(CodeFlow · Repowise)*
+
+Two third-party analyses were reviewed in full. **Neither produced work worth doing**, and the reason
+is worth recording so the next person does not re-run the exercise or, worse, act on the numbers.
+
+**[CodeFlow](https://app.getcodeflow.com/github/ibuilder/massing) — remove it or scope it. This is a
+user decision, and it is the one real outcome of this review.**
+
+* Its own report says **"Processing of this commit timed out"** and **"Tool timed out: pylint"**. The
+  commit it was asked to analyse was never fully analysed.
+* Its 2,350 issues are dominated by **TSLint-era rules**: `max-line-length` 960 · `CodeDuplication` 526
+  · `jsdoc-format` 402 · `one-variable-per-declaration` 200 · `no-shadowed-variable` 78 · `no-bitwise`
+  18 · `variable-name` 7 · `max-classes-per-file` 5. **TSLint was deprecated in 2019.** This repo lints
+  with **ESLint 9.39.5** and **ruff**, both configured, both **clean**. So CodeFlow is not measuring our
+  standards — it is measuring its defaults, and disagreeing with the linters we actually chose.
+* Its one structural finding is **wrong**: *"Avoid storing generated files in GIT
+  (apps/web/src-tauri/Cargo.lock)"*. Rust's own guidance is to **commit `Cargo.lock` for binaries**, and
+  a Tauri desktop app is a binary. CI already guards it with `cargo metadata --locked`.
+* **It fails on every PR.** A permanently-red check is worse than no check: it teaches everyone to scroll
+  past red, which is how a real failure gets waved through. It nearly did here — five PRs were reported
+  as failing when only #98 had a genuine CodeQL HIGH.
+
+**[Repowise](https://www.repowise.dev/s/5ad6b7549ac4/overview) — reading a snapshot 426 releases old.**
+
+It has indexed **`f3b171f` = v0.3.363**; main is **v0.3.789**. Every count it reports (881 files, 6,587
+symbols, 2,771 findings, 45 dead exports) describes a codebase that no longer exists. Same failure as
+the demo snapshot: **a capture rots and nothing fails when it does.** Re-index before quoting any figure.
+
+Its **"45 dead exports"** does not survive verification, and that is the useful part of this review.
+Re-derived against current code: 1,097 exported symbols, **231** referenced nowhere outside their own
+file — but split by kind that is **153 interfaces + 45 types + 17 consts + 16 functions**. Dead *types*
+are not dead code; they are a client's published shape. And of the 16 functions, the alarming-looking
+ones were checked by hand and are all **called inside their own module**:
+
+| candidate | actually called at |
+|---|---|
+| `startTour` | `ui/onboarding.ts:25` and `:125` |
+| `showUpdateBanner` | `ui/update.ts:74` |
+| `renderCostSpine` | `portal/panels/margin.ts:115` |
+| `readEntry` | `api/recordCache.ts:105` |
+
+So **there is no unreachable feature** — the finding is an unnecessary `export` keyword, which is a
+tidy, not a defect. Roughly seven more sit in `vendor/massingifc` and `vendor/massingpdf`, where a
+library's public API is *supposed* to look unused from inside this repo.
+
+Left undone deliberately: dropping ~20 stray `export` keywords is churn in the highest-churn files in
+the repo, and would collide with three active lanes for no behavioural gain.
+
+**What Repowise did contribute — independent confirmation of the hotspots**, mined from git history
+rather than from the code:
+
+| file | percentile | prior fixes | commits 90d |
+|---|---|---|---|
+| `portal/portal.ts` | 99.9th | 4 | 143 |
+| `viewer/app.ts` | 99.7th | 7 | 161 |
+| `main.ts` | 99.6th | 12 | 136 |
+| `api/client.ts` | 99.4th | 8 | 325 |
+| `services/data/src/aec_data/edit.py` | 99.3th | 5 | 59 |
+
+That is **exactly** the god-file list already tracked in [[web-godfile-decomposition]] and
+[[god-module-decomposition]], and exactly the collision set named in the NOW lanes. An outside tool
+reaching the same five files by a different method is worth more than the finding itself — it is
+evidence the decomposition plan is aimed at the right place. **Its "bus factor 1" flag is an artifact,
+not a risk:** every commit here is authored by one identity whether a human or an agent wrote it.
+
 ### Practice note — verify before carrying
 Three sections in this file were wrong about their own state on 2026-07-28: **A2-CONSTRAINTS**,
 **A2-SHEET-REGIONS** and **A2-ICON-RENDER** were all listed as built-but-unrouted, and all three are
