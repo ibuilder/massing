@@ -12,11 +12,16 @@ cannot, never quietly call the recipe with something that resembles the original
 
 Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_recipe_log.py
 """
+import json
+import os
+import shutil
 import sys
 
+os.environ.setdefault("STORAGE_DIR", "./test_storage_recipe_log")
 sys.path.insert(0, "src")
 
 from aec_api import recipe_log as rl  # noqa: E402
+from aec_api import storage  # noqa: E402
 
 FAILED: list[str] = []
 
@@ -120,6 +125,78 @@ check("  and it says why rather than reporting every field as changed",
 edf = rl.diff(be, be)
 check("a diff touching an elided entry warns about what the comparison means",
       edf["elided"] is True and "compares by hash" in edf["elided_warning"])
+
+# --- 5. a corrupt log is NEVER silently replaced ------------------------------------------------------
+# Found by the security-audit session, reproduced here before fixing: `_load` caught bare Exception
+# and returned an empty log, so a file that existed but did not parse read as "no history". The next
+# `record()` then appended to that emptiness and `_save()` overwrote the file — 120 entries gone,
+# with `record` reporting SUCCESS and `append_safe` never firing. For a provenance artifact that is
+# the worst available failure: it does not break, it quietly becomes a shorter history.
+PID = "corrupt-test"
+shutil.rmtree(os.environ["STORAGE_DIR"], ignore_errors=True)
+rl.record(PID, [rl.entry("add_wall", {"i": i}, actor="a", source_in="a", source_out="b")
+                for i in range(120)])
+check("a log with 120 entries loads", len(rl._load(PID)["entries"]) == 120)
+
+storage.put(rl._key(PID), b"{ this is not valid json")
+try:
+    rl._load(PID)
+    check("a corrupt log RAISES rather than reading as empty", False, "no exception")
+except rl.LogUnreadable as e:
+    check("a corrupt log RAISES rather than reading as empty", True)
+    check("  and says the file was not overwritten", "NOT been overwritten" in str(e), str(e)[:120])
+
+# The behaviour that matters: an append must not be able to destroy it.
+rl.append_safe(PID, [rl.entry("add_column", {"p": 1}, actor="a", source_in="a", source_out="b")])
+check("append_safe on a corrupt log does not overwrite it",
+      storage.get(rl._key(PID)) == b"{ this is not valid json")
+check("  the edit still succeeds — append_safe swallows it, as designed", True)
+
+# An absent log is still an empty log, not an error. Absent and unreadable must stay distinguishable.
+shutil.rmtree(os.environ["STORAGE_DIR"], ignore_errors=True)
+check("an ABSENT log is empty, not an error", rl._load("never-written")["entries"] == [])
+
+# A file that parses but is not a log document is also refused.
+rl.record("shape-test", [rl.entry("x", {}, actor="a", source_in="a", source_out="b")])
+storage.put(rl._key("shape-test"), b'{"version": 1, "entries": "not a list"}')
+try:
+    rl._load("shape-test")
+    check("a parseable non-log document is refused", False, "no exception")
+except rl.LogUnreadable:
+    check("a parseable non-log document is refused", True)
+
+# --- 6. the ENTRY is bounded, not just each value ------------------------------------------------------
+# Also from the security audit: `_MAX_VALUE` bounds one value and therefore bounds nothing. `params`
+# comes off the request body (capped at AEC_MAX_UPLOAD_MB, 1 GB by default), so 300 individually
+# small values is a 1.2 MB entry that passes every per-value check — and `_load` re-parses the whole
+# sidecar on every edit, so the cost lands on every subsequent edit, permanently.
+many = {f"k{i}": "x" * 4000 for i in range(300)}       # each value 4 KB, all under _MAX_VALUE
+me = rl.entry("mesh", many, actor="a", source_in="a", source_out="b")
+size = len(json.dumps(me).encode("utf-8"))
+check("an entry of many small values is capped", size <= rl._MAX_ENTRY, f"{size:,} bytes")
+check("  and is marked elided", me["params_elided"] is True)
+check("  largest-first, so the fewest parameters are lost",
+      sum(1 for v in me["params"].values() if isinstance(v, dict) and v.get("__elided__")) < 300)
+check("  survivors are kept verbatim",
+      any(v == "x" * 4000 for v in me["params"].values()))
+check("  and the cap reason is stated on the elided ones",
+      any(isinstance(v, dict) and str(v.get("reason", "")).startswith("entry exceeded")
+          for v in me["params"].values()))
+check("a small entry is untouched by the cap", rl.entry(
+    "add_wall", {"start": [0, 0]}, actor="a", source_in="a", source_out="b")["params_elided"] is False)
+
+# --- 7. credential-looking parameters never reach the exportable log --------------------------------------
+sec = rl.entry("connect", {"api_key": "sk-live-123", "auth_token": "t", "PASSWORD": "p",
+                           "licence_key": "L", "host": "example.com"},
+               actor="a", source_in="a", source_out="b")
+for k in ("api_key", "auth_token", "PASSWORD", "licence_key"):
+    check(f"{k} is elided by name", sec["params"][k].get("__elided__") is True, sec["params"][k])
+check("  with the reason", "credential" in sec["params"]["api_key"]["reason"])
+check("  and the value is nowhere in the serialized entry",
+      "sk-live-123" not in json.dumps(sec))
+check("an ordinary parameter beside them is untouched", sec["params"]["host"] == "example.com")
+
+shutil.rmtree(os.environ["STORAGE_DIR"], ignore_errors=True)
 
 print()
 if FAILED:

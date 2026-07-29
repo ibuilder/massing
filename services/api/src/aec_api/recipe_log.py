@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -48,7 +49,32 @@ _MAX = 500
 #: or a point list, and excludes the mesh arrays that would otherwise dominate the file.
 _MAX_VALUE = 8192
 
+#: Serialized size above which the ENTRY is elided further, largest value first.
+#:
+#: `_MAX_VALUE` alone bounds each value and therefore bounds nothing: `params` comes off the request
+#: body, which is capped by `AEC_MAX_UPLOAD_MB` (1 GB by default), so 300 individually-small values
+#: of 4 KB each is a 1.2 MB entry that passes every per-value check with `params_elided=False`. At
+#: `_MAX` entries that is a ~600 MB sidecar, and `_load()` re-parses the whole file on EVERY edit —
+#: so the cost is not disk, it is that each subsequent edit on that project gets slower, permanently.
+_MAX_ENTRY = 262_144
+
+#: Parameter keys always elided regardless of size. No recipe in the registry takes a credential
+#: today; this is insurance against one that does, because `export()` hands the whole log out. Keyed
+#: on the NAME rather than on a recipe allowlist so it covers recipes nobody has written yet.
+_SENSITIVE_KEY = re.compile(r"secret|token|password|passwd|licen[cs]e|api[_-]?key|credential|private[_-]?key",
+                            re.I)
+
 LOG_VERSION = 1
+
+
+class LogUnreadable(RuntimeError):
+    """The log file exists but could not be parsed.
+
+    Distinct from "there is no log yet", and the distinction is the whole point: conflating them
+    meant a corrupt file read as an empty history, the next append wrote that empty history back, and
+    the prior entries were gone — silently, and with `record()` reporting success. For a provenance
+    artifact that is the worst available failure: it does not break, it just quietly becomes a
+    shorter history, and a reader concludes the project is young."""
 
 
 def _key(pid: str) -> str:
@@ -67,11 +93,36 @@ def _locked(fn):
 
 
 def _load(pid: str) -> dict:
+    """The stored log, or an empty one when there is genuinely nothing stored.
+
+    Raises `LogUnreadable` when the key EXISTS but does not parse. Returning an empty log there —
+    which is what a bare `except` did — makes the next `record()` append to nothing and `_save()`
+    overwrite the file, destroying every prior entry while reporting success. `storage.exists()`
+    distinguishes the two cases, so the destructive path is avoidable and therefore not acceptable.
+    """
+    key = _key(pid)
     try:
-        d = json.loads(storage.get(_key(pid)).decode("utf-8"))
-        return {"version": d.get("version", LOG_VERSION), "entries": list(d.get("entries") or [])}
-    except Exception:  # noqa: BLE001 — no log yet / unreadable → empty, never fatal
+        present = storage.exists(key)
+    except Exception:  # noqa: BLE001 — a backend that cannot answer is treated as "unknown", below
+        present = True
+    if not present:
         return {"version": LOG_VERSION, "entries": []}
+    try:
+        raw = storage.get(key)
+    except Exception as e:  # noqa: BLE001 — exists() said yes and get() failed: do not assume empty
+        raise LogUnreadable(f"the recipe log for {pid} exists but could not be read: {e}") from e
+    if not raw:
+        return {"version": LOG_VERSION, "entries": []}
+    try:
+        d = json.loads(raw.decode("utf-8"))
+    except Exception as e:  # noqa: BLE001
+        raise LogUnreadable(
+            f"the recipe log for {pid} exists but is not valid JSON ({e}). It has NOT been "
+            "overwritten — the file is intact on disk and can be recovered by hand.") from e
+    if not isinstance(d, dict) or not isinstance(d.get("entries"), list):
+        raise LogUnreadable(
+            f"the recipe log for {pid} parsed but is not a log document. It has NOT been overwritten.")
+    return {"version": d.get("version", LOG_VERSION), "entries": list(d["entries"])}
 
 
 def _save(pid: str, d: dict) -> None:
@@ -94,6 +145,11 @@ def _shrink(params: Any) -> tuple[Any, bool]:
     out: dict[str, Any] = {}
     elided = False
     for k, v in params.items():
+        if _SENSITIVE_KEY.search(str(k)):
+            out[k] = {"__elided__": True, "type": type(v).__name__,
+                      "reason": "parameter name looks like a credential; the log is exportable"}
+            elided = True
+            continue
         try:
             # STRICT dumps, no `default=`. With a fallback encoder this never raises — every value
             # "serializes" — so a value that cannot round-trip would be stored as-is and then fail in
@@ -133,7 +189,38 @@ def entry(recipe: str, params: dict | None, *, actor: str | None, source_in: str
     }
     if batch:
         e["batch"] = batch
+    return _fit(e)
+
+
+def _fit(e: dict[str, Any]) -> dict[str, Any]:
+    """Elide the largest remaining parameters until the whole entry fits `_MAX_ENTRY`.
+
+    The per-value cap bounds one value; this bounds the record. Largest-first so the smallest number
+    of parameters is lost, and it always terminates: each pass removes the biggest remaining
+    un-elided value, and with none left the entry is a fixed set of small descriptors.
+    """
+    params = e.get("params")
+    if not isinstance(params, dict):
+        return e
+    while _size(e) > _MAX_ENTRY:
+        candidates = [(len(json.dumps(v, default=str)), k) for k, v in params.items()
+                      if not (isinstance(v, dict) and v.get("__elided__"))]
+        if not candidates:
+            break                       # everything is already a descriptor; this is as small as it gets
+        _, worst = max(candidates)
+        raw = json.dumps(params[worst], default=str).encode("utf-8")
+        params[worst] = {"__elided__": True, "type": type(params[worst]).__name__,
+                         "bytes": len(raw), "hash": _digest(raw),
+                         "reason": f"entry exceeded {_MAX_ENTRY} bytes"}
+        e["params_elided"] = True
     return e
+
+
+def _size(e: dict[str, Any]) -> int:
+    try:
+        return len(json.dumps(e, default=str).encode("utf-8"))
+    except (TypeError, ValueError):
+        return 0                        # unserializable cannot be measured; _shrink already handled it
 
 
 def _base(path: str | None) -> str | None:
