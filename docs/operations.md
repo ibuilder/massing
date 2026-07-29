@@ -71,4 +71,4 @@ integration without the web app.
 ---
 
 See also: [deploy.md](deploy.md) (full stack), [authoring-modules.md](authoring-modules.md) (add a
-record type without code), [production-readiness.md](production-readiness.md).
+record type without code), [production-readiness.md](internal/archive/production-readiness.md).

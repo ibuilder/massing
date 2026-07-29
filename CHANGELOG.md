@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.798 — every internal audit was being published to the live site
+
+`docs/` doubles as the web root, so the Pages workflow's `cp -r docs/. _site/` published **everything**
+in it. That meant eleven superseded internal audits, four unbuilt plans and a 264 KB completed-roadmap
+were served on the site beside the user guide, indistinguishable from it. Not "sitting in a public
+repo" — rendered as pages.
+
+The fix is `docs/internal/` plus one `rm -rf _site/internal`, and a reader-facing structure around what
+remains (`docs/README.md` as an index, `getting-started.md`, `user-guide/`, `reference/`, `history/`).
+`docsPublished.test.ts` makes the fence enforceable rather than remembered: it checks the strip runs
+*after* the copy (stripping first would remove nothing and still read as protection), that every
+internal note is accounted for in `internal/README.md`, and that no document declaring itself a working
+note sits where the copy would publish it.
+
+**One hole found in that gate and closed before it landed.** The fence assertion used
+`WORKFLOW.indexOf("rm -rf _site/internal")`, which matches the string anywhere in the file — including
+inside a comment. Commenting the command out, exactly how a fence gets disabled while debugging, left
+the string present and the suite green. It now matches a **live** line, and both mutations fail it:
+commented out, and deleted outright. A gate that cannot tell a command from a comment about that
+command is not watching the thing it names.
+
 ## v0.3.797 — R24-BASELINE: three metrics measured, three that refuse, and a mean pretending to be a p95
 
 R24's entry says "do not start Sprint 2 without this". Sprint 2 items have been picked up twice

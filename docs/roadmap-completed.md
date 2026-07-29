@@ -1230,7 +1230,7 @@ background-updated independently (that would break the offline guarantee and the
 `components`↔`fragments` version coupling). Policy recorded in the ADR above.
 
 ## D. Platform / production
-Tracked in [production-readiness.md](production-readiness.md): main.ts account/connections split,
+Tracked in [production-readiness.md](internal/archive/production-readiness.md): main.ts account/connections split,
 dashboard JSON-extraction perf, Redis-backed rate limits (multi-worker), CI dependency scanning,
 a11y pass. Plus: mobile (Capacitor) build hardening; RVT→IFC (APS) polish.
 
@@ -1240,7 +1240,7 @@ a11y pass. Plus: mobile (Capacitor) build hardening; RVT→IFC (APS) polish.
 The headline themes are **shipped** (v0.1.87): generative design + **Test Fit** (A1/A3/A4/A5/A6),
 the **developer/finance portal** (B1 budgets · B2 Sources & Uses · B3 property/tax · B4 specialty ·
 B5 investment memo), the full **lifecycle** (acquisition→turnover), **AI assistant**, **SSO**, and
-the production-blocking hardening (see [production-readiness.md](production-readiness.md) — now
+the production-blocking hardening (see [production-readiness.md](internal/archive/production-readiness.md) — now
 shippable). **30/30 API suites + 3 data suites + 24 web unit tests** (incl. a Studio node-editor DOM
 smoke test, an `escapeHtml` / connections stored-XSS lock, and a direct 4D-timeline-engine test) +
 a report-only dependency scan.
@@ -1582,9 +1582,9 @@ items were re-extracted into the rewritten, re-prioritized live [roadmap.md](roa
 # Roadmap
 
 The single product roadmap. Supporting detail lives in:
-[production-readiness.md](production-readiness.md) (security/perf/ops checklist),
-[gc-portal.md](gc-portal.md), [gc-tools-audit.md](gc-tools-audit.md),
-[ux-findings.md](ux-findings.md).
+[production-readiness.md](internal/archive/production-readiness.md) (security/perf/ops checklist),
+[gc-portal.md](gc-portal.md), [gc-tools-audit.md](internal/archive/gc-tools-audit.md),
+[ux-findings.md](internal/archive/ux-findings.md).
 
 Three pillars on one IFC-keyed model: **BIM viewer** · **GC portal** (config-driven modules) ·
 **developer/finance** (proforma). Shipped continuously — latest release **v0.3.450** (the audit-remediation + roadmap-completion arc
@@ -1974,7 +1974,7 @@ interop targets / content platforms / open standards named where they're integra
   upsert; older vintages **escalate forward** via stored PPI series. Feeds 5D cost / estimating / GC-portal
   budget / FCA / Last Planner through the pinned vintage. Open-source ships the **public importer + adapters
   only** — proprietary data (1build/RSMeans) arrives solely via the subscriber's authenticated cloud pull,
-  never committed to the repo. Full spec + schema + build order: **[cost-db-import-plan.md](cost-db-import-plan.md)**
+  never committed to the repo. Full spec + schema + build order: **[cost-db-import-plan.md](internal/research/cost-db-import-plan.md)**
   (server side: `massing_cloud_plugin_plan.md`; location engine: `massing_location_cost_import_plan.md`).
   *Build order: schema → PublicDataImporter (offline spine) → vintage resolver + project pinning →
   CloudDatasetImporter (manifest/bundle/verify/upsert) → subscription detection + public fallback → delta sync →

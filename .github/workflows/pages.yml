@@ -48,10 +48,17 @@ jobs:
           VITE_BASE: "/app/"
 
       # assemble the Pages site: landing page at the root, viewer demo under /app/
+      #
+      # `docs/` doubles as the web root, so a plain `cp -r docs/.` publishes everything in it. That is
+      # how every internal audit, superseded plan and the 264 KB completed-roadmap ended up served as
+      # pages on massing.build, beside the user guide and indistinguishable from it. `docs/internal/`
+      # is the working record — it stays in the repo and out of the site.
+      # `docsPublished.test.ts` fails if an internal note lands where this step would publish it.
       - name: Assemble site
         run: |
           mkdir -p _site/app
           cp -r docs/. _site/
+          rm -rf _site/internal
           cp -r apps/web/dist/. _site/app/
           touch _site/.nojekyll
           echo massing.build > _site/CNAME

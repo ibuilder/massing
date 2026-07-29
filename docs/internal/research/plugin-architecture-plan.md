@@ -53,7 +53,7 @@ premium engines      : stay server-side, gated by entitlement, exposed as capabi
 ## Candidate plugins, from what we actually have
 
 Grouped from the real destination catalog (46 destinations, see
-[layout-parity.md](layout-parity.md)) and the backend module inventory. The kernel's own 16 capability
+[layout-parity.md](../archive/layout-parity.md)) and the backend module inventory. The kernel's own 16 capability
 families are a strong independent prior and these largely agree with it — worth noting, since two
 people arriving at the same seams is evidence the seams are real.
 
@@ -156,4 +156,4 @@ downstream copy re-synced with the local patches dropped.
 The one durable rule from that exercise: **when two repos must agree, write the assertion, not the
 sentence.** Every shared assumption recorded in prose had drifted by the time anyone checked; the
 container-extension mismatch was only caught because it had been pinned as a test designed to fail
-when it was fixed. See [`executable-architecture-checks`](../CLAUDE.md).
+when it was fixed. See [`executable-architecture-checks`](../../../CLAUDE.md).

@@ -1,7 +1,7 @@
 # GC tools audit & todo (per module)
 
 > **Point-in-time audit (June 2026) — superseded.** Kept for the record; current state lives in
-> [roadmap.md](roadmap.md) + [roadmap-completed.md](roadmap-completed.md) and the [changelog](../CHANGELOG.md).
+> [roadmap.md](../../roadmap.md) + [roadmap-completed.md](../../roadmap-completed.md) and the [changelog](../../../CHANGELOG.md).
 
 A research-backed pass over all **69 GC-portal modules** to bring each toward the field/workflow
 depth of industry-standard tools (Procore / Autodesk Construction Cloud conventions). Each module

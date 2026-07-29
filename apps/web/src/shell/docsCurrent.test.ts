@@ -70,6 +70,51 @@ describe("the docs name the navigation the user will actually see", () => {
     }
   });
 
+  /**
+   * Naming every room is not the same as counting them correctly, and the difference is not academic:
+   * on 2026-07-29 the README opened with "reached through **six** rooms" and listed six by name, three
+   * releases after `operate` made seven (R30). The check above passed the whole time — `toContain("operate")`
+   * was satisfied by the word "operate" sitting in an unrelated sentence further down ("coordinate,
+   * schedule, underwrite & operate it"). The walkthrough carried the same wrong number.
+   *
+   * A reader who counts six tabs and sees seven concludes the docs describe a different version. So the
+   * count is asserted against `ROOM_IDS.length` rather than written down here — the number word is
+   * derived, not duplicated, so adding room eight fails this and cannot be satisfied by prose drift.
+   */
+  const NUMBER_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
+  it("no doc counts the rooms and then lists them wrongly", () => {
+    /**
+     * Scoped to the shape the defect actually takes: a count word *immediately followed by an
+     * enumeration* ("six rooms — Design, Planning, Cost, Schedule, Deal, Work"). A bare number near the
+     * word "rooms" is not a claim about how many exist — "move between two rooms" and "no two rooms can
+     * quote different figures" are both fine, and an earlier draft of this test failed on both. Past-tense
+     * history ("restructured around five rooms", true at v0.3.684) is likewise not a claim about today,
+     * and is not followed by a list.
+     */
+    const expected = NUMBER_WORDS[ROOM_IDS.length]!;
+    for (const [name, text] of [["README.md", README], ["walkthrough.md", WALKTHROUGH]] as const) {
+      for (const m of text.matchAll(/\b([a-z]+)\s+rooms\b(.{0,160})/gis) as Iterable<RegExpMatchArray>) {
+        const word = m[1]!.toLowerCase();
+        if (!NUMBER_WORDS.includes(word)) continue;
+        const named = ROOM_IDS.filter((id) => new RegExp(`\\b${id}\\b`, "i").test(m[2] ?? "")).length;
+        if (named < 3) continue;   // not an enumeration, so not a count of the rooms
+        expect(word, `${name} says "${word} rooms" and then lists them, but there are ${ROOM_IDS.length}`)
+          .toBe(expected);
+      }
+    }
+  });
+
+  it("every doc that introduces the rooms names all of them", () => {
+    // The other half: a count can be right while the list is short. Both README and the walkthrough
+    // introduce the navigation, so both must name the full set somewhere — otherwise a reader learns
+    // six tabs and finds seven. Derived from ROOM_IDS, so room eight fails this on the day it lands.
+    for (const [name, text] of [["README.md", README], ["walkthrough.md", WALKTHROUGH]] as const) {
+      const missing = ROOM_IDS.filter((id) => !new RegExp(`\\b${id}\\b`, "i").test(text));
+      expect(missing, `${name} never names the ${missing.join(", ")} room(s) by name`).toEqual([]);
+    }
+  });
+
   it("the retired three-tab bar is not described as the primary nav", () => {
     // Workspaces still exist underneath — a room maps to one. What is gone is the *bar*: it is not
     // what a user clicks any more, so a doc that tells them to click it sends them looking for

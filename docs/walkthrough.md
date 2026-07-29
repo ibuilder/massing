@@ -17,10 +17,10 @@ actions + timing) or follow it as a **written click-through**. Pairs with the
 > platform, and a handover tool — none of them talking. This is all of it, on one model."
 *On screen:* the landing page hero, then cut into the app on the Model workspace.
 
-**0:15 — One model, six rooms**
+**0:15 — One model, seven rooms**
 > "Everything keys off the building's IFC model — and you can author it right here in the browser, not
-> just view it. Six rooms — Design, Planning, Cost, Schedule, Deal, Work — share it, and they are in
-> the same place whoever you are."
+> just view it. Seven rooms — Deal, Design, Planning, Schedule, Cost, Work, Operate — share it, and
+> they are in the same place whoever you are."
 *On screen:* click along the room tabs; open a sample, orbit once, click an
 element to show its docked Properties; flash the authoring rail — **New model**, the **Draft** tools,
 **◈ Edit in place** dragging an element, the **model browser** grouping by discipline.

@@ -1,7 +1,7 @@
 # UI at scale — information-architecture plan
 
 > **Point-in-time audit (June 2026) — superseded.** Kept for the record; current state lives in
-> [roadmap.md](roadmap.md) + [roadmap-completed.md](roadmap-completed.md) and the [changelog](../CHANGELOG.md).
+> [roadmap.md](../../roadmap.md) + [roadmap-completed.md](../../roadmap-completed.md) and the [changelog](../../../CHANGELOG.md).
 
 The platform is closing in on 100 registers, ~17 first-class panels, and 10 finance tabs, with more
 coming. This document records the evidence-backed plan for keeping the UI navigable as it grows, so

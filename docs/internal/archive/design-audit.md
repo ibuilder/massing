@@ -4,7 +4,7 @@
 
 External design audit, 2026-07-25, read against the README, the CHANGELOG and the live demo shell.
 18 findings · 5 principles · 6 interface moves · 4 phases. This file is the durable record; the
-actionable engineering lands in [roadmap.md](roadmap.md) as the **R24 ring**.
+actionable engineering lands in [roadmap.md](../../roadmap.md) as the **R24 ring**.
 
 ## The thesis: adoption is the binding constraint, not capability
 

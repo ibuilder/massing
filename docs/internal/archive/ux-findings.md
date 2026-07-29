@@ -1,7 +1,7 @@
 # UX / UI findings — app-wide heuristic review
 
 > **Point-in-time audit (June 2026) — superseded.** Kept for the record; current state lives in
-> [roadmap.md](roadmap.md) + [roadmap-completed.md](roadmap-completed.md) and the [changelog](../CHANGELOG.md).
+> [roadmap.md](../../roadmap.md) + [roadmap-completed.md](../../roadmap-completed.md) and the [changelog](../../../CHANGELOG.md).
 
 A lightweight pass across the four workspaces (Model / Drawings / Construction / Finance) and the
 shared chrome, capturing issues by severity with a recommended order. Seeded from the 2026-06

@@ -2,8 +2,10 @@
 
 The single product roadmap — **open items only**. Everything shipped lives in
 [roadmap-completed.md](roadmap-completed.md); per-release detail is in [CHANGELOG.md](../CHANGELOG.md).
-Supporting detail: [production-readiness.md](internal/archive/production-readiness.md) · [gc-portal.md](gc-portal.md) ·
-[ops-dr.md](ops-dr.md) · [mobile.md](mobile.md).
+Supporting detail: [gc-portal.md](gc-portal.md) · [ops-dr.md](ops-dr.md) · [mobile.md](mobile.md).
+Documentation for readers rather than for planning lives in [README.md](README.md) — the docs index.
+Closed-out audits and unbuilt plans moved to [internal/](internal/README.md) on 2026-07-29; that
+directory is **not** published to the site.
 
 Three pillars on one IFC-keyed model: **BIM authoring/viewer** · **GC portal** ·
 **developer/finance**. All three have depth — finance and CRE from R19 + R20, authoring from R18, the
@@ -18,7 +20,7 @@ engine) · `test_reachable` **301/305** modules callable · single-source versio
 *The previous status block claimed 416 / 557 as of v0.3.740 — thirty-eight releases stale. A status
 line nobody re-derives is just an old measurement wearing the present tense.*
 
-**The six-room shell is the ONLY shell.** It renders in the Construction, Developer and Design
+**The seven-room shell is the ONLY shell.** It renders in the Construction, Developer and Design
 workspaces; opening a project lands on the persona's home and every other workspace carries a
 `← Project home` signpost (v0.3.739). The `?shell=classic` opt-out was **deleted in v0.3.779** —
 `spine.test` now asserts `spineEnabled` and `SPINE_FLAG` are absent, so a revert fails a test rather

@@ -13,7 +13,7 @@ auth-secret fail-safe, rate limiting, security headers (HSTS/COOP/COEP via the p
 secrets, a guarded SQL console, PBKDF2 hashing, takeoff caching + a DB index, lazy-loaded viewer
 (~137 KB initial), modal focus-trap, signed auto-updating releases, and a **26/26 CI gate** plus a
 new **report-only dependency scan** (`.github/workflows/security.yml`: pip-audit + npm audit). See
-[deploy.md](deploy.md) for the go-live env checklist. Remaining items below are incremental polish,
+[deploy.md](../../deploy.md) for the go-live env checklist. Remaining items below are incremental polish,
 not blockers.
 
 ## Security
