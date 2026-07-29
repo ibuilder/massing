@@ -27,6 +27,8 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_contracts", "test_reports", "test_esign", "test_publish_status", "test_schedule_alerts",
          "test_schedule_optimize",
          "test_bundle", "test_desktop", "test_localmode", "test_project_budget", "test_rvt_bridge",
+         # R23-JURISDICTION-PACKS — authority-attributed data requirements:
+         "test_jurisdiction_packs", "test_jurisdiction_route",
          "test_bcf", "test_engines", "test_edge_cases", "test_opendata", "test_financials", "test_money", "test_leasemgmt", "test_changeorders",
          "test_migrate", "test_alembic_migrations", "test_appraisal", "test_marketing", "test_workflow_gate", "test_due_feed", "test_directory",
          # R22-CLASSIFY-AI — classification coverage + code proposals:
