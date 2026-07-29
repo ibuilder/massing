@@ -39,6 +39,7 @@ from .routers import (
     cost,
     dashboard,
     design,
+    digest,
     documents,
     drafting,
     drawings,
@@ -401,6 +402,7 @@ app.include_router(site.router, tags=["site"])
 app.include_router(bidding.router, tags=["bidding"])
 app.include_router(templates.router, tags=["templates"])
 app.include_router(dashboard.router, tags=["dashboard"])
+app.include_router(digest.router, tags=["digest"])
 app.include_router(proforma.router, tags=["proforma"])
 app.include_router(generate.router, tags=["generate"])
 app.include_router(design.router, tags=["design"])
