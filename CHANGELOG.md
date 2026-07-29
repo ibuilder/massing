@@ -4,6 +4,59 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.779 — one front door, and the rooms keep their names
+
+### `?shell=classic` is gone
+
+The room spine became the default at v0.3.715 and the opt-out survived sixty-four releases after
+that. It has earned its removal.
+
+Two shells is two of everything: two rails to keep in step, two paths for a defect to hide in, and —
+as this repo actually managed — **a render audit whose verdict depends on which shell it happened to
+measure**. `liveAudit` carried a `shell` field for exactly that reason, added after a "all 7
+workspaces ok, 0 problems" result measured against the classic shell was read as evidence for the
+redesign it had never touched. An escape hatch nobody is escaping through is not safety, it is a
+second product.
+
+Deleted with it: the lifecycle-stage rail, the per-workspace stage-collapse memory that existed only
+to serve it, the workspace-button rail, and the `shell-spine` storage key. `spine.test` now asserts
+`spineEnabled` and `SPINE_FLAG` are **absent** — a revert should fail a test, not quietly restore a
+second shell.
+
+**What the two-shell period bought is kept.** Its real product was never the fallback, it was the
+guarantee that *nothing became unreachable*. `parity.test` still asserts the room rail reaches every
+destination the lifecycle-stage catalog lists, so `destinations.ts` stays — no longer as "the old
+rail" but as the spec of what must remain reachable. `compareShells` likewise survives as
+`compareRuns(before, after)`: the question was never really about shells, it was *did a pane that
+used to render stop rendering*, which any UI change can cause.
+
+One thing removed rather than kept: `summarise()`'s `shell` field. With a single configuration it is
+a constant, and a constant restating the only possibility is not a disclosure. The lesson it encoded
+is written where it will be read if a second shell ever returns.
+
+### ROOM-NAMING — settled on professional terms
+
+The prototype named the rooms Building · Budget · Timeline · Money · My to-do. We ship **Design ·
+Planning · Cost · Schedule · Deal · Work**, and that is now a decision rather than a pending question.
+
+Not formality — *these are the words the work already has*. An architect issues a **design**; a
+contractor runs a **schedule** and reports **cost**; a developer works a **deal**. A plain label reads
+friendlier right up until somebody has to decide whether "Money" means the budget, the commitment,
+the pay application or the equity draw, at which point the friendly word is a second vocabulary
+stacked on the real one. A tool for professionals that renames their own domain gets harder to use in
+exactly the moments that matter.
+
+**The part worth testing was never the taste — it was the drift.** The labels live in two tables:
+`rooms.ROOMS` in Python (what `/rooms` serves) and `FALLBACK_ROOMS` in TypeScript (what renders when
+that request fails). Nothing asserted they matched. With the classic shell deleted the fallback is
+load-bearing, so a divergence would rename the rail on someone's screen at the precise moment the API
+hiccuped. `roomNames.test.ts` reads `rooms.py` from disk and asserts the two agree label-for-label,
+that the set is exactly the settled six, and that no prototype name has crept back — verified by
+mutation: renaming Cost to "Money" in the Python table alone fails three of its four assertions.
+
+Gates: web 747/747, typecheck + eslint clean. No Python behaviour changed (`rooms.py` gained the
+decision record only).
+
 ## v0.3.778 — the R27 ring closes: a received sheet has regions, and a firm has standards
 
 ### R27-LAYOUT (b) — the layout layer of a sheet we did not draw

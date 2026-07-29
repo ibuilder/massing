@@ -293,8 +293,9 @@ Deliverables** — with a sticky live-solved returns bar.
 > are a rolling snapshot; the [roadmap](docs/roadmap.md) tracks what's still open.
 
 - **The new shell is the app now — and it opens with something in it (v0.3.703–v0.3.765, current).**
-  The five-room shell stopped being a preview and **became the default in v0.3.715** (**`?shell=classic`**
-  still reverts, and the choice sticks). Since then it grew the parts that make a first run make sense:
+  The six-room shell stopped being a preview and **became the default in v0.3.715**; the opt-out was
+  **deleted in v0.3.779** — one front door, no second rail to keep in step. Since then it grew the
+  parts that make a first run make sense:
   a **sample library** shipped as `.mass` project containers rather than loose IFC files, a **showcase
   house** authored by the same recipes a user drives, and a **first-run picker** so an empty install
   offers a way in instead of an empty screen. The rooms became the primary navigation —

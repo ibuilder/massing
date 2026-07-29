@@ -6,7 +6,7 @@ import { showResult } from "./ui/result";
 import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTabs";
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
 import { pinnedItems, renderPinnedRail } from "./shell/pinnedRail";
-import { ROOM_HOME, destRoom, spineEnabled } from "./shell/spine";
+import { ROOM_HOME, destRoom } from "./shell/spine";
 import { renderVitals } from "./shell/vitalsBar";
 import { setRoomOpen } from "./portal/prefs";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
@@ -724,20 +724,11 @@ async function refreshWorkBadge(pid: string | null) {
   paintRoomTabs();
 }
 
-if (spineEnabled()) {
-  // The rooms ARE the navigation. They already existed as a sub-rail inside three of seven
-  // workspaces; this promotes them, it does not invent them.
-  paintRoomTabs(roomForWorkspace(localStorage.getItem("workspace") || "model"));
-  paintPinnedRail();
-} else {
-  for (const w of WORKSPACES) {
-    const b = document.createElement("button");
-    b.className = "ws-btn"; b.dataset.ws = w.key; b.textContent = w.label;
-    b.setAttribute("role", "tab"); b.setAttribute("aria-selected", "false");
-    b.onclick = () => setWorkspace(w.key);
-    wsEl.appendChild(b);
-  }
-}
+// The rooms ARE the navigation. They already existed as a sub-rail inside three of seven
+// workspaces; this promotes them, it does not invent them. The workspace-button rail this replaced
+// was removed with the `?shell=classic` opt-out in v0.3.779.
+paintRoomTabs(roomForWorkspace(localStorage.getItem("workspace") || "model"));
+paintPinnedRail();
 
 document.querySelectorAll<HTMLButtonElement>(".fintab").forEach((t) => {
   t.onclick = () => {
@@ -1624,7 +1615,7 @@ async function startup() {
     setStatus(demo ? "demo — pick a sample from Open ▾ to view"
                    : "offline — open a .frag to view (API not reachable)");
   }
-  if (spineEnabled()) void refreshWorkBadge(projectId);
+  void refreshWorkBadge(projectId);
   paintVitals();            // the six numbers, refreshed whenever the project changes
   syncStatusBarMode();
   if (projectId && !demo) connectNotifications();   // SSE needs a backend

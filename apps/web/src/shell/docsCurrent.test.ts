@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { ROOM_IDS, spineEnabled } from "./spine";
+import { ROOM_IDS } from "./spine";
 
 /**
  * The docs must describe the app that exists.
@@ -36,22 +36,30 @@ const WALKTHROUGH = doc("docs/walkthrough.md");
 describe("the shell docs match the shell default", () => {
   beforeEach(() => localStorage.clear());
 
-  it("the default really is on — the premise of everything below", () => {
-    expect(spineEnabled("")).toBe(true);
+  it("there is no shell flag left to document", async () => {
+    // The premise of everything below used to be "the default really is on". With the opt-out gone
+    // (v0.3.779) the premise is stronger: there is only one shell, so any doc describing a way to
+    // switch shells is describing something that does not exist.
+    const mod = await import("./spine") as Record<string, unknown>;
+    expect(mod.spineEnabled).toBeUndefined();
   });
 
   it("no doc offers `?shell=spine` as the way to switch the new shell on", () => {
     // The instruction is not merely stale, it is misleading in a specific way: a reader who follows
     // it sees no change and concludes the feature is broken.
     for (const [name, text] of [["README.md", README], ["walkthrough.md", WALKTHROUGH]] as const) {
-      if (!spineEnabled("")) continue; // if the default ever flips back, the advice is correct again
       const offers = /(?:append|add|pass|use)\s+\*{0,2}`?\?shell=spine/i.test(text);
       expect(offers, `${name} tells the reader to opt in to a shell that is already on`).toBe(false);
     }
   });
 
-  it("...and the opt-OUT stays documented, because it is the part that still works", () => {
-    expect(README).toMatch(/\?shell=classic/);
+  it("...and the deleted opt-OUT is not documented either", () => {
+    // `?shell=classic` was removed in v0.3.779. Docs describing a flag that no longer exists are
+    // worse than docs that omit it: the reader tries it, nothing happens, and they conclude the
+    // shell is broken rather than that the instruction is stale. This is the same failure the
+    // README once had in the other direction, telling readers to opt IN to a default-on shell.
+    expect(README).not.toMatch(/\?shell=classic/);
+    expect(WALKTHROUGH).not.toMatch(/\?shell=classic/);
   });
 });
 

@@ -7,10 +7,10 @@ import { noProjectHtml } from "../ui/empty";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 import { buildPulse, pulseRailEl } from "./panels/pulse";
 import type { PanelContext } from "./panelContext";
-import { SECTIONS_BY_PERSONA, pushRecent, readCollapsedStages, readDensity, readFavs, readRecents, readRoomOpen, setDensity, setRoomOpen, setStageCollapsed, toggleFav } from "./prefs";
+import { SECTIONS_BY_PERSONA, pushRecent, readDensity, readFavs, readRecents, readRoomOpen, setDensity, setRoomOpen, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
 import { ALL_DESTS, type Dest, stagesFor } from "../shell/destinations";
-import { FALLBACK_ROOMS, type SpineState, destRoom, loadSpine, orderRooms, preselectedRoom, spineEnabled, unroomedDests } from "../shell/spine";
+import { FALLBACK_ROOMS, type SpineState, destRoom, loadSpine, orderRooms, preselectedRoom, unroomedDests } from "../shell/spine";
 import type { RoomDef } from "../api/types";
 // PANEL-LAZY (PERF): the ~30 secondary portal panels are DYNAMICALLY imported at first render
 // (see the wrapper methods below), not eagerly bundled into the app shell — each panel file (and
@@ -178,11 +178,11 @@ export class PortalUI {
     const content = document.createElement("div"); content.className = "portal-content";
     outer.append(this.nav, content);
     this.root = content;
-    // The spine costs one request, and only when someone opted in. A failure falls back to the
-    // classic rail rather than to an empty one: a shell experiment must not be able to strand a user.
-    if (spineEnabled()) {
-      try { this.spine = await loadSpine(this.host.api); } catch { this.spine = null; }
-    }
+    // The spine costs one request. A failure leaves `spine` null and the rail falls back to
+    // FALLBACK_ROOMS — the six rooms are structural, so losing the *allocation* must not lose the
+    // *shell*. With the classic rail gone (v0.3.779) there is nothing else to fall back to, which
+    // makes that fallback load-bearing rather than belt-and-braces.
+    try { this.spine = await loadSpine(this.host.api); } catch { this.spine = null; }
     this.buildNav();
     // re-order the module catalog's default-open sections when the persona changes
     window.addEventListener("aec:persona", () => { this.refreshCatalog(); this.buildNav(); });
@@ -203,20 +203,15 @@ export class PortalUI {
     home.onclick = () => { this.activeKey = null; void this.renderHome(); this.buildNav(); };
     nav.appendChild(home);
 
-    // The rail's upper half is the room spine (the default since v0.3.715) or — for anyone who
-    // opted out with `?shell=classic` — the lifecycle-stage grouping. Both read the SAME destination
-    // catalog, so the two shells cannot drift on what exists.
+    // The rail's upper half is the room spine — the only shell since v0.3.779.
     const dests = this.destDispatch();
-    if (spineEnabled()) this.buildRoomRail(nav, dests);
-    else this.buildStageRail(nav, dests);
+    this.buildRoomRail(nav, dests);
 
     const filter = document.createElement("input");
     filter.type = "search"; filter.placeholder = "Filter…"; filter.className = "portal-filter pnav-filter";
     nav.appendChild(filter);
 
     const favs = readFavs();
-    const persona = document.body.dataset.persona || localStorage.getItem("persona") || "all";
-    const openSecs = SECTIONS_BY_PERSONA[persona];
 
     const item = (m: ModuleDef) => this.moduleButton(m);
     const group = (title: string, mods: ModuleDef[], open: boolean) => {
@@ -236,18 +231,10 @@ export class PortalUI {
       .map((k) => visible.find((m) => m.key === k))
       .filter((m): m is ModuleDef => !!m && !favs.has(m.key));
     if (recentMods.length) group("🕘 Recent", recentMods, true);
-    // Under the spine every register is already listed inside its room, so grouping them AGAIN by
-    // section here would show each module twice under two different taxonomies — which is the exact
-    // condition the spine was built to remove. Favourites and Recent stay: they are one module
-    // appearing under a personal shortcut, not a second filing system.
-    const sections = new Map<string, ModuleDef[]>();
-    if (!spineEnabled()) {
-      for (const m of visible) { const s = m.section || "Other"; (sections.get(s) ?? sections.set(s, []).get(s)!).push(m); }
-    }
-    // if the persona's preferred sections don't exist in this workspace (e.g. a GC browsing the
-    // Developer registers), open everything rather than render a fully-collapsed nav.
-    const anyMatch = !openSecs || [...sections.keys()].some((s) => openSecs.includes(s));
-    for (const [section, mods] of sections) group(section, mods, !openSecs || !anyMatch || openSecs.includes(section));
+    // Every register is already listed inside its room, so grouping them AGAIN by section here would
+    // show each module twice under two different taxonomies — the exact condition the spine was built
+    // to remove. Favourites and Recent stay: those are one module under a personal shortcut, not a
+    // second filing system.
 
     // "Show all modules" — reveal the other workspaces' registers so every role can reach all data
     // (a few more clicks, per the product principle). Persisted to the toggle for the session.
@@ -324,26 +311,6 @@ export class PortalUI {
       ? () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: d.goto }))
       : () => { this.activeKey = d.key; void dests[d.key]?.(); this.buildNav(); };
     return b;
-  }
-
-  /**
-   * The classic rail: destinations grouped by lifecycle stage, collapsible with per-workspace
-   * memory so a stage the user folds stays folded next time they are in that workspace.
-   */
-  private buildStageRail(nav: HTMLElement, dests: Record<string, () => unknown>) {
-    const stages = stagesFor(this.wsFilter, (k) => this.mods.some((x) => x.key === k));
-    const collapsed = readCollapsedStages();
-    for (const [stage, items] of stages) {
-      const det = document.createElement("details"); det.className = "pnav-stage-group";
-      const skey = `${this.wsFilter}:${stage}`;
-      // keep the active destination's stage open even if the user had folded it
-      det.open = items.some((d) => d.key === this.activeKey) || !collapsed.has(skey);
-      det.ontoggle = () => setStageCollapsed(skey, !det.open);
-      const sum = document.createElement("summary"); sum.className = "pnav-stage"; sum.textContent = stage;
-      det.appendChild(sum);
-      for (const d of items) det.appendChild(this.destButton(d, dests));
-      nav.appendChild(det);
-    }
   }
 
   /**

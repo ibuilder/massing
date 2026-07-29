@@ -115,10 +115,21 @@ re-cut by what the thing *is*: Project · Model geometry · Site context · Impo
 stopped being a category when a sample became a real `.mass`.
 
 ### Decisions, not effort — these want your call
-- **ROOM-NAMING** — the prototype named rooms in plain language (Building · Budget · Timeline ·
-  Money · My to-do); we ship professional terms (Design · Planning · Cost · Schedule · Deal · Work)
-  and `rooms.py` records that as a deliberate reversal. Settle it with a real user, not from the
-  armchair.
+- ~~**ROOM-NAMING**~~ — **settled 2026-07-29 (v0.3.779): professional terms.** Design · Planning ·
+  Cost · Schedule · Deal · Work, not the prototype's Building · Budget · Timeline · Money · My
+  to-do. These are the words the work already has — an architect issues a *design*, a contractor
+  runs a *schedule*, a developer works a *deal*. A plain label reads friendlier until someone must
+  decide whether "Money" is the budget, the commitment, the pay app or the equity draw, at which
+  point it is a second vocabulary on top of the real one. The reasoning lives in `rooms.py`, and
+  `roomNames.test.ts` asserts the Python and TypeScript tables agree label-for-label — they had been
+  duplicated across the language boundary with nothing checking them, and the TS copy is what renders
+  when `/rooms` fails.
+- ~~**Delete `?shell=classic`**~~ — **done v0.3.779.** Default since v0.3.715, deleted sixty-four
+  releases later. Two shells is two rails to keep in step, two places a defect can hide, and a render
+  audit whose verdict depends on which one it measured — a mistake this repo actually made. What the
+  two-shell period bought is kept: `parity.test` still asserts the room rail reaches every
+  destination the lifecycle-stage catalog lists, so *nothing became unreachable* outlives the shell
+  that motivated it.
 - **QUALITY-ROOM** — inspections/ITP sit in Design because an inspection checks the built thing
   against the design. Answered 2026-07-28: the *task* already reaches Work via the queue
   (`INS-001`, `DEF-001`, `NCR-001` are in it now), so the *register* stays with its discipline.
@@ -401,56 +412,165 @@ The payoff is specific to us: every record, geometry and cost line shares one IF
 platform can answer *"where did this number come from"* in one hop. **The interface does not cash that
 in.** R24 is about making the engine's one real advantage visible.
 
-*Two findings were already partly closed by the independent live audit in v0.3.677 (nav density
-14 → 7, and 0 unlabelled controls) — recorded in design-audit.md so they are not re-litigated.*
+### Re-verified 2026-07-29 at v0.3.778 — read this before picking up an item
 
-**Tier 1 — the front door**
+The ring was transferred from the audit in one sitting and **never re-checked against the code**. It
+has been now, item by item, and three things came out of it that change what to work on.
 
-- ⭐ **R24-SPINE** *(L)* — replace the catalog *as the entry point* with a persona-scoped rail of ~7
-  destinations carrying live **ball-in-your-court** counts (not totals — a badge you cannot act on is
-  noise). Nothing is deleted: the catalog stays behind "All modules" and ⌘K. Builds directly on the
-  Build/Money · Standards/Analyse split already shipped.
-- ⭐ **R24-CMDK-VERBS** *(M)* — the ⌘K palette exists and covers workspaces/modules/records. Extend it
-  to **authoring verbs**, **element lookup by GlobalId**, and **reports**, grouped by
-  *verb / record / element / report* rather than a flat list. The existing `/assistant` ask box becomes
-  the fallback row, not a separate feature to find.
-- ⭐ **R24-READINESS-HOME** *(M)* — *(supersedes UX-READINESS-EVERYWHERE)* home becomes a queue with a
-  horizon: work queue left, health right, one banded verdict on top, rows actionable inline. The
-  dashboard already computes ball-in-your-court and the SLA feed; Master Builder already computes the
-  verdict. This is promotion and shaping, not new engines.
-- ✅ **R24-ROLE-EXPLAIN** *(shipped v0.3.685)* — **never hide, explain.** Two role dimensions (capability × party) gate
-  controls invisibly today. A disabled control that states *needs Engineer* converts a support ticket
-  into onboarding. Cheap, and it makes the permission model legible.
+**① The audit's own evidence base was stale on arrival.** Its header reads `v0.3.4 · 566 commits` and
+"~80 modules"; we were near v0.3.67x with ~130. `design-audit.md` corrected the module count without
+recording the provenance problem. Consequence for anyone using it: its *diagnoses* are sound, its
+**"today the app does X" claims are not evidence** — verify against the file before acting. That is
+also why two findings had to be retro-marked "already true before the audit landed".
 
-**Tier 2 — the object and its numbers**
+**② Six items in the audit never became roadmap items at all** — they are reinstated below as
+`R24-CHARTS-GRAMMAR`, `R24-REPORTS-BY-MOMENT`, `R24-TOOLS-SPLIT`, `R24-BASELINE`, `R24-KEYS` and
+`R24-PERF-BUDGET`. The largest of those is `R24-BASELINE`: the audit's phase 0 said *instrument
+before you redesign*, listed six metrics with targets, and none of it was carried. **R26 replaced the
+entire shell and nothing in the stack can say whether it worked.**
 
-- ⭐ **R24-ELEMENT-CARD** *(L)* — one card wherever an element is named (viewer, RFI, estimate line,
-  pay app, COBie row), with a six-state lifecycle strip: **designed · checked · priced · scheduled ·
-  installed · verified**. The data for all six already exists on one key. *Note: `priced` is now real
-  in the model itself — see the 5D cost binding — and `verified` is the LOD-500 stamp.*
-- ⭐ **R24-TRACE-UI** *(M)* — every figure expands into the chain that produced it, tagged
-  **model-derived / overridden / market assumption**, ending in a clickable element. `traceability.py`
-  already walks model→cost→GL by GlobalId; this is the surface for it.
-- **R24-RUNS-INBOX** *(M)* — clash, IDS, cost and energy results are modals, so they have **no
-  history**. A modal cannot be diffed against last week, and for an engineer the delta between two
-  runs *is* the work product. Make each a durable **Run** (inputs, timestamp, author, artifact, diff)
-  with a per-project inbox.
-- **R24-JOB-TRAY** *(M)* — convert / reindex / republish are background work with foreground UI.
-  A global named-job tray, leaveable and resumable; the SSE feed already carries the events.
+**③ One finding was deliberately reversed and never recorded as one.** The audit prescribed a
+*persona-scoped* rail; `spine.ts` ships rooms "identical for every role" on purpose. That may well be
+the better call — but it is an unrecorded reversal of the source document, unlike ROOM-NAMING which
+is recorded. Filed under Decisions below.
 
-**Tier 3 — density, field, and the long tail**
+**Verified status of all 18 findings** — `✅` closed · `🟡` partial · `❌` open · `⚠️` reversed:
 
-- **R24-DENSITY** *(M)* — a three-step density scale (Field 56 px / Default 36 px / Compact 28 px),
-  one switch, per user, persisted. A superintendent and a scheduler should not get the same row height.
-- **R24-FIELD-MODE** *(L)* — a field *mode*, not a responsive breakpoint: capture-first home, 56 px
-  targets, 7:1 outdoor contrast, permanently visible sync queue, voice-to-text on notes.
-- **R24-MONO-DATA** *(S)* — a mono face for everything machine-produced (GlobalIds, quantities,
-  currency, dates, statuses) and a sans for language. The fastest available signal for
-  *"this is data, not prose"*, and nearly free.
-- **R24-EMPTY-GUIDE** *(S)* — empty states were hardened for robustness, not guidance. The viewer's
-  empty state (shipped v0.3.677) is the pattern to copy across.
-- **R24-TERMS** *(S)* — three vocabularies (BIM · GC · real-estate) collide in one shell; pick one per
-  persona rather than showing all three to everyone.
+| # | finding | item | status, with the evidence |
+|---|---|---|---|
+| 01 | catalog is the wrong front door | R24-SPINE | ✅ rooms are primary nav (`shell/roomTabs.ts`), default since v0.3.715 |
+| 02 | pillars are a mode switch | R24-SPINE | ✅ workspaces demoted to weighting, `shell/spine.ts` `WORKSPACE_ROOM` |
+| 03 | roles gate the UI invisibly | R24-ROLE-EXPLAIN | ✅ v0.3.685 |
+| 04 | long jobs, foreground UI | R24-JOB-TRAY | ❌ **and cheaper than logged** — see below |
+| 05 | analyses are modals → no history | R24-RUNS-INBOX | ❌ no runs concept in the web app |
+| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | 🟡 `viewer/lifecycleStrip.ts` + `inspectorTabs.ts` are built and good, rendered from **one** call site (`viewer/app.ts:321`) |
+| 07 | onboarding teaches the chrome | FIRST-RUN | 🟡 improved v0.3.777; still not the lot → building → deal chain |
+| 08 | persona picker only relabels | *(none)* | ⚠️ reversed on purpose — see Decisions |
+| 09 | tools panel mixes verbs with analyses | *(none)* | ❌ dropped in transfer → `R24-TOOLS-SPLIT` |
+| 10 | finance numbers have no provenance | R24-TRACE-UI | 🟡 v0.3.775 shipped trace for *cost coverage*; the proforma chain (IRR ← NOI ← rent roll ← area ← GUID) — the audit's actual demo — is not built |
+| 11 | density | R24-DENSITY | 🟡 two steps not three (`portal/prefs.ts:71`), dashboards only, **not registers** — which is where the 8-hour user lives |
+| 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | 🟡 `field/field.ts` is a real offline queue with GPS, still inside the desktop IA |
+| 13 | search is scoped to modules | R24-CMDK-VERBS | ❌ **measurably** — see below |
+| 14 | empty states | R24-EMPTY-GUIDE | 🟡 `ui/empty.ts` is 24 lines, "no project" only |
+| 15 | charts have no grammar | *(none)* | ❌ dropped → `R24-CHARTS-GRAMMAR` |
+| 16 | Report Center is a list of nouns | *(none)* | ❌ dropped → `R24-REPORTS-BY-MOMENT` |
+| 17 | three vocabularies collide | R24-TERMS | ❌ open |
+| 18 | site promises a lifecycle, app opens on a shell | *(none)* | 🟡 R26-VITALS (v0.3.773) is arguably a **better** answer than the audit's lifecycle strip — treat as closed |
+
+**External corroboration** (13-platform UI scan, 2026-07-29). Procore's design system evaluates
+office and field as **separate** UX, not one responsive layout — independent support for #12. Solibri
+beats Navisworks on IFC by making rulesets and checks **durable first-class objects**, and ACC's
+answer to breadth is **saved, re-runnable, shareable** searches — both are the same shape as
+`R24-RUNS-INBOX`, and it is the most externally validated item in the ring. LayOut 2026's tray
+redesign drew open backlash ("bulky, less legible and inefficient", broken shortcuts) — density is a
+**regression risk**, not a taste call, which is why `R24-DENSITY` ships as a user switch and why
+`R24-KEYS` is not optional. Bluebeam Revu 21 deliberately did **not** restyle and invested in
+customizable profiles instead. And two conclusions worth keeping: **no incumbent ships a command
+palette as a primary entry point** — a real opening, and a warning that ⌘K must be *taught*, not just
+bound — and **none of them can trace a number to a GlobalId**. That is the moat and it is still
+uncashed.
+
+---
+
+### Sprint 1 — instrument, then decide *(the audit's phase 0, never built)*
+
+Everything after this sprint is a claim about adoption. Nothing in the stack can currently confirm or
+refute one, so this goes first even though it is the least visible.
+
+- ⭐ **R24-BASELINE** *(M, reinstated)* — wire the audit's six metrics to the existing `/metrics`:
+  time-to-first-meaningful-action (target < 60 s), rooms touched per user per week, "where is X"
+  support threads, field captures per super per day, p95 interaction latency, median RFI turnaround.
+  Baselines first, targets second. **Do not start Sprint 2 without this**, or R24 repeats R26's
+  mistake of shipping a shell nobody can score.
+- **R24-PERF-BUDGET** *(S, reinstated)* — the audit's P5: 100 ms click echo, 1 s panel, p95 < 100 ms.
+  Write it as an asserted budget, not a hope — prose drifts, `test_*` does not (see *Verify, don't
+  recall* in CLAUDE.md).
+- ⭐ **R24-JOB-TRAY** *(S — was M)* — **re-scoped: this is wiring, not engineering.**
+  `services/api/src/aec_api/routers/jobs.py` already enqueues, polls and lists jobs with per-kind RBAC.
+  `grep -rn "/jobs" apps/web/src` returns **nothing** — no client has ever called it. Add the typed
+  surface to `api/client.ts`, a self-contained `ui/jobTray.ts`, then one mount point. Another instance
+  of the pattern in *what-did-we-build-that-nothing-calls*; the engine shipped and the path to it did not.
+
+### Sprint 2 — cash the moat *(the differentiation no competitor can copy)*
+
+- ⭐ **R24-ELEMENT-CARD ②** *(M — was L)* — the strip exists and works. The remaining work is
+  **call sites**, not components: render it in RFI, estimate line, pay app and COBie row. Extract from
+  `viewer/inspectorTabs.ts` into a viewer-independent module first, since those four surfaces must not
+  pull in three/@thatopen.
+- ⭐ **R24-TRACE-UI ②** *(M)* — the proforma chain, IRR → GlobalId, tagged **model-derived /
+  overridden / market assumption**. `traceability.py` already walks model→cost→GL. This is the
+  on-stage demo and the entire reason to be IFC-keyed.
+- **R24-RUNS-INBOX** *(M)* — clash, IDS, cost and energy become durable Runs (inputs, timestamp,
+  author, artifact, **diff against the previous run**) with a per-project inbox. Most externally
+  validated item in the ring — see the corroboration note above.
+
+### Sprint 3 — the front door earns its keyboard
+
+- ⭐ **R24-CMDK-VERBS** *(M)* — `main.ts:1755` registers workspaces + 6 actions + modules + record
+  search. Missing: authoring verbs, **element lookup by GlobalId**, reports, `/assistant` as the
+  fallback row. And `Command.group` is **declared at `ui/palette.ts:13` and never read by `paint()`** —
+  grouping was designed and left unwired, so the flat list is a two-line fix plus providers.
+- **R24-KEYS** *(S, reinstated)* — publish the keyboard contract as a real surface: ⌘K · `G then M` ·
+  `J`/`K` · `A` · `W S C B` · ⌥click. What exists is a viewer-only toast (`main.ts:1585`,
+  `"F fit · Esc clear · M dist · A area · S section · H show all · ? help"`).
+- **R24-DENSITY ②** *(M)* — three steps (Field 56 px / Default 36 px / Compact 28 px) applied to
+  **registers**, not just the dashboards `prefs.ts` covers today. Tabular figures wherever a number appears.
+
+### Sprint 4 — field, and the long tail
+
+- **R24-FIELD-MODE** *(L)* — capture-first home, 56 px targets, 7:1 outdoor contrast, permanently
+  visible sync queue, dictation on notes. A mode, not a breakpoint.
+- **R24-CHARTS-GRAMMAR** *(S, reinstated)* — `ui/charts.ts` has 13 chart functions and no shared
+  contract. One tick style, one currency format, one legend position, one no-data state, colour
+  restricted to the four semantic hues `ui/colorContract.ts` already enforces.
+- **R24-REPORTS-BY-MOMENT** *(S, reinstated)* — `reportCenter.ts:20` groups by `r.group`, which is
+  still nouns. Group by the moment they are needed — monthly owner package, lender draw, investment
+  committee, closeout — and let each be scheduled, not only downloaded.
+- **R24-TOOLS-SPLIT** *(S, reinstated)* — authoring verbs act instantly; analyses produce an artifact
+  after a wait. Split them; the analyses half lands in `R24-RUNS-INBOX` and the job tray.
+- **R24-EMPTY-GUIDE ②** *(S)* · **R24-TERMS** *(S)* · **R24-MONO-DATA** *(S)* — the long tail.
+
+**Explicitly NOT in scope: the audit's visual identity** (ink canvas `#080C12`, IBM Plex Sans/Mono,
+the 24 px/192 px brand grid at 5–7%). It is the most seductive item in the document and the least
+defensible right now: a full restyle with no measurement behind it, immediately after a shell
+replacement that also has none. Colour *discipline* shipped and is test-enforced; colour *identity*
+did not, and `style.css:20` is still a generic dark-app grey. Revisit once `R24-BASELINE` has numbers,
+or settle it as a decision — do not let it ride in on the back of another item.
+
+### Decisions this ring needs from the user
+
+- **R24-PERSONA-SHAPE** — the audit prescribed a persona-scoped rail; `spine.ts` ships rooms identical
+  for every role. Which is right for a superintendent who needs four rooms and an underwriter who
+  needs one? Settle with a real user alongside **ROOM-NAMING**, not from the armchair.
+- **R24-IDENTITY** — is the visual identity in scope at all, or does the current grey stay?
+
+### Re-audit — scoped, not a redo
+
+The 18 diagnoses hold. But the three surfaces the audit judged hardest — the spine, the room tabs and
+the vitals bar — have all been **replaced** since it was written, so its verdict on the front door
+describes a door that no longer exists. Questions to hand a re-auditor verbatim: **(1)** rooms vs
+personas, per the decision above; **(2)** does the vitals bar prove the one-model claim or is it six
+numbers nobody can act on — it holds the most valuable strip of the window on the strength of a
+prototype, unmeasured; **(3)** what is the register experience at 500 rows — every density finding in
+the original was about dashboards and it never opened a table; **(4)** where does ⌘K get *taught*,
+given no competitor ships one; **(5)** what are the six metrics' actual baselines; **(6)** is the
+offline/field path trustworthy on one bar of signal, judged from a phone rather than a desktop.
+
+### Working lanes — for a second agent picking this up
+
+Four sessions are live in this repo. R24 is **`apps/web` outside `src/shell/`**. Specifically:
+
+- **Owned elsewhere, do not edit:** `apps/web/src/shell/*`, and `main.ts` / `portal/portal.ts` while
+  the classic-shell removal is in flight (Massing Core session, v0.3.779). `services/api` +
+  `services/data` belong to the R23-DIGEST branch (PR 94).
+- **Free for R24:** `apps/web/src/ui/*`, `apps/web/src/api/client.ts`, `apps/web/src/field/*`,
+  `apps/web/src/reportCenter.ts`, and any new file.
+- **Sequencing rule:** prefer a new self-contained module plus one small mount point over an edit
+  inside a large shared file. `ui/jobTray.ts` is the template — the whole feature lands in a new file
+  and the mount is three lines.
+- Run the backend suite **from `services/api`** (the repo root exits 127 and reports "0 failures",
+  which reads exactly like a pass). Never run `npm run build` while the suite is running — it rewrites
+  `apps/web/dist`, which `test_desktop` reads.
 
 ## 📐 R27 — THE DRAWING IS DATA RING *(external research 2026-07-26: one paper + 16 sources)*
 
