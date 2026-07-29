@@ -42,7 +42,7 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          # R23-PREFAB-KIT — the kit join + its register routes:
          "test_prefab_kit", "test_prefab_route",
          # Tier-1 competitive upgrades:
-         "test_drafting", "test_bid_leveling", "test_benchmarking",
+         "test_drafting", "test_bid_leveling", "test_benchmarking", "test_unit_rate_memory", "test_unit_rate_route",
          # R22-NOTICE-CLOCK — contractual notice periods + the register routes:
          "test_notice_clock", "test_notices_route",
          # Tier-2/3 competitive upgrades:

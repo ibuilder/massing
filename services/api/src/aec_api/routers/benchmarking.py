@@ -6,7 +6,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from .. import benchmarking
+from .. import benchmarking, unit_rate_memory
 from ..db import get_db
 from ..rbac import current_user, member_project_ids
 
@@ -19,6 +19,25 @@ def cost_benchmarks(min_samples: int = 3, db: Session = Depends(get_db),
     """Actual-cost distribution (low/p25/median/p75/high) per cost code across your projects."""
     return benchmarking.cost_benchmarks(db, min_samples=max(1, min(min_samples, 50)),
                                         project_ids=member_project_ids(db, user))
+
+
+@router.get("/benchmarks/unit-rates")
+def unit_rates(min_projects: int = 3, db: Session = Depends(get_db),
+               user: str = Depends(current_user)):
+    """Actual **unit** rates per cost code — `direct_cost` divided by installed
+    `production_quantity` — distributed across your projects.
+
+    The sibling of `/benchmarks/costs`, and the one that needs the field's own quantity records:
+    that endpoint says what a cost code has cost, this one says what it cost **per unit**, which is
+    the difference between "this project was expensive" and "concrete is dear".
+
+    Each rate is ONE project's cost over that project's quantity, and the distribution is over
+    projects. `pooled_rate` — the portfolio-wide blend — is reported beside it and answers a
+    different question; one large project sets it. Units are grouped, never converted, and a project
+    that records one cost code under two units is excluded rather than split. Everything excluded
+    comes back with a count and a reason."""
+    return unit_rate_memory.unit_rates(db, min_projects=max(1, min(min_projects, 50)),
+                                       project_ids=member_project_ids(db, user))
 
 
 @router.get("/benchmarks/response-rates")
