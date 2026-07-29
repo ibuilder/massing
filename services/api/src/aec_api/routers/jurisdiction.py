@@ -13,12 +13,30 @@ from .. import model_index
 from ..db import get_db
 from ..deps import get_project
 from ..rbac import current_user, require_role
+from .auth import require_admin_user
 
 router = APIRouter()
 
 
+def require_identified(user: str = Depends(current_user)) -> str:
+    """A caller who actually authenticated.
+
+    `current_user` IDENTIFIES; it does not AUTHORISE. With RBAC on and no bearer token, cookie or
+    trusted header it returns the literal string `"anonymous"` — so `Depends(current_user)` on its
+    own is not a gate, it is a name. These routes shipped with exactly that mistake and a live probe
+    returned 200 / **201** / 200 with no credentials at all while `GET /admin/errors` correctly
+    returned 403 in the same run.
+
+    This is the platform-global sibling of the `/projects/{pid}` rule in `route-authz-guard`: a route
+    that LOOKS guarded because a dependency is present, when the dependency only identifies.
+    """
+    if user in ("anonymous", None, ""):
+        raise HTTPException(403, "authentication required")
+    return user
+
+
 @router.get("/jurisdiction/packs")
-def list_packs(jurisdiction: str | None = Query(None), _: str = Depends(current_user)):
+def list_packs(jurisdiction: str | None = Query(None), _: str = Depends(require_identified)):
     """Every data-requirement pack available, optionally filtered to one jurisdiction.
 
     The built-in `example` pack asserts nothing about any real place — it is there to show the shape.
@@ -37,7 +55,7 @@ def list_packs(jurisdiction: str | None = Query(None), _: str = Depends(current_
 
 
 @router.post("/jurisdiction/packs", status_code=201)
-def import_pack(pack: dict = Body(...), _: str = Depends(current_user)):
+def import_pack(pack: dict = Body(...), _admin=Depends(require_admin_user)):
     """Import a data-requirement pack from an authority.
 
     Refused without `authority`, `edition` and `source`. That is not bureaucracy: a requirement
@@ -52,7 +70,7 @@ def import_pack(pack: dict = Body(...), _: str = Depends(current_user)):
 
 
 @router.delete("/jurisdiction/packs/{pack_id}")
-def delete_pack(pack_id: str, _: str = Depends(current_user)):
+def delete_pack(pack_id: str, _admin=Depends(require_admin_user)):
     try:
         removed = jp.delete_pack(pack_id)
     except jp.PackError as e:

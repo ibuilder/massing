@@ -13,6 +13,11 @@ import sys
 os.environ["DATABASE_URL"] = "sqlite:///./test_juris_route.db"
 os.environ["STORAGE_DIR"] = "./test_storage_juris_route"
 os.environ.pop("AEC_RBAC", None)
+# Importing/deleting a pack is now platform-admin only — the routes are GLOBAL, and a pack changes
+# compliance results across every project in a matching jurisdiction. `require_admin_user` resolves
+# admins from AEC_ADMIN_EMAILS, so the harness declares its caller one rather than reaching past the
+# gate. (The gate itself is proved by test_jurisdiction_authz, which runs with RBAC ON.)
+os.environ["AEC_ADMIN_EMAILS"] = "juris@test"
 for _f in ("./test_juris_route.db",):
     if os.path.exists(_f):
         os.remove(_f)
@@ -50,6 +55,13 @@ ELEMENTS = [
 
 with TestClient(app) as c:
     c.headers.update({"X-User": "juris@test"})
+    # require_admin_user looks the caller up in the users table, so the row has to exist.
+    from aec_api.db import SessionLocal
+    from aec_api.models import User
+    with SessionLocal() as _db:
+        if not _db.get(User, "juris@test"):
+            _db.add(User(username="juris@test", password_hash="", role="admin", active=True))
+            _db.commit()
 
     lib = c.get("/jurisdiction/packs")
     check("GET /jurisdiction/packs answers 200", lib.status_code == 200, lib.text[:200])
