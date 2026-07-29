@@ -47,6 +47,27 @@ if [ "$(git rev-parse origin/main)" = "$(git rev-parse HEAD~1)" ]; then
 else echo "RACE — rebase + rebump"; fi
 ```
 
+**Never merge or rebase inside the commit command, and re-check the triple after any that you do.**
+The `RACE` branch above rebases onto whatever landed first — which is how v0.3.791 shipped red. Two
+sessions released concurrently; the merge took the **manifest from one and the lock from the other**,
+and git merged it cleanly because they are different files. No single edit was wrong, and the session
+had run a green suite — on the tree *before* the merge. `versionConsistency.test.ts` caught it in CI,
+one release later.
+
+So after any rebase/merge, and always immediately before pushing:
+```
+node -e 'const a=require("./apps/web/package.json").version,
+ b=require("./package-lock.json").packages["apps/web"].version,
+ c=require("./apps/web/src-tauri/tauri.conf.json").version;
+ console.log(a,b,c); if(new Set([a,b,c]).size>1){console.error("VERSION TRIPLE DISAGREES");process.exit(1)}'
+```
+The lock is the **root workspace lock** (`./package-lock.json`, keyed `packages["apps/web"]`) — there
+is no `apps/web/package-lock.json`, and a check that reads that path returns empty and "passes".
+
+The general rule this is one instance of: **verify what you are shipping, not what you happen to have.**
+A suite run before a merge, or a typecheck against a working tree that still holds unstaged fixes,
+measures a tree that is not the commit. To verify a commit, verify the commit.
+
 ## 5. Verify CI + CodeQL
 - A "CI" workflow run showing `success` does NOT mean the **API test gate** ruff step passed, or that CodeQL is clean. Check both.
 - After each push run the `security-monitoring` skill's CodeQL check (open **alerts**, not run status).
