@@ -18,9 +18,11 @@ engine) · `test_reachable` **301/305** modules callable · single-source versio
 *The previous status block claimed 416 / 557 as of v0.3.740 — thirty-eight releases stale. A status
 line nobody re-derives is just an old measurement wearing the present tense.*
 
-**The five-room shell is the DEFAULT and is reachable.** It renders in the Construction, Developer and
-Design workspaces; opening a project lands on the persona's home and every other workspace carries a
-`← Project home` signpost (v0.3.739). `?shell=classic` opts out and sticks.
+**The six-room shell is the ONLY shell.** It renders in the Construction, Developer and Design
+workspaces; opening a project lands on the persona's home and every other workspace carries a
+`← Project home` signpost (v0.3.739). The `?shell=classic` opt-out was **deleted in v0.3.779** —
+`spine.test` now asserts `spineEnabled` and `SPINE_FLAG` are absent, so a revert fails a test rather
+than quietly restoring a second rail.
 
 **Read the gating honestly.** A large block of what remains is genuinely blocked — see
 [⛔ Gated](#-gated--each-entry-names-its-unblocking-event). The ▶ NOW list below is **only non-gated
@@ -541,7 +543,8 @@ or settle it as a decision — do not let it ride in on the back of another item
 
 - **R24-PERSONA-SHAPE** — the audit prescribed a persona-scoped rail; `spine.ts` ships rooms identical
   for every role. Which is right for a superintendent who needs four rooms and an underwriter who
-  needs one? Settle with a real user alongside **ROOM-NAMING**, not from the armchair.
+  needs one? The sibling question, **ROOM-NAMING**, was settled on professional terms at v0.3.779 —
+  this one is *shape* rather than vocabulary and is still open. Settle it with a real user.
 - **R24-IDENTITY** — is the visual identity in scope at all, or does the current grey stay?
 
 ### Re-audit — scoped, not a redo
@@ -560,9 +563,10 @@ offline/field path trustworthy on one bar of signal, judged from a phone rather 
 
 Four sessions are live in this repo. R24 is **`apps/web` outside `src/shell/`**. Specifically:
 
-- **Owned elsewhere, do not edit:** `apps/web/src/shell/*`, and `main.ts` / `portal/portal.ts` while
-  the classic-shell removal is in flight (Massing Core session, v0.3.779). `services/api` +
-  `services/data` belong to the R23-DIGEST branch (PR 94).
+- **Owned elsewhere, do not edit:** `apps/web/src/shell/*` (Massing Core session). `services/api` +
+  `services/data` belong to the R23-DIGEST branch (PR 94). `main.ts` and `portal/portal.ts` were held
+  through the classic-shell removal and **released at v0.3.779** — check `git status` before assuming
+  either is free, since both are large enough that two sessions in one is a guaranteed conflict.
 - **Free for R24:** `apps/web/src/ui/*`, `apps/web/src/api/client.ts`, `apps/web/src/field/*`,
   `apps/web/src/reportCenter.ts`, and any new file.
 - **Sequencing rule:** prefer a new self-contained module plus one small mount point over an edit
