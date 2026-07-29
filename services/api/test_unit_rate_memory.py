@@ -145,6 +145,32 @@ vals = [1.0, 2.0, 3.0, 4.0]
 check("percentiles agree with benchmarking's, so a cost p75 and a rate p75 are comparable",
       all(urm._pctile(vals, q) == benchmarking._pctile(vals, q) for q in (0.0, 0.25, 0.5, 0.75, 1.0)))
 
+# --- 7. the totals honour the formula the payload states ----------------------------------------------
+# `unit_rates()` tells the reader `pooled_rate` is Σcost ÷ Σquantity. It was not: `summarise()` summed
+# the per-project `cost`/`quantity` fields, which `per_project_rates()` had already rounded for display.
+# At 60 projects the reported total was 6000.00 against a true 6000.30 and the pooled rate was 33.3333
+# against a true 33.3344 — small, plausible, and contradicting the definition printed beside it. That is
+# the failure mode worth a test: not a number that is missing, a number that disagrees with its own
+# stated basis. Anyone re-deriving the total from `per_project` gets a different answer and has no way
+# to tell which is wrong.
+N, AMT, QTY = 60, 100.005, 3.00005
+drift = urm.summarise(urm.per_project_rates(
+    [cost(f"P{i}", "C", AMT) for i in range(N)],
+    [qty(f"P{i}", "C", QTY, "m") for i in range(N)])["rates"], 1)[0]
+raw_cost, raw_qty = AMT * N, QTY * N
+check("total_cost is the sum of RAW costs, not of rounded ones",
+      drift["total_cost"] == round(raw_cost, 2), (drift["total_cost"], round(raw_cost, 2)))
+check("total_quantity likewise", drift["total_quantity"] == round(raw_qty, 4),
+      (drift["total_quantity"], round(raw_qty, 4)))
+check("pooled_rate equals the Sum(cost)/Sum(quantity) the payload claims it is",
+      drift["pooled_rate"] == round(raw_cost / raw_qty, 4),
+      (drift["pooled_rate"], round(raw_cost / raw_qty, 4)))
+# The rounded per-project values must still be what a reader sees, and the raw carrier must not leak.
+check("the published per-project rows keep their rounded display values",
+      drift["per_project"][0]["cost"] == round(AMT, 2))
+check("and no internal raw carrier is exposed in the payload",
+      all("_raw" not in r for r in drift["per_project"]), drift["per_project"][0].keys())
+
 print()
 if FAILED:
     print(f"unit_rate_memory: {len(FAILED)} FAILED — {FAILED}")

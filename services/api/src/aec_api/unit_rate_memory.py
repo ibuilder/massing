@@ -135,9 +135,16 @@ def per_project_rates(costs: list[tuple[str, dict]],
                           "be a guess"})
             continue
         unit, qty = next(iter(units.items()))
+        # `cost`/`quantity`/`rate` are DISPLAY values and are rounded. `_raw` carries the unrounded
+        # numbers, because `summarise()` sums across projects and summing rounded values drifts:
+        # measured at 60 projects, a reported total of 6000.00 against a true 6000.30, and a
+        # `pooled_rate` of 33.3333 where Σcost ÷ Σquantity is 33.3344. The payload states that
+        # formula, so the arithmetic has to honour it — a figure that contradicts its own stated
+        # definition is worse than one with no definition.
         rates.append({"project_id": pid, "cost_code": code, "unit": unit,
                       "cost": round(cost, 2), "quantity": round(qty, 4),
-                      "rate": round(cost / qty, 4)})
+                      "rate": round(cost / qty, 4),
+                      "_raw": {"cost": cost, "quantity": qty, "rate": cost / qty}})
 
     for (pid, code), cost in sorted(cost_by.items()):
         if (pid, code) not in qty_by and cost > 0:
@@ -160,9 +167,10 @@ def summarise(rates: list[dict[str, Any]], min_projects: int = DEFAULT_MIN_PROJE
 
     out = []
     for (code, unit), rows in by_key.items():
-        vals = sorted(r["rate"] for r in rows)
-        total_cost = sum(r["cost"] for r in rows)
-        total_qty = sum(r["quantity"] for r in rows)
+        # Every aggregate below is computed from `_raw`, never from the rounded display fields.
+        vals = sorted(r["_raw"]["rate"] for r in rows)
+        total_cost = sum(r["_raw"]["cost"] for r in rows)
+        total_qty = sum(r["_raw"]["quantity"] for r in rows)
         lo, hi = vals[0], vals[-1]
         out.append({
             "cost_code": code, "unit": unit,
@@ -180,7 +188,9 @@ def summarise(rates: list[dict[str, Any]], min_projects: int = DEFAULT_MIN_PROJE
             # reporting-lag artefact rather than a price difference — the cheapest signal available
             # for the limitation named in the module docstring.
             "spread_ratio": round(hi / lo, 2) if lo > 0 else None,
-            "per_project": sorted(rows, key=lambda r: r["rate"]),
+            # `_raw` is an internal carrier, stripped before the rows are published.
+            "per_project": [{k: v for k, v in r.items() if k != "_raw"}
+                            for r in sorted(rows, key=lambda r: r["_raw"]["rate"])],
         })
     out.sort(key=lambda c: (-c["projects"], c["cost_code"]))
     return out
