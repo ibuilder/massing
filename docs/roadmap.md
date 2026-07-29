@@ -92,13 +92,23 @@ $/ft² render as `—` with their reasons — the vitals strip working, not a ga
 `build_samples.py` works and the library ships (v0.3.769). What is missing is **content**: more than
 one `.mass`, covering more than one building type. Blocked on authoring time, not on tooling.
 
-### 7 · ONE-LOAD-SAMPLE ② + FIRST-RUN ②
-Replace the remaining hard-coded `.frag` menu entries with the library, and have an empty install
-open a populated project rather than an empty screen.
+### ~~7 · ONE-LOAD-SAMPLE ② + FIRST-RUN ②~~ — **DONE v0.3.777**: the last hard-coded geometry is gone
+The first-run half was already built (the picker opens on zero projects, `library.test.ts` gates it).
+The remainder was worse than a leftover menu entry: `viewer/app.ts` chose geometry with a **regex on
+the project's name**, so a project called "Riverside School" with no published model rendered an
+unrelated demo's frame, and any session with no project always did. The gate that was meant to
+prevent exactly this asserted the filenames were gone from `main.ts` — and passed, while they lived
+one file over as the default. **A check scoped to one file measures that file, not the behaviour.**
+Removed, `library.test.ts` now reads the viewer too (mutation-checked), and the three orphaned
+`.frag` assets left every build and desktop installer — 7.4 MB.
 
-### 8 · MASS-FOR-EVERY-MODEL ② + CREATE/OPEN/SAVE ③
-Loading an IFC with no container creates a blank one; then re-cut the Create / Open / Save dropdowns
-against the container model now that `.mass` is real.
+### ~~8 · MASS-FOR-EVERY-MODEL ② + CREATE/OPEN/SAVE ③~~ — **DONE v0.3.777**
+Opening an IFC with the server reachable but no project fell through to "view only" — a mesh with no
+quantities, no cost, no schedule, nothing to pin an RFI to, nothing saved. It now offers a container
+and lands you in it. **Offers**, because creating a project writes to the user's database, and doing
+that unasked is the side effect the sample picker already refuses to commit. The Open/Save menus are
+re-cut by what the thing *is*: Project · Model geometry · Site context · Import. "Sample models"
+stopped being a category when a sample became a real `.mass`.
 
 ### Decisions, not effort — these want your call
 - **ROOM-NAMING** — the prototype named rooms in plain language (Building · Budget · Timeline ·

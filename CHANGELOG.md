@@ -4,6 +4,63 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.777 — every model gets a container, and the viewer stops guessing which one
+
+### The viewer picked geometry by matching the project's NAME
+
+`viewer/app.ts` held a function that mapped a project name to bundled `.frag` files:
+
+```ts
+if (/school/i.test(name)) return [["/school_str.frag", …], ["/school_arq.frag", …]];
+```
+
+A user project called "Riverside School" with no published model therefore rendered **an unrelated
+demo's structural frame** — presented as theirs, silently, with the panels reading from a different
+model entirely. With no project at all, the same two files loaded unconditionally. Two projects can
+share a word in their names and share nothing else; the only correct key is the project id.
+
+The gate meant to prevent this already existed and passed. `library.test.ts` asserted "the three
+hard-coded .frag samples are gone" — of `main.ts`, while all three lived in `viewer/app.ts`, as the
+default. **A check scoped to one file measures that file, not the behaviour.** It now reads the
+viewer too, and separately forbids a name-regex model picker; both assertions were mutation-checked
+by reintroducing the defect and confirming they fail.
+
+With nothing referencing them, the three `.frag` assets are deleted — **7.4 MB** off every web build
+and desktop installer. `loadSample`, the function that existed only to fetch a bare `.frag` by path,
+went with them: defined, re-exported on the viewer's public API, called by nobody.
+
+When there is no project model the canvas is now empty, which is the honest answer. The status bar
+already says what to do, and the sample library is the real way in.
+
+### Opening a model produced a mesh, not a project
+
+Opening an IFC with the backend reachable but no project selected fell through to `view only`. That
+is a thing you can orbit and nothing else: no quantities, no estimate, no schedule, nothing to pin an
+RFI to, and nothing kept when the tab closes. The server was reachable the whole time — the code
+simply had nowhere to put the model and gave up. The same branch also sent large files down the
+in-browser parser with a "this may be slow" warning, while the server-side conversion path sat one
+condition away.
+
+It now offers to create a container, uploads through the ordinary publish path, and lands you in the
+finished project. **Offers** — creating a project writes a real row into the user's database, and
+doing that unasked is precisely the unconsented side effect the sample picker deliberately refuses to
+commit. Decline, or be offline, and view-only remains; the two now read differently, because "offline"
+and "you said no" are not the same message.
+
+`fileIO.test.ts` gates the rule, including that the confirmation *precedes* the write — a consent
+check that runs after the row exists is decoration. Verified by mutation: removing the confirm fails
+the ordering assertion, and disabling the branch fails the branch assertion.
+
+### The menus say what things are
+
+Open ▾ led with "New model from scratch" — a create action, first item of a menu named Open — and
+filed samples under "Sample models" as though they were still bare meshes. Both dropdowns are now
+grouped by what the thing *is*: **Project** (new · open `.mass` · sample) · **Model geometry** ·
+**Site context** · **Import from Revit / CAD**. A sample is a project now, so it sits with projects.
+
+Gates: web 715/715, typecheck + eslint clean. No Python changed since the 421/421 backend run in
+v0.3.776.
+
 ## v0.3.776 — a sample worth opening, and a ratchet on unescaped HTML
 
 The library had a house: 23 elements, seven walls, a roof. It earns its place — it was authored in

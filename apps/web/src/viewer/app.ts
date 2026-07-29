@@ -83,7 +83,6 @@ export interface ViewerApp {
   triggerOpen(kind: "ifc" | "frag" | "convert"): void;
   openFile(kind: "ifc" | "frag" | "convert" | "ref", file: File): Promise<void>;
   addReferenceObject(object: import("three").Object3D, label: string): string;
-  loadSample(file: string, label: string): Promise<void>;
   exportFrag(): Promise<void>;
   exportIfc(): void;
   handleKey(key: string): boolean;
@@ -424,7 +423,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     waitForPublish: (pid, cb) => waitForPublish(pid, cb), loadProjectModel: () => loadProjectModel(),
     buildToolsPanel: () => buildToolsPanel(), buildClashPanel: () => buildClashPanel(),
   });
-  const { openFile, addReferenceObject, loadSample, exportFrag, exportIfc, triggerOpen } = fileIO;
+  const { openFile, addReferenceObject, exportFrag, exportIfc, triggerOpen } = fileIO;
 
   // ---- floating toolbar ----------------------------------------------------
   const viewerTools = $("viewer-tools");
@@ -4483,12 +4482,6 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     return { x: p.x, y: p.y, z: p.z };
   }
 
-  function fragsForProject(name: string): [string, string][] {
-    if (/basichouse/i.test(name)) return [["/basichouse.frag", "BasicHouse-ARCH"]];
-    if (/school/i.test(name)) return [["/school_str.frag", "school-STR"], ["/school_arq.frag", "school-ARQ"]];
-    return [];
-  }
-
   // ---- keyboard (viewer keys; nav keys stay in main) -----------------------
   function handleKey(key: string): boolean {
     switch (key) {
@@ -4510,12 +4503,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     applySettings();
     await withLoading(container, `Loading ${ctx.projectName || "model"}`, async () => {
       if (projectId && await loadProjectModel()) return;
-      const frags = ctx.projectName ? fragsForProject(ctx.projectName) : [["/school_str.frag", "school-STR"], ["/school_arq.frag", "school-ARQ"]];
-      for (const [file, id] of frags) {
-        if (!file || !id) continue;
-        const res = await fetch(import.meta.env.BASE_URL + file.replace(/^\//, ""));
-        if (res.ok) { await loader.loadFragments(await res.arrayBuffer(), id); modelLabels.set(id, id); }
-      }
+      // No project model → render nothing.
+      //
+      // This used to fall back to three `.frag` files bundled in `public/`, picked by a REGEX ON THE
+      // PROJECT'S NAME. A user project called "Riverside School" with no published model silently
+      // loaded an unrelated demo's structural frame, and any session with no project at all always
+      // did. Geometry that is not this project's, shown as this project's, is worse than an empty
+      // canvas: the canvas is honest, the status bar already says what to do ("open a sample or
+      // ＋ New"), and the sample library is the real way in.
+      //
+      // The gate that was supposed to prevent this asserted the filenames were gone from `main.ts`
+      // and passed — while they lived one file over, as the default. A check scoped to one file
+      // measures that file, not the behaviour; `library.test.ts` now reads this one too.
       refreshFederation();
       await fitToModels();
     });
@@ -4533,7 +4532,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     applySettings, selectByGuid, reloadModelPins, fitToModels, refreshIssues,
     anchorPoint: () => (lastPoint ? { x: lastPoint.x, y: lastPoint.y, z: lastPoint.z } : null),
     selectedGuidValue: () => selectedGuid,
-    triggerOpen, openFile, addReferenceObject, loadSample, exportFrag, exportIfc, handleKey,
+    triggerOpen, openFile, addReferenceObject, exportFrag, exportIfc, handleKey,
     // Open the authoring surface: rebuild the tools panel (so a just-published model's Draft section
     // appears) and expand + scroll to the "Draft — author elements" group. Called when a new model is
     // started from scratch, so the drawing tools are front-and-centre instead of buried.
