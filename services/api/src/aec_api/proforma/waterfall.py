@@ -122,7 +122,19 @@ def run_waterfall(distributable: list[float], dates: list[date], lp_contrib: flo
                     gp_take += remaining * tier["gp"]
                     remaining = 0.0
                     break
-                cap = solve_cash_for_irr_hurdle(lp_cf, lp_dates, d, tier["hurdle"], tier["lp"], remaining)
+                # The hurdle is tested on the LP's cash flows INCLUDING what it has already been
+                # paid in THIS period — `lp_take` currently holds the pref and the return of
+                # capital, which are not appended to `lp_cf` until after this loop. Passing plain
+                # `lp_cf` measured the LP's IRR as though the current period had paid it nothing:
+                # in the first distribution period the series is contributions-only, XIRR is
+                # undefined, and `(None or -1.0) >= hurdle` is False — so the below-hurdle tier
+                # absorbed cash that belonged to the residual tier. On a single 2,000 distribution
+                # (900 LP / 100 GP, 8% pref, 90/10 then 80/20) the GP received 102.78 instead of
+                # 205.57 — half its promote — while dollars still conserved and every existing
+                # assertion passed. The solver already models the tier's own cash at date `d`;
+                # omitting the pref and RoC paid at that same date was the inconsistency.
+                cap = solve_cash_for_irr_hurdle(lp_cf + [lp_take], lp_dates + [d], d,
+                                               tier["hurdle"], tier["lp"], remaining)
                 split = min(remaining, cap)
                 lp_take += split * tier["lp"]
                 gp_take += split * tier["gp"]
