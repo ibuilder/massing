@@ -363,9 +363,11 @@ stakes we are missing.
 - **R22-CAD-IMPORT** *(M)* — **DWG/DXF/PDF base-plan import.** The existing building stock is legacy
   CAD; today feasibility and test-fit only run on models we authored. This is the on-ramp for every
   non-BIM firm.
-- 🔜 **R22-CARBON-OPTION** *(M; **PR #106 — OPEN, not merged as of 2026-07-29 22:20Z**)* — built and
-  awaiting merge; `option_carbon.py` is on the branch, **not** on `main`. The premise was right about
-  the capability and wrong about its REACH. `option_score` already scored **generated** massing variants
+- ✅ **R22-CARBON-OPTION** *(M; **PR #106**, merged 2026-07-29 22:37Z — `option_carbon.py` +
+  `design_options.py`)* — verified on `main` by content, not by merge status: `option_carbon.py`
+  present, `kgco2e_per_sf` ×3 in `design_options.py`, `POST /options/carbon` routed, and both
+  `test_option_carbon` and `test_option_carbon_route` named in `run_tests.py` with both files on disk.
+  The premise was right about the capability and wrong about its REACH. `option_score` already scored **generated** massing variants
   on carbon, `option_takeoff.embodied()` computed it bottom-up, `carbon.py` rolled up a whole project —
   and `design_options.compare()`, the card a project keeps its schemes on, had none. `energy_eui` was
   not standing in: that is **operational** energy, a different lifecycle stage. Every row now states its
