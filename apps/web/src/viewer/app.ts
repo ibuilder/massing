@@ -15,7 +15,7 @@ import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
 import { buildElementProps, buildRawProps } from "./propsView";
 import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
-import { buildLifecycleStrip } from "./lifecycleStrip";
+import { buildLifecycleStrip } from "../ui/lifecycleStrip";
 import { type ModelIdMap } from "./modelIds";
 import { askText } from "../ui/prompt";
 import { confirmModal, promptModal } from "../ui/modal";

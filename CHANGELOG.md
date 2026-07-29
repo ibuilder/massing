@@ -4,6 +4,89 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.792 — ReDoS on IFC-authored text, and the two halves of the fix
+
+`classify_assist` ran regexes with **unbounded quantifiers** against free text taken straight out of an
+IFC file — an element's `Name` and its type's `Name`, which is to say a string somebody else authored —
+with **no cap on how much of it was scanned**. The steel keyword was `\bw\d+x\d+`: two unbounded
+numeric quantifiers, on attacker-supplied input.
+
+This repo has already paid for this class once (`py/polynomial-redos`, v0.3.492), and the standing rule
+has two halves because either alone leaves the door open:
+
+* **Cap the scan.** `_MAX_SCAN = 4096`, applied in `_keyword_hit` *before* `.lower()` — lowering a
+  multi-megabyte string is itself work done on a caller's behalf for no benefit — and in `_norm`
+  before its `\s+` collapse. This half holds regardless of which pattern someone adds next, which is
+  what makes it the more durable of the two. A classification keyword needing more than 4 kB of
+  context is not a keyword.
+* **Bound the quantifiers.** `\bw\d{1,4}x\d{1,4}`. A W-shape designation is `W14x90`; four digits is
+  already generous.
+
+Tests assert **both**, not just that the current input happens to be fast: a 200,000-digit hostile name
+completes in well under a second, `_MAX_SCAN` is asserted to exist and be small, `_norm` is checked
+against half a megabyte of whitespace, and the steel pattern is asserted to contain no `\d+` — while
+still matching `W14x90` and plain `steel beam`, because a ReDoS fix that quietly stops classifying
+steel has traded one defect for a worse one.
+
+A timing assertion alone would have been the weaker test: it passes on a slow machine with a bad
+pattern and fails on a fast one with a good pattern. The structural assertions are what actually pin
+the fix.
+
+Found by a review bot on PR #97, which merged four hours before anyone read its comments.
+
+## v0.3.791 — R24-ELEMENT-CARD ②: the strip goes where the element is named (and a broken import from v0.3.790)
+
+### First, the breakage
+
+**v0.3.790 shipped a broken `main`.** It carried a file move — `viewer/lifecycleStrip.ts` →
+`ui/lifecycleStrip.ts` — **without the two import fixes that go with it**. `viewer/app.ts` and
+`viewer/propsView.ts` were left importing `./lifecycleStrip`, a path that no longer exists.
+
+Nobody did anything wrong. The move was staged in this session's index while the message for *this*
+release was being written, and another session's entirely ordinary `git commit` swept the staged
+rename into its own commit. The index is shared state; that is the second half of a change getting
+separated from the first. It is fixed here, and it is the concrete cost of the hazard already
+recorded in `multi-agent-lanes`: **keep the gap between `git add` and `git commit` at zero.** This
+release closes it in the same commit that carries the feature, which is the only reason the window
+was minutes rather than hours.
+
+### R24-ELEMENT-CARD ②
+
+The audit's finding 06 is the one it calls the unfair advantage: a slab's GlobalId is the same key in
+geometry, BCF, the cost code, the schedule activity and field verification, and **no competitor can
+answer "where did this number come from" in one hop.** The engine has been able to for a while —
+`GET /elements/{guid}/lifecycle` returns all six states, and `buildLifecycleStrip` has rendered them
+correctly since R26-INSPECTOR.
+
+It rendered them from **exactly one call site**: the 3D viewer's inspector. So the single most
+unusual thing about this product was visible only to somebody already looking at the model — the
+person who needs it least. An estimator reading a cost trace saw a GlobalId and nothing else.
+
+**The extraction this was scoped for did not exist.** The plan was to pull the strip out of `viewer/`
+so other surfaces could use it without dragging in three.js. On opening the file: `lifecycleStrip.ts`
+imports **one type** and nothing else. Already portable, merely *filed* under `viewer/`. Moved to
+`ui/`, two import lines updated. Another item whose estimate came from where a file sat rather than
+what it contained — the fourth today.
+
+New `ui/elementCard.ts` is the card's frame: identity line plus strip, with a loader any surface can
+call. Two rules it carries:
+
+- **A GlobalId is shortened for the eye and never for the clipboard.** `39V6N…2zq` is displayed; the
+  full value stays in `title`. It is the one string on the card a user may need verbatim.
+- **No lifecycle renders NO strip**, not an empty six-state skeleton. Six blank cells claim six things
+  were checked and none passed — a worse statement than "nobody asked". Same rule the strip already
+  applies to `unknown` vs `none`, one level up. A failed request degrades to the identity line so a
+  cost trace never loses its table to one 500.
+
+First non-viewer surface: **Cost Traceability**, which is where the thesis is already being argued.
+The lifecycle loads *after* the cost answer and is not awaited into it — context must not delay the
+number the user asked for.
+
+*Verified against the live API* with a real element (`39V6NK5af1lRCOqlaCm2zq`, an `IfcColumn`): the
+card renders **even when the cost lookup finds nothing**, which is the point — the estimator now sees
+*why* there is no cost. Designed ✓, Checked ✓ (no findings), Priced —, and a named next action
+("Add a cost rule whose selector matches"). 816 tests, typecheck, lint clean; no console errors.
+
 ## v0.3.790 — an unsolvable draw was being priced at zero
 
 Two correctness defects in `proforma/entitlement_risk.py`, both **on `main`** since #99 merged, and both

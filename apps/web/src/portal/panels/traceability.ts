@@ -1,5 +1,6 @@
 import { money as cmoney } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
+import { mountElementCard } from "../../ui/elementCard";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 
@@ -51,19 +52,32 @@ export async function renderTraceability(ctx: PanelContext) {
   gi.style.cssText = "flex:1;min-width:180px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg,#fff);color:inherit;font-size:12px";
   const go = el("button", "portal-btn"); go.textContent = "Look up";
   const out = el("div", "meta"); out.style.marginTop = "4px";
+  // R24-ELEMENT-CARD ② — the same card wherever an element is named.
+  //
+  // This panel is the one place in the product that already argues the whole thesis: it says how much
+  // of the job's cost ties back to real model elements. Until now the answer to "what did this
+  // element cost?" was a currency figure and a GlobalId — the *cost* hop, alone. The lifecycle strip
+  // is the other five hops (designed · checked · priced · scheduled · installed · verified) against
+  // the same key, and it has existed since R26-INSPECTOR while rendering from exactly one call site
+  // in the 3D viewer, i.e. only for someone already looking at the model.
+  const lcCard = el("div"); lcCard.style.cssText = "margin-top:6px";
   const lookup = async () => {
     const g = gi.value.trim(); if (!g) return;
+    lcCard.innerHTML = "";
     out.textContent = "…";
     try {
       const r = await ctx.host.api.elementCosts(pid, g);
       out.innerHTML = r.count
         ? `<b>${usd(r.total)}</b> across ${r.count} line(s): ` + r.lines.map((l) => `${esc(l.kind)} ${usd(l.amount)}`).join(", ")
         : "No cost tagged to that GlobalId.";
+      // Deliberately AFTER the cost answer and not awaited into it: the lifecycle is context, and a
+      // slow or failing lifecycle request must not delay or break the number the user asked for.
+      void mountElementCard(lcCard, ctx.host.api, pid, g);
     } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
   };
   go.addEventListener("click", () => void lookup());
   gi.addEventListener("keydown", (e) => { if ((e as KeyboardEvent).key === "Enter") void lookup(); });
-  row.append(gi, go); look.append(row, out); body.append(look);
+  row.append(gi, go); look.append(row, out, lcCard); body.append(look);
 
   // per-cost-code coverage — and the elements behind each figure
   if (s.by_cost_code.length) {
