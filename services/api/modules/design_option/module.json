@@ -2,7 +2,7 @@
   "key": "design_option",
   "name": "Design Options",
   "section": "Design",
-  "icon": "🎨",
+  "icon": "\ud83c\udfa8",
   "ref_prefix": "OPT",
   "title_field": "name",
   "pinnable": false,
@@ -52,6 +52,29 @@
       "fieldset": "Program"
     },
     {
+      "name": "building_type",
+      "label": "Building type",
+      "type": "select",
+      "options": [
+        "data_center",
+        "hospital",
+        "hotel",
+        "industrial",
+        "lab",
+        "mixed_use",
+        "multifamily",
+        "multifamily_highrise",
+        "office",
+        "office_highrise",
+        "parking_structure",
+        "retail",
+        "school",
+        "senior_living",
+        "warehouse"
+      ],
+      "fieldset": "Program"
+    },
+    {
       "name": "hard_cost",
       "label": "Hard cost ($)",
       "type": "number",
@@ -60,6 +83,12 @@
     {
       "name": "energy_eui",
       "label": "Energy EUI (kBtu/sf/yr)",
+      "type": "number",
+      "fieldset": "Economics"
+    },
+    {
+      "name": "embodied_kgco2e",
+      "label": "Embodied carbon (kgCO2e, A1-A3)",
       "type": "number",
       "fieldset": "Economics"
     },
@@ -83,25 +112,39 @@
         "from": "proposed",
         "to": "shortlisted",
         "action": "shortlist",
-        "party": ["OwnersRep", "PM", "Architect"]
+        "party": [
+          "OwnersRep",
+          "PM",
+          "Architect"
+        ]
       },
       {
         "from": "shortlisted",
         "to": "selected",
         "action": "select",
-        "party": ["OwnersRep", "PM"]
+        "party": [
+          "OwnersRep",
+          "PM"
+        ]
       },
       {
         "from": "proposed",
         "to": "rejected",
         "action": "reject",
-        "party": ["OwnersRep", "PM", "Architect"]
+        "party": [
+          "OwnersRep",
+          "PM",
+          "Architect"
+        ]
       },
       {
         "from": "shortlisted",
         "to": "rejected",
         "action": "reject",
-        "party": ["OwnersRep", "PM"]
+        "party": [
+          "OwnersRep",
+          "PM"
+        ]
       }
     ]
   },

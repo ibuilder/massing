@@ -286,6 +286,23 @@ def design_options_compare(pid: str, db: Session = Depends(get_db), _: str = Dep
     return design_options.compare(db, pid)
 
 
+@router.get("/projects/{pid}/design/options/carbon")
+def design_options_carbon(pid: str, db: Session = Depends(get_db),
+                          _: str = Depends(require_role("viewer"))):
+    """Embodied carbon (A1–A3) per design option, ranked by total and by intensity per m² GFA.
+
+    Every row states its `basis`: `declared` (a figure recorded on the option), `benchmark` (gross area
+    × a whole-building intensity for its building type), or `unavailable`. Options with no basis are
+    listed and NOT ranked — an option that could not be measured is not an option with zero carbon,
+    and ranking it first is how a scheme gets chosen on a number nobody computed.
+
+    Note this is embodied carbon, distinct from the option card's `energy_eui`, which is operational."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import option_carbon
+    return option_carbon.compare_carbon(db, pid)
+
+
 @router.get("/projects/{pid}/design/standards")
 def design_standards_ruleset(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The design-standards ruleset — approved / preferred / prohibited assemblies, materials, products."""
