@@ -198,7 +198,12 @@ sec = rl.entry("connect", {"api_key": "sk-live-123", "auth_token": "t", "PASSWOR
                            "licence_key": "L", "host": "example.com"},
                actor="a", source_in="a", source_out="b")
 for k in ("api_key", "auth_token", "PASSWORD", "licence_key"):
-    check(f"{k} is elided by name", sec["params"][k].get("__elided__") is True, sec["params"][k])
+    # The failure detail is a BOOLEAN, never the value. CodeQL flagged the earlier version HIGH
+    # (py/clear-text-logging-sensitive-data at check()'s print): a dict keyed `api_key` is tainted as
+    # sensitive, and passing it as `detail` printed it on failure. A test asserting that secrets
+    # never reach a log must not print them when it fails — which is exactly when it would.
+    check(f"{k} is elided by name", sec["params"][k].get("__elided__") is True,
+          "not elided")
 check("  with the reason", "credential" in sec["params"]["api_key"]["reason"])
 check("  and the value is nowhere in the serialized entry",
       "sk-live-123" not in json.dumps(sec))
