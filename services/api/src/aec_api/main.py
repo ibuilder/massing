@@ -48,6 +48,7 @@ from .routers import (
     ids,
     market,
     modules,
+    notices,
     observability,
     opendata,
     operations,
@@ -417,6 +418,7 @@ app.include_router(review.router, tags=["review"])
 app.include_router(drafting.router, tags=["drafting"])
 app.include_router(benchmarking.router, tags=["benchmarking"])
 app.include_router(prequal.router, tags=["prequal"])
+app.include_router(notices.router, tags=["notices"])
 app.include_router(payapp.router, tags=["payapp"])
 app.include_router(accounting.router, tags=["accounting"])
 app.include_router(carbon.router, tags=["carbon"])

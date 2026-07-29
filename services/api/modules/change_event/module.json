@@ -15,6 +15,20 @@
       "fieldset": "Change"
     },
     {
+      "name": "occurred_on",
+      "label": "Event occurred",
+      "type": "date",
+      "help": "When the event actually happened. Without it the notice clock falls back to the date this record was raised, which is usually later.",
+      "fieldset": "Notice"
+    },
+    {
+      "name": "became_aware_on",
+      "label": "First became aware",
+      "type": "date",
+      "help": "When the claiming party first became aware of the event. FIDIC and NEC run the notice period from THIS date, not from the occurrence - and the notice register will not compute a deadline without it rather than guess.",
+      "fieldset": "Notice"
+    },
+    {
       "name": "rom",
       "label": "ROM Cost",
       "type": "currency",

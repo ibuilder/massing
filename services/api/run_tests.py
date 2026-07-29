@@ -37,6 +37,8 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_prefab_kit", "test_prefab_route",
          # Tier-1 competitive upgrades:
          "test_drafting", "test_bid_leveling", "test_benchmarking",
+         # R22-NOTICE-CLOCK — contractual notice periods + the register routes:
+         "test_notice_clock", "test_notices_route",
          # Tier-2/3 competitive upgrades:
          "test_prequal", "test_payapp", "test_accounting", "test_carbon", "test_codecheck", "test_code_analysis", "test_codes", "test_approvability", "test_rfi_readiness", "test_readiness_bcf", "test_productivity", "test_ebc", "test_element_connections", "test_scene", "test_pricing", "test_cost_db",
          "test_ids_authoring", "test_procurement", "test_conceptual", "test_parcels", "test_net",
