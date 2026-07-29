@@ -619,8 +619,13 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
             raise HTTPException(403, str(e)) from e
         except (ValueError, KeyError) as e:            # E8 guard rejection / sandbox reject / missing param
             raise HTTPException(400, str(e)) from e
-        from .. import edit_history  # S4 — record the pre-edit version so this edit can be undone
+        from .. import (
+            edit_history,  # S4 — record the pre-edit version so this edit can be undone
+            recipe_log,  # R23 — record the recipe + PARAMS so this edit can be replayed
+        )
         edit_history.push(pid, p.source_ifc)
+        recipe_log.append_safe(pid, [recipe_log.entry(
+            recipe, params, actor=actor, source_in=p.source_ifc, source_out=out, outputs=result)])
         p.source_ifc = out  # new version becomes the source of truth
         audit.record(db, action="ifc.edit", actor=actor, method="POST",
                      path=f"/projects/{pid}/edit", detail=result)
@@ -701,6 +706,10 @@ def edit_batch(pid: str, steps: list[dict] = Body(...), publish: bool = Body(def
             raise HTTPException(400, str(e)) from e
         from .. import edit_history
         edit_history.push(pid, p.source_ifc)               # ONE undo entry for the whole batch
+        from .. import recipe_log
+        recipe_log.append_safe(pid, [recipe_log.entry(       # ...but one LOG entry per step: the
+            s.get("recipe"), s.get("params"), actor=actor,   # batch is one version, and it is also
+            source_in=p.source_ifc, source_out=out, batch=stamp) for s in steps])  # N operations
         p.source_ifc = out
         audit.record(db, action="ifc.edit_batch", actor=actor, method="POST",
                      path=f"/projects/{pid}/edit/batch",
@@ -793,6 +802,10 @@ def macros_run(pid: str, macro_id: str, args: dict = Body(default={}, embed=True
         except (ValueError, KeyError) as e:
             raise HTTPException(400, str(e)) from e
         edit_history.push(pid, p.source_ifc)                # ONE undo entry for the whole macro
+        from .. import recipe_log
+        recipe_log.append_safe(pid, [recipe_log.entry(
+            s.get("recipe"), s.get("params"), actor=actor, source_in=p.source_ifc,
+            source_out=out, batch=f"macro:{macro_id}") for s in steps])
         p.source_ifc = out
         audit.record(db, action="ifc.macro", actor=actor, method="POST",
                      path=f"/projects/{pid}/macros/{macro_id}/run",
@@ -861,8 +874,11 @@ async def content_import(pid: str, file: UploadFile = File(...), category: str =
         result = ed.apply_recipe(p.source_ifc, "place_content", params, out)
     except (ValueError, KeyError) as ex:
         raise HTTPException(400, str(ex)) from ex
-    from .. import edit_history
+    from .. import edit_history, recipe_log
     edit_history.push(pid, p.source_ifc)
+    recipe_log.append_safe(pid, [recipe_log.entry(
+        "place_content", params, actor=actor, source_in=p.source_ifc, source_out=out,
+        outputs=result)])
     p.source_ifc = out
     audit.record(db, action="content.import", actor=actor, method="POST",
                  path=f"/projects/{pid}/content/import", detail={"category": cat, "faces": len(faces)})
