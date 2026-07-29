@@ -82,8 +82,20 @@ def _build_gltf_doc(model: ifcopenshell.file, name: str) -> tuple[dict[str, Any]
     node_list: list[dict] = []
 
     for cls, (verts, faces) in sorted(merged.items()):
-        idx = faces.reshape(-1).astype(np.uint32)
         vflat = verts.astype(np.float32)
+        # INDEX WIDTH is chosen per mesh, not fixed at uint32. Indices were 60% of the geometry in a
+        # measured 175 KB export and every mesh was far under the uint16 ceiling, so a fixed uint32
+        # was paying double for the majority of the file. uint16 indices are core glTF 2.0 — no
+        # extension, no loader support to check — so this costs nothing in compatibility.
+        # The ceiling is on the VERTEX COUNT, not the index count: an index must address vertex
+        # `len(vflat) - 1`, so the test is on vertices. Getting that wrong silently truncates
+        # geometry on any mesh past 65,535 verts, which is why it is written as the vertex bound.
+        if len(vflat) <= 65536:
+            idx = faces.reshape(-1).astype(np.uint16)
+            idx_component = 5123
+        else:
+            idx = faces.reshape(-1).astype(np.uint32)
+            idx_component = 5125
         # positions bufferView + accessor
         pos_offset = len(blob)
         blob.extend(vflat.tobytes())
@@ -101,7 +113,7 @@ def _build_gltf_doc(model: ifcopenshell.file, name: str) -> tuple[dict[str, Any]
         buffer_views.append({"buffer": 0, "byteOffset": idx_offset,
                              "byteLength": idx.nbytes, "target": 34963})
         idx_acc = len(accessors)
-        accessors.append({"bufferView": len(buffer_views) - 1, "componentType": 5125,
+        accessors.append({"bufferView": len(buffer_views) - 1, "componentType": idx_component,
                           "count": int(len(idx)), "type": "SCALAR"})
         # material + mesh + node
         materials.append({"name": cls, "pbrMetallicRoughness":
