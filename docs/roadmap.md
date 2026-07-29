@@ -601,9 +601,17 @@ refute one, so this goes first even though it is the least visible.
   in service of a rule about badges. The split to enforce is **semantic hues for status, a
   categorical ramp for series**, which is a different contract from `ui/colorContract.ts` (that one
   governs CSS selectors; SVG fills are outside it entirely).
-- **R24-REPORTS-BY-MOMENT** *(S, reinstated)* — `reportCenter.ts:20` groups by `r.group`, which is
-  still nouns. Group by the moment they are needed — monthly owner package, lender draw, investment
-  committee, closeout — and let each be scheduled, not only downloaded.
+- 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; scheduling still open.** The catalog was
+  **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above
+  them — owner monthly · lender draw · IC · precon/GMP · design issue · closeout · ownership quarter —
+  each stating who asks and when, collapsed by default, with every report still under its noun
+  heading below. `reportMoments.test.ts` reads `reports.py` and fails the build if a package names an
+  id the server no longer defines; without that, a renamed report shortens a package silently on the
+  Friday it is due.
+  **Still open: "scheduled and shared, not just downloaded."** A package is currently something you
+  open and click through. Making it a *scheduled deliverable* — assembled on a date, sent to a
+  recipient, with a record that it went — is the larger half and wants `routers/jobs.py` (now wired
+  to the UI by R24-JOB-TRAY) plus a delivery surface. That is a real feature, not a grouping change.
 - **R24-TOOLS-SPLIT** *(S, reinstated)* — authoring verbs act instantly; analyses produce an artifact
   after a wait. Split them; the analyses half lands in `R24-RUNS-INBOX` and the job tray.
 - **R24-EMPTY-GUIDE ②** *(S)* · **R24-TERMS** *(S)* · **R24-MONO-DATA** *(S)* — the long tail.
@@ -640,12 +648,19 @@ offline/field path trustworthy on one bar of signal, judged from a phone rather 
 Four sessions are live in this repo. R24 is **`apps/web` outside `src/shell/`**. Specifically:
 
 - **Owned elsewhere, do not edit:** `apps/web/src/shell/*` (Massing Core session). **`services/api` +
-  `services/data` are spoken for by six open PRs — #94 R23-DIGEST · #95 R22-NOTICE-CLOCK ·
-  #96 R23-PREFAB-KIT · #97 R22-CLASSIFY-AI · #98 R23-RECIPE-ARTIFACT · #99 R22-ENTITLE-RISK** (all
-  backend-only, no `apps/web` files; 15/15 pairwise clean and clean against main).
-  **They are NOT merged and will not be merged without the user saying so** — six PRs onto an
-  unprotected `main` is the user's call, not an agent's. When it is given, the release lane cuts the
-  version numbers and CHANGELOG entries in order.
+  `services/data`** carried six backend PRs, of which **#94 R23-DIGEST, #96 R23-PREFAB-KIT and
+  #99 R22-ENTITLE-RISK are merged** as of 2026-07-29; **#95 R22-NOTICE-CLOCK, #97 R22-CLASSIFY-AI and
+  #98 R23-RECIPE-ARTIFACT remain open.**
+  *Status stated with its method rather than its conclusion, which is the habit worth copying:*
+  CodeQL **0 open** — queried from the **alerts API**, not inferred from a green run. #94/#96/#99 API
+  gates **PASS**; #95/#97/#98 gates re-running after two security fixes. 15/15 pairwise clean **by
+  `git merge-tree`**, which is *not* a merged-and-tested result and must not be read as one
+  ([[tests-that-cannot-reach-the-failure]]).
+  **Merge protocol, agreed between sessions and binding:** whoever merges pings the release lane
+  first and waits for *"not mid-release"* before the first merge. The window that bites is
+  **bump → tag** — a merge landing inside it yields a tag and a `package.json` that disagree, and
+  nothing fails until somebody reads the update banner. Every push here is race-guarded on
+  `origin/main == HEAD~1`, so the guard catches it, but do not rely on the guard alone.
   `main.ts` and `portal/portal.ts` were held through the classic-shell removal and
   **released at v0.3.779** — check `git status` before assuming either is free, since both are large
   enough that two sessions in one is a guaranteed conflict.

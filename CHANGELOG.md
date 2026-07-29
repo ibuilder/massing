@@ -19,6 +19,47 @@ from the code it describes and starts granting permission it was never asked for
 Found and fixed by the security-audit session; landed here so it stops sitting uncommitted in a
 shared tree. Verified standalone: 29/29 across the guard and the schedule panel.
 
+## v0.3.785 — R24-REPORTS-BY-MOMENT: the Report Center stops being a list of nouns
+
+The audit's finding 16, and the numbers make the case better than the finding did: **56 reports under
+18 group headings, six of which hold a single report.** The groups are accurate — `Cost`, `Quality`,
+`Logs`, `Preconstruction` — and accuracy was never the problem.
+
+Nobody opens the Report Center wanting *a cost report*. They open it because the owner's monthly
+package is due Friday, or the lender wants a draw supported, or the IC meets Tuesday. The catalog
+answers **what kinds of report exist**; the user asked **what do I owe, to whom, by when**. That is
+the same routing-versus-browsing distinction the room spine settled for modules, arriving one layer
+down — a taxonomy is a fine way to *hold* 56 things and a poor way to *reach* them.
+
+Seven packages now sit above the groups, collapsed by default: **monthly owner package · lender draw ·
+investment committee · preconstruction/GMP handover · design issue/model handover · closeout &
+turnover · ownership quarter.** Each carries the line that makes it a moment rather than a category —
+who is asking, and when. The audit named four; the other three came out of laying the actual catalog
+against occasions, and each is a recurring deliverable with reports already built for it.
+
+**Nothing is removed.** Every report is still under its noun heading below, which remains the right
+structure for browsing the surface area — the same shape as "the catalog survives behind All modules".
+
+Three rules the table follows, each of which is a way this feature normally rots:
+
+- **A report appears in several packages, and most do.** `verified_progress` is evidence in a lender
+  draw, in a monthly package *and* at closeout. The group taxonomy can only file it once, and being
+  forced to pick is what made the catalog hard to route through. A test asserts the overlap exists —
+  if every report belonged to exactly one package we would have rebuilt the noun catalog with
+  friendlier headings, which is the failure the audit warns about.
+- **A package naming a report the server does not serve is surfaced, never dropped.** A package that
+  renders four of its six rows looks complete, and the two missing are precisely the ones nobody
+  notices. Same rule the spine applies to an unroomed module.
+- **The drift is caught at build time.** The catalog lives in Python. `reportMoments.test.ts` reads
+  `services/api/src/aec_api/reports.py` and asserts every id the packages name is still defined —
+  same technique as `roomNames.test.ts`. Without it, a renamed report costs nothing at build, nothing
+  at runtime, and quietly shortens a package on the Friday it is due. The parse itself is guarded, so
+  a restructured `reports.py` fails loudly rather than returning an empty catalog and making every
+  assertion vacuously pass.
+
+Verified against the live API: all seven packages render with real counts (11 · 7 · 7 · 6 · 8 · 7 · 6),
+zero missing ids, all collapsed, no console errors.
+
 ## v0.3.784 — `safeHref`: the sink that no gate in this repo was watching
 
 Found by review of the v0.3.780 job tray, not by a scanner — which is the point of the entry.

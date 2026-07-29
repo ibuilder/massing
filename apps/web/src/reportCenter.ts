@@ -3,6 +3,7 @@ import { money } from "./ui/charts";
 import { toast, escapeHtml } from "./ui/feedback";
 import { modalShell } from "./ui/modal";
 import { askText } from "./ui/prompt";
+import { REPORT_MOMENTS, missingReportIds, resolveMoment } from "./ui/reportMoments";
 import { showResult } from "./ui/result";
 
 /** REL-4 leaf — the Report Center modal: every exportable report (PDF/Excel/markup) plus the
@@ -16,22 +17,69 @@ export async function openReportCenter(api: ApiClient, projectId: string | null)
   let cat;
   try { cat = (await api.reports()).reports; } catch { toast("couldn't load reports (connect a project)", "error"); return; }
   const { card } = modalShell("Report Center", 420);
-  card.append(Object.assign(document.createElement("div"), { className: "meta", textContent: "Detailed reports — download as PDF or Excel:" }));
+
+  /** One report's row. Extracted so a moment and a group render the identical thing — the audit's
+   *  "one model, one card" applied at the smallest scale: learn the row once. */
+  const reportRow = (rep: { id: string; name: string }): HTMLElement => {
+    const row = document.createElement("div"); row.className = "layer-row";
+    const name = document.createElement("span"); name.className = "name"; name.textContent = rep.name;
+    const pdf = document.createElement("button"); pdf.className = "tool-btn"; pdf.textContent = "⬇ PDF";
+    pdf.onclick = () => window.open(api.reportUrl(pid, rep.id, "pdf"), "_blank");
+    const mk = document.createElement("button"); mk.className = "tool-btn"; mk.textContent = "🖊 Markup";
+    mk.title = "Open the report in the in-app viewer to review / mark up";
+    mk.onclick = async () => { const o = await import("./drawings/openPdf"); await o.openPdfUrl(api, api.reportUrl(pid, rep.id, "pdf"), `${rep.name}.pdf`, { saveLabel: "Save to Documents", onSave: o.saveToDocuments(api, pid) }); };
+    const xls = document.createElement("button"); xls.className = "tool-btn"; xls.textContent = "⬇ Excel";
+    xls.onclick = () => window.open(api.reportUrl(pid, rep.id, "xlsx"), "_blank");
+    row.append(name, pdf, mk, xls);
+    return row;
+  };
+
+  // ── R24-REPORTS-BY-MOMENT ───────────────────────────────────────────────────────────────────────
+  //
+  // 56 reports under 18 group headings, six of them holding a single report. The groups are accurate;
+  // accuracy was never the problem. Nobody opens this wanting "a cost report" — they open it because
+  // the owner's package is due Friday, or the lender wants a draw supported. The catalog answers what
+  // KINDS of report exist; the user asked what they owe, to whom, by when.
+  //
+  // The moments go FIRST and start collapsed. Nothing is removed: every report is still under its
+  // noun heading below, which remains the right structure for browsing the surface area.
+  card.append(Object.assign(document.createElement("div"),
+    { className: "meta", textContent: "Packages — the reports usually needed together:" }));
+
+  for (const m of REPORT_MOMENTS) {
+    const rows = resolveMoment(m, cat);
+    if (!rows.length) continue;                   // a moment with nothing to show is not a heading
+    const det = document.createElement("details");
+    det.style.cssText = "margin:4px 0;border:1px solid var(--line);border-radius:6px;padding:4px 8px";
+    const sum = document.createElement("summary");
+    sum.style.cssText = "cursor:pointer;font-size:13px;list-style:revert";
+    sum.textContent = `${m.label} · ${rows.length}`;
+    sum.title = m.occasion;
+    const why = document.createElement("div");
+    why.className = "meta"; why.style.cssText = "font-size:11px;margin:2px 0 4px";
+    why.textContent = m.occasion;                 // the line that makes it a moment, not a category
+    det.append(sum, why);
+    for (const rep of rows) det.appendChild(reportRow(rep));
+    card.appendChild(det);
+  }
+
+  // A moment naming a report the server does not serve is surfaced, never silently dropped: a package
+  // that renders four of its six rows looks complete, and the two missing are the ones nobody notices.
+  const gaps = missingReportIds(REPORT_MOMENTS, cat);
+  if (gaps.length) {
+    const warn = document.createElement("div");
+    warn.className = "meta";
+    warn.style.cssText = "font-size:11px;margin:4px 0;color:var(--status-warn)";
+    warn.textContent = `${gaps.length} report(s) a package expects are not available: ${gaps.join(", ")}`;
+    card.appendChild(warn);
+  }
+
+  card.append(Object.assign(document.createElement("div"),
+    { className: "meta", textContent: "All reports by category — download as PDF or Excel:" }));
   const groups = [...new Set(cat.map((r) => r.group))];
   for (const g of groups) {
     const h = document.createElement("div"); h.className = "section-title"; h.textContent = g; h.style.marginTop = "8px"; card.appendChild(h);
-    for (const rep of cat.filter((r) => r.group === g)) {
-      const row = document.createElement("div"); row.className = "layer-row";
-      const name = document.createElement("span"); name.className = "name"; name.textContent = rep.name;
-      const pdf = document.createElement("button"); pdf.className = "tool-btn"; pdf.textContent = "⬇ PDF";
-      pdf.onclick = () => window.open(api.reportUrl(pid, rep.id, "pdf"), "_blank");
-      const mk = document.createElement("button"); mk.className = "tool-btn"; mk.textContent = "🖊 Markup";
-      mk.title = "Open the report in the in-app viewer to review / mark up";
-      mk.onclick = async () => { const o = await import("./drawings/openPdf"); await o.openPdfUrl(api, api.reportUrl(pid, rep.id, "pdf"), `${rep.name}.pdf`, { saveLabel: "Save to Documents", onSave: o.saveToDocuments(api, pid) }); };
-      const xls = document.createElement("button"); xls.className = "tool-btn"; xls.textContent = "⬇ Excel";
-      xls.onclick = () => window.open(api.reportUrl(pid, rep.id, "xlsx"), "_blank");
-      row.append(name, pdf, mk, xls); card.appendChild(row);
-    }
+    for (const rep of cat.filter((r) => r.group === g)) card.appendChild(reportRow(rep));
   }
   // interactive / parameterized analytics that aren't plain PDF reports
   const th = document.createElement("div"); th.className = "section-title"; th.textContent = "Project tools & analytics"; th.style.marginTop = "8px"; card.appendChild(th);
