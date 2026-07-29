@@ -15,6 +15,7 @@ from .. import modules as me
 from .. import rbac
 from ..db import get_db
 from ..models import Scenario
+from ..proforma import entitlement_risk
 from ..proforma.draws import reforecast
 from ..proforma.monte_carlo import monte_carlo
 from ..proforma.sensitivity import sensitivity
@@ -595,6 +596,56 @@ class MonteCarloIn(BaseModel):
     seed: int = 42
     metrics: list[str] | None = None       # default: equity/project IRR, multiple, NPV
     targets: dict[str, float] | None = None  # metric → threshold for P[metric ≥ threshold]
+
+
+class EntitlementIn(BaseModel):
+    """Approval odds and what a refusal costs. `duration_months` reuses the Monte Carlo's own
+    Distribution, so an entitlement period is specified exactly like any other sampled driver."""
+    approval_probability: float = Field(ge=0.0, le=1.0)
+    duration_months: Distribution | None = None
+    carry_cost_monthly: float | None = Field(default=None, ge=0)
+    pursuit_cost: float = Field(default=0.0, ge=0)
+    land_basis: float = Field(default=0.0, ge=0)
+    land_recovery_pct: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+class EntitlementRiskIn(BaseModel):
+    assumptions: Assumptions
+    entitlement: EntitlementIn
+    variables: list[MonteCarloVar] = []      # optional: other drivers, sampled alongside
+    iterations: int = Field(default=1000, ge=100, le=5000)
+    seed: int = 42
+    metrics: list[str] | None = None
+    targets: dict[str, float] | None = None
+
+
+@router.post("/proforma/entitlement-risk")
+def run_entitlement_risk(body: EntitlementRiskIn):
+    """R22-ENTITLE-RISK — Monte Carlo over the approval coin, the entitlement duration, and any
+    other drivers.
+
+    A denied entitlement is **not** modelled as a bad IRR. If approval is refused the building is
+    never built: there is no NOI, no exit and no multiple, so the draw is not solved at all. It is
+    recorded as a terminal branch with its own economics — pursuit sunk, carry spent to the date of
+    refusal, land recovered at whatever it fetches — and reported as a separate population.
+
+    Consequently the returns here are labelled `metrics_given_approval`, and
+    `probability_of_clearing` counts **every** iteration in its denominator: a refused entitlement
+    does not clear a 15% hurdle. Only NPV is blended into an expected value, because only NPV is a
+    currency amount that can be added across the two branches.
+    """
+    ent = body.entitlement.model_dump(exclude_none=True)
+    if body.entitlement.duration_months is not None:
+        ent["duration_months"] = body.entitlement.duration_months.model_dump(exclude_none=True)
+    try:
+        return entitlement_risk.simulate(
+            body.assumptions.model_dump(), ent,
+            variables=[{"path": v.path, "dist": v.dist.model_dump(exclude_none=True)}
+                       for v in body.variables],
+            iterations=body.iterations, seed=body.seed,
+            metrics=body.metrics, targets=body.targets)
+    except entitlement_risk.EntitlementError as e:
+        raise HTTPException(422, str(e)) from e
 
 
 @router.post("/proforma/monte-carlo")
