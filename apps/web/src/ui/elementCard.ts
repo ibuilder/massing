@@ -52,7 +52,7 @@ export function buildIdentityLine(guid: string, label?: string | null): HTMLElem
 
   const key = document.createElement("span");
   key.className = "meta";
-  key.style.cssText = "font-family:ui-monospace,monospace;font-size:10.5px";
+  key.style.cssText = "font-family:var(--mono);font-size:10.5px";
   key.textContent = shortGuid(guid);
   key.title = guid;                                 // the full key, one hover away
   row.appendChild(key);

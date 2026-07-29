@@ -87,7 +87,7 @@ function mappingModal(api: ApiClient, connectionId: string, name: string) {
       for (const f of m.fields) {
         const r = document.createElement("div"); r.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:4px";
         const lab = document.createElement("span"); lab.className = "meta"; lab.style.cssText = "width:130px;font-size:12px"; lab.textContent = f.label;
-        const inp = document.createElement("input"); inp.className = "portal-filter"; inp.style.cssText = "flex:1;font-family:ui-monospace,monospace;font-size:12px";
+        const inp = document.createElement("input"); inp.className = "portal-filter"; inp.style.cssText = "flex:1;font-family:var(--mono);font-size:12px";
         inp.placeholder = f.default; if (f.path !== f.default) inp.value = f.path;
         inputs.push({ kind, field: f.field, def: f.default, el: inp });
         r.append(lab, inp); sec.appendChild(r);
@@ -116,7 +116,7 @@ function browseConnection(api: ApiClient, id: string, name: string) {
   msg.style.color = "var(--err)";
   const tablesBox = document.createElement("div"); tablesBox.className = "meta"; tablesBox.textContent = "loading tables…";
   const sql = document.createElement("textarea"); sql.className = "portal-filter";
-  sql.style.cssText = "width:100%;height:60px;font-family:ui-monospace,monospace;margin:8px 0";
+  sql.style.cssText = "width:100%;height:60px;font-family:var(--mono);margin:8px 0";
   sql.placeholder = "SELECT … (read-only; SELECT/WITH only)";
   const runRow = document.createElement("div"); runRow.style.cssText = "display:flex;gap:8px;align-items:center";
   const run = document.createElement("button"); run.className = "file-btn"; run.textContent = "Run";

@@ -1609,7 +1609,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       // grammar + aliases; up-arrow history; spacebar on an empty line repeats the last command.
       const cadWrap = document.createElement("div"); cadWrap.style.cssText = "display:flex;gap:4px;margin-bottom:4px";
       const cadIn = document.createElement("input");
-      cadIn.type = "text"; cadIn.className = "portal-filter"; cadIn.style.cssText = "flex:1;font-family:ui-monospace,monospace";
+      cadIn.type = "text"; cadIn.className = "portal-filter"; cadIn.style.cssText = "flex:1;font-family:var(--mono)";
       cadIn.placeholder = "⌨ CAD command — e.g. WALL 0,0 5,0 3  ·  type HELP";
       cadIn.setAttribute("aria-label", "CAD command line");
       const cadStatus = document.createElement("div"); cadStatus.className = "meta"; cadStatus.style.cssText = "min-height:14px;margin:-2px 0 6px 2px";

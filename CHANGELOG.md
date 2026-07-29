@@ -4,6 +4,52 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.795 — R24-MONO-DATA, and three tests of mine that were making other tests fail
+
+### The face is decided once
+
+The audit's visual system asks for a sans for language and a **mono** for anything a machine produced
+— GlobalIds, quantities, currency, dates, keys, statuses — on the argument that it is the fastest
+available signal for *"this is data, not prose"*. Unlike the rest of that system (the ink canvas, the
+24/192 brand grid) it costs nothing and commits to nothing, which is why this ships and those remain
+a decision for the user.
+
+The rule worth enforcing is not "use mono", it is **decide the face once**. There were three
+hand-rolled `font-family: ui-monospace, monospace` declarations in `style.css` and eleven more inline
+in TypeScript. Nobody disagreed about the stack; nobody owned it — which is how a type system drifts:
+one component lists `Menlo` first, another omits `Consolas`, and two GlobalIds in one panel render in
+different faces.
+
+Now `--mono` plus `.mono` / `.num` / `.mono-num`, and `monoData.test.ts` is a **ratchet** like
+`innerHtmlGuard`: converting a literal passes, adding one fails. The allowance is **1**, and the test
+asserts the headroom is *exactly* zero — a ratchet parked above reality never fires and reads as
+protection. The one remaining literal is `portal/portal.ts`, held by another session's in-flight work;
+converting it would have meant editing a file two people had open.
+
+### The part that matters more: my tests were breaking other tests
+
+The full suite failed intermittently — 2 of 3 runs — and the honest answer took two attempts.
+
+**My first diagnosis was wrong and I nearly shipped it as fact.** I saw `pdfVendor.test.ts` fail
+locally, had a plausible story, and reported a flake. Reading the actual output showed something
+else: **all the failures were timeouts, not assertion errors.** `library.test.ts` at 5 s, `pdfVendor`
+at 20 s, no assertion messages at all.
+
+The cause was mine. Three tests added today read the filesystem — `monoData` walks 100+ source files,
+`emptyGuide` stats 133 module directories, `reportMoments` parses `reports.py` — and each was called
+**once per assertion**, so up to five full tree walks per file. On a loaded parallel run that pushed
+*sibling* tests past their budgets. **A test that makes other tests flaky is a defect in that test,
+not in theirs.**
+
+All three now memoise their reads. Measured over five consecutive full runs: `library.test.ts`
+timeouts went from intermittent to **0/5**, and the suite is 823/823 on 4 of 5.
+
+`pdfVendor.test.ts` still crosses its 20 s budget roughly 1 run in 5 — **left alone deliberately.**
+Its own comment sanctions raising the budget but names the condition: *"if this ever needs raising
+again, the vendored copy has grown enough to be worth a second look."* That is a request for a review
+of the vendored engine, not for a bigger number, and it belongs to whoever owns that lane. Reported
+rather than patched.
+
 ## v0.3.794 — the guard that would have failed a build over a dependency that exists
 
 v0.3.793 verified `AUTHORISING` names against the source by matching `def <name>(`. That is too

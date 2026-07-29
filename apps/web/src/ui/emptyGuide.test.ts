@@ -20,10 +20,15 @@ import { EMPTY_GUIDES, emptyGuideFor, emptyHint } from "./emptyGuide";
 
 const MODULES_DIR = resolve(__dirname, "../../../../services/api/modules");
 
+/** Memoised: this stats 133 directories, and calling it per-assertion made sibling tests time out
+ *  on a loaded parallel run. A test that makes other tests flaky is a defect in this test. */
+let _keys: Set<string> | null = null;
+
 function moduleKeys(): Set<string> {
-  return new Set(readdirSync(MODULES_DIR, { withFileTypes: true })
+  if (_keys) return _keys;
+  return (_keys = new Set(readdirSync(MODULES_DIR, { withFileTypes: true })
     .filter((d) => d.isDirectory() && existsSync(resolve(MODULES_DIR, d.name, "module.json")))
-    .map((d) => d.name));
+    .map((d) => d.name)));
 }
 
 describe("the module catalog is readable from disk", () => {

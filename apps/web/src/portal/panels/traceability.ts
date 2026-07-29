@@ -125,7 +125,7 @@ export async function renderTraceability(ctx: PanelContext) {
       for (const g of r.guids) {
         const b = el("button", "portal-btn") as HTMLButtonElement;
         b.type = "button";
-        b.style.cssText = "font-family:ui-monospace,monospace;font-size:10px;padding:1px 5px";
+        b.style.cssText = "font-family:var(--mono);font-size:10px;padding:1px 5px";
         b.textContent = g;                                   // textContent: a GUID is server data
         b.title = `Look up what ${g} cost`;
         // Reuse the lookup that already exists rather than adding a second way to ask the same

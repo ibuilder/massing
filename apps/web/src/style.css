@@ -32,7 +32,30 @@
   --status-warn: #ffd479;
   --status-crit: #e2554a;
   --err: #d9534f;
+
+  /* R24-MONO-DATA — two faces, and the split IS the signal.
+   *
+   * The audit's visual system asks for a sans for language and a mono for anything a machine
+   * produced: GlobalIds, quantities, currency, dates, keys, statuses. Its claim is that this is
+   * "the fastest signal in the UI for *this is data, not prose*" — and unlike the rest of that
+   * visual system (the ink canvas, the brand grid) it costs nothing and commits to nothing, which
+   * is why it ships and they do not.
+   *
+   * `--mono` exists so the face is decided once. Before this there were three hand-rolled
+   * `font-family: ui-monospace, monospace` declarations and a fourth inline in TypeScript, which is
+   * how a type stack drifts: not by disagreement, by nobody deciding. */
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+
+/* Machine-produced values. Apply to the ELEMENT HOLDING THE VALUE, never to a container — a label
+ * and its value are prose and data respectively, and monospacing the label loses the distinction
+ * the class exists to make.
+ *
+ * `.mono` alone is for identifiers (GlobalIds, refs, keys). `.num` adds tabular figures so columns
+ * of numbers align on the decimal — the reason a register is readable at 200 rows. */
+.mono { font-family: var(--mono); }
+.num  { font-variant-numeric: tabular-nums; }
+.mono-num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 * { box-sizing: border-box; }
 
@@ -240,7 +263,7 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .sb-toggle.on { background: var(--accent); color: #fff; }
 .sb-sel { background: var(--control); color: var(--text); border: 1px solid var(--line); border-radius: 4px; font-size: 11px; padding: 2px 4px; }
 .sb-sep { width: 1px; align-self: stretch; background: var(--line); margin: 2px 0; }
-#sb-coords { font-family: ui-monospace, monospace; color: var(--muted); }
+#sb-coords { font-family: var(--mono); color: var(--muted); }
 #sb-saved { color: #8fd98f; margin-left: auto; opacity: 0; transition: opacity .2s; }
 #sb-saved.show { opacity: 1; }
 
@@ -418,7 +441,7 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
   background: var(--control); color: var(--text); padding: 1px 6px; border-radius: 4px; }
 .pv-name { font-weight: 600; word-break: break-word; }
 .pv-guid { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
-.pv-guid-v { font-family: ui-monospace, monospace; font-size: 10.5px; word-break: break-all; flex: 1; }
+.pv-guid-v { font-family: var(--mono); font-size: 10.5px; word-break: break-all; flex: 1; }
 .pv-guid-c { background: transparent; border: 1px solid var(--line); color: var(--muted);
   border-radius: 4px; cursor: pointer; padding: 0 6px; line-height: 1.6; }
 .pv-guid-c:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -599,7 +622,7 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 
 kbd {
   background: var(--control); border: 1px solid var(--line); border-radius: 3px;
-  padding: 1px 5px; font-size: 11px; font-family: ui-monospace, monospace;
+  padding: 1px 5px; font-size: 11px; font-family: var(--mono);
 }
 
 /* proforma form */

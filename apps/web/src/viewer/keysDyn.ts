@@ -59,7 +59,7 @@ export function installKeysDyn(d: KeysDynDeps): KeysDynHandle {
   dynHud.style.cssText = "position:absolute;bottom:44px;left:50%;transform:translateX(-50%);z-index:38;"
     + "display:none;background:var(--panel,#0f172a);color:var(--fg,#e2e8f0);border:1px solid "
     + "var(--accent,#4a8cff);border-radius:6px;padding:3px 10px;font-size:13px;"
-    + "font-family:ui-monospace,monospace";
+    + "font-family:var(--mono)";
   container.appendChild(dynHud);
   function setDynBuf(next: string) {
     dynBuf = next;
@@ -78,7 +78,7 @@ export function installKeysDyn(d: KeysDynDeps): KeysDynHandle {
     g.style.cssText = `position:absolute;left:${e.clientX - r.left + 10}px;top:${e.clientY - r.top - 18}px;`
       + "z-index:39;pointer-events:none;background:var(--panel,#0f172a);color:var(--accent,#4a8cff);"
       + "border:1px solid var(--accent,#4a8cff);border-radius:4px;padding:1px 6px;font-size:11px;"
-      + "font-family:ui-monospace,monospace;opacity:1;transition:opacity .7s ease .3s";
+      + "font-family:var(--mono);opacity:1;transition:opacity .7s ease .3s";
     g.textContent = label;
     container.appendChild(g);
     requestAnimationFrame(() => { g.style.opacity = "0"; });
@@ -93,7 +93,7 @@ export function installKeysDyn(d: KeysDynDeps): KeysDynHandle {
   hud.style.cssText = "position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:38;"
     + "display:none;background:var(--panel,#0f172a);color:var(--fg,#e2e8f0);border:1px solid "
     + "var(--border,#334155);border-radius:6px;padding:3px 10px;font-size:13px;"
-    + "font-family:ui-monospace,monospace;letter-spacing:2px";
+    + "font-family:var(--mono);letter-spacing:2px";
   container.appendChild(hud);
   const clearBuf = () => { buf = ""; hud.style.display = "none"; };
   window.addEventListener("keydown", (e) => {

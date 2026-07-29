@@ -23,13 +23,18 @@ import {
 const REPORTS_PY = resolve(__dirname, "../../../../services/api/src/aec_api/reports.py");
 
 /** `"executive": ("Executive Summary", "Health"),` → the catalog the API serves. */
+/** Memoised for the same reason as `emptyGuide.test.ts`: repeated reads of a large source file were
+ *  measurable contention in the parallel suite. */
+let _cat: CatalogEntry[] | null = null;
+
 function pythonCatalog(): CatalogEntry[] {
+  if (_cat) return _cat;
   const src = readFileSync(REPORTS_PY, "utf8");
   const start = src.indexOf("REPORTS: dict");
   expect(start, "could not find the REPORTS table — reports.py was restructured").toBeGreaterThan(-1);
   const block = src.slice(start, src.indexOf("\n}", start));
-  return [...block.matchAll(/^\s*"([a-z0-9_]+)":\s*\(\s*"([^"]+)",\s*"([^"]+)"\s*\)/gm)]
-    .map((m) => ({ id: m[1]!, name: m[2]!, group: m[3]! }));
+  return (_cat = [...block.matchAll(/^\s*"([a-z0-9_]+)":\s*\(\s*"([^"]+)",\s*"([^"]+)"\s*\)/gm)]
+    .map((m) => ({ id: m[1]!, name: m[2]!, group: m[3]! })));
 }
 
 describe("the catalog can actually be read from reports.py", () => {

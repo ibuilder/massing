@@ -135,7 +135,7 @@ export function openNodeCanvas(opts: NodeCanvasOpts): void {
     paramsInput.spellcheck = false;
     paramsInput.setAttribute("aria-label", `${id} params (JSON)`);
     paramsInput.style.cssText = "width:100%;box-sizing:border-box;height:38px;resize:none;font-size:10px;"
-      + "font-family:ui-monospace,monospace;border:none;border-top:1px solid var(--border,#334155);"
+      + "font-family:var(--mono);border:none;border-top:1px solid var(--border,#334155);"
       + "background:transparent;color:inherit;padding:3px 6px";
     // ports
     const inPort = document.createElement("div"); inPort.title = "Input — click after an output to wire";
