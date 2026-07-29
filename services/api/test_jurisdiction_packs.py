@@ -97,6 +97,40 @@ for probe in ("Pset_WallCommon.FireRating", "IfcWall & Qto_WallBaseQuantities.Ne
         check("  ...but the pack is refused anyway", "TWO colons" in str(e), str(e)[:110])
         check("  and the message shows the corrected form", "::" in str(e))
 
+# --- size caps: a bound on the COUNT is not a bound on the SIZE -------------------------------------
+# Found by the Strix/qodo review on the PR. MAX_PACKS and MAX_REQUIREMENTS cap how MANY, and nothing
+# capped how BIG — and stored packs are evaluated by a cheap GET, so one oversized selector persisted
+# once amplifies work on every later read. Exactly the recipe_log per-value-vs-per-entry mistake,
+# repeated in a second module on the same day.
+for field, cap in (("authority", jp.MAX_TEXT_LEN), ("name", jp.MAX_TEXT_LEN),
+                   ("edition", jp.MAX_TEXT_LEN), ("source", jp.MAX_SOURCE_LEN),
+                   ("jurisdiction", jp.MAX_TEXT_LEN)):
+    try:
+        jp.validate({**GOOD, field: "x" * (cap + 1)})
+        check(f"an oversized {field} is refused", False, "no exception")
+    except jp.PackError as e:
+        check(f"an oversized {field} is refused", "too long" in str(e), str(e)[:80])
+for field in ("scope", "require"):
+    try:
+        jp.validate({**GOOD, "requirements": [
+            {**GOOD["requirements"][0], field: "IfcWall & " + "a" * jp.MAX_SELECTOR_LEN}]})
+        check(f"an oversized {field} selector is refused", False, "no exception")
+    except jp.PackError as e:
+        check(f"an oversized {field} selector is refused", "too long" in str(e), str(e)[:80])
+check("selector cap is rule_library's, not a second opinion",
+      jp.MAX_SELECTOR_LEN == rule_library.MAX_SELECTOR_LEN)
+
+# The regexes are bounded AND the input is truncated before they run — both halves of the rule.
+# A 200k-char selector must return promptly rather than buying CPU.
+import time as _time  # noqa: E402
+
+_t = _time.perf_counter()
+jp._looks_like_dotted_pset("Pset_" + "a" * 200_000 + ".Prop")
+jp._norm_jurisdiction(" " * 200_000 + "tx")
+_elapsed = _time.perf_counter() - _t
+check("a 200k-char input through both regexes returns in <100ms",
+      _elapsed < 0.1, f"{_elapsed * 1000:.1f}ms")
+
 check("the built-in example pack is itself valid", jp.validate(jp.EXAMPLE_PACK)["id"] == "example")
 check("  and uses the two-colon property syntax",
       all("::" in r["require"] or "." not in r["require"]

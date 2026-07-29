@@ -48,6 +48,18 @@ _KEY = "jurisdiction_packs.json"
 MAX_PACKS = 100
 MAX_REQUIREMENTS = 200
 
+#: Per-FIELD size caps. `MAX_PACKS`/`MAX_REQUIREMENTS` bound the COUNT, and a bound on the count is
+#: not a bound on the size — the same mistake as capping each parameter value in `recipe_log` while
+#: nothing capped the entry. Stored packs are evaluated by a cheap GET
+#: (`/projects/{pid}/jurisdiction/check`), so oversized selectors persisted once amplify work on
+#: every subsequent read. Selectors reuse `rule_library`'s existing limit rather than inventing a
+#: second one: this module stores rule_library-shaped rules, so a selector it accepts and one
+#: `rule_library` accepts must be the same selector.
+MAX_SELECTOR_LEN = rule_library.MAX_SELECTOR_LEN
+MAX_ID_LEN = rule_library.MAX_ID_LEN
+MAX_TEXT_LEN = 200
+MAX_SOURCE_LEN = 500
+
 #: Fields a pack must carry to be storable. `authority`/`edition`/`source` are required because a
 #: requirement nobody can trace is indistinguishable from one somebody made up.
 REQUIRED = ("id", "jurisdiction", "authority", "name", "edition", "source")
@@ -58,11 +70,14 @@ _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 #: It PARSES (as a bare-field existence test), resolves to `e.get("Pset_Foo.Bar")`, and matches
 #: nothing, so the requirement reads as satisfied on every model. Parse-validation cannot catch this,
 #: which is the point: the grammar is fine and the meaning is wrong.
-_DOTTED_PSET = re.compile(r"\b(Pset_|Qto_)[A-Za-z0-9_]*\.[A-Za-z0-9_]+")
+#: Quantifiers are BOUNDED (`{0,n}`, not `*`/`+`) and the input is truncated before the search.
+#: Both are required by this repo's ReDoS hardening rule, and a selector arrives straight off
+#: `POST /jurisdiction/packs`.
+_DOTTED_PSET = re.compile(r"\b(Pset_|Qto_)[A-Za-z0-9_]{0,64}\.[A-Za-z0-9_]{1,64}")
 
 
 def _looks_like_dotted_pset(selector: str) -> str | None:
-    m = _DOTTED_PSET.search(selector or "")
+    m = _DOTTED_PSET.search(str(selector or "")[:MAX_SELECTOR_LEN])
     return m.group(0) if m else None
 
 
@@ -98,7 +113,9 @@ EXAMPLE_PACK: dict[str, Any] = {
 def _norm_jurisdiction(j: Any) -> str:
     """Upper-cased and trimmed. Jurisdiction codes are compared, not parsed — `tx`, `TX ` and `Tx`
     are the same place, and treating them as three is how a project silently adopts nothing."""
-    return re.sub(r"\s+", " ", str(j or "")).strip().upper()
+    # Truncate BEFORE the regex. `\s+` is unbounded, and a jurisdiction string reaches this from a
+    # query parameter and from a project field — both user-controlled.
+    return re.sub(r"\s{1,64}", " ", str(j or "")[:MAX_TEXT_LEN]).strip().upper()
 
 
 def validate(pack: dict[str, Any]) -> dict[str, Any]:
@@ -116,6 +133,15 @@ def validate(pack: dict[str, Any]) -> dict[str, Any]:
             f"a pack must carry {', '.join(missing)} — a data requirement with no authority, edition "
             "or source is a house rule wearing a regulator's name, and the submitting party has no "
             "way to look up why their model failed")
+    # Size caps FIRST — before `_ID_RE`, before the selector parse, before the dotted-pset search.
+    # Every one of those applies a regex, and bounding the pattern is only half the rule; the input
+    # has to be bounded too, or a long enough string still buys CPU.
+    for field, cap in (("id", MAX_ID_LEN), ("jurisdiction", MAX_TEXT_LEN),
+                       ("authority", MAX_TEXT_LEN), ("name", MAX_TEXT_LEN),
+                       ("edition", MAX_TEXT_LEN), ("source", MAX_SOURCE_LEN)):
+        if len(str(pack.get(field) or "")) > cap:
+            raise PackError(f"{field} is too long (max {cap} characters)")
+
     pid = str(pack["id"]).strip().lower()
     if not _ID_RE.match(pid):
         raise PackError(f"pack id {pack['id']!r} must be lower-case alphanumeric with . _ - (max 64)")
@@ -134,6 +160,15 @@ def validate(pack: dict[str, Any]) -> dict[str, Any]:
         for field in ("scope", "require"):
             if not str(r.get(field) or "").strip():
                 raise PackError(f"requirement {i} is missing {field!r}")
+            # Same limit `rule_library` enforces — these ARE rule_library rules, and a selector this
+            # module accepts that `rule_library` would reject is a pack that stores and cannot run.
+            if len(str(r[field])) > MAX_SELECTOR_LEN:
+                raise PackError(f"requirement {i}'s {field} is too long "
+                                f"(max {MAX_SELECTOR_LEN} characters)")
+        if len(str(r.get("id") or "")) > MAX_ID_LEN:
+            raise PackError(f"requirement {i}'s id is too long (max {MAX_ID_LEN} characters)")
+        if len(str(r.get("name") or "")) > MAX_TEXT_LEN:
+            raise PackError(f"requirement {i}'s name is too long (max {MAX_TEXT_LEN} characters)")
         # Validated with the SAME parser that will evaluate it. A selector that stores fine and then
         # never matches is a silent pass — the rule looks enforced and enforces nothing.
         for field in ("scope", "require"):
