@@ -51,7 +51,25 @@ check("a selector resolves to the matching GUIDs", sorted(r["guids"]) == ["g1", 
 bad = pk.resolve(IDX, "&&&")
 check("a bad selector returns an error rather than raising",
       bad.get("error") and bad["guids"] == [], bad)
-check("  because one broken kit must not fail a register of twelve", "bad selector" in bad["error"])
+check("  because one broken kit must not fail a register of twelve", bad["error"] == pk.BAD_SELECTOR)
+
+# CodeQL #108 (py/stack-trace-exposure, medium) fired on this, at the GET kit-detail route — not at
+# freeze, which is where I would have looked. `resolve()` feeds THREE response paths (register,
+# detail, freeze), so `f"bad selector: {e}"` put a caught exception's text in three responses.
+#
+# Typing the exception does not clear it — a caught exception is tainted whatever its class. Only the
+# shape helps: a constant out, the detail to the log. These assertions pin that, because the natural
+# "improvement" is to put the parse error back in for friendlier diagnostics.
+import re as _re  # noqa: E402
+
+for probe in ("&&&", "storey", "!!!"):
+    err = pk.resolve(IDX, probe).get("error")
+    if err:
+        check(f"the error for {probe!r} carries NO exception text", err in
+              (pk.BAD_SELECTOR, "no selector set"), err)
+check("the constant does not embed a formatted exception",
+      not _re.search(r"Error|Exception|Traceback|line \d+", pk.BAD_SELECTOR), pk.BAD_SELECTOR)
+check("  and it tells the reader where the detail went", "server log" in pk.BAD_SELECTOR)
 check("an empty selector is an error too", pk.resolve(IDX, "  ").get("error") == "no selector set")
 check("with no model loaded nothing matches, and it says so",
       pk.resolve(None, "IfcDuctSegment")["matched"] == 0)
@@ -201,6 +219,22 @@ check("the register says whether a model was loaded at all", reg["model_loaded"]
 # --- 8. freeze refuses to write a scope that isn't one ---------------------------------------------
 f = pk.freeze(kit(selector="IfcDuctSegment & storey=L3"), IDX)
 check("freeze returns the resolved list", f["guids"] == ["g1", "g2"] or sorted(f["guids"]) == ["g1", "g2"])
+
+# The engine's refusal and the router's constant must not drift apart — two names for one string is
+# how a router starts answering with something the engine never says. `freeze_blocker` exists so the
+# router can ASK rather than catch, which is what keeps `str(e)` out of the response.
+check("freeze_blocker returns the exported constant for an empty match",
+      pk.freeze_blocker(kit(selector="IfcWall & storey=L9"), IDX) == pk.FREEZE_NO_MATCH)
+check("freeze_blocker returns the exported constant for a bad selector",
+      pk.freeze_blocker(kit(selector="&&&"), IDX) == pk.BAD_SELECTOR)
+check("freeze_blocker returns None when the kit CAN be frozen",
+      pk.freeze_blocker(kit(selector="IfcDuctSegment & storey=L3"), IDX) is None)
+try:
+    pk.freeze(kit(selector="IfcWall & storey=L9"), IDX)
+    check("freeze raises exactly what freeze_blocker reports", False, "no exception")
+except ValueError as _e:
+    check("freeze raises exactly what freeze_blocker reports",
+          str(_e) == pk.FREEZE_NO_MATCH, str(_e))
 check("  as newline-separated text for the record", f["frozen_guids"].count("\n") == 1)
 for label, sel, idx_ in (("an empty selector", "", IDX),
                          ("a selector matching nothing", "IfcWall & storey=L9", IDX),

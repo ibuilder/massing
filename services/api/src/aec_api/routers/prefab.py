@@ -81,10 +81,17 @@ def prefab_freeze(pid: str, rid: str, db: Session = Depends(get_db),
     precisely the failure this whole mechanism exists to prevent, and it would be indistinguishable
     from a correctly released one on every screen."""
     kit = me.get_record(db, "prefab_kit", pid, rid)
+    idx = _index(pid)
+    # Ask WHY it cannot be frozen and answer with that constant, rather than calling `freeze()` and
+    # stringifying whatever it raised. `str(e)` on a caught exception is the py/stack-trace-exposure
+    # sink; every string that can reach the response below is a module-level literal.
+    blocker = pk.freeze_blocker(kit, idx)
+    if blocker:
+        raise HTTPException(422, blocker)
     try:
-        frozen = pk.freeze(kit, _index(pid))
-    except ValueError as e:
-        raise HTTPException(422, str(e)) from e
+        frozen = pk.freeze(kit, idx)
+    except ValueError:                       # deliberately unbound — a fixed literal, never `e`
+        raise HTTPException(422, pk.FREEZE_FAILED) from None
     me.update_record(db, "prefab_kit", pid, rid,
                      {"frozen_guids": frozen["frozen_guids"]}, actor,
                      rbac.party_role_for(db, pid, actor))
