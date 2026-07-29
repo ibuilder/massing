@@ -16,11 +16,22 @@ description: The Massing release discipline — how to ship a verified, CI-green
 - **Web (apps/web):** `export PATH="/c/Program Files/nodejs:$PATH"` then `npm run typecheck && npm run lint && npm run build` (Node 20; Node 18 breaks the build). Run `npx vitest run <path>` if unit tests cover the change.
 - **Frontend UI:** the dev-preview geometry loader stalls at "preparing geometry", so verify rail UI via the `verify-frontend` skill (force `buildToolsPanel` by dispatching `aec:persona`), and flag any flow you couldn't exercise end-to-end.
 
-## 2. Bump the version — BOTH files
+## 2. Bump the version — THREE files, and the third is not edited by hand
 ```
 git fetch origin --quiet          # avoid the version race (a background release may have taken the next number)
 sed -i 's/"version": "0.3.X"/"version": "0.3.Y"/' apps/web/package.json apps/web/src-tauri/tauri.conf.json
+cd apps/web && npm install --package-lock-only --ignore-scripts && cd -   # re-syncs package-lock.json
 ```
+**`package-lock.json` carries the version too** — twice, at the root and under
+`packages["apps/web"]` — and `versionConsistency.test.ts` asserts all of them agree. This step said
+"BOTH files" until 2026-07-29, when a release ran the two `sed`s and went red on a lock nobody had
+mentioned. Regenerating the lock is the fix rather than a third `sed`: hand-editing it would sync the
+number while leaving whatever else the bump touched stale.
+
+Nothing else notices this drift, which is why it needs a gate rather than care — `npm ci` compares
+dependency *edges*, not version fields; the build never reads the lock's version; and a regenerated
+lock silently re-syncs, so the mismatch exists only in the window where it can ship.
+
 Confirm `origin/main` is where you branched (`git log origin/main --oneline -1`). If it advanced, rebase and bump to the next free number.
 
 ## 3. CHANGELOG + roadmap
@@ -29,7 +40,7 @@ Confirm `origin/main` is where you branched (`git log origin/main --oneline -1`)
 - Keep competitor names OUT of shipped docs; interop names (Revit, Bonsai, Procore) are fine.
 
 ## 4. Commit, push, tag
-Commit with the trailer `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`. Then, guarding against a race:
+Commit with the trailer `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`. Then, guarding against a race:
 ```
 if [ "$(git rev-parse origin/main)" = "$(git rev-parse HEAD~1)" ]; then
   git push origin HEAD:main && git tag vX.Y.Z && git push origin vX.Y.Z
