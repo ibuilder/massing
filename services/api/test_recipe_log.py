@@ -32,6 +32,14 @@ def check(label, ok, detail=""):
         FAILED.append(label)
 
 
+def _deep_nest(depth):
+    """A dict nested `depth` levels — for the recursion guard in the name denylist."""
+    node = {"leaf": 1}
+    for _ in range(depth):
+        node = {"n": node}
+    return node
+
+
 # --- 1. an entry keeps what a replay would need ---------------------------------------------------
 e = rl.entry("add_wall", {"start": [0, 0], "end": [6, 0], "height": 3.0},
              actor="ana@x", source_in="/srv/ifc/p1/model.ifc",
@@ -195,6 +203,80 @@ check("  with the reason", "credential" in sec["params"]["api_key"]["reason"])
 check("  and the value is nowhere in the serialized entry",
       "sk-live-123" not in json.dumps(sec))
 check("an ordinary parameter beside them is untouched", sec["params"]["host"] == "example.com")
+
+# --- 8. the second-order gaps, all three found by the audit after the first fix ---------------------------
+# 8a. A ZERO-BYTE file is the most likely physical corruption signature — an interrupted write, a
+# disk-full flush, a container killed mid-put. The first fix refused every malformed shape EXCEPT
+# this one, which is the one it was built for.
+shutil.rmtree(os.environ["STORAGE_DIR"], ignore_errors=True)
+rl.record("zero", [rl.entry("w", {"i": i}, actor="a", source_in="a", source_out="b")
+                   for i in range(50)])
+storage.put(rl._key("zero"), b"")
+try:
+    rl._load("zero")
+    check("a ZERO-BYTE log is refused, not read as absent", False, "no exception")
+except rl.LogUnreadable as e:
+    check("a ZERO-BYTE log is refused, not read as absent", True)
+    check("  and names the likely cause", "interrupted write" in str(e), str(e)[:120])
+rl.append_safe("zero", [rl.entry("c", {}, actor="a", source_in="a", source_out="b")])
+check("  an append cannot overwrite it", storage.get(rl._key("zero")) == b"")
+
+# Every malformed shape in the family now refuses. Asserted as a set so a future early-return
+# cannot quietly reopen one of them.
+shapes = {
+    "empty": b"",
+    "not-json": b"{ nope",
+    "json-list": b"[1,2,3]",
+    "json-string": b'"hello"',
+    "no-entries-key": b'{"version": 1}',
+    "entries-not-a-list": b'{"version": 1, "entries": "no"}',
+}
+refused = []
+for name, blob in shapes.items():
+    rl.record(f"s-{name}", [rl.entry("w", {}, actor="a", source_in="a", source_out="b")])
+    storage.put(rl._key(f"s-{name}"), blob)
+    try:
+        rl._load(f"s-{name}")
+    except rl.LogUnreadable:
+        refused.append(name)
+check("every malformed shape refuses, including the empty one",
+      sorted(refused) == sorted(shapes), sorted(set(shapes) - set(refused)))
+
+# 8b. The denylist has to reach NESTED keys. A future recipe carrying a credential is far more
+# likely to take a config blob than a flat top-level api_key.
+nested = rl.entry("connect", {"config": {"api_key": "SUPERSECRET-NESTED",
+                                         "inner": {"auth_token": "DEEPER"}},
+                              "servers": [{"password": "IN-A-LIST"}],
+                              "host": "example.com"},
+                  actor="a", source_in="a", source_out="b")
+blob = json.dumps(nested)
+for secret in ("SUPERSECRET-NESTED", "DEEPER", "IN-A-LIST"):
+    check(f"a nested {secret!r} never reaches the log", secret not in blob)
+check("  the nested key is stubbed, not dropped",
+      nested["params"]["config"]["api_key"].get("__elided__") is True)
+check("  a credential inside a LIST is caught too",
+      nested["params"]["servers"][0]["password"].get("__elided__") is True)
+check("  the entry is marked elided", nested["params_elided"] is True)
+check("  and ordinary nested values survive", nested["params"]["host"] == "example.com")
+check("pathological nesting costs a stub, not a RecursionError",
+      rl.entry("deep", {"a": _deep_nest(60)}, actor="a", source_in="a",
+               source_out="b")["params"] is not None)
+
+# 8c. The cap has to be total. Elision replaces VALUES, so an entry whose bulk is in its KEY NAMES
+# runs the loop out of candidates while still far over.
+keyheavy = rl.entry("x", {("k%04d" % i) + "y" * 200: 1 for i in range(4000)},
+                    actor="a", source_in="a", source_out="b")
+ksize = len(json.dumps(keyheavy).encode("utf-8"))
+check("an entry whose bulk is KEY NAMES is still capped", ksize <= rl._MAX_ENTRY, f"{ksize:,}")
+check("  params replaced wholesale, so the cap is a guarantee",
+      keyheavy["params"].get("__elided__") is True, keyheavy["params"])
+check("  reporting how many keys were dropped", keyheavy["params"]["keys"] == 4000)
+check("  and marked elided, so replay_plan refuses it", keyheavy["params_elided"] is True)
+try:
+    rl.replay_plan([keyheavy])
+    check("  replay refuses the wholesale-elided entry", False, "no exception")
+except rl.ReplayError:
+    check("  replay refuses the wholesale-elided entry", True)
 
 shutil.rmtree(os.environ["STORAGE_DIR"], ignore_errors=True)
 

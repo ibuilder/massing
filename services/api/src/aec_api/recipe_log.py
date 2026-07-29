@@ -112,7 +112,14 @@ def _load(pid: str) -> dict:
     except Exception as e:  # noqa: BLE001 — exists() said yes and get() failed: do not assume empty
         raise LogUnreadable(f"the recipe log for {pid} exists but could not be read: {e}") from e
     if not raw:
-        return {"version": LOG_VERSION, "entries": []}
+        # A present-but-EMPTY file is unreadable, not absent. Zero bytes is the single most likely
+        # physical corruption signature — an interrupted write, a disk-full flush, a container killed
+        # mid-put — so treating it as "no log yet" would leave the destructive path open in exactly
+        # the case the rest of this function exists to close. `_save` always writes at least
+        # `{"version":1,"entries":[]}`, so a log that was ever written is never legitimately empty.
+        raise LogUnreadable(
+            f"the recipe log for {pid} exists but is empty (0 bytes) — most likely an interrupted "
+            "write. It has NOT been overwritten; the file is on disk and can be inspected by hand.")
     try:
         d = json.loads(raw.decode("utf-8"))
     except Exception as e:  # noqa: BLE001
@@ -133,6 +140,48 @@ def _digest(raw: bytes) -> str:
     return "sha256:" + hashlib.sha256(raw).hexdigest()[:16]
 
 
+def _credential_stub(v: Any) -> dict[str, Any]:
+    return {"__elided__": True, "type": type(v).__name__,
+            "reason": "parameter name looks like a credential; the log is exportable"}
+
+
+def _redact_names(value: Any, _depth: int = 0) -> tuple[Any, bool]:
+    """Apply the credential-name denylist at EVERY level, not just the top.
+
+    The denylist exists for "the recipe nobody has written yet", and anything structured enough to
+    carry a credential tends to nest — `{"config": {"api_key": ...}}` is a more plausible shape for
+    such a recipe than a flat top-level key. Walking only the top level meant the regex never saw it.
+
+    Size elision stays top-level on purpose: it is about bytes, and a top-level value's serialized
+    length already accounts for its children. This pass is about NAMES.
+
+    Depth-capped rather than trusted: params arrive from a request body, and a pathological nesting
+    depth should cost a stub, not a RecursionError inside an edit that has already succeeded.
+    """
+    if _depth > 12:
+        return value, False
+    if isinstance(value, dict):
+        out: dict[Any, Any] = {}
+        hit = False
+        for k, v in value.items():
+            if _SENSITIVE_KEY.search(str(k)):
+                out[k] = _credential_stub(v)
+                hit = True
+                continue
+            nv, sub = _redact_names(v, _depth + 1)
+            out[k] = nv
+            hit = hit or sub
+        return out, hit
+    if isinstance(value, (list, tuple)):
+        items, hit = [], False
+        for v in value:
+            nv, sub = _redact_names(v, _depth + 1)
+            items.append(nv)
+            hit = hit or sub
+        return items, hit
+    return value, False
+
+
 def _shrink(params: Any) -> tuple[Any, bool]:
     """Params with over-large values replaced by descriptors. Returns (params, elided?).
 
@@ -146,10 +195,12 @@ def _shrink(params: Any) -> tuple[Any, bool]:
     elided = False
     for k, v in params.items():
         if _SENSITIVE_KEY.search(str(k)):
-            out[k] = {"__elided__": True, "type": type(v).__name__,
-                      "reason": "parameter name looks like a credential; the log is exportable"}
+            out[k] = _credential_stub(v)
             elided = True
             continue
+        v, hit = _redact_names(v)
+        if hit:
+            elided = True
         try:
             # STRICT dumps, no `default=`. With a fallback encoder this never raises — every value
             # "serializes" — so a value that cannot round-trip would be stored as-is and then fail in
@@ -206,7 +257,15 @@ def _fit(e: dict[str, Any]) -> dict[str, Any]:
         candidates = [(len(json.dumps(v, default=str)), k) for k, v in params.items()
                       if not (isinstance(v, dict) and v.get("__elided__"))]
         if not candidates:
-            break                       # everything is already a descriptor; this is as small as it gets
+            # Out of values to elide and still over. Elision replaces VALUES, so an entry whose bulk
+            # is in its KEY NAMES (4000 keys of 200 chars is ~1.3 MB of pure keys) can never be
+            # brought under the cap this way. Replace `params` wholesale so the cap is a guarantee
+            # rather than a best effort — `replay_plan` already refuses elided entries, so nothing
+            # downstream is fooled by the substitution.
+            e["params"] = {"__elided__": True, "reason": "entry too large to store",
+                           "keys": len(params), "bytes": _size(e)}
+            e["params_elided"] = True
+            break
         _, worst = max(candidates)
         raw = json.dumps(params[worst], default=str).encode("utf-8")
         params[worst] = {"__elided__": True, "type": type(params[worst]).__name__,
