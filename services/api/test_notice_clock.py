@@ -258,6 +258,34 @@ check("  and flags a reported date as not necessarily the occurrence date",
 
 # --- 9. parse_calendar refuses bad input rather than skipping it -----------------------------------
 check("a good weekend parses", nc.parse_calendar("Fri,Sat").weekend == (4, 5))
+
+# A weekend covering all seven days leaves no working day, and `add_period`'s business-day loop only
+# terminates when it finds one — so it walks to date.max (~2.9M iterations) and raises OverflowError
+# from unrelated code. That presents as a slow endpoint rather than a bad calendar. Latent today (no
+# clause in the library uses basis="business"), but the branch is written, documented, and `BASIS`
+# advertises it — so the first business-basis clause anyone adds makes it live.
+try:
+    nc.parse_calendar("Mon,Tue,Wed,Thu,Fri,Sat,Sun")
+    check("a seven-day weekend is refused at parse time", False, "no exception")
+except ValueError as e:
+    check("a seven-day weekend is refused at parse time", True)
+    check("  and the message names the consequence", "no business day" in str(e), str(e)[:90])
+
+# Guarded at both layers: Calendar is a plain dataclass, so a caller can build one directly without
+# going through parse_calendar. The loop must refuse rather than run.
+try:
+    nc.add_period(date(2026, 3, 2), 1, "business", nc.Calendar(weekend=tuple(range(7))))
+    check("add_period refuses a no-working-day calendar", False, "no exception")
+except ValueError as e:
+    check("add_period refuses a no-working-day calendar", True)
+    check("  as a ValueError, not an OverflowError 2.9M iterations later",
+          "no working days" in str(e), str(e)[:90])
+
+# The legitimate extreme still works: a six-day weekend leaves exactly one working day.
+six = nc.Calendar(weekend=(0, 1, 2, 3, 4, 5))          # only Sunday works
+check("a six-day weekend still terminates",
+      nc.add_period(date(2026, 3, 2), 2, "business", six) == date(2026, 3, 15),
+      nc.add_period(date(2026, 3, 2), 2, "business", six))
 for bad in ("Funday", "Fri,Xyz"):
     try:
         nc.parse_calendar(bad)

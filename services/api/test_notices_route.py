@@ -132,6 +132,13 @@ with TestClient(app) as c:
     # --- the calendar inputs reach the engine ----------------------------------------------------
     check("a bad weekend is a 422, not a silent default",
           c.get(f"/projects/{pid}/notices?weekend=Funday").status_code == 422)
+    # `weekend` is caller-supplied, so the seven-day case is constructible over the wire. It must be
+    # a 422 at the boundary, not 2.9M loop iterations and an OverflowError 500 further in.
+    allweek = c.get(f"/projects/{pid}/notices?weekend=Mon,Tue,Wed,Thu,Fri,Sat,Sun")
+    check("a seven-day weekend is a 422 over the wire", allweek.status_code == 422,
+          allweek.status_code)
+    check("  with the consequence named in the response",
+          "no business day" in allweek.text, allweek.text[:140])
     check("a bad holiday date is a 422",
           c.get(f"/projects/{pid}/notices?holidays=2026-13-45").status_code == 422)
     gulf = c.get(f"/projects/{pid}/notices?as_of={TODAY}&weekend=Fri,Sat&holidays=2026-04-01").json()

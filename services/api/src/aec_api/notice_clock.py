@@ -262,6 +262,15 @@ def add_period(start: date, n: int, basis: str, cal: Calendar) -> date:
     if basis == "weeks":
         return start + timedelta(weeks=n)
     if basis == "business":
+        # Fail closed before entering the loop. `Calendar` is a plain dataclass, so a weekend
+        # covering every day is constructible without going through `parse_calendar` — and this
+        # `while` only terminates when a working day is found. With none, it walks to `date.max`:
+        # ~2.9 million iterations of CPU and then an OverflowError from unrelated code, which
+        # presents as a slow endpoint rather than a bad calendar.
+        if not any(w not in cal.weekend for w in range(7)):
+            raise ValueError(
+                "this calendar has no working days — the weekend covers all seven, so no business "
+                "day can ever elapse. Business-day periods are uncountable against it.")
         d, remaining = start, n
         while remaining > 0:
             d += timedelta(days=1)
@@ -599,6 +608,11 @@ def parse_calendar(weekend: str | None = None, holidays: str | None = None) -> C
                 raise ValueError(f"unknown weekend day {tok.strip()!r}; use Mon..Sun")
             parsed.append(_WEEKDAYS[key])
         days = tuple(sorted(set(parsed)))
+        # Reject at the point the mistake is made, naming the consequence. `add_period` guards this
+        # too, but by then the caller is several layers from the field they got wrong.
+        if len(days) >= 7:
+            raise ValueError("a weekend cannot cover every day of the week — no business day would "
+                             "ever elapse, so no notice period could be counted")
     dates: set[date] = set()
     for tok in str(holidays or "").split(","):
         if tok.strip():
