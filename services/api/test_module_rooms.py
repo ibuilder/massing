@@ -106,7 +106,7 @@ for room_id, keys in ROOM_OF_MODULE.items():
     for key in keys:
         assert seen.get(key) == room_id, (
             f"{key} is in {seen.get(key)!r}, expected {room_id!r}. This placement was argued for in "
-            "docs/module-room-audit.md; if it is being changed, change it here too and say why."
+            "docs/internal/archive/module-room-audit.md; if it is being changed, change it here too and say why."
         )
 
 # Sections that were retired, and must not come back by copy-paste. Each had exactly one problem:

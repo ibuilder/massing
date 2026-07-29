@@ -7,7 +7,7 @@ vintage resolver, `is_latest` management, project pinning, and **project localiz
 (`rates_for_project`): a vintage's national-average rates multiplied by the project region's cost index and
 escalated from the vintage year to the construction midpoint, off the shipped market table — still offline.
 The `cloud_api` importer (manifest + signed bundle download from massing.cloud) and real public-source ingest
-(BLS/FRED/DoD/Census) are later build-order steps — see docs/cost-db-import-plan.md.
+(BLS/FRED/DoD/Census) are later build-order steps — see docs/internal/research/cost-db-import-plan.md.
 """
 from __future__ import annotations
 

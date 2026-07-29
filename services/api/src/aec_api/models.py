@@ -40,7 +40,7 @@ class Project(Base):
     # schedule window, time-phased on the 4D timeline. See logistics.py.
     site_logistics: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # COST-DB: the cost-database vintage this project's estimate is pinned to (reproducibility).
-    # NULL = use the latest installed vintage. See cost_db.py + docs/cost-db-import-plan.md.
+    # NULL = use the latest installed vintage. See cost_db.py + docs/internal/research/cost-db-import-plan.md.
     cost_dataset_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # CODE-1: USPS state code (e.g. "CA") — resolves the adopted code editions for every checker
     jurisdiction: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -53,7 +53,7 @@ class CostDataset(Base):
     """COST-DB versioning backbone — one row per installed cost-database **vintage**. Every priced row
     (`CostItem`) hangs off a dataset, so a 2024 estimate stays reproducible after newer data lands and a
     project pins exactly one vintage. Populated offline from public benchmarks (`origin=public_local`) or,
-    later, from the massing.cloud subscription API (`origin=cloud_api`). See docs/cost-db-import-plan.md."""
+    later, from the massing.cloud subscription API (`origin=cloud_api`). See docs/internal/research/cost-db-import-plan.md."""
     __tablename__ = "cost_datasets"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     vintage_year: Mapped[int] = mapped_column(Integer, nullable=False)

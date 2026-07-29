@@ -1355,7 +1355,7 @@ def run_publish(pid: str) -> None:
     callable by the daemon thread now, or directly by an external task worker (RQ / Dramatiq on the
     already-optional Redis) later, with no code change. We deliberately don't run Celery: for the
     self-hosted / desktop mission a thread + durable status poll is the right amount of machinery —
-    see docs/audit-2026-06.md for when a queue becomes worthwhile."""
+    see docs/internal/archive/audit-2026-06.md for when a queue becomes worthwhile."""
     from ..db import SessionLocal
     _set_pub_status(pid, "running")
     try:
