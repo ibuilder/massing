@@ -22,6 +22,7 @@ import { buildMenu, closeMenus } from "./ui/menus";
 if (import.meta.env.DEV) void import("./dev/liveAudit").then((m) => m.installLiveAudit());
 import { initCommandPalette, type Command } from "./ui/palette";
 import { buildAuthControl } from "./account/accountUI";
+import { jobLabel, mountJobTray } from "./ui/jobTray";
 import { installErrorReporting } from "./errorReporting";
 import type { Settings, ViewerApp } from "./viewer/app";
 
@@ -1616,6 +1617,10 @@ async function startup() {
                    : "offline — open a .frag to view (API not reachable)");
   }
   void refreshWorkBadge(projectId);
+  // The job tray is hidden until it has something to show, so it needs one poke per project or it
+  // never appears — a built feature with no path to it is the failure this codebase keeps re-finding.
+  // The project picker reloads the page, so startup() is the only project-change path there is.
+  refreshJobs();
   paintVitals();            // the six numbers, refreshed whenever the project changes
   syncStatusBarMode();
   if (projectId && !demo) connectNotifications();   // SSE needs a backend
@@ -1783,5 +1788,20 @@ if (_palette) {
   search.onclick = () => _palette.open();
   document.getElementById("workspaces")?.insertAdjacentElement("beforebegin", search);
 }
+
+// R24-JOB-TRAY — heavy work you can walk away from. The queue (`routers/jobs.py`) has been there for
+// a long time and nothing in this app had ever called it, which is why exports and compiled sets
+// still felt like foreground work. The whole feature lives in `ui/jobTray.ts`; this is the mount.
+const _jobs = _embed ? null : mountJobTray({
+  host: toolbar,
+  fetch: () => (projectId ? api.jobs(projectId, 25) : Promise.resolve([])),
+  artifactUrl: (j) => api.jobArtifactUrl(projectId!, j.id),
+  // The completion notice is the point of the tray: it is what makes leaving safe.
+  onSettled: (j) => notify(
+    j.state === "error" ? `${jobLabel(j.kind)} failed — ${j.error ?? "no detail"}` : `${jobLabel(j.kind)} finished`,
+    j.state === "error" ? "error" : "success"),
+});
+/** Call after enqueuing work so the badge appears immediately rather than at the next open. */
+export const refreshJobs = (): void => _jobs?.poke();
 
 void startup().finally(() => { initNav(); if (_embed) setWorkspace("model"); });

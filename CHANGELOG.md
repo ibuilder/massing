@@ -4,6 +4,68 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.780 — the queue was always there; nothing had ever asked it
+
+### R24-JOB-TRAY — heavy work you can walk away from
+
+The design audit's fourth finding is that convert, reindex and republish are *background work with a
+foreground UI*: anything that can take a minute must be leaveable, resumable and visible from
+anywhere, or people sit and watch it finish.
+
+It was never a missing engine. `routers/jobs.py` has offered enqueue / poll / list / artifact for a
+long time, over a durable queue with crash recovery and seven registered kinds — and
+`grep -rn "/jobs" apps/web/src` returned **nothing**. No client had ever called one of them. Every
+gate in this repo measured the queue; none measured the path to it, which is the same shape as the
+seven unrouted modules found on 2026-07-26 and the reason `test_reachable` exists.
+
+So this release is wiring. `ui/jobTray.ts` holds the whole feature and the mount in `main.ts` is a
+handful of lines. Four rules it carries, each of them a way a status list normally stops telling the
+truth:
+
+- **The badge counts only what is still moving** — `queued + running`, never the total. A badge that
+  includes yesterday's finished exports is a number nobody can act on, the same reasoning that
+  governs the room badges.
+- **A failure does not scroll away.** Errors sort above running jobs and stay until dismissed. Plain
+  newest-first — the obvious sort — buries the one row that needed a human beneath the three jobs
+  that succeeded after it.
+- **Polling stops when nothing is moving.** An idle project makes no requests at all. Five SSE
+  handlers once blocked the event loop by polling inside `async def gen()`; a tray that polls a
+  finished queue forever is that mistake with a nicer face.
+- **There is no cancel button,** because the server has no cancel. A control that cannot do what it
+  says is worse than an absent one.
+
+One limitation, stated rather than papered over: a job enqueued by *another* user appears at the next
+poke, not immediately. The SSE feed carries records, not queue transitions, and a background poll
+would be inventing a guarantee the backend does not offer.
+
+### R24-CMDK-GROUPS — the palette had a `group` field nothing read
+
+`Command.group` has been on the interface since the palette shipped and `paint()` never looked at it.
+The audit asks for results grouped by *verb / record / element / report*, "never a flat list"; the
+grouping was designed, left unwired, and looked finished. Six workspaces, 130-plus modules and every
+record hit arrived as one undifferentiated column.
+
+Now sections render in the order the question is asked — **Do · Records · Elements · Reports ·
+Modules · Go to** — and a command with no explicit group is placed from the `hint` its caller already
+sets, so every existing call site improved without being edited. The palette also remembers the last
+twenty commands you ran and ranks them up, capped deliberately below the prefix-match bonus: what you
+typed must always beat what you happen to have run before.
+
+**And the cap is per section, which is the interesting part.** Grouping alone made the palette
+*worse*. `Go to` sorts last by design, and with 130-plus modules ahead of it a flat 40-row limit cut
+every workspace off the list — the palette gained sections and silently lost navigation. That was
+caught in a browser, not by any of the unit tests written alongside the feature, which is worth
+recording: the tests asserted that the grouping was correct and could not see that the result was
+unusable. `takePerGroup` is the fix and there is now a test that reproduces the defect before
+asserting the repair.
+
+### Also
+
+- `docs/roadmap.md` R24 re-verified against the code, finding by finding — 3 closed, 6 partial,
+  6 open, 1 deliberately reversed. Six items that the original transfer dropped are reinstated,
+  the largest being **R24-BASELINE**: the audit's phase 0 said *instrument before you redesign* and
+  none of its six metrics were carried, so the shell was replaced with no way to score the result.
+
 ## v0.3.779 — one front door, and the rooms keep their names
 
 ### `?shell=classic` is gone

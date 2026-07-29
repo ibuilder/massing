@@ -14,7 +14,7 @@ export * from "./library";
 import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
-  IntegrationGroup, LifecycleStrip, ModelCiReport, WorkQueue, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult, RoomAllocation,
+  IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   PreflightGate, PreflightSummary,
   RecordAttachmentMeta, RelatedRecords, ResolveAction, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
@@ -989,6 +989,39 @@ export class ApiClient extends withLibrary(withAuthoring(HttpCore)) {
    *  the server could not consult comes back `unknown`, which is NOT the same as `none`. */
   elementLifecycle(pid: string, guid: string) {
     return this.json<LifecycleStrip>(`/projects/${pid}/elements/${guid}/lifecycle`);
+  }
+
+  // ── R24-JOB-TRAY — the background queue, finally reachable ──────────────────────────────────────
+  //
+  // `routers/jobs.py` has offered these four endpoints for a long time and nothing in `apps/web` had
+  // ever called one. That is the *what-did-we-build-that-nothing-calls* pattern: every gate measured
+  // the queue, none measured the path to it, so "heavy work has a foreground UI" read as a missing
+  // engine when the engine was already there.
+  //
+  // Deliberately no `cancelJob`: the server has no cancel, and a tray with a dead button is worse
+  // than one without it.
+
+  /** Queue a background job. 400 on an unregistered kind (a typo fails at submit, not silently). */
+  enqueueJob(pid: string, kind: string, params?: Record<string, unknown>) {
+    return this.json<Job>(`/projects/${pid}/jobs`,
+      { method: "POST", body: JSON.stringify({ kind, params: params ?? {} }) });
+  }
+
+  /** One job's state + result/error. 404 when it belongs to another project. */
+  job(pid: string, jobId: string) {
+    return this.json<Job>(`/projects/${pid}/jobs/${jobId}`);
+  }
+
+  /** The project's jobs, newest first. The server bounds `limit` at 200. */
+  async jobs(pid: string, limit = 50): Promise<Job[]> {
+    const r = await this.json<{ jobs: Job[] }>(`/projects/${pid}/jobs?limit=${limit}`);
+    return r.jobs ?? [];
+  }
+
+  /** Absolute URL of a finished job's artifact — an href the browser fetches directly, so a big
+   *  compiled set never round-trips through JS memory. 409 while queued/running. */
+  jobArtifactUrl(pid: string, jobId: string): string {
+    return this.url(`/projects/${pid}/jobs/${jobId}/artifact`);
   }
   /** 5D for an element: its schedule activity (%-complete, dates, hard-tied?) + cost-code budget. */
   element5d(pid: string, guid: string) {

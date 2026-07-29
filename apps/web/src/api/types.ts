@@ -520,3 +520,31 @@ export interface VitalsPayload {
   order: string[];
   [key: string]: Vital | string[] | undefined;
 }
+
+/**
+ * R24-JOB-TRAY — one background job, exactly as `jobs.job_dict` returns it.
+ *
+ * The queue has existed server-side for a long while (`routers/jobs.py`: enqueue, poll, list,
+ * artifact; seven registered kinds; crash recovery resets orphaned `running` rows). Until v0.3.779
+ * **no client had ever called it** — `grep -rn "/jobs" apps/web/src` returned nothing. So the
+ * findings that heavy work has "background work with foreground UI" and that COBie exports and
+ * compiled sets block the user were never a missing engine; they were a missing path to one.
+ *
+ * `state` is the whole contract: `queued → running → done | error`. There is no cancel, because the
+ * server has none — a tray that offers one would be lying about what it can do.
+ */
+export type JobState = "queued" | "running" | "done" | "error";
+
+export interface Job {
+  id: string;
+  kind: string;
+  project_id: string | null;
+  state: JobState;
+  params: Record<string, unknown> | null;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  actor: string | null;
+  created_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+}

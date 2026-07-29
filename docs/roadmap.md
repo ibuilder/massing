@@ -487,7 +487,7 @@ refute one, so this goes first even though it is the least visible.
 - **R24-PERF-BUDGET** *(S, reinstated)* — the audit's P5: 100 ms click echo, 1 s panel, p95 < 100 ms.
   Write it as an asserted budget, not a hope — prose drifts, `test_*` does not (see *Verify, don't
   recall* in CLAUDE.md).
-- ⭐ **R24-JOB-TRAY** *(S — was M)* — **re-scoped: this is wiring, not engineering.**
+- ✅ **R24-JOB-TRAY** — **SHIPPED v0.3.780.** Was *(S — was M)* — **re-scoped: this is wiring, not engineering.**
   `services/api/src/aec_api/routers/jobs.py` already enqueues, polls and lists jobs with per-kind RBAC.
   `grep -rn "/jobs" apps/web/src` returns **nothing** — no client has ever called it. Add the typed
   surface to `api/client.ts`, a self-contained `ui/jobTray.ts`, then one mount point. Another instance
@@ -508,10 +508,13 @@ refute one, so this goes first even though it is the least visible.
 
 ### Sprint 3 — the front door earns its keyboard
 
-- ⭐ **R24-CMDK-VERBS** *(M)* — `main.ts:1755` registers workspaces + 6 actions + modules + record
-  search. Missing: authoring verbs, **element lookup by GlobalId**, reports, `/assistant` as the
-  fallback row. And `Command.group` is **declared at `ui/palette.ts:13` and never read by `paint()`** —
-  grouping was designed and left unwired, so the flat list is a two-line fix plus providers.
+- ⭐ **R24-CMDK-VERBS** *(M; the grouping half shipped v0.3.780 as **R24-CMDK-GROUPS**)* — results now
+  render in sections (**Do · Records · Elements · Reports · Modules · Go to**), a group is inferred
+  from the `hint` a caller already sets, recency ranks your last twenty commands, and the row cap is
+  **per section** — a flat cap removed every workspace from the list once 130 modules outranked them.
+  Still missing, and the reason this stays open: **authoring verbs**, **element lookup by GlobalId**,
+  **reports**, and `/assistant` as the fallback row. Those are providers in `main.ts`, not palette
+  work — the `Elements` and `Reports` sections exist and are empty until something registers into them.
 - **R24-KEYS** *(S, reinstated)* — publish the keyboard contract as a real surface: ⌘K · `G then M` ·
   `J`/`K` · `A` · `W S C B` · ⌥click. What exists is a viewer-only toast (`main.ts:1585`,
   `"F fit · Esc clear · M dist · A area · S section · H show all · ? help"`).
