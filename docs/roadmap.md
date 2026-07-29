@@ -37,84 +37,70 @@ work**.
 
 ---
 
-## ▶ NOW — one prioritized list *(rebuilt 2026-07-28 at v0.3.772)*
+## ▶ NOW — parallel lanes *(rebuilt 2026-07-29 at v0.3.785)*
 
-There were **three** competing NOW sections before this rebuild, and four more sections headed
-COMPLETE that still contained open work. That is how R26-VITALS — the prototype's most visible
-pillar — sat unbuilt inside `roadmap-completed.md` for weeks: **an unshipped item filed under a
-completed heading is invisible**, because nobody goes looking there. One list, in order.
+The previous NOW list — eight items, v0.3.773–777 — is closed and archived in
+[roadmap-completed.md](roadmap-completed.md). Seven shipped; **R27-UW-PANEL was closed unbuilt**
+because its premise did not survive the offline constraint, recorded rather than deleted so the idea
+is not re-proposed next quarter.
 
-### ~~1 · R26-VITALS~~ — **DONE v0.3.773.** Was:
-Six numbers along the bottom — **LOD · area · $/sf · float · IRR · health** — replacing the ten
-viewport controls pinned to every room whether or not it has a viewport (audit finding 13: *"ten
-permanent controls, irrelevant on four of seven tabs, occupying the most valuable strip of the
-window"*). The audit calls this *"the only continuous proof of the one-model claim"*.
+**This section is organised by LANE rather than by priority, because the constraint changed.** Four
+sessions work this repo concurrently. A single ranked list is the wrong shape for that: it serialises
+work with no reason to be serial, and — as happened twice on 2026-07-29 — it leaves finished work
+sitting uncommitted in a shared tree while somebody else edits around it.
 
-Three of the prototype's four pillars shipped (spine, Inspector, work-queue-as-home). This is the
-fourth. **Build it as one `/projects/{pid}/vitals` assembly endpoint** over engines that already
-exist — five separate client fetches is precisely how audit finding 03, *"the app contradicts itself
-on screen"*, happens. Viewport controls then move into Design, where they apply.
+### How to use this
 
-### ~~2 · VITE-8~~ — **DONE v0.3.774** (and it caught a silent vendor-split regression). Was:
-Vite 6→8 (Rolldown) + Vitest 3→4. The only genuinely outstanding item from that PR; its other
-runtime bumps are already on main (Capacitor 8.4.2, postgres:17) or superseded (it wanted Node 22,
-main runs 24). A major build migration, so it gets its own release and the full gate.
+1. **Claim a lane, not an item.** Lanes are disjoint by *file path*. Two sessions in one lane collide;
+   two in different lanes do not.
+2. **Land what you finish.** Do not leave completed work dirty in the tree — it is one `git add -A`
+   from being committed by someone who has not read it.
+3. **Version files and CHANGELOG belong to whoever holds the release**, not to the lane. Ship without
+   them and let the batch pick them up, or take the release yourself — but say which.
+4. **Check the premise before building.** Six of seven roadmap premises checked on 2026-07-28 were
+   wrong. See the Practice note below; it has cost more than any other habit here.
 
-### ~~3 · CI-HYGIENE~~ — **DONE v0.3.774**; two of the four items were already done. Was:
-Pin the MinIO and nginx image tags, extend Dependabot to container images + a Vite group, and make
-the Cargo.lock guard non-fragile with `cargo metadata --locked`.
+### The lanes
 
-### ~~4 · R27-UW-PANEL~~ — **CLOSED, not built.** The premise does not survive the constraint
+| Lane | Owns these paths | Open work |
+|---|---|---|
+| **A · Shell & IA** | `apps/web/src/shell/`, `portal/`, `main.ts` | A29-SPATIAL-SELECT · nav/IA follow-ups |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24 tail — BASELINE · CHARTS-GRAMMAR · EMPTY-GUIDE ② · DENSITY ② |
+| **C · Backend engines** | `services/api/src/aec_api/` (non-router) | R22 / R23 rings · R27-FIRM-MEMORY follow-ons |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21 ring · R27-LAYOUT tail |
+| **E · Authoring feel** | `apps/web/src/viewer/`, `inference.ts` | R29 ring — A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② |
+| **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) |
 
-Written as "give `__uw__` a real portal panel so Deal lands on Underwriting". Checked before
-building, and the trade is bad:
+**Shared files that need a heads-up before editing.** Every multi-session conflict so far has been one
+of these: `services/api/run_tests.py` · `services/api/src/aec_api/main.py` · `docs/roadmap.md` ·
+`CHANGELOG.md` · the three version files (`apps/web/package.json`, `src-tauri/tauri.conf.json`, and
+`package-lock.json` — which is regenerated, never hand-edited).
 
-- **Underwriting is already reachable and labelled** from the Deal room — `📊 Underwriting` sits in
-  the rail, one click away, in the same group as Deal's other destinations.
-- **Underwriting is a full-page surface**, not a 280px panel. It is the finance workspace's Proforma
-  tab. Forcing it into an `.rpanel` for the sake of a uniform landing mechanism is the same wrong
-  shape that made Drawings a launcher rather than a side panel in v0.3.772.
-- **`finance` is not a portal workspace** (`PORTAL_WORKSPACES = construction, developer, design`).
-  Landing Deal there would surrender the rail that carries Deal's **16 registers** — the room's
-  actual substance — to gain one panel.
+### Lane F — the shipped surface is behind the product
 
-So Deal lands on **Portfolio**: a real panel, in the portal, with the rail intact, and Underwriting a
-labelled click away. That is the better arrangement, not a workaround for it. Was:
-Give `__uw__` a real portal panel so Deal lands on Underwriting instead of Portfolio. v0.3.770 tried
-to shortcut this by marking the workspace hand-off active; the marker never cleared, so a repeat
-click reported arrival for a navigation that never ran. Reverted in v0.3.771, and `spine.test.ts`
-now asserts no room's home carries `goto`.
+Unglamorous and the most consistently wrong thing in the repo: **the docs describe an older app.**
+Three staleness bugs were fixed on 2026-07-29 alone — the README claiming `?shell=spine` turned the
+shell *on* (default for 50 releases by then), the roadmap status block quoting suite counts 38 releases
+old, and both README and roadmap still offering a `?shell=classic` opt-out that had been deleted. Each
+was caught by accident rather than by a gate.
 
-### ~~5 · R25/R24-TRACE-UI~~ — **DONE v0.3.775**: the coverage figure opens onto its elements. Was:
-The 5D chain made visible: figure → cost line → the elements behind it. The engines all exist; this
-is the last mile that makes the differentiator discoverable by clicking rather than by reading docs.
+Unverified right now, stated as unverified rather than assumed fine:
 
-### ~~6 · SAMPLE-LIBRARY ②~~ — **DONE v0.3.776**: a second building type, and a real one
-`riverside_school_structural.mass` — 1551 elements (619 reinforcing bars, 375 beams, 299 slabs, 203
-columns, 15 assemblies, 5 storeys), packaged through the same publish path a user drives. The library
-now shows what the two containers are *for*: the house proves the browser authoring path end to end
-at 23 elements; the school is a frame an engineer recognises. It is **structure only**, so Area and
-$/ft² render as `—` with their reasons — the vitals strip working, not a gap papered over. Was:
-`build_samples.py` works and the library ships (v0.3.769). What is missing is **content**: more than
-one `.mass`, covering more than one building type. Blocked on authoring time, not on tooling.
+* **`docs/walkthrough.md` and the guides** — do they describe the six-room shell, the vitals strip, the
+  sample library, the `.mass` container? Nobody has re-read them since R26 landed.
+* **The Pages demo snapshot is serving a taxonomy that no longer exists — measured, not suspected.**
+  `apps/web/src/demo/demoData.json` carries 132 modules across exactly four rooms:
+  `model` 38 · `schedule` 41 · `cost` 37 · `deal` 16. The app has **six**, and three of the four names
+  in that file are wrong: `model` was renamed `design` (v0.3.766), while `planning` and `work` do not
+  appear at all. So **38 modules point at a room id the shell cannot render**, and two rooms are empty
+  on the public demo. Regenerate with `build_demo_data.py` against a current seed — the snapshot is a
+  *capture*, so it rots silently every time the room spine moves and nothing fails when it does.
+* **README feature list** — several releases of new surface (received-sheet regions, firm standards,
+  the school sample, one-shell navigation) are absent.
 
-### ~~7 · ONE-LOAD-SAMPLE ② + FIRST-RUN ②~~ — **DONE v0.3.777**: the last hard-coded geometry is gone
-The first-run half was already built (the picker opens on zero projects, `library.test.ts` gates it).
-The remainder was worse than a leftover menu entry: `viewer/app.ts` chose geometry with a **regex on
-the project's name**, so a project called "Riverside School" with no published model rendered an
-unrelated demo's frame, and any session with no project always did. The gate that was meant to
-prevent exactly this asserted the filenames were gone from `main.ts` — and passed, while they lived
-one file over as the default. **A check scoped to one file measures that file, not the behaviour.**
-Removed, `library.test.ts` now reads the viewer too (mutation-checked), and the three orphaned
-`.frag` assets left every build and desktop installer — 7.4 MB.
-
-### ~~8 · MASS-FOR-EVERY-MODEL ② + CREATE/OPEN/SAVE ③~~ — **DONE v0.3.777**
-Opening an IFC with the server reachable but no project fell through to "view only" — a mesh with no
-quantities, no cost, no schedule, nothing to pin an RFI to, nothing saved. It now offers a container
-and lands you in it. **Offers**, because creating a project writes to the user's database, and doing
-that unasked is the side effect the sample picker already refuses to commit. The Open/Save menus are
-re-cut by what the thing *is*: Project · Model geometry · Site context · Import. "Sample models"
-stopped being a category when a sample became a real `.mass`.
+`docsCurrent.test.ts` gates a handful of these claims. **It should gate more:** every doc sentence that
+names a flag, a count or a room is a claim that can rot, and the ones that rotted were all sentences no
+test read.
 
 ### Decisions, not effort — these want your call
 - ~~**ROOM-NAMING**~~ — **settled 2026-07-29 (v0.3.779): professional terms.** Design · Planning ·

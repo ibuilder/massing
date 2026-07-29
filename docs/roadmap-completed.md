@@ -2899,3 +2899,89 @@ request being able to arrive. `grep` the new module name across `routers/` befor
 done.
 
 ---
+
+## ▶ NOW list of 2026-07-28 — all eight closed (v0.3.773–777)
+
+Archived 2026-07-29. Seven shipped, one (**R27-UW-PANEL**) was closed *unbuilt* because its
+premise did not survive the offline constraint — recorded rather than deleted, since a closed
+item with its reasoning is what stops the same idea being re-proposed next quarter.
+
+## ▶ NOW — one prioritized list *(rebuilt 2026-07-28 at v0.3.772)*
+
+There were **three** competing NOW sections before this rebuild, and four more sections headed
+COMPLETE that still contained open work. That is how R26-VITALS — the prototype's most visible
+pillar — sat unbuilt inside `roadmap-completed.md` for weeks: **an unshipped item filed under a
+completed heading is invisible**, because nobody goes looking there. One list, in order.
+
+### ~~1 · R26-VITALS~~ — **DONE v0.3.773.** Was:
+Six numbers along the bottom — **LOD · area · $/sf · float · IRR · health** — replacing the ten
+viewport controls pinned to every room whether or not it has a viewport (audit finding 13: *"ten
+permanent controls, irrelevant on four of seven tabs, occupying the most valuable strip of the
+window"*). The audit calls this *"the only continuous proof of the one-model claim"*.
+
+Three of the prototype's four pillars shipped (spine, Inspector, work-queue-as-home). This is the
+fourth. **Build it as one `/projects/{pid}/vitals` assembly endpoint** over engines that already
+exist — five separate client fetches is precisely how audit finding 03, *"the app contradicts itself
+on screen"*, happens. Viewport controls then move into Design, where they apply.
+
+### ~~2 · VITE-8~~ — **DONE v0.3.774** (and it caught a silent vendor-split regression). Was:
+Vite 6→8 (Rolldown) + Vitest 3→4. The only genuinely outstanding item from that PR; its other
+runtime bumps are already on main (Capacitor 8.4.2, postgres:17) or superseded (it wanted Node 22,
+main runs 24). A major build migration, so it gets its own release and the full gate.
+
+### ~~3 · CI-HYGIENE~~ — **DONE v0.3.774**; two of the four items were already done. Was:
+Pin the MinIO and nginx image tags, extend Dependabot to container images + a Vite group, and make
+the Cargo.lock guard non-fragile with `cargo metadata --locked`.
+
+### ~~4 · R27-UW-PANEL~~ — **CLOSED, not built.** The premise does not survive the constraint
+
+Written as "give `__uw__` a real portal panel so Deal lands on Underwriting". Checked before
+building, and the trade is bad:
+
+- **Underwriting is already reachable and labelled** from the Deal room — `📊 Underwriting` sits in
+  the rail, one click away, in the same group as Deal's other destinations.
+- **Underwriting is a full-page surface**, not a 280px panel. It is the finance workspace's Proforma
+  tab. Forcing it into an `.rpanel` for the sake of a uniform landing mechanism is the same wrong
+  shape that made Drawings a launcher rather than a side panel in v0.3.772.
+- **`finance` is not a portal workspace** (`PORTAL_WORKSPACES = construction, developer, design`).
+  Landing Deal there would surrender the rail that carries Deal's **16 registers** — the room's
+  actual substance — to gain one panel.
+
+So Deal lands on **Portfolio**: a real panel, in the portal, with the rail intact, and Underwriting a
+labelled click away. That is the better arrangement, not a workaround for it. Was:
+Give `__uw__` a real portal panel so Deal lands on Underwriting instead of Portfolio. v0.3.770 tried
+to shortcut this by marking the workspace hand-off active; the marker never cleared, so a repeat
+click reported arrival for a navigation that never ran. Reverted in v0.3.771, and `spine.test.ts`
+now asserts no room's home carries `goto`.
+
+### ~~5 · R25/R24-TRACE-UI~~ — **DONE v0.3.775**: the coverage figure opens onto its elements. Was:
+The 5D chain made visible: figure → cost line → the elements behind it. The engines all exist; this
+is the last mile that makes the differentiator discoverable by clicking rather than by reading docs.
+
+### ~~6 · SAMPLE-LIBRARY ②~~ — **DONE v0.3.776**: a second building type, and a real one
+`riverside_school_structural.mass` — 1551 elements (619 reinforcing bars, 375 beams, 299 slabs, 203
+columns, 15 assemblies, 5 storeys), packaged through the same publish path a user drives. The library
+now shows what the two containers are *for*: the house proves the browser authoring path end to end
+at 23 elements; the school is a frame an engineer recognises. It is **structure only**, so Area and
+$/ft² render as `—` with their reasons — the vitals strip working, not a gap papered over. Was:
+`build_samples.py` works and the library ships (v0.3.769). What is missing is **content**: more than
+one `.mass`, covering more than one building type. Blocked on authoring time, not on tooling.
+
+### ~~7 · ONE-LOAD-SAMPLE ② + FIRST-RUN ②~~ — **DONE v0.3.777**: the last hard-coded geometry is gone
+The first-run half was already built (the picker opens on zero projects, `library.test.ts` gates it).
+The remainder was worse than a leftover menu entry: `viewer/app.ts` chose geometry with a **regex on
+the project's name**, so a project called "Riverside School" with no published model rendered an
+unrelated demo's frame, and any session with no project always did. The gate that was meant to
+prevent exactly this asserted the filenames were gone from `main.ts` — and passed, while they lived
+one file over as the default. **A check scoped to one file measures that file, not the behaviour.**
+Removed, `library.test.ts` now reads the viewer too (mutation-checked), and the three orphaned
+`.frag` assets left every build and desktop installer — 7.4 MB.
+
+### ~~8 · MASS-FOR-EVERY-MODEL ② + CREATE/OPEN/SAVE ③~~ — **DONE v0.3.777**
+Opening an IFC with the server reachable but no project fell through to "view only" — a mesh with no
+quantities, no cost, no schedule, nothing to pin an RFI to, nothing saved. It now offers a container
+and lands you in it. **Offers**, because creating a project writes to the user's database, and doing
+that unasked is the side effect the sample picker already refuses to commit. The Open/Save menus are
+re-cut by what the thing *is*: Project · Model geometry · Site context · Import. "Sample models"
+stopped being a category when a sample became a real `.mass`.
+
