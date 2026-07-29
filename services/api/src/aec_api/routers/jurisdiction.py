@@ -12,27 +12,10 @@ from .. import jurisdiction_packs as jp
 from .. import model_index
 from ..db import get_db
 from ..deps import get_project
-from ..rbac import current_user, require_role
+from ..rbac import require_identified, require_role
 from .auth import require_admin_user
 
 router = APIRouter()
-
-
-def require_identified(user: str = Depends(current_user)) -> str:
-    """A caller who actually authenticated.
-
-    `current_user` IDENTIFIES; it does not AUTHORISE. With RBAC on and no bearer token, cookie or
-    trusted header it returns the literal string `"anonymous"` — so `Depends(current_user)` on its
-    own is not a gate, it is a name. These routes shipped with exactly that mistake and a live probe
-    returned 200 / **201** / 200 with no credentials at all while `GET /admin/errors` correctly
-    returned 403 in the same run.
-
-    This is the platform-global sibling of the `/projects/{pid}` rule in `route-authz-guard`: a route
-    that LOOKS guarded because a dependency is present, when the dependency only identifies.
-    """
-    if user in ("anonymous", None, ""):
-        raise HTTPException(403, "authentication required")
-    return user
 
 
 @router.get("/jurisdiction/packs")
@@ -117,7 +100,14 @@ def project_check(pid: str, pack: str | None = Query(None),
             packs = [p for p in jp.library() if p.get("id") == pack.strip().lower()]
             if not packs:
                 raise HTTPException(404, f"no pack with id {pack!r}")
-            resolved = {"jurisdiction": getattr(project, "jurisdiction", None), "explicit": True}
+            # `adopted` and `why` are set here too, so the response shape does not depend on which
+            # branch ran. Without them a client that reads `adopted` got it for a resolved pack and
+            # `undefined` for an explicit one — silently rendering "not adopted" for a pack the caller
+            # had just named. The sibling `/requirements` route already sets `adopted` in this branch;
+            # this one did not, so the two endpoints disagreed about the same concept.
+            resolved = {"jurisdiction": getattr(project, "jurisdiction", None), "explicit": True,
+                        "adopted": True,
+                        "why": "applied by id, not resolved from the project's jurisdiction"}
         else:
             r = jp.resolve(getattr(project, "jurisdiction", None))
             packs, resolved = r["packs"], {k: r[k] for k in ("jurisdiction", "adopted", "why")}

@@ -13,7 +13,7 @@ from starlette.concurrency import run_in_threadpool
 from .. import audit, bcf_io, rbac, signing, storage, topic_lifecycle
 from ..db import get_db
 from ..models import Attachment, Comment, DrawingMarkup, Project, ProjectMember, Topic, Viewpoint
-from ..rbac import current_user, require_role
+from ..rbac import current_user, require_identified, require_role
 from ..schemas import (
     AttachmentOut,
     CommentIn,
@@ -520,7 +520,13 @@ def list_samples():
 
 
 @router.post("/samples/{sample_id}/open", response_model=ProjectOut, status_code=201)
-async def open_sample(sample_id: str, name: str | None = Form(None), db: Session = Depends(get_db)):
+async def open_sample(sample_id: str, name: str | None = Form(None),
+                      db: Session = Depends(get_db),
+                      # This route carried NO identity dependency at all — not even
+                      # current_user — and `/samples` is outside _PROTECTED_PREFIXES, so an
+                      # anonymous caller could create projects (201) and materialise a
+                      # bundle into storage on each call, with no actor recorded.
+                      _: str = Depends(require_identified)):
     """Open a library sample as a new project.
 
     Runs through `import_bundle` — the identical path a user's own `.mass` takes — so a sample can

@@ -101,6 +101,28 @@ def require_role(min_role: str):
     return dep
 
 
+def require_identified(user: str = Depends(current_user)) -> str:
+    """A caller who actually authenticated — for PLATFORM-GLOBAL routes with no `{pid}`.
+
+    `current_user` IDENTIFIES; it does not AUTHORISE. With RBAC on and no bearer token, cookie or
+    trusted header it returns the literal string `"anonymous"`, so `Depends(current_user)` alone is
+    not a gate — it is a name. Routes have shipped with exactly that mistake twice: the
+    `/jurisdiction/packs` set (a live probe returned 200 / **201** / 200 with no credentials while
+    `GET /admin/errors` correctly returned 403 in the same run), and `/templates` + `/samples/{id}/open`,
+    which `test_global_authz` had frozen as known-unguarded rather than fixed.
+
+    This is the platform-global sibling of the `/projects/{pid}` rule in `route-authz-guard`: a route
+    that LOOKS guarded because a dependency is present, when the dependency only identifies.
+
+    It lives here rather than in a router because it is general: it was previously defined inside
+    `routers/jurisdiction.py`, so every other module needing it would have imported a feature router,
+    and deleting that feature would have taken the platform's only global authoriser with it.
+    """
+    if user in ("anonymous", None, ""):
+        raise HTTPException(status_code=403, detail="authentication required")
+    return user
+
+
 def member_project_ids(db: Session, user: str) -> set[str] | None:
     """The set of project ids the caller may see in a cross-project roll-up. Returns None when RBAC is
     off (dev) or for the api-key/admin identity, meaning "no restriction". Otherwise only the projects

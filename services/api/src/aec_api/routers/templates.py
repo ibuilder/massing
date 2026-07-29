@@ -10,7 +10,7 @@ from .. import modules as me
 from .. import rbac
 from ..db import get_db
 from ..models import Template
-from ..rbac import current_user, require_role
+from ..rbac import current_user, require_identified, require_role
 
 router = APIRouter()
 
@@ -36,7 +36,11 @@ def list_templates(module: str | None = None, db: Session = Depends(get_db),
 
 
 @router.post("/templates", status_code=201)
-def create_template(body: TemplateIn, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def create_template(body: TemplateIn, db: Session = Depends(get_db),
+                    # require_identified, not current_user: `/templates` is outside
+                    # _PROTECTED_PREFIXES, so with RBAC on an anonymous caller reached this
+                    # and created a SHARED, cross-project template. current_user only names.
+                    _: str = Depends(require_identified)):
     if body.module not in me.REGISTRY:
         raise HTTPException(400, f"unknown module {body.module!r}")
     t = Template(module=body.module, name=body.name, items=body.items or [])
@@ -46,7 +50,10 @@ def create_template(body: TemplateIn, db: Session = Depends(get_db), _: str = De
 
 
 @router.delete("/templates/{tid}")
-def delete_template(tid: str, db: Session = Depends(get_db), _: str = Depends(current_user)):
+def delete_template(tid: str, db: Session = Depends(get_db),
+                    # Same fix, and this was the worse half: an unauthenticated DELETE of a
+                    # template every project can use.
+                    _: str = Depends(require_identified)):
     t = db.get(Template, tid)
     if not t:
         raise HTTPException(404, "no such template")

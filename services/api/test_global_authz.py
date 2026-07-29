@@ -134,10 +134,14 @@ BASELINE = {
     # (SCIM is NOT here: `require_scim` is in AUTHORISING, so the enumerator already clears those
     #  four routes. Listing them anyway would have been a silent lie about why they are safe — the
     #  first run of this test reported them as stale baseline entries, which is the check working.)
-    # WORTH A LOOK — these mutate SHARED state with no authorising dependency. Frozen so they cannot
-    # multiply, but they are the entries in this list I would not defend if asked.
-    ("POST", "/templates"), ("DELETE", "/templates/{tid}"),
-    ("POST", "/samples/{sample_id}/open"),
+    # (The three entries that used to sit here — POST /templates, DELETE /templates/{tid} and
+    #  POST /samples/{sample_id}/open — were removed on 2026-07-29 because they were FIXED rather than
+    #  re-frozen. They were flagged in this file as "the entries in this list I would not defend if
+    #  asked", which was accurate: /templates is outside _PROTECTED_PREFIXES and both routes guarded
+    #  with `Depends(current_user)`, so an anonymous caller could delete a template every project
+    #  shares; open_sample carried no identity dependency at all and returned 201. All three now take
+    #  `require_identified`. Freezing a count stops it growing; it does not close the hole, and this
+    #  file existing is what made them findable.)
 }
 
 
@@ -195,8 +199,10 @@ print(f"GLOBAL-AUTHZ OK - {len(live)} platform-global mutating route(s) carry no
       f"with no credentials, while /admin/errors correctly returned 403 in the same run). The root "
       f"cause is that _PROTECTED_PREFIXES is hand-maintained, so a NEW top-level prefix silently "
       f"opts out of the safety net and nothing fails. This freezes the set: a new one fails the "
-      f"build. It is not a claim that each of the {len(live)} is safe - three mutate shared state "
-      f"and are flagged in the file - it is a claim that each is KNOWN, and the number can only go "
-      f"down.")
+      f"build. It is not a claim that each of the {len(live)} is safe - it is a claim that each is "
+      f"KNOWN, and the number can only go down. The three that this file flagged as indefensible "
+      f"(POST/DELETE /templates, POST /samples/{{id}}/open) were FIXED rather than re-frozen on "
+      f"2026-07-29 and take require_identified now; a frozen count stops a hole multiplying, it does "
+      f"not close one.")
 if gone:
     print(f"  ({len(gone)} baseline entr(ies) no longer present - delete from BASELINE: {gone})")
