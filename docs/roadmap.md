@@ -864,6 +864,83 @@ is a data-scoping change and wants the org tier settled first.
 
 ---
 
+## ✏️ R29 — AUTHORING-FEEL RING *(research 2026-07-29: pascalorg/editor + 4 comparators)*
+
+**Why this ring exists.** The prompt was "pascalorg/editor has interesting authoring abilities — import
+what is beneficial." The audit's finding is that **almost none of what is beneficial is code we can
+import**, and the reason is worth stating up front because it decides the whole ring: our authoring is
+not behind on *features*, it is behind on *feel*. Every edit round-trips to a server recipe. Pascal's
+edits do not.
+
+### What each source actually is — checked, not assumed
+
+| Source | Licence | Verdict |
+|---|---|---|
+| [pascalorg/editor](https://github.com/pascalorg/editor) — 19.3k★, pushed 2026-07-29 | **MIT** ✅ | **Ideas only.** Stack is React 19 + Next 16 + R3F + **WebGPU** + Zustand + Bun. Adopting its packages means adding React, Next and a second renderer beside our pinned `three` 0.184 / `@thatopen` 3.4.x pair. Not a dependency decision — a rewrite. |
+| [louistrue/ifc5cad](https://github.com/louistrue/ifc5cad) (IFChili) | **AGPL-3.0** + LGPL-3.0 WASM ❌ | **Excluded by the licence rule.** 66+ CAD commands on OpenCascade WASM, IFC5/IFCX serialisation at "Phase 0". May be read for ideas; **no code may be copied**. |
+| [ThatOpen/engine_clay](https://github.com/ThatOpen/engine_clay) | **MIT** ✅ | **Reference, not dependency.** The obvious candidate — IFC-native modelling, same family as our stack. But: **not published on npm** (`@thatopen/clay` → 404) and **last commit 2024-10-09**, stopping mid-feature on *"first working version of exportable wall corners"*. Roughly two years dormant. |
+| [three-bvh-csg](https://github.com/gkjohnson/three-bvh-csg) vs [Manifold](https://github.com/elalish/manifold) | MIT / Apache-2.0 ✅ | If client-side booleans are ever needed, **Manifold**, not bvh-csg. bvh-csg is far faster than BSP but its own docs concede the result "may not be correctly completely two-manifold" and point at Manifold for CAD. A non-manifold solid is an unquantifiable solid. |
+
+**Two corrections to the first pass, recorded because both would have led somewhere wrong.** Pascal's
+README describes no file formats, and the first read concluded "no IFC". It has an **IFC importer**
+(v0.9.0, `packages/ifc-converter`) — but import only: IFC → its own node schema, exports as
+GLB/STL/OBJ, and the export path was contributed from outside the core team. And a search result
+described `@thatopen/clay` as having "active npm distribution"; the registry returns 404 and the
+commit log is two years cold. **Both claims were plausible, both were wrong, and both were only caught
+by fetching the artifact instead of the description of it.**
+
+### What we already have — checked before proposing anything
+
+Not a gap list until the premise is verified ([[check-the-blocker-premise]]). Already shipped:
+SketchUp-style **inference snapping** (`inference.ts` — axis / parallel / perpendicular, pure and
+unit-tested), a **transform gizmo**, **grid overlay**, `draftPanel`/`draftProxy`, **eight** server-side
+edit engines (`edit_core`, `edit_enclosure`, `edit_struct`, `edit_mep`, `edit_annotate`,
+`edit_asbuilt`, …) plus `edit_history`, a family/type system, and IFC-as-source-of-truth with
+GUID-stable recipes. Pascal has none of that last part: its data model is bespoke JSON.
+
+**So the honest framing is not "Pascal is ahead".** On what a building *is*, we are far ahead. On what
+editing one *feels like*, it is ahead, and the difference is one architectural choice: it keeps a
+local scene graph with dirty-node tracking and regenerates only the changed geometry in the render
+loop, so an edit is visible in the same frame. We commit through a server recipe and republish.
+
+### The ring — sequenced to sit BEHIND current work, and slice-able
+
+Each item is independently shippable and none blocks the NOW list. **The commit path does not change:
+the server recipe stays the writer of record and IFC stays the source of truth.** What changes is that
+the screen stops waiting for it.
+
+* **A29-LOCAL-PREVIEW ①** — *the edit shows before the server agrees.* Adopt the dirty-node idea:
+  mark the touched element, regenerate its mesh locally, render it as a **pending** overlay, then
+  reconcile against the published fragments when the recipe returns. The rule that keeps this honest
+  is the one this codebase already lives by: **a pending edit must look pending.** A local preview
+  drawn identically to committed geometry is a lie the moment the recipe fails, and a silent divergence
+  between what the screen shows and what the IFC holds is worse than a slow edit.
+
+* **A29-PLACE-VALID ②** — *say no before the round-trip, not after.* Pascal's spatial grid answers
+  `canPlaceOnFloor` / `canPlaceOnWall` / `getSlabElevationAt` before a placement commits. We validate
+  server-side, so an invalid placement costs a full round-trip to be told no. Reuse the existing
+  `inference.ts` maths; this is a pure function and belongs beside it, unit-tested the same way.
+
+* **A29-SPATIAL-SELECT ②** — *click depth, not just objects.* Their selection walks Site → Building →
+  Level → Zone → Item. That hierarchy is **IfcSite → IfcBuilding → IfcBuildingStorey → IfcSpace →
+  element** — we hold the real one and navigate it as a flat list. This is the item where being
+  IFC-native makes the feature *better* for us than for them, because their tree is a convention and
+  ours is the model.
+
+* **A29-UNDO-LOCAL ③** — *undo the stroke, not the commit.* We version on the server; they keep a
+  50-step in-browser history. Both are right for different questions — "undo my last three drags"
+  should not require three republishes. Scope: the in-progress draft only, discarded on commit, with
+  the server history unchanged as the record.
+
+* **A29-GUIDE-UNDERLAY ③** — *trace over a plan.* A 2D reference image pinned to a level and scaled,
+  for redrawing an existing building from a scan or a PDF. Small, self-contained, and the one place
+  their `Guide` node maps onto something we do not have.
+
+**Explicitly NOT in this ring:** adopting React/R3F, adopting a bespoke node schema beside IFC,
+vendoring `engine_clay` (dormant), and anything from IFChili (AGPL). If client-side booleans become
+necessary later, that is a separate decision with **Manifold** as the candidate and a dependency
+conversation attached.
+
 ## 🎚 UX-POLISH — interaction-craft ring (remainder beyond the NOW sprint)
 
 **Audit 2026-07-25 (live, against the running stack).** Measured rather than opined: 170 visible
