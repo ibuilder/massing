@@ -1632,7 +1632,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
             const state = await waitForPublish(projectId!);
             if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); await reloadModelPins(); cadStatus.textContent = `✓ ${parsed.echo}${shown ? " — shown" : ""}`; notify(`${parsed.echo} applied`, "success"); }
             else { cadStatus.textContent = `authored — publish ${state}`; notify(`authored — publish ${state}`, state === "error" ? "error" : "info"); }
-          } catch (err) { cadStatus.innerHTML = `<span style="color:var(--status-crit)">${escapeHtml((err as Error).message)}</span>`; notify(`${parsed.echo} failed: ${(err as Error).message}`, "error"); }
+          } catch (err) { cadStatus.innerHTML = `<span style="color:var(--status-crit)">${escapeHtml((err as Error).message)}</span>`; notify(`${parsed.echo} failed: ${escapeHtml((err as Error).message)}`, "error"); }
         });
       };
       cadIn.addEventListener("keydown", (e) => {

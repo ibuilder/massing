@@ -4,6 +4,51 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.776 — a sample worth opening, and a ratchet on unescaped HTML
+
+The library had a house: 23 elements, seven walls, a roof. It earns its place — it was authored in
+the browser by the same edit recipes a user drives, so it proves the authoring path end to end. What
+it cannot do is look like a building. A first-time visitor opening a 23-element house learns that the
+viewer renders, and nothing else.
+
+`riverside_school_structural.mass` is the second container: **1551 elements** — 619 reinforcing bars,
+375 beams, 299 slabs, 203 columns, 22 members, 15 element assemblies, across 5 storeys. A structural
+frame with its reinforcement modelled, which is the point: the panels have something to measure.
+
+It was packaged through **the path a user takes**, not a fixture writer — `POST /projects`, then
+`POST /projects/{pid}/source-ifc?publish=true` with the real 8.4 MB IFC, publish, then
+`build_samples.py`. A sample built by a private route would sooner or later demonstrate behaviour the
+product does not have.
+
+**The school is structure only, and the vitals strip says so.** There is no `IfcSpace` in the model,
+so Area reads `—` ("no space areas recorded") and $/ft² follows it, because a figure over a missing
+denominator is not a figure. That is the em-dash rule from v0.3.773 doing exactly its job on the most
+visible model we ship. Showing `0 ft²` here would be the easier demo and the dishonest one.
+
+Both containers are now described in `samples/README.md` with what each demonstrates, so the library
+says why it has two rather than leaving the pair unexplained.
+
+Verified from the artifact, not the build log: `GET /samples` lists two entries; the school's
+manifest reads `readable: true`, `has_geometry: true`, `elements: 1551`, `format: massing.project`,
+`version: 2`. `test_samples` passes — its "ships at least one .mass" assertion now names both.
+
+### SEC — user text reaching `innerHTML` unescaped, and a ratchet so it stops coming back
+
+An audit pass found free text interpolated into `innerHTML` without `esc()` across nine files: a
+submittal title lifted from an **uploaded document**, a `trade` parameter echoed back, an upload
+filename, and server error strings — a 422 detail can quote the caller's own input. Each was one
+missed call from stored XSS, and in every case the surrounding lines in the *same function* already
+used `textContent`. The defect was inconsistency, not ignorance, which is precisely the kind that
+returns.
+
+So the fix is a ratchet, not a sweep. Escaping every site at once cannot be done safely — most
+interpolations are literals passed to helpers (`stat("Budget", n)`) and a few carry deliberate markup
+(rail icons), so blanket escaping would break UI to fix nothing. `ui/innerHtmlGuard.test.ts` instead
+records a per-file baseline of unescaped hot interpolations and enforces that **the number only ever
+goes down**: new code cannot add one, and a file that improves without lowering its baseline fails
+too — otherwise the ledger drifts from the code it describes and starts granting permission it was
+never asked for.
+
 ## v0.3.775 — TRACE-UI: a coverage number you can open
 
 The 5D chain ran one way. You could ask *"what did this element cost?"* — paste a GlobalId, get the

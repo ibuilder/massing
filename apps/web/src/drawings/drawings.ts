@@ -3,6 +3,7 @@ import type { Measure } from "./pdfTakeoff";
 import { noProjectHtml } from "../ui/empty";
 import { askText } from "../ui/prompt";
 import { sanitizeSvg } from "../ui/sanitizeSvg";
+import { escapeHtml } from "../ui/feedback";
 
 /** 2D Drawings Set — a sheet-set browser for the server-generated plans / elevations / sections
  *  (cf. PlanGrid plan room + Bluebeam markup + Fieldlens field pins). Left: a sheet register;
@@ -158,7 +159,7 @@ export class DrawingsUI {
   private async show(sheet: Sheet) {
     this.current = sheet;
     this.buildToolbar();
-    this.svgHost.innerHTML = `<div class="meta" style="padding:20px">rendering ${sheet.label}…</div>`;
+    this.svgHost.innerHTML = `<div class="meta" style="padding:20px">rendering ${escapeHtml(sheet.label)}…</div>`;
     const url = this.host_.api.url(sheet.path) + (this.callouts && sheet.type === "plan" ? "&callouts=true" : "");
     try {
       const res = await fetch(url, { headers: this.host_.api.authHeaders() });
@@ -172,7 +173,7 @@ export class DrawingsUI {
       await this.loadPins();
       this.host_.setStatus(`drawing: ${sheet.label}`);
     } catch (e) {
-      this.svgHost.innerHTML = `<div class="meta" style="padding:20px;color:#e2554a">couldn't render ${sheet.label} (${(e as Error).message}) — needs a published model / source IFC.</div>`;
+      this.svgHost.innerHTML = `<div class="meta" style="padding:20px;color:#e2554a">couldn't render ${escapeHtml(sheet.label)} (${escapeHtml((e as Error).message)}) — needs a published model / source IFC.</div>`;
     }
   }
 

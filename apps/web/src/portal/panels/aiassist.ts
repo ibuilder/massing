@@ -289,14 +289,19 @@ export async function renderAiAssist(ctx: PanelContext) {
           } else if (active === "scope") {
             const d = await ctx.host.api.draftScope(pid, tradeInp!.value.trim() || "General", opts);
             out.innerHTML = "";
-            const h = el("div", "meta"); h.innerHTML = `<b>Scope — ${d.trade}</b> · <span class="meta">${d.source}</span>`;
+            // esc(): `trade` is a caller-supplied parameter echoed straight back, and `source` names
+            // the uploaded document. The list items below already go through textContent — these two
+            // headers were the only place raw markup could reach the DOM.
+            const h = el("div", "meta"); h.innerHTML = `<b>Scope — ${esc(d.trade)}</b> · <span class="meta">${esc(d.source)}</span>`;
             out.append(h, list("Inclusions", d.inclusions || []), list("Exclusions", d.exclusions || []),
               list("Clarifications", d.clarifications || []), list("Spec sections", d.spec_sections || []));
             if (d.message) { const m = el("div", "meta"); m.textContent = d.message; m.style.marginTop = "6px"; out.append(m); }
           } else {
             const d = await ctx.host.api.draftSubmittalSummary(pid, opts);
             out.innerHTML = "";
-            const h = el("div"); h.innerHTML = `<b>${d.title || "Submittal"}</b> — ${d.spec_section || ""} ${d.type || ""}`;
+            // esc(): title/spec_section/type are extracted from a document the user UPLOADS, so they
+            // are third-party text. `summary` and `message` below already use textContent.
+            const h = el("div"); h.innerHTML = `<b>${esc(d.title || "Submittal")}</b> — ${esc(d.spec_section || "")} ${esc(d.type || "")}`;
             const s = el("div"); s.style.cssText = "font-size:12px;margin:4px 0"; s.textContent = d.summary || "";
             out.append(h, s, list("Key items", d.key_items || []), list("Missing / review", d.missing_or_review || []));
             if (d.message) { const m = el("div", "meta"); m.textContent = d.message; m.style.marginTop = "6px"; out.append(m); }

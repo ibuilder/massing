@@ -22,6 +22,18 @@ own private code path would, sooner or later, demonstrate behaviour the product 
 
 Point the library elsewhere with `AEC_SAMPLES_DIR`.
 
+## What is here
+
+| Container | Elements | What it demonstrates |
+|---|---|---|
+| `riverside_school_structural.mass` | **1551** | A real structural frame — 619 reinforcing bars, 375 beams, 299 slabs, 203 columns, 15 assemblies, across 5 storeys. IFC4, from the openly-published That Open school model. This is the one to open first: it is a building an engineer would recognise, not a demo shape. |
+| `maple_grove_house.mass` | 23 | Authored **in the browser** by the same edit recipes a user drives — 7 walls, 3 slabs, a roof, 2 doors, 4 windows, 6 openings. Small on purpose: it proves the authoring path end to end. |
+
+**The school is structure only**, and the vitals strip says so rather than hiding it: no `IfcSpace`
+means Area reads `—` ("no space areas recorded") and $/ft² follows it, because a figure divided by a
+missing denominator is not a figure. That is the strip working, not a gap in the sample — the
+architectural half of that model exists upstream only as pre-converted fragments with no IFC source.
+
 ## Adding one
 
 ```bash

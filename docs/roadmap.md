@@ -83,7 +83,12 @@ now asserts no room's home carries `goto`.
 The 5D chain made visible: figure → cost line → the elements behind it. The engines all exist; this
 is the last mile that makes the differentiator discoverable by clicking rather than by reading docs.
 
-### 6 · SAMPLE-LIBRARY ② — real content
+### ~~6 · SAMPLE-LIBRARY ②~~ — **DONE v0.3.776**: a second building type, and a real one
+`riverside_school_structural.mass` — 1551 elements (619 reinforcing bars, 375 beams, 299 slabs, 203
+columns, 15 assemblies, 5 storeys), packaged through the same publish path a user drives. The library
+now shows what the two containers are *for*: the house proves the browser authoring path end to end
+at 23 elements; the school is a frame an engineer recognises. It is **structure only**, so Area and
+$/ft² render as `—` with their reasons — the vitals strip working, not a gap papered over. Was:
 `build_samples.py` works and the library ships (v0.3.769). What is missing is **content**: more than
 one `.mass`, covering more than one building type. Blocked on authoring time, not on tooling.
 

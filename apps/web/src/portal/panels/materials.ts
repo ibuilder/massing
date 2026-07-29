@@ -2,6 +2,7 @@ import type { MaterialEntry } from "../../api/client";
 import { noProjectHtml } from "../../ui/empty";
 import { toast } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
+import { escapeHtml as esc } from "../../ui/feedback";
 
 /**
  * Material editor (M1) — edit the per-project palette that maps each IFC element class to an
@@ -106,5 +107,5 @@ export async function renderMaterials(ctx: PanelContext) {
     base = p.default; effective = { ...p.effective };
     for (const [k, v] of Object.entries(p.overrides)) overrides[k] = v;
     paint();
-  } catch (e) { body.innerHTML = `<div class="meta">Palette unavailable: ${(e as Error).message}</div>`; }
+  } catch (e) { body.innerHTML = `<div class="meta">Palette unavailable: ${esc((e as Error).message)}</div>`; }
 }
