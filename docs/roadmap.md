@@ -1053,8 +1053,39 @@ removed. Remaining, in priority order:
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ⭐ **SEC-GLOBAL-AUTHZ** *(S)* — **there is no authz gate for platform-global routes, and a HIGH got
-  through the hole on 2026-07-29.** `test_route_authz` enumerates `/projects/{pid}` routes and
+**External corroboration — Repowise re-index, 2026-07-29.** Worth recording because it was reviewed
+once before and judged mostly not actionable; re-indexed, it independently names the same five files
+this section and [[web-godfile-decomposition]] already target, ranked by *churn × prior bug fixes*:
+
+| file | churn | prior bug fixes |
+|---|---|---|
+| `apps/web/src/portal/portal.ts` | 99.9th pct | 10 |
+| `apps/web/src/viewer/app.ts` | 99.8th | 16 |
+| `apps/web/src/api/client.ts` | 99.8th | 15 |
+| `apps/web/src/main.ts` | 99.7th | 18 |
+| `services/data/src/edit.py` | 99.6th | 6 |
+
+Also: 168 of 1,426 files are hotspots, and **17 of the 20 lowest-health files were bug-fixed in the
+last 6 months at 5.01× the baseline rate.** That is the useful number — it says the decomposition
+backlog is not hygiene, it is where the defects actually come from. The list is the same one
+`multi-agent-lanes` names as the concurrent-edit collision points, arrived at from git history rather
+than from our experience, which is what makes it worth more than a restatement.
+
+**Two of its findings are NOT actionable and should not be picked up.** "Bus factor 1 on every
+hotspot" is an artifact — every commit here carries one git identity regardless of which session
+wrote it, so the metric cannot say anything about this repo. And "4,591 open findings" is unscoped;
+treat it as a lint-level count, not a defect count, unless someone bounds it by severity first.
+Scores for the record: defect risk 7.3/10, maintainability 8.5/10, static performance 9.9/10.
+
+
+- ✅ **SEC-GLOBAL-AUTHZ** — **SHIPPED**: the ratchet landed as PR #102, the HIGH was fixed in #101,
+  and the allowlist was hardened in v0.3.793/794. `test_global_authz.py` freezes 39 known global
+  mutating routes and fails the build on a new one; coverage checked against `app.openapi()` (0 of 51
+  invisible to it); mutation-checked before merge, not after. The `AUTHORISING` set is now verified
+  against the source — two names in it (`require_license`, `require_plan`) resolved to nothing, which
+  is a pre-authorised hole waiting for someone to define a matching name. Original entry kept below
+  because the *mechanism* is the durable lesson. — **there is no authz gate for platform-global
+  routes, and a HIGH got through the hole on 2026-07-29.** `test_route_authz` enumerates `/projects/{pid}` routes and
   asserts each carries `require_role`; it passed on 695 routes while three brand-new routes with no
   `{pid}` in the path — `GET`/`POST`/`DELETE /jurisdiction/packs` (PR #101) — were reachable
   **unauthenticated**. Measured with RBAC on and no credentials: `200` / **`201`** / `200`, with
