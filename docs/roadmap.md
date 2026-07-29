@@ -84,23 +84,37 @@ shell *on* (default for 50 releases by then), the roadmap status block quoting s
 old, and both README and roadmap still offering a `?shell=classic` opt-out that had been deleted. Each
 was caught by accident rather than by a gate.
 
-Unverified right now, stated as unverified rather than assumed fine:
+**Re-measured 2026-07-29 after v0.3.786/796 — two of the three items below were fixed while this
+section still described them as broken.** That is the same defect the section is about, one level up:
+a list of stale claims that had itself gone stale. Measured, not assumed:
 
-* **`docs/walkthrough.md` and the guides** — do they describe the six-room shell, the vitals strip, the
-  sample library, the `.mass` container? Nobody has re-read them since R26 landed.
-* **The Pages demo snapshot is serving a taxonomy that no longer exists — measured, not suspected.**
-  `apps/web/src/demo/demoData.json` carries 132 modules across exactly four rooms:
-  `model` 38 · `schedule` 41 · `cost` 37 · `deal` 16. The app has **six**, and three of the four names
-  in that file are wrong: `model` was renamed `design` (v0.3.766), while `planning` and `work` do not
-  appear at all. So **38 modules point at a room id the shell cannot render**, and two rooms are empty
-  on the public demo. Regenerate with `build_demo_data.py` against a current seed — the snapshot is a
-  *capture*, so it rots silently every time the room spine moves and nothing fails when it does.
-* **README feature list** — several releases of new surface (received-sheet regions, firm standards,
-  the school sample, one-shell navigation) are absent.
+* **The Pages demo snapshot is CURRENT.** ✅ Fixed in `90783da7` (v0.3.786), which added
+  `grab(c, "/rooms")` to `build_demo_data.py` and re-captured. `demoData.json` now carries **133
+  modules** across the populated rooms — `design` 32 · `schedule` 38 · `planning` 25 · `cost` 18 ·
+  `operate` 12 · `deal` 8 — and `GET /rooms` is in the capture for the first time. `work` is absent
+  because it legitimately holds 0 modules, not because it is missing. The previous entry's "132
+  modules across exactly four rooms, 38 pointing at a room id the shell cannot render" is no longer
+  true of any file in the repo.
+  **The root cause is worth keeping even though the symptom is gone:** `/rooms` was never in the crawl
+  at all, so the demo rail always rendered from `FALLBACK_ROOMS` — and the fallback drew something
+  *plausible*, which is why a taxonomy change rotted it silently. See
+  [[the-dangerous-default-is-the-plausible-one]].
+* **`docs/walkthrough.md` and `README.md` carry no stale shell flag.** ✅ Neither mentions
+  `?shell=spine` or `?shell=classic` at all (grep: 0 occurrences each). The walkthrough names rooms
+  (10×), the vitals strip (2×), `.mass` (3×) and samples (4×); the README names rooms (11×),
+  received-sheet regions and firm standards. The R26-era gap this entry described has been closed by
+  the doc gates plus ordinary release notes.
+* **Still genuinely open:** nobody has read the walkthrough end-to-end against the *seven*-room spine
+  introduced at v0.3.796 (`deal · design · planning · schedule · cost · work · operate`). Room COUNT
+  is gated; room ORDER and the Operate room's content are not.
 
-`docsCurrent.test.ts` gates a handful of these claims. **It should gate more:** every doc sentence that
-names a flag, a count or a room is a claim that can rot, and the ones that rotted were all sentences no
-test read.
+`docsCurrent.test.ts` gates **10** assertions across `README.md` and `docs/walkthrough.md` — shell
+flags in both directions, every room appearing in the README, the retired three-tab nav, the vitals
+strip, what a sample *is*, deleted samples, and rooms the product does not have. That is more than
+"a handful", and it is why two of the three items above closed themselves. **It should still gate
+more:** every doc sentence naming a flag, a count or a room is a claim that can rot, and the ones
+that rotted were all sentences no test read. Note for whoever extends it — the file lives in
+`apps/web/src/shell/`, which is **Lane A**, not Lane F.
 
 ### Decisions, not effort — these want your call
 - ~~**ROOM-NAMING**~~ — **settled 2026-07-29 (v0.3.779): professional terms.** Design · Planning ·
