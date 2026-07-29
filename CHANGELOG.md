@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.771 — revert v0.3.770's landing hack; the rule is now a test, not a comment
+
+Code review caught a regression I shipped an hour earlier, and it was right on every point.
+
+v0.3.770 tried to make a `goto` destination usable as a room's landing target by having the
+workspace hand-off mark itself active. **The marker is sticky and nothing clears it**, so
+`goToRoom`'s "have we arrived?" check returned true for a navigation that never happened. A second
+Deal click — or Deal → Design → Deal — skipped the dispatch entirely and left the user on the
+Developer dashboard with the Deal tab lit. That is precisely the "tab lights up, nothing moves"
+defect v0.3.766 existed to kill, reintroduced by the fix for it.
+
+**My "verified live: Deal → Underwriting, repeatably" was wrong**, and wrong in an instructive way: I
+read `.pnav-item.active` — *the same marker the retry loop keys on*. Circular. Re-measuring the
+**content pane** shows it said `Budget` throughout, while the rail claimed Underwriting. I had
+written the "existence is not arrival" note two hours earlier and then checked a flag instead of a
+render.
+
+CI was **fully green** on the broken commit, which is the fourth finding: the rule forbidding this
+lived in a *comment* (`destinations.test.ts`: "such a destination CANNOT be a room's landing
+target"), so deleting the mechanism or breaking it both passed.
+
+Reverted, and the invariant is now executable — `spine.test.ts` asserts **no room's home carries
+`goto`**, mutation-checked by re-pointing Deal at `__uw__` and confirming it fails. Verified live by
+*content*: Deal renders the real Portfolio panel on first click, repeat click, and after Design.
+
+Deal reaching Underwriting needs `__uw__` to become a real portal panel rather than a workspace hop.
+Tracked as **R27-UW-PANEL** — the honest fix, not a truer-looking flag.
+
 ## v0.3.770 — Deal opens on Underwriting, and Quality stays put
 
 **A workspace hand-off is now a navigation like any other.** Two destinations — Underwriting

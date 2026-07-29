@@ -148,6 +148,24 @@ describe("every room opens onto something", () => {
     expect(nulls).toEqual(["design"]);
   });
 
+  it("a room's home RENDERS — it never carries `goto`", async () => {
+    // The gate v0.3.770 needed and did not have.
+    //
+    // A `goto` destination hands off to another workspace and renders nothing in the portal, so a
+    // landing check has nothing to observe. Pointing Deal at `__uw__` and faking the signal produced
+    // exactly the defect the room work set out to kill: the tab lit, the marker said Underwriting,
+    // and the content pane still showed Budget. Every gate passed, because the rationale forbidding
+    // it lived in a COMMENT. It lives here now.
+    const { ALL_DESTS } = await import("./destinations");
+    const goto = new Set(ALL_DESTS.filter((d) => d.goto).map((d) => d.key));
+    expect(goto.size, "if no destination hops workspaces this test is vacuous").toBeGreaterThan(0);
+    for (const [room, home] of Object.entries(ROOM_HOME)) {
+      if (home === null) continue;
+      expect(goto.has(home), `${room}'s home "${home}" hops workspaces and cannot be landed on`)
+        .toBe(false);
+    }
+  });
+
   it("no two rooms share a home", () => {
     const homes = Object.values(ROOM_HOME).filter((h): h is string => h !== null);
     expect(new Set(homes).size).toBe(homes.length);

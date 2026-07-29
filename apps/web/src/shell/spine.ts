@@ -180,14 +180,16 @@ export const ROOM_HOME: Record<string, string | null> = {
   planning: "__benchmarks__",
   cost: "__budget__",
   schedule: "__schedule__",
-  // Underwriting — the room's actual job, restored in v0.3.770.
+  // Portfolio, not Underwriting — and the constraint is real, not a preference.
   //
-  // This said `__portfolio__` for three releases because `__uw__` carries `goto`: it switches
-  // workspace rather than opening a panel, and the landing retry gives up when nothing ever becomes
-  // active. The fix was not to keep working around it but to make the hand-off mark itself active
-  // like any other navigation (`destButton`), so "did it arrive?" has an answer. Deal opens on the
-  // proforma again, which is what "underwrite it, fund it, lease it and dispose of it" starts with.
-  deal: "__uw__",
+  // `__uw__` carries `goto`: it switches workspace instead of rendering a panel here, so there is
+  // nothing for a landing check to observe. v0.3.770 tried to fake that signal by marking the
+  // hand-off active; the marker never cleared, so the second Deal click reported "arrived" for a
+  // navigation that never ran. Reverted in v0.3.771, and `spine.test.ts` now asserts that a room's
+  // home never carries `goto` — the rule the old comment stated but nothing enforced.
+  //
+  // Deal reaching Underwriting needs `__uw__` to become a real portal panel. Tracked as R27-UW-PANEL.
+  deal: "__portfolio__",
   work: "__workqueue__",
 };
 

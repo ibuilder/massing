@@ -42,7 +42,7 @@ than suspected:
   the room that owns them. Same shape as the defect that started this: the grouping exists, the
   content does not route into it. Fix in `portal.ts::buildNav`, where `byRoom` is built from
   `ALL_DESTS` only and never from `this.mods`.
-- ~~**DEST-GOTO-ASYMMETRY**~~ — **DONE v0.3.770**: the hand-off marks itself active, so a `goto` destination can be a room's home. Deal opens on Underwriting. Was:
+- **R27-UW-PANEL** — give `__uw__` a real portal panel so Deal can land on Underwriting. The v0.3.770 shortcut (mark the workspace hand-off active) was reverted in v0.3.771: the marker never cleared, so a repeat click reported arrival for a navigation that never ran. `spine.test.ts` now asserts no room's home carries `goto`. Originally:
   `__uw__` (Underwriting) and `__drawings__`. The cost is concrete: such a destination **cannot be a
   room's landing target**, because nothing can observe it having arrived — which is why Deal lands on
   Portfolio rather than on Underwriting, its natural home. Either give them real panels or teach the
