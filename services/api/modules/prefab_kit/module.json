@@ -1,0 +1,150 @@
+{
+  "key": "prefab_kit",
+  "name": "Prefab Kits",
+  "section": "Schedule",
+  "icon": "📦",
+  "ref_prefix": "KIT",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Kit",
+      "type": "text",
+      "required": true,
+      "fieldset": "Kit"
+    },
+    {
+      "name": "trade",
+      "label": "Trade / Crew",
+      "type": "select",
+      "options": [
+        "Sitework",
+        "Structure",
+        "Concrete",
+        "Steel",
+        "Envelope",
+        "MEP",
+        "Interiors",
+        "Finishes",
+        "Commissioning"
+      ],
+      "fieldset": "Kit"
+    },
+    {
+      "name": "fabricator",
+      "label": "Fabricator / Shop",
+      "type": "text",
+      "fieldset": "Kit"
+    },
+    {
+      "name": "selector",
+      "label": "Scope (QUERY-DSL)",
+      "type": "text",
+      "required": true,
+      "help": "The elements this kit contains, e.g. 'IfcDuctSegment & storey=L3'. Resolved live against the model until the kit is released, then frozen.",
+      "fieldset": "Scope"
+    },
+    {
+      "name": "frozen_guids",
+      "label": "Frozen scope (GlobalIds, one per line)",
+      "type": "textarea",
+      "help": "Written when the kit is released for fabrication. The shop builds THIS list; the selector is only how the list was arrived at. Drift between the two is reported, never silently absorbed.",
+      "fieldset": "Scope"
+    },
+    {
+      "name": "released_on",
+      "label": "Released for fabrication",
+      "type": "date",
+      "fieldset": "Scope"
+    },
+    {
+      "name": "pull_task",
+      "label": "Installs under (pull-plan task)",
+      "type": "reference",
+      "module": "pull_plan_task",
+      "fieldset": "Schedule & delivery"
+    },
+    {
+      "name": "delivery",
+      "label": "Delivery",
+      "type": "reference",
+      "module": "delivery",
+      "fieldset": "Schedule & delivery"
+    },
+    {
+      "name": "needed_on_site",
+      "label": "Needed on site",
+      "type": "date",
+      "fieldset": "Schedule & delivery"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Schedule & delivery"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "scoped",
+      "released",
+      "fabricating",
+      "delivered",
+      "installed"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "scoped",
+        "action": "scope",
+        "party": ["GC", "PM", "Subcontractor"]
+      },
+      {
+        "from": "scoped",
+        "to": "draft",
+        "action": "reopen",
+        "party": ["GC", "PM"]
+      },
+      {
+        "from": "scoped",
+        "to": "released",
+        "action": "release",
+        "party": ["GC", "PM"],
+        "requires": ["frozen_guids", "released_on"]
+      },
+      {
+        "from": "released",
+        "to": "fabricating",
+        "action": "start_fabrication",
+        "party": ["GC", "Subcontractor"]
+      },
+      {
+        "from": "fabricating",
+        "to": "delivered",
+        "action": "deliver",
+        "party": ["GC", "Subcontractor"]
+      },
+      {
+        "from": "delivered",
+        "to": "installed",
+        "action": "install",
+        "party": ["GC", "Subcontractor"]
+      },
+      {
+        "from": "released",
+        "to": "scoped",
+        "action": "recall",
+        "party": ["GC", "PM"]
+      }
+    ]
+  },
+  "list_columns": [
+    "trade",
+    "fabricator",
+    "needed_on_site"
+  ],
+  "workspace": "construction"
+}
