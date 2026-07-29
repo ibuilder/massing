@@ -223,6 +223,39 @@ er.simulate(ASSUMPTIONS, ENT, iterations=120, seed=5)
 check("the caller's assumptions are untouched — carry is added to a COPY",
       len(ASSUMPTIONS["cost_lines"]) == before, len(ASSUMPTIONS["cost_lines"]))
 
+# --- 10. solve failures are EXCLUDED, never priced at zero (qodo review of PR #99) ------------------
+# Both defects had the same shape: an approved draw that could not be solved silently left the
+# NUMERATOR while staying in the DENOMINATOR. That prices an unvaluable project at zero and drags
+# every headline number toward it, with nothing in the payload saying so.
+#
+# Value-checked against hand arithmetic, not range-checked. The prior finance review found 17 defects
+# in this package precisely because its tests asserted "between 0 and 1" — which both the right and
+# the wrong answer satisfy.
+ev = er._expected_value({"returns.npv": [100.0, 200.0]},
+                        [{"net_loss": -50.0}], n_total=10, metrics=["returns.npv"], failures=7)
+check("EV divides by the draws it VALUED, not by every iteration",
+      ev["expected_npv"] == round((100.0 + 200.0 - 50.0) / 3, 2), ev["expected_npv"])
+check("  the old denominator would have been 25.0 — a 3.3x understatement",
+      ev["expected_npv"] != round((100.0 + 200.0 - 50.0) / 10, 2))
+check("  and the exclusion is stated, not implied", ev["excluded_solve_failures"] == 7)
+check("  with the basis named", ev["valued_draws"] == 3 and "solved" in ev["basis"])
+
+ev0 = er._expected_value({"returns.npv": [10.0]}, [], n_total=1, metrics=["returns.npv"], failures=0)
+check("with no failures the wording says so rather than warning about nothing",
+      "nothing was excluded" in ev0["excluded_note"])
+
+nothing = er._expected_value({"returns.npv": []}, [], n_total=5, metrics=["returns.npv"], failures=5)
+check("all-failed refuses instead of reporting 0.0", nothing["available"] is False)
+
+# conditional probability: denominator is APPROVED draws, not the ones that happened to solve
+t = er._unconditional_target([100.0, 100.0], target=50.0, n_total=10, n_approved=8)
+check("P[clear | approved] divides by every APPROVED draw", t["probability_given_approval"] == 0.25,
+      t["probability_given_approval"])
+check("  the old denominator (solved only) would have said 1.0 — a certainty that is not there",
+      t["probability_given_approval"] != 1.0)
+check("  and the denominator is published so the reader can check it",
+      t["given_approval_denominator"] == 8)
+
 print()
 if FAILED:
     print(f"entitlement_risk: {len(FAILED)} FAILED — {FAILED}")

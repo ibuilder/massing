@@ -208,9 +208,10 @@ def simulate(assumptions: dict, entitlement: dict, *, variables: list[dict] | No
         "denial": _denial_summary(denials),
     }
     out["probability_of_clearing"] = {
-        m: _unconditional_target(collected[m], t, n) for m, t in targets.items() if m in collected
+        m: _unconditional_target(collected[m], t, n, n_approved)
+        for m, t in targets.items() if m in collected
     }
-    out["expected_value"] = _expected_value(collected, denials, n, metrics)
+    out["expected_value"] = _expected_value(collected, denials, n, metrics, failures)
     return out
 
 
@@ -230,11 +231,22 @@ def _months_summary(months: np.ndarray, approved: np.ndarray) -> dict[str, Any]:
     }
 
 
-def _unconditional_target(vals: list[float], target: float, n_total: int) -> dict[str, Any]:
+def _unconditional_target(vals: list[float], target: float, n_total: int,
+                          n_approved: int) -> dict[str, Any]:
     """P[metric ≥ target] over EVERY iteration, denied ones included.
 
     A refused entitlement does not clear an IRR hurdle. Dividing by the approved draws instead
     answers "P[clears | it was approved]", which is a different and much friendlier question.
+
+    **The conditional denominator is `n_approved`, not the number of draws we managed to solve.**
+    `vals` only receives a value when `solve()` succeeded, so dividing by `len(vals)` silently drops
+    every approved-but-unsolvable draw out of the denominator and *raises* the reported probability —
+    the friendlier number again, arrived at by a different route. An approved draw that could not be
+    solved did not clear the hurdle; it is a non-hit, not an absentee.
+
+    The numerator is counted over the NaN-stripped array while the denominator is a draw count, so
+    the two describe the same population deliberately: a draw with an undefined metric is likewise a
+    non-hit rather than a row removed from the bottom of the fraction.
     """
     arr = np.array(vals, dtype=float)
     defined = arr[~np.isnan(arr)]
@@ -244,9 +256,12 @@ def _unconditional_target(vals: list[float], target: float, n_total: int) -> dic
         "probability": round(hits / n_total, 4),
         "hits": hits,
         "of_iterations": n_total,
-        "probability_given_approval": (round(hits / arr.size, 4) if arr.size else None),
+        "probability_given_approval": (round(hits / n_approved, 4) if n_approved else None),
+        "given_approval_denominator": n_approved,
         "note": "the headline probability counts every iteration; a refused entitlement cannot clear "
-                "a return hurdle. The conditional figure is shown beside it, not instead of it",
+                "a return hurdle. The conditional figure is shown beside it, not instead of it, and "
+                "its denominator is every APPROVED draw — an approved draw that failed to solve "
+                "counts as not clearing, rather than being dropped from the denominator",
     }
 
 
@@ -267,7 +282,7 @@ def _denial_summary(denials: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _expected_value(collected: dict[str, list[float]], denials: list[dict[str, Any]],
-                    n_total: int, metrics: list[str]) -> dict[str, Any]:
+                    n_total: int, metrics: list[str], failures: int = 0) -> dict[str, Any]:
     """Probability-weighted NPV across both branches — the one number that spans them.
 
     Only NPV is blended, and only NPV can be: it is a value in currency, so a denial's loss and an
@@ -284,11 +299,32 @@ def _expected_value(collected: dict[str, list[float]], denials: list[dict[str, A
         return {"available": False, "reason": "no solved draws and no denials"}
     approved_total = float(defined.sum()) if defined.size else 0.0
     denied_total = float(sum(d["net_loss"] for d in denials))
-    ev = (approved_total + denied_total) / n_total
+    # THE DENOMINATOR IS THE POPULATION WE ACTUALLY VALUED, not every iteration.
+    #
+    # A draw that failed to solve contributes nothing to the numerator, so dividing by `n_total`
+    # silently prices it at **zero NPV** — a number nobody computed, quietly averaged in with ones
+    # somebody did. With failures present that biases `expected_npv` toward zero by exactly the
+    # failure fraction, and the payload gave no sign of it.
+    #
+    # A failed solve is not a project worth nothing; it is a project we could not value. Same rule
+    # the vitals strip follows: state the basis, and never let an absent value masquerade as a zero.
+    valued = len(defined) + len(denials)
+    if not valued:
+        return {"available": False, "reason": "no draw could be valued"}
+    ev = (approved_total + denied_total) / valued
     return {
         "available": True,
         "metric": "returns.npv",
         "expected_npv": round(ev, 2),
+        "basis": "solved approvals and denials",
+        "valued_draws": valued,
+        "excluded_solve_failures": failures,
+        "excluded_note": (
+            f"{failures} approved draw(s) could not be solved and are EXCLUDED from the expectation "
+            "rather than counted as zero. Pricing an unsolvable draw at zero would drag the "
+            "expectation toward it by the failure share, which is a fabrication with a plausible "
+            "shape" if failures else
+            "every drawn iteration was either valued or denied; nothing was excluded"),
         "approved_mean_npv": round(float(defined.mean()), 2) if defined.size else None,
         "denied_mean_loss": round(denied_total / len(denials), 2) if denials else None,
         "blended": "npv only",

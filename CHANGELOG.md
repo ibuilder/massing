@@ -4,6 +4,41 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.790 — an unsolvable draw was being priced at zero
+
+Two correctness defects in `proforma/entitlement_risk.py`, both **on `main`** since #99 merged, and both
+found by a review bot whose comments nobody had read. They share one shape: **an approved draw that
+failed to solve left the numerator but stayed in the denominator.**
+
+**`expected_npv` divided by every iteration while summing only the draws it could value.** A failed
+solve therefore entered the average as **zero NPV** — a number nobody computed, quietly blended with
+ones somebody did — dragging the expectation toward zero by exactly the failure share, with nothing in
+the payload saying so. It now divides by the population it actually valued (solved approvals +
+denials) and publishes `valued_draws`, `excluded_solve_failures` and a `basis`. A draw that could not
+be solved is **not a project worth nothing; it is a project we could not value.** Same rule the vitals
+strip follows: state the basis, and never let an absent value pass as a zero. All-failed now returns
+`available: false` rather than `0.0`.
+
+**`probability_given_approval` divided by the draws that happened to solve, not the draws that were
+approved.** That silently drops every approved-but-unsolvable draw out of the denominator and *raises*
+the reported probability — the friendlier number again, reached by a different route. The denominator
+is now `n_approved`, an unsolvable approved draw counts as not clearing, and the denominator is
+published so a reader can check it.
+
+The tests are **value-checked against hand arithmetic, not range-checked**, because that is precisely
+why this package needed a 17-defect review before: assertions like "between 0 and 1" are satisfied by
+the right answer and the wrong one equally. The new checks pin the old wrong values too — 25.0 versus
+83.33 for the expectation, and a spurious `1.0` certainty for the conditional probability.
+
+### One finding deliberately NOT actioned
+
+The same review flagged `test_entitlement_route.py` for overriding `DATABASE_URL`/`STORAGE_DIR` and
+bypassing the runner's isolation. It is *true* — and it describes **310 of the 336 test files**, not
+this one. Only 26 use `setdefault`. Isolation here comes from unique per-test filenames rather than
+from the runner, and the suite is green at 435/435. Singling out one file for the house style would be
+churn that misleads the next reader about what the convention is. If the convention should change, it
+is a repo-wide decision, not a line item in an entitlement-risk release.
+
 ## v0.3.789 — the public site was sending visitors after a sample that no longer exists
 
 `docs/guide.html` — the GitHub Pages tutorial, the first thing a stranger follows — said at step 2:
