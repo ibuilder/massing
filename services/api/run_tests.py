@@ -29,6 +29,8 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          # R23-RECIPE-ARTIFACT — the edit-recipe log + its routes:
          "test_recipe_log", "test_recipe_route",
          "test_bundle", "test_desktop", "test_localmode", "test_project_budget", "test_rvt_bridge",
+         # R23-JURISDICTION-PACKS — authority-attributed data requirements:
+         "test_jurisdiction_packs", "test_jurisdiction_route", "test_jurisdiction_authz",
          "test_bcf", "test_engines", "test_edge_cases", "test_opendata", "test_financials", "test_money", "test_leasemgmt", "test_changeorders",
          "test_migrate", "test_alembic_migrations", "test_appraisal", "test_marketing", "test_workflow_gate", "test_due_feed", "test_directory",
          # R22-CLASSIFY-AI — classification coverage + code proposals:

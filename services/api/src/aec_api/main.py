@@ -47,6 +47,7 @@ from .routers import (
     exports,
     generate,
     ids,
+    jurisdiction,
     market,
     modules,
     notices,
@@ -446,6 +447,7 @@ app.include_router(assistant.router, tags=["assistant"])
 app.include_router(construction.router, tags=["construction"])
 app.include_router(operations.router, tags=["operations"])
 app.include_router(standards.router, tags=["standards"])
+app.include_router(jurisdiction.router, tags=["jurisdiction"])
 app.include_router(observability.router, tags=["observability"])
 
 
