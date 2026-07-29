@@ -31,6 +31,30 @@ work**.
 
 ---
 
+## NOW — carried out of the closed PR #69 and the prototype audit
+
+**From PR #69 (closed 2026-07-28, 258 behind with 8/10 checks red — re-sequenced, not abandoned):**
+- **VITE-8** — Vite 6→8 (Rolldown) + Vitest 3→4. The one genuinely outstanding item; the PR's other
+  runtime bumps are already on main (Capacitor 8.4.2, postgres:17) or superseded (it wanted Node 22,
+  main is on 24). A major build migration, so it gets its own release and the full gate.
+- **CI-HYGIENE** *(S)* — pin the MinIO and nginx image tags, extend Dependabot to container images +
+  a Vite group, and make the Cargo.lock guard non-fragile with `cargo metadata --locked`.
+
+**From the redesign prototype (`_prototypes/redesign/`), whose four pillars are three-quarters built:**
+- **R26-VITALS** — six numbers along the bottom (LOD · area · $/sf · float · IRR · health) replacing
+  the ten viewport controls pinned to every room whether or not it has a viewport. **This is the
+  single biggest reason the app does not look like the prototype.** It sits in `roadmap-completed.md`
+  with no ✅ — filed under completed and never built, which is the worst place for unshipped work.
+  Needs one `/projects/{pid}/vitals` assembly endpoint: five separate fetches is how audit finding 03
+  ("the app contradicts itself on screen") happens.
+- **R27-UW-PANEL** — give `__uw__` a real portal panel so Deal can land on Underwriting rather than
+  Portfolio. See v0.3.771 for why the shortcut does not work.
+
+**Open question, deliberately not decided:** the prototype named the rooms in plain language
+(Building · Budget · Timeline · Money · My to-do); we ship professional terms (Design · Planning ·
+Cost · Schedule · Deal · Work) and `rooms.py` records that as a deliberate reversal. Worth revisiting
+with a real user, not from the armchair.
+
 ## NOW — the IA restructure's remaining half (v0.3.766)
 
 The room *tabs* are correct as of v0.3.766. The *rail* is not yet, and the gap is measured rather
