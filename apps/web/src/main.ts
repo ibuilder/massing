@@ -23,6 +23,7 @@ if (import.meta.env.DEV) void import("./dev/liveAudit").then((m) => m.installLiv
 import { initCommandPalette, type Command } from "./ui/palette";
 import { buildAuthControl } from "./account/accountUI";
 import { jobLabel, mountJobTray } from "./ui/jobTray";
+import { showKeyHelp } from "./ui/keys";
 import { installErrorReporting } from "./errorReporting";
 import type { Settings, ViewerApp } from "./viewer/app";
 
@@ -1580,7 +1581,18 @@ window.addEventListener("keydown", (e) => {
   if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
   const k = e.key.toLowerCase();
   if (k === "\\") { toggleRail(); return; }
-  if (k === "?") { toast(SHORTCUTS + " · \\ panel", "info", 6000); return; }
+  // R24-KEYS — `?` used to be a six-second toast of six viewer keys, while the viewer's own `?`
+  // opened a modal of fourteen draw codes. Which help you got depended on whether the 3D bundle had
+  // loaded, and neither mentioned ⌘K. One surface now, and it stays up until dismissed.
+  //
+  // The draw codes are only offered once the viewer is in memory: importing them eagerly would pull
+  // viewer code into the startup bundle to populate a list that cannot be used yet anyway.
+  if (k === "?") {
+    void import("./viewer/keysDyn")
+      .then(({ KEY_SHORTCUTS }) => showKeyHelp(viewerApp ? KEY_SHORTCUTS : []))
+      .catch(() => showKeyHelp());
+    return;
+  }
   if (["f", "escape", "m", "a", "s", "h"].includes(k) && viewerApp) viewerApp.handleKey(k);
 });
 

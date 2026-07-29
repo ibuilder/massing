@@ -515,9 +515,15 @@ refute one, so this goes first even though it is the least visible.
   Still missing, and the reason this stays open: **authoring verbs**, **element lookup by GlobalId**,
   **reports**, and `/assistant` as the fallback row. Those are providers in `main.ts`, not palette
   work — the `Elements` and `Reports` sections exist and are empty until something registers into them.
-- **R24-KEYS** *(S, reinstated)* — publish the keyboard contract as a real surface: ⌘K · `G then M` ·
-  `J`/`K` · `A` · `W S C B` · ⌥click. What exists is a viewer-only toast (`main.ts:1585`,
-  `"F fit · Esc clear · M dist · A area · S section · H show all · ? help"`).
+- ✅ **R24-KEYS** — **SHIPPED v0.3.782.** One contract in `ui/keys.ts` (Anywhere · In the 3D view ·
+  Draw tools), replacing the six-second toast in `main.ts` *and* the viewer's separate draw-code
+  modal — `?` used to give a different answer depending on whether the 3D bundle had loaded, and
+  neither surface mentioned ⌘K. `keys.test.ts` asserts the contract against the handler and against
+  `keysDyn`'s code table in both directions.
+  **What was deliberately NOT published:** the audit's `G then M`, `J`/`K`, `A` = answer, and
+  `W S C B`. None of them exist — the draw codes are two-letter (WA · SL · CL · BM), Revit-style.
+  Building them is real work and belongs to whichever ring owns registers and authoring, not to a
+  help screen. A contract that lists keys nothing dispatches is how a contract stops being one.
 - **R24-DENSITY ②** *(M)* — three steps (Field 56 px / Default 36 px / Compact 28 px) applied to
   **registers**, not just the dashboards `prefs.ts` covers today. Tabular figures wherever a number appears.
 

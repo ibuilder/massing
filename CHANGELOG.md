@@ -19,6 +19,37 @@ from the code it describes and starts granting permission it was never asked for
 Found and fixed by the security-audit session; landed here so it stops sitting uncommitted in a
 shared tree. Verified standalone: 29/29 across the guard and the schedule panel.
 
+## v0.3.782 — R24-KEYS: one keyboard help, and it is true
+
+The audit asks for a **published keyboard contract** and supplies one: ⌘K · `G then M` · `J`/`K` ·
+`A` · `W S C B` · ⌥click. Most of that does not exist in this app. Publishing it would have been the
+easy, wrong version of this item — a contract that lies is worse than no contract, because the person
+who tries `J`, gets nothing, and goes back to the mouse has also stopped believing the keys that do
+work. What ships here is what the handlers actually dispatch; the audit's unbuilt keys stay in the
+roadmap as open work.
+
+What was actually wrong was smaller and worse than a missing contract: **`?` gave two different
+answers.** `main.ts` showed a six-second toast of six viewer keys. `viewer/keysDyn.ts` opened a modal
+of fourteen two-letter draw codes. Which one you got depended on whether the 3D bundle had finished
+loading, neither mentioned ⌘K — the single most valuable key in the product and the audit's whole
+first move — and neither knew the other existed. Three keyboard surfaces, no overlap, and the one
+most people press first disappeared after six seconds.
+
+Now there is one, in `ui/keys.ts`, in three sections: **Anywhere** (⌘K, `\`, `?`), **In the 3D view**
+(F · M · A · S · H · Esc, with a line saying they need an open model), and **Draw tools** — which is
+omitted entirely when the viewer has not loaded, rather than listing fourteen codes that would do
+nothing if pressed. It stays up until dismissed.
+
+The draw codes are **not copied** into the help screen. They stay in `keysDyn.ts` beside the handler
+that dispatches them, and `keys.test.ts` asserts the two agree in **both** directions — a new tool
+with no published key fails the build, and so does a published key for a tool that was removed. Two
+lists encoding one fact always drift, and the drift is invisible until somebody presses the key.
+
+The test also pins the contract to the handler itself: every key `main.ts` forwards must appear, and
+nothing extra may be claimed. That assertion failed on its first run — the published label is `Esc`
+and the dispatched `KeyboardEvent.key` is `escape` — which is the right failure, and it is resolved
+by mapping label to event name in the test rather than renaming the UI to match an event constant.
+
 ## v0.3.780 — the queue was always there; nothing had ever asked it
 
 ### R24-JOB-TRAY — heavy work you can walk away from

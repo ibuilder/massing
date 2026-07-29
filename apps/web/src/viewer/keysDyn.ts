@@ -1,5 +1,5 @@
 import { dynKeystroke, isDynKey, parseDynConstraint } from "./dynInput";
-import { showResult, kvTable, resultNote } from "../ui/result";
+import { showKeyHelp } from "../ui/keys";
 import type { DraftPanelHandle } from "./draft/draftPanel";
 
 /** REL-4 leaf — the KEYS shortcut layer + SNAP-KIT dynamic input.
@@ -26,8 +26,13 @@ export interface KeysDynHandle {
   flashSnapGlyph(e: MouseEvent, label: string): void;
 }
 
-// [code, draft-element key, label] — Revit-trained users are instantly fast
-const KEY_SHORTCUTS: [string, string, string][] = [
+// [code, draft-element key, label] — Revit-trained users are instantly fast.
+//
+// Exported for `ui/keys.ts`, which publishes the app's one keyboard contract. The table stays HERE,
+// beside the handler that dispatches it, and the help screen reads it — rather than the help screen
+// keeping a second copy that drifts the first time a tool is added. `ui/keys.test.ts` asserts the two
+// agree in both directions, so a new code with no published key fails the build.
+export const KEY_SHORTCUTS: [string, string, string][] = [
   ["WA", "wall", "Wall"], ["SL", "slab", "Slab / floor"], ["RF", "roof", "Roof"],
   ["RA", "railing", "Railing"], ["CL", "column", "Column"], ["BM", "beam", "Beam"],
   ["SC", "steel_column", "Steel column"], ["SB", "steel_beam", "Steel beam"],
@@ -37,13 +42,12 @@ const KEY_SHORTCUTS: [string, string, string][] = [
 ];
 const KEY_MAP: Record<string, string> = Object.fromEntries(KEY_SHORTCUTS.map(([c, k]) => [c, k]));
 
-function showKeysHelp() {
-  showResult("⌨ Keyboard shortcuts", (body) => {
-    body.appendChild(resultNote("Type a 2-letter code (no modifier) to arm a draw tool, then click in "
-      + "the model to place. <b>Esc</b> disarms · <b>?</b> shows this.", ""));
-    body.appendChild(kvTable(KEY_SHORTCUTS.map(([c, , label]) => ({ k: c, v: label }))));
-  });
-}
+// R24-KEYS — this used to render its OWN modal, listing the draw codes and nothing else. With
+// `main.ts` also answering `?` from a toast, the app had two keyboard help surfaces that never
+// mentioned each other and one global key that produced a different answer depending on whether the
+// 3D bundle had finished loading. Both now open the single contract in `ui/keys.ts`, which reads the
+// table above rather than keeping a copy of it.
+const showKeysHelp = () => showKeyHelp(KEY_SHORTCUTS);
 
 export function installKeysDyn(d: KeysDynDeps): KeysDynHandle {
   const { container, notify } = d;
