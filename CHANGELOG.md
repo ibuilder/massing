@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.794 — the guard that would have failed a build over a dependency that exists
+
+v0.3.793 verified `AUTHORISING` names against the source by matching `def <name>(`. That is too
+narrow. A dependency built by a factory — `require_x = _make_gate(...)`, an ordinary FastAPI idiom —
+has no `def`, so the guard would report a real dependency as resolving to nothing and **fail the
+build over something correct**.
+
+That direction of error is the damaging one. This file's own failure text argues against suppressing
+it; a gate that cries wolf is how a team learns to reach for the suppression anyway. So the check now
+accepts a `def`, an `async def`, or a module-level binding, and says why in the code.
+
+Mutation-checked three ways rather than two: clean → exit 0, a phantom name → exit 1, a
+factory-defined name → exit 0 (the case v0.3.793 would have failed). Raised by a reviewer whose
+method note — that a `def`-only grep can be right for a reason narrower than the question — is the
+actual finding here.
+
 ## v0.3.793 — an allowlist entry with no referent is a hole waiting for a matching name
 
 `test_global_authz`'s `AUTHORISING` set — the list of dependencies that count as a real gate — carried

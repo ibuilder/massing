@@ -65,17 +65,36 @@ MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
 
 
 def _defined_in_source() -> set:
-    """Every `def <name>` under `src/`. Read as text: the point is to catch a name with no referent."""
+    """Names in AUTHORISING that have a definition under `src/`.
+
+    Accepts a `def` **or** a module-level assignment. A `def`-only match was the first version and it
+    is too narrow: a dependency built by a factory — `require_x = _make_gate(...)`, a normal FastAPI
+    idiom — has no `def` and would be reported as resolving to nothing. That direction of error is
+    the damaging one here: the guard would fail a build over a dependency that exists, and a gate
+    that cries wolf teaches people to suppress it. This file's failure text argues against
+    suppression; it must not manufacture reasons to reach for it.
+
+    Text matching rather than importing, deliberately: the question is "does this name have a
+    referent in the source", and importing every module to answer it would run application code and
+    make a security gate depend on import side effects.
+    """
     found = set()
     for root, _dirs, files in os.walk(os.path.join(os.path.dirname(__file__), "src")):
         for fn in files:
             if not fn.endswith(".py"):
                 continue
             with open(os.path.join(root, fn), encoding="utf-8", errors="replace") as fh:
-                text = fh.read()
+                lines = fh.read().splitlines()
             for name in AUTHORISING:
-                if f"def {name}(" in text:
-                    found.add(name)
+                for ln in lines:
+                    stripped = ln.lstrip()
+                    if stripped.startswith((f"def {name}(", f"async def {name}(")):
+                        found.add(name)
+                        break
+                    # module-level binding: `name = ...` at column 0, not `something = name`
+                    if ln.startswith((f"{name} =", f"{name}:")):
+                        found.add(name)
+                        break
     return found
 
 
