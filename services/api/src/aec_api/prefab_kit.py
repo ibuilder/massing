@@ -21,10 +21,24 @@ That is the same discipline as an issued drawing. The revision cloud is the poin
 """
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 from typing import Any
 
 from . import query_dsl
+
+log = logging.getLogger("aec")
+
+#: Refusals that reach a response, exported as CONSTANTS. The rule they exist for: no text in an HTTP
+#: response may derive from a caught exception, because CodeQL's py/stack-trace-exposure taints a
+#: caught exception regardless of its class — typing it does not help, only changing the shape does.
+#: A router answers with these directly rather than stringifying whatever was raised.
+BAD_SELECTOR = ("the selector could not be evaluated — check its syntax against the QUERY-DSL "
+                "(the parse error is in the server log)")
+FREEZE_NO_MATCH = "the selector matches no elements — there is nothing to release"
+FREEZE_TRUNCATED = ("the selector matched more elements than the query limit returns; a frozen scope "
+                    "must be the whole set, not the first page of it")
+FREEZE_FAILED = "the kit's scope could not be frozen"
 
 #: A kit is only as good as the moment it was frozen, so the states that mean "the shop is working"
 #: are named. Before `released` a kit is a proposal and the live selector IS its scope; from
@@ -117,8 +131,16 @@ def resolve(idx: dict[str, dict] | None, selector: str, limit: int = 5000) -> di
         return {"selector": selector or "", "guids": [], "matched": 0, "error": "no selector set"}
     try:
         r = query_dsl.select(idx, selector, limit=limit)
-    except query_dsl.QueryError as e:
-        return {"selector": selector, "guids": [], "matched": 0, "error": f"bad selector: {e}"}
+    except query_dsl.QueryError:
+        # The exception's text does NOT go into the payload. `resolve()` feeds three response paths
+        # (the register, the kit detail, and freeze), so putting a caught exception's message in
+        # `error` puts it in three responses — which is what CodeQL alert #108
+        # (py/stack-trace-exposure) fired on, at the GET detail route rather than at freeze.
+        # Typing the exception does not clear it; a caught exception is tainted whatever its class.
+        # The shape has to change: a constant out, the detail to the log where an operator can find
+        # it. See memory `codeql-stack-trace-exposure` and the option_score.EMPTY_OPTIONS precedent.
+        log.info("prefab kit selector %r did not parse", selector, exc_info=True)
+        return {"selector": selector, "guids": [], "matched": 0, "error": BAD_SELECTOR}
     return {"selector": selector, "guids": list(r["guids"]), "matched": r["matched"],
             "truncated": bool(r.get("truncated")),
             "note": r.get("note")}
@@ -336,6 +358,23 @@ def register(kits: list[dict[str, Any]], idx: dict[str, dict] | None, *,
     }
 
 
+def freeze_blocker(kit: dict[str, Any], idx: dict[str, dict] | None) -> str | None:
+    """Why this kit cannot be frozen — one of the exported constants — or None if it can.
+
+    Split out from `freeze()` so a router can ask the question and answer with a constant, instead of
+    calling `freeze()` and stringifying whatever it raised. That is the difference between a response
+    whose text is a fixed literal and one derived from a caught exception, which is what
+    py/stack-trace-exposure is about."""
+    live = resolve(idx, (kit.get("data") or kit).get("selector") or "")
+    if live.get("error"):
+        return live["error"]                    # already a constant — see `resolve`
+    if not live["guids"]:
+        return FREEZE_NO_MATCH
+    if live.get("truncated"):
+        return FREEZE_TRUNCATED
+    return None
+
+
 def freeze(kit: dict[str, Any], idx: dict[str, dict] | None) -> dict[str, Any]:
     """The GUID list to write onto a kit when it is released.
 
@@ -343,13 +382,9 @@ def freeze(kit: dict[str, Any], idx: dict[str, dict] | None) -> dict[str, Any]:
     than a side effect. Refuses an empty or erroring selector — freezing nothing and calling it a
     released kit is the failure this whole module is built around.
     """
+    blocker = freeze_blocker(kit, idx)
+    if blocker:
+        raise ValueError(blocker)
     live = resolve(idx, (kit.get("data") or kit).get("selector") or "")
-    if live.get("error"):
-        raise ValueError(live["error"])
-    if not live["guids"]:
-        raise ValueError("the selector matches no elements — there is nothing to release")
-    if live.get("truncated"):
-        raise ValueError("the selector matched more elements than the query limit returns; a frozen "
-                         "scope must be the whole set, not the first page of it")
     return {"guids": live["guids"], "frozen_guids": "\n".join(live["guids"]),
             "selector": live["selector"], "matched": live["matched"]}
