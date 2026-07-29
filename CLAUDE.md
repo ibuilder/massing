@@ -32,11 +32,15 @@ Phase 0 smoke tests → 1 conversion → 2 large-model → 3 viewer/tools → 4 
 - Set-origin/georeferencing: preserve real coordinates for export, render near scene origin.
 
 ## Local environment notes (this machine)
-- **`node` on the default PATH is v18.8.0, and v18 BREAKS the web build.** Node 20 is installed but
-  not first on PATH, so every web command must start with:
-  `export PATH="/c/Program Files/nodejs:$PATH"` → v20.3.1. (This file claimed "node v20.3.1 — OK"
-  for months. It was describing the Node you get *after* fixing the PATH, which is not the Node you
-  get. A config file that is subtly wrong is worse than one that is silent.)
+- **`node` on the default PATH is v18.8.0, and v18 BREAKS the web build.** The good Node is not first
+  on PATH, so every web command must start with:
+  `export PATH="/c/Program Files/nodejs:$PATH"` → **v24.18.0** (verified 2026-07-29).
+  Both manifests declare `"engines": {"node": ">=24"}` and CI pins `node-version: 24`, so 24 is the
+  supported baseline — this note said **v20.3.1** until 2026-07-29, which was a *third* wrong value
+  in the same three lines. It has now been wrong in two different ways: first naming the Node you get
+  *after* fixing the PATH rather than the one you get, then naming a major nobody has run for weeks.
+  **A config file that is subtly wrong is worse than one that is silent** — and a line that has
+  drifted twice will drift again, so check it against `node -v` rather than reading it.
 - python 3.10.6 — guide targets ≥ 3.11. Works for ifcopenshell 0.8.x / FastAPI / pydantic v2,
   but prefer a 3.11+ interpreter for the `services/` venvs if available.
 - Repo root: C:\Server\modelmaker (Windows / PowerShell).
