@@ -229,10 +229,10 @@ stakes we are missing.
   review cycles, comment responses, and **conditions of approval carried into the model as
   constraints**. Today there is a hole between "acquisition" and "construction" in our own mission
   statement — we underwrite the deal and we build it, and nothing spans approval.
-- **R22-GOLDEN-THREAD** *(M)* — **design freeze + immutable approval log.** Named baseline model
-  states, who approved what and when, and a diff of everything after. Legally mandated in the UK
-  (Building Safety Act 2022). Our GUID-stable single-IFC architecture makes this *cheaper to build
-  here than anywhere else* — a federated-file competitor cannot emit it automatically.
+- ✅ **R22-GOLDEN-THREAD** — **already built** (`golden_thread.py`); verified 2026-07-29, not
+  re-listed as open. Was: design freeze + immutable approval log — named baseline model states, who
+  approved what and when, and a diff of everything after. Legally mandated in the UK (Building Safety
+  Act 2022). *Another entry that was open in prose and closed in code — check before building.*
 - ⭐ **R22-AGENT-PACKS** *(M)* — **named agent packs + org "Skills" + a governance console** over the
   MCP layer we already ship. We expose raw capability; the market ships "Submittal Review Agent",
   which a superintendent understands. Pure packaging of existing tools, plus per-run audit logging —
@@ -247,14 +247,22 @@ stakes we are missing.
 - **R22-PROVENANCE** *(L)* — **cite to file, page and revision.** Every proforma assumption, estimate
   line and agent answer traceable to a source page. Three of thirteen platforms *lead* with this; it
   is what makes AI output admissible in an IC memo or a claim.
-- **R22-NOTICE-CLOCK** *(S/M)* — **contractual notice clocks / time-bar tracking.** Detect a
-  triggering event in a daily log or RFI, start the contract's notice period, draft the notice.
-  Highest dollar-per-line-of-code feature in construction administration; we already hold the
-  contract calendar and the daily record.
-- ⭐ **R22-CLASSIFY-AI** *(M)* — **assisted classification of *imported* IFC.** We have a canonical
-  discipline tree and a rule that a Uniclass code is never guessed — correct, and it means a client's
-  unclassified model (which is nearly every real model) gets nothing. Propose codes, human confirms.
-  Without this, QTO/cost/FCI/COBie only work on models we authored.
+- **R22-NOTICE-CLOCK** *(S/M; **PR #95** — `notice_clock.py` + `routers/notices.py`; adds
+  `notice_family` to `prime_contract` and `occurred_on`/`became_aware_on` to `change_event`)* —
+  contractual notice clocks / time-bar tracking. Detect a triggering event in a daily log or RFI,
+  start the contract's notice period, draft the notice. Highest dollar-per-line-of-code feature in
+  construction administration; we already hold the contract calendar and the daily record.
+- ⭐ **R22-CLASSIFY-AI** *(M; **PR #97** — `classify_assist.py` + `routers/classify.py`)* — assisted
+  classification of *imported* IFC. Propose codes, human confirms.
+  **The premise was wrong in a way that makes this more urgent, not less** (corrected 2026-07-29 while
+  implementing it). The entry said an unclassified model "gets nothing" — a visible, harmless failure.
+  It does not. `classification.classify()` returns a `(code, title)` for **any** `ifc_class`, silently
+  falling back to the default bucket when unmapped. So an imported proxy-heavy model prices everything
+  as *01 00 00 General Requirements* while the estimate reports a **complete takeoff**. That is not a
+  gap, it is a confident wrong number — the same shape as the `get_area` defect ([[qto-measured-area]]):
+  a fabricated value is worse than a missing one because nothing downstream can tell. #97's coverage
+  figure therefore counts only what the model **declares**, never what the fallback supplied.
+  *The IfcClass half is already built and routed* (`ifc_classify.py` via `conceptual.py`).
 - **R22-PROCURE-DEPTH** *(M)* — sub **prequalification** (bonding/EMR/capacity), **contract-clause
   risk extraction**, and **vendor scorecards persisting across projects**. Bid leveling covers one
   step of five.
@@ -366,12 +374,20 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
 
 **Tier 3 — worthwhile, lower urgency**
 
-- **R23-DIGEST** *(M)* — a deterministic multi-scale model digest (project → storey → zone → system →
-  element) as compact JSON. Immediate non-AI value as a **diffable change-detection snapshot** between
-  IFC versions; becomes the retrieval index if AI features land.
-- **R23-RECIPE-ARTIFACT** *(M)* — make the edit-recipe log first-class: versioned, diffable,
-  exportable, replayable against a fresh IFC. It already *is* a CAD operation timeline; formalising it
-  serves provenance, the as-built audit trail, and AI consumption in one move.
+- **R23-DIGEST** *(M; **PR #94** — `routers/digest.py` + `aec_data/model_digest.py`)* — a deterministic
+  multi-scale model digest (project → storey → zone → system → element) as compact JSON. Immediate
+  non-AI value as a **diffable change-detection snapshot** between IFC versions; becomes the retrieval
+  index if AI features land.
+- **R23-RECIPE-ARTIFACT** *(M; **PR #98** — `recipe_log.py` + `routers/recipes.py`)* — versioned,
+  diffable, exportable, replayable edit history.
+  **Premise corrected 2026-07-29 during implementation: it was NOT already a CAD operation timeline.**
+  The entry claimed formalising an existing thing. In fact `edit_history.json` is a stack of **file
+  paths**, and the audit log records an edit's **outputs** (`/edit`) or merely recipe **names**
+  (`/edit/batch`). **The parameters were nowhere**, so replay, diff and export had nothing to rest on.
+  #98 records the missing half rather than formalising a present one — which is why it needed four
+  capture hooks in `routers/authoring.py` rather than a serialiser.
+  *Worth generalising: "it already is X, just formalise it" is the single most expensive kind of
+  roadmap sentence, because it sets the estimate before anyone opens the file* ([[check-the-blocker-premise]]).
 - **R23-BATCH-OVERLAYS** *(S)* — app-authored overlays (pins, grid, snap markers, dimensions, clash
   markers) use **zero** instancing; `three@0.184.0` has `BatchedMesh`. Keep the default BIM pass off
   `MeshStandardMaterial` (presentation mode only); make FOV/FAR responsive by viewport class.
@@ -380,9 +396,10 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
 - **R23-SYMBOL-COUNT** *(M)* — deterministic template-match symbol counting in the **existing** pdf.js
   takeoff worker: mark one instance, normalised cross-correlation, non-maximum suppression.
   **Zero new dependencies**, offline, auditable — which matters for quantities that feed a bid.
-- **R23-PREFAB-KIT** *(M)* — a prefab kit is a `query_dsl.select()` scope + BOM + pull-plan task +
-  delivery date. A join across spines we already have, not a new engine. Strong LOD-500 fit: kits are
-  what actually get field-verified.
+- **R23-PREFAB-KIT** *(M; **PR #96** — `prefab_kit` module, 133 total, + an Alembic revision)* — a
+  prefab kit is a `query_dsl.select()` scope + BOM + pull-plan task + delivery date. A join across
+  spines we already have, not a new engine. Strong LOD-500 fit: kits are what actually get
+  field-verified.
 - **R23-JURISDICTION-PACKS** *(M)* — jurisdiction-scoped data-requirement rule packs (a regulator
   defines a pset spec a submitted model must satisfy). `query_dsl` + `rule_library` + IDS already carry
   this shape; turnover data requirements are the same problem.
@@ -581,10 +598,27 @@ offline/field path trustworthy on one bar of signal, judged from a phone rather 
 
 Four sessions are live in this repo. R24 is **`apps/web` outside `src/shell/`**. Specifically:
 
-- **Owned elsewhere, do not edit:** `apps/web/src/shell/*` (Massing Core session). `services/api` +
-  `services/data` belong to the R23-DIGEST branch (PR 94). `main.ts` and `portal/portal.ts` were held
-  through the classic-shell removal and **released at v0.3.779** — check `git status` before assuming
-  either is free, since both are large enough that two sessions in one is a guaranteed conflict.
+- **Owned elsewhere, do not edit:** `apps/web/src/shell/*` (Massing Core session). **`services/api` +
+  `services/data` are spoken for by five open PRs — #94 R23-DIGEST · #95 R22-NOTICE-CLOCK ·
+  #96 R23-PREFAB-KIT · #97 R22-CLASSIFY-AI · #98 R23-RECIPE-ARTIFACT** (all backend-only, no
+  `apps/web` files). `main.ts` and `portal/portal.ts` were held through the classic-shell removal and
+  **released at v0.3.779** — check `git status` before assuming either is free, since both are large
+  enough that two sessions in one is a guaranteed conflict.
+- **`docs/roadmap.md`, `CHANGELOG.md` and the three version files are a single lane, held by whoever
+  is shipping.** This was agreed rather than assumed: the backend-PR session deliberately touches none
+  of them on any branch, precisely because they are the high-conflict files. If you take a lane,
+  say so — a session message costs nothing and a merge conflict in this file costs an hour.
+- **The version lives in THREE files**, not the two the `ship-release` skill names: `apps/web/package.json`,
+  `apps/web/src-tauri/tauri.conf.json`, **and `package-lock.json` (~line 23)**.
+  `shell/versionConsistency.test.ts` fails the web suite if the lockfile disagrees.
+- **`ui/innerHtmlGuard.test.ts` is a one-directional ratchet** (repo-wide unescaped `${…}` into
+  `.innerHTML`, currently capped at 88). If it goes red after a UI change it is not flaky — you added
+  an unescaped interpolation; wrap it in `esc()` (`ui/charts`) or `escapeHtml()` (`ui/feedback`).
+  **Only on lines assigning to `.innerHTML`.** Never escape into `toast()`, `notify()`, `setStatus()`
+  or `.textContent` — `toast` sets `textContent`, so escaping there makes users read `&amp;lt;`
+  literally. The worst offenders if you are in them anyway: `proforma/proforma.ts` 16 ·
+  `portal/portal.ts` 14 · `portal/panels/standards.ts` 8 · `portal/panels/analytics.ts` 6 ·
+  `viewer/app.ts` 6.
 - **Free for R24:** `apps/web/src/ui/*`, `apps/web/src/api/client.ts`, `apps/web/src/field/*`,
   `apps/web/src/reportCenter.ts`, and any new file.
 - **Sequencing rule:** prefer a new self-contained module plus one small mount point over an edit
