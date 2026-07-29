@@ -4,6 +4,79 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.774 — VITE-8: Vite 6 → 8 (Rolldown) + Vitest 3 → 4, and a vendor split that had stopped splitting
+
+The one genuinely outstanding item from the closed PR #69. Its other runtime bumps were already on
+main (Capacitor 8.4.2, postgres:17) or superseded — the PR wanted Node 22 and main runs 24 — so this
+is the whole of what was worth carrying, landed fresh with the full gate rather than by rebasing 258
+commits.
+
+Vite 8 replaces esbuild + Rollup with **Rolldown** and the Oxc transformer. `build.rollupOptions`
+becomes `build.rolldownOptions`. Node ≥ 22.12 required; we run 24.
+
+### The chunking regression, which the build would not have told us about
+
+`manualChunks`' object form was **removed** in Vite 8, and the function form is deprecated. Migrating
+to the function form is what the closed PR did, and it *looks* correct — the build succeeds, and it
+still emits a chunk named `three`.
+
+That chunk was a **94 KB re-export shim**. three.js itself — 1.5 MB of it — had been folded into the
+`thatopen` chunk. Measured rather than assumed:
+
+    grep -c WebGLRenderer  thatopen-*.js → 8      three-*.js → 0     (before)
+    grep -c WebGLRenderer  thatopen-*.js → 0      three-*.js → 8     (after)
+
+Fixed by moving to Rolldown's native `advancedChunks`, which is the supported mechanism the
+deprecated one defers to:
+
+| | before | after |
+|---|---|---|
+| `three-*.js` | 94.8 KB (shim) | **1618.7 KB** |
+| `thatopen-*.js` | 6611.3 KB | **5077.0 KB** |
+
+1534 KB left thatopen and 1524 KB arrived in three — the numbers cross-check. **A vendor split that
+silently stops splitting is the worst kind of build regression**: nothing fails, the bundle still
+works, and three.js merely stops being separately cacheable so every That Open patch re-downloads it.
+The only way to catch it is to grep the *output*; reading the config and believing it is exactly how
+it survives.
+
+One false lead worth recording: the first suspect was Windows path separators in the module id.
+Normalising them changed the output hash not at all — the deprecated `manualChunks` simply is not
+what drives Rolldown's chunking. Same content hash before and after is what proved it.
+
+### The Vitest 4 failure
+
+Vitest 4 could not start a single DOM test: `Cannot find package 'happy-dom'`. It was not missing —
+`happy-dom` has been a declared dependency of `apps/web` for months.
+
+**Vitest 4 hoisted to the repo root while `happy-dom` stayed in `apps/web/node_modules`.** Node
+resolves upward from the *importing* package's location, so vitest at the root can never see a
+sibling workspace's modules. Vitest 3 loaded the environment relative to the test file, which hid the
+asymmetry completely. Fixed by declaring `happy-dom` at the root as well — a hoisting declaration,
+not a new dependency.
+
+Both failures share a shape: the thing that changed was not an API that broke loudly, but resolution
+behaviour that changed quietly underneath something that had worked for a year.
+
+### Verified
+
+Build green in 29s. WASM (`web-ifc`, `web-ifc-mt`, `laz-perf`) copied, PWA service worker + manifest
+generated, 62 `.gz`/`.br` precompress pairs, hashed entry wired into `index.html`.
+Web **708/708** under Vitest 4, typecheck + eslint clean.
+
+### Also — CI hygiene, half of which was already done
+
+Checked before building, and two of the four items were stale: Dependabot **already** covers all
+three Docker directories with `@sha256` digest pinning, and there is **no nginx image** in the repo.
+The two real ones:
+
+- **MinIO was unpinned** (`image: minio/minio`), so it resolved to `:latest` and two machines could
+  silently run different object stores. Pinned.
+- **Nothing verified the Tauri `Cargo.lock` stays in sync.** Main had only a manual generator
+  workflow — no CI check at all. Added to `rust-ci.yml` using `cargo metadata --locked`, which
+  validates the committed lock *without* upgrading transitive patches. The obvious alternative,
+  `cargo generate-lockfile` + git-diff, passes by rewriting the very thing it is meant to verify.
+
 ## v0.3.773 — R26-VITALS: the prototype's fourth pillar, finally built
 
 **LOD · area · $/ft² · float · IRR · health**, along the bottom of every room.

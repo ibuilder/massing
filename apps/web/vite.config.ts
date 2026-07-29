@@ -122,12 +122,30 @@ return {
   },
   build: {
     chunkSizeWarningLimit: 4000,
-    rollupOptions: {
+    // Vite 8 renamed build.rollupOptions to build.rolldownOptions: the bundler underneath is
+    // Rolldown now, with Oxc doing the transform. Vite 8 requires Node >= 22.12; we run 24.
+    rolldownOptions: {
       output: {
-        // split heavy vendor libs into cacheable chunks (they change far less than app code)
-        manualChunks: {
-          three: ["three"],
-          thatopen: ["@thatopen/components", "@thatopen/components-front", "@thatopen/fragments"],
+        // Split heavy vendor libs into cacheable chunks — they change far less often than app code,
+        // and three + the That Open stack are the bulk of the bundle.
+        //
+        // `advancedChunks` — Rolldown's NATIVE grouping, not the deprecated `manualChunks`.
+        //
+        // Vite 8 removed the object form of `manualChunks` and deprecated the function form. The
+        // deprecated function still *runs*, and that is the trap: the build succeeds, still emits a
+        // chunk named "three", and that chunk turns out to be a re-export shim while three.js itself
+        // is folded into the thatopen chunk. Measured, not assumed — `WebGLRenderer` appeared 8× in
+        // `thatopen-*.js` and 0× in `three-*.js`.
+        //
+        // A vendor split that silently stops splitting is the worst kind of build regression: the
+        // bundle still works, so nothing fails, but three.js is no longer separately cacheable and
+        // every That Open patch re-downloads it. Verify by grepping the OUTPUT, never by reading the
+        // config and believing it.
+        advancedChunks: {
+          groups: [
+            { name: "three", test: /[\\/]node_modules[\\/]three[\\/]/ },
+            { name: "thatopen", test: /[\\/]@thatopen[\\/](components|components-front|fragments)[\\/]/ },
+          ],
         },
       },
     },

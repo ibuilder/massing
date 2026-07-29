@@ -49,12 +49,12 @@ fourth. **Build it as one `/projects/{pid}/vitals` assembly endpoint** over engi
 exist — five separate client fetches is precisely how audit finding 03, *"the app contradicts itself
 on screen"*, happens. Viewport controls then move into Design, where they apply.
 
-### 2 · VITE-8 — carried out of the closed PR #69
+### ~~2 · VITE-8~~ — **DONE v0.3.774** (and it caught a silent vendor-split regression). Was:
 Vite 6→8 (Rolldown) + Vitest 3→4. The only genuinely outstanding item from that PR; its other
 runtime bumps are already on main (Capacitor 8.4.2, postgres:17) or superseded (it wanted Node 22,
 main runs 24). A major build migration, so it gets its own release and the full gate.
 
-### 3 · CI-HYGIENE *(S)* — also from #69
+### ~~3 · CI-HYGIENE~~ — **DONE v0.3.774**; two of the four items were already done. Was:
 Pin the MinIO and nginx image tags, extend Dependabot to container images + a Vite group, and make
 the Cargo.lock guard non-fragile with `cargo metadata --locked`.
 

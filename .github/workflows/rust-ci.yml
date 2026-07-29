@@ -53,6 +53,21 @@ jobs:
           chmod +x "binaries/aec-bim-server-${triple}"
           echo "stubbed binaries/aec-bim-server-${triple}"
 
+      # The committed Cargo.lock is what makes desktop builds reproducible -- floating transitive
+      # deps have broken tagged releases before with no code change at all. Nothing in CI checked
+      # that it stays in sync with Cargo.toml, so a dependency edit could land with a stale lock and
+      # only surface at release time.
+      #
+      # `cargo metadata --locked` validates the committed lock against Cargo.toml WITHOUT silently
+      # upgrading transitive patches -- which is precisely what `cargo generate-lockfile` + git-diff
+      # would do, making the check pass by rewriting the thing it is supposed to be verifying.
+      - name: Verify Cargo.lock is committed and consistent
+        run: |
+          git ls-files --error-unmatch Cargo.lock >/dev/null 2>&1 || {
+            echo "Cargo.lock is not committed - run the 'Generate Cargo.lock' workflow"; exit 1; }
+          cargo metadata --locked --format-version 1 >/dev/null || {
+            echo "Cargo.lock is out of sync with Cargo.toml - run 'cargo generate-lockfile' here and commit"; exit 1; }
+
       - name: Format check
         run: cargo fmt --all -- --check
 
