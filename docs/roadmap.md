@@ -147,6 +147,29 @@ routed and consumed (`analysis.py:542`, `analysis.py:572` + a live 200, `toolbar
 roadmap is a claim like any other. Check the premise before spending a release on it — see
 [[check-the-blocker-premise]].
 
+**2026-07-29 — the shape those errors take, now that there are enough of them to name.** Six R22/R23
+items were implemented in one day and **two of the six had premises that did not survive contact**,
+both of the same form: *"it already is X, just formalise it."* `R23-RECIPE-ARTIFACT` said the edit
+log already was a CAD operation timeline (the parameters were nowhere). `R22-ENTITLE-RISK` read as
+"add two inputs" (`Timing` had no pre-construction period and `monte_carlo` could not express a
+binary event — there was nowhere to put either). The same day, three more entries were open in prose
+and closed in code: **A2** above, **R22-GOLDEN-THREAD**, and the IfcClass half of classify assist.
+
+So: **"it already is X, just formalise it" is the most expensive sentence in this file, because it
+sets the estimate before anyone opens the file.** It reads as a small item, is written by whoever
+last skimmed the area, and is never re-checked precisely because it sounds like the check already
+happened. Two rules follow — open the file before accepting an estimate that rests on an "already",
+and when a premise turns out wrong, **correct the entry rather than only the code**, or the next
+reader inherits the same wrong estimate.
+
+A second, sharper pattern from the same day: a roadmap entry that describes a **visible** failure
+often conceals a **silent** one, and the silent one is worse. `R22-CLASSIFY-AI` said an unclassified
+import "gets nothing" — it actually prices everything as *01 00 00 General Requirements* while
+reporting a complete takeoff. Same shape as [[qto-measured-area]] and the entitlement draw that must
+not be solved: **a fabricated value survives review that a missing one would not**, because nothing
+downstream can tell. When an entry claims a feature is absent, check whether it is instead *wrong and
+confident*.
+
 
 ## 🏗 R21 — LOD 400→500 DOCUMENTATION RING *(from a real LOD 400 shop-drawing set, 2026-07-25)*
 
@@ -282,8 +305,26 @@ stakes we are missing.
   build the seam so actuals stop being hand-fed into EAC.
 - **R22-OPTION-OBJECT** *(S/M)* — make **option the primary object**: geometry + unit mix + cost +
   carbon + IRR as one comparable record, so no massing is ever evaluated without its returns.
-- **R22-ENTITLE-RISK** *(S/M)* — **approval probability + entitlement duration into the existing
-  Monte Carlo.** The largest unmodelled uncertainty in any acquisition proforma.
+- **R22-ENTITLE-RISK** *(S/M; **PR #99** — `proforma/entitlement_risk.py` + `POST /proforma/entitlement-risk`;
+  no new module, no migration)* — approval probability + entitlement duration in the Monte Carlo.
+  The largest unmodelled uncertainty in any acquisition proforma.
+  **Premise corrected 2026-07-29 during implementation — the entry reads "add two inputs" and the
+  truth was "the model has no place to put either":**
+  * `Timing` has **no pre-construction period at all** (`construction_months` / `leaseup_months` /
+    `hold_years`). The 6–30 months between buying a site and being allowed to build on it were not
+    merely unpriced, they were **unrepresentable**.
+  * `monte_carlo` samples only **continuous** drivers onto dotted paths, so a **binary** approval
+    event could not be expressed in the first place.
+
+  **The design decision a reader will want to argue with, so it is recorded rather than buried: a
+  denied entitlement is NOT modelled as a bad IRR.** The draw is not solved at all. Pushing *"the
+  building was never built"* through a solver that assumes construction proceeds produces a number,
+  and that number then sits inside the P5–P95 of a distribution describing **a project that does not
+  exist** — the same class of defect as `get_area` and the classification fallback, where a
+  fabricated value survives review that a missing one would not. The consequence is the whole point:
+  on the sample deal the 15% hurdle clears **1.00 conditional on approval and 0.58 unconditional**.
+  A proforma that only ever reports the conditional figure is not being optimistic, it is answering
+  a different question than the one the investment committee asked.
 - **R22-REPORT-BUILDER** *(M)* — no-code report/dashboard builder. 132 modules of structured data
   with no end-user query surface means every custom report is an engineering ticket.
 - **R22-PIPELINE** *(M)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
@@ -599,9 +640,13 @@ offline/field path trustworthy on one bar of signal, judged from a phone rather 
 Four sessions are live in this repo. R24 is **`apps/web` outside `src/shell/`**. Specifically:
 
 - **Owned elsewhere, do not edit:** `apps/web/src/shell/*` (Massing Core session). **`services/api` +
-  `services/data` are spoken for by five open PRs — #94 R23-DIGEST · #95 R22-NOTICE-CLOCK ·
-  #96 R23-PREFAB-KIT · #97 R22-CLASSIFY-AI · #98 R23-RECIPE-ARTIFACT** (all backend-only, no
-  `apps/web` files). `main.ts` and `portal/portal.ts` were held through the classic-shell removal and
+  `services/data` are spoken for by six open PRs — #94 R23-DIGEST · #95 R22-NOTICE-CLOCK ·
+  #96 R23-PREFAB-KIT · #97 R22-CLASSIFY-AI · #98 R23-RECIPE-ARTIFACT · #99 R22-ENTITLE-RISK** (all
+  backend-only, no `apps/web` files; 15/15 pairwise clean and clean against main).
+  **They are NOT merged and will not be merged without the user saying so** — six PRs onto an
+  unprotected `main` is the user's call, not an agent's. When it is given, the release lane cuts the
+  version numbers and CHANGELOG entries in order.
+  `main.ts` and `portal/portal.ts` were held through the classic-shell removal and
   **released at v0.3.779** — check `git status` before assuming either is free, since both are large
   enough that two sessions in one is a guaranteed conflict.
 - **`docs/roadmap.md`, `CHANGELOG.md` and the three version files are a single lane, held by whoever
