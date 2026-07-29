@@ -41,6 +41,7 @@ cannot check.
 
 Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_gltf_compress.py
 """
+import base64
 import io as _io
 import json
 import os
@@ -103,7 +104,6 @@ for mesh in doc["meshes"]:
 blob = None
 uri = doc["buffers"][0].get("uri", "")
 if uri.startswith("data:"):
-    import base64
     blob = base64.b64decode(uri.split(",", 1)[1])
 check("the buffer is readable back out of the .gltf", blob is not None and len(blob) > 0)
 
@@ -161,6 +161,56 @@ check("  and that is a double-digit % of the geometry",
 print(f"      measured: positions {pos_bytes:,}B, indices {u32_bytes:,}B -> {u16_bytes:,}B "
       f"({100 * saved / (pos_bytes + u32_bytes):.0f}% of geometry saved)")
 
+# --- 6b. THE BOUNDARY ITSELF — the branch the fixture cannot reach -------------------------------------
+# Everything above runs on meshes of ~960 vertices, which only ever exercises the uint16 side. The
+# uint32 fallback is the dangerous branch: if the ceiling test were wrong, indices would WRAP and the
+# file would still be valid glTF describing the wrong triangles. No sample small enough to keep in a
+# test suite can reach it, so the mesh is synthesised and `_baked_by_class` is substituted — the unit
+# under test is the index-width decision, not the IFC iterator.
+#
+# 65,536 vertices means a maximum index of 65,535, which is exactly uint16's maximum: the boundary is
+# INCLUSIVE, and an off-by-one here does not raise, it silently draws the wrong geometry.
+_real_baked = gltf_export._baked_by_class
+
+
+def _synthetic(nverts: int):
+    """A mesh of `nverts` vertices whose faces reference the HIGHEST index, so a narrowing that wraps
+    is detectable rather than merely suspected."""
+    verts = np.zeros((nverts, 3), dtype=np.float64)
+    verts[:, 0] = np.arange(nverts) * 0.001
+    verts[-1] = [1.0, 2.0, 3.0]
+    faces = np.array([[0, 1, nverts - 1], [0, nverts - 2, nverts - 1]], dtype=np.int64)
+    return {"IfcWall": (verts, faces)}
+
+
+for nverts, expect_component, expect_name in ((65_536, 5123, "uint16"),
+                                              (65_537, 5125, "uint32"),
+                                              (200_000, 5125, "uint32")):
+    gltf_export._baked_by_class = (lambda n: (lambda _model: _synthetic(n)))(nverts)
+    try:
+        bdoc = json.loads(gltf_export.export_gltf_bytes(path).decode("utf-8"))
+    finally:
+        gltf_export._baked_by_class = _real_baked
+    prim = bdoc["meshes"][0]["primitives"][0]
+    idx_acc = bdoc["accessors"][prim["indices"]]
+    pos_acc = bdoc["accessors"][prim["attributes"]["POSITION"]]
+    check(f"a {nverts:,}-vertex mesh uses {expect_name} indices",
+          idx_acc["componentType"] == expect_component, idx_acc["componentType"])
+    check(f"  its POSITION count is the full {nverts:,}", pos_acc["count"] == nverts,
+          pos_acc["count"])
+    # Read the indices back out and confirm the top vertex is still addressed. A uint16 narrowing of
+    # index 65,536 wraps to 0 — same byte length, valid file, wrong triangle.
+    bbuf = base64.b64decode(bdoc["buffers"][0]["uri"].split(",", 1)[1])
+    bv = bdoc["bufferViews"][idx_acc["bufferView"]]
+    dt = np.uint16 if idx_acc["componentType"] == 5123 else np.uint32
+    arr = np.frombuffer(bbuf, dtype=dt, count=idx_acc["count"], offset=bv["byteOffset"])
+    check(f"  and index {nverts - 1:,} survives the round trip (a wrap would read 0)",
+          int(arr.max()) == nverts - 1, int(arr.max()))
+    check("  every index still addresses a real vertex", int(arr.max()) < pos_acc["count"])
+
+check("the real _baked_by_class was restored", gltf_export._baked_by_class is _real_baked)
+
+
 # --- 7. Draco, the OPT-IN half -----------------------------------------------------------------------
 # The uint16 change above is free and universal. Draco is neither: it is a hard dependency and a
 # REQUIRED extension, so a consumer without the decoder reads nothing at all. That is the whole reason
@@ -203,8 +253,7 @@ else:
             ext = prim["extensions"]["KHR_draco_mesh_compression"]
             bv = ddoc["bufferViews"][ext["bufferView"]]
             uri = ddoc["buffers"][0]["uri"]
-            import base64 as _b64
-            raw = _b64.b64decode(uri.split(",", 1)[1])
+            raw = base64.b64decode(uri.split(",", 1)[1])
             dm = DracoPy.decode(raw[bv["byteOffset"]:bv["byteOffset"] + bv["byteLength"]])
             pa = ddoc["accessors"][prim["attributes"]["POSITION"]]
             ia = ddoc["accessors"][prim["indices"]]
