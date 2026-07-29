@@ -1,0 +1,150 @@
+"""SEC-GLOBAL-AUTHZ — no NEW platform-global mutating route may ship without a gate.
+
+`test_route_authz` walks `/projects/{pid}` routes and asserts each carries `require_role`. A route
+with no `{pid}` is outside its remit entirely — so on 2026-07-29 it passed on 695 routes while three
+brand-new routes, `GET`/`POST`/`DELETE /jurisdiction/packs`, were reachable **unauthenticated**
+(measured with RBAC on and no credentials: 200 / **201** / 200, with `GET /admin/errors` correctly
+403 in the same run). Packs are global, so anyone could have changed compliance results for every
+project in a matching jurisdiction.
+
+TWO MECHANISMS PROTECT THESE ROUTES, and a route needs one of them:
+
+1. `main._PROTECTED_PREFIXES` — middleware that refuses anonymous callers on listed path prefixes
+   when RBAC is on. **It is a hand-maintained list of top-level prefixes**, which is the actual
+   defect: adding a new prefix (`/jurisdiction`) silently opts out of the safety net and nothing
+   fails. That is exactly what happened.
+2. The route's own dependency chain carrying something that AUTHORISES — `require_role` (tagged
+   `_role_gate`), `require_admin_user`, `_require_platform_admin`, `require_identified`,
+   `require_scim`.
+
+`Depends(current_user)` is neither. It **identifies**; with RBAC on and no credential it returns the
+literal string "anonymous", so a route guarded only by it has a name attached and no gate — and the
+signature reads like a gate, which is how it survives review.
+
+WHY THIS IS A RATCHET AND NOT A PASS/FAIL. There are 43 such routes on main today. Most are
+legitimately open — auth entry points, token-scoped `/shared/{token}` links, SCIM's own bearer gate,
+webhooks, and the stateless-compute paths the middleware comment explicitly exempts. Triaging all 43
+is real work and this test does not pretend to have done it. What it does is freeze the set: **a new
+unguarded global mutating route fails the build**, and the baseline can only go down. Same shape as
+the innerHTML ratchet.
+
+If you are removing one, delete its line from BASELINE. If you are ADDING a route and this fails,
+the fix is almost never to add it here — it is to add your prefix to `_PROTECTED_PREFIXES` or give
+the route a real dependency.
+
+Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_global_authz.py
+"""
+import os
+import sys
+
+os.environ["DATABASE_URL"] = "sqlite:///./test_global_authz.db"
+os.environ["STORAGE_DIR"] = "./test_storage_global_authz"
+os.environ.pop("AEC_RBAC", None)
+for _f in ("./test_global_authz.db",):
+    if os.path.exists(_f):
+        os.remove(_f)
+
+from fastapi import APIRouter  # noqa: E402
+from fastapi.routing import APIRoute  # noqa: E402
+
+import aec_api.main as M  # noqa: E402
+
+#: Dependencies that AUTHORISE. `current_user` is deliberately absent — that is the whole point.
+AUTHORISING = {"require_admin_user", "_require_platform_admin", "require_identified",
+               "require_scim", "require_license", "require_plan"}
+
+MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
+
+#: Known routes that are mutating, global, outside `_PROTECTED_PREFIXES`, and carry no authorising
+#: dependency. Frozen 2026-07-29 at v0.3.790. NOT a statement that each is safe — a statement that
+#: each is KNOWN. Adding here should be rare and argued; removing is always welcome.
+BASELINE = {
+    # public auth surface — necessarily reachable without an identity
+    ("POST", "/auth/login"), ("POST", "/auth/logout"), ("POST", "/auth/register"),
+    ("POST", "/auth/reset"), ("POST", "/auth/mfa/verify"), ("POST", "/auth/saml/acs"),
+    # authenticated self-service: operates on the CALLER's own record, and 401s anonymously
+    ("POST", "/auth/logout-all"), ("POST", "/auth/password"),
+    ("POST", "/auth/mfa/setup"), ("POST", "/auth/mfa/enable"), ("POST", "/auth/mfa/disable"),
+    # token-scoped share links — the token IS the credential
+    ("POST", "/shared/{token}/comment"), ("POST", "/shared/{token}/decision"),
+    # signed webhook
+    ("POST", "/esign/webhook"),
+    # stateless compute — no stored state; the middleware comment exempts this class explicitly
+    ("POST", "/compute/graph"), ("POST", "/generate/massing/preview"),
+    ("POST", "/massing/optioneer"), ("POST", "/massing/optioneer/recipes"),
+    ("POST", "/structure/recommend"), ("POST", "/test-fit/compare"), ("POST", "/test-fit/optimize"),
+    ("POST", "/schedule/takt"), ("POST", "/schedule/takt/progress"),
+    ("POST", "/estimate/assembly/price"), ("POST", "/parcels/analyze"), ("POST", "/parcels/screen"),
+    ("POST", "/ids/build"), ("POST", "/ids/eir"),
+    ("POST", "/pdf/info"), ("POST", "/pdf/merge"), ("POST", "/pdf/split"), ("POST", "/pdf/extract"),
+    ("POST", "/pdf/rotate"), ("POST", "/pdf/stamp"), ("POST", "/pdf/seal"),
+    ("POST", "/client-errors"),
+    # (SCIM is NOT here: `require_scim` is in AUTHORISING, so the enumerator already clears those
+    #  four routes. Listing them anyway would have been a silent lie about why they are safe — the
+    #  first run of this test reported them as stale baseline entries, which is the check working.)
+    # WORTH A LOOK — these mutate SHARED state with no authorising dependency. Frozen so they cannot
+    # multiply, but they are the entries in this list I would not defend if asked.
+    ("POST", "/templates"), ("DELETE", "/templates/{tid}"),
+    ("POST", "/samples/{sample_id}/open"),
+}
+
+
+def _chain(dep, out):
+    call = getattr(dep, "call", None)
+    if call is not None:
+        out.append(getattr(call, "__name__", str(call)))
+        if getattr(call, "_role_gate", None) is not None:
+            out.append("__ROLE_GATE__")
+    for sub in getattr(dep, "dependencies", []):
+        _chain(sub, out)
+    return out
+
+
+def unguarded() -> set:
+    """Mutating, non-`{pid}`, outside `_PROTECTED_PREFIXES`, and with no authorising dependency."""
+    routers = {n: getattr(M, n) for n in dir(M)
+               if isinstance(getattr(getattr(M, n, None), "router", None), APIRouter)}
+    found = set()
+    for _name, mod in routers.items():
+        for r in mod.router.routes:
+            if not isinstance(r, APIRoute) or "{pid}" in r.path:
+                continue
+            methods = (r.methods or set()) & MUTATING
+            if not methods or r.path.startswith(M._PROTECTED_PREFIXES):
+                continue
+            names = set(_chain(r.dependant, []))
+            if "__ROLE_GATE__" in names or (AUTHORISING & names):
+                continue
+            for m in methods:
+                found.add((m, r.path))
+    return found
+
+
+live = unguarded()
+new = sorted(live - BASELINE)
+gone = sorted(BASELINE - live)
+
+if new:
+    print(f"FAIL - {len(new)} NEW platform-global mutating route(s) with no gate:")
+    for m, p in new:
+        print(f"    {m:6} {p}")
+    print()
+    print("  Depends(current_user) IDENTIFIES; it does not AUTHORISE. With RBAC on and no")
+    print("  credential it returns the literal string 'anonymous', so it is not a gate.")
+    print("  Fix by adding the prefix to main._PROTECTED_PREFIXES, or by giving the route a real")
+    print("  dependency (require_role / require_admin_user / require_identified).")
+    print("  Adding it to BASELINE is almost never the right answer.")
+    sys.exit(1)
+
+print(f"GLOBAL-AUTHZ OK - {len(live)} platform-global mutating route(s) carry no authorising "
+      f"dependency of their own and sit outside the RBAC middleware's prefix list; all are known. "
+      f"test_route_authz covers /projects/{{pid}} routes and is SILENT about these, which is how "
+      f"three unauthenticated /jurisdiction/packs routes reached a PR on 2026-07-29 (200/201/200 "
+      f"with no credentials, while /admin/errors correctly returned 403 in the same run). The root "
+      f"cause is that _PROTECTED_PREFIXES is hand-maintained, so a NEW top-level prefix silently "
+      f"opts out of the safety net and nothing fails. This freezes the set: a new one fails the "
+      f"build. It is not a claim that each of the {len(live)} is safe - three mutate shared state "
+      f"and are flagged in the file - it is a claim that each is KNOWN, and the number can only go "
+      f"down.")
+if gone:
+    print(f"  ({len(gone)} baseline entr(ies) no longer present - delete from BASELINE: {gone})")
