@@ -47,6 +47,10 @@ m.by_guid(cmu).Name = "CMU Partition Type A"
 plain = edit_struct.add_wall(m, (0.0, 0.0), (0.0, 4.0), height=3.0, storey="Level 1")
 m.by_guid(plain).Name = "Wall-02"
 proxy = m.create_entity("IfcBuildingElementProxy", GlobalId=ifcopenshell.guid.new(), Name="Widget 12")
+# An opening is a void — nothing to classify or price. `qto.py` skips openings at both of its call
+# sites, so if this one landed in the coverage denominator the figure would disagree with the
+# takeoff's about what the model contains.
+opening = m.create_entity("IfcOpeningElement", GlobalId=ifcopenshell.guid.new(), Name="Door void")
 m.write(str(tmp))
 
 with TestClient(app) as c:
@@ -67,6 +71,10 @@ with TestClient(app) as c:
     check("  which is the honest starting point, not the implicit 100% of a default bucket",
           C["declared"] == 0 and C["total"] >= 3, C["total"])
     check("  the proxy is counted as unmapped", C["unmapped"] >= 1, C["by_basis"])
+    # Assert the property, not a hand-counted total — the blank model also carries a ground-reference
+    # slab, and hardcoding "3" here just encoded my own miscount of the fixture.
+    check("  the basis counts still add up to the total",
+          sum(C["by_basis"].values()) == C["total"], (C["by_basis"], C["total"]))
     check("  with a warning naming the estimate consequence",
           "default bucket" in (C["unmapped_warning"] or ""))
     check("  and the coverage response does not carry the full row set",
@@ -83,6 +91,10 @@ with TestClient(app) as c:
           rows.get(plain))
     check("  the proxy gets no code at all",
           rows[proxy.GlobalId]["basis"] == "unmapped" and rows[proxy.GlobalId]["code"] is None)
+    check("  the IfcOpeningElement is absent entirely — a void is not classifiable",
+          opening.GlobalId not in rows, sorted(r["ifc_class"] for r in P["rows"]))
+    check("  and no opening appears under any basis",
+          not any(r["ifc_class"] == "IfcOpeningElement" for r in P["rows"]))
 
     only = c.get(f"/projects/{pid}/classify/proposals?basis=unmapped").json()
     check("filtering by basis works", {r["basis"] for r in only["rows"]} == {"unmapped"})

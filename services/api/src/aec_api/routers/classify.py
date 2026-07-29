@@ -34,6 +34,16 @@ def _elements(model) -> list[dict]:
             if el.id() in seen:
                 continue
             seen.add(el.id())
+            if el.is_a("IfcOpeningElement"):
+                # A void is not a thing to classify or price, and `qto.py` skips openings at both of
+                # its call sites — so counting them here would make this denominator disagree with
+                # the takeoff's. "12% classified" has to mean 12% of what actually gets priced,
+                # otherwise the coverage figure and the estimate describe different models.
+                #
+                # (`ifc_loader.physical_elements` does NOT filter them; the convention lives at the
+                # call sites. Following the convention rather than changing the shared helper, which
+                # would silently move every existing quantity.)
+                continue
             try:
                 t = ue.get_type(el)
             except Exception:               # noqa: BLE001 — a broken type relation is not fatal here
