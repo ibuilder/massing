@@ -1074,3 +1074,26 @@ body.embed #workspaces { display: none; }
   letter-spacing: .05em;
   opacity: .5;
 }
+
+/* R26-VITALS — the six numbers own the bottom strip; the viewport controls sit beside them and only
+   where there is a viewport. Audit finding 13: ten permanent controls, irrelevant on four of seven
+   tabs, were occupying the most valuable strip of the window. */
+.sb-vitals { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.sb-viewport { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.sb-viewport[hidden] { display: none; }
+.vit {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 2px 9px; border: 0; background: none; color: inherit;
+  font: inherit; white-space: nowrap; border-right: 1px solid var(--line, #2a2f3a);
+}
+.vit:first-child { padding-left: 4px; }
+button.vit { cursor: pointer; }
+button.vit:hover { background: var(--hover, rgba(255,255,255,.06)); }
+.vit-k { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; opacity: .55; }
+/* tabular-nums so the strip does not jitter as values tick over */
+.vit-v { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* An absent value is deliberately quiet — it is not a measurement and must not read as one. */
+.vit-empty .vit-v { opacity: .38; font-weight: 400; }
+.vit-good .vit-v { color: var(--status-good, #33d17a); }
+.vit-warn .vit-v { color: var(--status-warn, #e5a50a); }
+.vit-poor .vit-v { color: var(--status-crit, #e01b24); }

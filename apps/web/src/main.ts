@@ -7,6 +7,7 @@ import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTab
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
 import { pinnedItems, renderPinnedRail } from "./shell/pinnedRail";
 import { ROOM_HOME, destRoom, spineEnabled } from "./shell/spine";
+import { renderVitals } from "./shell/vitalsBar";
 import { setRoomOpen } from "./portal/prefs";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
 import { maybeResumeTour, maybeRolePrompt, maybeWelcome, showWelcome, valueMomentPrompt } from "./ui/onboarding";
@@ -485,6 +486,11 @@ for (const it of RAIL_ITEMS) {
     lastCluster = it.cluster;
     const lbl = document.createElement("span");
     lbl.className = "rail-cluster"; lbl.textContent = it.cluster; lbl.setAttribute("aria-hidden", "true");
+    // Tag the divider with its cluster so persona filtering can hide it when every item under it is
+    // hidden. Without this a persona that allows none of a cluster's buttons still gets its heading:
+    // v0.3.772 shipped a DOCUMENT label with nothing beneath it, which reads as a broken menu rather
+    // than an absent one.
+    lbl.dataset.cluster = it.cluster;
     railEl.appendChild(lbl);
   }
   const b = document.createElement("button");
@@ -566,6 +572,7 @@ function setWorkspace(key: string) {
     }
   });
   localStorage.setItem("workspace", key);
+  syncStatusBarMode();      // the viewport controls belong to the viewport
 }
 // deep-link from a tool section to the workspace that owns the full records (e.g. Cost → Construction)
 window.addEventListener("aec:workspace", (e) => {
@@ -741,23 +748,30 @@ document.querySelectorAll<HTMLButtonElement>(".fintab").forEach((t) => {
 interface PersonaCfg { ws: string[] | null; rail: string[] | null; home: string; }
 const PERSONAS: Record<string, PersonaCfg> = {
   all:           { ws: null, rail: null, home: "model" },
-  developer:     { ws: ["developer", "finance", "model", "studio", "drawings", "design", "construction"], rail: ["issues", "tools", "tree"], home: "developer" },
-  gc:            { ws: ["construction", "model", "drawings", "design", "finance"], rail: ["tree", "layers", "issues", "tools"], home: "construction" },
+  developer:     { ws: ["developer", "finance", "model", "studio", "drawings", "design", "construction"], rail: ["issues", "tools", "tree", "sheets", "specs"], home: "developer" },
+  gc:            { ws: ["construction", "model", "drawings", "design", "finance"], rail: ["tree", "layers", "issues", "tools", "sheets", "specs"], home: "construction" },
   // R1 — two GC flavors: the super lives in the field (model + construction), the PM in the office
   // (construction + finance). Same construction home; the portal nav opens each role's sections first.
-  superintendent:  { ws: ["construction", "model", "drawings"], rail: ["issues", "tree", "layers", "tools"], home: "construction" },
-  project_manager: { ws: ["construction", "design", "finance", "drawings", "model"], rail: ["tree", "issues", "layers", "tools"], home: "construction" },
+  superintendent:  { ws: ["construction", "model", "drawings"], rail: ["issues", "tree", "layers", "tools", "sheets", "specs"], home: "construction" },
+  project_manager: { ws: ["construction", "design", "finance", "drawings", "model"], rail: ["tree", "issues", "layers", "tools", "sheets", "specs"], home: "construction" },
   // architect/engineer home into the Design workspace (their design-phase seat); model + studio stay
   // one click away for authoring and the coordination/model-health tools.
-  architect:     { ws: ["design", "model", "studio", "drawings", "construction"], rail: ["tree", "layers", "issues", "tools"], home: "design" },
-  engineer:      { ws: ["design", "model", "studio", "drawings"], rail: ["tree", "layers", "tools", "issues"], home: "design" },
-  subcontractor: { ws: ["construction", "model", "drawings"], rail: ["issues", "tools"], home: "construction" },
+  architect:     { ws: ["design", "model", "studio", "drawings", "construction"], rail: ["tree", "layers", "issues", "tools", "sheets", "specs"], home: "design" },
+  engineer:      { ws: ["design", "model", "studio", "drawings"], rail: ["tree", "layers", "tools", "issues", "sheets", "specs"], home: "design" },
+  subcontractor: { ws: ["construction", "model", "drawings"], rail: ["issues", "tools", "sheets", "specs"], home: "construction" },
 };
 const personaSel = document.getElementById("persona") as HTMLSelectElement;
 function applyPersona(p: string, goHome = false) {
   const cfg = PERSONAS[p] ?? PERSONAS.all ?? { ws: null, rail: null, home: "model" };
   document.querySelectorAll<HTMLButtonElement>(".ws-btn").forEach((b) => { b.hidden = !!cfg.ws && !cfg.ws.includes(b.dataset.ws!); });
   document.querySelectorAll<HTMLButtonElement>(".rail-btn").forEach((b) => { b.hidden = !!cfg.rail && !cfg.rail.includes(b.dataset.rail!); });
+  // ...and a cluster heading follows its items. A label over nothing is worse than no label: it says
+  // a section exists and then does not deliver it.
+  document.querySelectorAll<HTMLElement>(".rail-cluster").forEach((lbl) => {
+    const cluster = lbl.dataset.cluster;
+    lbl.hidden = !RAIL_ITEMS.some((it) => it.cluster === cluster
+      && (!cfg.rail || cfg.rail.includes(it.key)));
+  });
   const allowedRail = cfg.rail ?? RAIL_ITEMS.map((r) => r.key);
   const activeRail = document.querySelector(".rail-btn.active") as HTMLElement | null;
   if (!activeRail || !allowedRail.includes(activeRail.dataset.rail!)) { const first = allowedRail[0]; if (first) showRail(first); }
@@ -834,6 +848,35 @@ function flashSaved() {
 function applyTheme() { document.documentElement.dataset.theme = settings.theme === "light" ? "light" : ""; }
 function onSettingsChanged() { applyTheme(); if (viewerApp) viewerApp.applySettings(); localStorage.setItem("aec-settings", JSON.stringify(settings)); flashSaved(); }
 
+/**
+ * The vitals strip, and the viewport controls that used to own this space alone.
+ *
+ * Audit finding 13: Fit / Grid / Section / Orbit / Snap / Units were pinned to the bottom of every
+ * room — "ten permanent controls, irrelevant on four of seven tabs, occupying the most valuable
+ * strip of the window". They now live in `#sb-viewport`, shown only where there is something to
+ * orbit; the strip itself belongs to the six vitals, which are relevant everywhere and are the one
+ * continuous proof that all of this describes a single model.
+ */
+const VIEWER_WORKSPACES = new Set(["model", "drawings", "studio", "design"]);
+let vitalsSeq = 0;
+
+function paintVitals() {
+  const host = document.getElementById("sb-vitals");
+  if (!host || !projectId) { if (host) renderVitals(host, null); return; }
+  const seq = ++vitalsSeq;
+  void api.vitals(projectId)
+    // Ignore a response that arrived after the user moved on — the strip is polled on every project
+    // and workspace change, so an out-of-order reply would render another project's numbers.
+    .then((v) => { if (seq === vitalsSeq) renderVitals(host, v); })
+    .catch(() => { if (seq === vitalsSeq) renderVitals(host, null); });
+}
+
+/** Viewport controls belong to the viewport. Everywhere else the strip is the vitals. */
+function syncStatusBarMode() {
+  const vp = document.getElementById("sb-viewport");
+  if (vp) vp.hidden = !VIEWER_WORKSPACES.has(currentWs);
+}
+
 function buildStatusBar() {
   const bar = $("statusbar");
   const sep = () => { const d = document.createElement("span"); d.className = "sb-sep"; return d; };
@@ -852,9 +895,19 @@ function buildStatusBar() {
     s.onchange = () => { (settings[key] as string) = s.value; onSettingsChanged(); };
     wrap.append(l, s); return wrap;
   };
+  // The vitals come FIRST — they are the strip's reason to exist, and they are relevant in every
+  // room. The viewport controls follow, in their own container, hidden outside the viewer.
+  const vitalsHost = document.createElement("div");
+  vitalsHost.id = "sb-vitals"; vitalsHost.className = "sb-vitals";
+  vitalsHost.setAttribute("aria-label", "Project vitals");
+  bar.appendChild(vitalsHost);
+
+  const vp = document.createElement("div");
+  vp.id = "sb-viewport"; vp.className = "sb-viewport";
+
   const fit = document.createElement("button"); fit.className = "sb-toggle"; fit.textContent = "⤢ Fit";
   fit.title = "Fit to view (F)"; fit.onclick = () => withViewer((v) => void v.fitToModels());
-  bar.append(
+  vp.append(
     fit, sep(),
     toggle("Grid", "grid"), toggle("Section", "section"),
     select("View", "projection", [["Perspective", "Perspective"], ["Orthographic", "Ortho"]]), sep(),
@@ -874,7 +927,8 @@ function buildStatusBar() {
   snapSel.value = String(settings.snap);
   snapSel.onchange = () => { settings.snap = Number(snapSel.value); onSettingsChanged(); };
   snapWrap.append(snapL, snapSel);
-  bar.append(snapWrap, sep());
+  vp.append(snapWrap, sep());
+  bar.appendChild(vp);
   const coords = document.createElement("span"); coords.id = "sb-coords"; coords.textContent = "—";
   const saved = document.createElement("span"); saved.id = "sb-saved"; saved.textContent = "✓ saved";
   bar.append(coords, saved);
@@ -1564,6 +1618,8 @@ async function startup() {
                    : "offline — open a .frag to view (API not reachable)");
   }
   if (spineEnabled()) void refreshWorkBadge(projectId);
+  paintVitals();            // the six numbers, refreshed whenever the project changes
+  syncStatusBarMode();
   if (projectId && !demo) connectNotifications();   // SSE needs a backend
   void applyCapabilities();
   if (!demo) void autoCheck();          // show a banner if a newer release is published

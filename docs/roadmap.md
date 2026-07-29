@@ -38,7 +38,7 @@ COMPLETE that still contained open work. That is how R26-VITALS — the prototyp
 pillar — sat unbuilt inside `roadmap-completed.md` for weeks: **an unshipped item filed under a
 completed heading is invisible**, because nobody goes looking there. One list, in order.
 
-### 1 · R26-VITALS — the reason it does not look like the prototype
+### ~~1 · R26-VITALS~~ — **DONE v0.3.773.** Was:
 Six numbers along the bottom — **LOD · area · $/sf · float · IRR · health** — replacing the ten
 viewport controls pinned to every room whether or not it has a viewport (audit finding 13: *"ten
 permanent controls, irrelevant on four of seven tabs, occupying the most valuable strip of the
@@ -58,7 +58,22 @@ main runs 24). A major build migration, so it gets its own release and the full 
 Pin the MinIO and nginx image tags, extend Dependabot to container images + a Vite group, and make
 the Cargo.lock guard non-fragile with `cargo metadata --locked`.
 
-### 4 · R27-UW-PANEL *(M)*
+### ~~4 · R27-UW-PANEL~~ — **CLOSED, not built.** The premise does not survive the constraint
+
+Written as "give `__uw__` a real portal panel so Deal lands on Underwriting". Checked before
+building, and the trade is bad:
+
+- **Underwriting is already reachable and labelled** from the Deal room — `📊 Underwriting` sits in
+  the rail, one click away, in the same group as Deal's other destinations.
+- **Underwriting is a full-page surface**, not a 280px panel. It is the finance workspace's Proforma
+  tab. Forcing it into an `.rpanel` for the sake of a uniform landing mechanism is the same wrong
+  shape that made Drawings a launcher rather than a side panel in v0.3.772.
+- **`finance` is not a portal workspace** (`PORTAL_WORKSPACES = construction, developer, design`).
+  Landing Deal there would surrender the rail that carries Deal's **16 registers** — the room's
+  actual substance — to gain one panel.
+
+So Deal lands on **Portfolio**: a real panel, in the portal, with the rail intact, and Underwriting a
+labelled click away. That is the better arrangement, not a workaround for it. Was:
 Give `__uw__` a real portal panel so Deal lands on Underwriting instead of Portfolio. v0.3.770 tried
 to shortcut this by marking the workspace hand-off active; the marker never cleared, so a repeat
 click reported arrival for a navigation that never ran. Reverted in v0.3.771, and `spine.test.ts`

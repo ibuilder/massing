@@ -502,3 +502,21 @@ export interface PreflightSummary {
   warnings: number;
   blocking_checks: string[];
 }
+
+/**
+ * R26-VITALS — the six numbers the bottom strip renders.
+ *
+ * `value: null` is a first-class result meaning "this project has not got there yet", and `note`
+ * says what it is waiting on. It must never be rendered as 0 — a zero float reads as "no slack" and
+ * a zero IRR as "worthless", which are claims about a project, not about missing data.
+ */
+export interface Vital {
+  value: number | string | null;
+  unit: string;
+  note?: string | null;
+  band?: string | null;
+}
+export interface VitalsPayload {
+  order: string[];
+  [key: string]: Vital | string[] | undefined;
+}

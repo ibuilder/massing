@@ -4,6 +4,46 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.773 — R26-VITALS: the prototype's fourth pillar, finally built
+
+**LOD · area · $/ft² · float · IRR · health**, along the bottom of every room.
+
+This is why the app did not look like the redesign prototype. Three of its four pillars had shipped —
+the room spine, the Inspector, the work-queue-as-home. The fourth sat in `roadmap-completed.md` **with
+no tick**: filed under completed and never built, which is the most reliable way to lose a piece of
+work, because nobody goes looking in the done pile.
+
+It replaces audit finding 13. Fit / Grid / Section / Orbit / Snap / Units were pinned to the bottom of
+*every* room — *"ten permanent controls, irrelevant on four of seven tabs, occupying the most valuable
+strip of the window"*. They now live in `#sb-viewport` and appear only where there is something to
+orbit. Verified live: **Design → controls visible; Cost → hidden**, with the same six vitals in both.
+
+**One endpoint, not six client fetches.** `GET /projects/{pid}/vitals` assembles the six from the
+engines that already own them — `bim_kpi.scorecard`, `schedule_cpm.compute`, `adjacency.summary`, the
+proforma scenario, the cost rollup. Nothing is recomputed. That is not a performance choice: the same
+audit's finding 03 is that the app contradicts itself on screen — one project scored 24 for model
+health in one workspace and 77 in another — and five browser requests would rebuild exactly that.
+
+**A missing number is an em-dash with its reason, never a zero.** A zero float reads as "no slack" and
+a zero IRR as "worthless"; both are claims about a project, not about absent data. Live right now on
+the showcase house:
+
+    LOD    —  (23 of 23 elements have no LOD stage)
+    FLOAT  0 days                                     <- a REAL zero: no slack is a fact
+    IRR    —  (no solved scenario)                    <- not 0%, which would claim "worthless"
+
+Two defects caught by checking rather than assuming, each of which would have shipped a permanently
+blank cell that looked like a working feature: `element_facts.lod_summary` does not exist (the owner
+is `representations.lod_summary`), and the health cell read `score` / `overall` / `percent` — **none
+of which `bim_kpi` emits**. It reads `summary.health_pct` now, pinned by a test.
+
+### Also — the DOCUMENT cluster was empty for most personas
+
+v0.3.772 put Drawings and Specs in the viewer rail but added them to no persona's `rail` allow-list,
+so under the default persona the heading rendered over nothing. Both are now in all seven
+drawings-capable personas, and **a cluster heading hides with its items** — a label promising a
+section it does not deliver is worse than no label at all.
+
 ## v0.3.772 — a DOCUMENT cluster in the viewer rail: Drawings and Specs
 
 The rail an architect works in now reads:

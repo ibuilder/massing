@@ -18,8 +18,7 @@ import type {
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   PreflightGate, PreflightSummary,
   RecordAttachmentMeta, RelatedRecords, ResolveAction, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
-  Topic, Vec3, Viewpoint, WorkItem,
-} from "./types";
+  Topic, Vec3, Viewpoint, WorkItem, VitalsPayload } from "./types";
 
 /** Handle for a resilient SSE subscription (see ApiClient.liveStream). */
 export interface LiveStream { readonly connected: boolean; close(): void }
@@ -2824,6 +2823,16 @@ export class ApiClient extends withLibrary(withAuthoring(HttpCore)) {
   /** R26 — the room spine plus the allocation of every module to exactly one room. */
   rooms() {
     return this.json<RoomAllocation>(`/rooms`);
+  }
+  /**
+   * R26-VITALS — the six numbers along the bottom strip.
+   *
+   * One request, deliberately: assembling LOD / area / $ft² / float / IRR / health from five engines
+   * in the browser is how the same project came to show two different health scores in one session
+   * (audit finding 03). The server owns the assembly.
+   */
+  vitals(pid: string) {
+    return this.json<VitalsPayload>(`/projects/${pid}/vitals`);
   }
   modulePins(pid: string) {
     return this.json<ModulePin[]>(`/projects/${pid}/module-pins`);

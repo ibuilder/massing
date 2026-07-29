@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from .. import ai, dashboard, mailer, oauth, rbac, report
 from .. import modules as me
+from .. import vitals as vitals_engine
 from ..db import get_db
 from ..models import Project, User
 from ..rbac import require_role
@@ -20,6 +21,27 @@ def get_dashboard(pid: str, party: str | None = None, db: Session = Depends(get_
     """Dashboard tailored to `party` (defaults to the caller's project party role)."""
     party = party or rbac.party_role_for(db, pid, user) or "GC"
     return dashboard.build(db, pid, party)
+
+
+@router.get("/projects/{pid}/vitals")
+def get_vitals(pid: str, db: Session = Depends(get_db),
+               user: str = Depends(require_role("viewer"))):
+    """R26-VITALS — the six numbers the bottom strip shows on every room.
+
+    **LOD · area · $/ft² · float · IRR · health.**
+
+    One endpoint rather than six client fetches, deliberately. The redesign audit's finding 03 is
+    that the app contradicts itself on screen — the same project scored 24 for model health in one
+    workspace and 77 in another. Assembling these in the browser would rebuild that: five requests,
+    five chances to render a number that disagrees with the panel beside it.
+
+    Each engine is called through the entry point that already owns its number — nothing is
+    recomputed here — and each is wrapped so a project that has no schedule, no proforma or no
+    spaces yields `None` with a reason rather than failing the strip. A vitals bar must not be able
+    to take the page down.
+    """
+    from . import _vitals_sources as src  # local import keeps this router's graph flat
+    return vitals_engine.vitals(db, pid, **src.gather(db, pid))
 
 
 _RECORDABLE = {"Recordable", "Lost Time", "Fatality"}
