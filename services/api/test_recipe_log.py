@@ -255,8 +255,13 @@ nested = rl.entry("connect", {"config": {"api_key": "SUPERSECRET-NESTED",
                               "host": "example.com"},
                   actor="a", source_in="a", source_out="b")
 blob = json.dumps(nested)
-for secret in ("SUPERSECRET-NESTED", "DEEPER", "IN-A-LIST"):
-    check(f"a nested {secret!r} never reaches the log", secret not in blob)
+# The LABEL is printed on every run, not just on failure — so a secret interpolated into it is
+# logged unconditionally. This is where the HIGH alert actually lived; fixing only the `detail`
+# argument left it open, because `check()` prints both. Describe the case by position, never by value.
+for where, secret in (("in a nested dict", "SUPERSECRET-NESTED"),
+                      ("two dicts down", "DEEPER"),
+                      ("inside a list", "IN-A-LIST")):
+    check(f"a credential {where} never reaches the log", secret not in blob)
 check("  the nested key is stubbed, not dropped",
       nested["params"]["config"]["api_key"].get("__elided__") is True)
 check("  a credential inside a LIST is caught too",
