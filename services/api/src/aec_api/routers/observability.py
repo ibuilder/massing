@@ -7,12 +7,26 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from .. import errorlog
+from .. import baseline, errorlog
 from ..db import get_db
 from ..rbac import current_user
 from .auth import require_admin_user
 
 router = APIRouter()
+
+
+@router.get("/admin/baseline")
+def adoption_baseline(days: int = Query(28, ge=1, le=365),
+                      db: Session = Depends(get_db), _admin=Depends(require_admin_user)):
+    """R24-BASELINE — the adoption metrics the interface ring is scored against. Admin only.
+
+    Cross-project and cross-user by nature, hence admin-gated. Three of the ring's six metrics are
+    computed from `record_activity`; the other three return `available: false` **with the reason**.
+    That asymmetry is the point — a client-side measure substituted from a server-side proxy reads
+    like the target and answers a different question, and this ring exists because R26 shipped a
+    shell nobody could score.
+    """
+    return baseline.adoption(db, days=days)
 
 
 @router.get("/admin/errors")

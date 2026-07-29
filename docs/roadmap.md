@@ -2,7 +2,7 @@
 
 The single product roadmap — **open items only**. Everything shipped lives in
 [roadmap-completed.md](roadmap-completed.md); per-release detail is in [CHANGELOG.md](../CHANGELOG.md).
-Supporting detail: [production-readiness.md](production-readiness.md) · [gc-portal.md](gc-portal.md) ·
+Supporting detail: [production-readiness.md](internal/archive/production-readiness.md) · [gc-portal.md](gc-portal.md) ·
 [ops-dr.md](ops-dr.md) · [mobile.md](mobile.md).
 
 Three pillars on one IFC-keyed model: **BIM authoring/viewer** · **GC portal** ·
@@ -406,14 +406,20 @@ a gate is a hypothesis until someone tests it.* See [[check-the-blocker-premise]
 **Tier 1 — measure, then take the cheap wins.** *Every item below is unverifiable until R23-PERF-TEST
 exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions.*
 
-- ⭐ **R23-CONSTRAINTS** *(L)* — W10-9 via kiwisolver + least_squares, per the unblock above.
+- ⭐ **R23-CONSTRAINTS** *(L)* — W10-9 via **scipy's `least_squares`, which is already a dependency**
+  (`services/api/requirements.in:27` and `services/data/requirements.txt:8`, both `scipy>=1.11`).
+  This entry said "via kiwisolver + least_squares" until 2026-07-29. **`kiwisolver` is NOT a
+  dependency of this repo** — so the entry pointed at a package someone would have had to add, in a
+  repo where a new dependency needs explicit sign-off, to get a solver scipy already provides. Checked
+  because a named prerequisite is exactly the kind of claim that turns out to be a past reading rather
+  than a property of the code.
   **Dependency taken 2026-07-25.** `kiwisolver` is **Modified BSD-3** — squarely on the approved
   licence list — a ~60–100 KB prebuilt wheel, and already a transitive dependency of matplotlib, so
   it adds a *declaration* rather than new surface area. Trivially reversible. Proceeding on the
   standing delegation; flagged here so it can be objected to in one line.
 - **R23-STOREY-LOD** *(L)* — server-side coarse proxies per storey (extruded footprint / AABB) for
   small parts, MEP and furniture, swapping to real fragments on demand. Server-side keeps it
-  deterministic, offline and $0. *`docs/phase2-large-models.md` claims no custom LOD is needed and is
+  deterministic, offline and $0. *`docs/internal/archive/phase2-large-models.md` claims no custom LOD is needed and is
   itself marked superseded — that claim is the thing to retire.*
 - **R23-PICKING** *(M)* — ⚠️ **premise corrected 2026-07-25; do NOT build this on the stated evidence.**
   The scan read the 1500 ms `Promise.race` at `viewer/app.ts:337` as "an admission that picking latency
@@ -482,7 +488,7 @@ MIT/BSD/Apache list)**, a new Rust binary wheel, and **99.9% agreement is not bi
 must never touch drawing generation, which has to stay deterministic. Would ship behind a flag with a
 per-GlobalId AABB cross-check against the ifcopenshell path.
 
-## 🎛 R24 — INTERFACE RING *(external design audit 2026-07-25; see [design-audit.md](design-audit.md))*
+## 🎛 R24 — INTERFACE RING *(external design audit 2026-07-25; see [design-audit.md](internal/archive/design-audit.md))*
 
 **The thesis, and it is not "add features".** Adoption is the binding constraint, not capability.
 **47%** of contractors name *getting people to use new technology* their biggest challenge (AGC 2024);
@@ -500,7 +506,7 @@ The ring was transferred from the audit in one sitting and **never re-checked ag
 has been now, item by item, and three things came out of it that change what to work on.
 
 **① The audit's own evidence base was stale on arrival.** Its header reads `v0.3.4 · 566 commits` and
-"~80 modules"; we were near v0.3.67x with ~130. `design-audit.md` corrected the module count without
+"~80 modules"; we were near v0.3.67x with ~130. `internal/archive/design-audit.md` corrected the module count without
 recording the provenance problem. Consequence for anyone using it: its *diagnoses* are sound, its
 **"today the app does X" claims are not evidence** — verify against the file before acting. That is
 also why two findings had to be retro-marked "already true before the audit landed".
@@ -559,11 +565,30 @@ uncashed.
 Everything after this sprint is a claim about adoption. Nothing in the stack can currently confirm or
 refute one, so this goes first even though it is the least visible.
 
-- ⭐ **R24-BASELINE** *(M, reinstated)* — wire the audit's six metrics to the existing `/metrics`:
-  time-to-first-meaningful-action (target < 60 s), rooms touched per user per week, "where is X"
-  support threads, field captures per super per day, p95 interaction latency, median RFI turnaround.
-  Baselines first, targets second. **Do not start Sprint 2 without this**, or R24 repeats R26's
-  mistake of shipping a shell nobody can score.
+- ✅ **R24-BASELINE** — **SHIPPED**: `baseline.py` + `GET /admin/baseline` (admin-gated, cross-project).
+  **Three of the six are measured, three refuse — and the split is the finding.** The entry listed six
+  metrics as though they were one kind of thing:
+  - **Derivable from `record_activity`** (every create/update/transition already carries an actor and
+    a timestamp): *rooms touched per user per week* (module → section → room via `rooms.room_of`, so
+    it cannot drift from the rail), *field captures per super per day*, *median RFI turnaround*
+    (paired transitions into `open` then `answered`).
+  - **`available: false` with a reason**: *time-to-first-meaningful-action* and *p95 **interaction**
+    latency* are client-side — no server event marks either end; *"where is X" support threads* lives
+    in a support inbox this product cannot see. A client measure faked from a server proxy reads like
+    the target and answers a different question, which is precisely how a shell nobody can score gets
+    shipped with a dashboard.
+
+  Two things fell out of building it. **`http_request_duration_seconds` was `_sum`/`_count` only** —
+  that is a *mean*, and a mean cannot answer the p95 R24-PERF-BUDGET asserts, so a latency
+  **histogram** was added with 0.1 s as a deliberate bucket edge. And an unanswered RFI is excluded
+  from the numerator and reported as `open_unanswered` rather than counted as zero days — the same
+  defect shape as the draw priced at zero. Tests are **value-checked against hand arithmetic**, not
+  range-checked, and mutation-checked both ways.
+
+- ⭐ **R24-PERF-BUDGET** *(S)* — **now measurable**: `metrics.quantile(0.95)` reads the histogram
+  above. The remaining work is the asserted budget itself (100 ms click echo, 1 s panel, p95 < 100 ms)
+  as a `test_*`, per *Verify, don't recall*. Note what the server can and cannot say: request p95 is
+  server-side and now real; **click-echo latency is client-side and still needs a beacon.**
 - **R24-PERF-BUDGET** *(S, reinstated)* — the audit's P5: 100 ms click echo, 1 s panel, p95 < 100 ms.
   Write it as an asserted budget, not a hope — prose drifts, `test_*` does not (see *Verify, don't
   recall* in CLAUDE.md).

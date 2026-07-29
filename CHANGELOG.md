@@ -4,6 +4,41 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.797 — R24-BASELINE: three metrics measured, three that refuse, and a mean pretending to be a p95
+
+R24's entry says "do not start Sprint 2 without this". Sprint 2 items have been picked up twice
+already, so the gate was real and ignored. `baseline.py` + `GET /admin/baseline` closes it.
+
+**The six metrics are not one kind of thing, and that split is the finding.** Three are derivable from
+`record_activity`, which already logs an actor and a timestamp for every create/update/transition:
+rooms touched per user per week (module -> section -> room via `rooms.room_of`, so the metric cannot
+drift from the rail), field captures per super per day, and median RFI turnaround from paired
+`open` -> `answered` transitions. The other three report **`available: false` with a reason**:
+time-to-first-meaningful-action and p95 *interaction* latency are client-side with no server event at
+either end, and "where is X" support threads live in an inbox this product cannot see.
+
+Refusing matters more than measuring here. A client-side measure substituted from a server-side proxy
+reads exactly like the target and answers a different question — which is how a shell nobody can score
+ends up shipping with a confident dashboard.
+
+Two defects surfaced while building it:
+
+- **`http_request_duration_seconds` was `_sum`/`_count` only.** That yields a MEAN, and a mean cannot
+  answer the p95 that R24-PERF-BUDGET asserts — it hides precisely the tail a budget is about. Added a
+  latency histogram with 0.1 s as a deliberate bucket edge, plus `metrics.quantile()`, which returns a
+  bucket upper bound rather than interpolating a precise-looking number out of bucketed data.
+- **An unanswered RFI would have counted as zero days** — reporting the fastest turnaround on the job
+  for work nobody has answered. It is excluded from the numerator and surfaced as `open_unanswered`.
+  Same shape as the draw that was priced at zero for staying in the denominator.
+
+Tests are value-checked against hand arithmetic, never range-checked, and mutation-checked in both
+directions. The first draft of the test file had **no per-test isolation** — every test saw the rows of
+every test that ran before it alphabetically, producing n_actors=6 where 2 was expected. The engine was
+right each time and the fixture was lying, which is the more dangerous of the two.
+
+Also corrected: R23-CONSTRAINTS named `kiwisolver`, which is **not a dependency of this repo**, for a
+solver `scipy` already provides and already ships.
+
 ## v0.3.796 — R30-TOOLS: a register can finally say what it can DO
 
 Every optional key a module carried was **presentation** — icon, list_columns, pinnable, ref_prefix,
