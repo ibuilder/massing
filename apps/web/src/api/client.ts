@@ -4,8 +4,8 @@ import { withAuthoring } from "./authoring";
 import { withLibrary } from "./library";
 import { HttpCore, type LiveStream } from "./httpCore";
 import { withModel } from "./model";
+import { withModules } from "./modules";
 import { withSchedule } from "./schedule";
-import type { Cached } from "./recordCache";
 
 // DTO types live in ./types (extracted from this file). Re-export them so the many
 // `import { … } from "../api/client"` sites across the app keep resolving unchanged.
@@ -15,21 +15,24 @@ export * from "./types";
 // from extraction. Re-exported because drawings.ts imports the type as
 // `import("../api/client").LiveStream`.
 export type { LiveStream } from "./httpCore";
+// The module-graph DTOs travelled with the /modules methods in SCALE-SEAM ④; re-exported because
+// portal/panels/moduleGraph.ts imports them as `from "../../api/client"`.
+export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";
 export * from "./authoring";
 export * from "./library";
 import type {
   AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
-  IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModuleBoard, ModuleDef, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult, RoomAllocation,
+  IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
   PreflightGate, PreflightSummary,
-  RecordAttachmentMeta, RelatedRecords, ResolveAction, ResponsibilityMatrix, SavedViewDef, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
+  ResolveAction, ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem, VitalsPayload } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))) {
+export class ApiClient extends withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))) {
   // --- auth ---------------------------------------------------------------
   /** Enabled SSO providers (Google/Microsoft/Procore) for the login UI. */
   authProviders() {
@@ -518,12 +521,6 @@ export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(
     const q = new URLSearchParams({ ...(to ? { to } : {}), ...(note ? { note } : {}) }).toString();
     return this.url(`/projects/${pid}/drawing-set/transmittal.pdf${q ? "?" + q : ""}`);
   }
-  /** Resolve a record's distribution (CC) field against the contact directory → recipients + emails. */
-  recordDistribution(pid: string, key: string, rid: string) {
-    return this.json<{ ref: string; recipients: { name: string; email: string | null; resolved: boolean }[];
-      emails: string[] }>(`/projects/${pid}/modules/${key}/${rid}/distribution`);
-  }
-  /** Time & Material (eTicket) cost rollup — labor/material/equipment, billed vs unbilled. */
   tmSummary(pid: string) {
     return this.json<{ ticket_count: number; labor_total: number; material_total: number;
       equipment_total: number; grand_total: number; unbilled_total: number; rows: Record<string, unknown>[] }>(
@@ -2039,17 +2036,6 @@ export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(
     return this.json<{ doors: Table; windows: Table; rooms: Table }>(
       `/projects/${pid}/drawings/schedules/calc`, { method: "POST", body: JSON.stringify(calcs) });
   }
-  /** SCHED-CALC — formula columns over module records ({name, expr}; fields = normalized data keys). */
-  moduleCalc(pid: string, key: string, calcs: { name: string; expr: string }[],
-             opts?: { state?: string; q?: string; limit?: number }) {
-    return this.json<{ columns: string[]; record_count: number;
-      rows: { id: string; ref: string | null; values: Record<string, string | number | boolean | null> }[];
-      note: string }>(
-      `/projects/${pid}/modules/${key}/calc`,
-      { method: "POST", body: JSON.stringify({ calcs, ...opts }) });
-  }
-  /** TOPIC-LIFE — the topic's merged history (creation, status moves, threaded comments, viewpoints,
-   * attachments) + the canonical status machine and this topic's allowed next transitions. */
   topicTimeline(pid: string, tid: string) {
     return this.json<{
       topic_id: string; title: string; type: string; status: string;
@@ -2602,11 +2588,6 @@ export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(
         min: number | null; max: number | null }> }>(`/proforma/portfolio/compare`);
   }
 
-  // GC portal modules + model pins
-  modules() {
-    return this.json<ModuleDef[]>(`/modules`);
-  }
-  /** R26 — the room spine plus the allocation of every module to exactly one room. */
   rooms() {
     return this.json<RoomAllocation>(`/rooms`);
   }
@@ -2626,50 +2607,6 @@ export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(
   dashboard(pid: string, party?: string) {
     const q = party ? `?party=${encodeURIComponent(party)}` : "";
     return this.json<Dashboard>(`/projects/${pid}/dashboard${q}`);
-  }
-  moduleRecords(pid: string, key: string) {
-    return this.json<ModuleRecord[]>(`/projects/${pid}/modules/${key}`);
-  }
-
-  /**
-   * CACHE-JSON — records, served from cache first and revalidated behind you.
-   *
-   * `moduleRecords` above is unchanged and still the right call when you need a guaranteed-current
-   * answer (immediately after a write, or before a decision that depends on it). This is for the
-   * common case: opening a panel to look at a list.
-   *
-   * The result is NOT a bare array. It carries `fresh` and `ageSeconds`, because a cached list is a
-   * claim about the present made from the past, and a caller that cannot tell the difference will
-   * eventually present stale data as current. `freshnessLabel()` turns it into something to show.
-   */
-  async moduleRecordsCached(
-    pid: string, key: string, onFresh?: (rows: ModuleRecord[]) => void,
-  ): Promise<Cached<ModuleRecord[]>> {
-    const { recordsKey, swr } = await import("./recordCache");
-    const { identityScope } = await import("./identity");
-    return swr<ModuleRecord[]>(
-      recordsKey(pid, key, identityScope(this.authToken)),
-      () => this.json<ModuleRecord[]>(`/projects/${pid}/modules/${key}`),
-      onFresh ? { onFresh } : {},
-    );
-  }
-  moduleRecord(pid: string, key: string, rid: string) {
-    return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}`);
-  }
-  createModuleRecord(pid: string, key: string, body: Record<string, unknown>) {
-    return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}`, {
-      method: "POST", body: JSON.stringify(body) });
-  }
-  /** Preconstruction intelligence — POST a contract/spec (file or text) for review. */
-  private async reviewPost<T>(pid: string, kind: string, opts: { file?: File; text?: string; question?: string }) {
-    const fd = new FormData();
-    if (opts.file) fd.append("file", opts.file);
-    if (opts.text != null) fd.append("text", opts.text);
-    if (opts.question != null) fd.append("question", opts.question);
-    const res = await fetch(this.url(`/projects/${pid}/review/${kind}`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Review ${kind} -> ${res.status}`);
-    return res.json() as Promise<T>;
   }
   reviewContract(pid: string, opts: { file?: File; text?: string }) {
     return this.reviewPost<{ findings: { clause: string; severity: "high" | "medium" | "low"; category: string;
@@ -3452,38 +3389,6 @@ export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(
       estimated_total: number; variance_total: number | null; pricing_source: string }>(
       `/projects/${pid}/pricing/reconcile`);
   }
-  /** Download URL for a module's header-only import template (CSV). */
-  importTemplateUrl(pid: string, key: string) {
-    return this.url(`/projects/${pid}/modules/${key}/import-template.csv`);
-  }
-  /** Step 1 of a generic Excel/CSV import: parse + auto-map columns to fields + coerce a sample. */
-  async importPreview(pid: string, key: string, file: File) {
-    const fd = new FormData(); fd.append("file", file);
-    const res = await fetch(this.url(`/projects/${pid}/modules/${key}/import/preview`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Import preview -> ${res.status}`);
-    return res.json() as Promise<{ headers: string[]; row_count: number; unmapped_required: string[];
-      suggested_mapping: Record<string, string>; sample: Record<string, unknown>[];
-      fields: { name: string; label: string; type: string; required: boolean }[] }>;
-  }
-  /** Step 2: import the sheet with a column->field mapping. */
-  async importModuleRecords(pid: string, key: string, file: File, mapping: Record<string, string>) {
-    const fd = new FormData(); fd.append("file", file); fd.append("mapping", JSON.stringify(mapping));
-    const res = await fetch(this.url(`/projects/${pid}/modules/${key}/import`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Import -> ${res.status}`);
-    return res.json() as Promise<{ imported: number; error_count: number;
-      errors: { row: number; error: string }[]; truncated: boolean }>;
-  }
-  transitionRecord(pid: string, key: string, rid: string, action: string, note?: string) {
-    return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}/transition`, {
-      method: "POST", body: JSON.stringify({ action, note }) });
-  }
-  linkRecord(pid: string, key: string, rid: string, module: string, id: string) {
-    return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}/link`, {
-      method: "POST", body: JSON.stringify({ module, id }) });
-  }
-  // compliance expiry: COI + permit certs expiring soon / already expired
   complianceExpiring(pid: string, withinDays = 30) {
     return this.json<{ within_days: number; count: number;
       expired: { module: string; ref: string; name: string; expires: string; days_left: number }[];
@@ -3494,34 +3399,6 @@ export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(
   enumOptions(pid: string) {
     return this.json<Record<string, Record<string, string[]>>>(`/projects/${pid}/enum-options`);
   }
-  addEnumOption(pid: string, key: string, field: string, value: string) {
-    return this.json<{ module: string; field: string; value: string; options: string[] }>(
-      `/projects/${pid}/modules/${key}/enum/${field}`, { method: "POST", body: JSON.stringify({ value }) });
-  }
-  addComment(pid: string, key: string, rid: string, text: string) {
-    return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}/comments`, {
-      method: "POST", body: JSON.stringify({ text }) });
-  }
-  updateModuleRecord(pid: string, key: string, rid: string, data: Record<string, unknown>,
-                     expectedModifiedAt?: string | null) {
-    // pass the modified_at the editor loaded to opt into the optimistic lock — a concurrent edit
-    // returns 409 instead of a silent overwrite (the caller reloads to reconcile).
-    const qs = expectedModifiedAt ? `?expected_modified_at=${encodeURIComponent(expectedModifiedAt)}` : "";
-    return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}${qs}`, {
-      method: "PATCH", body: JSON.stringify(data) });
-  }
-  deleteModuleRecord(pid: string, key: string, rid: string) {
-    return this.json<{ deleted: boolean; ref: string }>(`/projects/${pid}/modules/${key}/${rid}`, {
-      method: "DELETE" });
-  }
-  relatedRecords(pid: string, key: string, rid: string) {
-    return this.json<RelatedRecords>(`/projects/${pid}/modules/${key}/${rid}/related`);
-  }
-  moduleBoard(pid: string, key: string) {
-    return this.json<ModuleBoard>(`/projects/${pid}/modules/${key}/board`);
-  }
-  /** R26-WORK-QUEUE — `myWork`, dated and bucketed by urgency, each item carrying the actions this
-   *  caller can actually run. `undated` is its own bucket, above `later`. */
   workQueue(pid: string) {
     return this.json<WorkQueue>(`/projects/${pid}/work-queue`);
   }
@@ -3571,27 +3448,10 @@ export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(
     return this.json<{ smtp_configured: boolean; results: Record<string, string[]>; skipped_no_email: string[] }>(
       `/projects/${pid}/notifications/digest`, { method: "POST" });
   }
-  listViews(pid: string, key: string) {
-    return this.json<SavedViewDef[]>(`/projects/${pid}/modules/${key}/views`);
-  }
-  saveView(pid: string, key: string, name: string, config: Record<string, unknown>) {
-    return this.json<SavedViewDef>(`/projects/${pid}/modules/${key}/views`, {
-      method: "POST", body: JSON.stringify({ name, config }) });
-  }
-  deleteView(pid: string, key: string, vid: string) {
-    return this.json<{ deleted: boolean }>(`/projects/${pid}/modules/${key}/views/${vid}`, { method: "DELETE" });
-  }
-  /** Saved-search alert feed: each saved view with total + new-since-last-seen match counts. */
   viewAlerts(pid: string) {
     return this.json<{ id: string; name: string; module: string; total: number; new: number;
       config: { q?: string; state?: string; sort?: unknown } }[]>(`/projects/${pid}/views/alerts`);
   }
-  /** Mark a saved view as seen (clears its 'new' alert count). */
-  markViewSeen(pid: string, key: string, vid: string) {
-    return this.json<{ ok: boolean; last_seen_at: string }>(
-      `/projects/${pid}/modules/${key}/views/${vid}/seen`, { method: "POST" });
-  }
-  /** SSE stream of the notification feed; returns a resilient handle so callers can close it. */
   notificationStream(pid: string, onMessage: (d: { count: number; items: NotifItem[] }) => void,
                      onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
     return this.liveStream(`/projects/${pid}/notifications/stream`,
@@ -3614,49 +3474,6 @@ export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(
   searchAll(pid: string, q: string, limit = 50) {
     return this.json<WorkItem[]>(`/projects/${pid}/search?q=${encodeURIComponent(q)}&limit=${limit}`);
   }
-  bulkAction(pid: string, key: string, ids: string[], action: "transition" | "assign" | "delete", value?: string) {
-    return this.json<{ ok: number; failed: { id: string; error: string }[] }>(
-      `/projects/${pid}/modules/${key}/bulk`, { method: "POST", body: JSON.stringify({ ids, action, value }) });
-  }
-  moduleRecordsFiltered(pid: string, key: string, opts: { q?: string; state?: string; limit?: number; offset?: number } = {}) {
-    const p = new URLSearchParams();
-    if (opts.q) p.set("q", opts.q);
-    if (opts.state) p.set("state", opts.state);
-    if (opts.limit != null) p.set("limit", String(opts.limit));
-    if (opts.offset) p.set("offset", String(opts.offset));
-    const qs = p.toString();
-    return this.json<ModuleRecord[]>(`/projects/${pid}/modules/${key}${qs ? `?${qs}` : ""}`);
-  }
-  /** Create a tracked revision of a record (revisable modules); re-opens the workflow. */
-  reviseRecord(pid: string, key: string, rid: string) {
-    return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}/revise`, { method: "POST" });
-  }
-  assignRecord(pid: string, key: string, rid: string, assignee: string | null) {
-    return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}/${rid}/assign`, {
-      method: "POST", body: JSON.stringify({ assignee }) });
-  }
-  async uploadAttachment(pid: string, key: string, rid: string, file: File) {
-    const fd = new FormData(); fd.append("file", file);
-    const res = await fetch(this.url(`/projects/${pid}/modules/${key}/${rid}/attachments`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`upload -> ${res.status}`);
-    return res.json() as Promise<RecordAttachmentMeta>;
-  }
-  /** Export a module's records as a BCF .bcfzip (auth'd blob, for coordination-issue interop). */
-  async downloadModuleBcf(pid: string, key: string) {
-    const res = await fetch(this.url(`/projects/${pid}/modules/${key}/bcf/export`), { headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`BCF export -> ${res.status}`);
-    return res.blob();
-  }
-  /** Import a BCF .bcfzip as records in a module. */
-  async importModuleBcf(pid: string, key: string, file: File) {
-    const fd = new FormData(); fd.append("file", file);
-    const res = await fetch(this.url(`/projects/${pid}/modules/${key}/bcf/import`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`BCF import -> ${res.status}`);
-    return res.json() as Promise<{ count: number; ids: string[] }>;
-  }
-  /** Import a Solibri/Navisworks clash report (XLSX) -> coordination_issue records (GUID-anchored). */
   async importClashXlsx(pid: string, file: File) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/coordination/import-xlsx`), {
@@ -3671,20 +3488,6 @@ export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(
       method: "POST", body: fd, headers: this.authHeaders() });
     if (!res.ok) throw new Error(`Clash XML import -> ${res.status}`);
     return res.json() as Promise<{ imported: number; sheet: string; rows_parsed: number; truncated: boolean }>;
-  }
-  /** Tie model elements (IFC GlobalIds) to a record. mode: add | remove | set. */
-  tagElements(pid: string, key: string, rid: string, guids: string[], mode: "add" | "remove" | "set" = "add") {
-    return this.json<{ element_guids: string[]; count: number }>(
-      `/projects/${pid}/modules/${key}/${rid}/elements`, { method: "POST", body: JSON.stringify({ guids, mode }) });
-  }
-  /** Attach many files at once (bulk site-photo upload). */
-  async uploadAttachmentsBulk(pid: string, key: string, rid: string, files: File[] | FileList) {
-    const fd = new FormData();
-    for (const f of Array.from(files)) fd.append("files", f);
-    const res = await fetch(this.url(`/projects/${pid}/modules/${key}/${rid}/attachments/bulk`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`bulk upload -> ${res.status}`);
-    return res.json() as Promise<{ count: number; attachments: RecordAttachmentMeta[] }>;
   }
   attachmentUrl(attId: string) {
     // module-record attachments live in RecordAttachment; this distinct path avoids bim.py's
@@ -3730,13 +3533,6 @@ export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(
   templates(module: string) {
     return this.json<{ id: string; module: string; name: string; item_count: number }[]>(`/templates?module=${encodeURIComponent(module)}`);
   }
-  saveTemplate(pid: string, key: string, name: string) {
-    return this.json<{ id: string; item_count: number }>(`/projects/${pid}/modules/${key}/save-template`, { method: "POST", body: JSON.stringify({ name }) });
-  }
-  applyTemplate(pid: string, key: string, tid: string) {
-    return this.json<{ applied: string; created: number }>(`/projects/${pid}/modules/${key}/apply-template/${tid}`, { method: "POST" });
-  }
-  /** Construction program portfolio — cost over/under + risk + safety across all projects. */
   constructionPortfolio() {
     return this.json<{ project_count: number; totals: { projected_over_under: number; over_budget_count: number; open_risks: number; risk_exposure: number; recordables: number; open_rfis: number }; projects: { id: string; name: string; projected_over_under: number; over_budget: boolean; open_risks: number; risk_exposure: number; recordables: number; open_rfis: number }[] }>(
       "/portfolio/construction");
@@ -4055,12 +3851,6 @@ export class ApiClient extends withModel(withSchedule(withLibrary(withAuthoring(
     return this.json<{ owner_invoice: ModuleRecord; application_no: number; amount: number }>(
       `/projects/${pid}/cost/pay-app/invoice`, { method: "POST", body: JSON.stringify({ app_no: appNo }) });
   }
-  /** Short-interval lookahead: near-term activities grouped by week (the field's 3-/6-week plan). */
-  modulesGraph(workspace?: string) {
-    const qs = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
-    return this.json<ModuleGraph>(`/modules/graph${qs}`);
-  }
-  /** M1 material palette: default table + saved per-project overrides + the effective (merged) palette. */
   materialPalette(pid: string) {
     return this.json<MaterialPaletteResult>(`/projects/${pid}/materials/palette`);
   }
@@ -4283,18 +4073,6 @@ export interface SpecialtyResponse {
   summary: SpecialtySummary;
   deltas: { cost_line: { category: string; name: string; amount: number; curve: string } | null;
     other_income_annual_add: number; opex_annual_add: number };
-}
-export interface ModuleGraphNode {
-  key: string; label: string; section: string; workspace: string; icon: string;
-  in_degree: number; out_degree: number;
-}
-export interface ModuleGraphEdge {
-  source: string; target: string; field: string | null; label: string; kind: "reference" | "rollup";
-}
-export interface ModuleGraph {
-  workspace: string | null; node_count: number; edge_count: number;
-  nodes: ModuleGraphNode[]; edges: ModuleGraphEdge[];
-  most_referenced: { key: string; label: string; in_degree: number }[]; orphan_count: number;
 }
 export interface MaterialEntry {
   name: string; category: string; color: [number, number, number]; transparency: number;

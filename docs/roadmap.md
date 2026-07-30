@@ -147,8 +147,10 @@ that rotted were all sentences no test read. Note for whoever extends it — the
 Two third-party analyses were reviewed in full. **Neither produced work worth doing**, and the reason
 is worth recording so the next person does not re-run the exercise or, worse, act on the numbers.
 
-**[CodeFlow](https://app.getcodeflow.com/github/ibuilder/massing) — remove it or scope it. This is a
-user decision, and it is the one real outcome of this review.**
+**CodeFlow — REMOVED by the user, 2026-07-30. Decision made; nothing here is actionable any more.**
+Kept as a record of *why*, because the failure mode is generic to bolt-on analysers and the next
+one will look the same. The measured history: **0 successes across 30 `main` commits and all 10
+PRs**, every one reporting `"CodeFlow was not able to perform analysis"` — the analyser never ran.
 
 * Its own report says **"Processing of this commit timed out"** and **"Tool timed out: pylint"**. The
   commit it was asked to analyse was never fully analysed.
@@ -160,9 +162,13 @@ user decision, and it is the one real outcome of this review.**
 * Its one structural finding is **wrong**: *"Avoid storing generated files in GIT
   (apps/web/src-tauri/Cargo.lock)"*. Rust's own guidance is to **commit `Cargo.lock` for binaries**, and
   a Tauri desktop app is a binary. CI already guards it with `cargo metadata --locked`.
-* **It fails on every PR.** A permanently-red check is worse than no check: it teaches everyone to scroll
-  past red, which is how a real failure gets waved through. It nearly did here — five PRs were reported
-  as failing when only #98 had a genuine CodeQL HIGH.
+* **It failed on every PR, and that is the durable lesson.** A permanently-red check is worse than no
+  check: it teaches everyone to scroll past red, which is how a real failure gets waved through. It
+  nearly did here — five PRs read as failing when only #98 carried a genuine CodeQL HIGH. It also
+  **saturated the aggregate signal**: GitHub's legacy commit-status `state` is the OR of its contexts,
+  so while CodeFlow sat there red, `state` was pinned at `failure` and a *new* status context going red
+  would have been invisible. A monitor was changed to report contexts individually rather than trust
+  the aggregate — worth keeping if another external checker is ever added.
 
 **[Repowise](https://www.repowise.dev/s/5ad6b7549ac4/overview) — reading a snapshot 426 releases old.**
 

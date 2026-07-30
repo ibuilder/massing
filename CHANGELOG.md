@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.803 — SCALE-SEAM ④, a private helper that spanned the cut, and CodeFlow removed
+
+`client.ts` 4,369 → **4,156**: the 34 `/modules` methods become `api/modules.ts` as a `withModules`
+mixin — the register engine every portal screen is built on. Typecheck clean; the surface ratchet holds
+at 696, and mutation-checking `moduleRecords` fails it **both ways** (695 < 696 by number, and by name
+in the spot-check).
+
+**The extraction surfaced a real coupling, and it is the `liveStream` lesson in mirror image.**
+`reviewPost` is a `private` multipart helper that some `/modules` methods use *and* three
+contract-review methods in `client.ts` use. Moving it into the mixin made it invisible to `ApiClient` —
+a derived class cannot see a base's `private` member. It is now `protected`, with the reason written
+where the next reader will hit it. ③ moved `liveStream` *down* so a mixin could reach it; ④ had to widen
+`reviewPost` for the same structural reason in the opposite direction. **Any helper that spans an
+extraction boundary has to be `protected`** — worth knowing before ⑤ rather than during it.
+
+`ModuleGraph` / `ModuleGraphNode` / `ModuleGraphEdge` travelled with the methods and are re-exported
+from `client.ts`, because `portal/panels/moduleGraph.ts` imports them as `from "../../api/client"`.
+
+**CodeFlow removed by the user.** The roadmap entry now records the decision and keeps the reasoning,
+because the failure mode is generic to bolt-on analysers: **0 successes across 30 `main` commits and all
+10 PRs**, every one `"CodeFlow was not able to perform analysis"` — the analyser never ran. Two things
+worth carrying: a permanently-red check teaches people to scroll past red, which nearly waved through
+five PRs; and it **saturated the aggregate signal**, since GitHub's legacy commit-status `state` is the
+OR of its contexts, so a *new* context going red would have been invisible behind it.
+
 ## v0.3.802 — SCALE-SEAM ③, and the gate I was trusting had 13 methods of slack
 
 `client.ts` 4,637 → **4,368**: the 29 `/model` methods move to `api/model.ts` as a `withModel` mixin.
