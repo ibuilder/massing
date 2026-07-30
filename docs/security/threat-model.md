@@ -34,6 +34,7 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 | Cross-project data access (tenant breakout) | Every `/projects/{pid}` route requires `require_role`; **enforced by a test gate** (`test_route_authz` walks the route table). Portfolio/cross-project rollups scope to `member_project_ids`. SEC-TENANT hardening pass (v0.3.413). |
 | Privilege escalation via side doors | The audited lesson (HARDEN-2): stricter endpoints must not be reachable through generic gates — job queue kinds carry `_KIND_MIN_ROLE`, bulk/MCP dispatch gate per-operation. Checked in hand-audit passes (see the `security-monitoring` skill checklist). |
 | Public share token abuse | ShareTokens are revocable, read-only, serve a **curated** digest only (no financials unless per-token `show_payments` opt-in at mint); the public decision/comment endpoints are hardened (type/action whitelists, 120/500/1000-char caps, 200-decision and 200-comment hard caps, revoked → 404). |
+| Privilege escalation on **global** (non-project) routes | A project-scoped gate is not valid on a route with no project in its path: it leaves the project identity to be supplied by the request. Firm-wide writes take `rbac.require_platform_admin`, global reads `rbac.require_identified`. **Enforced by a test gate** (`test_global_mutating_authz`), which asserts as a schema property that no global route accepts a caller-supplied project id — so a new one fails the build rather than joining a list. Two firm-standards routes were corrected under this pass (v0.3.800). |
 | Client-side authz bypass | All checks server-side; the web app's role gating is presentation only. |
 
 ### 3. File upload & conversion pipeline
@@ -64,6 +65,8 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 |---|---|
 | Untraceable changes | `audit.py` trail on mutating operations (actor/when/what), surfaced in per-topic timelines and feeds; model versions carry review states (`review_status` + who/when); edit recipes are GUID-stable and versioned (undo path). |
 | Request untraceability | `X-Request-ID` middleware stamps every request (inbound honored, ≤64 chars), propagated to OTel spans and the error log. |
+| Unattributable professional seal | Applying a PE/RA seal requires an authenticated caller and writes an audit row after the seal succeeds, naming the actor, template, seal name, licence number and state. Previously the seal endpoints had no authorisation and no audit row (v0.3.800). |
+| Untrusted writes into the audit trail | The e-signature provider webhook is the one anonymous surface that writes audit rows (a provider holds no user credential). It verifies an HMAC over the raw request body when `AEC_ESIGN_WEBHOOK_SECRET` is set, is rate-limited and size-capped, bounds every stored string, and stamps each row with whether the signature was verified — so an unverified entry cannot be read as a verified one. |
 | Concurrent-edit clobbering | Optimistic concurrency: `base_source` 409 on stale model edits; per-project mutex on `/edit`; `expected_modified_at` 409 on record updates. |
 
 ### 7. Supply chain & CI/CD
@@ -80,6 +83,8 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 | Control | Evidence |
 |---|---|
 | Route authz coverage | `test_route_authz` (suite-gated) |
+| Global-route authz (no `{pid}`) | `test_global_mutating_authz` (23 checks, RBAC-on, mutation-verified) + `test_global_authz` ratchet |
+| Webhook signature + payload bounding | `test_esign` (valid signature replayed onto a different payload is refused) |
 | Login lockout / throttles | `routers/auth.py` + `throttle.py` tests |
 | Token revocation | session-revocation tests (`token_epoch`) |
 | Upload cap | `main.py` middleware + test |
@@ -105,7 +110,17 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 5. ✅ **G-5 Password deny-list** — *closed in-sprint:* `auth.weak_password_reason()` (common-password
    deny-list with case/suffix normalization, distinct-char floor, password≠username) enforced on
    register / change / admin create / admin reset / token reset; `test_password_policy`.
-6. **G-6 (M) Pen test** — no third-party penetration test on record; recommended before the first
+6. **G-7 (M) Seal identity is not bound to the account** — sealing now requires an authenticated
+   caller and is audited, but the seal's name/licence/state still come from the request, so an
+   authenticated user can seal under another person's licence. Binding the seal to the signed-in
+   user needs a per-user licence record (product decision, deliberately not changed in the
+   security pass).
+7. **G-8 (S) `_PROTECTED_PREFIXES` is hand-maintained** — the RBAC middleware's prefix list covers
+   8 of 66 top-level prefixes, so a new prefix opts out of the safety net silently. The risk that
+   matters is ratcheted (`test_global_authz` freezes unguarded global mutating routes, currently
+   29 and falling), but a completeness gate forcing every new prefix to be declared
+   protected-or-reviewed-public would close the class instead of the instances.
+8. **G-6 (M) Pen test** — no third-party penetration test on record; recommended before the first
    enterprise deployment. Operator action.
 
 *Exclusions per the review doctrine: DoS/resource-exhaustion beyond the shipped caps, rate-limit
