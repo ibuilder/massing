@@ -11,33 +11,8 @@
       "name": "subject",
       "label": "Subject",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "to_company",
-      "label": "To",
-      "type": "text"
-    },
-    {
-      "name": "contents",
-      "label": "Contents",
-      "type": "textarea"
-    },
-    {
-      "name": "purpose",
-      "label": "Purpose",
-      "type": "select",
-      "options": [
-        "For Review",
-        "For Approval",
-        "For Construction",
-        "For Record"
-      ]
-    },
-    {
-      "name": "items",
-      "label": "Items",
-      "type": "textarea"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "method",
@@ -48,7 +23,38 @@
         "Portal",
         "Hand",
         "Courier"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "purpose",
+      "label": "Purpose",
+      "type": "select",
+      "options": [
+        "For Review",
+        "For Approval",
+        "For Construction",
+        "For Record"
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "to_company",
+      "label": "To",
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "contents",
+      "label": "Contents",
+      "type": "textarea",
+      "fieldset": "Notes"
+    },
+    {
+      "name": "items",
+      "label": "Items",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

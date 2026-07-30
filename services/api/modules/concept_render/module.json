@@ -7,23 +7,94 @@
   "title_field": "title",
   "pinnable": false,
   "fields": [
-    { "name": "title", "label": "Title", "type": "text", "required": true },
-    { "name": "prompt", "label": "Prompt", "type": "textarea" },
-    { "name": "style", "label": "Style", "type": "select",
-      "options": ["photoreal", "massing", "sketch", "watercolor", "diagram"] },
-    { "name": "image_url", "label": "Image URL", "type": "text" },
-    { "name": "source", "label": "Generator", "type": "text" },
-    { "name": "notes", "label": "Notes", "type": "textarea" }
+    {
+      "name": "image_url",
+      "label": "Image URL",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "source",
+      "label": "Generator",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "title",
+      "label": "Title",
+      "type": "text",
+      "required": true,
+      "fieldset": "Identity"
+    },
+    {
+      "name": "style",
+      "label": "Style",
+      "type": "select",
+      "options": [
+        "photoreal",
+        "massing",
+        "sketch",
+        "watercolor",
+        "diagram"
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Notes"
+    },
+    {
+      "name": "prompt",
+      "label": "Prompt",
+      "type": "textarea",
+      "fieldset": "Notes"
+    }
   ],
   "workflow": {
     "initial": "draft",
-    "states": ["draft", "shortlisted", "archived"],
+    "states": [
+      "draft",
+      "shortlisted",
+      "archived"
+    ],
     "transitions": [
-      { "from": "draft", "to": "shortlisted", "action": "shortlist", "party": ["Architect", "Owner", "OwnersRep"] },
-      { "from": "draft", "to": "archived", "action": "archive", "party": ["Architect", "Owner", "OwnersRep"] },
-      { "from": "shortlisted", "to": "archived", "action": "archive", "party": ["Architect", "Owner", "OwnersRep"] }
+      {
+        "from": "draft",
+        "to": "shortlisted",
+        "action": "shortlist",
+        "party": [
+          "Architect",
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "draft",
+        "to": "archived",
+        "action": "archive",
+        "party": [
+          "Architect",
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "shortlisted",
+        "to": "archived",
+        "action": "archive",
+        "party": [
+          "Architect",
+          "Owner",
+          "OwnersRep"
+        ]
+      }
     ]
   },
-  "list_columns": ["style", "source"],
+  "list_columns": [
+    "style",
+    "source"
+  ],
   "workspace": "design"
 }

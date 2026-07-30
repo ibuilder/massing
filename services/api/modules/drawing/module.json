@@ -11,17 +11,32 @@
       "name": "number",
       "label": "Sheet No.",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
-      "name": "title",
-      "label": "Title",
-      "type": "text"
+      "name": "purpose",
+      "label": "Revision Purpose",
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "revision",
       "label": "Rev",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "sheet_number",
+      "label": "Sheet #",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "title",
+      "label": "Title",
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "discipline",
@@ -40,22 +55,8 @@
         "Electrical",
         "Telecommunications",
         "Equipment"
-      ]
-    },
-    {
-      "name": "sheet_number",
-      "label": "Sheet #",
-      "type": "text"
-    },
-    {
-      "name": "status",
-      "label": "Status",
-      "type": "select",
-      "options": [
-        "Current",
-        "Superseded",
-        "For Review"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "lifecycle",
@@ -66,29 +67,39 @@
         "Issued for Construction",
         "Shop Drawing",
         "As-Built"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "issued_date",
+      "label": "Issued Date",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "status",
+      "label": "Status",
+      "type": "select",
+      "options": [
+        "Current",
+        "Superseded",
+        "For Review"
+      ],
+      "fieldset": "Status"
     },
     {
       "name": "drawing_set",
       "label": "Drawing Set",
       "type": "reference",
-      "module": "drawing_set"
+      "module": "drawing_set",
+      "fieldset": "Links"
     },
     {
       "name": "spec_section",
       "label": "Governing Spec Section",
       "type": "reference",
-      "module": "spec_section"
-    },
-    {
-      "name": "issued_date",
-      "label": "Issued Date",
-      "type": "date"
-    },
-    {
-      "name": "purpose",
-      "label": "Revision Purpose",
-      "type": "text"
+      "module": "spec_section",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

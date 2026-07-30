@@ -11,24 +11,27 @@
       "name": "description",
       "label": "Deficiency",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "location",
       "label": "Location",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "location_loc",
       "label": "Location (linked)",
       "type": "reference",
-      "module": "location"
+      "module": "location",
+      "fieldset": "Identity"
     },
     {
-      "name": "inspection",
-      "label": "Source Inspection",
-      "type": "reference",
-      "module": "inspection"
+      "name": "trade",
+      "label": "Trade",
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "severity",
@@ -39,22 +42,27 @@
         "Major",
         "Critical"
       ],
-      "required": true
-    },
-    {
-      "name": "trade",
-      "label": "Trade",
-      "type": "text"
+      "required": true,
+      "fieldset": "Classification"
     },
     {
       "name": "due_date",
       "label": "Due Date",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "inspection",
+      "label": "Source Inspection",
+      "type": "reference",
+      "module": "inspection",
+      "fieldset": "Links"
     },
     {
       "name": "corrective_action",
       "label": "Corrective Action",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

@@ -66,6 +66,13 @@
       "fieldset": "Cost"
     },
     {
+      "name": "cost_code",
+      "label": "Cost Code",
+      "type": "reference",
+      "module": "cost_code",
+      "fieldset": "Cost"
+    },
+    {
       "name": "start",
       "label": "On Site",
       "type": "date",
@@ -76,13 +83,6 @@
       "label": "Off Site",
       "type": "date",
       "fieldset": "Duration"
-    },
-    {
-      "name": "cost_code",
-      "label": "Cost Code",
-      "type": "reference",
-      "module": "cost_code",
-      "fieldset": "Cost"
     }
   ],
   "workflow": {

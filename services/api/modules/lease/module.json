@@ -7,34 +7,30 @@
   "title_field": "tenant",
   "fields": [
     {
+      "name": "renewal_options",
+      "label": "Renewal options",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "suite",
+      "label": "Suite / unit",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
       "name": "tenant",
       "label": "Tenant",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "tenant_company",
       "label": "Tenant (directory)",
       "type": "reference",
-      "module": "company"
-    },
-    {
-      "name": "suite",
-      "label": "Suite / unit",
-      "type": "text"
-    },
-    {
-      "name": "rentable_sf",
-      "label": "Rentable SF",
-      "type": "number",
-      "required": true,
-      "unit": "sf"
-    },
-    {
-      "name": "base_rent_annual",
-      "label": "Base rent ($/yr)",
-      "type": "currency",
-      "required": true
+      "module": "company",
+      "fieldset": "Identity"
     },
     {
       "name": "lease_type",
@@ -46,56 +42,75 @@
         "Modified Gross",
         "Percentage",
         "Ground"
-      ]
-    },
-    {
-      "name": "start_date",
-      "label": "Commencement",
-      "type": "date"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "end_date",
       "label": "Expiration",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "start_date",
+      "label": "Commencement",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "base_rent_annual",
+      "label": "Base rent ($/yr)",
+      "type": "currency",
+      "required": true,
+      "fieldset": "Money"
     },
     {
       "name": "escalation_pct",
       "label": "Annual escalation %",
       "type": "percent",
-      "unit": "%"
-    },
-    {
-      "name": "renewal_options",
-      "label": "Renewal options",
-      "type": "text"
+      "unit": "%",
+      "fieldset": "Money"
     },
     {
       "name": "free_rent_months",
       "label": "Free rent (months)",
       "type": "number",
-      "unit": "mo"
-    },
-    {
-      "name": "ti_allowance_psf",
-      "label": "TI allowance $/SF",
-      "type": "number",
-      "unit": "$/sf"
-    },
-    {
-      "name": "security_deposit",
-      "label": "Security deposit",
-      "type": "currency"
+      "unit": "mo",
+      "fieldset": "Money"
     },
     {
       "name": "recovery_psf",
       "label": "Recoveries (CAM/tax) $/SF",
       "type": "number",
-      "unit": "$/sf"
+      "unit": "$/sf",
+      "fieldset": "Money"
+    },
+    {
+      "name": "rentable_sf",
+      "label": "Rentable SF",
+      "type": "number",
+      "required": true,
+      "unit": "sf",
+      "fieldset": "Money"
+    },
+    {
+      "name": "security_deposit",
+      "label": "Security deposit",
+      "type": "currency",
+      "fieldset": "Money"
+    },
+    {
+      "name": "ti_allowance_psf",
+      "label": "TI allowance $/SF",
+      "type": "number",
+      "unit": "$/sf",
+      "fieldset": "Money"
     },
     {
       "name": "notes",
       "label": "Notes",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

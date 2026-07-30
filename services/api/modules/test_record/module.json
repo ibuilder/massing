@@ -8,48 +8,56 @@
   "pinnable": false,
   "fields": [
     {
+      "name": "lab",
+      "label": "Lab/Agency",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
       "name": "name",
       "label": "Test",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "result",
-      "label": "Result",
-      "type": "text",
-      "required": true
-    },
-    {
-      "name": "date",
-      "label": "Date",
-      "type": "date"
-    },
-    {
-      "name": "inspection",
-      "label": "Inspection",
-      "type": "reference",
-      "module": "inspection"
-    },
-    {
-      "name": "test_type",
-      "label": "Test Type",
-      "type": "text"
-    },
-    {
-      "name": "lab",
-      "label": "Lab/Agency",
-      "type": "text"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "spec_section",
       "label": "Spec Section",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "spec_section_spec",
       "label": "Spec Section (linked)",
       "type": "reference",
-      "module": "spec_section"
+      "module": "spec_section",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "test_type",
+      "label": "Test Type",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "result",
+      "label": "Result",
+      "type": "text",
+      "required": true,
+      "fieldset": "Status"
+    },
+    {
+      "name": "inspection",
+      "label": "Inspection",
+      "type": "reference",
+      "module": "inspection",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

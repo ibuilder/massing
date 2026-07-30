@@ -8,15 +8,30 @@
   "pinnable": true,
   "fields": [
     {
+      "name": "category",
+      "label": "Type",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Identity"
+    },
+    {
       "name": "subject",
       "label": "Issue",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "description",
-      "label": "Description",
-      "type": "textarea"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "priority",
@@ -26,28 +41,20 @@
         "Low",
         "Medium",
         "High"
-      ]
-    },
-    {
-      "name": "category",
-      "label": "Type",
-      "type": "text"
-    },
-    {
-      "name": "location",
-      "label": "Location",
-      "type": "text"
-    },
-    {
-      "name": "location_loc",
-      "label": "Location (linked)",
-      "type": "reference",
-      "module": "location"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "assignee_name",
       "label": "Assigned To",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

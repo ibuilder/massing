@@ -11,29 +11,34 @@
       "name": "equipment",
       "label": "Equipment",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "date",
       "label": "Date",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
       "name": "hours",
       "label": "Hours",
-      "type": "number"
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
       "name": "daily_report",
       "label": "Daily report",
       "type": "reference",
-      "module": "daily_report"
+      "module": "daily_report",
+      "fieldset": "Links"
     },
     {
       "name": "equipment_rate",
       "label": "Equipment rate",
       "type": "reference",
-      "module": "equipment_rate"
+      "module": "equipment_rate",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

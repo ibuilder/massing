@@ -11,18 +11,27 @@
       "name": "item",
       "label": "Item",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "location",
       "label": "Room/Location",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "location_loc",
       "label": "Room/Location (linked)",
       "type": "reference",
-      "module": "location"
+      "module": "location",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "option",
+      "label": "Selected Option",
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "category",
@@ -36,32 +45,32 @@
         "Flooring",
         "Lighting",
         "Other"
-      ]
-    },
-    {
-      "name": "option",
-      "label": "Selected Option",
-      "type": "text"
-    },
-    {
-      "name": "allowance",
-      "label": "Allowance",
-      "type": "currency"
-    },
-    {
-      "name": "actual_cost",
-      "label": "Actual Cost",
-      "type": "currency"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "due_date",
       "label": "Due Date",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "actual_cost",
+      "label": "Actual Cost",
+      "type": "currency",
+      "fieldset": "Money"
+    },
+    {
+      "name": "allowance",
+      "label": "Allowance",
+      "type": "currency",
+      "fieldset": "Money"
     },
     {
       "name": "client_approval",
       "label": "Client Approval",
-      "type": "signature"
+      "type": "signature",
+      "fieldset": "Status"
     }
   ],
   "workflow": {

@@ -8,36 +8,42 @@
   "pinnable": false,
   "fields": [
     {
+      "name": "signature",
+      "label": "Signature",
+      "type": "signature",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "trainer",
+      "label": "Trainer",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
       "name": "worker",
       "label": "Worker",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "company",
       "label": "Company",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Parties"
     },
     {
       "name": "company_company",
       "label": "Company (linked)",
       "type": "reference",
-      "module": "company"
+      "module": "company",
+      "fieldset": "Parties"
     },
     {
       "name": "date",
       "label": "Date",
-      "type": "date"
-    },
-    {
-      "name": "trainer",
-      "label": "Trainer",
-      "type": "text"
-    },
-    {
-      "name": "signature",
-      "label": "Signature",
-      "type": "signature"
+      "type": "date",
+      "fieldset": "Dates"
     }
   ],
   "workflow": {

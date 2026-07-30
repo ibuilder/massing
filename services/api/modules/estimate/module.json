@@ -11,12 +11,8 @@
       "name": "name",
       "label": "Estimate",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "amount",
-      "label": "Amount",
-      "type": "number"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "basis",
@@ -28,12 +24,20 @@
         "DD",
         "CD",
         "GMP"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "date",
       "label": "Date",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "amount",
+      "label": "Amount",
+      "type": "number",
+      "fieldset": "Money"
     },
     {
       "name": "line_items",
@@ -71,7 +75,8 @@
           "type": "currency"
         }
       ],
-      "total_column": "amount"
+      "total_column": "amount",
+      "fieldset": "Money"
     }
   ],
   "workflow": {

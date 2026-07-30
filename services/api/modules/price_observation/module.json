@@ -11,39 +11,14 @@
       "name": "material",
       "label": "Material",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "unit_price",
-      "label": "Unit Price",
-      "type": "currency",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "unit",
       "label": "Unit",
-      "type": "text"
-    },
-    {
-      "name": "qty",
-      "label": "Quantity",
-      "type": "number"
-    },
-    {
-      "name": "vendor",
-      "label": "Vendor / Supplier",
-      "type": "text"
-    },
-    {
-      "name": "vendor_company",
-      "label": "Vendor / Supplier (linked)",
-      "type": "reference",
-      "module": "company"
-    },
-    {
-      "name": "date",
-      "label": "Observed",
-      "type": "date"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "source",
@@ -54,7 +29,40 @@
         "invoice",
         "po",
         "manual"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "vendor",
+      "label": "Vendor / Supplier",
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "vendor_company",
+      "label": "Vendor / Supplier (linked)",
+      "type": "reference",
+      "module": "company",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "date",
+      "label": "Observed",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "unit_price",
+      "label": "Unit Price",
+      "type": "currency",
+      "required": true,
+      "fieldset": "Money"
+    },
+    {
+      "name": "qty",
+      "label": "Quantity",
+      "type": "number",
+      "fieldset": "Quantities"
     }
   ],
   "workflow": {

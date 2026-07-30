@@ -11,24 +11,8 @@
       "name": "description",
       "label": "Violation",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "company",
-      "label": "Company",
-      "type": "text"
-    },
-    {
-      "name": "company_company",
-      "label": "Company (linked)",
-      "type": "reference",
-      "module": "company"
-    },
-    {
-      "name": "observation",
-      "label": "Source observation",
-      "type": "reference",
-      "module": "observation"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "severity",
@@ -38,17 +22,40 @@
         "Minor",
         "Serious",
         "Willful"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
-      "name": "corrective_action",
-      "label": "Corrective Action",
-      "type": "textarea"
+      "name": "company",
+      "label": "Company",
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "company_company",
+      "label": "Company (linked)",
+      "type": "reference",
+      "module": "company",
+      "fieldset": "Parties"
     },
     {
       "name": "due_date",
       "label": "Due Date",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "observation",
+      "label": "Source observation",
+      "type": "reference",
+      "module": "observation",
+      "fieldset": "Links"
+    },
+    {
+      "name": "corrective_action",
+      "label": "Corrective Action",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

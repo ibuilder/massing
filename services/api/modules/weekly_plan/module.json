@@ -10,27 +10,14 @@
       "name": "task",
       "label": "Commitment",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "week",
-      "label": "Week of",
-      "type": "date"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "trade",
       "label": "Trade",
-      "type": "text"
-    },
-    {
-      "name": "status",
-      "label": "Status",
-      "type": "select",
-      "options": [
-        "Planned",
-        "Complete",
-        "Missed"
-      ]
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "variance_reason",
@@ -45,7 +32,25 @@
         "Equipment",
         "Coordination",
         "Other"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "week",
+      "label": "Week of",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "status",
+      "label": "Status",
+      "type": "select",
+      "options": [
+        "Planned",
+        "Complete",
+        "Missed"
+      ],
+      "fieldset": "Status"
     }
   ],
   "workflow": {

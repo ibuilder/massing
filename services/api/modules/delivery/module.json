@@ -11,34 +11,33 @@
       "name": "description",
       "label": "Material",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
+    },
+    {
+      "name": "po_number",
+      "label": "PO #",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "supplier",
+      "label": "Supplier",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "received_by",
+      "label": "Received By",
+      "type": "text",
+      "fieldset": "Parties"
     },
     {
       "name": "date",
       "label": "Date",
       "type": "date",
-      "required": true
-    },
-    {
-      "name": "supplier",
-      "label": "Supplier",
-      "type": "text"
-    },
-    {
-      "name": "commitment",
-      "label": "Purchase order",
-      "type": "reference",
-      "module": "commitment"
-    },
-    {
-      "name": "po_number",
-      "label": "PO #",
-      "type": "text"
-    },
-    {
-      "name": "received_by",
-      "label": "Received By",
-      "type": "text"
+      "required": true,
+      "fieldset": "Dates"
     },
     {
       "name": "status",
@@ -49,7 +48,15 @@
         "Received",
         "Damaged",
         "Rejected"
-      ]
+      ],
+      "fieldset": "Status"
+    },
+    {
+      "name": "commitment",
+      "label": "Purchase order",
+      "type": "reference",
+      "module": "commitment",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

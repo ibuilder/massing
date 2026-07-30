@@ -11,27 +11,27 @@
       "name": "description",
       "label": "Observation",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "type",
-      "label": "Type",
-      "type": "select",
-      "options": [
-        "Safe",
-        "At-Risk"
-      ]
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "location",
       "label": "Location",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "location_loc",
       "label": "Location (linked)",
       "type": "reference",
-      "module": "location"
+      "module": "location",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "trade",
+      "label": "Trade",
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "category",
@@ -43,7 +43,8 @@
         "Hazard",
         "Positive"
       ],
-      "required": true
+      "required": true,
+      "fieldset": "Classification"
     },
     {
       "name": "severity",
@@ -53,17 +54,24 @@
         "Low",
         "Medium",
         "High"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
-      "name": "trade",
-      "label": "Trade",
-      "type": "text"
+      "name": "type",
+      "label": "Type",
+      "type": "select",
+      "options": [
+        "Safe",
+        "At-Risk"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "corrective_action",
       "label": "Corrective Action",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

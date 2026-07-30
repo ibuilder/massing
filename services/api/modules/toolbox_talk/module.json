@@ -8,26 +8,30 @@
   "pinnable": false,
   "fields": [
     {
+      "name": "presenter",
+      "label": "Presenter",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
       "name": "topic",
       "label": "Topic",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "date",
       "label": "Date",
       "type": "date",
-      "required": true
+      "required": true,
+      "fieldset": "Dates"
     },
     {
       "name": "attendees",
       "label": "Attendees",
-      "type": "number"
-    },
-    {
-      "name": "presenter",
-      "label": "Presenter",
-      "type": "text"
+      "type": "number",
+      "fieldset": "Quantities"
     }
   ],
   "workflow": {

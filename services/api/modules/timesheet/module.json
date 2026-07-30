@@ -8,31 +8,36 @@
   "pinnable": false,
   "fields": [
     {
+      "name": "trade",
+      "label": "Trade",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
       "name": "worker",
       "label": "Worker",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "date",
       "label": "Date",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
       "name": "hours",
       "label": "Hours",
-      "type": "number"
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
       "name": "cost_code",
       "label": "Cost Code",
       "type": "reference",
-      "module": "cost_code"
-    },
-    {
-      "name": "trade",
-      "label": "Trade",
-      "type": "text"
+      "module": "cost_code",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

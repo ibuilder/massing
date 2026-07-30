@@ -10,17 +10,8 @@
       "name": "address",
       "label": "Address / name",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "comp_type",
-      "label": "Comp type",
-      "type": "select",
-      "options": [
-        "Sale",
-        "Rent",
-        "Land"
-      ]
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "asset_type",
@@ -35,64 +26,19 @@
         "Hospitality",
         "Specialty",
         "Land"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
-      "name": "price",
-      "label": "Sale price",
-      "type": "currency"
-    },
-    {
-      "name": "price_psf",
-      "label": "$/SF",
-      "type": "number",
-      "unit": "$/sf"
-    },
-    {
-      "name": "price_per_unit",
-      "label": "$/unit",
-      "type": "number"
-    },
-    {
-      "name": "cap_rate",
-      "label": "Cap rate %",
-      "type": "number"
-    },
-    {
-      "name": "noi",
-      "label": "NOI (annual)",
-      "type": "currency"
-    },
-    {
-      "name": "rent_psf",
-      "label": "Rent $/SF/yr",
-      "type": "number",
-      "unit": "$/sf"
-    },
-    {
-      "name": "gba",
-      "label": "Gross building area (SF)",
-      "type": "number"
-    },
-    {
-      "name": "units",
-      "label": "Units",
-      "type": "number"
-    },
-    {
-      "name": "land_area",
-      "label": "Land area (SF)",
-      "type": "number"
-    },
-    {
-      "name": "year_built",
-      "label": "Year built",
-      "type": "number"
-    },
-    {
-      "name": "occupancy",
-      "label": "Occupancy %",
-      "type": "number"
+      "name": "comp_type",
+      "label": "Comp type",
+      "type": "select",
+      "options": [
+        "Sale",
+        "Rent",
+        "Land"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "condition",
@@ -104,28 +50,8 @@
         "Average",
         "Fair",
         "Poor"
-      ]
-    },
-    {
-      "name": "sale_date",
-      "label": "Sale / effective date",
-      "type": "date"
-    },
-    {
-      "name": "distance_mi",
-      "label": "Distance to subject (mi)",
-      "type": "number",
-      "unit": "mi"
-    },
-    {
-      "name": "net_adjustment",
-      "label": "Net adjustment %",
-      "type": "number"
-    },
-    {
-      "name": "adjusted_price",
-      "label": "Adjusted price / indicator",
-      "type": "currency"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "source",
@@ -139,12 +65,107 @@
         "Appraisal",
         "Owner",
         "Other"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "sale_date",
+      "label": "Sale / effective date",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "adjusted_price",
+      "label": "Adjusted price / indicator",
+      "type": "currency",
+      "fieldset": "Money"
+    },
+    {
+      "name": "noi",
+      "label": "NOI (annual)",
+      "type": "currency",
+      "fieldset": "Money"
+    },
+    {
+      "name": "price",
+      "label": "Sale price",
+      "type": "currency",
+      "fieldset": "Money"
+    },
+    {
+      "name": "price_per_unit",
+      "label": "$/unit",
+      "type": "number",
+      "fieldset": "Money"
+    },
+    {
+      "name": "price_psf",
+      "label": "$/SF",
+      "type": "number",
+      "unit": "$/sf",
+      "fieldset": "Money"
+    },
+    {
+      "name": "rent_psf",
+      "label": "Rent $/SF/yr",
+      "type": "number",
+      "unit": "$/sf",
+      "fieldset": "Money"
+    },
+    {
+      "name": "cap_rate",
+      "label": "Cap rate %",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "distance_mi",
+      "label": "Distance to subject (mi)",
+      "type": "number",
+      "unit": "mi",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "gba",
+      "label": "Gross building area (SF)",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "land_area",
+      "label": "Land area (SF)",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "net_adjustment",
+      "label": "Net adjustment %",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "occupancy",
+      "label": "Occupancy %",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "units",
+      "label": "Units",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "year_built",
+      "label": "Year built",
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
       "name": "notes",
       "label": "Notes / adjustments narrative",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

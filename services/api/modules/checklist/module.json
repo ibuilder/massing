@@ -8,26 +8,30 @@
   "pinnable": false,
   "fields": [
     {
-      "name": "name",
-      "label": "Checklist",
+      "name": "category",
+      "label": "Category",
       "type": "text",
-      "required": true
+      "fieldset": "Identity"
     },
     {
       "name": "location",
       "label": "Location",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "location_loc",
       "label": "Location (linked)",
       "type": "reference",
-      "module": "location"
+      "module": "location",
+      "fieldset": "Identity"
     },
     {
-      "name": "category",
-      "label": "Category",
-      "type": "text"
+      "name": "name",
+      "label": "Checklist",
+      "type": "text",
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "result",
@@ -37,12 +41,14 @@
         "Pass",
         "Fail",
         "N/A"
-      ]
+      ],
+      "fieldset": "Status"
     },
     {
       "name": "notes",
       "label": "Notes",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

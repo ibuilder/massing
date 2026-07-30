@@ -7,16 +7,24 @@
   "title_field": "investor",
   "fields": [
     {
+      "name": "email",
+      "label": "Email",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
       "name": "investor",
       "label": "Investor",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "investor_company",
       "label": "Entity (directory)",
       "type": "reference",
-      "module": "company"
+      "module": "company",
+      "fieldset": "Identity"
     },
     {
       "name": "entity_type",
@@ -29,7 +37,8 @@
         "IRA",
         "Partnership",
         "Corporation"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "investor_class",
@@ -39,50 +48,53 @@
         "LP",
         "GP",
         "Co-GP"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "date_committed",
+      "label": "Date committed",
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
       "name": "commitment",
       "label": "Commitment",
       "type": "currency",
-      "required": true
+      "required": true,
+      "fieldset": "Money"
     },
     {
       "name": "contributed",
       "label": "Contributed to date",
-      "type": "currency"
+      "type": "currency",
+      "fieldset": "Money"
     },
     {
       "name": "distributed",
       "label": "Distributed to date",
-      "type": "currency"
+      "type": "currency",
+      "fieldset": "Money"
     },
     {
       "name": "ownership_pct",
       "label": "Ownership / interest %",
       "type": "percent",
-      "unit": "%"
+      "unit": "%",
+      "fieldset": "Money"
     },
     {
       "name": "pref_return_pct",
       "label": "Preferred return %",
       "type": "percent",
-      "unit": "%"
-    },
-    {
-      "name": "date_committed",
-      "label": "Date committed",
-      "type": "date"
-    },
-    {
-      "name": "email",
-      "label": "Email",
-      "type": "text"
+      "unit": "%",
+      "fieldset": "Money"
     },
     {
       "name": "notes",
       "label": "Notes",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

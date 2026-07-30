@@ -12,7 +12,8 @@
       "name": "name",
       "label": "Scenario",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "region",
@@ -27,7 +28,8 @@
         "middle_east",
         "latin_america",
         "africa"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "sector",
@@ -49,34 +51,40 @@
         "office",
         "commercial",
         "retail"
-      ]
-    },
-    {
-      "name": "construction_start_year",
-      "label": "Construction start (year)",
-      "type": "number"
-    },
-    {
-      "name": "duration_months",
-      "label": "Construction duration (months)",
-      "type": "number",
-      "unit": "mo"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "escalation_override_pct",
       "label": "Escalation override (%/yr)",
       "type": "percent",
-      "unit": "%"
+      "unit": "%",
+      "fieldset": "Money"
+    },
+    {
+      "name": "construction_start_year",
+      "label": "Construction start (year)",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "duration_months",
+      "label": "Construction duration (months)",
+      "type": "number",
+      "unit": "mo",
+      "fieldset": "Quantities"
     },
     {
       "name": "location_override",
       "label": "Location index override (1.0 = US avg)",
-      "type": "number"
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
       "name": "notes",
       "label": "Notes",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

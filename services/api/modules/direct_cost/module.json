@@ -11,13 +11,20 @@
       "name": "description",
       "label": "Description",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
-      "name": "cost_code",
-      "label": "Cost code",
-      "type": "reference",
-      "module": "cost_code"
+      "name": "cost_type",
+      "label": "Type",
+      "type": "select",
+      "options": [
+        "Invoice",
+        "Expense",
+        "Payroll",
+        "Subcontractor"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "type",
@@ -29,46 +36,48 @@
         "Equipment",
         "Subcontract",
         "Other"
-      ]
-    },
-    {
-      "name": "amount",
-      "label": "Actual Amount",
-      "type": "currency",
-      "required": true
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "vendor",
       "label": "Vendor",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Parties"
     },
     {
       "name": "vendor_company",
       "label": "Vendor (linked)",
       "type": "reference",
-      "module": "company"
+      "module": "company",
+      "fieldset": "Parties"
     },
     {
       "name": "date",
       "label": "Date",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
-      "name": "cost_type",
-      "label": "Type",
-      "type": "select",
-      "options": [
-        "Invoice",
-        "Expense",
-        "Payroll",
-        "Subcontractor"
-      ]
+      "name": "amount",
+      "label": "Actual Amount",
+      "type": "currency",
+      "required": true,
+      "fieldset": "Money"
     },
     {
       "name": "commitment",
       "label": "Commitment",
       "type": "reference",
-      "module": "commitment"
+      "module": "commitment",
+      "fieldset": "Links"
+    },
+    {
+      "name": "cost_code",
+      "label": "Cost code",
+      "type": "reference",
+      "module": "cost_code",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

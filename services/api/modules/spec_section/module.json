@@ -11,13 +11,34 @@
       "name": "section_number",
       "label": "Section # (MasterFormat)",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "title",
       "label": "Section Title",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
+    },
+    {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "select",
+      "options": [
+        "General",
+        "Civil",
+        "Landscape",
+        "Structural",
+        "Architectural",
+        "Fire Protection",
+        "Plumbing",
+        "Mechanical",
+        "Electrical",
+        "Telecommunications",
+        "Equipment"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "division",
@@ -49,57 +70,46 @@
         "31 — Earthwork",
         "32 — Exterior Improvements",
         "33 — Utilities"
-      ]
-    },
-    {
-      "name": "discipline",
-      "label": "Discipline",
-      "type": "select",
-      "options": [
-        "General",
-        "Civil",
-        "Landscape",
-        "Structural",
-        "Architectural",
-        "Fire Protection",
-        "Plumbing",
-        "Mechanical",
-        "Electrical",
-        "Telecommunications",
-        "Equipment"
-      ]
-    },
-    {
-      "name": "bid_package",
-      "label": "Bid Package",
-      "type": "reference",
-      "module": "bid_package"
-    },
-    {
-      "name": "submittals_required",
-      "label": "Submittals required (Part 1)",
-      "type": "textarea"
-    },
-    {
-      "name": "part2_products",
-      "label": "Products (Part 2)",
-      "type": "textarea"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "responsible",
       "label": "Responsible contractor",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Parties"
     },
     {
       "name": "responsible_contact",
       "label": "Responsible contractor (linked)",
       "type": "reference",
-      "module": "contact"
+      "module": "contact",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "bid_package",
+      "label": "Bid Package",
+      "type": "reference",
+      "module": "bid_package",
+      "fieldset": "Links"
     },
     {
       "name": "notes",
       "label": "Notes",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
+    },
+    {
+      "name": "part2_products",
+      "label": "Products (Part 2)",
+      "type": "textarea",
+      "fieldset": "Notes"
+    },
+    {
+      "name": "submittals_required",
+      "label": "Submittals required (Part 1)",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

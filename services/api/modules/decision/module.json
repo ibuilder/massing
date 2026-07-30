@@ -11,22 +11,19 @@
       "name": "subject",
       "label": "Decision",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
-      "name": "decision",
-      "label": "Decision made",
-      "type": "textarea"
-    },
-    {
-      "name": "rationale",
-      "label": "Rationale",
-      "type": "textarea"
-    },
-    {
-      "name": "alternatives",
-      "label": "Alternatives considered",
-      "type": "textarea"
+      "name": "alignment",
+      "label": "Stakeholder Alignment",
+      "type": "select",
+      "options": [
+        "Aligned",
+        "Pending",
+        "Disputed"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "category",
@@ -40,38 +37,51 @@
         "Systems",
         "Site",
         "Other"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "decided_by",
+      "label": "Decided By",
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "due_date",
+      "label": "Decide By",
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
       "name": "cost_impact",
       "label": "Cost Impact",
-      "type": "currency"
+      "type": "currency",
+      "fieldset": "Money"
     },
     {
       "name": "schedule_impact_days",
       "label": "Schedule Impact (days)",
       "type": "number",
-      "unit": "days"
+      "unit": "days",
+      "fieldset": "Quantities"
     },
     {
-      "name": "decided_by",
-      "label": "Decided By",
-      "type": "text"
+      "name": "alternatives",
+      "label": "Alternatives considered",
+      "type": "textarea",
+      "fieldset": "Notes"
     },
     {
-      "name": "alignment",
-      "label": "Stakeholder Alignment",
-      "type": "select",
-      "options": [
-        "Aligned",
-        "Pending",
-        "Disputed"
-      ]
+      "name": "decision",
+      "label": "Decision made",
+      "type": "textarea",
+      "fieldset": "Notes"
     },
     {
-      "name": "due_date",
-      "label": "Decide By",
-      "type": "date"
+      "name": "rationale",
+      "label": "Rationale",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

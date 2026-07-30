@@ -8,30 +8,35 @@
   "pinnable": false,
   "fields": [
     {
+      "name": "signature",
+      "label": "Signature",
+      "type": "signature",
+      "fieldset": "Identity"
+    },
+    {
       "name": "task",
       "label": "Task",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "hazards",
-      "label": "Hazards",
-      "type": "textarea"
-    },
-    {
-      "name": "controls",
-      "label": "Controls",
-      "type": "textarea"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "crew_size",
       "label": "Crew Size",
-      "type": "number"
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
-      "name": "signature",
-      "label": "Signature",
-      "type": "signature"
+      "name": "controls",
+      "label": "Controls",
+      "type": "textarea",
+      "fieldset": "Notes"
+    },
+    {
+      "name": "hazards",
+      "label": "Hazards",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

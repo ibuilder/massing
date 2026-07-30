@@ -11,7 +11,8 @@
       "name": "title",
       "label": "Risk",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "category",
@@ -26,18 +27,8 @@
         "Permitting",
         "Weather",
         "Other"
-      ]
-    },
-    {
-      "name": "probability",
-      "label": "Probability",
-      "type": "select",
-      "options": [
-        "Low",
-        "Medium",
-        "High"
       ],
-      "required": true
+      "fieldset": "Classification"
     },
     {
       "name": "impact",
@@ -48,7 +39,20 @@
         "Medium",
         "High"
       ],
-      "required": true
+      "required": true,
+      "fieldset": "Classification"
+    },
+    {
+      "name": "probability",
+      "label": "Probability",
+      "type": "select",
+      "options": [
+        "Low",
+        "Medium",
+        "High"
+      ],
+      "required": true,
+      "fieldset": "Classification"
     },
     {
       "name": "response_strategy",
@@ -59,43 +63,51 @@
         "Transfer",
         "Mitigate",
         "Accept"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "owner",
+      "label": "Owner",
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "due_date",
+      "label": "Review Date",
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
       "name": "cost_exposure",
       "label": "Cost Exposure",
-      "type": "currency"
+      "type": "currency",
+      "fieldset": "Money"
     },
     {
       "name": "schedule_days",
       "label": "Schedule Days",
       "type": "number",
-      "unit": "days"
-    },
-    {
-      "name": "trigger",
-      "label": "Trigger / warning signs",
-      "type": "textarea"
-    },
-    {
-      "name": "mitigation",
-      "label": "Mitigation (Plan A)",
-      "type": "textarea"
+      "unit": "days",
+      "fieldset": "Quantities"
     },
     {
       "name": "contingency",
       "label": "Contingency (Plan B)",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     },
     {
-      "name": "owner",
-      "label": "Owner",
-      "type": "text"
+      "name": "mitigation",
+      "label": "Mitigation (Plan A)",
+      "type": "textarea",
+      "fieldset": "Notes"
     },
     {
-      "name": "due_date",
-      "label": "Review Date",
-      "type": "date"
+      "name": "trigger",
+      "label": "Trigger / warning signs",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

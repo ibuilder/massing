@@ -8,26 +8,36 @@
   "pinnable": true,
   "fields": [
     {
-      "name": "subject",
-      "label": "Issue",
+      "name": "clash_hash",
+      "label": "Clash group ID",
       "type": "text",
-      "required": true
+      "fieldset": "Identity"
     },
     {
       "name": "discipline",
       "label": "Discipline",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
-      "name": "description",
-      "label": "Description",
-      "type": "textarea"
+      "name": "location",
+      "label": "Location",
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
-      "name": "meeting",
-      "label": "Raised in meeting",
+      "name": "location_loc",
+      "label": "Location (linked)",
       "type": "reference",
-      "module": "meeting"
+      "module": "location",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "subject",
+      "label": "Issue",
+      "type": "text",
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "priority",
@@ -38,33 +48,33 @@
         "Medium",
         "High",
         "Critical"
-      ]
-    },
-    {
-      "name": "location",
-      "label": "Location",
-      "type": "text"
-    },
-    {
-      "name": "location_loc",
-      "label": "Location (linked)",
-      "type": "reference",
-      "module": "location"
-    },
-    {
-      "name": "clash_hash",
-      "label": "Clash group ID",
-      "type": "text"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "clash_count",
       "label": "Clashes in group",
-      "type": "number"
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
       "name": "severity_score",
       "label": "Severity score",
-      "type": "number"
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "meeting",
+      "label": "Raised in meeting",
+      "type": "reference",
+      "module": "meeting",
+      "fieldset": "Links"
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

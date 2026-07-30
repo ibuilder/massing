@@ -11,7 +11,19 @@
       "name": "title",
       "label": "Estimate",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
+    },
+    {
+      "name": "basis",
+      "label": "Basis",
+      "type": "select",
+      "options": [
+        "ROM",
+        "Budget",
+        "Firm"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "milestone",
@@ -26,33 +38,8 @@
         "IFC",
         "GMP",
         "Award"
-      ]
-    },
-    {
-      "name": "total",
-      "label": "Total Estimate",
-      "type": "currency",
-      "required": true
-    },
-    {
-      "name": "gsf",
-      "label": "Gross SF",
-      "type": "number"
-    },
-    {
-      "name": "estimate_date",
-      "label": "Estimate Date",
-      "type": "date"
-    },
-    {
-      "name": "basis",
-      "label": "Basis",
-      "type": "select",
-      "options": [
-        "ROM",
-        "Budget",
-        "Firm"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "source",
@@ -62,12 +49,33 @@
         "Model takeoff",
         "Manual",
         "Imported"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "estimate_date",
+      "label": "Estimate Date",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "total",
+      "label": "Total Estimate",
+      "type": "currency",
+      "required": true,
+      "fieldset": "Money"
+    },
+    {
+      "name": "gsf",
+      "label": "Gross SF",
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
       "name": "notes",
       "label": "Notes / assumptions",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

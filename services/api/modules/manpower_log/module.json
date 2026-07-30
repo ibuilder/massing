@@ -11,44 +11,52 @@
       "name": "company",
       "label": "Company",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "company_company",
       "label": "Company (linked)",
       "type": "reference",
-      "module": "company"
+      "module": "company",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "trade",
+      "label": "Trade",
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "date",
       "label": "Date",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
       "name": "count",
       "label": "Headcount",
-      "type": "number"
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "headcount",
+      "label": "Workers",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "hours",
+      "label": "Hours",
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
       "name": "daily_report",
       "label": "Daily report",
       "type": "reference",
-      "module": "daily_report"
-    },
-    {
-      "name": "trade",
-      "label": "Trade",
-      "type": "text"
-    },
-    {
-      "name": "headcount",
-      "label": "Workers",
-      "type": "number"
-    },
-    {
-      "name": "hours",
-      "label": "Hours",
-      "type": "number"
+      "module": "daily_report",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

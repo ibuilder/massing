@@ -11,23 +11,20 @@
       "name": "name",
       "label": "Solicitation",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "due_date",
-      "label": "Bids Due",
-      "type": "date"
-    },
-    {
-      "name": "package",
-      "label": "Bid package",
-      "type": "reference",
-      "module": "bid_package"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "trade",
       "label": "Trade",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "due_date",
+      "label": "Bids Due",
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
       "name": "status",
@@ -38,7 +35,15 @@
         "Viewed",
         "Responded",
         "Declined"
-      ]
+      ],
+      "fieldset": "Status"
+    },
+    {
+      "name": "package",
+      "label": "Bid package",
+      "type": "reference",
+      "module": "bid_package",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

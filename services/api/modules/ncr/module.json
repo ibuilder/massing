@@ -11,12 +11,26 @@
       "name": "subject",
       "label": "Non-conformance",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
-      "name": "description",
-      "label": "Description",
-      "type": "textarea"
+      "name": "severity",
+      "label": "Severity",
+      "type": "select",
+      "options": [
+        "Minor",
+        "Major",
+        "Critical"
+      ],
+      "required": true,
+      "fieldset": "Classification"
+    },
+    {
+      "name": "due_date",
+      "label": "Due Date",
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
       "name": "disposition",
@@ -28,39 +42,33 @@
         "Use-as-is",
         "Reject"
       ],
-      "required": true
+      "required": true,
+      "fieldset": "Status"
     },
     {
       "name": "inspection",
       "label": "Source Inspection",
       "type": "reference",
-      "module": "inspection"
-    },
-    {
-      "name": "severity",
-      "label": "Severity",
-      "type": "select",
-      "options": [
-        "Minor",
-        "Major",
-        "Critical"
-      ],
-      "required": true
-    },
-    {
-      "name": "root_cause",
-      "label": "Root Cause",
-      "type": "textarea"
+      "module": "inspection",
+      "fieldset": "Links"
     },
     {
       "name": "corrective_action",
       "label": "Corrective Action",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     },
     {
-      "name": "due_date",
-      "label": "Due Date",
-      "type": "date"
+      "name": "description",
+      "label": "Description",
+      "type": "textarea",
+      "fieldset": "Notes"
+    },
+    {
+      "name": "root_cause",
+      "label": "Root Cause",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

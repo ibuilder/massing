@@ -17,28 +17,8 @@
         "Hoist",
         "Laydown",
         "Gate"
-      ]
-    },
-    {
-      "name": "date",
-      "label": "Date",
-      "type": "date"
-    },
-    {
-      "name": "company",
-      "label": "Booked By",
-      "type": "text"
-    },
-    {
-      "name": "company_company",
-      "label": "Booked By (linked)",
-      "type": "reference",
-      "module": "company"
-    },
-    {
-      "name": "description",
-      "label": "Description",
-      "type": "textarea"
+      ],
+      "fieldset": "Identity"
     },
     {
       "name": "category",
@@ -50,7 +30,33 @@
         "Laydown",
         "Hoisting",
         "Traffic"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "company",
+      "label": "Booked By",
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "company_company",
+      "label": "Booked By (linked)",
+      "type": "reference",
+      "module": "company",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "description",
+      "label": "Description",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {
