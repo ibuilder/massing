@@ -836,6 +836,30 @@ def model_norm_valid(pid: str, db: Session = Depends(get_db), _sec: str = Depend
     return norm_valid.validate(open_source_ifc(db, pid))
 
 
+@router.get("/projects/{pid}/models/schema-diag")
+def model_schema_diag(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """R31-SCHEMA-DIAG · **structural validity against the IFC SCHEMA**, not against a spec.
+
+    The neighbouring endpoints all score the model against *rules*: `/models/qa` is hygiene (duplicate
+    GlobalIds, orphans, unenclosed spaces), `/models/norm-valid` is the normative gauntlet, IDS is data
+    quality. None of them answers *is this file structurally a valid IFC* — an entity type not declared
+    in the schema, a `#12345` that resolves to nothing, an ABSTRACT type instantiated directly, a `$`
+    in a slot the schema declares mandatory, an attribute list of the wrong length.
+
+    That is a different failure class, and it matters because we **write** IFC: a model can be 100%
+    IDS-compliant and still be rejected on import by another tool. It is also the class a viewer hides
+    — the geometry renders, so the file looks fine until somebody else opens it.
+
+    Unlike every sibling here this reads the file as **text and never loads a model**, so it still
+    reports on a file `ifcopenshell` cannot open — which is precisely the case a load-based diagnostic
+    cannot speak about. Findings carry the instance id, so a fault is locatable in a million-line file.
+
+    409 if the project has no source IFC.
+    """
+    from aec_data import schema_diag  # type: ignore  # deferred — pulls the ifcopenshell schema wrapper
+    return schema_diag.diagnose_file(_source_ifc(db, pid))
+
+
 @router.get("/projects/{pid}/models/warnings")
 def model_warnings_feed(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """WARN-1 · **unified model-warnings feed** — every individual defect the hygiene (model_qa) and

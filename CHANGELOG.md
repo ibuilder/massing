@@ -4,6 +4,45 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.805 — R31-SCHEMA-DIAG: the IFC checked against the schema, and a parser crash found on the way
+
+**Validate the file, not just the spec.** Every existing check scores a model against *rules* — IDS
+rule-compliance, LOIN completeness, hygiene (duplicate GlobalIds, orphans, unenclosed spaces), the
+normative gauntlet. None answered *is this structurally a valid IFC*: an entity type not declared in
+the schema, a `#12345` resolving to nothing, an ABSTRACT type instantiated directly, a `$` in a slot
+the schema declares mandatory, an attribute list of the wrong length. A model can be 100%
+rule-compliant and still be rejected on import elsewhere — and a viewer hides it, because the geometry
+still renders. That matters now that the platform **writes** IFC rather than only reading it.
+
+New `schema_diag` engine, served at `GET /projects/{pid}/models/schema-diag` beside `/models/qa` and
+`/models/norm-valid`. Unlike every sibling it reads the file as **text and never loads a model**, so it
+still reports on files no reader will accept — precisely the case a load-based diagnostic cannot speak
+about. Valid entity names, abstractness, attribute counts and optionality all come from the
+ifcopenshell schema, never a list in our source: a hand-maintained set of IFC class names would rot
+silently. Findings carry the instance id.
+
+**A crash, found while building it, that matters more than the feature.** ifcopenshell 0.8.5
+**segfaults** — exit 139, reproduced 3/3 — on an IFC ending inside an unclosed `'` literal, which is
+what a truncated upload or an interrupted write produces. A segfault is not an exception: no
+`try/except` in any of `open_model`'s **133 callers** can catch it, and the process handling the
+request dies. `open_model` now screens for that one input and refuses it as an ordinary error.
+
+The screen is deliberately **narrow**. An unclosed parenthesis and a file truncated mid-instance both
+fail the structural checks and ifcopenshell opens them without complaint, so refusing everything that
+fails to parse would break uploads that work today — a worse bug than the crash. It is also cheap:
+quote-count parity in C with a comment-aware confirm only on suspicious files, **6,451 ms → 87 ms** on
+a 51 MB model. The parity filter is trusted in one direction only, because a false negative leaves us
+where we already were while a false positive refuses a valid model.
+
+It found a real violation immediately: 27 `IfcFurnitureType` instances in the shipped `basichouse.ifc`
+sample pass `$` for `AssemblyPlace`, which the schema declares mandatory. Written by a mainstream
+exporter; the file loads, renders, and passes IDS. Zero false positives across the other samples.
+
+Also fixes a cap that was a lie. `MAX_BYTES` advertised 512 MB for a whole-file read that cannot
+honour it; the first full-suite run raised `MemoryError` and took two unrelated suites down with it.
+Now 96 MB, reference tracking bounded, and truncation **reported** — "no dangling references" and
+"stopped looking for them" must not be the same output.
+
 ## v0.3.804 — SCALE-SEAM ⑤: /estimate out, and client.ts drops under 4,100
 
 `client.ts` 4,156 → **4,008**: the 12 `/estimate` methods become `api/estimate.ts` as a `withEstimate`

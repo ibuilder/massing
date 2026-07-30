@@ -74,7 +74,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ · R31-SCHEMA-DIAG |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R23-PICKING · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
@@ -1039,7 +1039,31 @@ scan, because it stops the exercise being re-run.
 
 **One genuinely new build item, one strong corroboration, three gap-checks.**
 
-- ⭐ **R31-SCHEMA-DIAG** *(M)* — **validate the IFC against the SCHEMA, not just against a spec.**
+- ✅ **R31-SCHEMA-DIAG** — **SHIPPED.** `services/data/src/aec_data/schema_diag.py` +
+  `test_schema_diag.py`, served at **`GET /projects/{pid}/models/schema-diag`** beside `/models/qa`
+  and `/models/norm-valid`.
+  **The route was in the OpenAPI schema and raised `NameError` on every call** — `source_ifc_path`
+  is imported into that module as `_source_ifc`. Presence in the schema proves *defined*; only the
+  request proves *callable*, and a schema-only assertion would have shipped it. `test_reachable.py`
+  could not have caught it either: it walks the import graph of `aec_api` and this engine is in
+  `aec_data`, reached by a lazy import inside the handler. The test now asserts over HTTP, and
+  compares the status against the SIBLING routes rather than a literal, so a hard-coded 404 cannot
+  keep passing if the whole family starts returning 500.
+  **It found a crash on the way in, which is worth more than the diagnostic.** `ifcopenshell` 0.8.5
+  **segfaults** — exit 139, reproduced 3/3 — on an IFC ending inside an unclosed `'` literal, the shape
+  a truncated upload or an interrupted write produces. A segfault is not an exception: `try/except`
+  cannot catch it, so the process handling the request dies. `ifc_loader.open_model` (the choke point,
+  **133 callers**) now screens for exactly that one input and refuses it as an ordinary error.
+  The screen is deliberately narrow: an unclosed parenthesis and a mid-instance truncation both fail
+  the structural checks and ifcopenshell opens them *without complaint*, so refusing everything that
+  fails to parse would break uploads that work today — a worse bug than the crash.
+  It also found a **real IFC2X3 violation in a shipped sample**: 27 `IfcFurnitureType` instances in
+  `basichouse.ifc` pass `$` for `AssemblyPlace`, which the schema declares mandatory. Written by a
+  mainstream exporter; the file loads, renders, and passes IDS. That is the argument for the whole item
+  in one example. Zero false positives across the other shipped samples.
+  Original scope below, kept because the reasoning is what justified the build:
+
+- ✅ **R31-SCHEMA-DIAG** *(shipped — original entry, kept for the reasoning)* — **validate the IFC against the SCHEMA, not just against a spec.**
   Everything we have scores *completeness* or *hygiene*: `openbim_quality` is IDS rule-compliance % and
   LOIN completeness over the `{guid: element}` properties index; `model_qa` is hygiene (duplicate
   GlobalIds, overlaps, orphans, unenclosed spaces, blank names, wrong storey). **Nothing checks
@@ -1088,6 +1112,36 @@ figure carrying its inputs and a *model-derived / overridden / market-assumption
 external confirmation that the re-scope picked the right work — and a reminder that its value is the
 **basis**, not the UI.
 
+### EU BIM Task Group Handbook V2.1 — reviewed 2026-07-30, **no build items**
+
+Reviewed at the user's request. It is a **policy** document: a strategic framework for public-sector
+bodies introducing BIM at national or programme level, organised as four action areas — establishing
+public leadership · communicating vision and fostering communities · developing a collaborative
+framework · growing client and industry capability and capacity. Three of the four are governance and
+procurement, with no software implication at all.
+
+The fourth, *developing a collaborative framework*, is the one that could have mapped to product work —
+in EU BIM terms it means standardised information requirements, open data formats and a common data
+environment, i.e. **ISO 19650**. Premise-checked against the repo, case-sensitively and word-bounded:
+
+| concept | where it already lives |
+|---|---|
+| CDE state machine | `modules/information_container/module.json` — real states `wip → shared → published → archived` |
+| EIR, as an authored artefact | `modules/info_requirement/` — a register, not just a referenced term |
+| BEP · MIDP · TIDP · LOIN · suitability | present across 13–33 code files each |
+| open format as source of truth | IFC is the non-negotiable in `CLAUDE.md` |
+
+So the handbook's technical content is implemented, and its strategic content is not ours to implement.
+**Recorded rather than deleted** so the next agent handed this PDF does not re-derive it.
+
+*Two process notes.* The supplied PDF has **no text layer** — 57 chars extracted from 57 pages by both
+`pypdf` and poppler's `pdftotext`, no embedded page rasters, text drawn as vector outlines — and there
+is no rasteriser on this machine, so it was read from the published edition and web sources instead.
+And the first coverage measurement was **wrong in the reassuring direction**: a case-insensitive `EIR`
+matches "their", `MIDP` matches "midpoint", so the initial grep reported 317 files and would have
+supported "already covered" without evidence. The conclusion survived a correct measurement; the point
+is that it was reached first by a broken one. See [[confident-wrong-beats-missing]].
+
 ### Rejected, with the reason — so this is not re-run
 
 | source | why not |
@@ -1098,6 +1152,7 @@ external confirmation that the re-scope picked the right work — and a reminder
 | A Revit QA/QC add-in (MIT) | C#/.NET against the Revit API — unusable here. Its check list (missing/duplicate mark, wrong level, element count, health score) is **already ~covered** by `model_qa` + `model_warnings`. |
 | Reference-closure element extraction | **Already covered.** `SUBSET-EXPORT` prunes to a QUERY-DSL slice via `remove_deep2` with the spatial skeleton preserved, and `editPreview` returns a single-element fragment. |
 | "Keep the agent instruction file under 200 lines" | Checked: `CLAUDE.md` is **55 lines**. No action — and worth recording that the check was run, since the alternative is assuming. |
+| An Apache-2.0 agent-evaluation harness (harbor) | **Not imported.** Licence is fine and it runs locally on Docker, but it is an *evaluation* harness with no training path — running it changes no behaviour here — and it needs an API key plus a container per task, against an offline/$0 constraint. Its unit of work (a task plus a verifiable check) is what `run_tests.py` and vitest already are, for free and already wired to CI. **The transferable idea, offered to the user and not yet adopted:** a regression corpus of the defects that passed a green suite here — the fake-link fallback, the 100%-wrong GP promote, the surface gate with 13 methods of slack, the lane gate that was red and untracked. Each is a case where a check existed and could not see the failure. Deliberately left uncoded until the user picks it up, so nobody claims an item nobody agreed to. |
 | Commercial construction PM / AI-workspace / syndication products (five reviewed) | Capabilities reviewed and already covered: document Q&A with citations, takeoff on drawings, registries, schedule editors, 2D→BIM extraction (`plan_to_bim`), waterfalls. Named generically per the standing directive that competitor names stay out of repo docs; the one real gap they surfaced is **R31-SYNDICATION-TAIL**. |
 
 ### Practice notes (no build item)

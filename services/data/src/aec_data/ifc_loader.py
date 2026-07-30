@@ -46,8 +46,35 @@ def content_key(path: str, stat_key: tuple[int, int] | None) -> str:
     return f"{os.path.abspath(path)}:{stat_key[0]}:{stat_key[1]}"
 
 
+class UnreadableIfc(ValueError):
+    """An IFC refused BEFORE ifcopenshell sees it, because ifcopenshell would crash on it."""
+
+
 @lru_cache(maxsize=8)
 def _open_cached(path: str, _key) -> ifcopenshell.file:
+    # R31-SCHEMA-DIAG pre-flight. ifcopenshell 0.8.5 **segfaults** (exit 139, reproduced 3/3) on an
+    # IFC that ends inside an unclosed `'` literal — the shape a truncated upload or an interrupted
+    # write produces. A segfault is not an exception: no `try/except` here or in any of this
+    # function's 133 callers can catch it, and the process handling the request dies. So the one
+    # input that crashes is detected first and refused as an ordinary error.
+    #
+    # Deliberately NARROW. Other structural faults are not like this: an unclosed parenthesis and a
+    # file truncated mid-instance both fail `schema_diag`'s checks and ifcopenshell opens them without
+    # complaint. Screening on "does not parse structurally" would reject files that work today, which
+    # is a worse bug than the one being fixed. The full diagnostic stays opt-in via
+    # `schema_diag.diagnose_file` — it costs ~38 s on a 51 MB model and has no business on this path.
+    #
+    # Imported here rather than at module scope: `schema_diag` reads the ifcopenshell schema wrapper,
+    # and `ifc_loader` is imported by nearly everything.
+    from .schema_diag import scan_unterminated_string
+    try:
+        bad = scan_unterminated_string(path)
+    except OSError:
+        bad = False                             # unreadable for other reasons — let ifcopenshell say so
+    if bad:
+        raise UnreadableIfc(
+            f"{os.path.basename(path)} ends inside an unclosed string literal, which crashes the IFC "
+            f"parser. The file is most likely truncated — re-export or re-upload it.")
     return ifcopenshell.open(path)
 
 
