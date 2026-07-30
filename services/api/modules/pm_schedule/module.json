@@ -32,7 +32,8 @@
       "label": "Frequency (days)",
       "type": "number",
       "required": true,
-      "fieldset": "Schedule"
+      "fieldset": "Schedule",
+      "unit": "days"
     },
     {
       "name": "last_done",
@@ -50,7 +51,8 @@
       "name": "est_hours",
       "label": "Est. Hours",
       "type": "number",
-      "fieldset": "Schedule"
+      "fieldset": "Schedule",
+      "unit": "hr"
     }
   ],
   "workflow": {
@@ -82,7 +84,9 @@
   },
   "list_columns": [
     "frequency_days",
-    "next_due"
+    "next_due",
+    "asset",
+    "last_done"
   ],
   "workspace": "construction",
   "tools": [

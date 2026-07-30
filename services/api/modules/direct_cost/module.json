@@ -43,6 +43,12 @@
       "type": "text"
     },
     {
+      "name": "vendor_company",
+      "label": "Vendor (linked)",
+      "type": "reference",
+      "module": "company"
+    },
+    {
       "name": "date",
       "label": "Date",
       "type": "date"

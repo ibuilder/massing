@@ -88,6 +88,13 @@
       "fieldset": "Rating"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Rating"
+    },
+    {
       "name": "notes",
       "label": "Notes",
       "type": "textarea",

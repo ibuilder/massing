@@ -52,6 +52,13 @@
       "fieldset": "Reading"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Reading"
+    },
+    {
       "name": "permit",
       "label": "Permit",
       "type": "reference",

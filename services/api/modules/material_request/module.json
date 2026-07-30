@@ -89,5 +89,10 @@
       }
     ]
   },
-  "workspace": "construction"
+  "workspace": "construction",
+  "list_columns": [
+    "activity",
+    "needed_by",
+    "qty"
+  ]
 }

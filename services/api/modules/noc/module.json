@@ -60,7 +60,8 @@
       "name": "schedule_days",
       "label": "Schedule Days",
       "type": "number",
-      "fieldset": "Impact"
+      "fieldset": "Impact",
+      "unit": "days"
     },
     {
       "name": "issued_date",
@@ -104,7 +105,9 @@
   },
   "list_columns": [
     "cost_estimate",
-    "schedule_days"
+    "schedule_days",
+    "direction",
+    "reason"
   ],
   "workspace": "construction"
 }

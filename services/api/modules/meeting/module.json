@@ -43,6 +43,13 @@
       "fieldset": "Meeting"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Meeting"
+    },
+    {
       "name": "attendees",
       "label": "Attendees",
       "type": "textarea",
@@ -106,7 +113,8 @@
   },
   "list_columns": [
     "meeting_type",
-    "date"
+    "date",
+    "next_meeting"
   ],
   "workspace": "construction|design"
 }

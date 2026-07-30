@@ -77,5 +77,11 @@
       }
     ]
   },
-  "workspace": "construction"
+  "workspace": "construction",
+  "list_columns": [
+    "change_event",
+    "work_date",
+    "labor_total",
+    "material_total"
+  ]
 }

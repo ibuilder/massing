@@ -47,7 +47,8 @@
   },
   "list_columns": [
     "trade",
-    "rate"
+    "rate",
+    "unit"
   ],
   "workspace": "construction"
 }

@@ -44,6 +44,12 @@
       "name": "spec_section",
       "label": "Spec Section",
       "type": "text"
+    },
+    {
+      "name": "spec_section_spec",
+      "label": "Spec Section (linked)",
+      "type": "reference",
+      "module": "spec_section"
     }
   ],
   "workflow": {

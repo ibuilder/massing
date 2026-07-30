@@ -64,7 +64,8 @@
       "name": "schedule_impact_days",
       "label": "Schedule Impact (days)",
       "type": "number",
-      "fieldset": "Cost & schedule"
+      "fieldset": "Cost & schedule",
+      "unit": "days"
     },
     {
       "name": "source_rfi",
@@ -139,7 +140,9 @@
   },
   "list_columns": [
     "rom",
-    "trades"
+    "trades",
+    "source_rfi",
+    "reason"
   ],
   "revisable": true,
   "workspace": "construction"

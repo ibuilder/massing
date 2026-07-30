@@ -34,7 +34,8 @@
       "name": "site_area_sf",
       "label": "Site area (SF)",
       "type": "number",
-      "required": true
+      "required": true,
+      "unit": "sf"
     },
     {
       "name": "far",
@@ -44,12 +45,14 @@
     {
       "name": "height_limit_ft",
       "label": "Height limit (ft)",
-      "type": "number"
+      "type": "number",
+      "unit": "ft"
     },
     {
       "name": "floor_to_floor_ft",
       "label": "Floor-to-floor (ft)",
-      "type": "number"
+      "type": "number",
+      "unit": "ft"
     },
     {
       "name": "max_floors",
@@ -59,37 +62,44 @@
     {
       "name": "lot_coverage_pct",
       "label": "Max lot coverage (%)",
-      "type": "number"
+      "type": "percent",
+      "unit": "%"
     },
     {
       "name": "lot_width_ft",
       "label": "Lot width (ft)",
-      "type": "number"
+      "type": "number",
+      "unit": "ft"
     },
     {
       "name": "lot_depth_ft",
       "label": "Lot depth (ft)",
-      "type": "number"
+      "type": "number",
+      "unit": "ft"
     },
     {
       "name": "front_setback_ft",
       "label": "Front setback (ft)",
-      "type": "number"
+      "type": "number",
+      "unit": "ft"
     },
     {
       "name": "side_setback_ft",
       "label": "Side setback (ft)",
-      "type": "number"
+      "type": "number",
+      "unit": "ft"
     },
     {
       "name": "rear_setback_ft",
       "label": "Rear setback (ft)",
-      "type": "number"
+      "type": "number",
+      "unit": "ft"
     },
     {
       "name": "open_space_pct",
       "label": "Required open space (%)",
-      "type": "number"
+      "type": "percent",
+      "unit": "%"
     },
     {
       "name": "parking_ratio",
@@ -99,12 +109,14 @@
     {
       "name": "avg_unit_sf",
       "label": "Avg unit size (SF)",
-      "type": "number"
+      "type": "number",
+      "unit": "sf"
     },
     {
       "name": "efficiency_pct",
       "label": "Net-to-gross efficiency (%)",
-      "type": "number"
+      "type": "percent",
+      "unit": "%"
     },
     {
       "name": "notes",

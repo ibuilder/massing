@@ -60,12 +60,14 @@
     {
       "name": "ownership_pct",
       "label": "Ownership / interest %",
-      "type": "number"
+      "type": "percent",
+      "unit": "%"
     },
     {
       "name": "pref_return_pct",
       "label": "Preferred return %",
-      "type": "number"
+      "type": "percent",
+      "unit": "%"
     },
     {
       "name": "date_committed",

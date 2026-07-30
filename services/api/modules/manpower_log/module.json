@@ -14,6 +14,12 @@
       "required": true
     },
     {
+      "name": "company_company",
+      "label": "Company (linked)",
+      "type": "reference",
+      "module": "company"
+    },
+    {
       "name": "date",
       "label": "Date",
       "type": "date"
@@ -64,7 +70,9 @@
   },
   "list_columns": [
     "trade",
-    "headcount"
+    "headcount",
+    "daily_report",
+    "date"
   ],
   "workspace": "construction"
 }

@@ -100,7 +100,8 @@
     {
       "name": "price_psf",
       "label": "$/SF",
-      "type": "number"
+      "type": "number",
+      "unit": "$/sf"
     },
     {
       "name": "public_description",

@@ -42,8 +42,9 @@
     {
       "name": "retainage_pct",
       "label": "Retainage %",
-      "type": "number",
-      "fieldset": "Cost"
+      "type": "percent",
+      "fieldset": "Cost",
+      "unit": "%"
     },
     {
       "name": "cost_code",
@@ -107,5 +108,11 @@
       }
     ]
   },
-  "workspace": "construction"
+  "workspace": "construction",
+  "list_columns": [
+    "vendor_company",
+    "bond_required",
+    "value",
+    "executed_date"
+  ]
 }

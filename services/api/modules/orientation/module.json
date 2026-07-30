@@ -19,6 +19,12 @@
       "type": "text"
     },
     {
+      "name": "company_company",
+      "label": "Company (linked)",
+      "type": "reference",
+      "module": "company"
+    },
+    {
       "name": "date",
       "label": "Date",
       "type": "date"

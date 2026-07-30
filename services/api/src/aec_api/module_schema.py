@@ -23,6 +23,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 FIELD_TYPES = {"text", "number", "currency", "date", "textarea", "select", "multiselect",
                "reference", "signature", "rollup", "checkbox", "email", "phone", "percent", "file"}
 
+#: Types that hold a magnitude, and so are the only ones a `unit` or a numeric check applies to.
+#: Defined here rather than beside `validate_record` because `validate_module` needs it first.
+_NUMERIC_TYPES = {"number", "currency", "percent"}
+
 
 class FieldDef(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -32,6 +36,11 @@ class FieldDef(BaseModel):
     required: bool = False
     options: list[str] | None = None
     module: str | None = None                 # reference target
+    # MOD-SWEEP — the unit a numeric value is measured in ("ft", "yr", "days", "kWh"). The sweep found
+    # 170 numeric fields with no unit declared, most encoding it in the field NAME instead
+    # (`elevation_ft`, `expected_life_years`). A unit in a name is readable only by a human: it cannot
+    # be rendered beside an input, appended to a table cell, converted, or validated.
+    unit: str | None = None
     # rollup wiring (type == "rollup")
     source_module: str | None = None
     source_field: str | None = None
@@ -159,6 +168,14 @@ def validate_module(mod: dict, *, known_modules: set[str] | None = None,
                 errors.append(f"{key}.{f.name}: reference target module {f.module!r} does not exist")
         if f.type in ("select", "multiselect") and not f.options:
             errors.append(f"{key}.{f.name}: {f.type} field has no options")
+        if f.unit and f.type not in _NUMERIC_TYPES:
+            errors.append(f"{key}.{f.name}: unit {f.unit!r} on a {f.type} field (units are numeric)")
+        # A percentage-named field typed `number` renders as a bare figure and formats as a count, so
+        # 7.5% and 7.5 are indistinguishable in a table. The sweep found 20; this stops the 21st.
+        # `percent` appears anywhere in the name, not just as a suffix — `percent_complete` was the one
+        # the suffix-only rule missed, which is the usual reason to widen a pattern rather than list.
+        if f.type == "number" and ("pct" in f.name or "percent" in f.name):
+            errors.append(f"{key}.{f.name}: named as a percentage but typed 'number' — use 'percent'")
 
     seen_dest: set[str] = set()
     for t in m.tools:
@@ -185,9 +202,6 @@ def validate_module(mod: dict, *, known_modules: set[str] | None = None,
                 if req not in nameset:
                     errors.append(f"{key}: transition {t.action!r} requires non-existent field {req!r}")
     return errors
-
-
-_NUMERIC_TYPES = {"number", "currency", "percent"}
 
 
 def validate_record(mod: dict, data: dict) -> list[str]:

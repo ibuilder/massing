@@ -71,8 +71,9 @@
     {
       "name": "percent_complete",
       "label": "% complete",
-      "type": "number",
-      "fieldset": "Forecast"
+      "type": "percent",
+      "fieldset": "Forecast",
+      "unit": "%"
     },
     {
       "name": "notes",

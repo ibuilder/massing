@@ -19,6 +19,12 @@
       "type": "text"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location"
+    },
+    {
       "name": "date",
       "label": "Date",
       "type": "date"
@@ -64,7 +70,8 @@
   },
   "list_columns": [
     "location",
-    "date_taken"
+    "date_taken",
+    "date"
   ],
   "workspace": "construction"
 }

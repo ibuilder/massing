@@ -59,6 +59,13 @@
       "fieldset": "Work"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Work"
+    },
+    {
       "name": "due_date",
       "label": "Due",
       "type": "date",
@@ -74,7 +81,8 @@
       "name": "labor_hours",
       "label": "Labor Hours",
       "type": "number",
-      "fieldset": "Cost"
+      "fieldset": "Cost",
+      "unit": "hr"
     },
     {
       "name": "cost",

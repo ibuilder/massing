@@ -60,7 +60,9 @@
   },
   "list_columns": [
     "trade",
-    "status"
+    "status",
+    "package",
+    "due_date"
   ],
   "workspace": "construction"
 }

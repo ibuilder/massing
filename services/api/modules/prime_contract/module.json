@@ -21,6 +21,13 @@
       "fieldset": "Contract"
     },
     {
+      "name": "owner_company",
+      "label": "Owner / Client (linked)",
+      "type": "reference",
+      "module": "company",
+      "fieldset": "Contract"
+    },
+    {
       "name": "type",
       "label": "Type",
       "type": "select",
@@ -66,26 +73,30 @@
     {
       "name": "retainage_pct",
       "label": "Retainage %",
-      "type": "number",
-      "fieldset": "Cost"
+      "type": "percent",
+      "fieldset": "Cost",
+      "unit": "%"
     },
     {
       "name": "overhead_pct",
       "label": "Overhead %",
-      "type": "number",
-      "fieldset": "GMP markups"
+      "type": "percent",
+      "fieldset": "GMP markups",
+      "unit": "%"
     },
     {
       "name": "fee_pct",
       "label": "Fee / Profit %",
-      "type": "number",
-      "fieldset": "GMP markups"
+      "type": "percent",
+      "fieldset": "GMP markups",
+      "unit": "%"
     },
     {
       "name": "contingency_pct",
       "label": "GC Contingency %",
-      "type": "number",
-      "fieldset": "GMP markups"
+      "type": "percent",
+      "fieldset": "GMP markups",
+      "unit": "%"
     },
     {
       "name": "substantial_completion",
@@ -97,7 +108,8 @@
       "name": "ld_per_day",
       "label": "Liquidated Damages / day",
       "type": "currency",
-      "fieldset": "Schedule"
+      "fieldset": "Schedule",
+      "unit": "$/day"
     },
     {
       "name": "invoiced",
@@ -139,5 +151,11 @@
       "dest": "__wip__",
       "label": "WIP schedule"
     }
+  ],
+  "list_columns": [
+    "type",
+    "notice_family",
+    "value",
+    "ld_per_day"
   ]
 }

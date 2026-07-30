@@ -19,6 +19,12 @@
       "type": "text"
     },
     {
+      "name": "company_company",
+      "label": "Company (linked)",
+      "type": "reference",
+      "module": "company"
+    },
+    {
       "name": "observation",
       "label": "Source observation",
       "type": "reference",
@@ -64,7 +70,8 @@
   },
   "list_columns": [
     "severity",
-    "due_date"
+    "due_date",
+    "observation"
   ],
   "workspace": "construction"
 }

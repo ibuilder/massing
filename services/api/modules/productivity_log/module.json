@@ -33,6 +33,13 @@
       "fieldset": "Entry"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Entry"
+    },
+    {
       "name": "quantity",
       "label": "Quantity installed",
       "type": "number",

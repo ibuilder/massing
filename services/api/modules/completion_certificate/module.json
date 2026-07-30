@@ -51,7 +51,8 @@
     {
       "name": "punch_complete_pct",
       "label": "Punch List % Complete",
-      "type": "percent"
+      "type": "percent",
+      "unit": "%"
     }
   ],
   "workflow": {
@@ -80,7 +81,9 @@
   },
   "list_columns": [
     "type",
-    "date"
+    "date",
+    "occupancy_date",
+    "punch_complete_pct"
   ],
   "workspace": "construction",
   "tools": [

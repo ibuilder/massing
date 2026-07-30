@@ -15,6 +15,13 @@
       "fieldset": "Insured"
     },
     {
+      "name": "vendor_company",
+      "label": "Vendor (linked)",
+      "type": "reference",
+      "module": "company",
+      "fieldset": "Insured"
+    },
+    {
       "name": "subcontract",
       "label": "Subcontract",
       "type": "reference",
@@ -40,6 +47,13 @@
       "name": "carrier",
       "label": "Carrier",
       "type": "text",
+      "fieldset": "Policy"
+    },
+    {
+      "name": "carrier_company",
+      "label": "Carrier (linked)",
+      "type": "reference",
+      "module": "company",
       "fieldset": "Policy"
     },
     {
@@ -111,7 +125,9 @@
   },
   "list_columns": [
     "carrier",
-    "expires"
+    "expires",
+    "subcontract",
+    "additional_insured"
   ],
   "workspace": "construction"
 }

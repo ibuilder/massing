@@ -43,6 +43,13 @@
       "fieldset": "Element"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Element"
+    },
+    {
       "name": "condition_rating",
       "label": "Condition",
       "type": "select",
@@ -65,7 +72,8 @@
       "name": "expected_life_years",
       "label": "Expected Life (yrs)",
       "type": "number",
-      "fieldset": "Condition"
+      "fieldset": "Condition",
+      "unit": "yr"
     },
     {
       "name": "replacement_cost",

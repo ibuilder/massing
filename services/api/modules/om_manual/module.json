@@ -21,6 +21,13 @@
       "fieldset": "Manual"
     },
     {
+      "name": "system_system",
+      "label": "System (linked)",
+      "type": "reference",
+      "module": "building_system",
+      "fieldset": "Manual"
+    },
+    {
       "name": "submittal",
       "label": "Submittal",
       "type": "reference",
@@ -31,6 +38,13 @@
       "name": "spec_section",
       "label": "Spec Section",
       "type": "text",
+      "fieldset": "Manual"
+    },
+    {
+      "name": "spec_section_spec",
+      "label": "Spec Section (linked)",
+      "type": "reference",
+      "module": "spec_section",
       "fieldset": "Manual"
     },
     {
@@ -60,6 +74,13 @@
       "label": "Responsible Sub",
       "type": "text",
       "fieldset": "Status"
+    },
+    {
+      "name": "responsible_contact",
+      "label": "Responsible Sub (linked)",
+      "type": "reference",
+      "module": "contact",
+      "fieldset": "Status"
     }
   ],
   "workflow": {
@@ -81,7 +102,9 @@
   },
   "list_columns": [
     "system",
-    "status"
+    "status",
+    "submittal",
+    "format"
   ],
   "workspace": "construction"
 }

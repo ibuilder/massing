@@ -28,6 +28,12 @@
       "type": "text"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location"
+    },
+    {
       "name": "category",
       "label": "Type",
       "type": "select",

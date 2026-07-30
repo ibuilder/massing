@@ -101,5 +101,11 @@
       }
     ]
   },
-  "workspace": "construction"
+  "workspace": "construction",
+  "list_columns": [
+    "change_event",
+    "mode",
+    "basis",
+    "not_to_exceed"
+  ]
 }

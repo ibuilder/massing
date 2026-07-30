@@ -66,5 +66,9 @@
       "dest": "__responsibility__",
       "label": "Responsibility matrix"
     }
+  ],
+  "list_columns": [
+    "phase",
+    "category"
   ]
 }

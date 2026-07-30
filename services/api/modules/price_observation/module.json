@@ -35,6 +35,12 @@
       "type": "text"
     },
     {
+      "name": "vendor_company",
+      "label": "Vendor / Supplier (linked)",
+      "type": "reference",
+      "module": "company"
+    },
+    {
       "name": "date",
       "label": "Observed",
       "type": "date"
@@ -43,7 +49,12 @@
       "name": "source",
       "label": "Source",
       "type": "select",
-      "options": ["quote", "invoice", "po", "manual"]
+      "options": [
+        "quote",
+        "invoice",
+        "po",
+        "manual"
+      ]
     }
   ],
   "workflow": {
@@ -63,5 +74,11 @@
       }
     ]
   },
-  "workspace": "construction"
+  "workspace": "construction",
+  "list_columns": [
+    "source",
+    "unit_price",
+    "date",
+    "qty"
+  ]
 }

@@ -53,5 +53,10 @@
       }
     ]
   },
-  "workspace": "construction"
+  "workspace": "construction",
+  "list_columns": [
+    "daily_report",
+    "date",
+    "hours"
+  ]
 }

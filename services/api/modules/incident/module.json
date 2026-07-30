@@ -139,13 +139,15 @@
       "name": "lost_days",
       "label": "Days Away",
       "type": "number",
-      "fieldset": "OSHA"
+      "fieldset": "OSHA",
+      "unit": "days"
     },
     {
       "name": "restricted_days",
       "label": "Restricted / Transfer Days",
       "type": "number",
-      "fieldset": "OSHA"
+      "fieldset": "OSHA",
+      "unit": "days"
     },
     {
       "name": "reported_to",

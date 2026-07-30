@@ -63,7 +63,9 @@
   },
   "list_columns": [
     "original",
-    "revised"
+    "revised",
+    "budget",
+    "forecast"
   ],
   "workspace": "construction",
   "tools": [

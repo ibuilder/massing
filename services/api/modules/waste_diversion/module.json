@@ -47,8 +47,9 @@
     {
       "name": "diversion_pct",
       "label": "Diversion %",
-      "type": "number",
-      "fieldset": "Disposition"
+      "type": "percent",
+      "fieldset": "Disposition",
+      "unit": "%"
     }
   ],
   "workflow": {

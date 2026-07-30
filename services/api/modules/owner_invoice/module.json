@@ -96,7 +96,8 @@
   },
   "list_columns": [
     "amount",
-    "status"
+    "status",
+    "prime_contract"
   ],
   "workspace": "construction",
   "tools": [

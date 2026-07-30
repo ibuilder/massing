@@ -19,6 +19,12 @@
       "type": "text"
     },
     {
+      "name": "location_loc",
+      "label": "Room/Location (linked)",
+      "type": "reference",
+      "module": "location"
+    },
+    {
       "name": "category",
       "label": "Category",
       "type": "select",

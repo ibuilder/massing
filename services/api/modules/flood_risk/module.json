@@ -34,13 +34,15 @@
       "name": "ground_elevation_ft",
       "label": "Ground / Lowest Floor Elev (ft)",
       "type": "number",
-      "fieldset": "Site"
+      "fieldset": "Site",
+      "unit": "ft"
     },
     {
       "name": "bfe_ft",
       "label": "Base Flood Elevation (ft)",
       "type": "number",
-      "fieldset": "Design Flood"
+      "fieldset": "Design Flood",
+      "unit": "ft"
     },
     {
       "name": "flood_design_class",
@@ -58,7 +60,8 @@
       "name": "freeboard_ft",
       "label": "Freeboard (ft, blank = ASCE 24 default)",
       "type": "number",
-      "fieldset": "Design Flood"
+      "fieldset": "Design Flood",
+      "unit": "ft"
     },
     {
       "name": "notes",

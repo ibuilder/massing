@@ -41,5 +41,8 @@
       }
     ]
   },
-  "workspace": "construction"
+  "workspace": "construction",
+  "list_columns": [
+    "rate"
+  ]
 }

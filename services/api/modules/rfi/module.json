@@ -55,6 +55,13 @@
       "fieldset": "Question"
     },
     {
+      "name": "spec_section_spec",
+      "label": "Spec Section (linked)",
+      "type": "reference",
+      "module": "spec_section",
+      "fieldset": "Question"
+    },
+    {
       "name": "location",
       "label": "Location",
       "type": "reference",

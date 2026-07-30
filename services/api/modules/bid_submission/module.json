@@ -15,6 +15,13 @@
       "fieldset": "Bid"
     },
     {
+      "name": "bidder_company",
+      "label": "Bidder (linked)",
+      "type": "reference",
+      "module": "company",
+      "fieldset": "Bid"
+    },
+    {
       "name": "package",
       "label": "Bid package",
       "type": "reference",

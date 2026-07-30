@@ -44,10 +44,18 @@
       "fieldset": "Task"
     },
     {
+      "name": "responsible_contact",
+      "label": "Responsible (last planner) (linked)",
+      "type": "reference",
+      "module": "contact",
+      "fieldset": "Task"
+    },
+    {
       "name": "duration_days",
       "label": "Duration (days)",
       "type": "number",
-      "fieldset": "Sequence"
+      "fieldset": "Sequence",
+      "unit": "days"
     },
     {
       "name": "planned_week",

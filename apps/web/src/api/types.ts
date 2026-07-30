@@ -213,6 +213,14 @@ export interface ModuleField {
   name: string; label: string; type: string; required?: boolean; options?: string[];
   module?: string;   // for type:"reference" — the target module key
   fieldset?: string; // F1 — labeled form section this field groups under
+  /** MOD-SWEEP — the unit a numeric value is measured in ("ft", "yr", "days", "kWh").
+   *
+   *  The sweep found 170 numeric fields with no unit anywhere in the config, most of them encoding it
+   *  in the field NAME instead — `elevation_ft`, `expected_life_years`, `ld_per_day`. A unit in a name
+   *  is a unit only a human can read: it cannot be shown next to an input, appended in a table cell,
+   *  converted, or checked. Declaring it makes the number self-describing, which is most of the
+   *  difference between a form and a tool. */
+  unit?: string;
 }
 export interface ModuleDef {
   key: string; name: string; section: string; icon: string; pinnable: boolean;

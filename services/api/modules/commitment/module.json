@@ -32,6 +32,13 @@
       "fieldset": "Commitment"
     },
     {
+      "name": "vendor_company",
+      "label": "Vendor / Sub (linked)",
+      "type": "reference",
+      "module": "company",
+      "fieldset": "Commitment"
+    },
+    {
       "name": "po_date",
       "label": "PO Date",
       "type": "date",
@@ -47,8 +54,9 @@
     {
       "name": "retainage_pct",
       "label": "Retainage %",
-      "type": "number",
-      "fieldset": "Cost"
+      "type": "percent",
+      "fieldset": "Cost",
+      "unit": "%"
     },
     {
       "name": "cost_code",
@@ -105,5 +113,11 @@
       "dest": "__margin__",
       "label": "Cost-code margin"
     }
+  ],
+  "list_columns": [
+    "cost_code",
+    "type",
+    "amount",
+    "po_date"
   ]
 }

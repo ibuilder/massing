@@ -52,7 +52,9 @@
   },
   "list_columns": [
     "reading_date",
-    "consumption"
+    "consumption",
+    "meter",
+    "cost"
   ],
   "workspace": "construction",
   "tools": [

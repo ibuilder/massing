@@ -19,6 +19,12 @@
       "type": "text"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location"
+    },
+    {
       "name": "category",
       "label": "Category",
       "type": "text"
@@ -58,7 +64,6 @@
     ]
   },
   "list_columns": [
-    "category",
     "result"
   ],
   "workspace": "construction"
