@@ -1182,6 +1182,86 @@ removed. Remaining, in priority order:
 - **SITE-1 remaining** *(S–M)* — parcel overlays *(terrain DEM auto-fetch is network-dependent →
   flagged, offline-degrading)*.
 
+## 🔭 R31 — EXTERNAL SCAN (15 sources, 2026-07-30)
+
+Fifteen sources reviewed: five open-source repos, five commercial products, two engineering-practice
+articles, one capital-allocation essay, one curated finance list, one profile. **Most describe things we
+already have** — that is the honest headline, and the rejected list below is the more useful half of this
+scan, because it stops the exercise being re-run.
+
+**One genuinely new build item, one strong corroboration, three gap-checks.**
+
+- ⭐ **R31-SCHEMA-DIAG** *(M)* — **validate the IFC against the SCHEMA, not just against a spec.**
+  Everything we have scores *completeness* or *hygiene*: `openbim_quality` is IDS rule-compliance % and
+  LOIN completeness over the `{guid: element}` properties index; `model_qa` is hygiene (duplicate
+  GlobalIds, overlaps, orphans, unenclosed spaces, blank names, wrong storey). **Nothing checks
+  structural validity**: an unknown entity type, a dangling `#12345` reference, an attribute of the wrong
+  type, an attribute violating its declared cardinality.
+
+  Why it matters now rather than before: **we WRITE IFC.** Since authoring became a first-class goal the
+  platform emits files, and a model can score **100% IDS-compliant and still be rejected on import by
+  another tool** — those are different failure classes, and only one of them is currently visible. This
+  is also the class of defect a viewer hides: geometry renders, the file is broken.
+
+  Reference implementation to study, not vendor: [`NepomukWolf/vscode-ifc`](https://github.com/NepomukWolf/vscode-ifc)
+  (**MIT**) runs exactly these diagnostics through an IFC language server — invalid references, type
+  mismatches, unknown entities, cardinality errors. `ifcopenshell` can express most of it server-side.
+  Premise-check first: confirm none of `model_qa` / `quality` / `norm_valid` already covers a given check
+  before adding it, because three of the four names above sound like they might and do not.
+
+- **R31-PIPELINE-ALLOCATE** *(L)* — **allocate constrained capital ACROSS the pipeline, not within one
+  project.** We score options *inside* a project (`GEN-SCORE`, `SHADOW-COST`, `schedule_options`) and we
+  *report* across projects (`FIN-PORTFOLIO`, `benchmarking`). The missing step is the decision itself:
+  given N candidate projects with cost, return, risk and timing, and a capital constraint, which subset
+  and what sizing. `scipy` is already a dependency (`requirements.in:27`), so the optimiser needs **no new
+  package** — this is deliberately not the "add a portfolio library" version of the idea.
+
+- **R31-SYNDICATION-TAIL** *(M — gap-check, then close only what is missing)* — cap-table automation,
+  soft/hard commitment tracking, and a K-1 / tax pack. `capital.py`, `distwaterfall.py` and the
+  `investor` + `commitment` modules exist; their **depth is unverified** and that is the whole point of
+  scoping this as a check first. Do not build a cap table before confirming `capital.py` lacks one.
+
+- **R31-CITE-HIGHLIGHT** *(S — gap-check)* — our cited answers name the source document
+  (`cited_answer`, RFI NL-QA). Verify whether they also **highlight the passage** inside it. Citing a
+  40-page PDF and citing a paragraph are different products, and the second is what makes a reviewer
+  trust it without re-reading.
+
+### Corroboration, not a new item — R24-TRACE-UI ② is the right target
+
+An external essay on construction capital allocation argues the industry's real gap is that the
+"what should this cost and where should the money go" decision sits **outside** the software, fragmented
+across estimates, value-engineering exercises and tribal knowledge. Its named requirements are
+*structured data instead of PDFs*, *historical cost patterns across similar projects*, *current pricing*
+— and **"decision context linked to estimates, not isolated numbers."**
+
+We have the first three (`COST-DB` with vintage + source, `benchmarking`, `ESTIMATE-DIFF`). The fourth is
+**exactly R24-TRACE-UI ②** as re-scoped on 2026-07-29: make the proforma emit its own derivation, each
+figure carrying its inputs and a *model-derived / overridden / market-assumption* tag. Independent
+external confirmation that the re-scope picked the right work — and a reminder that its value is the
+**basis**, not the UI.
+
+### Rejected, with the reason — so this is not re-run
+
+| source | why not |
+|---|---|
+| A PolyForm-Noncommercial multi-agent orchestrator | **Licence excluded.** MIT/BSD/Apache only; noncommercial forbids our use regardless of merit. |
+| DuckDB-WASM spatial GIS platform (MIT) | In-browser spatial SQL is genuinely interesting, but it is a heavy new dependency and `parcels` / GIS already serve site analysis. Revisit only if offline spatial SQL becomes a requirement, not a curiosity. |
+| Curated systematic-trading library list | Domain mismatch — market microstructure and HFT do not transfer to property cash flows. The one transferable idea (portfolio optimisation) is **R31-PIPELINE-ALLOCATE** above, without the dependency. |
+| A Revit QA/QC add-in (MIT) | C#/.NET against the Revit API — unusable here. Its check list (missing/duplicate mark, wrong level, element count, health score) is **already ~covered** by `model_qa` + `model_warnings`. |
+| Reference-closure element extraction | **Already covered.** `SUBSET-EXPORT` prunes to a QUERY-DSL slice via `remove_deep2` with the spatial skeleton preserved, and `editPreview` returns a single-element fragment. |
+| "Keep the agent instruction file under 200 lines" | Checked: `CLAUDE.md` is **55 lines**. No action — and worth recording that the check was run, since the alternative is assuming. |
+| Commercial construction PM / AI-workspace / syndication products (five reviewed) | Capabilities reviewed and already covered: document Q&A with citations, takeoff on drawings, registries, schedule editors, 2D→BIM extraction (`plan_to_bim`), waterfalls. Named generically per the standing directive that competitor names stay out of repo docs; the one real gap they surfaced is **R31-SYNDICATION-TAIL**. |
+
+### Practice notes (no build item)
+
+Two engineering-practice sources describe what this session already does, which is worth recording as
+confirmation rather than as work: **a second agent context finds bugs the first introduced** — that is
+precisely how the glTF uint32 gap, the GP-promote error and the `surface.test.ts` slack were all caught
+today, each by someone other than the author. And **"prove to me this works" beats accepting an
+implementation** — the mutation-check habit. The failure modes the other article names (cascading
+instability, security blindness, unmeasured debt) are what CodeQL-after-every-push, the ratchets and the
+full-suite-on-merged-tree runs exist to prevent.
+
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
 - ⭐ **SCALE-SEAM ③+ — `client.ts` is still a god-file, and the item was closed too early.** ② shipped
