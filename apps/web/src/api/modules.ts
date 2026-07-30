@@ -13,7 +13,7 @@
  *  moving a method is invisible to it, losing one fails it by number.
  */
 import type {
-  ModuleBoard, ModuleDef, ModuleRecord, RecordAttachmentMeta, RelatedRecords,
+  ModuleBoard, ModuleDef, ModuleFilterOp, ModuleRecord, RecordAttachmentMeta, RelatedRecords,
   SavedViewDef,
 } from "./types";
 
@@ -176,12 +176,44 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ ok: number; failed: { id: string; error: string }[] }>(
       `/projects/${pid}/modules/${key}/bulk`, { method: "POST", body: JSON.stringify({ ids, action, value }) });
   }
-  moduleRecordsFiltered(pid: string, key: string, opts: { q?: string; state?: string; limit?: number; offset?: number } = {}) {
+  /**
+   * MOD-FILTER — a register page, narrowed and ordered by the SERVER.
+   *
+   * `filters` becomes one `f.<field>[.<op>]=<value>` parameter each, and `sort`/`sort_dir` order the
+   * whole register rather than the fetched page. Both matter for the same reason: narrowing or
+   * ordering a page after it arrives answers a different question than the one asked, and the wrong
+   * answer is indistinguishable from the right one. "Sort by amount" on a 500-row register used to
+   * order the 200 rows already in the browser.
+   *
+   * An unknown field or operator is a 400 from the server, deliberately — a filter that is quietly
+   * dropped returns MORE rows than were requested, which reads as data rather than as a bug.
+   */
+  moduleRecordsFiltered(pid: string, key: string, opts: {
+    q?: string; state?: string; limit?: number; offset?: number;
+    /**
+     * A LIST, not a map keyed by field — a range is two clauses on one field (`amount.gte` **and**
+     * `amount.lte`), so a field-keyed map cannot express it: the second entry overwrites the first and
+     * a range silently collapses to a single bound, which is a narrower result that looks correct.
+     */
+    filters?: { field: string; op?: ModuleFilterOp; value?: string }[];
+    sort?: string; sortDir?: "asc" | "desc";
+  } = {}) {
     const p = new URLSearchParams();
     if (opts.q) p.set("q", opts.q);
     if (opts.state) p.set("state", opts.state);
     if (opts.limit != null) p.set("limit", String(opts.limit));
     if (opts.offset) p.set("offset", String(opts.offset));
+    for (const { field, op = "eq", value } of opts.filters ?? []) {
+      // `empty`/`nonempty` are predicates on their own; every other op needs a value, and sending a
+      // blank one would filter for the empty string rather than not filtering at all.
+      if (op !== "empty" && op !== "nonempty" && (value == null || value === "")) continue;
+      // `append`, not `set`: two clauses on one field must both survive into the query string.
+      p.append(op === "eq" ? `f.${field}` : `f.${field}.${op}`, value ?? "1");
+    }
+    if (opts.sort) {
+      p.set("sort", opts.sort);
+      p.set("sort_dir", opts.sortDir === "desc" ? "desc" : "asc");
+    }
     const qs = p.toString();
     return this.json<ModuleRecord[]>(`/projects/${pid}/modules/${key}${qs ? `?${qs}` : ""}`);
   }

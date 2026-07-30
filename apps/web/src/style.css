@@ -552,6 +552,20 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
                 opacity: .92; }
 .chip { display: inline-block; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0 8px; font-size: 11px; margin: 1px 0; }
 
+/* MOD-FILTER — the per-field filter bar.
+   Collapsed by default so a twenty-field register does not open behind a wall of inputs, and the
+   toggle carries the active count ("3 filters") because a page showing a subset while *looking*
+   unfiltered is indistinguishable from missing data. `.on` is the same active marker the column
+   picker already uses, so "this control is doing something" reads the same way across the toolbar. */
+.filter-row { margin: 4px 0 8px; }
+.filter-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+               gap: 8px 12px; margin-top: 8px; padding: 10px 12px;
+               background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.filter-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.filter-cell > .meta { font-size: 11px; }
+/* inputs inside a filter cell must not inherit a fixed width from .portal-filter — the grid owns it */
+.filter-cell .portal-filter, .filter-cell .sb-sel { width: 100%; min-width: 0; }
+
 /* UX-CHIPS — the shared status/delta chip vocabulary (ui/chips.ts) */
 .chip2 { display: inline-flex; align-items: center; gap: 4px; border-radius: 10px; padding: 0 7px;
   font-size: 11px; line-height: 18px; border: 1px solid var(--line); background: var(--panel2);

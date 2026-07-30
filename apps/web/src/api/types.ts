@@ -218,6 +218,10 @@ export interface Viewpoint {
 
 export interface Vec3 { x: number; y: number; z: number; }
 
+/** MOD-FILTER — the operators a per-field register filter may use. Mirrors `modules_query.FILTER_OPS`;
+ *  the server rejects anything else with a 400 rather than ignoring it. */
+export type ModuleFilterOp = "eq" | "ne" | "gte" | "lte" | "contains" | "in" | "empty" | "nonempty";
+
 export interface ModuleField {
   name: string; label: string; type: string; required?: boolean; options?: string[];
   module?: string;   // for type:"reference" — the target module key
