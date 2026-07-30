@@ -60,7 +60,31 @@
     {
       "name": "crew_by_trade",
       "label": "Crew by trade",
-      "type": "textarea",
+      "type": "table",
+      "columns": [
+        {
+          "name": "trade",
+          "label": "Trade",
+          "type": "text"
+        },
+        {
+          "name": "company",
+          "label": "Company",
+          "type": "text"
+        },
+        {
+          "name": "headcount",
+          "label": "Workers",
+          "type": "number"
+        },
+        {
+          "name": "hours",
+          "label": "Hours",
+          "type": "number",
+          "unit": "hr"
+        }
+      ],
+      "total_column": "headcount",
       "fieldset": "Work"
     },
     {
@@ -77,8 +101,27 @@
     },
     {
       "name": "equipment_on_site",
-      "label": "Equipment On Site",
-      "type": "textarea",
+      "label": "Equipment on site",
+      "type": "table",
+      "columns": [
+        {
+          "name": "equipment",
+          "label": "Equipment",
+          "type": "text"
+        },
+        {
+          "name": "count",
+          "label": "Count",
+          "type": "number"
+        },
+        {
+          "name": "hours",
+          "label": "Hours",
+          "type": "number",
+          "unit": "hr"
+        }
+      ],
+      "total_column": "hours",
       "fieldset": "Site"
     },
     {

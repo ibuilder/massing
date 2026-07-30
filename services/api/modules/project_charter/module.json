@@ -71,8 +71,25 @@
     },
     {
       "name": "key_deliverables",
-      "label": "Key Deliverables",
-      "type": "textarea",
+      "label": "Key deliverables",
+      "type": "table",
+      "columns": [
+        {
+          "name": "deliverable",
+          "label": "Deliverable",
+          "type": "text"
+        },
+        {
+          "name": "owner",
+          "label": "Owner",
+          "type": "text"
+        },
+        {
+          "name": "due",
+          "label": "Due",
+          "type": "date"
+        }
+      ],
       "fieldset": "Scope"
     },
     {
@@ -89,8 +106,20 @@
     },
     {
       "name": "key_milestones",
-      "label": "Key Milestones",
-      "type": "textarea",
+      "label": "Key milestones",
+      "type": "table",
+      "columns": [
+        {
+          "name": "milestone",
+          "label": "Milestone",
+          "type": "text"
+        },
+        {
+          "name": "target",
+          "label": "Target",
+          "type": "date"
+        }
+      ],
       "fieldset": "Budget & Schedule"
     },
     {

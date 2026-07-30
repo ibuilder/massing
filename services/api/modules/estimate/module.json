@@ -34,6 +34,44 @@
       "name": "date",
       "label": "Date",
       "type": "date"
+    },
+    {
+      "name": "line_items",
+      "label": "Line items",
+      "type": "table",
+      "columns": [
+        {
+          "name": "code",
+          "label": "Cost code",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "label": "Description",
+          "type": "text"
+        },
+        {
+          "name": "qty",
+          "label": "Qty",
+          "type": "number"
+        },
+        {
+          "name": "unit",
+          "label": "Unit",
+          "type": "text"
+        },
+        {
+          "name": "unit_cost",
+          "label": "Unit cost",
+          "type": "currency"
+        },
+        {
+          "name": "amount",
+          "label": "Amount",
+          "type": "currency"
+        }
+      ],
+      "total_column": "amount"
     }
   ],
   "workflow": {

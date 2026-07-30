@@ -42,14 +42,59 @@
     },
     {
       "name": "alternates",
-      "label": "Alternates (desc + $)",
-      "type": "textarea",
+      "label": "Alternates",
+      "type": "table",
+      "columns": [
+        {
+          "name": "no",
+          "label": "Alt #",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "label": "Description",
+          "type": "text"
+        },
+        {
+          "name": "amount",
+          "label": "Amount",
+          "type": "currency"
+        },
+        {
+          "name": "accepted",
+          "label": "Accepted",
+          "type": "checkbox"
+        }
+      ],
+      "total_column": "amount",
       "fieldset": "Pricing"
     },
     {
       "name": "unit_prices",
-      "label": "Unit Prices",
-      "type": "textarea",
+      "label": "Unit prices",
+      "type": "table",
+      "columns": [
+        {
+          "name": "item",
+          "label": "Item",
+          "type": "text"
+        },
+        {
+          "name": "unit",
+          "label": "Unit",
+          "type": "text"
+        },
+        {
+          "name": "qty",
+          "label": "Qty",
+          "type": "number"
+        },
+        {
+          "name": "unit_price",
+          "label": "Unit price",
+          "type": "currency"
+        }
+      ],
       "fieldset": "Pricing"
     },
     {

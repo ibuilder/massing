@@ -19,13 +19,52 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-# Field types the config-driven CRUD UI knows how to render. Keep in sync with the web form renderer.
+# Field types the config-driven CRUD UI knows how to render. Keep in sync with the web form renderer —
+# `fieldTypeCoverage.test.ts` asserts that every type here is one the form can actually handle, after
+# `percent` spent a release being legal server-side and unrenderable client-side.
 FIELD_TYPES = {"text", "number", "currency", "date", "textarea", "select", "multiselect",
-               "reference", "signature", "rollup", "checkbox", "email", "phone", "percent", "file"}
+               "reference", "signature", "rollup", "checkbox", "email", "phone", "percent", "file",
+               "table"}
+
+#: MOD-TABLE — the column types a `table` field may declare.
+#:
+#: Deliberately a SUBSET, and the exclusions are the point. No nested `table` (a grid inside a grid has
+#: no sane form rendering and no sane CSV export). No `rollup` (it is computed from other *records*,
+#: which a row is not). No `file`/`signature` (each needs its own upload or signing flow, and putting
+#: one in a repeating row multiplies that flow by the row count). No `reference` yet — a picker per row
+#: is a real feature rather than a column type, and shipping it half-done would put unresolvable ids in
+#: rows, which is the exact defect `refCell` was written to stop.
+TABLE_COLUMN_TYPES = {"text", "number", "currency", "percent", "date", "select", "checkbox"}
 
 #: Types that hold a magnitude, and so are the only ones a `unit` or a numeric check applies to.
 #: Defined here rather than beside `validate_record` because `validate_module` needs it first.
 _NUMERIC_TYPES = {"number", "currency", "percent"}
+
+
+class ColumnDef(BaseModel):
+    """MOD-TABLE — one column of a `table` field.
+
+    Same shape as a `FieldDef` minus everything that only makes sense once per record. A row is not a
+    record: it has no workflow, no ref, no attachments and no id, so a column carries only what is
+    needed to render and read a cell.
+    """
+    model_config = ConfigDict(extra="allow")
+    name: str
+    type: str
+    label: str | None = None
+    required: bool = False
+    options: list[str] | None = None
+    unit: str | None = None
+    #: Render narrower/wider than the default. A hint, not a layout engine.
+    width: str | None = None
+
+    @field_validator("type")
+    @classmethod
+    def _known_column_type(cls, v: str) -> str:
+        if v not in TABLE_COLUMN_TYPES:
+            raise ValueError(f"column type {v!r} not allowed in a table "
+                             f"(allowed: {sorted(TABLE_COLUMN_TYPES)})")
+        return v
 
 
 class FieldDef(BaseModel):
@@ -36,6 +75,14 @@ class FieldDef(BaseModel):
     required: bool = False
     options: list[str] | None = None
     module: str | None = None                 # reference target
+    # MOD-TABLE — line items. The sweep found 22 places a LIST had been flattened into one textarea
+    # (`bid_submission.unit_prices`, `daily_report.crew_by_trade`, `incident.witnesses`), and the deeper
+    # version of the same gap: `sov` is one record PER LINE with no parent document, and `estimate` is a
+    # single `amount`. A schedule of values, a bid, an estimate and a daily manpower log are all
+    # line-item documents, and the config had no way to say so.
+    columns: list[ColumnDef] | None = None
+    #: Column whose values are summed into a footer total (must name a numeric column).
+    total_column: str | None = None
     # MOD-SWEEP — the unit a numeric value is measured in ("ft", "yr", "days", "kWh"). The sweep found
     # 170 numeric fields with no unit declared, most encoding it in the field NAME instead
     # (`elevation_ft`, `expected_life_years`). A unit in a name is readable only by a human: it cannot
@@ -170,6 +217,31 @@ def validate_module(mod: dict, *, known_modules: set[str] | None = None,
             errors.append(f"{key}.{f.name}: {f.type} field has no options")
         if f.unit and f.type not in _NUMERIC_TYPES:
             errors.append(f"{key}.{f.name}: unit {f.unit!r} on a {f.type} field (units are numeric)")
+        # ---- MOD-TABLE ----------------------------------------------------------------------------
+        if f.type == "table":
+            if not f.columns:
+                errors.append(f"{key}.{f.name}: table field has no columns")
+            else:
+                cnames = [c.name for c in f.columns]
+                dupes = {n for n in cnames if cnames.count(n) > 1}
+                if dupes:
+                    errors.append(f"{key}.{f.name}: duplicate column(s) {sorted(dupes)}")
+                for c in f.columns:
+                    if c.type in ("select",) and not c.options:
+                        errors.append(f"{key}.{f.name}.{c.name}: select column has no options")
+                    if c.unit and c.type not in _NUMERIC_TYPES:
+                        errors.append(f"{key}.{f.name}.{c.name}: unit on a {c.type} column")
+                if f.total_column:
+                    tc = next((c for c in f.columns if c.name == f.total_column), None)
+                    if tc is None:
+                        errors.append(f"{key}.{f.name}: total_column {f.total_column!r} is not a column")
+                    elif tc.type not in _NUMERIC_TYPES:
+                        # A footer summing a text column would render a number nobody can account for,
+                        # which is worse than no total at all.
+                        errors.append(f"{key}.{f.name}: total_column {f.total_column!r} is "
+                                      f"{tc.type}, not numeric")
+        elif f.columns or f.total_column:
+            errors.append(f"{key}.{f.name}: columns/total_column on a {f.type} field (tables only)")
         # A percentage-named field typed `number` renders as a bare figure and formats as a count, so
         # 7.5% and 7.5 are indistinguishable in a table. The sweep found 20; this stops the 21st.
         # `percent` appears anywhere in the name, not just as a suffix — `percent_complete` was the one
@@ -225,7 +297,40 @@ def validate_record(mod: dict, data: dict) -> list[str]:
                 float(value)
             except (TypeError, ValueError):
                 errors.append(f"{name}: {value!r} is not a number")
+        elif f.get("type") == "table":
+            errors.extend(_table_errors(name, f, value))
     return errors
+
+
+def _table_errors(name: str, f: dict, value) -> list[str]:
+    """Rows of a `table` field: a list of objects, with numeric columns holding numbers.
+
+    A LEGACY STRING IS ACCEPTED, deliberately. 22 of these fields were `textarea` before, so live
+    records hold prose where rows are now expected. Rejecting that would make every one of those
+    records un-saveable the moment anybody edited an unrelated field on it — the config change would
+    break data it never touched. The form shows the legacy text alongside the grid so it can be
+    itemised by hand; this only refuses shapes that are neither.
+    """
+    out: list[str] = []
+    if isinstance(value, str):
+        return out                                # legacy prose from the pre-table field; see above
+    if not isinstance(value, list):
+        return [f"{name}: expected a list of rows, got {type(value).__name__}"]
+    cols = {c.get("name"): c for c in (f.get("columns") or []) if c.get("name")}
+    for i, row in enumerate(value):
+        if not isinstance(row, dict):
+            out.append(f"{name}[{i}]: expected an object, got {type(row).__name__}")
+            continue
+        for cname, cval in row.items():
+            c = cols.get(cname)
+            if c is None or cval in (None, "", [], {}):
+                continue                          # unknown column or blank cell -> allowed, as above
+            if c.get("type") in _NUMERIC_TYPES:
+                try:
+                    float(cval)
+                except (TypeError, ValueError):
+                    out.append(f"{name}[{i}].{cname}: {cval!r} is not a number")
+    return out
 
 
 def validate_dir(modules_dir: Path) -> dict[str, list[str]]:

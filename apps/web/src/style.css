@@ -548,6 +548,23 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
    — they just must not read as navigable. No accent colour, no pointer, no underline. */
 .ref-unresolved { color: var(--muted); font-variant-numeric: tabular-nums; cursor: help;
                   border-bottom: 1px dotted var(--line); }
+/* MOD-TABLE — the line-item grid inside a record form.
+   Scrolls inside its own container: a schedule of values can be 60 lines wide in a 700px form, and a
+   grid that widens the form pushes the save button off screen. The legacy block is styled as a quote
+   rather than an input, because it is not editable and must not look like it is. */
+.tbl-field { display: block; }
+.tbl-legacy { margin: 4px 0 8px; padding: 8px 10px; max-height: 140px; overflow: auto;
+              background: var(--panel); border-left: 3px solid var(--line); border-radius: 4px;
+              font-size: 12px; white-space: pre-wrap; color: var(--muted); }
+.tbl-grid { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; }
+.tbl-grid th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 500;
+               padding: 2px 4px; white-space: nowrap; }
+.tbl-grid td { padding: 1px 4px; }
+.tbl-cell { width: 100%; min-width: 90px; box-sizing: border-box; }
+.tbl-del { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0 4px; }
+.tbl-del:hover { color: var(--danger, #e05252); }
+.tbl-total { margin-top: 6px; font-size: 12px; font-weight: 600; text-align: right; }
+
 .ref-unlinked { color: var(--text, inherit); cursor: help; border-bottom: 1px dashed var(--line);
                 opacity: .92; }
 .chip { display: inline-block; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0 8px; font-size: 11px; margin: 1px 0; }
