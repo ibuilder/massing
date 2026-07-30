@@ -36,6 +36,17 @@ with TestClient(app) as c:
     h = members.headers
     assert h.get("X-Content-Type-Options") == "nosniff", h
     assert h.get("X-Frame-Options") == "DENY" and "frame-ancestors" in h.get("Content-Security-Policy", ""), h
+    # Tenant JSON must not be storable by a browser disk cache, a shared proxy, or the back/forward
+    # cache after a sign-out. Nothing set Cache-Control outside the SSE streams until 2026-07-29, so
+    # project records, financials and audit feeds were served with no policy at all.
+    assert h.get("Cache-Control") == "no-store", h
+    # ...and the scope is JSON only, deliberately. Blanket no-store would also stop the .frag geometry
+    # stream and map tiles being cached — where this product's bytes actually are — buying a real
+    # performance regression for no security. If this ever starts asserting no-store, check that the
+    # geometry path did not get swept in with it.
+    _m = c.get("/metrics")
+    assert not _m.headers.get("content-type", "").startswith("application/json"), _m.headers
+    assert _m.headers.get("Cache-Control") is None, _m.headers
 
     c.cookies.clear()    # drop alice's login cookie so the next calls carry no real identity
     # an attacker tries to impersonate alice with just the X-User header (no token) → ignored in

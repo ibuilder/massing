@@ -545,6 +545,18 @@ async def security(request: Request, call_next):
     resp.headers.setdefault("Content-Security-Policy", _CSP)
     if _HSTS:
         resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    # 4) don't let tenant data sit in a cache we don't control. Until now nothing set Cache-Control
+    #    outside the SSE streams, so project records, financials and audit feeds were served with no
+    #    policy at all — free for a browser disk cache or a shared corporate proxy to retain, and for
+    #    the back/forward cache to redisplay after a sign-out.
+    #
+    #    Scoped to JSON on purpose. `no-store` on everything would also kill caching of the .frag
+    #    geometry stream and map tiles, which a viewer refetches constantly and which is where this
+    #    product's bytes actually are — a real performance regression bought for no security. Binary
+    #    payloads that ARE sensitive (a rendered contract PDF) are already reached through a signed,
+    #    expiring URL. `setdefault` so the SSE routes keep their own `no-cache`.
+    if resp.headers.get("content-type", "").startswith("application/json"):
+        resp.headers.setdefault("Cache-Control", "no-store")
     return resp
 
 
