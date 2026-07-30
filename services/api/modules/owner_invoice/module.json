@@ -11,23 +11,20 @@
       "name": "number",
       "label": "Invoice No.",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "amount",
-      "label": "Amount",
-      "type": "currency"
-    },
-    {
-      "name": "prime_contract",
-      "label": "Prime contract",
-      "type": "reference",
-      "module": "prime_contract"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "period",
       "label": "Period",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "amount",
+      "label": "Amount",
+      "type": "currency",
+      "fieldset": "Money"
     },
     {
       "name": "status",
@@ -39,7 +36,15 @@
         "Approved",
         "Rejected",
         "Paid"
-      ]
+      ],
+      "fieldset": "Status"
+    },
+    {
+      "name": "prime_contract",
+      "label": "Prime contract",
+      "type": "reference",
+      "module": "prime_contract",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

@@ -11,12 +11,14 @@
       "name": "code",
       "label": "Code",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "description",
       "label": "Description",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "division",
@@ -48,7 +50,8 @@
         "31 — Earthwork",
         "32 — Exterior Improvements",
         "33 — Utilities"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "committed",

@@ -11,18 +11,8 @@
       "name": "subject",
       "label": "Review",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "comments",
-      "label": "Comments",
-      "type": "textarea"
-    },
-    {
-      "name": "drawing",
-      "label": "Drawing",
-      "type": "reference",
-      "module": "drawing"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "discipline",
@@ -33,7 +23,8 @@
         "Structural",
         "MEP",
         "Civil"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "status",
@@ -44,7 +35,21 @@
         "In Review",
         "Approved",
         "Rejected"
-      ]
+      ],
+      "fieldset": "Status"
+    },
+    {
+      "name": "drawing",
+      "label": "Drawing",
+      "type": "reference",
+      "module": "drawing",
+      "fieldset": "Links"
+    },
+    {
+      "name": "comments",
+      "label": "Comments",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

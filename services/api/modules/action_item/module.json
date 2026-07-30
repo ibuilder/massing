@@ -11,35 +11,8 @@
       "name": "subject",
       "label": "Action",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "assignee",
-      "label": "Assignee",
-      "type": "text"
-    },
-    {
-      "name": "due_date",
-      "label": "Due",
-      "type": "date"
-    },
-    {
-      "name": "meeting",
-      "label": "From meeting",
-      "type": "reference",
-      "module": "meeting"
-    },
-    {
-      "name": "linked_rfi",
-      "label": "Linked RFI",
-      "type": "reference",
-      "module": "rfi"
-    },
-    {
-      "name": "linked_issue",
-      "label": "Linked Issue",
-      "type": "reference",
-      "module": "issue"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "priority",
@@ -49,18 +22,54 @@
         "Low",
         "Medium",
         "High"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "assignee",
+      "label": "Assignee",
+      "type": "text",
+      "fieldset": "Parties"
     },
     {
       "name": "responsible",
       "label": "Responsible",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Parties"
     },
     {
       "name": "responsible_contact",
       "label": "Responsible (linked)",
       "type": "reference",
-      "module": "contact"
+      "module": "contact",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "due_date",
+      "label": "Due",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "linked_issue",
+      "label": "Linked Issue",
+      "type": "reference",
+      "module": "issue",
+      "fieldset": "Links"
+    },
+    {
+      "name": "linked_rfi",
+      "label": "Linked RFI",
+      "type": "reference",
+      "module": "rfi",
+      "fieldset": "Links"
+    },
+    {
+      "name": "meeting",
+      "label": "From meeting",
+      "type": "reference",
+      "module": "meeting",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

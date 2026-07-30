@@ -11,22 +11,8 @@
       "name": "subject",
       "label": "Certificate",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "scope",
-      "label": "Scope",
-      "type": "textarea"
-    },
-    {
-      "name": "date",
-      "label": "Date",
-      "type": "date"
-    },
-    {
-      "name": "certified_by",
-      "label": "Certified By",
-      "type": "text"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "type",
@@ -36,23 +22,45 @@
         "Substantial",
         "Final",
         "Partial"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "certified_by",
+      "label": "Certified By",
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
       "name": "occupancy_date",
       "label": "Owner Occupancy Date",
-      "type": "date"
-    },
-    {
-      "name": "record_model_version",
-      "label": "Record Model Version",
-      "type": "number"
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
       "name": "punch_complete_pct",
       "label": "Punch List % Complete",
       "type": "percent",
-      "unit": "%"
+      "unit": "%",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "record_model_version",
+      "label": "Record Model Version",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "scope",
+      "label": "Scope",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

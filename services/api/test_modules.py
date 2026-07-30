@@ -98,6 +98,33 @@ with TestClient(app) as c:
         runs = [fs for i, fs in enumerate(seq) if i == 0 or fs != seq[i - 1]]
         assert len(runs) == len(set(runs)), f"{k}: fieldsets must be contiguous, got {runs}"
 
+    # MOD-FIELDSET — and the SAME rule for every OTHER module that uses fieldsets at all.
+    #
+    # The list above is enumerated, so it could only ever fail for the thirteen names in it. Three
+    # modules outside it — `pm_schedule`, `staffing`, `work_order` — had non-contiguous fieldsets from
+    # before the field sweep, rendering a duplicate header each, and no gate could see them. That is
+    # the hand-maintained-list shape this repo keeps paying for: the check was real, its scope was the
+    # bug. Contiguity is a property of the RENDERER, so it applies to every module that has fieldsets,
+    # and asserting it over all of them costs nothing and needs no upkeep.
+    #
+    # Deliberately NOT asserting `all(seq)` here: a 3-field lookup table (`labor_rate`, `material_rate`,
+    # `equipment_rate`, `location`) gains nothing from a section header, so "has no fieldsets" stays a
+    # legitimate choice. What is never legitimate is having them and interleaving them.
+    ungrouped = []
+    for k, mod in mods.items():
+        seq = [f.get("fieldset") for f in mod["fields"] if f["type"] != "rollup"]
+        if not any(seq):
+            ungrouped.append(k)
+            continue
+        assert all(seq), f"{k}: some fields have a fieldset and some do not: {seq}"
+        runs = [fs for i, fs in enumerate(seq) if i == 0 or fs != seq[i - 1]]
+        assert len(runs) == len(set(runs)), (
+            f"{k}: fieldsets must be contiguous, got {runs} — the renderer emits one header per run, "
+            "so an interleaved fieldset draws its header twice")
+    # A floor, not an equality: new small modules may legitimately join this set, but the 58 grouped by
+    # the sweep must not quietly drift back to a single undifferentiated column of inputs.
+    assert len(ungrouped) <= 8, f"{len(ungrouped)} modules have no fieldsets at all: {sorted(ungrouped)}"
+
     # Tier-2 field depth (safety OSHA log, meeting minutes, subcontract retainage/compliance)
     assert {"injured_person", "body_part", "injury_type", "osha_recordable", "root_cause",
             "corrective_action", "photos"} <= fnames("incident")

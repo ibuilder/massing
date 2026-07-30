@@ -2,17 +2,37 @@
   "key": "document",
   "name": "Documents",
   "section": "Coordination",
-  "icon": "\ud83d\udcc4",
+  "icon": "📄",
   "ref_prefix": "DOC",
   "title_field": "title",
   "pinnable": false,
   "revisable": true,
   "fields": [
     {
+      "name": "revision",
+      "label": "Revision",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
       "name": "title",
       "label": "Title",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
+    },
+    {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "select",
+      "options": [
+        "General",
+        "Architectural",
+        "Structural",
+        "MEP",
+        "Civil"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "doc_type",
@@ -25,29 +45,8 @@
         "Report",
         "Procedure",
         "Other"
-      ]
-    },
-    {
-      "name": "discipline",
-      "label": "Discipline",
-      "type": "select",
-      "options": [
-        "General",
-        "Architectural",
-        "Structural",
-        "MEP",
-        "Civil"
-      ]
-    },
-    {
-      "name": "notes",
-      "label": "Notes",
-      "type": "textarea"
-    },
-    {
-      "name": "revision",
-      "label": "Revision",
-      "type": "text"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "status",
@@ -57,7 +56,14 @@
         "Draft",
         "Issued",
         "Superseded"
-      ]
+      ],
+      "fieldset": "Status"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

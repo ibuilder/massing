@@ -8,22 +8,24 @@
   "pinnable": false,
   "fields": [
     {
+      "name": "signature",
+      "label": "Signature",
+      "type": "signature",
+      "fieldset": "Identity"
+    },
+    {
       "name": "vendor",
       "label": "Vendor",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "vendor_company",
       "label": "Vendor (linked)",
       "type": "reference",
-      "module": "company"
-    },
-    {
-      "name": "amount",
-      "label": "Through Amount",
-      "type": "currency",
-      "required": true
+      "module": "company",
+      "fieldset": "Identity"
     },
     {
       "name": "waiver_type",
@@ -34,23 +36,28 @@
         "Unconditional Progress",
         "Conditional Final",
         "Unconditional Final"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "through_date",
       "label": "Through Date",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
-      "name": "signature",
-      "label": "Signature",
-      "type": "signature"
+      "name": "amount",
+      "label": "Through Amount",
+      "type": "currency",
+      "required": true,
+      "fieldset": "Money"
     },
     {
       "name": "subcontract",
       "label": "Subcontract",
       "type": "reference",
-      "module": "subcontract"
+      "module": "subcontract",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

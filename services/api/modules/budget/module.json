@@ -11,37 +11,44 @@
       "name": "cost_code",
       "label": "Cost Code",
       "type": "reference",
-      "module": "cost_code"
+      "module": "cost_code",
+      "fieldset": "Identity"
     },
     {
       "name": "description",
       "label": "Description",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "budget",
       "label": "Budget",
-      "type": "currency"
-    },
-    {
-      "name": "forecast",
-      "label": "Forecast",
-      "type": "currency"
-    },
-    {
-      "name": "original",
-      "label": "Original",
-      "type": "currency"
-    },
-    {
-      "name": "revised",
-      "label": "Revised",
-      "type": "currency"
+      "type": "currency",
+      "fieldset": "Money"
     },
     {
       "name": "committed",
       "label": "Committed",
-      "type": "currency"
+      "type": "currency",
+      "fieldset": "Money"
+    },
+    {
+      "name": "forecast",
+      "label": "Forecast",
+      "type": "currency",
+      "fieldset": "Money"
+    },
+    {
+      "name": "original",
+      "label": "Original",
+      "type": "currency",
+      "fieldset": "Money"
+    },
+    {
+      "name": "revised",
+      "label": "Revised",
+      "type": "currency",
+      "fieldset": "Money"
     }
   ],
   "workflow": {

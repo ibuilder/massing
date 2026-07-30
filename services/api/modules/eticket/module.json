@@ -11,34 +11,40 @@
       "name": "subject",
       "label": "Subject",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "work_date",
       "label": "Date of Work",
       "type": "date",
-      "required": true
-    },
-    {
-      "name": "labor_total",
-      "label": "Labor $",
-      "type": "number"
-    },
-    {
-      "name": "material_total",
-      "label": "Material $",
-      "type": "number"
+      "required": true,
+      "fieldset": "Dates"
     },
     {
       "name": "equipment_total",
       "label": "Equipment $",
-      "type": "number"
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "labor_total",
+      "label": "Labor $",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "material_total",
+      "label": "Material $",
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
       "name": "change_event",
       "label": "Change event",
       "type": "reference",
-      "module": "change_event"
+      "module": "change_event",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

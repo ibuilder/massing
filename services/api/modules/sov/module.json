@@ -8,61 +8,71 @@
   "pinnable": false,
   "fields": [
     {
-      "name": "item_no",
-      "label": "Item No.",
-      "type": "text",
-      "required": true
-    },
-    {
       "name": "description",
       "label": "Description of Work",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
-      "name": "cost_code",
-      "label": "Cost Code",
-      "type": "reference",
-      "module": "cost_code"
-    },
-    {
-      "name": "scheduled_value",
-      "label": "Scheduled Value",
-      "type": "number",
-      "required": true
-    },
-    {
-      "name": "completed_prev",
-      "label": "Completed (Previous)",
-      "type": "number"
-    },
-    {
-      "name": "completed_this",
-      "label": "Completed (This Period)",
-      "type": "number"
-    },
-    {
-      "name": "materials_stored",
-      "label": "Materials Stored",
-      "type": "number"
+      "name": "item_no",
+      "label": "Item No.",
+      "type": "text",
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "retainage_pct",
       "label": "Retainage %",
       "type": "percent",
-      "unit": "%"
+      "unit": "%",
+      "fieldset": "Money"
     },
     {
-      "name": "prime_contract",
-      "label": "Prime contract",
-      "type": "reference",
-      "module": "prime_contract"
+      "name": "scheduled_value",
+      "label": "Scheduled Value",
+      "type": "number",
+      "required": true,
+      "fieldset": "Money"
+    },
+    {
+      "name": "completed_prev",
+      "label": "Completed (Previous)",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "completed_this",
+      "label": "Completed (This Period)",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "materials_stored",
+      "label": "Materials Stored",
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
       "name": "cor",
       "label": "Source change order",
       "type": "reference",
-      "module": "cor"
+      "module": "cor",
+      "fieldset": "Links"
+    },
+    {
+      "name": "cost_code",
+      "label": "Cost Code",
+      "type": "reference",
+      "module": "cost_code",
+      "fieldset": "Links"
+    },
+    {
+      "name": "prime_contract",
+      "label": "Prime contract",
+      "type": "reference",
+      "module": "prime_contract",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

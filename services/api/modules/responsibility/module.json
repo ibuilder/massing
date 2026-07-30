@@ -13,22 +13,20 @@
       "name": "activity",
       "label": "Activity / deliverable",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
-      "name": "phase",
-      "label": "Phase",
-      "type": "select",
-      "options": [
-        "Pre-Design",
-        "Design",
-        "Preconstruction",
-        "Procurement",
-        "Construction",
-        "Commissioning",
-        "Closeout",
-        "Operations"
-      ]
+      "name": "milestone",
+      "label": "Milestone / due",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "reference",
+      "label": "Reference (spec / deliverable)",
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "category",
@@ -43,22 +41,30 @@
         "Procurement",
         "Information Mgmt",
         "Approvals"
-      ]
+      ],
+      "fieldset": "Classification"
     },
     {
-      "name": "milestone",
-      "label": "Milestone / due",
-      "type": "text"
-    },
-    {
-      "name": "reference",
-      "label": "Reference (spec / deliverable)",
-      "type": "text"
+      "name": "phase",
+      "label": "Phase",
+      "type": "select",
+      "options": [
+        "Pre-Design",
+        "Design",
+        "Preconstruction",
+        "Procurement",
+        "Construction",
+        "Commissioning",
+        "Closeout",
+        "Operations"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "notes",
       "label": "Notes",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "tools": [

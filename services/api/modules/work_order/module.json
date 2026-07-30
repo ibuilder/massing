@@ -66,6 +66,13 @@
       "fieldset": "Work"
     },
     {
+      "name": "pm_schedule",
+      "label": "PM Schedule (if preventive)",
+      "type": "reference",
+      "module": "pm_schedule",
+      "fieldset": "Work"
+    },
+    {
       "name": "due_date",
       "label": "Due",
       "type": "date",
@@ -89,13 +96,6 @@
       "label": "Cost (parts + labor)",
       "type": "currency",
       "fieldset": "Cost"
-    },
-    {
-      "name": "pm_schedule",
-      "label": "PM Schedule (if preventive)",
-      "type": "reference",
-      "module": "pm_schedule",
-      "fieldset": "Work"
     }
   ],
   "workflow": {

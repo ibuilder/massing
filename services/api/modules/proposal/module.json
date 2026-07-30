@@ -11,41 +11,48 @@
       "name": "subject",
       "label": "Subject",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "amount",
       "label": "Proposed Amount",
       "type": "currency",
-      "required": true
-    },
-    {
-      "name": "cost_code",
-      "label": "Cost Code",
-      "type": "reference",
-      "module": "cost_code"
-    },
-    {
-      "name": "breakdown",
-      "label": "Cost Breakdown",
-      "type": "textarea"
-    },
-    {
-      "name": "pco",
-      "label": "Source PCO",
-      "type": "reference",
-      "module": "pco_request"
-    },
-    {
-      "name": "scope",
-      "label": "Scope",
-      "type": "textarea"
+      "required": true,
+      "fieldset": "Money"
     },
     {
       "name": "schedule_days",
       "label": "Schedule Days",
       "type": "number",
-      "unit": "days"
+      "unit": "days",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "cost_code",
+      "label": "Cost Code",
+      "type": "reference",
+      "module": "cost_code",
+      "fieldset": "Links"
+    },
+    {
+      "name": "pco",
+      "label": "Source PCO",
+      "type": "reference",
+      "module": "pco_request",
+      "fieldset": "Links"
+    },
+    {
+      "name": "breakdown",
+      "label": "Cost Breakdown",
+      "type": "textarea",
+      "fieldset": "Notes"
+    },
+    {
+      "name": "scope",
+      "label": "Scope",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

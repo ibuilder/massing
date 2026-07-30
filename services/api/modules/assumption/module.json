@@ -11,12 +11,8 @@
       "name": "subject",
       "label": "Assumption / Clarification",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "basis",
-      "label": "Basis / detail",
-      "type": "textarea"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "category",
@@ -30,23 +26,33 @@
         "Allowance",
         "Exclusion",
         "Other"
-      ]
-    },
-    {
-      "name": "cost_impact",
-      "label": "Cost Impact / Allowance",
-      "type": "currency"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "owner",
       "label": "Owner",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Parties"
+    },
+    {
+      "name": "cost_impact",
+      "label": "Cost Impact / Allowance",
+      "type": "currency",
+      "fieldset": "Money"
     },
     {
       "name": "estimate_set",
       "label": "Estimate set",
       "type": "reference",
-      "module": "estimate_set"
+      "module": "estimate_set",
+      "fieldset": "Links"
+    },
+    {
+      "name": "basis",
+      "label": "Basis / detail",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

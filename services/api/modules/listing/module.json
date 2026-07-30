@@ -10,7 +10,26 @@
       "name": "address",
       "label": "Address / project name",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
+    },
+    {
+      "name": "city",
+      "label": "City",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "virtual_tour_url",
+      "label": "Virtual tour / 3D link",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "zip_code",
+      "label": "ZIP",
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "asset_type",
@@ -25,98 +44,99 @@
         "Mixed-use",
         "Land",
         "Specialty"
-      ]
-    },
-    {
-      "name": "list_price",
-      "label": "List price",
-      "type": "currency"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "list_date",
       "label": "List date",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
     },
     {
-      "name": "city",
-      "label": "City",
-      "type": "text"
-    },
-    {
-      "name": "state",
-      "label": "State",
-      "type": "text"
-    },
-    {
-      "name": "zip_code",
-      "label": "ZIP",
-      "type": "text"
-    },
-    {
-      "name": "beds",
-      "label": "Bedrooms",
-      "type": "number"
-    },
-    {
-      "name": "baths",
-      "label": "Bathrooms",
-      "type": "number"
-    },
-    {
-      "name": "sqft",
-      "label": "Living / rentable SF",
-      "type": "number"
-    },
-    {
-      "name": "lot_sqft",
-      "label": "Lot SF",
-      "type": "number"
-    },
-    {
-      "name": "year_built",
-      "label": "Year built / completion",
-      "type": "number"
-    },
-    {
-      "name": "num_units",
-      "label": "Units",
-      "type": "number"
-    },
-    {
-      "name": "unit_mix",
-      "label": "Unit mix",
-      "type": "textarea"
+      "name": "list_price",
+      "label": "List price",
+      "type": "currency",
+      "fieldset": "Money"
     },
     {
       "name": "noi",
       "label": "Stabilized NOI",
-      "type": "currency"
-    },
-    {
-      "name": "cap_rate",
-      "label": "Cap rate %",
-      "type": "number"
+      "type": "currency",
+      "fieldset": "Money"
     },
     {
       "name": "price_psf",
       "label": "$/SF",
       "type": "number",
-      "unit": "$/sf"
+      "unit": "$/sf",
+      "fieldset": "Money"
     },
     {
-      "name": "public_description",
-      "label": "Public description",
-      "type": "textarea"
+      "name": "baths",
+      "label": "Bathrooms",
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
-      "name": "virtual_tour_url",
-      "label": "Virtual tour / 3D link",
-      "type": "text"
+      "name": "beds",
+      "label": "Bedrooms",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "cap_rate",
+      "label": "Cap rate %",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "lot_sqft",
+      "label": "Lot SF",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "num_units",
+      "label": "Units",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "sqft",
+      "label": "Living / rentable SF",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "year_built",
+      "label": "Year built / completion",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "state",
+      "label": "State",
+      "type": "text",
+      "fieldset": "Status"
     },
     {
       "name": "highlights",
       "label": "Feature highlights",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
+    },
+    {
+      "name": "public_description",
+      "label": "Public description",
+      "type": "textarea",
+      "fieldset": "Notes"
+    },
+    {
+      "name": "unit_mix",
+      "label": "Unit mix",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

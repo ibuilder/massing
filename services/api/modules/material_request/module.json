@@ -11,38 +11,45 @@
       "name": "material",
       "label": "Material",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "qty",
-      "label": "Quantity",
-      "type": "number"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "unit",
       "label": "Unit",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "needed_by",
       "label": "Needed By",
-      "type": "date"
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "qty",
+      "label": "Quantity",
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
       "name": "activity",
       "label": "Schedule Activity",
       "type": "reference",
-      "module": "schedule_activity"
+      "module": "schedule_activity",
+      "fieldset": "Links"
     },
     {
       "name": "guids",
       "label": "Element GUIDs",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     },
     {
       "name": "notes",
       "label": "Notes",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

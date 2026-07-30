@@ -36,6 +36,13 @@
       "unit": "days"
     },
     {
+      "name": "est_hours",
+      "label": "Est. Hours",
+      "type": "number",
+      "fieldset": "Schedule",
+      "unit": "hr"
+    },
+    {
       "name": "last_done",
       "label": "Last Done",
       "type": "date",
@@ -46,13 +53,6 @@
       "label": "Next Due",
       "type": "date",
       "fieldset": "Dates"
-    },
-    {
-      "name": "est_hours",
-      "label": "Est. Hours",
-      "type": "number",
-      "fieldset": "Schedule",
-      "unit": "hr"
     }
   ],
   "workflow": {

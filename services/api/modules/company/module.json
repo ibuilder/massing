@@ -7,10 +7,35 @@
   "title_field": "name",
   "fields": [
     {
+      "name": "email",
+      "label": "Email",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "license_no",
+      "label": "License #",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
       "name": "name",
       "label": "Company name",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
+    },
+    {
+      "name": "phone",
+      "label": "Phone",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "trade",
+      "label": "Trade / CSI",
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "type",
@@ -26,37 +51,14 @@
         "Vendor",
         "Supplier",
         "Authority"
-      ]
-    },
-    {
-      "name": "trade",
-      "label": "Trade / CSI",
-      "type": "text"
+      ],
+      "fieldset": "Classification"
     },
     {
       "name": "contact_name",
       "label": "Primary contact",
-      "type": "text"
-    },
-    {
-      "name": "email",
-      "label": "Email",
-      "type": "text"
-    },
-    {
-      "name": "phone",
-      "label": "Phone",
-      "type": "text"
-    },
-    {
-      "name": "address",
-      "label": "Address",
-      "type": "textarea"
-    },
-    {
-      "name": "license_no",
-      "label": "License #",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Parties"
     },
     {
       "name": "dbe_status",
@@ -69,12 +71,20 @@
         "WBE",
         "SBE",
         "VOSB"
-      ]
+      ],
+      "fieldset": "Status"
+    },
+    {
+      "name": "address",
+      "label": "Address",
+      "type": "textarea",
+      "fieldset": "Notes"
     },
     {
       "name": "notes",
       "label": "Notes",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

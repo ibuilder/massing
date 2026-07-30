@@ -7,41 +7,48 @@
   "title_field": "name",
   "fields": [
     {
+      "name": "discipline",
+      "label": "Discipline",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "email",
+      "label": "Email",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
       "name": "name",
       "label": "Name",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
+    },
+    {
+      "name": "phone",
+      "label": "Phone",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "title",
+      "label": "Title / role",
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "company",
       "label": "Company",
       "type": "reference",
-      "module": "company"
-    },
-    {
-      "name": "title",
-      "label": "Title / role",
-      "type": "text"
-    },
-    {
-      "name": "email",
-      "label": "Email",
-      "type": "text"
-    },
-    {
-      "name": "phone",
-      "label": "Phone",
-      "type": "text"
-    },
-    {
-      "name": "discipline",
-      "label": "Discipline",
-      "type": "text"
+      "module": "company",
+      "fieldset": "Links"
     },
     {
       "name": "notes",
       "label": "Notes",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

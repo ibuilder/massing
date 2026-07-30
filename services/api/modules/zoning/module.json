@@ -8,15 +8,17 @@
   "pinnable": true,
   "fields": [
     {
+      "name": "jurisdiction",
+      "label": "Jurisdiction / zone",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
       "name": "site",
       "label": "Site / parcel name",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "jurisdiction",
-      "label": "Jurisdiction / zone",
-      "type": "text"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "use_type",
@@ -28,100 +30,117 @@
         "Mixed-Use",
         "Industrial",
         "Institutional"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "avg_unit_sf",
+      "label": "Avg unit size (SF)",
+      "type": "number",
+      "unit": "sf",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "efficiency_pct",
+      "label": "Net-to-gross efficiency (%)",
+      "type": "percent",
+      "unit": "%",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "far",
+      "label": "Allowed FAR (floor-area ratio)",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "floor_to_floor_ft",
+      "label": "Floor-to-floor (ft)",
+      "type": "number",
+      "unit": "ft",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "front_setback_ft",
+      "label": "Front setback (ft)",
+      "type": "number",
+      "unit": "ft",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "height_limit_ft",
+      "label": "Height limit (ft)",
+      "type": "number",
+      "unit": "ft",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "lot_coverage_pct",
+      "label": "Max lot coverage (%)",
+      "type": "percent",
+      "unit": "%",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "lot_depth_ft",
+      "label": "Lot depth (ft)",
+      "type": "number",
+      "unit": "ft",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "lot_width_ft",
+      "label": "Lot width (ft)",
+      "type": "number",
+      "unit": "ft",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "max_floors",
+      "label": "Max floors (explicit cap)",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "open_space_pct",
+      "label": "Required open space (%)",
+      "type": "percent",
+      "unit": "%",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "parking_ratio",
+      "label": "Parking ratio (stalls/unit)",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "rear_setback_ft",
+      "label": "Rear setback (ft)",
+      "type": "number",
+      "unit": "ft",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "side_setback_ft",
+      "label": "Side setback (ft)",
+      "type": "number",
+      "unit": "ft",
+      "fieldset": "Quantities"
     },
     {
       "name": "site_area_sf",
       "label": "Site area (SF)",
       "type": "number",
       "required": true,
-      "unit": "sf"
-    },
-    {
-      "name": "far",
-      "label": "Allowed FAR (floor-area ratio)",
-      "type": "number"
-    },
-    {
-      "name": "height_limit_ft",
-      "label": "Height limit (ft)",
-      "type": "number",
-      "unit": "ft"
-    },
-    {
-      "name": "floor_to_floor_ft",
-      "label": "Floor-to-floor (ft)",
-      "type": "number",
-      "unit": "ft"
-    },
-    {
-      "name": "max_floors",
-      "label": "Max floors (explicit cap)",
-      "type": "number"
-    },
-    {
-      "name": "lot_coverage_pct",
-      "label": "Max lot coverage (%)",
-      "type": "percent",
-      "unit": "%"
-    },
-    {
-      "name": "lot_width_ft",
-      "label": "Lot width (ft)",
-      "type": "number",
-      "unit": "ft"
-    },
-    {
-      "name": "lot_depth_ft",
-      "label": "Lot depth (ft)",
-      "type": "number",
-      "unit": "ft"
-    },
-    {
-      "name": "front_setback_ft",
-      "label": "Front setback (ft)",
-      "type": "number",
-      "unit": "ft"
-    },
-    {
-      "name": "side_setback_ft",
-      "label": "Side setback (ft)",
-      "type": "number",
-      "unit": "ft"
-    },
-    {
-      "name": "rear_setback_ft",
-      "label": "Rear setback (ft)",
-      "type": "number",
-      "unit": "ft"
-    },
-    {
-      "name": "open_space_pct",
-      "label": "Required open space (%)",
-      "type": "percent",
-      "unit": "%"
-    },
-    {
-      "name": "parking_ratio",
-      "label": "Parking ratio (stalls/unit)",
-      "type": "number"
-    },
-    {
-      "name": "avg_unit_sf",
-      "label": "Avg unit size (SF)",
-      "type": "number",
-      "unit": "sf"
-    },
-    {
-      "name": "efficiency_pct",
-      "label": "Net-to-gross efficiency (%)",
-      "type": "percent",
-      "unit": "%"
+      "unit": "sf",
+      "fieldset": "Quantities"
     },
     {
       "name": "notes",
       "label": "Notes",
-      "type": "textarea"
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

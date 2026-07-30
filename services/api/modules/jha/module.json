@@ -11,17 +11,8 @@
       "name": "task",
       "label": "Task",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "hazards",
-      "label": "Hazards",
-      "type": "textarea"
-    },
-    {
-      "name": "controls",
-      "label": "Controls",
-      "type": "textarea"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "ppe",
@@ -35,7 +26,20 @@
         "Fall Protection",
         "Respirator",
         "Hearing"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "controls",
+      "label": "Controls",
+      "type": "textarea",
+      "fieldset": "Notes"
+    },
+    {
+      "name": "hazards",
+      "label": "Hazards",
+      "type": "textarea",
+      "fieldset": "Notes"
     }
   ],
   "workflow": {

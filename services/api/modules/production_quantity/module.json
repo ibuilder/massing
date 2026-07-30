@@ -11,29 +11,34 @@
       "name": "description",
       "label": "Item",
       "type": "text",
-      "required": true
-    },
-    {
-      "name": "quantity",
-      "label": "Qty Installed",
-      "type": "number"
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "unit",
       "label": "Unit",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
-      "name": "cost_code",
-      "label": "Cost code",
-      "type": "reference",
-      "module": "cost_code"
+      "name": "quantity",
+      "label": "Qty Installed",
+      "type": "number",
+      "fieldset": "Quantities"
     },
     {
       "name": "activity",
       "label": "Schedule activity",
       "type": "reference",
-      "module": "schedule_activity"
+      "module": "schedule_activity",
+      "fieldset": "Links"
+    },
+    {
+      "name": "cost_code",
+      "label": "Cost code",
+      "type": "reference",
+      "module": "cost_code",
+      "fieldset": "Links"
     }
   ],
   "workflow": {

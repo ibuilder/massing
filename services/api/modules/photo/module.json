@@ -11,33 +11,27 @@
       "name": "caption",
       "label": "Caption",
       "type": "text",
-      "required": true
+      "required": true,
+      "fieldset": "Identity"
     },
     {
       "name": "location",
       "label": "Location",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "location_loc",
       "label": "Location (linked)",
       "type": "reference",
-      "module": "location"
-    },
-    {
-      "name": "date",
-      "label": "Date",
-      "type": "date"
-    },
-    {
-      "name": "date_taken",
-      "label": "Date Taken",
-      "type": "date"
+      "module": "location",
+      "fieldset": "Identity"
     },
     {
       "name": "trade",
       "label": "Trade",
-      "type": "text"
+      "type": "text",
+      "fieldset": "Identity"
     },
     {
       "name": "tags",
@@ -48,7 +42,20 @@
         "Defect",
         "Safety",
         "Existing Conditions"
-      ]
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "type": "date",
+      "fieldset": "Dates"
+    },
+    {
+      "name": "date_taken",
+      "label": "Date Taken",
+      "type": "date",
+      "fieldset": "Dates"
     }
   ],
   "workflow": {

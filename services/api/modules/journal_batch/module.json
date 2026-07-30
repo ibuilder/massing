@@ -7,25 +7,110 @@
   "title_field": "period",
   "pinnable": false,
   "fields": [
-    { "name": "period", "label": "Accounting period", "type": "text", "required": true },
-    { "name": "memo", "label": "Memo", "type": "textarea" },
-    { "name": "total_debits", "label": "Total debits", "type": "number" },
-    { "name": "total_credits", "label": "Total credits", "type": "number" },
-    { "name": "entry_count", "label": "GL entries", "type": "number" },
-    { "name": "balanced", "label": "Balanced", "type": "select", "options": ["yes", "no"] },
-    { "name": "approved_by", "label": "Approved by", "type": "text" },
-    { "name": "exported_at", "label": "Exported at", "type": "text" }
+    {
+      "name": "exported_at",
+      "label": "Exported at",
+      "type": "text",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "period",
+      "label": "Accounting period",
+      "type": "text",
+      "required": true,
+      "fieldset": "Identity"
+    },
+    {
+      "name": "balanced",
+      "label": "Balanced",
+      "type": "select",
+      "options": [
+        "yes",
+        "no"
+      ],
+      "fieldset": "Classification"
+    },
+    {
+      "name": "entry_count",
+      "label": "GL entries",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "total_credits",
+      "label": "Total credits",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "total_debits",
+      "label": "Total debits",
+      "type": "number",
+      "fieldset": "Quantities"
+    },
+    {
+      "name": "approved_by",
+      "label": "Approved by",
+      "type": "text",
+      "fieldset": "Status"
+    },
+    {
+      "name": "memo",
+      "label": "Memo",
+      "type": "textarea",
+      "fieldset": "Notes"
+    }
   ],
   "workflow": {
     "initial": "draft",
-    "states": ["draft", "submitted", "approved", "exported", "rejected"],
+    "states": [
+      "draft",
+      "submitted",
+      "approved",
+      "exported",
+      "rejected"
+    ],
     "transitions": [
-      { "from": "draft", "to": "submitted", "action": "submit", "party": ["GC"] },
-      { "from": "submitted", "to": "approved", "action": "approve", "party": ["Owner", "OwnersRep"] },
-      { "from": "submitted", "to": "rejected", "action": "reject", "party": ["Owner", "OwnersRep"] },
-      { "from": "approved", "to": "exported", "action": "export", "party": ["GC"] }
+      {
+        "from": "draft",
+        "to": "submitted",
+        "action": "submit",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "submitted",
+        "to": "approved",
+        "action": "approve",
+        "party": [
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "submitted",
+        "to": "rejected",
+        "action": "reject",
+        "party": [
+          "Owner",
+          "OwnersRep"
+        ]
+      },
+      {
+        "from": "approved",
+        "to": "exported",
+        "action": "export",
+        "party": [
+          "GC"
+        ]
+      }
     ]
   },
-  "list_columns": ["period", "total_debits", "balanced"],
+  "list_columns": [
+    "period",
+    "total_debits",
+    "balanced"
+  ],
   "workspace": "construction"
 }
