@@ -27,7 +27,8 @@
       "name": "rentable_sf",
       "label": "Rentable SF",
       "type": "number",
-      "required": true
+      "required": true,
+      "unit": "sf"
     },
     {
       "name": "base_rent_annual",
@@ -60,7 +61,8 @@
     {
       "name": "escalation_pct",
       "label": "Annual escalation %",
-      "type": "number"
+      "type": "percent",
+      "unit": "%"
     },
     {
       "name": "renewal_options",
@@ -70,12 +72,14 @@
     {
       "name": "free_rent_months",
       "label": "Free rent (months)",
-      "type": "number"
+      "type": "number",
+      "unit": "mo"
     },
     {
       "name": "ti_allowance_psf",
       "label": "TI allowance $/SF",
-      "type": "number"
+      "type": "number",
+      "unit": "$/sf"
     },
     {
       "name": "security_deposit",
@@ -85,7 +89,8 @@
     {
       "name": "recovery_psf",
       "label": "Recoveries (CAM/tax) $/SF",
-      "type": "number"
+      "type": "number",
+      "unit": "$/sf"
     },
     {
       "name": "notes",

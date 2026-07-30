@@ -122,7 +122,9 @@
   },
   "list_columns": [
     "trade",
-    "due_date"
+    "due_date",
+    "cost_code",
+    "discipline"
   ],
   "workspace": "construction",
   "tools": [

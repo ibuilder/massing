@@ -15,6 +15,13 @@
       "fieldset": "Application"
     },
     {
+      "name": "vendor_company",
+      "label": "Subcontractor (linked)",
+      "type": "reference",
+      "module": "company",
+      "fieldset": "Application"
+    },
+    {
       "name": "subcontract",
       "label": "Subcontract",
       "type": "reference",
@@ -43,8 +50,9 @@
     {
       "name": "retainage_pct",
       "label": "Retainage %",
-      "type": "number",
-      "fieldset": "Cost"
+      "type": "percent",
+      "fieldset": "Cost",
+      "unit": "%"
     },
     {
       "name": "cost_code",

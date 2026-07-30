@@ -59,6 +59,13 @@
       "fieldset": "Tracking"
     },
     {
+      "name": "responsible_contact",
+      "label": "Responsible (linked)",
+      "type": "reference",
+      "module": "contact",
+      "fieldset": "Tracking"
+    },
+    {
       "name": "documentation",
       "label": "Documentation",
       "type": "textarea",

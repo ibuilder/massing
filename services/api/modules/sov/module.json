@@ -49,7 +49,8 @@
     {
       "name": "retainage_pct",
       "label": "Retainage %",
-      "type": "number"
+      "type": "percent",
+      "unit": "%"
     },
     {
       "name": "prime_contract",
@@ -81,5 +82,11 @@
       }
     ]
   },
-  "workspace": "construction"
+  "workspace": "construction",
+  "list_columns": [
+    "cost_code",
+    "retainage_pct",
+    "scheduled_value",
+    "completed_prev"
+  ]
 }

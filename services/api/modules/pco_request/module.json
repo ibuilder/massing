@@ -43,7 +43,8 @@
       "name": "schedule_impact_days",
       "label": "Schedule Impact (days)",
       "type": "number",
-      "fieldset": "Cost & schedule"
+      "fieldset": "Cost & schedule",
+      "unit": "days"
     },
     {
       "name": "received_from",
@@ -100,5 +101,11 @@
       }
     ]
   },
-  "workspace": "construction"
+  "workspace": "construction",
+  "list_columns": [
+    "source_rfi",
+    "origin",
+    "rough_cost",
+    "schedule_impact_days"
+  ]
 }

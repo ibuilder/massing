@@ -541,6 +541,15 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
 .portal-act { font-size: 11px; color: var(--muted); padding: 2px 0; border-bottom: 1px solid #2b2d31; }
 .ref-link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .ref-link:hover { text-decoration: underline; }
+/* MOD-SWEEP — the two ways a reference can FAIL to resolve, each visibly not a link.
+   Both were previously drawn as `.ref-link` with an 8-character label, so a deleted record, a record
+   past the resolve bound, and a legacy free-text value all looked like working links. The styling is
+   deliberately quiet rather than alarming: neither state is the user's fault, and neither is an error
+   — they just must not read as navigable. No accent colour, no pointer, no underline. */
+.ref-unresolved { color: var(--muted); font-variant-numeric: tabular-nums; cursor: help;
+                  border-bottom: 1px dotted var(--line); }
+.ref-unlinked { color: var(--text, inherit); cursor: help; border-bottom: 1px dashed var(--line);
+                opacity: .92; }
 .chip { display: inline-block; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0 8px; font-size: 11px; margin: 1px 0; }
 
 /* UX-CHIPS — the shared status/delta chip vocabulary (ui/chips.ts) */

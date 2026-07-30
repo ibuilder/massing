@@ -53,7 +53,8 @@
       "name": "schedule_days",
       "label": "Schedule Days",
       "type": "number",
-      "fieldset": "Cost & schedule"
+      "fieldset": "Cost & schedule",
+      "unit": "days"
     },
     {
       "name": "labor_cost",
@@ -154,5 +155,11 @@
     ]
   },
   "revisable": true,
-  "workspace": "construction"
+  "workspace": "construction",
+  "list_columns": [
+    "cost_code",
+    "reason",
+    "amount",
+    "labor_cost"
+  ]
 }

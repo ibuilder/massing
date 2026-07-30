@@ -96,7 +96,9 @@
   },
   "list_columns": [
     "discipline",
-    "status"
+    "status",
+    "drawing",
+    "format"
   ],
   "workspace": "construction"
 }

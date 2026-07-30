@@ -55,6 +55,12 @@
       "name": "responsible",
       "label": "Responsible",
       "type": "text"
+    },
+    {
+      "name": "responsible_contact",
+      "label": "Responsible (linked)",
+      "type": "reference",
+      "module": "contact"
     }
   ],
   "workflow": {
@@ -76,7 +82,8 @@
   },
   "list_columns": [
     "priority",
-    "due_date"
+    "due_date",
+    "meeting"
   ],
   "workspace": "construction"
 }

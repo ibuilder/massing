@@ -44,7 +44,8 @@
     {
       "name": "schedule_days",
       "label": "Schedule Days",
-      "type": "number"
+      "type": "number",
+      "unit": "days"
     }
   ],
   "workflow": {
@@ -93,7 +94,8 @@
   "revisable": true,
   "list_columns": [
     "amount",
-    "schedule_days"
+    "schedule_days",
+    "cost_code"
   ],
   "workspace": "construction"
 }

@@ -56,6 +56,13 @@
       "fieldset": "Activity"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Activity"
+    },
+    {
       "name": "weather_sensitivity",
       "label": "Weather Sensitivity",
       "type": "select",
@@ -114,7 +121,7 @@
     {
       "name": "percent",
       "label": "% Complete",
-      "type": "number",
+      "type": "percent",
       "fieldset": "Dates"
     },
     {

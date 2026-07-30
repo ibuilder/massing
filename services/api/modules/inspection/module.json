@@ -21,6 +21,13 @@
       "fieldset": "Inspection"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Inspection"
+    },
+    {
       "name": "result",
       "label": "Result",
       "type": "select",
@@ -52,6 +59,13 @@
       "fieldset": "Result"
     },
     {
+      "name": "inspector_contact",
+      "label": "Inspector (linked)",
+      "type": "reference",
+      "module": "contact",
+      "fieldset": "Result"
+    },
+    {
       "name": "date",
       "label": "Date",
       "type": "date",
@@ -68,6 +82,13 @@
       "name": "spec_section",
       "label": "Spec Section",
       "type": "text",
+      "fieldset": "Record"
+    },
+    {
+      "name": "spec_section_spec",
+      "label": "Spec Section (linked)",
+      "type": "reference",
+      "module": "spec_section",
       "fieldset": "Record"
     },
     {

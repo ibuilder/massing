@@ -69,7 +69,8 @@
     {
       "name": "schedule_days",
       "label": "Schedule Days",
-      "type": "number"
+      "type": "number",
+      "unit": "days"
     },
     {
       "name": "trigger",

@@ -15,6 +15,13 @@
       "fieldset": "System"
     },
     {
+      "name": "system_system",
+      "label": "System (linked)",
+      "type": "reference",
+      "module": "building_system",
+      "fieldset": "System"
+    },
+    {
       "name": "asset",
       "label": "Asset",
       "type": "reference",
@@ -96,7 +103,9 @@
   },
   "list_columns": [
     "system",
-    "status"
+    "status",
+    "asset",
+    "test_type"
   ],
   "workspace": "construction",
   "tools": [

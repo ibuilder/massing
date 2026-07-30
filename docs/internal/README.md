@@ -33,6 +33,7 @@ here**. Do not cite an archived file as current.
 | `gc-tools-audit.md` | Per-module audit of the 69 GC-portal modules | roadmap + [../gc-portal.md](../gc-portal.md) |
 | `gc-modules-roadmap.md` | Field-vs-office deep dive across the config-driven GC modules | roadmap |
 | `module-room-audit.md` | 133 registers against the seven rooms; sprints 1–2 built, 3–6 proposed | roadmap; the allocation itself is enforced by `test_module_rooms.py` |
+| `module-field-sweep.md` | Field-level sweep of all 133 modules, 2026-07-29 — fields, fieldsets, relationships, CRUD. Compares against a Django app the user built previously, which uses ForeignKeys where these modules used strings. Applied: 54 additive text+reference pairs, 67 units moved out of field names, 20 percent retypes, 41 widened tables, and two live fake-link defects in the reference renderer | Nothing — **current**. Every number in it is a floor in `test_module_fields.py`; §8 lists what is deliberately not done |
 | `ux-findings.md` | App-wide heuristic UX review | Shipped through the R24 interface ring |
 | `ux-ia.md` | Information-architecture plan for ~100 registers | Shipped as the room spine (`apps/web/src/shell/spine.ts`) |
 | `design-audit.md` | External design audit, 2026-07-25 — 18 findings, 5 principles | R24 interface ring |

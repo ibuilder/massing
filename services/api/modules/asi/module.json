@@ -108,7 +108,8 @@
   },
   "list_columns": [
     "cost_time_impact",
-    "issued_date"
+    "issued_date",
+    "rfi"
   ],
   "workspace": "construction"
 }

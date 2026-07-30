@@ -53,5 +53,9 @@
       }
     ]
   },
-  "workspace": "construction"
+  "workspace": "construction",
+  "list_columns": [
+    "cost_code",
+    "quantity"
+  ]
 }

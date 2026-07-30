@@ -153,7 +153,9 @@
   },
   "list_columns": [
     "req_type",
-    "due_date"
+    "due_date",
+    "derives_from",
+    "loin_geometry"
   ],
   "workspace": "design",
   "tools": [

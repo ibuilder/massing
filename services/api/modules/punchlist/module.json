@@ -21,6 +21,13 @@
       "fieldset": "Item"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Item"
+    },
+    {
       "name": "trade",
       "label": "Trade",
       "type": "text",
@@ -48,6 +55,13 @@
       "name": "responsible",
       "label": "Responsible",
       "type": "text",
+      "fieldset": "Assignment"
+    },
+    {
+      "name": "responsible_contact",
+      "label": "Responsible (linked)",
+      "type": "reference",
+      "module": "contact",
       "fieldset": "Assignment"
     },
     {

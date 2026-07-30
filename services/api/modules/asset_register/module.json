@@ -27,6 +27,13 @@
       "fieldset": "Asset"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Asset"
+    },
+    {
       "name": "serial",
       "label": "Serial #",
       "type": "text",
@@ -72,7 +79,8 @@
       "name": "expected_life_years",
       "label": "Expected Life (yrs)",
       "type": "number",
-      "fieldset": "Reserve Study"
+      "fieldset": "Reserve Study",
+      "unit": "yr"
     },
     {
       "name": "replacement_cost",
@@ -130,7 +138,8 @@
       "name": "elevation_ft",
       "label": "Installed Elevation (ft)",
       "type": "number",
-      "fieldset": "Resilience"
+      "fieldset": "Resilience",
+      "unit": "ft"
     },
     {
       "name": "warranty_count",

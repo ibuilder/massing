@@ -35,7 +35,8 @@
       "name": "temp_f",
       "label": "Temp (Â°F)",
       "type": "number",
-      "fieldset": "Conditions"
+      "fieldset": "Conditions",
+      "unit": "°F"
     },
     {
       "name": "weather_impact",

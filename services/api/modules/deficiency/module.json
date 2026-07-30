@@ -19,6 +19,12 @@
       "type": "text"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location"
+    },
+    {
       "name": "inspection",
       "label": "Source Inspection",
       "type": "reference",

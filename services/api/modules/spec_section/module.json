@@ -91,6 +91,12 @@
       "type": "text"
     },
     {
+      "name": "responsible_contact",
+      "label": "Responsible contractor (linked)",
+      "type": "reference",
+      "module": "contact"
+    },
+    {
       "name": "notes",
       "label": "Notes",
       "type": "textarea"

@@ -2,7 +2,7 @@
   "key": "design_option",
   "name": "Design Options",
   "section": "Design",
-  "icon": "\ud83c\udfa8",
+  "icon": "🎨",
   "ref_prefix": "OPT",
   "title_field": "name",
   "pinnable": false,
@@ -37,7 +37,8 @@
       "name": "gross_area_sf",
       "label": "Gross area (sf)",
       "type": "number",
-      "fieldset": "Program"
+      "fieldset": "Program",
+      "unit": "sf"
     },
     {
       "name": "unit_count",
@@ -48,8 +49,9 @@
     {
       "name": "efficiency_pct",
       "label": "Efficiency (%)",
-      "type": "number",
-      "fieldset": "Program"
+      "type": "percent",
+      "fieldset": "Program",
+      "unit": "%"
     },
     {
       "name": "building_type",
@@ -95,8 +97,9 @@
     {
       "name": "irr_pct",
       "label": "Levered IRR (%)",
-      "type": "number",
-      "fieldset": "Economics"
+      "type": "percent",
+      "fieldset": "Economics",
+      "unit": "%"
     }
   ],
   "workflow": {

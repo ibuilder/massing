@@ -46,6 +46,12 @@
       "type": "text"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location"
+    },
+    {
       "name": "clash_hash",
       "label": "Clash group ID",
       "type": "text"
@@ -126,7 +132,9 @@
   },
   "list_columns": [
     "discipline",
-    "priority"
+    "priority",
+    "meeting",
+    "clash_count"
   ],
   "workspace": "design"
 }

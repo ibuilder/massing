@@ -50,7 +50,8 @@
     {
       "name": "schedule_impact_days",
       "label": "Schedule Impact (days)",
-      "type": "number"
+      "type": "number",
+      "unit": "days"
     },
     {
       "name": "decided_by",

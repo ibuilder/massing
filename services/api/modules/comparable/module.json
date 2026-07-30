@@ -45,7 +45,8 @@
     {
       "name": "price_psf",
       "label": "$/SF",
-      "type": "number"
+      "type": "number",
+      "unit": "$/sf"
     },
     {
       "name": "price_per_unit",
@@ -65,7 +66,8 @@
     {
       "name": "rent_psf",
       "label": "Rent $/SF/yr",
-      "type": "number"
+      "type": "number",
+      "unit": "$/sf"
     },
     {
       "name": "gba",
@@ -112,7 +114,8 @@
     {
       "name": "distance_mi",
       "label": "Distance to subject (mi)",
-      "type": "number"
+      "type": "number",
+      "unit": "mi"
     },
     {
       "name": "net_adjustment",

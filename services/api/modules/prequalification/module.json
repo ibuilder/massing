@@ -2,7 +2,7 @@
   "key": "prequalification",
   "name": "Prequalification",
   "section": "Preconstruction",
-  "icon": "\u2713",
+  "icon": "✓",
   "ref_prefix": "PQ",
   "title_field": "company",
   "pinnable": false,
@@ -15,6 +15,13 @@
       "fieldset": "Company"
     },
     {
+      "name": "company_company",
+      "label": "Company (linked)",
+      "type": "reference",
+      "module": "company",
+      "fieldset": "Company"
+    },
+    {
       "name": "trade",
       "label": "Trade",
       "type": "text",
@@ -24,6 +31,13 @@
       "name": "contact",
       "label": "Contact",
       "type": "text",
+      "fieldset": "Company"
+    },
+    {
+      "name": "contact_contact",
+      "label": "Contact (linked)",
+      "type": "reference",
+      "module": "contact",
       "fieldset": "Company"
     },
     {

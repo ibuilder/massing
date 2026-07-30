@@ -30,6 +30,12 @@
       "type": "text"
     },
     {
+      "name": "company_company",
+      "label": "Booked By (linked)",
+      "type": "reference",
+      "module": "company"
+    },
+    {
       "name": "description",
       "label": "Description",
       "type": "textarea"

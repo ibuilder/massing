@@ -39,6 +39,12 @@
       "type": "text"
     },
     {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location"
+    },
+    {
       "name": "assignee_name",
       "label": "Assigned To",
       "type": "text"
@@ -71,7 +77,6 @@
     ]
   },
   "list_columns": [
-    "category",
     "priority"
   ],
   "workspace": "construction"

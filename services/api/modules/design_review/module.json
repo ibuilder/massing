@@ -67,7 +67,8 @@
   "revisable": true,
   "list_columns": [
     "discipline",
-    "status"
+    "status",
+    "drawing"
   ],
   "workspace": "design"
 }

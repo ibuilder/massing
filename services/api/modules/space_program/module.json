@@ -38,7 +38,8 @@
       "label": "Target Area (sf each)",
       "type": "number",
       "required": true,
-      "fieldset": "Space"
+      "fieldset": "Space",
+      "unit": "sf"
     },
     {
       "name": "quantity",
