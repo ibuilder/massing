@@ -63,3 +63,22 @@ def pull_planning(min_committed: int = 3, db: Session = Depends(get_db),
     ≥80% target — so a plan can be judged against the team's own portfolio."""
     return benchmarking.pull_planning(db, min_committed=max(1, min(min_committed, 50)),
                                       project_ids=member_project_ids(db, user))
+
+
+@router.get("/benchmarks/vendors")
+def vendor_scorecards(db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """Each trade partner's record with your firm, **across projects** — the third part of
+    R22-PROCURE-DEPTH, and the one `prequalification.score_project` could not reach because it takes
+    a single project.
+
+    Commercial and compliance history from the six registers that carry a vendor: subcontracts,
+    commitments, invoices, COIs, lien waivers and warranties. Reported **beside** the prequalification
+    Q-score, never blended into it — one is what the sub told you about themselves, the other is what
+    they did, and they deserve different trust.
+
+    A vendor with no recorded history is `no_history`, **not** `clear`. And `attributable` states the
+    limit plainly: `ncr` and `inspection` carry no vendor field, so quality and schedule performance
+    are not in this scorecard and a clean record here is silence on that subject, not a pass."""
+    # Local import: a top-level one here is removed by the repo's import autofix.
+    from .. import vendor_memory
+    return vendor_memory.vendor_memory(db, project_ids=member_project_ids(db, user))
