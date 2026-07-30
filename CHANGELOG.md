@@ -4,6 +4,41 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.801 — the GP promote was paid at half, and a green suite could not see it
+
+Release for #107. `proforma/waterfall.py` tested the IRR hurdle against a cash-flow series that omitted
+the preferred return and return-of-capital paid **at that same date** — `lp_take` accumulates them, but
+`lp_cf.append(lp_take)` runs only after the tier loop. So the first distribution period saw a
+contributions-only series, XIRR was undefined, `(None or -1.0) >= hurdle` was False, and the
+below-hurdle 90/10 tier absorbed cash belonging to the 80/20 residual.
+
+```
+             2,000 distribution            10,000
+as shipped   GP   102.78  LP 1897.22       GP 1697.53
+fixed        GP   205.57  LP 1794.43       GP 1805.57
+```
+
+Exactly half. Reproduced independently before reading the fix, and both figures conserve to the cent.
+Full backend suite on the merged tree: **446/446**.
+
+**Defect, not convention — and the deciding argument is the direction.** The error was systematically
+one-sided, always favouring the LP. A convention nobody chose does not come out one-directional; that
+distinguishes "we decided to measure the hurdle at period start" from "nobody noticed". It is also
+falsifiable from the outputs alone, without reading the solver. Structurally,
+`solve_cash_for_irr_hurdle` already appends the tier's own candidate cash at date `d`, so omitting the
+pref and RoC at that same date counted half of one date's cash and not the other half.
+
+**Why 446 green tests missed a 100% error:** the only assertion on the promote anywhere was
+`assert w2["gp_distributions"] > 0.0`, and dollar conservation held either way. The split could be
+wrong by any amount with everything passing. Third defect of this shape in `proforma/` — that package
+range-checks where it must value-check. Also closed: `clawback=True` was exercised by **no test** (all
+ten call sites passed `False`).
+
+Found by mutation testing — `split = min(remaining, cap)` could be flipped to `max` with nothing
+failing. Operator yield, since it is not uniform: `min`/`max` on a business rule is where the signal
+is; `<`/`<=` on numerical code is near-pure equivalent-mutant noise (0 of 12 real on `returns.py`, all
+tolerance guards, bracket clamps, or protected by an upstream filter).
+
 ## v0.3.800 — SCALE-SEAM ②, and the item was filed complete while the god-file stayed 4.8k
 
 `client.ts` 4,844 → **4,637**: the 26 `/schedule` methods move to `api/schedule.ts` as a `withSchedule`
