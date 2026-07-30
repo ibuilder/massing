@@ -113,6 +113,15 @@ export interface StampTemplate {
   fields: { key: string; label: string; type: "text" | "multiline" | "date" | "user" }[];
 }
 
+/** A PE/RA licence held by the signed-in user. The seal is derived from one of these server-side —
+ *  the UI offers a choice among the caller's own licences instead of a free-text name/number, because
+ *  a seal attests that a specific licensed person was in responsible charge. */
+export interface ProfessionalLicense {
+  id: string; user: string; name_on_seal: string; license_no: string; state: string;
+  discipline?: string | null; expiration?: string | null;
+  verified_by?: string | null; verified_at?: string | null;
+}
+
 /** A registered data-source connection (local DB / Postgres / Supabase / Procore). */
 export interface ConnectionItem {
   id: string; name: string; type: string; builtin?: boolean;

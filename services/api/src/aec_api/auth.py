@@ -159,6 +159,60 @@ def verify_mfa_token(token: str) -> str | None:
         return None
 
 
+_STEPUP_TTL = 300   # a step-up assertion is short-lived (5 min)
+
+
+def create_stepup_token(sub: str, act: str, pw_hash: str, ttl: int = _STEPUP_TTL) -> str:
+    """A short-lived "a human just re-proved this password" assertion, scoped to ONE action.
+
+    This exists because an ordinary bearer token cannot answer the question that matters for a
+    professional seal. A seal is not an authorisation, it is a personal legal attestation that a
+    named licensed human was in responsible charge of the work — something a stored credential
+    cannot assert, since any process holding the token can replay it. An automation driving this API
+    with a user's token would otherwise emit documents bearing that user's seal, and the resulting
+    audit row would faithfully record a human act that never happened.
+
+    Three properties make it an assertion about a person rather than a session:
+
+    - `purpose="stepup"` → `verify_token_claims` refuses it as a bearer token, so it cannot be
+      escalated into a session even though it is signed with the same key.
+    - `act` scopes it to a single operation, so a step-up collected for one action cannot be spent
+      on another.
+    - `fp` binds it to the current password hash (same trick as `create_reset_token`), so changing
+      the password — or "sign out everywhere" — invalidates every outstanding assertion.
+
+    The TTL is deliberately short. This is not a convenience feature; a long-lived step-up is just a
+    bearer token with extra steps.
+    """
+    payload = _b64(json.dumps({"sub": sub, "exp": int(time.time()) + ttl, "purpose": "stepup",
+                               "act": act, "fp": _pw_fingerprint(pw_hash)}).encode())
+    sig = _b64(hmac.new(_SECRET, payload.encode(), hashlib.sha256).digest())
+    return f"{payload}.{sig}"
+
+
+def verify_stepup_token(token: str, act: str, pw_hash: str) -> str | None:
+    """Return the subject if `token` is a valid, unexpired step-up assertion for `act`, else None.
+
+    `act` is checked with `compare_digest` and the caller must pass the action it is about to
+    perform — a step-up for a cheap action must never satisfy an expensive one.
+    """
+    try:
+        payload_b64, sig_b64 = token.split(".")
+        expected = _b64(hmac.new(_SECRET, payload_b64.encode(), hashlib.sha256).digest())
+        if not hmac.compare_digest(sig_b64, expected):
+            return None
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64 + "=="))
+        if payload.get("purpose") != "stepup" or payload.get("exp", 0) < time.time():
+            return None
+        if not hmac.compare_digest(str(payload.get("act") or ""), act):
+            return None
+        if not hmac.compare_digest(str(payload.get("fp") or ""), _pw_fingerprint(pw_hash)):
+            return None
+        return payload.get("sub")
+    except Exception:
+        return None
+
+
 _STATE_TTL = 600   # OAuth CSRF state is short-lived (10 min)
 
 

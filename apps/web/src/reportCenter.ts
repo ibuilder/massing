@@ -1,4 +1,4 @@
-import type { ApiClient, StampTemplate } from "./api/client";
+import type { ApiClient, ProfessionalLicense, StampTemplate } from "./api/client";
 import { money } from "./ui/charts";
 import { toast, escapeHtml } from "./ui/feedback";
 import { modalShell } from "./ui/modal";
@@ -274,6 +274,11 @@ export async function openReportCenter(api: ApiClient, projectId: string | null)
     try { lib = (await api.stampLibrary()).templates; }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; return; }
     const byId: Record<string, StampTemplate> = Object.fromEntries(lib.map((t) => [t.id, t]));
+    // The caller's OWN verified licences. Empty is a normal, expected state — single-operator/desktop
+    // has no accounts at all — so a failure here must not break stamping, only fall back to the
+    // free-text seal fields the server still accepts in that mode.
+    let licenses: ProfessionalLicense[] = [];
+    try { licenses = (await api.myLicenses()).licenses; } catch { licenses = []; }
     body.innerHTML = `<div class="meta">Apply an A/E/C review stamp (EJCDC / CSI dispositions with the design-conformance disclaimer), an inspection or status stamp, or a professional seal (visible seal + tamper-evident PAdES signature). Server-side; nothing is stored.</div>`;
     const dl = (blob: Blob, name: string) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
     const pickFile = (): Promise<File | null> => new Promise((res) => { const i = document.createElement("input"); i.type = "file"; i.accept = ".pdf,application/pdf"; i.onchange = () => res(i.files && i.files[0] ? i.files[0] : null); i.click(); });
@@ -293,13 +298,15 @@ export async function openReportCenter(api: ApiClient, projectId: string | null)
     const inp = (val = "") => { const i = document.createElement("input"); i.className = "portal-filter"; i.value = val; i.style.flex = "1"; return i; };
     const inputs: Record<string, HTMLInputElement> = {};
     let dispSel: HTMLSelectElement | null = null;
+    let licSel: HTMLSelectElement | null = null;
+    let pwInp: HTMLInputElement | null = null;
     const act = document.createElement("button"); act.className = "file-btn"; act.style.margin = "8px 0 0";
     const note = document.createElement("div"); note.className = "meta"; note.style.marginTop = "6px";
 
     function renderForm() {
       const t = byId[sel.value]; form.innerHTML = ""; note.textContent = "";
       for (const k of Object.keys(inputs)) delete inputs[k];
-      dispSel = null;
+      dispSel = null; licSel = null; pwInp = null;
       if (!t) return;
       const isSeal = t.category === "seal";
       if (t.dispositions && t.dispositions.length) {
@@ -307,9 +314,25 @@ export async function openReportCenter(api: ApiClient, projectId: string | null)
         for (const d of t.dispositions) { const o = document.createElement("option"); o.value = d; o.textContent = d; dispSel.appendChild(o); }
         form.append(row(t.category === "inspection" ? "Result" : "Disposition", dispSel));
       }
-      for (const f of t.fields) {
-        const dflt = f.type === "date" ? today : (f.type === "user" ? me : "");
-        const i = inp(dflt); inputs[f.key] = i; form.append(row(f.label, i));
+      if (isSeal && licenses.length) {
+        // No name/licence inputs at all: the server derives the seal text from the chosen row, so
+        // there is nothing here for a typo — or a colleague's licence number — to travel through.
+        licSel = document.createElement("select"); licSel.className = "portal-filter"; licSel.style.flex = "1";
+        for (const l of licenses) {
+          const o = document.createElement("option");
+          o.value = l.id;
+          const exp = l.expiration ? ` — expires ${l.expiration}` : "";
+          o.textContent = `${l.name_on_seal} · ${l.license_no} (${l.state})${exp}`;
+          licSel.appendChild(o);
+        }
+        form.append(row("Seal under licence", licSel));
+        pwInp = inp(); pwInp.type = "password"; pwInp.autocomplete = "current-password";
+        form.append(row("Confirm your password", pwInp));
+      } else {
+        for (const f of t.fields) {
+          const dflt = f.type === "date" ? today : (f.type === "user" ? me : "");
+          const i = inp(dflt); inputs[f.key] = i; form.append(row(f.label, i));
+        }
       }
       const page = inp("1"); page.type = "number"; page.style.maxWidth = "70px"; inputs.__page = page;
       const x = inp("36"); x.type = "number"; x.style.maxWidth = "70px"; inputs.__x = x;
@@ -317,7 +340,14 @@ export async function openReportCenter(api: ApiClient, projectId: string | null)
       const pos = document.createElement("div"); pos.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;margin:4px 0";
       pos.append(Object.assign(document.createElement("span"), { textContent: "Page/X/Y (pts from top-left):", style: "min-width:130px;color:var(--muted,#888)" }), page, x, y);
       form.append(pos);
-      if (isSeal) form.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:6px">The seal is rendered visibly and signed with a tamper-evident PAdES signature applied last. The platform's self-signed certificate is for demonstration / tamper-evidence — configure the licensee's own certificate for board-accepted sealing.</div>`);
+      if (isSeal) {
+        // Static strings only — no interpolation of server or user text into innerHTML here.
+        const why = licenses.length
+          ? "Sealing asks for your password every time on purpose. A seal attests that <em>you</em> were in responsible charge of this work — a personal legal act, so it cannot rest on a saved session that any tool or script holding your token could reuse. The name and licence number come from your verified licence record, not from this form."
+          : "No verified licence is on record for this account, so the fields above are used as-is. Ask an administrator to record your licence to seal from a verified record instead.";
+        form.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:6px">${why}</div>`);
+        form.insertAdjacentHTML("beforeend", `<div class="meta" style="margin-top:6px">The seal is rendered visibly and signed with a tamper-evident PAdES signature applied last. The platform's self-signed certificate is for demonstration / tamper-evidence — configure the licensee's own certificate for board-accepted sealing.</div>`);
+      }
       act.textContent = isSeal ? "🏛 Apply seal & sign" : "📋 Apply stamp";
     }
     sel.onchange = renderForm; renderForm();
@@ -332,7 +362,18 @@ export async function openReportCenter(api: ApiClient, projectId: string | null)
       act.disabled = true;
       try {
         if (t.category === "seal") {
-          const r = await api.pdfSeal(file, { template_id: t.id, profile: values, page, x, y });
+          let stepUp: string | undefined;
+          let licenseId: string | undefined;
+          if (licSel && pwInp) {
+            if (!pwInp.value) { toast("confirm your password to seal", "error"); act.disabled = false; return; }
+            licenseId = licSel.value;
+            stepUp = (await api.stepUp(pwInp.value)).token;
+            pwInp.value = "";                     // don't leave it sitting in the DOM after use
+          }
+          const r = await api.pdfSeal(file, {
+            template_id: t.id, page, x, y,
+            ...(licenseId ? { license_id: licenseId, step_up: stepUp } : { profile: values }),
+          });
           dl(r.blob, file.name.replace(/\.pdf$/i, "") + "-sealed.pdf");
           note.textContent = r.compliance; toast(r.sealed ? "sealed & signed" : "seal applied", "success");
         } else {

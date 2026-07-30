@@ -26,7 +26,7 @@ import type {
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
   IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
-  PreflightGate, PreflightSummary,
+  PreflightGate, PreflightSummary, ProfessionalLicense,
   ResolveAction, ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem, VitalsPayload } from "./types";
 
@@ -497,14 +497,31 @@ export class ApiClient extends withEstimate(withModules(withModel(withSchedule(w
   }
   /** Apply a *visible* professional seal, then a tamper-evident PAdES signature LAST. Returns the sealed
    *  PDF plus the compliance note the server reports (demo cert vs configured cert). */
-  async pdfSeal(file: File, o: { template_id: string; profile: Record<string, string>; page?: number; x?: number; y?: number; sign?: boolean }) {
+  async pdfSeal(file: File, o: { template_id: string; license_id?: string; step_up?: string; profile?: Record<string, string>; page?: number; x?: number; y?: number; sign?: boolean }) {
     const fd = new FormData();
-    fd.append("file", file); fd.append("template_id", o.template_id); fd.append("profile", JSON.stringify(o.profile));
+    fd.append("file", file); fd.append("template_id", o.template_id);
+    // `license_id` + `step_up` is the supported path: the server builds the seal text from the
+    // caller's own verified licence, so a name/number typed here cannot reach the document. `profile`
+    // remains only for single-operator (desktop) mode, where there are no accounts to hold a licence.
+    if (o.license_id) fd.append("license_id", o.license_id);
+    if (o.step_up) fd.append("step_up", o.step_up);
+    if (o.profile) fd.append("profile", JSON.stringify(o.profile));
     fd.append("page", String(o.page ?? 1)); fd.append("x", String(o.x ?? 36)); fd.append("y", String(o.y ?? 36));
     fd.append("sign", String(o.sign ?? true));
     const r = await fetch(this.url("/pdf/seal"), { method: "POST", body: fd, headers: this.authHeaders() });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return { blob: await r.blob(), sealed: r.headers.get("X-Seal-Sealed") === "true", compliance: r.headers.get("X-Seal-Compliance") || "" };
+  }
+  /** The signed-in user's own verified PE/RA licences — what the seal dialog offers. */
+  myLicenses() { return this.json<{ licenses: ProfessionalLicense[] }>("/licenses/mine"); }
+  /** Re-prove the account password for ONE action, yielding a short-lived assertion.
+   *
+   *  Sealing needs this because a bearer token identifies a session, not a person: anything holding
+   *  the token could otherwise emit documents under the licensee's seal. The returned value is NOT a
+   *  session token — the server refuses it as one — so it is safe to pass straight to pdfSeal. */
+  stepUp(password: string, act = "pdf.seal") {
+    return this.json<{ token: string; act: string; expires_in: number }>(
+      "/auth/step-up", { method: "POST", body: JSON.stringify({ password, act }) });
   }
   /** Record a revision (delta) on a sheet, optionally citing the driving instrument (ASI/CCD/Addendum). */
   reviseDrawing(pid: string, drawingId: string, body: { rev: string; description?: string; date?: string; instrument_type?: string; instrument_ref?: string }) {

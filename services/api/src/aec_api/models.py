@@ -178,6 +178,36 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class ProfessionalLicense(Base):
+    """A PE/RA licence held by a user — the record a seal is drawn FROM, never typed into.
+
+    A separate table rather than columns on `users` because the domain is genuinely one-to-many: a
+    practising engineer is routinely licensed in several states, each with its own number and
+    expiration, and seals in whichever jurisdiction the work sits in. Columns would have forced one
+    licence per person and quietly mis-sealed the second project.
+
+    `verified_by` / `verified_at` are the point of the table. A licence number is an assertion about
+    a real credential issued by a state board, so the value of storing it is entirely in *who
+    checked it*: rows are written by a platform admin, never self-served, and the seal endpoint
+    records the row id so a sealed document can be traced to a specific verified licence instead of
+    to a string the caller supplied.
+    """
+    __tablename__ = "professional_licenses"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    # As it must appear on the seal — often not identical to the account name ("Jane Q. Smith, P.E.").
+    name_on_seal: Mapped[str] = mapped_column(String, nullable=False)
+    license_no: Mapped[str] = mapped_column(String, nullable=False)
+    state: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    discipline: Mapped[str | None] = mapped_column(String, nullable=True)   # PE | RA | SE | ...
+    # ISO date. Checked at seal time: an expired licence must refuse rather than seal, because a
+    # document sealed under a lapsed licence is the specific thing a board disciplines.
+    expiration: Mapped[str | None] = mapped_column(String, nullable=True)
+    verified_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class SavedView(Base):
     """A user's saved filter/sort/column config for a module's list (server-side, so it
     follows them across devices). Keyed by project + module + user + name."""

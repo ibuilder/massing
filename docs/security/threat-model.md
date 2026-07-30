@@ -65,7 +65,7 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 |---|---|
 | Untraceable changes | `audit.py` trail on mutating operations (actor/when/what), surfaced in per-topic timelines and feeds; model versions carry review states (`review_status` + who/when); edit recipes are GUID-stable and versioned (undo path). |
 | Request untraceability | `X-Request-ID` middleware stamps every request (inbound honored, ≤64 chars), propagated to OTel spans and the error log. |
-| Unattributable professional seal | Applying a PE/RA seal requires an authenticated caller and writes an audit row after the seal succeeds, naming the actor, template, seal name, licence number and state. Previously the seal endpoints had no authorisation and no audit row (v0.3.800). |
+| Unattributable or misattributed professional seal | A seal is a personal legal attestation of responsible charge, not an authorisation, so it requires an authenticated caller **plus** a fresh step-up assertion a stored token cannot satisfy, and the identity is derived from the caller's own admin-verified licence rather than from the request. The audit row records the actor, the licence **row id**, `via` (verified licence vs legacy free text) and that a step-up was required — so a human act and an automated one are distinguishable after the fact. Previously the seal endpoints had no authorisation and no audit row at all (v0.3.800). |
 | Untrusted writes into the audit trail | The e-signature provider webhook is the one anonymous surface that writes audit rows (a provider holds no user credential). It verifies an HMAC over the raw request body when `AEC_ESIGN_WEBHOOK_SECRET` is set, is rate-limited and size-capped, bounds every stored string, and stamps each row with whether the signature was verified — so an unverified entry cannot be read as a verified one. |
 | Concurrent-edit clobbering | Optimistic concurrency: `base_source` 409 on stale model edits; per-project mutex on `/edit`; `expected_modified_at` 409 on record updates. |
 
@@ -84,6 +84,7 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 |---|---|
 | Route authz coverage | `test_route_authz` (suite-gated) |
 | Global-route authz (no `{pid}`) | `test_global_mutating_authz` (23 checks, RBAC-on, mutation-verified) + `test_global_authz` ratchet |
+| Seal identity + human step-up | `test_seal_identity` (26 checks, RBAC-on, mutation-verified) |
 | Webhook signature + payload bounding | `test_esign` (valid signature replayed onto a different payload is refused) |
 | Login lockout / throttles | `routers/auth.py` + `throttle.py` tests |
 | Token revocation | session-revocation tests (`token_epoch`) |
@@ -110,11 +111,21 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 5. ✅ **G-5 Password deny-list** — *closed in-sprint:* `auth.weak_password_reason()` (common-password
    deny-list with case/suffix normalization, distinct-char floor, password≠username) enforced on
    register / change / admin create / admin reset / token reset; `test_password_policy`.
-6. **G-7 (M) Seal identity is not bound to the account** — sealing now requires an authenticated
-   caller and is audited, but the seal's name/licence/state still come from the request, so an
-   authenticated user can seal under another person's licence. Binding the seal to the signed-in
-   user needs a per-user licence record (product decision, deliberately not changed in the
-   security pass).
+6. ✅ **G-7 Seal identity bound to a verified licence + a human step-up** — *closed in-sprint.*
+   The seal text is now derived server-side from a `professional_licenses` row that belongs to the
+   caller and was recorded by a platform admin (`verified_by`/`verified_at`), never self-served; an
+   expired licence refuses with 409. The free-text `profile` field is refused by default
+   (`AEC_SEAL_ALLOW_PROFILE=1` re-opens it, audited as `via: profile:legacy`).
+   **The account-binding alone was not sufficient, and that is the part worth remembering:** a
+   bearer token identifies a session, not a person, so any process holding one — including an
+   automation driving this API — could still emit sealed documents in the licensee's name, and the
+   audit row would faithfully record a human act that never happened. Sealing therefore also
+   requires a fresh single-action step-up assertion (`POST /auth/step-up`, 5-minute TTL, bound to
+   the password hash so a password change invalidates it, rejected as a bearer token by
+   `verify_token_claims`), and the `api-key` machine identity is refused outright. Single-operator
+   mode (RBAC off / `LOCAL_MODE`) is exempt by design: it has no accounts and no passwords, so a
+   step-up there would be theatre in front of an app that is unauthenticated by design.
+   `test_seal_identity` (26 checks, mutation-verified).
 7. **G-8 (S) `_PROTECTED_PREFIXES` is hand-maintained** — the RBAC middleware's prefix list covers
    8 of 66 top-level prefixes, so a new prefix opts out of the safety net silently. The risk that
    matters is ratcheted (`test_global_authz` freezes unguarded global mutating routes, currently

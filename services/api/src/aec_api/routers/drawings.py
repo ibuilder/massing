@@ -2,6 +2,7 @@
 from the project source IFC by the data service."""
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -412,36 +413,103 @@ async def pdf_stamp(file: UploadFile = File(...), template_id: str = Form(...),
                     headers={"Content-Disposition": 'attachment; filename="stamped.pdf"'})
 
 
+# Escape hatch for an operator who still drives sealing with a caller-supplied identity. OFF by
+# default, so the safe behaviour is the one you get by doing nothing — the whole defect class here was
+# a plausible default. Turning it on re-opens seal-in-someone-else's-name and is audited as such.
+_SEAL_ALLOW_PROFILE = os.environ.get("AEC_SEAL_ALLOW_PROFILE") == "1"
+
+
 @router.post("/pdf/seal")
 async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
+                   step_up: str = Form(""),
                    page: int = Form(1), x: float = Form(36), y: float = Form(36),
-                   sign: bool = Form(True), profile: str = Form(...),
+                   sign: bool = Form(True),
+                   license_id: str | None = Form(None), profile: str | None = Form(None),
                    db: Session = Depends(get_db),
                    actor: str = Depends(require_identified)):
     """Render a *visible* professional seal + signature block, then apply a tamper-evident PAdES
-    signature LAST (unless `sign=false`). `profile` = JSON {name,license_no,state,expiration,date}.
-    The self-signed platform cert is demonstration / tamper-evidence, not board-accepted sealing.
+    signature LAST (unless `sign=false`). The self-signed platform cert is demonstration /
+    tamper-evidence, not board-accepted sealing.
 
-    **Authorisation and attribution are both load-bearing here, and neither was present.** This route
-    guarded with `Depends(current_user)`, which identifies without authorising — so with RBAC on and no
-    credentials at all, an anonymous caller could upload any PDF and receive it back bearing a rendered
-    PE or RA seal with a name, licence number and state of their choosing. Verified end to end against
-    `seal-pe` and `seal-ra`; the attacker-supplied name and licence number extracted out of the
-    returned document. Applying a professional seal without authority is a criminal offence in most US
-    jurisdictions, so a platform doing it on request is not merely a technical exposure.
+    **A seal is not an authorisation, it is a personal legal attestation** that a named licensed human
+    was in responsible charge of the work. Responsible charge cannot be delegated to software, and a
+    licensee whose seal is applied to work they did not supervise is the specific thing state boards
+    discipline. So this route deliberately asks more than "is this request authenticated?":
 
-    `profile` is still caller-supplied rather than derived from the signed-in user's own credentials —
-    an authenticated user can therefore seal in somebody else's name. Tying the seal to the account is
-    a product decision (it needs a licence record per user), so it is NOT silently changed here. What
-    is changed is that the act is now attributable: the audit row records who requested it, under which
-    licence number, and whether the crypto signature was applied. A professional act that leaves no
-    trace of who performed it cannot be investigated afterwards.
+    1. `step_up` — a fresh, single-action assertion from `POST /auth/step-up` that the account
+       password was just re-proved. A bearer token cannot answer this: any process holding one can
+       replay it, so an automation driving this API with a user's token would emit documents under
+       that user's seal and the audit row would faithfully record a human act that never happened.
+    2. The `api-key` identity is refused outright — a machine credential has no person behind it.
+    3. `license_id` selects one of the CALLER'S OWN verified licences (`GET /licenses/mine`) and the
+       seal text is built server-side from that row. An expired licence refuses with 409.
+
+    History, because the shape recurs: this route originally guarded with `Depends(current_user)`,
+    which identifies without authorising — an anonymous caller could upload any PDF and receive it
+    bearing a rendered PE or RA seal with a name and licence number of their choosing, verified end to
+    end. Gating it fixed anonymity but not impersonation, because `profile` was still free text; and
+    binding to the account would still not have fixed automation, because a token is not a person.
+    Each fix looked complete and left the next layer open.
     """
+    from datetime import date
+
     from starlette.concurrency import run_in_threadpool
 
+    from .. import auth as _auth
+    from .. import rbac as _rbac
     from .. import stamps
+    from ..models import ProfessionalLicense, User
+
+    # Single-operator mode (RBAC off / LOCAL_MODE desktop) has no accounts, no passwords and no login
+    # at all — so there is nothing for a step-up to re-prove and no account for a licence to hang on.
+    # Demanding either there would be theatre in front of an app that is unauthenticated by design,
+    # and it would break the desktop build outright. The control applies where identities exist; this
+    # mirrors how require_platform_admin and require_admin_user already treat LOCAL_MODE.
+    multi_user = _rbac.RBAC_ON and not _rbac.LOCAL_MODE
+
+    if multi_user:
+        if actor == "api-key":
+            raise HTTPException(403, "sealing requires a personal account with a step-up; the API key "
+                                     "has no person behind it and cannot hold responsible charge")
+        u = db.get(User, actor)
+        if not u or not u.password_hash:
+            raise HTTPException(403, "sealing requires an account with a local password")
+        if _auth.verify_stepup_token(step_up, "pdf.seal", u.password_hash) != actor:
+            # One status for every failure mode (absent / wrong act / expired / another user's / stale
+            # after a password change) so the response cannot be used to probe which one it was.
+            raise HTTPException(403, "a fresh step-up assertion for 'pdf.seal' is required — "
+                                     "POST /auth/step-up")
+
+    if license_id:
+        lic = db.get(ProfessionalLicense, license_id)
+        # Checked as "belongs to the caller" rather than "exists": otherwise any licence id in the
+        # system would seal, which is the impersonation hole wearing a different hat.
+        if not lic or lic.user != actor:
+            raise HTTPException(403, "that licence is not on record for this account")
+        if lic.expiration:
+            try:
+                lapsed = date.fromisoformat(lic.expiration) < date.today()
+            except ValueError:
+                lapsed = False          # unparseable stored date: don't refuse on a data defect
+            if lapsed:
+                raise HTTPException(409, f"licence {lic.license_no} ({lic.state}) expired "
+                                         f"{lic.expiration}")
+        prof = {"name": lic.name_on_seal, "license_no": lic.license_no, "state": lic.state,
+                "expiration": lic.expiration or "", "date": date.today().isoformat()}
+        via, lic_ref = "license", lic.id
+    elif profile and (not multi_user or _SEAL_ALLOW_PROFILE):
+        # Single-operator: the one person at the machine IS the licensee, and there is no account for
+        # a licence row to belong to, so the free-text profile stays the only workable path there.
+        prof = _json_form(profile)
+        via, lic_ref = ("profile:local" if not multi_user else "profile:legacy"), None
+    elif profile:
+        raise HTTPException(403, "caller-supplied seal identities are disabled: pass `license_id` "
+                                 "naming one of your own verified licences (GET /licenses/mine). "
+                                 "Set AEC_SEAL_ALLOW_PROFILE=1 to re-enable the legacy field.")
+    else:
+        raise HTTPException(422, "license_id is required (GET /licenses/mine)")
+
     data = await _read_pdf(file)
-    prof = _json_form(profile)
     try:
         # pyHanko signing calls asyncio.run internally — run off the event loop.
         out, meta = await run_in_threadpool(stamps.apply_seal, data, page - 1, x, y, template_id,
@@ -449,10 +517,12 @@ async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
     # Recorded AFTER the seal succeeds: a row for an attempt that raised would claim a document was
-    # sealed when none was. The licence number is kept because it is the field that identifies whose
-    # authority was asserted, which is the whole point of being able to look this up later.
+    # sealed when none was. `via` is what makes the trail readable later — a row sealed from a verified
+    # licence and one sealed from the legacy free-text field are different kinds of evidence, and
+    # without this field they are indistinguishable.
     audit.record(db, action="pdf.seal", actor=actor, method="POST", path="/pdf/seal",
                  detail={"template_id": template_id, "signed": bool(meta.get("sealed")),
+                         "via": via, "license_id": lic_ref, "step_up": True,
                          "seal_name": str(prof.get("name") or "")[:120],
                          "license_no": str(prof.get("license_no") or "")[:60],
                          "state": str(prof.get("state") or "")[:16]})

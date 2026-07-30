@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
@@ -14,8 +14,9 @@ from sqlalchemy.orm import Session
 
 from .. import audit, auth, oauth, rbac, settings_store, totp
 from ..db import get_db
-from ..models import AuditLog, User
-from ..rbac import current_user
+from ..models import AuditLog, ProfessionalLicense, User
+from ..rbac import current_user, require_identified, require_platform_admin
+from ..throttle import rate_limited
 
 router = APIRouter()
 
@@ -605,3 +606,111 @@ def reset_with_token(token: str = Body(..., embed=True), new: str = Body(..., em
     u.token_epoch = int(time.time())            # a password reset revokes any live sessions
     db.commit()
     return {"ok": True, "username": u.username}
+
+
+# --- step-up assertions + professional licences -----------------------------------------------------
+# `POST /auth/step-up` exists so an action can require a *human*, not merely a valid session. See
+# auth.create_stepup_token for why a bearer token cannot answer that question for a professional seal.
+_STEPUP_ACTS = {"pdf.seal"}          # allowlist: an unknown act must not mint a usable assertion
+_stepup_throttle = rate_limited("stepup", 10)
+
+
+@router.post("/auth/step-up")
+def step_up(password: str = Body(..., embed=True), act: str = Body("pdf.seal", embed=True),
+            db: Session = Depends(get_db), user: str = Depends(require_identified),
+            _t: None = Depends(_stepup_throttle)):
+    """Re-prove the account password to obtain a short-lived assertion scoped to ONE action.
+
+    Refused for the `api-key` identity outright. That is the substance of this endpoint rather than a
+    detail: the api-key is a machine credential with no password and no person behind it, so there is
+    nothing it could re-prove. Allowing it would reintroduce exactly the hole this closes — an
+    automation emitting sealed documents in a licensee's name.
+    """
+    if act not in _STEPUP_ACTS:
+        raise HTTPException(400, f"unknown step-up action {act!r}")
+    if user == "api-key":
+        raise HTTPException(403, "step-up requires a personal account; the API key cannot re-prove a "
+                                 "password and has no person behind it")
+    u = db.get(User, user)
+    if not u or not u.password_hash or not auth.verify_password(password, u.password_hash):
+        # Deliberately not distinguishing "no such account" from "wrong password".
+        raise HTTPException(403, "password verification failed")
+    if u.provisioned and not u.password_hash:
+        raise HTTPException(409, "SSO-provisioned account has no local password to re-prove")
+    audit.record(db, action="auth.step_up", actor=user, method="POST", path="/auth/step-up",
+                 detail={"act": act})
+    db.commit()
+    return {"token": auth.create_stepup_token(user, act, u.password_hash),
+            "act": act, "expires_in": auth._STEPUP_TTL}
+
+
+def _license_row(lic: ProfessionalLicense) -> dict:
+    return {"id": lic.id, "user": lic.user, "name_on_seal": lic.name_on_seal,
+            "license_no": lic.license_no, "state": lic.state, "discipline": lic.discipline,
+            "expiration": lic.expiration, "verified_by": lic.verified_by,
+            "verified_at": lic.verified_at.isoformat() if lic.verified_at else None}
+
+
+@router.get("/licenses/mine")
+def my_licenses(db: Session = Depends(get_db), user: str = Depends(require_identified)):
+    """The caller's OWN verified licences — what the seal dialog offers, instead of a free-text field."""
+    rows = db.query(ProfessionalLicense).filter(ProfessionalLicense.user == user).all()
+    return {"licenses": [_license_row(r) for r in rows]}
+
+
+@router.get("/admin/licenses")
+def list_licenses(user: str | None = None, db: Session = Depends(get_db),
+                  _admin: str = Depends(require_platform_admin)):
+    """Every licence on record, optionally filtered to one user. Platform-admin only."""
+    q = db.query(ProfessionalLicense)
+    if user:
+        q = q.filter(ProfessionalLicense.user == user)
+    return {"licenses": [_license_row(r) for r in q.all()]}
+
+
+@router.post("/admin/licenses", status_code=201)
+def create_license(body: dict = Body(...), db: Session = Depends(get_db),
+                   admin: str = Depends(require_platform_admin)):
+    """Record a verified licence for a user. **Platform-admin only, never self-served.**
+
+    A licence number is an assertion about a credential a state board issued, so a user attesting to
+    their own would carry exactly as much weight as the free-text field this replaces — none. The
+    admin who writes the row is recorded in `verified_by`, which is what makes the row evidence.
+    """
+    target = str(body.get("user") or "").strip()
+    if not target or not db.get(User, target):
+        raise HTTPException(404, "no such user")
+    missing = [k for k in ("name_on_seal", "license_no", "state") if not str(body.get(k) or "").strip()]
+    if missing:
+        raise HTTPException(422, f"missing required field(s): {', '.join(missing)}")
+    exp = str(body.get("expiration") or "").strip() or None
+    if exp:
+        try:
+            datetime.fromisoformat(exp)
+        except ValueError:
+            raise HTTPException(422, "expiration must be an ISO date (YYYY-MM-DD)")
+    lic = ProfessionalLicense(
+        user=target, name_on_seal=str(body["name_on_seal"]).strip()[:200],
+        license_no=str(body["license_no"]).strip()[:60], state=str(body["state"]).strip()[:16],
+        discipline=(str(body.get("discipline") or "").strip()[:16] or None), expiration=exp,
+        verified_by=admin, verified_at=datetime.now(timezone.utc))
+    db.add(lic)
+    audit.record(db, action="license.create", actor=admin, method="POST", path="/admin/licenses",
+                 detail={"user": target, "state": lic.state, "license_no": lic.license_no})
+    db.commit()
+    return _license_row(lic)
+
+
+@router.delete("/admin/licenses/{lid}")
+def delete_license(lid: str, db: Session = Depends(get_db),
+                   admin: str = Depends(require_platform_admin)):
+    """Revoke a licence record (a lapsed or corrected licence). Platform-admin only."""
+    lic = db.get(ProfessionalLicense, lid)
+    if not lic:
+        raise HTTPException(404, "no such licence")
+    audit.record(db, action="license.delete", actor=admin, method="DELETE",
+                 path=f"/admin/licenses/{lid}",
+                 detail={"user": lic.user, "state": lic.state, "license_no": lic.license_no})
+    db.delete(lic)
+    db.commit()
+    return {"ok": True, "id": lid}
