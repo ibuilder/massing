@@ -31,6 +31,8 @@ const REF_RESOLVE_LIMIT = 500;
 
 /** A record id is a `uuid.uuid4()` string server-side, so this distinguishes an id from free text. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
  * MOD-FILTER — everything currently narrowing a register view.
  *
  * `q` and `state` were the whole vocabulary; `fields` is the per-field half. It is threaded through
@@ -38,6 +40,53 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * an inline edit — either passes the filters on deliberately or drops them visibly. A filter
  * surviving in hidden state while the controls show something else is the worst of both.
  */
+/**
+ * MOD-PERCENT — the field types that hold a MAGNITUDE, named once.
+ *
+ * The form layer asked `f.type === "number" || f.type === "currency"` in three separate places, and
+ * `percent` was in none of them. That was survivable while two fields in the whole system were typed
+ * `percent`; the field sweep converted 21 more across 16 registers — every retainage, fee, overhead
+ * and contingency percentage — and each of the three sites failed differently and quietly:
+ *
+ * 1. `EDITABLE` omitted it, so those fields stopped being inline-editable. A capability removed with
+ *    no error and no visible cause.
+ * 2. The record form rendered `<input type="text">` — no numeric keyboard on a phone, no step, no
+ *    browser validation.
+ * 3. The save path skipped `Number(v)`, storing the STRING "5". `validate_record` calls `float(value)`
+ *    so it passes, and every consumer coerces, so nothing ever failed — the column just accumulated a
+ *    mixture of `5` and `"5"` depending on which form last touched the record. That is the worst of
+ *    the three precisely because it never surfaces.
+ *
+ * One list, referenced three times, so adding the next numeric type is one edit rather than three
+ * that can be done two-thirds of the way. `test_module_fields.py` could not have caught any of this:
+ * it reads config shape and says nothing about whether the UI can render it.
+ */
+export const NUMERIC_FIELD_TYPES = ["number", "currency", "percent"] as const;
+const isNumericField = (t: string) => (NUMERIC_FIELD_TYPES as readonly string[]).includes(t);
+
+/**
+ * Field types the table can edit IN PLACE. Hoisted out of the row loop and exported so a test can
+ * compare it against the types the shipped modules actually declare — the check that would have
+ * caught `percent` missing here, and the one that catches the NEXT type rather than this one.
+ *
+ * A type absent from both this list and `READ_ONLY_FIELD_TYPES` is a type the form silently cannot
+ * handle, which is exactly how `percent` went unnoticed: nothing errored, a capability just stopped
+ * existing for 21 fields.
+ */
+export const EDITABLE_FIELD_TYPES = [
+  "text", "textarea", ...NUMERIC_FIELD_TYPES, "date", "select", "checkbox", "email", "phone",
+] as const;
+
+/** Types deliberately NOT inline-editable, each for a stated reason — so "not editable" is a
+ *  decision on the record rather than an omission nobody noticed. */
+export const READ_ONLY_FIELD_TYPES = [
+  "rollup",      // computed from other records; editing it would be editing a derived value
+  "signature",   // captured through the signing flow, which carries the attestation
+  "file",        // needs an upload control, not a cell
+  "reference",   // edited through the record picker (`inlineRefCell`), not as free text
+  "multiselect", // needs a multi-choice control a table cell has no room for
+] as const;
+
 interface RegisterFilter {
   q?: string;
   state?: string;
@@ -1732,7 +1781,11 @@ export class PortalUI {
       // textContent, not innerHTML: titles/field values are user data (stored-XSS guard)
       const cell = (text: string) => { const td = document.createElement("td"); td.textContent = text; tr.appendChild(td); };
       cell(r.ref); cell(r.title ?? "");
-      const EDITABLE = ["text", "textarea", "number", "currency", "date", "select", "checkbox"];
+      // MOD-PERCENT: `percent` was absent from this list, so the 21 fields the sweep converted from
+      // `number` stopped being inline-editable overnight — a capability removed with no error to
+      // notice. Now module-scope and exported, so `fieldTypeCoverage.test.ts` can hold it against the
+      // types the shipped modules actually declare.
+      const EDITABLE = EDITABLE_FIELD_TYPES as readonly string[];
       for (const c of cols) {
         const v = r.data[c.name];
         if (editing && c.type === "reference" && c.module) {
@@ -1859,6 +1912,9 @@ export class PortalUI {
     }
     td.appendChild(span);
     return td;
+  }
+
+  /**
    * MOD-FILTER — the per-field filter bar.
    *
    * One control per field, chosen by type, because the useful question differs by type and offering a
@@ -2326,7 +2382,25 @@ export class PortalUI {
             toast(`Added ${tgt?.name ?? f.module}: ${val.trim()}`, "info");
           } catch { toast(`could not create ${tgt?.name ?? f.module}`, "error"); }
         });
-      } else { el = document.createElement("input"); (el as HTMLInputElement).type = (f.type === "number" || f.type === "currency") ? "number" : f.type === "date" ? "date" : "text"; if (f.type === "currency") (el as HTMLInputElement).step = "0.01"; (el as HTMLInputElement).value = String(cur(f.name) ?? ""); }
+      } else {
+        el = document.createElement("input");
+        const inp = el as HTMLInputElement;
+        // MOD-PERCENT: a percent field rendered as `type="text"` — no numeric keypad on a phone, no
+        // step, no browser validation. It is a magnitude like the other two.
+        inp.type = isNumericField(f.type) ? "number" : f.type === "date" ? "date" : "text";
+        if (f.type === "currency" || f.type === "percent") inp.step = "0.01";
+        // The declared unit is shown beside the input, not only in table cells. A unit that renders in
+        // one place and not the other is half of what declaring it was for: the moment it matters most
+        // is while somebody is TYPING the number.
+        //
+        // Read structurally rather than via `ModuleField.unit`. `unit` is declared on that interface by
+        // the field-sweep branch, which is merged to `main` but not into this one — and it cannot be
+        // merged in right now without git overwriting two files another session is holding dirty. A
+        // local structural read is correct on both sides of that merge and costs nothing once it lands.
+        const unit = (f as { unit?: string }).unit;
+        if (unit) { inp.placeholder = unit; inp.setAttribute("aria-description", `in ${unit}`); }
+        inp.value = String(cur(f.name) ?? "");
+      }
       inputs[f.name] = el; wrap.appendChild(el);
       if (f.type === "select" || f.type === "multiselect") wrap.appendChild(addOptBtn(f, el as HTMLSelectElement));
       this.root.appendChild(wrap);
@@ -2378,7 +2452,12 @@ export class PortalUI {
         const el = inputs[f.name];
         if (!el) continue;
         if (f.type === "multiselect") { data[f.name] = [...(el as HTMLSelectElement).selectedOptions].map((o) => o.value); continue; }
-        const v = el.value; if (v) data[f.name] = (f.type === "number" || f.type === "currency") ? Number(v) : v;
+        // MOD-PERCENT: the quietest of the three. Without `percent` here a percentage saved as the
+        // STRING "5"; `validate_record` does `float(value)` so it passed, and every consumer coerces,
+        // so nothing ever failed — the column simply accumulated a mix of 5 and "5" depending on which
+        // form last touched the record. Numbers stored as text are also what makes SQL comparison go
+        // lexicographic, which is the bug MOD-FILTER's cast exists to survive.
+        const v = el.value; if (v) data[f.name] = isNumericField(f.type) ? Number(v) : v;
       }
       try {
         if (editing) {
