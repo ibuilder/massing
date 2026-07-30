@@ -4,6 +4,7 @@ import { withAuthoring } from "./authoring";
 import { withLibrary } from "./library";
 import { HttpCore, type LiveStream } from "./httpCore";
 import { withModel } from "./model";
+import { withEstimate } from "./estimate";
 import { withModules } from "./modules";
 import { withSchedule } from "./schedule";
 
@@ -32,7 +33,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))) {
+export class ApiClient extends withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))) {
   // --- auth ---------------------------------------------------------------
   /** Enabled SSO providers (Google/Microsoft/Procore) for the login UI. */
   authProviders() {
@@ -1496,32 +1497,6 @@ export class ApiClient extends withModules(withModel(withSchedule(withLibrary(wi
       classifications: { key: string; label: string; class_cite: string; req_cite: string; gist: string }[];
       work_area_threshold_pct: number; verify: string; disclaimer: string }>(`/codes/ebc/pathways`);
   }
-  /** EST-1: rough cost + duration estimate from the model's quantities (productivity rates). With
-   * `full`, adds material + equipment cost lines (labour + material + equipment total). */
-  laborEstimate(pid: string, loading = "commercial", rate = 25, full = false) {
-    return this.json<{ loading: string; loading_factor: number; hourly_rate: number; line_count: number;
-      total_man_hours: number; total_labor_cost: number; note: string; derived_from_model?: boolean;
-      has_material_equipment?: boolean; total_material_cost?: number; total_equipment_cost?: number; total_cost?: number;
-      lines: { activity: string; group: string; unit: string; quantity: number; man_hours: number;
-        crew: number; crew_days: number; labor_cost: number;
-        material_cost?: number; equipment_cost?: number; line_total?: number }[] }>(
-      `/projects/${pid}/estimate/labor?loading=${encodeURIComponent(loading)}&rate=${rate}${full ? "&full=true" : ""}`);
-  }
-  /** EST-ASSEMBLIES: the starter cost-assembly library (each a built-up unit rate). */
-  estimateAssemblies() {
-    return this.json<{ assemblies: { id: string; name: string; unit: string; csi?: string | null;
-      unit_rate: number; component_count: number }[] }>("/estimate/assemblies");
-  }
-  /** Build up an assembly's unit rate (+ extend over a quantity). Pass assembly_id or components. */
-  estimateAssemblyPrice(body: { assembly_id?: string; components?: unknown[]; quantity?: number;
-    overrides?: Record<string, number> }) {
-    return this.json<{ unit_rate: number; quantity?: number; total?: number;
-      by_kind: Record<string, number>;
-      lines: { resource: string; kind: string; qty: number; unit: string | null; unit_cost: number;
-        waste_pct: number; extended: number }[]; component_count: number }>(
-      "/estimate/assembly/price", { method: "POST", body: JSON.stringify(body) });
-  }
-  /** RFI-0: decision-readiness audit — the information gaps a builder would ask about, ranked. */
   rfiReadiness(pid: string) {
     return this.json<{ ready: boolean; total_gaps: number; high_severity: number; summary: string; disclaimer: string;
       by_category: Record<string, number>;
@@ -2143,49 +2118,6 @@ export class ApiClient extends withModules(withModel(withSchedule(withLibrary(wi
       note: string;
     }>(`/projects/${pid}/permits/timeline`, { method: "POST", body: JSON.stringify(body) });
   }
-  /** CONCEPT-BUDGET — massing program × the firm's own-history $/area rates (escalated), p25–p75 range. */
-  estimateConceptBudget(pid: string, body: {
-    program: { use: string; gfa: number; stories?: number }[];
-    history?: Record<string, unknown>[]; rates?: Record<string, unknown>;
-    default_rate?: number; to_year?: number; escalation_pct?: number; contingency_pct?: number;
-  }) {
-    type Line = { use: string; gfa: number; rate: number | null; cost: number | null;
-      range: { low: number; high: number } | null; stories?: number | null; source: string };
-    type Rate = { n: number; p25: number; median: number; p75: number; min: number; max: number };
-    return this.json<{
-      line_count: number; unpriced: number; subtotal: number; contingency_pct: number | null;
-      contingency: number | null; total: number; range: { low: number; high: number }; lines: Line[];
-      rates: { projects_used: number; projects_skipped: number; escalated_to: number | null;
-        escalation_pct: number | null; rates: Record<string, Rate>; note: string };
-      note: string;
-    }>(`/projects/${pid}/estimate/concept-budget`, { method: "POST", body: JSON.stringify(body) });
-  }
-  /** BOE-LEDGER — the Basis-of-Estimate assumption ledger: completeness + version drift + exact
-   * qty/price variance decomposition vs actuals. */
-  estimateBoe(pid: string, body: {
-    lines: Record<string, unknown>[]; prev?: Record<string, unknown>[]; actuals?: Record<string, unknown>[];
-  }) {
-    type Line = { key: string; cost_code: string | null; description: string; phase: string | null;
-      qty: number | null; unit: string | null; unit_cost: number | null; total: number | null;
-      source: string | null; quote_ref: string | null; escalation_pct: number | null;
-      contingency_pct: number | null; basis_date: string | null };
-    type Change = { key: string; description: string; changes: { field: string; from: unknown; to: unknown }[];
-      total_from: number | null; total_to: number | null; total_delta: number | null };
-    type VaRow = { key: string; description: string; assumed_qty: number | null; actual_qty: number | null;
-      assumed_unit_cost: number | null; actual_unit_cost: number | null; assumed_total: number;
-      actual_total: number; variance: number; qty_effect: number; price_effect: number; driver: string;
-      source: string | null; quote_ref: string | null };
-    return this.json<{
-      ledger: { line_count: number; documented: number; pct_documented: number;
-        undocumented: { key: string; description: string; missing: string[] }[]; lines: Line[]; note: string };
-      phase_diff?: { compared: number; changed: number; added: string[]; removed: string[];
-        changes: Change[]; note: string };
-      vs_actuals?: { matched: number; total_variance: number; qty_effect: number; price_effect: number;
-        rows: VaRow[]; note: string };
-    }>(`/projects/${pid}/estimate/boe`, { method: "POST", body: JSON.stringify(body) });
-  }
-  /** SCOPE-REG — the scope register + gap analysis: each scope item resolves quantity/value (QTO by cost
-   * code), owner, and schedule window; surfaces unquantified / unallocated / unscheduled scope. */
   scopeRegister(pid: string, body: {
     scope_items: Record<string, unknown>[]; qto_lines?: Record<string, unknown>[]; activities?: Record<string, unknown>[];
   }) {
@@ -2216,23 +2148,6 @@ export class ApiClient extends withModules(withModel(withSchedule(withLibrary(wi
       overdue: number; next_30_days: number; total_value: number; entries: Entry[]; note: string;
     }>(`/projects/${pid}/procurement/buyout-schedule`, { method: "POST", body: JSON.stringify(body) });
   }
-  /** EST-CONFIDENCE — score each estimate line's maturity/confidence (source × phase) → cost-weighted
-   * project confidence + '% of budget still assumption-based' + the worst-value least-grounded lines. */
-  estimateConfidence(pid: string, lines: Record<string, unknown>[]) {
-    type Line = {
-      description: string; cost_code: string | null; cost: number; source: string; phase: string;
-      contingency_pct: number | null; confidence: number; band: "high" | "medium" | "low";
-      assumption_based: boolean; high_contingency: boolean;
-    };
-    return this.json<{
-      line_count: number; total_cost: number; confidence: number; band: "high" | "medium" | "low";
-      pct_assumption_based: number; assumption_based_cost: number; avg_contingency_pct: number;
-      cost_by_band: { high: number; medium: number; low: number };
-      cost_by_source: { source: string; cost: number }[]; worst_lines: Line[]; lines: Line[]; note: string;
-    }>(`/projects/${pid}/estimate/confidence`, { method: "POST", body: JSON.stringify({ lines }) });
-  }
-  /** CITED-ANSWER — a deterministic model query returning a CitedAnswer: every claim traces to its source
-   * (GUID/record/rule/doc+revision) with coverage %, an uncited-claim guard, and source-conflict surfacing. */
   citedQuery(pid: string, query: string, property?: string, persona?: "exec" | "pm" | "field") {
     type CitationRef = {
       source_type: "ifc" | "doc" | "record" | "rule"; document_id: string | null; revision: string | null;
@@ -3227,19 +3142,6 @@ export class ApiClient extends withModules(withModel(withSchedule(withLibrary(wi
     return this.url(`/projects/${pid}/contracts/completion_certificate/${certRid}/document.pdf?doc=g704`);
   }
 
-  // --- conceptual estimating + IFC classification (Ediphi / Qonic) -----------
-  conceptualCatalog() {
-    return this.json<{ building_types: string[]; regions: string[]; base_year: number;
-      annual_escalation: number; current_year: number }>(`/estimate/conceptual/catalog`);
-  }
-  conceptualEstimate(pid: string, params: Record<string, unknown>) {
-    return this.json<{ building_type: string; gfa_sf: number; hard_cost: number; soft_cost: number;
-      total_cost: number; range: { low: number; base: number; high: number };
-      metrics: Record<string, number>; region_index: number; escalation_factor: number; error?: string }>(
-      `/projects/${pid}/estimate/conceptual`, { method: "POST", body: JSON.stringify(params) });
-  }
-  /** GEN-SCORE option row: one massing variant with its engine-backed criteria + composite. */
-  // (shape shared by generate → score; scores/composite present only after scoring)
   designOptionsGenerate(pid: string, base: Record<string, unknown>, types?: string[]) {
     return this.json<{ options: Record<string, unknown>[] }>(
       `/projects/${pid}/design/options/generate`,
@@ -3547,46 +3449,6 @@ export class ApiClient extends withModules(withModel(withSchedule(withLibrary(wi
     return this.json<{ package_count: number; bid_count: number; packages: { package: string; bid_count: number; low: number | null; high: number | null; avg: number | null; spread: number; bids: { bidder: string | null; amount: number | null; is_low: boolean }[] }[] }>(
       `/projects/${pid}/bids/leveling`);
   }
-  /** Conceptual estimate from the IFC takeoff × unit rates — priced line items + total. */
-  estimateFromModel(pid: string) {
-    return this.json<{ total: number; element_count: number; lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number }[]; unpriced: { ifc_class: string; count: number }[] }>(
-      `/projects/${pid}/estimate/from-model`);
-  }
-  /** EST-BANDS — range estimate: low/likely/high per line + a correlated envelope and an independent
-   *  P10/P50/P90 bid range from design-stage cost uncertainty by discipline. */
-  estimateBands(pid: string) {
-    return this.json<{
-      expected: number; element_count: number;
-      lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number;
-        amount: number; low: number; likely: number; high: number; spread_pct: number }[];
-      envelope: { low: number; high: number; note: string };
-      range: { p10: number; p50: number; p90: number; std: number; note: string };
-      unpriced: { ifc_class: string; count: number }[]; note: string;
-    }>(`/projects/${pid}/estimate/bands`);
-  }
-  /** CBS-1 — Cost Breakdown Structure over the model estimate: direct → indirect → contingency →
-   *  management reserve → overhead & profit → taxes, each with amount/rate/share. */
-  estimateCbs(pid: string) {
-    return this.json<{
-      direct: number; indirect: number; subtotal: number; contingency: number;
-      management_reserve: number; base_with_risk: number; overhead_profit: number; taxes: number;
-      total: number; rates: Record<string, number>;
-      layers: { level: string; amount: number; rate: number | null; pct_of_total: number }[];
-      direct_source: string; note: string;
-    }>(`/projects/${pid}/estimate/cbs`);
-  }
-  /** Resource-based (assembly) estimate — each class priced by building the cost up from labor +
-   *  material + equipment, returning the L/M/E split + total crew-hours (not just a blended $/unit). */
-  estimateResourceBased(pid: string) {
-    type Line = { ifc_class: string; assembly: string; assembly_name: string; count: number; unit: string;
-      quantity: number; total: number; unit_cost: number; labor_hours: number; by_kind: { labor: number; material: number; equipment: number } };
-    return this.json<{ total: number; element_count: number; labor_hours: number;
-      by_kind: { labor: number; material: number; equipment: number };
-      by_trade: { resource: string; name: string; hours: number; cost: number }[];
-      lines: Line[]; unmapped: { ifc_class: string; count: number }[] }>(
-      `/projects/${pid}/estimate/resource-based`);
-  }
-  /** DXF (2D CAD) quantity takeoff — linear metres, enclosed area and block counts per layer. */
   async takeoffDxf(pid: string, file: File) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/takeoff/dxf`), {

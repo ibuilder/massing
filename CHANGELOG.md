@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.804 — SCALE-SEAM ⑤: /estimate out, and client.ts drops under 4,100
+
+`client.ts` 4,156 → **4,008**: the 12 `/estimate` methods become `api/estimate.ts` as a `withEstimate`
+mixin. Clean on the first pass — no missing imports, no shared private helper crossing the boundary, so
+a much smaller job than ④. Typecheck clean, 908/908, ratchet holds at 696; mutation-checking
+`estimateFromModel` fails it both ways (695 by number, and by name in the spot-check).
+
+Running total across five extractions: **4,956 → 4,008, down 19%**, with `authoring` · `library` ·
+`schedule` · `model` · `modules` · `estimate` now separate modules behind the same `ApiClient` surface.
+The method is repeatable and the two structural traps are known and written down: a `private` member
+must move down to `HttpCore` if a mixin needs it (③, `liveStream`), and a `private` helper that spans a
+cut must become `protected` (④, `reviewPost`). ⑤ hit neither.
+
 ## v0.3.803 — SCALE-SEAM ④, a private helper that spanned the cut, and CodeFlow removed
 
 `client.ts` 4,369 → **4,156**: the 34 `/modules` methods become `api/modules.ts` as a `withModules`
