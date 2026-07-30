@@ -42,10 +42,36 @@ Set these environment variables for a team/cloud deployment:
 | `AEC_IFC_CODE_TIMEOUT=5` | Wall-clock budget (seconds) for a sandboxed `execute_ifc_code` snippet. Only relevant when `AEC_ALLOW_IFC_CODE=1`. |
 | `AEC_WEBHOOK_ALLOW_PRIVATE=0` | **Set for hosted/multi-tenant.** Refuses webhook targets that resolve to private/loopback addresses (blocks cloud-metadata + intranet probing). Default `1` suits on-prem/LAN listeners. |
 | `AEC_TRUST_XUSER` | **Leave unset in production.** The `X-User` header is a dev-only impersonation shim, honored only when RBAC is off or this flag is set. |
+| `AEC_ADMIN_EMAILS=ops@example.com` | **Required with RBAC on** for platform-admin operations: platform Settings, the audit feed, user management, cost-database vintage imports, the firm standards library, and recording professional licences. With RBAC on and this unset, no account can perform them (a legacy global-`admin` account still works, for back-compat). It was previously undocumented here. |
+| `AEC_ESIGN_WEBHOOK_SECRET=<random>` | **Set if you use the e-signature bridge.** Verifies an HMAC-SHA256 signature over the raw `POST /esign/webhook` body. Left unset the endpoint stays open (rate-limited, size-capped, and every audit row it writes records `signature_verified: false`) — it is the one anonymous surface that writes to the audit trail. |
+| `AEC_SEAL_ALLOW_PROFILE` | **Leave unset.** Re-enables the legacy caller-supplied seal identity on `POST /pdf/seal`, which allows an authenticated user to seal under another person's name and licence number. |
 
 The bundled `docker-compose.prod.yml` sets these (RBAC, require-secret, HSTS, secure cookie, strict CSP,
 Redis) and ships a `redis` service; you only supply the secrets in `.env` (`AEC_AUTH_SECRET`,
 `POSTGRES_PASSWORD`, `S3_*`).
+
+### Professional seals need a provisioning step
+With RBAC on, `POST /pdf/seal` will not seal until two things exist, and neither is created
+automatically:
+
+1. **A platform admin** — set `AEC_ADMIN_EMAILS` (above), otherwise nobody can record a licence.
+2. **A licence record per licensee** — `POST /admin/licenses` with
+   `{user, name_on_seal, license_no, state, discipline?, expiration?}`. The seal text is rendered from
+   this row, so the name and number on a sealed document cannot come from the request. Licences are
+   deliberately **not** self-served: a user asserting their own licence number carries exactly as much
+   weight as the free-text field this replaced. The admin who records it is stored in `verified_by`.
+
+Sealing then also requires the licensee to re-enter their password (`POST /auth/step-up`, a 5-minute
+single-action assertion). That is not a UX preference. A seal attests that a named licensed human was
+in *responsible charge* of the work — a personal legal act that cannot be delegated to software — and a
+bearer token identifies a session, not a person, so any process holding one could otherwise emit sealed
+documents in the licensee's name. Automation (`AEC_API_KEY`) is refused outright. An expired licence
+refuses with `409`.
+
+Single-operator/desktop deployments (RBAC off, or `AEC_LOCAL_MODE=1`) are unaffected: they have no
+accounts and no passwords, so the legacy seal fields remain the only workable path there.
+
+See [the threat model](docs/security/threat-model.md) for the failure modes these controls address.
 
 ## Schema migrations
 There is **no Alembic** — by design. The schema is partly **config-driven**: each GC-portal module

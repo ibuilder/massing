@@ -54,6 +54,13 @@ The API also **fail-fasts at boot** on Postgres without RBAC or with the default
   Watch the `aec.publish` / `aec.autosync` loggers for conversion/sync failures.
 - **Users & roles:** create the first admin via `AEC_ADMIN_EMAILS`; grant per-project
   roles (viewer < reviewer < editor < admin) — nobody sees a project they're not a member of.
+- **Professional licences (only if your team seals drawings):** sealing will refuse until a platform
+  admin records a licence per licensee — `POST /admin/licenses` with
+  `{user, name_on_seal, license_no, state, expiration}`. The seal is rendered from that row, so the
+  name and number on a sealed document never come from the request, and licensees cannot record their
+  own. Sealing additionally prompts for the licensee's password each time (a 5-minute single-action
+  step-up), because a seal attests that a named human was in responsible charge — automation and API
+  keys are refused. Nothing is created automatically; budget this as a go-live data-entry task.
 - **Host pinning (optional):** set `AEC_ALLOWED_HOSTS=app.example.com,localhost`
   (localhost keeps container healthchecks working).
 
