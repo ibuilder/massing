@@ -72,8 +72,8 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R32-MODEL-IN-TREE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R23-PICKING · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
@@ -83,7 +83,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
-R24-IDENTITY (all four need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
+R24-IDENTITY · R32-TAXONOMY-LIFECYCLE (all five need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
 it) · REL-7 (gated on RT-KNIP).
 
 **Two lane boundaries were wrong until 2026-07-30 and are worth naming.** Lane A used to own
@@ -1029,6 +1029,83 @@ removed. Remaining, in priority order:
   assistant.
 - **SITE-1 remaining** *(S–M)* — parcel overlays *(terrain DEM auto-fetch is network-dependent →
   flagged, offline-degrading)*.
+
+## 🗄 R32 — THE FILING SPINE: model, drawings and specs as controlled documents (2026-07-30)
+
+From a user-supplied fileshare-standard study. **Most of the machinery already exists and the premise
+is a wiring problem, not a build** — the eighth premise this week that was mostly built. What follows
+separates what is already shipped, what is genuinely missing, and what in the source study does **not**
+apply to this product, so nobody re-derives any of it.
+
+### Already built — do NOT rebuild
+
+| capability | where |
+|---|---|
+| standard folder taxonomy as **data**, per-node owner role, discipline, default CDE state, `required` flag | `folder_template.py` (11 top-level folders, QS/contract-admin shaped) |
+| file store with **revision + supersession** — same name in same folder supersedes, prior kept for audit | `docmanager.py` |
+| **"current only" is already the DEFAULT** — `list_folder(..., include_superseded=False)` | `docmanager.py:115` |
+| filename + sheet-ID conventions with a validator and a register audit | `naming.py` (ISO 19650 container names · US NCS sheet IDs) |
+| CDE states `wip → shared → published → archived` | `modules/information_container/` |
+| tree, upload, move, folder listing routes | `routers/documents.py` |
+
+So "standardise the format" and "version it" are, at the file-store layer, **done**. The gaps are
+elsewhere and they are specific.
+
+### ⭐ R32-FILE-GENERATED *(M)* — nothing generated is ever filed
+
+**Measured:** `sheetgen.py`, `specmanual.py`, `drawingset.py` and `issuance.py` contain **zero**
+references to `docmanager`. Generated drawings and generated specs are produced, returned and never
+enter the controlled tree — so they get no revision, never supersede anything, and do not appear in the
+file manager at all. Every governance property the document layer already implements is unavailable to
+exactly the artefacts the platform itself produces.
+
+Publishing a sheet set or a spec manual should **file it**: into its discipline folder, with a revision,
+superseding the prior issue. The supersession logic exists; it has no caller.
+
+### ⭐ R32-MODEL-IN-TREE *(S)* — the model is not in the filing at all
+
+Two parallel stores: the source model at `{pid}/source.ifc`, the document tree at `{pid}/docs/<folder>/`.
+There is **no folder for the model**, and none for generated output. The user's ask — *a place within
+the filing that hosts the model, the generated drawings and the generated specs* — is precisely this.
+
+Add the folders and file the IFC on publish, so a model revision is a document revision and the
+as-issued model sits beside the drawings it produced. This is the prerequisite for R32-FILE-GENERATED
+and is the smaller half.
+
+### R32-CURRENT-SET *(S)* — the drawing display is not the file manager
+
+`docmanager` defaults to current-only, but the drawings UI reads the drawing registers, not the
+document tree, so "show only the current set" is not enforced where field users actually look.
+Once generated sheets are filed, the display should read the **published, non-superseded** set — one
+source, not two. Gap-check first whether `drawing_set` + `drawing_issuance` already carry enough state
+to answer "which issue is current" without new fields.
+
+### R32-TAXONOMY-LIFECYCLE *(M — needs the user's call on scope)* — 11 folders is construction-only
+
+Our taxonomy is `01_Contract Documents … 11_Final Account`: contract administration for a job already
+under way. The study's is a 20-folder **development** lifecycle — land acquisition and due diligence,
+entitlements and permitting, finance and proformas, BIM/CAD/GIS, sales/leasing/marketing, ownership
+handover, plus an explicit `14_External-Partner-Exchange`.
+
+For a platform whose users are developers as well as builders, everything before contract award and
+after turnover currently has no home. **This is a decision, not a build**: extending the tree changes
+every existing project's structure, and the `required`-flag completeness score with it. Options are
+(a) extend the single tree, (b) ship a second template selected per project type, (c) leave it. Do not
+start without an answer.
+
+### From the study, deliberately NOT adopted
+
+| in the study | why not |
+|---|---|
+| MyWorkDrive as the access layer; **NTFS permissions as the source of truth** | A different architecture. Our store is object storage with application RBAC and per-project roles; there is no Windows ACL to preserve. Adopting it would mean giving up the permission model the whole platform already enforces. |
+| PowerShell deliverables (`New-ProjectStructure.ps1`, `Set-ProjectPermissions.ps1`, AD group scripts) | Those provision a Windows file server. We provision a project via the API; `docmanager` already materialises the tree. Nothing to port. |
+| elFinder hardening (upload RCE via `connector.minimal.php`, extension allowlists, disabling script execution in upload dirs) | **We do not run elFinder.** `docmanager.py` describes itself as "elFinder-style" and `portal/panels/documents.ts` is our own implementation — the name is a simile, not a dependency, so the CVE class does not apply. Recorded because the phrase in our own docstring will otherwise make someone think it does. |
+| `90_Superseded` as a *folder* | We supersede **in place** with an index flag and hide by default, which is strictly better: the file keeps its identity and its folder, and history is a filter rather than a move. Moving superseded files to a sibling folder would break the "same name, same folder" supersession rule `docmanager` is built on. |
+
+**Transferable and worth taking:** the naming pattern's explicit `Rev[XX]` fixed-width field and ISO
+date ordering (compare against `naming.py`, which may already satisfy it); the metadata dictionary as a
+checklist for what a filed document should carry; and the controlled-vs-working split as a *rule* —
+a document is one or the other, never both.
 
 ## 🔭 R31 — EXTERNAL SCAN (15 sources, 2026-07-30)
 
