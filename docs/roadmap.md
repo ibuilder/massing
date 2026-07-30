@@ -1192,10 +1192,20 @@ full-suite-on-merged-tree runs exist to prevent.
   and the top six together are 20%. So this is roughly **25 releases of one group each**, not a
   big-bang split. Anyone scoping it as an L-sized refactor is reading the section comments.
 
-  Remaining groups by size: `/procurement` (89 lines, 9 methods) · `/auth` (90, 19) · `/elements`
-  (83, 11). The four largest are gone, which is why the per-release win from here on is small — and
-  why the estimate above (≈25 releases of one group each) is still the right shape rather than an
-  L-sized refactor.
+  **⑥ shipped** — `/procurement` out (9 methods / 86 lines; `client.ts` 4,026 → 3,940). The nine sat
+  in **six** separate regions of the file, which is the concrete form of "the section comments no
+  longer delimit anything": they label where a run *starts*, and the file then carries on into other
+  domains. Groups are located by the route each method calls, and each body by brace matching.
+
+  **The remaining-groups list here was wrong, and re-measuring is the only way to keep it honest.**
+  It named `/procurement`, `/auth` and `/elements` and omitted several larger ones. Measured on
+  `main` by counting route literals per first path segment:
+
+  `/auth` 20 · `/proforma` 15 · `/connections` 11 · `/drawing-set` 11 · `/drawings` 11 ·
+  `/elements` 11 · `/models` 9 · `/documents` 9 · `/contracts` 8 · `/sync` 7 · `/pdf` 7 · `/mep` 7
+
+  ⑦ is `/auth` (20) — the one group that owns **token state** rather than just calling routes, so it
+  needs care; `/proforma` (15) is the larger easy one and is the better next cut if ⑦ stalls.
 
   **The method is safe and worth reusing verbatim.** `api/surface.test.ts` captures the runtime method
   surface, so "I moved code" is distinguishable from "I changed behaviour" — which **a typecheck cannot

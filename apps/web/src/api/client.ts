@@ -5,6 +5,7 @@ import { withLibrary } from "./library";
 import { HttpCore, type LiveStream } from "./httpCore";
 import { withModel } from "./model";
 import { withEstimate } from "./estimate";
+import { withProcurement } from "./procurement";
 import { withModules } from "./modules";
 import { withSchedule } from "./schedule";
 
@@ -33,7 +34,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))) {
+export class ApiClient extends withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))) {
   // --- auth ---------------------------------------------------------------
   /** Enabled SSO providers (Google/Microsoft/Procore) for the login UI. */
   authProviders() {
@@ -1294,31 +1295,6 @@ export class ApiClient extends withEstimate(withModules(withModel(withSchedule(w
       citation: string; note: string; verify: string }>(
       `/projects/${pid}/mep/sprinkler-coverage?hazard=${encodeURIComponent(hazard)}`);
   }
-  /** PROCURE-LEVEL: group QTO line items into buyout packages (each with an RFQ scope to send out). */
-  buyoutPackages(pid: string, qtoLines: Record<string, unknown>[], by = "trade") {
-    type Pkg = {
-      package: string; line_count: number; est_cost: number;
-      rfq_scope: { item: string; qty: number | null; unit: string }[];
-      lines: { item: string; qty: number | null; unit: string; unit_price: number | null }[];
-    };
-    return this.json<{ grouped_by: string; package_count: number; total_est_cost: number; packages: Pkg[]; note: string }>(
-      `/projects/${pid}/procurement/buyout-packages`, { method: "POST", body: JSON.stringify({ qto_lines: qtoLines, by }) });
-  }
-  /** PROCURE-LEVEL: score returned quotes for a buyout package on price + coverage completeness + lead time. */
-  procurementLevel(pid: string, scope: Record<string, unknown>[], quotes: Record<string, unknown>[],
-                   weights?: Record<string, number>) {
-    type Supplier = {
-      supplier: string; coverage_pct: number; covered_lines: number; scope_lines: number;
-      covered_ext: number; est_full_scope: number | null; lead_time_days: number | null;
-      scope_gaps: string[]; price_score: number; lead_score: number; score: number;
-    };
-    type Item = { item: string; qty: number; low_supplier: string | null; low_price: number | null; quoted_by: number };
-    return this.json<{
-      scope_lines: number; supplier_count: number; best_value_supplier: string | null;
-      weights: { price: number; coverage: number; lead_time: number };
-      suppliers: Supplier[]; items: Item[]; note: string;
-    }>(`/projects/${pid}/procurement/level`, { method: "POST", body: JSON.stringify({ scope, quotes, weights }) });
-  }
   /** PROD-ACTUALS: installed-rate actual vs planned + crew utilization over field productivity actuals. */
   progressActuals(pid: string, actuals: Record<string, unknown>[], planned?: Record<string, unknown>) {
     type Group = {
@@ -2149,22 +2125,6 @@ export class ApiClient extends withEstimate(withModules(withModel(withSchedule(w
       gap_items: Item[]; items: Item[]; note: string;
     }>(`/projects/${pid}/scope/register`, { method: "POST", body: JSON.stringify(body) });
   }
-  /** BUYOUT-SCHED — time-phased buyout schedule from QTO joined to the install schedule → last-responsible
-   * -order dates (install − lead), soonest first, classified overdue/urgent/upcoming/ok vs an as_of date. */
-  buyoutSchedule(pid: string, body: {
-    qto_lines: Record<string, unknown>[]; activities: Record<string, unknown>[];
-    lead_times?: Record<string, number>; as_of?: string; default_lead_days?: number;
-  }) {
-    type Entry = {
-      material: string; cost_code: string | null; trade: string | null; qty: number | null; unit: string | null;
-      value: number | null; install_start: string | null; lead_time_days: number;
-      last_responsible_order: string | null; buffer_days: number | null; status: string;
-    };
-    return this.json<{
-      line_count: number; unscheduled: number; as_of: string | null; status_counts: Record<string, number>;
-      overdue: number; next_30_days: number; total_value: number; entries: Entry[]; note: string;
-    }>(`/projects/${pid}/procurement/buyout-schedule`, { method: "POST", body: JSON.stringify(body) });
-  }
   citedQuery(pid: string, query: string, property?: string, persona?: "exec" | "pm" | "field") {
     type CitationRef = {
       source_type: "ifc" | "doc" | "record" | "rule"; document_id: string | null; revision: string | null;
@@ -2630,17 +2590,6 @@ export class ApiClient extends withEstimate(withModules(withModel(withSchedule(w
     return this.json<{ subs: { company?: string; trade?: string; score: number; risk_band: string;
       factors: { factor: string; points: number; of: number; note: string }[]; flags: string[] }[];
       count: number; high_risk: number }>(`/projects/${pid}/prequal/scores${qs}`);
-  }
-  procurementComplianceFeed(pid: string) {
-    return this.json<{ within_days: number; vendors_flagged: number;
-      vendors: { vendor: string; issues: string[]; can_bid: boolean; can_bill: boolean }[];
-      note: string }>(`/projects/${pid}/procurement/compliance-feed`);
-  }
-  procurementGate(pid: string, vendor: string) {
-    return this.json<{ vendor: string; coi: { status: string; expires: string | null };
-      prequal: { status: string }; subcontract: { executed: boolean }; waiver_on_file: boolean;
-      can_bid: boolean; bid_blockers: string[]; can_bill: boolean; bill_blockers: string[] }>(
-      `/projects/${pid}/procurement/gate?vendor=${encodeURIComponent(vendor)}`);
   }
   coiExpiry(pid: string, soonDays = 30) {
     return this.json<{ expired: { vendor?: string; coverage_type?: string; expires: string; days: number }[];
@@ -3182,21 +3131,6 @@ export class ApiClient extends withEstimate(withModules(withModel(withSchedule(w
       `/projects/${pid}/ifc/classify`, { method: "POST", body: JSON.stringify({}) });
   }
 
-  // --- materials procure-to-pay (FieldMaterials) -----------------------------
-  procurementThreeWayMatch(pid: string) {
-    return this.json<{ pos: { po: string; vendor: string; cost_code: string; po_amount: number;
-      deliveries: number; received: number; invoiced: number; invoice_count: number; variance: number;
-      flags: string[]; status: string }[]; po_count: number; flagged: string[];
-      message?: string | null }>(`/projects/${pid}/procurement/three-way-match`);
-  }
-  procurementLevelQuotes(pid: string, quotes: unknown[], record = false) {
-    return this.json<{ suppliers: string[]; items: { item: string; low_supplier: string | null;
-      low_price: number; prices: Record<string, number | null>; spread_pct: number }[];
-      supplier_totals: Record<string, number>; best_all_in_supplier: string | null;
-      line_by_line_savings: number; recorded_observations?: number; message?: string | null }>(
-      `/projects/${pid}/procurement/level-quotes${record ? "?record=true" : ""}`,
-      { method: "POST", body: JSON.stringify({ quotes }) });
-  }
   // --- CX-1 commissioning loop ----------------------------------------------
   /** Seed asset_register from the model's equipment classes (GUID-deduped) + phase-typed
    *  commissioning checklists with MEP FPT expected values. */
@@ -3238,25 +3172,6 @@ export class ApiClient extends withEstimate(withModules(withModel(withSchedule(w
       violations: string[]; params: { bar_size: string; tie_size: string; tie_spacing: number;
         governing: string; rule: string; min_longitudinal_bars: number } }>(
       `/projects/${pid}/rebar/check?column=${encodeURIComponent(column)}`);
-  }
-  /** PROC-LOOP — the price-observation ledger per material: min/median/avg/max, latest + drift. */
-  procurementPriceHistory(pid: string, material?: string) {
-    return this.json<{ materials: { material: string; observations: number; min: number;
-      median: number; avg: number; max: number; unit?: string | null;
-      latest: { unit_price: number; date: string; vendor?: string | null; source?: string | null };
-      latest_vs_median_pct: number; vendors: string[];
-      series: { date: string; unit_price: number }[] }[];
-      material_count: number; message?: string | null }>(
-      `/projects/${pid}/procurement/price-history${material ? `?material=${encodeURIComponent(material)}` : ""}`);
-  }
-  /** PROC-LOOP — QTO-derived material-request suggestions for a model selection; `create` also
-   *  creates `material_request` records keyed to the GUIDs. */
-  procurementMaterialSuggest(pid: string, opts: { q?: string; guids?: string[]; create?: boolean;
-    needed_by?: string } = {}) {
-    return this.json<{ suggestions: { material: string; ifc_class: string; qty: number | null;
-      unit: string | null; elements: number; guids: string[] }[]; created: string[] }>(
-      `/projects/${pid}/procurement/material-request/suggest`,
-      { method: "POST", body: JSON.stringify(opts) });
   }
 
   // --- IDS authoring (BIMIDS) ------------------------------------------------

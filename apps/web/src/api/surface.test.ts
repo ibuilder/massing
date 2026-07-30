@@ -64,12 +64,20 @@ describe("the API client's public surface", () => {
     // At the exact count it is a RATCHET, the same shape as `test_global_authz`'s BASELINE: losing
     // any single method now fails here by number, and a legitimate new endpoint fails too until
     // someone raises this line — one deliberate edit, and it only ever moves up.
-    // (Set from what THIS reader counts, not from a probe I wrote: my own counter said 698 because it
-    // filtered differently, and a threshold taken from a different reader is a threshold for a
+    // (Set from what THIS reader counts, not from a probe I wrote: my own counter once said 698 while
+    // the gate counted 696, and a threshold taken from a different reader is a threshold for a
     // different question.) That trade is
     // right for a file whose whole purpose is to prove nothing was dropped. **A gate whose threshold
     // sits below the truth is measuring the threshold, not the code.**
-    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(696);
+    //
+    // 2026-07-30 (SCALE-SEAM ⑥): raised 696 -> 698, and the slack was DEMONSTRATED, not feared. During
+    // the /procurement extraction I deleted `procurementGate` outright and this file reported **6
+    // passed** — the surface had grown to 698 across #108-#111, so losing one method still cleared a
+    // 696 floor. Unwiring the whole mixin (-9) failed correctly at 689; losing one did not. That is
+    // the same drift that took it from 685 to 696 a day earlier, and it will happen again: **every
+    // merge that adds an endpoint silently converts this ratchet back into a slack floor.** The
+    // number must be re-read from this reader after any batch of merges, not only when extracting.
+    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(698);
   });
 
   it("keeps the transport primitives the domain methods are built on", () => {
