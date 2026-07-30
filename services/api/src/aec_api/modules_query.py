@@ -17,11 +17,11 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import Float, String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from . import rbac
-from .modules_registry import TABLES
+from .modules_registry import REGISTRY, TABLES
 from .modules_search import _is_postgres, _pg_document, _pg_tsquery
 from .modules_search import search_filter as _search_filter
 
@@ -63,8 +63,116 @@ def _json_text(db: Session, col, jkey: str):
         return col.op("->>")(jkey)
     return func.json_extract(col, f"$.{jkey}")
 
+
+# ---- MOD-FILTER: per-field filtering and sorting over the JSON `data` column ----------------------
+#
+# Until now a register could be narrowed by exactly two things: the full-text `q` and `workflow_state`.
+# On a twenty-field register that means no filtering by discipline, vendor, cost code or date range,
+# and sorting happened in the browser over whichever page had been fetched — so "sort by amount" on a
+# 500-row register sorted 200 rows and silently called it the answer.
+#
+# Two rules make this safe, and they are the whole design:
+#
+# 1. **A field name is never taken from the caller.** `_resolve_field` looks the name up in the
+#    module's declared fields and returns the *declared* definition, or raises. `_json_text`
+#    interpolates `jkey` into a SQLite JSON path, so an unvalidated name would be an injection site —
+#    its docstring already said the key must be module-defined, and this is what enforces it.
+#
+# 2. **A number is compared as a number.** JSON extraction yields text, and text comparison puts 9
+#    above 10 and sorts $1,000 before $900. That is the failure mode this codebase keeps meeting: not
+#    an error, a plausible wrong answer. Numeric and percent fields are cast to float before they are
+#    compared or ordered; dates are left as text because ISO-8601 sorts correctly lexicographically,
+#    which is the one case where the cheap thing is also the right thing.
+
+#: Columns that live on the row rather than inside `data`, and may be filtered/sorted directly.
+SYSTEM_COLUMNS = {"workflow_state", "created_at", "updated_at", "ref", "assignee", "ball_in_court"}
+
+#: The operators a filter may use. `contains` is a case-insensitive substring; `in` takes a
+#: comma-separated list; `empty`/`nonempty` ignore the value.
+FILTER_OPS = {"eq", "ne", "gte", "lte", "contains", "in", "empty", "nonempty"}
+
+_NUMERIC_FIELD_TYPES = {"number", "currency", "percent"}
+
+
+def _resolve_field(mod: dict, name: str) -> dict:
+    """The DECLARED definition of `name`, or HTTP 400. Never trust a caller-supplied field name."""
+    if name in SYSTEM_COLUMNS:
+        return {"name": name, "type": "text", "_system": True}
+    for f in mod.get("fields", []):
+        if f.get("name") == name:
+            return f
+    raise HTTPException(400, f"unknown filter/sort field {name!r} for this module")
+
+
+def _field_expr(db: Session, t, mod: dict, name: str):
+    """A comparable SQL expression for a declared field — cast to float when the field is numeric."""
+    f = _resolve_field(mod, name)
+    if f.get("_system"):
+        return t.c[name], f
+    expr = _json_text(db, t.c.data, name)
+    if f.get("type") in _NUMERIC_FIELD_TYPES:
+        # NULLIF('') so a blank string does not become 0.0 and sort among the real values — an empty
+        # field and a zero are different facts.
+        expr = cast(func.nullif(expr, ""), Float)
+    return expr, f
+
+
+def _apply_filters(db: Session, stmt, t, mod: dict, filters: list[tuple[str, str, str]]):
+    """Add one WHERE clause per (field, op, value). Unknown field or op -> 400, never ignored:
+    a filter that is silently dropped shows MORE rows than the user asked for and looks like data."""
+    for name, op, value in filters:
+        if op not in FILTER_OPS:
+            raise HTTPException(400, f"unknown filter operator {op!r} (expected one of "
+                                     f"{sorted(FILTER_OPS)})")
+        expr, f = _field_expr(db, t, mod, name)
+        numeric = f.get("type") in _NUMERIC_FIELD_TYPES and not f.get("_system")
+        if op == "empty":
+            stmt = stmt.where(or_(expr.is_(None), expr == ("" if not numeric else None)))
+            continue
+        if op == "nonempty":
+            stmt = stmt.where(expr.isnot(None))
+            if not numeric:
+                stmt = stmt.where(expr != "")
+            continue
+        if op == "in":
+            vals = [v.strip() for v in str(value).split(",") if v.strip()]
+            if not vals:
+                continue
+            stmt = stmt.where(expr.in_([_coerce(v, numeric) for v in vals]))
+            continue
+        if op == "contains":
+            # substring match is a TEXT operation; on a numeric field it would be nonsense, so the
+            # cast is bypassed rather than silently comparing a float to a pattern
+            text_expr = t.c[name] if f.get("_system") else _json_text(db, t.c.data, name)
+            stmt = stmt.where(func.lower(cast(text_expr, String)).like(f"%{str(value).lower()}%"))
+            continue
+        v = _coerce(value, numeric)
+        stmt = stmt.where({"eq": expr == v, "ne": expr != v, "gte": expr >= v, "lte": expr <= v}[op])
+    return stmt
+
+
+def _coerce(value: str, numeric: bool):
+    if not numeric:
+        return value
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise HTTPException(400, f"{value!r} is not a number, but the field is numeric") from None
+
+
+def _apply_sort(db: Session, stmt, t, mod: dict, sort: str | None, sort_dir: str | None):
+    """Order by a declared field. Returns the statement unchanged when `sort` is absent, so the
+    caller's default ordering still applies."""
+    if not sort:
+        return stmt, False
+    expr, _f = _field_expr(db, t, mod, sort)
+    desc = str(sort_dir or "asc").lower() == "desc"
+    return stmt.order_by(expr.desc() if desc else expr.asc()), True
+
 def list_records(db: Session, key: str, project_id: str, state: str | None = None,
-                 q: str | None = None, limit: int = 200, offset: int = 0) -> list[dict]:
+                 q: str | None = None, limit: int = 200, offset: int = 0,
+                 filters: list[tuple[str, str, str]] | None = None,
+                 sort: str | None = None, sort_dir: str | None = None) -> list[dict]:
     if key not in TABLES:
         raise HTTPException(404, f"unknown module {key!r}")
     t = TABLES[key]
@@ -77,12 +185,26 @@ def list_records(db: Session, key: str, project_id: str, state: str | None = Non
         stmt = stmt.where(_search_filter(db, t, q))
         if _is_postgres(db) and (tsq := _pg_tsquery(q)):
             stmt = stmt.order_by(func.ts_rank(_pg_document(t), func.to_tsquery("english", tsq)).desc())
+    # MOD-FILTER — per-field narrowing, applied in SQL BEFORE the limit for the same reason `q` is:
+    # filtering a page after fetching it answers a different question than the user asked, and looks
+    # identical to the right answer.
+    if filters:
+        stmt = _apply_filters(db, stmt, t, REGISTRY.get(key) or {}, filters)
+    stmt, _explicit_sort = _apply_sort(db, stmt, t, REGISTRY.get(key) or {}, sort, sort_dir)
+    # `created_at` stays as the last ordering key even when an explicit sort is given, so a page is
+    # STABLE across requests. Without a tiebreak, two rows with equal sort values can swap between
+    # pages and a row is then either shown twice or never — the classic pagination hole.
     stmt = stmt.order_by(t.c.created_at).limit(limit).offset(offset)
     return [dict(r._mapping) for r in db.execute(stmt)]
 
 def count_records(db: Session, key: str, project_id: str, state: str | None = None,
-                  q: str | None = None, since: datetime | None = None) -> int:
-    """Count matches for a module filter (state / search / created-since) — for saved-view alerts."""
+                  q: str | None = None, since: datetime | None = None,
+                  filters: list[tuple[str, str, str]] | None = None) -> int:
+    """Count matches for a module filter (state / search / created-since) — for saved-view alerts.
+
+    Takes `filters` for the same reason `list_records` does: a count that ignores a filter the list
+    applied reports a total the page cannot account for, and a total is exactly the number a user
+    trusts without checking."""
     if key not in TABLES:
         return 0
     t = TABLES[key]
@@ -93,6 +215,8 @@ def count_records(db: Session, key: str, project_id: str, state: str | None = No
         stmt = stmt.where(_search_filter(db, t, q))
     if since is not None:
         stmt = stmt.where(t.c.created_at > since)
+    if filters:
+        stmt = _apply_filters(db, stmt, t, REGISTRY.get(key) or {}, filters)
     return int(db.execute(stmt).scalar() or 0)
 
 def state_counts(db: Session, key: str, project_id: str) -> dict[str, int]:

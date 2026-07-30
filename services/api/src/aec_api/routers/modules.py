@@ -486,13 +486,53 @@ def calc_records(pid: str, key: str, body: dict = Body(default={}), db: Session 
                     "normalized data keys (plus ref/title/workflow_state)."}
 
 
+#: MOD-FILTER — how many per-field filters one request may carry. A bound, because each one is a
+#: separate WHERE over a JSON extraction and an unbounded list is a cheap way to make the server work
+#: hard on someone else's behalf.
+MAX_FILTERS = 12
+
+
+def _parse_filters(qp) -> list[tuple[str, str, str]]:
+    """`?f.discipline=Structural&f.amount.gte=1000` -> [("discipline","eq","Structural"),
+    ("amount","gte","1000")].
+
+    A prefixed key rather than a JSON blob: it stays readable in a log and a bookmark, and each filter
+    survives being edited by hand. The FIELD NAME IS NOT VALIDATED HERE — `modules_query._resolve_field`
+    checks it against the module's declared fields and raises, which is the single place that decision
+    belongs. Doing it in both would let the two drift.
+    """
+    out: list[tuple[str, str, str]] = []
+    for raw, value in qp.multi_items():
+        if not raw.startswith("f."):
+            continue
+        spec = raw[2:]
+        if not spec:
+            continue
+        name, _, op = spec.partition(".")
+        if not name:
+            continue
+        out.append((name, op or "eq", value))
+        if len(out) > MAX_FILTERS:
+            raise HTTPException(400, f"too many filters (max {MAX_FILTERS})")
+    return out
+
+
 @router.get("/projects/{pid}/modules/{key}")
-def list_records(pid: str, key: str, state: str | None = None, q: str | None = None,
-                 limit: int = 200, offset: int = 0, db: Session = Depends(get_db),
+def list_records(request: Request, pid: str, key: str, state: str | None = None, q: str | None = None,
+                 limit: int = 200, offset: int = 0, sort: str | None = None,
+                 sort_dir: str | None = None, db: Session = Depends(get_db),
                  _: str = Depends(require_role("viewer"))):
+    """List a module's records, narrowed by state, full text, and any number of per-field filters.
+
+    MOD-FILTER: before this, a register could be narrowed by `q` and `workflow_state` and nothing else,
+    and sorting happened in the browser over whichever page had been fetched — so "sort by amount" on a
+    500-row register ordered 200 rows and presented it as the answer. Filtering and sorting now happen
+    in SQL, before the limit."""
     # clamp the caller-supplied page size — an unbounded ?limit= materializes the whole module
     limit = max(1, min(int(limit or 200), 1000))
-    return mod_engine.list_records(db, key, pid, state, q, limit, max(0, int(offset or 0)))
+    return mod_engine.list_records(db, key, pid, state, q, limit, max(0, int(offset or 0)),
+                                   filters=_parse_filters(request.query_params),
+                                   sort=sort, sort_dir=sort_dir)
 
 
 @router.post("/projects/{pid}/modules/{key}", status_code=201)

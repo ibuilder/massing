@@ -12,7 +12,7 @@ import { SECTIONS_BY_PERSONA, pushRecent, readDensity, readFavs, readRecents, re
 import { el } from "../ui/dom";
 import { ALL_DESTS, type Dest, stagesFor } from "../shell/destinations";
 import { FALLBACK_ROOMS, type SpineState, destRoom, loadSpine, orderRooms, preselectedRoom, unroomedDests } from "../shell/spine";
-import type { RoomDef } from "../api/types";
+import type { ModuleFilterOp, RoomDef } from "../api/types";
 // PANEL-LAZY (PERF): the ~30 secondary portal panels are DYNAMICALLY imported at first render
 // (see the wrapper methods below), not eagerly bundled into the app shell — each panel file (and
 // its heavy deps: charts, tables, module-graph, etc.) becomes its own chunk fetched only when the
@@ -31,6 +31,20 @@ const REF_RESOLVE_LIMIT = 500;
 
 /** A record id is a `uuid.uuid4()` string server-side, so this distinguishes an id from free text. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+ * MOD-FILTER — everything currently narrowing a register view.
+ *
+ * `q` and `state` were the whole vocabulary; `fields` is the per-field half. It is threaded through
+ * `openModule` rather than held on the instance so that every re-render — a saved view, a page step,
+ * an inline edit — either passes the filters on deliberately or drops them visibly. A filter
+ * surviving in hidden state while the controls show something else is the worst of both.
+ */
+interface RegisterFilter {
+  q?: string;
+  state?: string;
+  offset?: number;
+  /** field name -> {op, value}. Sent as `f.<field>[.<op>]`; the server 400s on an unknown field. */
+  fields?: Record<string, { op: ModuleFilterOp; value: string }>;
+}
 
 /**
  * GC portal UI — one config-driven engine renders every module's list / form / record pages
@@ -1405,12 +1419,28 @@ export class PortalUI {
 
   private async renderScheduleViews(m: ModuleDef) { return (await import("./panels/schedule")).renderScheduleViews(this.panelCtx(), m); }
 
-  private async openModule(m: ModuleDef, filter: { q?: string; state?: string; offset?: number } = {}) {
+  private async openModule(m: ModuleDef, filter: RegisterFilter = {}) {
     const pid = this.host.projectId()!;
     pushRecent(m.key);
     this.skeleton(`Loading ${m.name}…`);
     const PAGE = 100, offset = filter.offset ?? 0;          // page large modules so they never render 1000s of rows
-    const page = await this.host.api.moduleRecordsFiltered(pid, m.key, { ...filter, limit: PAGE + 1, offset });
+    // MOD-FILTER — per-field filters and the sort go to the SERVER, so both apply to the whole
+    // register rather than to the hundred rows that happen to be on this page.
+    const sortState = this.sort[m.key];
+    const sortField = sortState ? this.serverSortField(m, sortState.col) : null;
+    // A range puts TWO clauses on one field (`amount.gte` and `amount.lte`). The controls key
+    // themselves `<field>__<op>` so both can coexist in the state map; the suffix is stripped here,
+    // into a LIST, which is the shape that can actually carry both. Flattening to a field-keyed map
+    // instead would drop one clause and turn a range into a single bound — a narrower result that
+    // looks entirely correct on screen.
+    const wireFilters = Object.entries(filter.fields ?? {}).map(([k, v]) => ({
+      field: k.includes("__") ? k.slice(0, k.lastIndexOf("__")) : k, op: v.op, value: v.value,
+    }));
+    const page = await this.host.api.moduleRecordsFiltered(pid, m.key, {
+      q: filter.q, state: filter.state, limit: PAGE + 1, offset,
+      filters: wireFilters,
+      ...(sortField ? { sort: sortField, sortDir: sortState!.dir === -1 ? "desc" : "asc" } : {}),
+    });
     const hasMore = page.length > PAGE;
     const records = hasMore ? page.slice(0, PAGE) : page;
     const editing = !!this.editInline[m.key];              // inline-edit mode: data cells become inputs
@@ -1553,6 +1583,7 @@ export class PortalUI {
       actions.append(imp);
     }
     this.root.appendChild(actions);
+    this.root.appendChild(this.filterRow(m, filter));
 
     if (!records.length) {
       // R24-EMPTY-GUIDE ② — an empty register says where its rows come from. "Use + New" restates a
@@ -1598,7 +1629,13 @@ export class PortalUI {
       if (Number.isFinite(xn) && Number.isFinite(yn)) return xn - yn;
       return String(x).localeCompare(String(y), undefined, { numeric: true, sensitivity: "base" });
     };
-    if (sort) records.sort((a, b) => {
+    // MOD-FILTER — the server sorted the whole register, so re-sorting here would be a no-op at best.
+    //
+    // This comparator is correct and stays, but only for a column the server cannot order (see
+    // `serverSortField`). The distinction matters: sorting in the browser orders **the fetched page**,
+    // so "sort by amount" on a 500-row register ordered 200 rows and presented the top of that as the
+    // largest values in the register. Nothing was wrong on screen; it was the wrong 200 rows.
+    if (sort && !this.serverSortField(m, sort.col)) records.sort((a, b) => {
       const x = val(a, sort.col), y = val(b, sort.col);
       const xe = x === "" || x == null, ye = y === "" || y == null;
       if (xe || ye) return xe && ye ? 0 : xe ? 1 : -1;             // blanks stay last even when descending
@@ -1822,6 +1859,149 @@ export class PortalUI {
     }
     td.appendChild(span);
     return td;
+   * MOD-FILTER — the per-field filter bar.
+   *
+   * One control per field, chosen by type, because the useful question differs by type and offering a
+   * single text box for all of them is how you end up with a filter nobody uses:
+   *
+   * - **select / multiselect** → a dropdown of the declared options. The only exact-match control that
+   *   cannot be mistyped, and the options are already in the schema.
+   * - **date** → from / to, i.e. `gte` + `lte`. A single date is almost never the question; a range is.
+   * - **number / currency / percent** → min / max, compared numerically by the server.
+   * - **reference** → a dropdown of the target register's records, so you filter by the record rather
+   *   than by remembering its id.
+   * - **everything else** → `contains`, case-insensitive.
+   *
+   * Collapsed by default and summarised when active ("3 filters"), so a register does not open behind
+   * a wall of controls, and an active filter can never be invisible — a page showing a subset while
+   * looking unfiltered is indistinguishable from missing data.
+   */
+  private filterRow(m: ModuleDef, filter: RegisterFilter): HTMLElement {
+    const active = filter.fields ?? {};
+    const wrap = document.createElement("div"); wrap.className = "filter-row";
+    const count = Object.keys(active).length;
+
+    const toggle = document.createElement("button");
+    toggle.className = "tool-btn" + (count ? " on" : "");
+    toggle.textContent = count ? `⧧ ${count} filter${count === 1 ? "" : "s"}` : "⧧ Filter";
+    toggle.title = "Filter this register by any field — applied by the server, so it narrows every "
+      + "record, not just the page on screen";
+    const body = document.createElement("div"); body.className = "filter-body";
+    body.hidden = count === 0;                       // open when something is already filtered
+    toggle.onclick = () => { body.hidden = !body.hidden; };
+    wrap.append(toggle, body);
+
+    const next: Record<string, { op: ModuleFilterOp; value: string }> = { ...active };
+    const apply = () => {
+      for (const k of Object.keys(next)) {
+        const v = next[k]!;
+        if (v.op !== "empty" && v.op !== "nonempty" && !v.value) delete next[k];
+      }
+      void this.openModule(m, { ...filter, offset: 0, fields: { ...next } });
+    };
+    const label = (f: ModuleDef["fields"][number], node: HTMLElement, suffix = "") => {
+      const cell = document.createElement("label"); cell.className = "filter-cell";
+      const t = document.createElement("span"); t.className = "meta";
+      t.textContent = (f.label || f.name) + suffix;
+      cell.append(t, node); body.appendChild(cell);
+    };
+    const setOn = (name: string, op: ModuleFilterOp, value: string) => {
+      if (value) next[name] = { op, value }; else delete next[name];
+      apply();
+    };
+
+    for (const f of this.filterableFields(m)) {
+      if (f.type === "select" || f.type === "multiselect") {
+        const s = document.createElement("select"); s.className = "sb-sel";
+        const any = document.createElement("option"); any.value = ""; any.textContent = "any";
+        s.appendChild(any);
+        for (const o of f.options ?? []) {
+          const opt = document.createElement("option"); opt.value = opt.textContent = o; s.appendChild(opt);
+        }
+        s.value = active[f.name]?.value ?? "";
+        s.onchange = () => setOn(f.name, "eq", s.value);
+        label(f, s);
+      } else if (f.type === "date") {
+        for (const [op, suffix] of [["gte", " from"], ["lte", " to"]] as const) {
+          const i = document.createElement("input"); i.type = "date"; i.className = "portal-filter";
+          const key = `${f.name}__${op}`;
+          i.value = active[key]?.value ?? "";
+          // A range needs two independent clauses on ONE field, so the second cannot overwrite the
+          // first in a field-keyed map. The `__op` suffix keys them apart here and is stripped when
+          // the request is built, which is why `fields` is keyed by control rather than by field.
+          i.onchange = () => { if (i.value) next[key] = { op, value: i.value }; else delete next[key]; apply(); };
+          label(f, i, suffix);
+        }
+      } else if (f.type === "number" || f.type === "currency" || f.type === "percent") {
+        for (const [op, suffix] of [["gte", " min"], ["lte", " max"]] as const) {
+          const i = document.createElement("input"); i.type = "number"; i.className = "portal-filter";
+          const key = `${f.name}__${op}`;
+          i.value = active[key]?.value ?? "";
+          i.onchange = () => { if (i.value) next[key] = { op, value: i.value }; else delete next[key]; apply(); };
+          // The declared `unit` would belong in this label ("Amount min ($/day)"), but `unit` arrives
+          // with the field sweep on a separate branch. Deliberately not duplicated here: two branches
+          // adding the same schema key is a merge conflict for a label suffix.
+          label(f, i, suffix);
+        }
+      } else if (f.type === "reference" && f.module) {
+        const s = document.createElement("select"); s.className = "sb-sel";
+        const any = document.createElement("option"); any.value = ""; any.textContent = "any";
+        s.appendChild(any);
+        s.onchange = () => setOn(f.name, "eq", s.value);
+        label(f, s);
+        // populated lazily: a register with six reference columns would otherwise fire six fetches
+        // before the user has expressed any interest in filtering at all
+        toggle.addEventListener("click", () => {
+          if (s.dataset.loaded) return;
+          s.dataset.loaded = "1";
+          void this.host.api.moduleRecordsFiltered(this.host.projectId()!, f.module!, { limit: 200 })
+            .then((rs) => {
+              for (const r of rs) {
+                const o = document.createElement("option");
+                o.value = r.id; o.textContent = r.title ? `${r.ref} · ${r.title}` : r.ref;
+                s.appendChild(o);
+              }
+              s.value = active[f.name]?.value ?? "";
+            }).catch(() => { /* leave it as "any" — a filter you cannot populate is not an error */ });
+        }, { once: false });
+      } else {
+        const i = document.createElement("input"); i.type = "search"; i.className = "portal-filter";
+        i.placeholder = "contains…";
+        i.value = active[f.name]?.value ?? "";
+        i.onchange = () => setOn(f.name, "contains", i.value);
+        label(f, i);
+      }
+    }
+
+    if (count) {
+      const clear = document.createElement("button"); clear.className = "tool-btn";
+      clear.textContent = "✕ Clear filters";
+      clear.onclick = () => void this.openModule(m, { ...filter, offset: 0, fields: {} });
+      body.appendChild(clear);
+    }
+    return wrap;
+  }
+
+  /**
+   * MOD-FILTER — the server-side field name for a table column, or null if the server cannot sort it.
+   *
+   * The table shows four pseudo-columns that are not module fields: `ref` and `assignee` are real row
+   * columns, `status` is the row's `workflow_state` under a friendlier heading, and `title` is whatever
+   * the module nominated as its `title_field`. Mapping them here is what lets a header click order the
+   * whole register instead of the fetched page. A column with no mapping falls back to the in-browser
+   * comparator rather than sending a name the server would (correctly) reject with a 400.
+   */
+  private serverSortField(m: ModuleDef, col: string): string | null {
+    if (col === "status") return "workflow_state";
+    if (col === "title") return m.title_field ?? null;
+    if (col === "ref" || col === "assignee") return col;
+    return m.fields.some((f) => f.name === col && f.type !== "rollup" && f.type !== "signature")
+      ? col : null;
+  }
+
+  /** Fields worth offering a filter control for — everything a value can be narrowed by. */
+  private filterableFields(m: ModuleDef): ModuleDef["fields"] {
+    return m.fields.filter((f) => !["rollup", "signature", "file", "textarea"].includes(f.type));
   }
 
   /** Format a field value for a compact table cell. */
