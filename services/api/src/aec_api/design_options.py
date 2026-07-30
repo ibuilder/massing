@@ -71,6 +71,25 @@ def compare(db: Session, pid: str) -> dict[str, Any]:
     rows = me.list_records(db, "design_option", pid, limit=100000) if "design_option" in me.TABLES else []
     opts = [_option(r) for r in rows if _d(r).get("name")]
 
+    # Provenance for the money columns, added ALONGSIDE them and never over them. `hard_cost` and
+    # `irr_pct` keep meaning exactly what they meant — the figures recorded on the option — so no
+    # existing reader changes behaviour. What is new is that the card can now say whether anyone
+    # solved them: `economics_basis` is `derived` only when the option names a proforma scenario that
+    # actually solves. A typed IRR and a solved IRR render identically otherwise, and the typed one
+    # is the one that goes stale. See `option_economics` for why an unlinked option is not priced
+    # from the project's other scenario.
+    try:
+        from . import option_economics
+        econ = {e["id"]: e for e in option_economics.compare_economics(db, pid)["options"]}
+    except Exception:
+        econ = {}
+    for o in opts:
+        e = econ.get(o["id"])
+        o["economics_basis"] = e["basis"] if e else None
+        o["derived_irr_pct"] = e["irr_pct"] if e and e["basis"] == "derived" else None
+        o["derived_hard_cost"] = e["hard_cost"] if e and e["basis"] == "derived" else None
+        o["irr_agrees_with_proforma"] = e["agrees_with_declared"] if e else None
+
     def _leader(key: str, lower: bool) -> str | None:
         vals = [(o[key], o["name"]) for o in opts if o.get(key) is not None]
         if not vals:

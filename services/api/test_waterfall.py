@@ -122,6 +122,28 @@ assert all(p["gp"] >= -0.01 for p in cb_on["periods"]), cb_on["periods"]
 # and it improves the LP's return rather than merely shuffling labels
 assert cb_on["lp_irr"] > cb_off["lp_irr"], (cb_on["lp_irr"], cb_off["lp_irr"])
 
+# --- Clawback STATUS: "we could not tell" is reported, never inferred as "nothing owed" -------------
+# `lp_irr is None` means XIRR did not converge — 26% of cash-flow shapes in a 729-pattern sweep. That
+# case used to be silently indistinguishable from "no restitution due": same payload, same
+# distributions, a GP quietly keeping money a clawback might have recovered. No fallback is picked
+# here on purpose — inventing a restitution figure out of a failed solve is how a plausible dollar
+# amount gets cited. Whether a non-converging IRR is a zero-clawback case is a DEAL-TERMS decision.
+assert cb_on["clawback"]["status"] == "applied", cb_on["clawback"]
+assert cb_off["clawback"]["status"] == "not_requested", cb_off["clawback"]
+
+_healthy = run_waterfall([2000.0], [D0, D1], LP, GP, PREF, TIERS, style="american", clawback=True)
+assert _healthy["clawback"]["status"] == "not_owed", _healthy["clawback"]
+assert "achieved its preferred return" in _healthy["clawback"]["reason"], _healthy["clawback"]
+
+# a sign pattern XIRR cannot solve: requested, and honestly unresolvable
+_unsolvable = run_waterfall([2000.0, -1800.0], [date(2021, 1, 1), date(2022, 1, 1), date(2023, 1, 1)],
+                            LP, GP, PREF, TIERS, style="american", clawback=True)
+assert _unsolvable["lp_irr"] is None, _unsolvable["lp_irr"]
+assert _unsolvable["clawback"]["status"] == "unavailable", _unsolvable["clawback"]
+assert "NOT a finding that none is owed" in _unsolvable["clawback"]["reason"], _unsolvable["clawback"]
+# the distinction that matters: unavailable and not_owed must never collapse into each other
+assert _unsolvable["clawback"]["status"] != _healthy["clawback"]["status"]
+
 print("WATERFALL OK - promote split value-checked (the residual tier's 20%, not the below-hurdle "
       "tier's 10%); the IRR hurdle is measured INCLUDING the pref + RoC paid in the same period "
       "(GP was under-promoted 102.78 vs 205.57 before); clawback exercised for the first time "

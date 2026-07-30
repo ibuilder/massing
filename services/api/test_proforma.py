@@ -3,10 +3,10 @@ Asserts the invariants the guide calls non-negotiable for a finance product."""
 from datetime import date
 
 from aec_api.proforma import returns as ret
-from aec_api.proforma.sources_uses import solve_sources_uses
 from aec_api.proforma.schedule import monthly_uses, scurve_weights
-from aec_api.proforma.waterfall import run_waterfall
 from aec_api.proforma.solve import solve
+from aec_api.proforma.sources_uses import solve_sources_uses
+from aec_api.proforma.waterfall import run_waterfall
 
 # --- XIRR / XNPV ------------------------------------------------------------
 assert abs(ret.xirr([(date(2026, 1, 1), -100), (date(2027, 1, 1), 110)]) - 0.10) < 1e-3
@@ -74,6 +74,7 @@ assert abs((wfr["lp_distributions"] + wfr["gp_distributions"])
 
 # --- U2: capital reserves are deducted above NOI → lower value + IRR --------
 import copy  # noqa: E402
+
 deal_res = copy.deepcopy(deal)
 deal_res["operations"]["reserves_annual"] = 300_000
 res_res = solve(deal_res)
@@ -374,6 +375,15 @@ _cpi = reforecast(_fc_deal, [{"actual_to_date": 4_000_000}, {"actual_to_date": 9
 _hc = next(L for L in _cpi["lines"] if L["category"] == "hard")
 assert _hc["forecast_basis"] == "remaining_budget", "too early for CPI — must fall back"
 assert _hc["forecast_at_completion"] < 40_000_000, _hc["forecast_at_completion"]
+# The fallback's ARITHMETIC, not just which branch it took. Found by mutation testing: the branch was
+# exercised and only its `forecast_basis` label was asserted, so flipping its
+# `actual + max(0.0, budget - budget_to_date)` to `min` survived — the forecast collapsed from
+# 27,133,231.54 to 9,000,000 (spend-to-date, i.e. claiming the job is finished) and the `< 40,000,000`
+# bound above passed just as happily. Checking a label proves which code ran, never what it computed.
+assert abs(_hc["forecast_at_completion"]
+           - (_hc["actual_to_date"] + max(0.0, _hc["budget"] - _hc["budget_to_date"]))) < 0.01, _hc
+assert _hc["forecast_at_completion"] > _hc["actual_to_date"], (
+    "a forecast at completion equal to spend-to-date says the job is done — it is month 6 of 17")
 # late enough in the curve, CPI is used and is stated per line
 _late = reforecast(_fc_deal, [{"actual_to_date": 4_000_000}, {"actual_to_date": 22_000_000}],
                    as_of_month=14, method="cpi")

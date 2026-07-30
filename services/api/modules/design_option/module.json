@@ -34,6 +34,12 @@
       "fieldset": "Option"
     },
     {
+      "name": "scenario",
+      "label": "Proforma scenario",
+      "type": "text",
+      "fieldset": "Option"
+    },
+    {
       "name": "gross_area_sf",
       "label": "Gross area (sf)",
       "type": "number",

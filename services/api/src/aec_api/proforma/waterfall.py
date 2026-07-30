@@ -147,8 +147,32 @@ def run_waterfall(distributable: list[float], dates: list[date], lp_contrib: flo
         prev = d
 
     # clawback: if LP didn't reach its pref over the hold, claw GP promote back to LP
+    #
+    # `lp_irr is None` means **XIRR did not converge**, not "no clawback owed" — and across a
+    # 729-pattern sweep of cash-flow shapes it came back None in 26% of them (sign patterns with
+    # multiple or no real roots). Until now that case silently did nothing: a deal where restitution
+    # might be owed returned the same payload as one where none was, and a GP kept money a clawback
+    # would have recovered. It is reported rather than guessed at, because any fallback would invent
+    # a restitution figure out of a failed solve — a plausible dollar amount gets cited, a missing one
+    # gets chased. Whether a non-converging IRR is a zero-clawback case by contract or an unpriceable
+    # one is a DEAL-TERMS decision, not an arithmetic one, so the code states the situation and stops.
+    clawback_status = "not_requested"
+    clawback_reason = None
     if clawback:
         lp_irr = xirr(list(zip(lp_dates, lp_cf)))
+        if lp_irr is None:
+            clawback_status = "unavailable"
+            clawback_reason = ("the LP's IRR could not be solved for these cash flows (XIRR did not "
+                               "converge), so whether restitution is owed cannot be determined. This "
+                               "is NOT a finding that none is owed")
+        elif lp_irr >= pref_rate:
+            clawback_status = "not_owed"
+            clawback_reason = "the LP achieved its preferred return, so no restitution is due"
+        elif not len(periods):
+            clawback_status = "not_owed"
+            clawback_reason = "no distribution period exists to claw back from"
+        else:
+            clawback_status = "applied"
         if lp_irr is not None and lp_irr < pref_rate and len(periods):
             shortfall_periods = [p for p in periods if p["gp"] > 0]
             owed = (pref_rate - lp_irr) * lp_contrib  # rough restitution proxy
@@ -170,6 +194,10 @@ def run_waterfall(distributable: list[float], dates: list[date], lp_contrib: flo
     gp_invested = gp_contrib + gp_calls
     return {
         "periods": periods, "style": style, "pref_accrual": pref_accrual,
+        # Stated, never inferred from the numbers: a caller cannot tell "no restitution was
+        # owed" from "we could not work out whether any was" by looking at the distributions.
+        "clawback": {"requested": bool(clawback), "status": clawback_status,
+                     "reason": clawback_reason},
         "lp_distributions": round(lp_dist, 2), "gp_distributions": round(gp_dist, 2),
         # Additional capital the partners had to fund for operating shortfalls. Reported separately
         # from `*_distributions` so the existing "distributions reconcile to positive distributable"
