@@ -303,6 +303,24 @@ def design_options_carbon(pid: str, db: Session = Depends(get_db),
     return option_carbon.compare_carbon(db, pid)
 
 
+@router.get("/projects/{pid}/design/options/economics")
+def design_options_economics(pid: str, db: Session = Depends(get_db),
+                             _: str = Depends(require_role("viewer"))):
+    """Each design option's cost and levered IRR, **solved from the proforma scenario it names**.
+
+    Every figure states its `basis`: `derived` (the option's scenario was solved), `declared` (typed
+    on the option and shown as such), `unlinked` (the project has scenarios but this option names
+    none — reported with the candidates and deliberately not resolved, because attributing another
+    scheme's deal to this massing would manufacture provenance), or `unavailable`.
+
+    A declared figure is never promoted to derived, and a derived one never overwrites what was
+    typed — `declared_disagrees_with_derived` is the list worth reading first."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import option_economics
+    return option_economics.compare_economics(db, pid)
+
+
 @router.get("/projects/{pid}/design/standards")
 def design_standards_ruleset(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The design-standards ruleset — approved / preferred / prohibited assemblies, materials, products."""

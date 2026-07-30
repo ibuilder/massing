@@ -256,6 +256,35 @@ def quality_summary(pid: str, db: Session = Depends(get_db), _: str = Depends(re
     return quality_engine.quality_summary(db, pid)
 
 
+@router.get("/projects/{pid}/quality/chain")
+def quality_chain_route(pid: str, guids: str | None = None, db: Session = Depends(get_db),
+                        _: str = Depends(require_role("viewer"))):
+    """The quality evidence chain **per element** — ITP hold/witness points, NCRs and inspections
+    resolved against the GlobalIds their records are attached to.
+
+    Each element is `clear`, `outstanding`, or `unrecorded`. **`unrecorded` is not a pass**: an
+    element nobody inspected is the absence of evidence, not evidence of conformance. `any_attached`
+    and `coverage_pct` distinguish "this building has a problem" from "nobody has linked records yet".
+
+    `guids` is an optional comma-separated list; omitted, it reports the elements quality records
+    actually name rather than every GlobalId in the model."""
+    from .. import quality_chain
+    ids = [g.strip() for g in guids.split(",") if g.strip()] if guids else None
+    return quality_chain.chain(db, pid, ids)
+
+
+@router.get("/projects/{pid}/quality/turnover-readiness")
+def quality_turnover_readiness(pid: str, guids: str | None = None, db: Session = Depends(get_db),
+                               _: str = Depends(require_role("viewer"))):
+    """Whether the quality evidence supports closeout — the seam the G704 turnover package never had.
+
+    An element with no quality record counts AGAINST readiness, not for it: otherwise a project
+    nobody inspected reads as perfectly clean."""
+    from .. import quality_chain
+    ids = [g.strip() for g in guids.split(",") if g.strip()] if guids else None
+    return quality_chain.turnover_readiness(db, pid, ids)
+
+
 @router.get("/projects/{pid}/submittals/register")
 def submittal_register(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Spec-section submittal register — turnaround, ball-in-court, overdue flags."""
