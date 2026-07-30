@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import ai, audit, mailer, rbac, rooms
+from .. import ai, audit, mailer, rbac, ref_backfill, rooms
 from .. import modules as mod_engine
 from .. import sync as sync_engine
 from ..db import get_db
@@ -60,6 +60,26 @@ def list_modules():
          "room": rooms.room_of(m)}
         for m in mod_engine.REGISTRY.values()
     ]
+
+
+@router.post("/projects/{pid}/modules/backfill-references")
+def backfill_references(pid: str, module: str | None = None, apply: bool = False,
+                        db: Session = Depends(get_db),
+                        _: str = Depends(require_role("admin"))):
+    """MOD-BACKFILL — fill empty reference fields from the text twin already on the record.
+
+    The field sweep added 54 references BESIDE their text fields rather than converting in place;
+    this populates them. Exact match after normalisation, unique matches only, existing values never
+    overwritten — and **`apply` defaults to False**, so the default call is a report.
+
+    A wrong auto-link is worse than an empty one: it resolves, opens a real record and shows a
+    plausible name, so nobody questions it. An empty reference is visibly empty and gets filled by
+    the next person to look. Every skip is returned with its reason rather than left as a silent
+    shortfall.
+
+    `admin` because it writes across every register in the project in one call.
+    """
+    return ref_backfill.backfill(db, pid, module_keys=[module] if module else None, apply=apply)
 
 
 @router.get("/rooms")
