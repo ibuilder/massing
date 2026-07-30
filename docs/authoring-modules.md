@@ -38,31 +38,97 @@ record detail, CSV/Excel import, and auto-numbered references (`SV-0001`, `SV-00
 ## 2. Fields
 
 Each field is `{ "name", "label", "type", … }`. `name` is the stored key (don't rename once in use);
-`label` is what the user sees. Optional on any field: `"required": true`, `"description": "hint text"`,
-`"fieldset": "Group name"` (groups fields into sections on the form).
+`label` is what the user sees.
 
-| `type` | Renders as | Notes |
+**Every field type the platform accepts is listed below.** This table is not a summary — it is the
+complete set, and `test_docs_module_schema.py` fails the build if it drifts from
+`module_schema.FIELD_TYPES`. If a type is not here, the loader will refuse it.
+
+| `type` | Renders as | Requires / accepts |
 |---|---|---|
 | `text` | single-line input | |
 | `textarea` | multi-line input | |
-| `number` | numeric input | |
-| `currency` | money input | formatted as currency (use this instead of a plain number for money) |
+| `number` | numeric input | `unit` |
+| `currency` | money input | `unit`. Use this, not `number`, for money |
+| `percent` | numeric input, shown with `%` | `unit`. Use this, not `number`, for any percentage |
 | `date` | date picker | stored ISO `YYYY-MM-DD` |
-| `select` | dropdown | needs `"options": ["A","B",…]` |
-| `multiselect` | multi-pick | needs `"options"` |
-| `reference` | picker of another module's records | needs `"module": "<other_key>"` |
-| `rollup` | read-only aggregate from a related module | see §4 |
+| `checkbox` | tick box | |
+| `email` | email input | |
+| `phone` | telephone input | |
+| `select` | dropdown | **needs** `options: ["A","B",…]` |
+| `multiselect` | multi-pick | **needs** `options` |
+| `reference` | picker of another module's records | **needs** `module: "<other_key>"` |
+| `table` | repeating line-item grid | **needs** `columns`; accepts `total_column`. See §2.3 |
+| `file` | file attachment | |
 | `signature` | typed/drawn signature capture | |
+| `rollup` | read-only aggregate from a related module | `source_module`, `source_field`, `op`. See §4 |
 
-Example with a reference and a fieldset:
+Optional on **any** field: `"required": true`, `"description": "hint text"`, `"fieldset": "Group"`.
+
+### 2.1 `unit` — say what a number measures
+
+A numeric field (`number`, `currency`, `percent`) may declare a `unit`. It renders beside the input and
+after the value in a table cell.
 
 ```json
-{ "name": "rfi", "label": "Related RFI", "type": "reference", "module": "rfi", "fieldset": "Links" }
+{ "name": "expected_life", "label": "Expected life", "type": "number", "unit": "yr" }
 ```
 
-`reference` is how modules relate to each other (an RFI points at a `location`, a change order points
-at a `prime_contract`, etc.). The picker searches the target module; the value stored is that record's
-GUID, so links survive renames.
+**Put the unit here, not in the field name.** `elevation_ft` encodes its unit somewhere only a human
+can read — it cannot be rendered next to an input, appended to a cell, converted, or checked. A `unit`
+on a non-numeric field is refused.
+
+A *calendar year* (2027) is a point in time, not a duration, and takes **no** unit. A *duration* in
+years does.
+
+### 2.2 `reference` — how modules relate
+
+```json
+{ "name": "location", "label": "Location", "type": "reference", "module": "location", "fieldset": "Links" }
+```
+
+The picker searches the target module; the value stored is that record's **id**. The register table
+resolves it to `REF-001 · Title` and links through to the record.
+
+**Converting an existing `text` field to `reference` is not safe.** Every stored string would become an
+unresolvable id. The convention is **additive** — keep the text field and add a reference beside it:
+
+```json
+{ "name": "vendor",         "label": "Vendor",          "type": "text",      "fieldset": "Parties" },
+{ "name": "vendor_company", "label": "Vendor (linked)", "type": "reference", "module": "company",
+  "fieldset": "Parties" }
+```
+
+Recognised suffixes: `_company` · `_loc` · `_spec` · `_system` · `_contact` · `_package`. The pair
+**must be adjacent and share a fieldset** — a pair rendered in two places is a pair nobody recognises —
+and `test_module_fields.py` enforces it. `POST /projects/{pid}/modules/backfill-references` fills the
+reference from the text by exact match; it refuses ambiguous ones rather than guessing.
+
+### 2.3 `table` — line items
+
+For anything that is a *list of rows* rather than one value: a schedule of values, bid unit prices,
+crew by trade, witnesses.
+
+```json
+{
+  "name": "line_items", "label": "Line items", "type": "table", "total_column": "amount",
+  "columns": [
+    { "name": "description", "label": "Description", "type": "text" },
+    { "name": "qty",         "label": "Qty",         "type": "number" },
+    { "name": "amount",      "label": "Amount",      "type": "currency" }
+  ]
+}
+```
+
+Column types are a **deliberate subset** — `checkbox` · `currency` · `date` · `number` · `percent` ·
+`select` · `text`. No nested table, no rollup, no file, no signature, no reference: each needs
+per-record machinery a repeating row has no room for. A column accepts `label`, `required`, `options`
+(for `select`), `unit`, `width`.
+
+`total_column` must name a column that exists **and is numeric**. The register cell shows a summary
+(`3 lines · $118,260`) rather than the grid.
+
+**Do not use a `textarea` for a list.** Prose cannot be summed, filtered, or read by the engines.
 
 ## 3. Workflow (states + buttons)
 
@@ -110,6 +176,44 @@ gate it on fields.
     "source_module": "warranty", "source_field": "name", "op": "count" }
   ```
   `op` is `count` or `sum` (sum a numeric `source_field`). Copy from `asset_register` or `daily_report`.
+
+### 4.1 `fieldset` — sections on the form, and the one rule that bites
+
+`"fieldset": "Money"` groups fields under a heading. Two rules:
+
+- **Fields sharing a fieldset must be adjacent in the `fields` array.** The renderer emits one heading
+  per *run*, so an interleaved fieldset draws its heading twice. This is a renderer constraint, not a
+  style preference, and `test_modules.py` fails the build on it — for every module, not a list of them.
+- **All or nothing.** Either every non-rollup field has a fieldset or none does. A three-field lookup
+  table legitimately has none; a half-grouped form renders an unlabelled group.
+
+`rollup` fields take no fieldset — they are computed and never rendered as inputs.
+
+The core registers use: **Identity · Classification · Parties · Dates · Money · Quantities · Status ·
+Links · Notes**. Reuse them unless your register genuinely needs its own vocabulary.
+
+### 4.2 `tools` — point a register at the panel that operates on it
+
+A register renders a table, a form and a status chip. `tools` is how it says what it can *do*:
+
+```json
+"tools": [
+  { "dest": "__evm__", "label": "Earned value" },
+  { "dest": "__budget__", "label": "Budget" }
+]
+```
+
+`dest` is a first-class destination key (`__evm__`, `__operations__`, `__aiassist__`, …). `label` is
+the button text. `scope` is `register` (default). An unknown `dest` renders nothing rather than a dead
+button, and `moduleTools.test.ts` fails the build if it does not resolve.
+
+### 4.3 Where a module appears
+
+`section` decides the nav group; the **room** is derived from the section by one table
+(`rooms.ROOM_OF_SECTION`), so a new section must be given a room deliberately — an unmapped section is
+a hard failure, never a default, because a module with no room is one nobody can reach.
+
+The seven rooms: **Deal · Design · Planning · Schedule · Cost · Work · Operate**.
 
 ## 5. Validate before you ship
 
