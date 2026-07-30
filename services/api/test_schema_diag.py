@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import gc
 import os
+from shutil import rmtree as shutil_rmtree
 
 from aec_data import schema_diag as SD
 
@@ -52,8 +53,62 @@ def test_minimal_valid_file_is_clean():
     assert r["passed"] is True
 
 
+def test_a_real_ifc_from_an_independent_writer_is_clean():
+    """The no-false-positives gate, and the one that runs EVERYWHERE.
+
+    `ifcopenshell` writes the file; this module reads it as text with its own parser. Those are
+    entirely separate implementations, so this is not the round-trip-through-my-own-writer trap — the
+    producer is a reader I did not write, which is exactly the property
+    `assert-against-a-reader-you-did-not-write` asks for.
+
+    This exists because the shipped `samples/*.ifc` are **gitignored** (`.gitignore:52 samples/*`), so
+    they are present on a dev machine and absent on CI. The first version of this file asserted
+    `checked >= 4` against them and **failed the API gate on `main`** — a fixture-dependent test that
+    passed locally for the same reason it failed remotely.
+    """
+    import tempfile
+
+    import ifcopenshell
+
+    m = ifcopenshell.file(schema="IFC4")
+    proj = m.create_entity("IfcProject", GlobalId=ifcopenshell.guid.new(), Name="P")
+    origin = m.create_entity("IfcCartesianPoint", Coordinates=(0.0, 0.0, 0.0))
+    axes = m.create_entity("IfcAxis2Placement3D", Location=origin)
+    # `WorldCoordinateSystem` is mandatory. The first draft of this fixture omitted it and the engine
+    # correctly flagged it — the fixture was invalid, not the check. Left as a comment because it is
+    # the cheapest possible demonstration that this test can fail.
+    ctx = m.create_entity("IfcGeometricRepresentationContext",
+                          CoordinateSpaceDimension=3, WorldCoordinateSystem=axes)
+    proj.RepresentationContexts = [ctx]
+    site = m.create_entity("IfcSite", GlobalId=ifcopenshell.guid.new(), Name="S")
+    bldg = m.create_entity("IfcBuilding", GlobalId=ifcopenshell.guid.new(), Name="B")
+    storey = m.create_entity("IfcBuildingStorey", GlobalId=ifcopenshell.guid.new(), Name="L1")
+    for parent, child in ((proj, site), (site, bldg), (bldg, storey)):
+        m.create_entity("IfcRelAggregates", GlobalId=ifcopenshell.guid.new(),
+                        RelatingObject=parent, RelatedObjects=[child])
+    for i in range(12):
+        m.create_entity("IfcWall", GlobalId=ifcopenshell.guid.new(), Name=f"W{i}")
+
+    d = tempfile.mkdtemp()
+    try:
+        path = os.path.join(d, "generated.ifc")
+        m.write(path)
+        r = SD.diagnose_file(path)
+        assert r["instances"] > 10, f"only {r['instances']} instances parsed from a written IFC"
+        assert r["summary"]["error"] == 0, f"false positives on a valid file: {r['summary']['by_code']} {r['findings'][:3]}"
+    finally:
+        shutil_rmtree(d)
+
+
 def test_shipped_samples_have_zero_structural_errors():
-    """The no-false-positives gate. If this fails, the engine is not shippable regardless of the rest."""
+    """The same property against real third-party models — OPPORTUNISTIC, because they are gitignored.
+
+    `samples/*.ifc` are not in version control, so this checks several real models on a dev machine and
+    honestly reports that it checked nothing on CI. It does **not** assert a minimum count: that is what
+    broke the API gate. The vacuous-loop risk it was guarding against is covered instead by
+    `test_a_real_ifc_from_an_independent_writer_is_clean`, which has a fixture it creates itself and so
+    cannot silently check zero files.
+    """
     checked = 0
     for name in CLEAN:
         p = os.path.join(SAMPLES, name)
@@ -65,8 +120,8 @@ def test_shipped_samples_have_zero_structural_errors():
         assert r["instances"] > 10, f"{name}: only {r['instances']} instances — did the scan find the DATA section?"
         del r
         gc.collect()
-    # Without this the loop passes vacuously if samples/ is ever moved.
-    assert checked >= 4, f"only {checked} sample files found in {SAMPLES}"
+    if checked == 0:
+        print("      (no sample IFCs on disk — gitignored; the generated-IFC test carries this property)")
 
 
 def test_real_violation_in_a_shipped_sample():
