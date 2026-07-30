@@ -8,6 +8,9 @@ import { IS_DEMO, demoJson } from "../demo/demoApi";
 // VITE_API_URL overrides either, baked at build time.
 const DEFAULT_API = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "/api");
 
+/** Handle for a resilient SSE subscription (see `HttpCore.liveStream`). */
+export interface LiveStream { readonly connected: boolean; close(): void }
+
 export class HttpCore {
   private token = localStorage.getItem("aec-token") || "";
   constructor(protected baseUrl = DEFAULT_API) {}
@@ -76,5 +79,43 @@ export class HttpCore {
     } catch {
       return false;
     }
+  }
+
+  /** Resilient SSE subscription. EventSource auto-retries transient network drops on its own, but a
+   *  fatal close (the server answered with an HTTP error — deploy, restart, auth expiry) kills the
+   *  stream permanently and silently. This helper re-subscribes with bounded backoff (5s → 60s) and
+   *  surfaces status transitions so a UI can say "live updates disconnected" instead of going quiet. */
+  protected liveStream(path: string, onMessage: (data: unknown) => void,
+                     onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+    // Demo/Pages build has no backend: opening an EventSource there dies CLOSED and our backoff would
+    // retry it forever (console-error spam in the public demo). Serve an inert stream instead — the
+    // same guard every fetch method has via demoJson.
+    if (IS_DEMO) return { get connected() { return false; }, close() { /* nothing to close */ } };
+    let es: EventSource | null = null;
+    let closed = false;
+    let retryMs = 5000;
+    let timer: number | undefined;
+    let connected = false;
+    const open = () => {
+      if (closed) return;
+      es = new EventSource(this.url(path));
+      es.onmessage = (e) => {
+        if (!connected) { connected = true; retryMs = 5000; onStatus?.("connected"); }
+        try { onMessage(JSON.parse(e.data)); } catch { /* malformed frame — skip it, keep the stream */ }
+      };
+      es.onerror = () => {
+        if (connected) { connected = false; onStatus?.("reconnecting"); }
+        // CLOSED = fatal response → schedule our own re-subscribe; CONNECTING = browser is retrying.
+        if (es && es.readyState === EventSource.CLOSED && !closed) {
+          timer = window.setTimeout(open, retryMs);
+          retryMs = Math.min(retryMs * 2, 60000);
+        }
+      };
+    };
+    open();
+    return {
+      get connected() { return connected; },
+      close() { closed = true; if (timer !== undefined) clearTimeout(timer); es?.close(); },
+    };
   }
 }

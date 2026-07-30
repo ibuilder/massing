@@ -53,7 +53,23 @@ describe("the API client's public surface", () => {
     // The first draft said 620, which would have sat green through losing every one of the 15
     // methods that extraction moved — a threshold far below the truth is a test that cannot fail.
     // Raise this as the surface legitimately grows; that is what keeps it load-bearing.
-    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(685);
+    //
+    // 2026-07-29 (SCALE-SEAM ③): raised 685 -> 696, the exact live count, because 685 had drifted
+    // into 13 methods of slack and that slack was demonstrated, not theorised. During the /model
+    // extraction I deleted `modelStream` outright and this file still reported **6 passed** — 695
+    // clears a 685 floor, and `modelStream` is not one of the 28 spot-checked names. Only `tsc`
+    // caught it, via its two real call sites. So the honest reading of this gate was: it catches a
+    // catastrophic drop, or a named method, and nothing else.
+    //
+    // At the exact count it is a RATCHET, the same shape as `test_global_authz`'s BASELINE: losing
+    // any single method now fails here by number, and a legitimate new endpoint fails too until
+    // someone raises this line — one deliberate edit, and it only ever moves up.
+    // (Set from what THIS reader counts, not from a probe I wrote: my own counter said 698 because it
+    // filtered differently, and a threshold taken from a different reader is a threshold for a
+    // different question.) That trade is
+    // right for a file whose whole purpose is to prove nothing was dropped. **A gate whose threshold
+    // sits below the truth is measuring the threshold, not the code.**
+    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(696);
   });
 
   it("keeps the transport primitives the domain methods are built on", () => {
@@ -82,16 +98,17 @@ describe("the API client's public surface", () => {
   });
 
   it("still carries the shared SSE helper the stream methods are built on", () => {
-    // `liveStream` is declared `private` and the three stream methods above all call it. Reflection
-    // sees it anyway — TS visibility is erased at compile time, so this set is the RUNTIME surface,
-    // not the declared one. Worth being explicit about, because it is the limit of this technique:
-    // it proves a method still exists, never that it is still callable from outside.
+    // Reflection sees it regardless of visibility — TS access modifiers are erased at compile time,
+    // so this set is the RUNTIME surface, not the declared one. Worth being explicit about, because
+    // it is the limit of this technique: it proves a method still exists, never that it is still
+    // callable from outside.
     //
-    // The declared visibility is a real constraint on SCALE-SEAM regardless: a mixin cannot reach a
-    // sibling mixin's `private` member, so `notificationStream`/`markupStream`/`pullPlanStream`
-    // cannot move until `liveStream` moves down into HttpCore or becomes `protected` the way
-    // `authToken` already is. That is an ordering fact worth having before the first extraction
-    // rather than halfway through one.
+    // **The ordering constraint this comment used to describe is now DISCHARGED.** It said the SSE
+    // methods could not move until `liveStream` came down into HttpCore or became `protected`, since
+    // a mixin is a BASE of ApiClient and cannot see ApiClient's `private` members. SCALE-SEAM ③ did
+    // exactly that: `liveStream` is now `protected` on HttpCore, which is what let `modelStream`
+    // travel with the `/model` group. `notificationStream` / `markupStream` / `pullPlanStream` are
+    // unblocked for ④ — the prediction was right and the fix was the one it named.
     expect(surface.has("liveStream")).toBe(true);
   });
 

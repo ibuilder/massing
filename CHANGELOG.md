@@ -4,6 +4,34 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.802 — SCALE-SEAM ③, and the gate I was trusting had 13 methods of slack
+
+`client.ts` 4,637 → **4,368**: the 29 `/model` methods move to `api/model.ts` as a `withModel` mixin.
+Typecheck clean, **907/907** — the same count as before, which is what "moved, not changed" looks like.
+
+**`liveStream` moved into `HttpCore` and that was the real work.** `modelStream` calls it and it was
+`private` on `ApiClient`. A mixin is a **base** of `ApiClient`, so it cannot see `ApiClient`'s private
+members — exactly why `withAuthoring` recorded "the SSE methods cannot follow yet". It is now
+`protected` on `HttpCore`, which also unblocks `notificationStream` / `markupStream` /
+`pullPlanStream` for ④. `surface.test.ts` had predicted this ordering constraint before the first
+extraction; the prediction was right and the fix was the one it named.
+
+**The finding worth more than the refactor: `surface.test.ts` did not catch a dropped method.** Its
+floor was `>= 685` against a live surface of **696** — 13 methods of slack. I deleted `modelStream`
+outright as a mutation check and the file reported **6 passed**. Only `tsc` caught it, via its two real
+call sites. So my earlier claim that this gate makes "moved vs changed" checkable was stronger than the
+gate delivered: it caught `scheduleCpm` in ② because that name is in the 28-name spot-check, and
+`modelStream` is not.
+
+Raised to the exact count, making it a **ratchet** in the same shape as `test_global_authz`'s BASELINE:
+losing any single method now fails by number, and a legitimate new endpoint fails until someone raises
+the line — one deliberate edit that only ever moves up. Mutation-verified both ways (clean 696 passes;
+`modelStream` removed → 695 fails).
+
+Also caught in passing: I first set that floor to **698**, from a counter I wrote myself, while the
+gate's own `surfaceOf` counts 696 — it filters getters differently. **A threshold taken from a
+different reader is a threshold for a different question**, and the clean tree failing is what said so.
+
 ## v0.3.801 — the GP promote was paid at half, and a green suite could not see it
 
 Release for #107. `proforma/waterfall.py` tested the IRR hurdle against a cash-flow series that omitted
