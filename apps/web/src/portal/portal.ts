@@ -85,6 +85,15 @@ export const READ_ONLY_FIELD_TYPES = [
   "file",        // needs an upload control, not a cell
   "reference",   // edited through the record picker (`inlineRefCell`), not as free text
   "multiselect", // needs a multi-choice control a table cell has no room for
+  // MOD-TABLE. A line-item grid has no cell-sized inline editor: its value is an array of objects,
+  // and a register cell shows the summary ("3 lines · $118,260") instead. Edited in the record form
+  // via `tableEditor`, which is where a grid has room to exist.
+  //
+  // This entry is the gate working as designed. `fieldTypeCoverage.test.ts` was written one PR ago to
+  // catch a type added to `FIELD_TYPES` without a renderer classification — and the very next PR to
+  // add a type was this one. It failed until the type was classified, which is exactly the outcome
+  // that was wanted: the cost of a new type is one deliberate line saying how it renders.
+  "table",
 ] as const;
 
 interface RegisterFilter {
@@ -2060,12 +2069,146 @@ export class PortalUI {
     return m.fields.filter((f) => !["rollup", "signature", "file", "textarea"].includes(f.type));
   }
 
+  /**
+   * MOD-TABLE — the line-item grid for a `table` field.
+   *
+   * The sweep found 22 places a LIST had been flattened into one textarea, and the deeper version of
+   * the same gap: `sov` is one record *per line* with no parent document, and `estimate` is a single
+   * `amount`. A schedule of values, a bid, an estimate and a daily manpower log are all line-item
+   * documents; the config had no way to say so and the form had no way to draw one.
+   *
+   * **A legacy string is shown, not discarded.** Those 22 fields were textareas, so live records hold
+   * prose where rows are now expected. It is rendered above the grid, verbatim and read-only, because
+   * it is the only copy of that information — dropping it on first save would destroy data the config
+   * change never intended to touch, and silently, since nothing else records what was there.
+   */
+  private tableEditor(
+    f: ModuleDef["fields"][number],
+    value: unknown,
+    store: Record<string, Record<string, unknown>[]>,
+  ): HTMLElement {
+    const cols = f.columns ?? [];
+    const wrap = document.createElement("div"); wrap.className = "tbl-field";
+
+    if (typeof value === "string" && value.trim()) {
+      const legacy = document.createElement("pre"); legacy.className = "tbl-legacy";
+      legacy.textContent = value;
+      legacy.title = "This field held free text before it became a line-item table. It is kept "
+        + "verbatim until the lines are entered below — it is the only copy.";
+      const note = document.createElement("div"); note.className = "meta";
+      note.textContent = "Previous free-text entry (kept until itemised):";
+      wrap.append(note, legacy);
+    }
+
+    const rows: Record<string, unknown>[] = Array.isArray(value)
+      ? (value as Record<string, unknown>[]).map((r) => ({ ...r })) : [];
+    store[f.name] = rows;
+
+    const table = document.createElement("table"); table.className = "tbl-grid";
+    const thead = document.createElement("thead"); const htr = document.createElement("tr");
+    for (const c of cols) {
+      const th = document.createElement("th");
+      th.textContent = (c.label || c.name) + (c.unit ? ` (${c.unit})` : "");
+      if (c.width) th.style.width = c.width;
+      htr.appendChild(th);
+    }
+    htr.appendChild(document.createElement("th"));          // row-remove column
+    thead.appendChild(htr); table.appendChild(thead);
+    const tbody = document.createElement("tbody"); table.appendChild(tbody);
+
+    const foot = document.createElement("div"); foot.className = "tbl-total";
+    const isNum = (t: string) => t === "number" || t === "currency" || t === "percent";
+    const retotal = () => {
+      if (!f.total_column) return;
+      const col = cols.find((c) => c.name === f.total_column);
+      const sum = rows.reduce((n, r) => n + (Number(r[f.total_column!]) || 0), 0);
+      // Currency is formatted as currency; a bare count is not dressed up as money.
+      foot.textContent = `${cols.find((c) => c.name === f.total_column)?.label ?? f.total_column}: `
+        + (col?.type === "currency"
+          ? `$${sum.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+          : sum.toLocaleString(undefined, { maximumFractionDigits: 2 }))
+        + (col?.unit ? ` ${col.unit}` : "");
+    };
+
+    const drawRow = (row: Record<string, unknown>) => {
+      const tr = document.createElement("tr");
+      for (const c of cols) {
+        const td = document.createElement("td");
+        let inp: HTMLInputElement | HTMLSelectElement;
+        if (c.type === "select") {
+          inp = document.createElement("select");
+          const blank = document.createElement("option"); blank.value = ""; blank.textContent = "—";
+          inp.appendChild(blank);
+          for (const o of c.options ?? []) {
+            const opt = document.createElement("option"); opt.value = opt.textContent = o;
+            inp.appendChild(opt);
+          }
+        } else {
+          inp = document.createElement("input");
+          const i = inp as HTMLInputElement;
+          i.type = c.type === "checkbox" ? "checkbox" : isNum(c.type) ? "number" : c.type === "date" ? "date" : "text";
+          if (c.type === "currency" || c.type === "percent") i.step = "0.01";
+        }
+        inp.className = "tbl-cell";
+        if (c.type === "checkbox") (inp as HTMLInputElement).checked = !!row[c.name];
+        else inp.value = String(row[c.name] ?? "");
+        inp.oninput = () => {
+          // Numbers are stored as NUMBERS, not the input's string. Storing "5" here is what makes a
+          // SQL comparison go lexicographic later ('9' >= 10 is true), and it is the same defect the
+          // record form had for `percent` fields.
+          row[c.name] = c.type === "checkbox" ? (inp as HTMLInputElement).checked
+            : isNum(c.type) ? (inp.value === "" ? "" : Number(inp.value))
+            : inp.value;
+          retotal();
+        };
+        td.appendChild(inp); tr.appendChild(td);
+      }
+      const rm = document.createElement("td");
+      const del = document.createElement("button"); del.type = "button"; del.className = "tbl-del";
+      del.textContent = "✕"; del.title = "Remove this line";
+      del.onclick = () => {
+        const i = rows.indexOf(row);
+        if (i >= 0) rows.splice(i, 1);
+        tr.remove(); retotal();
+      };
+      rm.appendChild(del); tr.appendChild(rm);
+      tbody.appendChild(tr);
+    };
+
+    for (const r of rows) drawRow(r);
+
+    const add = document.createElement("button"); add.type = "button"; add.className = "tool-btn";
+    add.textContent = "+ Add line";
+    add.onclick = () => { const r: Record<string, unknown> = {}; rows.push(r); drawRow(r); retotal(); };
+
+    wrap.append(table, add);
+    if (f.total_column) { wrap.appendChild(foot); retotal(); }
+    return wrap;
+  }
+
   /** Format a field value for a compact table cell. */
   private fmtCell(f: ModuleDef["fields"][number], v: unknown): string {
     if (v == null || v === "") return "";
     if (f.type === "currency") return `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
     if (f.type === "percent") return `${Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
     if (f.type === "multiselect" && Array.isArray(v)) return (v as string[]).join(", ");
+    // MOD-TABLE: a cell has no room for a grid, so it carries the two facts worth scanning — how many
+    // lines, and the total if the field declares one. `String(v)` on an array of objects renders
+    // "[object Object]" per row, which is the kind of output that looks like a rendering bug and is
+    // actually a missing branch. A legacy string still shows as text (see `tableEditor`).
+    if (f.type === "table") {
+      if (typeof v === "string") return v.slice(0, 40);
+      if (!Array.isArray(v)) return "";
+      const n = v.length;
+      const label = `${n} line${n === 1 ? "" : "s"}`;
+      if (!f.total_column || !n) return label;
+      const col = f.columns?.find((c) => c.name === f.total_column);
+      const sum = (v as Record<string, unknown>[]).reduce((t, r) => t + (Number(r[f.total_column!]) || 0), 0);
+      const shown = col?.type === "currency"
+        ? `$${sum.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+        : sum.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      return `${label} · ${shown}`;
+    }
     // Same defect as the old refCell fallback, in the path taken when a reference is NOT a resolved
     // column: eight characters of a value, indistinguishable from a resolved label. A UUID at least
     // announces itself as an id; anything else is shown as the text it is.
@@ -2313,6 +2456,9 @@ export class PortalUI {
       () => (editing ? this.openRecord(m, existing!.id) : this.openModule(m))));
     const inputs: Record<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement> = {};
     const sigs: Record<string, () => string> = {};   // signature field getters (data-URI)
+    // MOD-TABLE: live rows per table field. Held apart from `inputs` because a table's value is an
+    // array of objects, not an `el.value` string — the shape the rest of the form assumes.
+    const tableRows: Record<string, Record<string, unknown>[]> = {};
     const cur = (n: string) => (existing?.data?.[n] as string | number | string[] | undefined);
     let curFieldset: string | undefined;   // F1 — emit a labeled header when the fieldset changes
     for (const f of m.fields) {
@@ -2382,7 +2528,16 @@ export class PortalUI {
             toast(`Added ${tgt?.name ?? f.module}: ${val.trim()}`, "info");
           } catch { toast(`could not create ${tgt?.name ?? f.module}`, "error"); }
         });
-      } else {
+      } else if (f.type === "table") {
+        // MOD-TABLE: a line-item grid is NOT one of the form's three input elements, and it is
+        // deliberately not registered in `inputs` — its value is an array of objects rather than an
+        // `el.value` string, so every consumer of `inputs` (the required check, the save loop, the
+        // invalid-marker) would read it wrongly. `tableRows` holds the live rows; the save path reads
+        // from there. Appending it here and `continue`-ing keeps `el` honestly typed as an input.
+        wrap.appendChild(this.tableEditor(f, cur(f.name), tableRows));
+        this.root.appendChild(wrap);
+        continue;
+            } else {
         el = document.createElement("input");
         const inp = el as HTMLInputElement;
         // MOD-PERCENT: a percent field rendered as `type="text"` — no numeric keypad on a phone, no
@@ -2429,6 +2584,15 @@ export class PortalUI {
       const first = names.map((n) => inputs[n]).find(Boolean); if (first) first.focus();
     };
     const isEmpty = (f: ModuleDef["fields"][number]): boolean => {
+      // MOD-TABLE: checked BEFORE the `!el` guard, because a table is deliberately absent from
+      // `inputs` — and `!el → return false` means "not empty", so a `required` table with zero rows
+      // would have sailed through the check. None of the eight tables shipped here is required, so
+      // this is a hole rather than a bug today; it is the same "plausible answer for the missing
+      // case" shape that keeps costing this codebase, so it is closed at the point it was created.
+      if (f.type === "table") {
+        return !(tableRows[f.name] ?? []).some(
+          (row) => Object.values(row).some((x) => x !== "" && x != null));
+      }
       const el = inputs[f.name]; if (!el) return false;
       if (f.type === "signature") return !sigs[f.name]?.();
       if (f.type === "multiselect") return [...(el as HTMLSelectElement).selectedOptions].length === 0;
@@ -2458,6 +2622,14 @@ export class PortalUI {
         // form last touched the record. Numbers stored as text are also what makes SQL comparison go
         // lexicographic, which is the bug MOD-FILTER's cast exists to survive.
         const v = el.value; if (v) data[f.name] = isNumericField(f.type) ? Number(v) : v;
+      }
+      // MOD-TABLE: rows come from their own state, and are written even when EMPTY — unlike a text
+      // field, "the user deleted every line" is a real edit that must persist. Skipping empty here
+      // would make clearing a schedule of values silently impossible.
+      for (const f of m.fields) {
+        if (f.type !== "table" || !(f.name in tableRows)) continue;
+        data[f.name] = tableRows[f.name]!.filter(
+          (row) => Object.values(row).some((x) => x !== "" && x != null));
       }
       try {
         if (editing) {

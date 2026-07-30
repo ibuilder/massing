@@ -234,7 +234,21 @@ export interface ModuleField {
    *  converted, or checked. Declaring it makes the number self-describing, which is most of the
    *  difference between a form and a tool. */
   unit?: string;
+  /** MOD-TABLE — the columns of a `table` field (line items). Absent on every other type. */
+  columns?: ModuleColumn[];
+  /** Numeric column summed into a footer total. Validated server-side to name a numeric column. */
+  total_column?: string;
 }
+
+/** MOD-TABLE — one column of a `table` field. A row is not a record: no workflow, no ref, no
+ *  attachments, no id, so a column carries only what is needed to render and read a cell.
+ *  Allowed types mirror `module_schema.TABLE_COLUMN_TYPES`. */
+export interface ModuleColumn {
+  name: string; label?: string; required?: boolean;
+  type: "text" | "number" | "currency" | "percent" | "date" | "select" | "checkbox";
+  options?: string[]; unit?: string; width?: string;
+}
+
 export interface ModuleDef {
   key: string; name: string; section: string; icon: string; pinnable: boolean;
   // a module can belong to one or more workspaces; multi-membership is a "|"-separated list

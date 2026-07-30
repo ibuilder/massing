@@ -115,7 +115,29 @@
     {
       "name": "witnesses",
       "label": "Witnesses",
-      "type": "textarea",
+      "type": "table",
+      "columns": [
+        {
+          "name": "name",
+          "label": "Name",
+          "type": "text"
+        },
+        {
+          "name": "employer",
+          "label": "Employer",
+          "type": "text"
+        },
+        {
+          "name": "contact",
+          "label": "Contact",
+          "type": "text"
+        },
+        {
+          "name": "statement_taken",
+          "label": "Statement",
+          "type": "checkbox"
+        }
+      ],
       "fieldset": "People"
     },
     {
