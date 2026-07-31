@@ -54,7 +54,7 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**58 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+**57 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
 merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
@@ -110,7 +110,7 @@ Seven of eleven engines once shipped with no route. These are the current instan
 
 | item | size | the gap |
 |---|---|---|
-| ⭐ **R32-CURRENT-SET** | S | The drawings display reads the registers, not the document tree, so "only the current set" is not enforced where field users look. **The groundwork now exists** — a re-issued set supersedes into one current document (see below), so this is a read-side change, not a new store. |
+| ~~**R32-CURRENT-SET**~~ | S | ✅ **CLOSED 2026-07-31 by decision, no code change.** The gap-check found the register already picks the newest revision per sheet — the defect was never "superseded sheets are shown". The real question was *which* "current" a viewer sees, and the user's call is **latest authored**, which is what it already shows. The issued set remains separately authoritative (filed `Drawing Set`, issuance register, transmittal). |
 | **R24-TRACE-UI ②** | L | Backend. Make the proforma emit its own derivation — each figure carrying its inputs and a *model-derived / overridden / market-assumption* tag. Independently corroborated as the industry's real gap. |
 | **R27-LAYOUT ①** | S | The sheet layout is written and never read back. |
 
@@ -134,10 +134,17 @@ Four decisions, recorded because they are the constraints the next filing caller
    raising would surface as "issuing failed" for a release that *did* happen. The response carries
    `filed` or a `filed_error` reason — an explicit unavailable, never a silent success.
 
-⚠️ **Open, and deliberately left to the user:** `12_Model` is **not** `required`. `required_paths()`
-feeds the document-control health score, so marking it required would drop every existing project's
-compliance number at once, with no obvious cause. Whether an unfiled model *should* count against
-health is a real policy question and not a side effect to slip into a commit.
+✅ **DECIDED by the user, 2026-07-31: `12_Model/IFC` IS `required`.** Asked precisely because it moves
+every existing project's document-control health score at once — and that is the intended effect. A
+project whose model has never been filed is genuinely non-compliant, and the score should say so rather
+than stay comfortable. Existing projects will show `12_Model/IFC` under `required_missing` until someone
+files a model; **that is a true finding, not a regression.** Only the IFC leaf is required —
+`12_Model/Federated` is not, because a project with one authored model and no federated coordination
+model is complete, and requiring it would manufacture a permanent gap nobody can close.
+
+The gate is on *reach*, not on the flag: the test asserts an unfiled model **appears** in
+`documents/health` → `required_missing`, and that filing it **clears** the gap. A `required` flag that
+no health report surfaced would be the same defect this band exists to catch.
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
@@ -1477,15 +1484,21 @@ R32-FILE-GENERATED). Both are legitimate answers to different questions:
 | what is the newest revision of record? | the register — right for the design team |
 | what was released, and is therefore buildable? | the filed set — right for the field |
 
-**The decision this needs:** which one a *field* user sees. `apps/web/src/reportCenter.ts:139` calls
-`api.drawingSet(pid)`, i.e. the register — so today the field-facing view can show a revision that was
-**never issued**. On a construction project that is the wrong default and arguably a liability one:
-crews must build from the issued set. But flipping it silently would also be wrong — a design team
-looking at the same view would stop seeing their own latest work.
+✅ **DECIDED by the user, 2026-07-31: the display shows the LATEST AUTHORED revision.** The current
+behaviour is therefore correct and this item **closes without a code change** —
+`apps/web/src/reportCenter.ts:139` calls `api.drawingSet(pid)`, which is the register, which is
+latest-authored. Nothing to rewire.
 
-Do **not** "fix" this by changing what `current_set` means. The likely shape is to keep both and label
-them (`issued` vs `latest`), defaulting by workspace/persona, and to say plainly in the UI which one is
-on screen. That is a scoped product call, so it needs the user's answer before code.
+**The concern was raised and the decision stands, so it is recorded rather than re-argued:** a viewer of
+that panel can be looking at a revision that was never issued. The mitigation is that the issued set is
+*also* reachable and is now first-class — the filed `Drawing Set` document in `02_Drawings` supersedes
+per issue, the issuance register records every release, and a transmittal PDF names exactly which sheets
+and revisions went out. Anyone who needs "what was released" has an authoritative answer; the panel
+simply is not that answer.
+
+**Do not "fix" this later by redefining `current_set`.** If the two meanings ever need to appear
+together, add a labelled `issued` view beside `latest` — never change what the existing number means.
+Two things called "current" that silently swap meaning is worse than two clearly-named things.
 
 ### R32-TAXONOMY-LIFECYCLE *(M — needs the user's call on scope)* — 11 folders is construction-only
 

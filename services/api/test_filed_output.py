@@ -38,10 +38,13 @@ assert folder_template.node("12_Model/IFC")["cde_default"] == "published"
 assert not [p for p in paths if "generated" in p.lower()], \
     f"no generated-output silo: {[p for p in paths if 'generated' in p.lower()]}"
 
-# Adding folders must not change the document-control health baseline for existing projects: these are
-# deliberately NOT `required`, so no project's compliance score moves because of this commit.
-assert not [p for p in folder_template.required_paths() if p.startswith("12_Model")], \
-    "12_Model must not be required — it would drop every existing project's health score"
+# The model folder IS required — the user's call, 2026-07-31, made knowing it moves every existing
+# project's compliance score. That is the intended effect: a project whose model was never filed is
+# genuinely non-compliant and the score should say so. Only the IFC leaf is required; a project with no
+# FEDERATED coordination model is complete, and requiring that would manufacture a permanent gap.
+_req = set(folder_template.required_paths())
+assert "12_Model" in _req and "12_Model/IFC" in _req, sorted(p for p in _req if "Model" in p)
+assert "12_Model/Federated" not in _req, "a missing federated model is not a compliance gap"
 
 # --- refusing is better than filing nothing -------------------------------------------------------
 PID = "proj-filing"
@@ -126,6 +129,18 @@ with TestClient(app) as c:
 
     # An unknown project must 404 rather than filing into a tree that does not exist.
     assert c.post("/projects/no-such-project/documents/file-model", data={}).status_code == 404
+
+    # The compliance signal is REACHABLE, not just declared: an unfiled model must show up as a
+    # required-folder gap in document-control health, and filing it must clear that gap. Checked on a
+    # fresh project, because the one above already has a filed model and would pass vacuously.
+    pid3 = c.post("/projects", json={"name": "Health Gap"}).json()["id"]
+    h_before = c.get(f"/projects/{pid3}/documents/health").json()
+    assert "12_Model/IFC" in h_before["required_missing"], h_before["required_missing"]
+
+    storage.put(filing.model_key(pid3), IFC_V1)
+    c.post(f"/projects/{pid3}/documents/file-model", data={"title": "Federated Model"})
+    h_after = c.get(f"/projects/{pid3}/documents/health").json()
+    assert "12_Model/IFC" not in h_after["required_missing"], h_after["required_missing"]
 
 # --- R32-FILE-GENERATED: issuing a set files it into the same controlled tree ---------------------
 # Issuing IS the publish event, so it is where a release must enter the tree. Before this, sheets were
