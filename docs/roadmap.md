@@ -1030,6 +1030,34 @@ removed. Remaining, in priority order:
 - **SITE-1 remaining** *(S–M)* — parcel overlays *(terrain DEM auto-fetch is network-dependent →
   flagged, offline-degrading)*.
 
+### Corroboration — "machine-interpretable AEC" *(read 2026-07-30, no new items)*
+
+An industry essay on making AEC formats legible to software. Reviewed for gaps; **it names almost
+nothing we lack**, which is worth recording so it is not re-read as a source of work.
+
+Its central line is one we arrived at independently three hours earlier: **visual plausibility is not
+physical validity.** That is precisely R31-SCHEMA-DIAG's finding — a model that renders correctly,
+passes IDS rule-compliance, and is structurally invalid IFC. Its other architectural claims map onto
+things already built or already scoped: route deterministic questions to specialist tools rather than a
+model (`query_dsl` is the deterministic selector; the AI command bar goes through validators and
+recipes), externalise implicit structure as a graph (`docgraph.py`, `graph.py`, W9-4), preserve
+provenance for verification (**R24-TRACE-UI ②**, `COST-DB` vintage, the `derived / declared / unlinked /
+unavailable` tagging), constraint systems around generation (**R23-CONSTRAINTS**), and accumulate
+ground truth across completed projects (`COST-DB`, vendor memory).
+
+Its observation that there is *no canonical way to organise a building model* is the problem the room
+spine, the discipline tree and `classification.py` exist to answer — and, per the user, the document
+taxonomy should be derived from those same rooms rather than invented again.
+
+**One external measurement worth keeping**, because it puts a number on an item we already hold:
+current models score **40–55% on object-counting from drawing sets**, with symbols and linework the
+weakest part. That is direct corroboration of **R23-SYMBOL-COUNT** (Lane B) and a reason to treat it as
+higher-value than its size suggests — it is the measurable floor under every takeoff claim.
+
+The framing worth adopting even though it is not a feature: **reduce verification cost, not just
+production cost.** Several items already do this without saying so; it is the sharper way to argue for
+them.
+
 ## 💰 R33-CLAWBACK-AMOUNT — the GP giveback is computed with no time dimension *(2026-07-30)*
 
 **Lane C. Researched and specified here; deliberately NOT implemented in this session** — see the note
