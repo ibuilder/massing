@@ -4,6 +4,52 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.806 — the registers stop being paper forms: filters, fieldsets, line items, and a guide that cannot drift
+
+Six merged branches and one refactor, batched. The through-line is that a config-driven register was
+still, in practice, **a single undifferentiated column of inputs with two ways to narrow it** — and
+every item below removes one reason that was true.
+
+**Per-field filters and server-side sort** on every register. Filtering was `q` + workflow state and
+nothing else; on a twenty-field register you could not filter by discipline, vendor, cost code or date.
+Worse, **sorting ran in the browser over whichever page had been fetched** — "sort by amount" on a
+500-row register ordered 200 rows and presented the top of those as the largest values. Nothing looked
+wrong; it was the wrong 200 rows. Filters compose (`eq · ne · gte · lte · contains · in · empty ·
+nonempty`), are bounded at 12 per request, and are applied in SQL before the LIMIT, with the count
+filtered too — a total that ignores a filter the list applied is the number a user trusts without
+checking. A filter field name is never taken from the caller: unknown names 400 rather than being
+ignored, because a silently dropped filter returns *more* rows than were asked for.
+
+**`percent` reaches the form layer.** Three sites asked `number || currency` and `percent` was in none,
+so 21 newly-typed percentage fields — every retainage, fee, overhead and contingency — stopped being
+inline-editable, rendered as free text, and **saved as the string `"5"`**. Nothing failed loudly; the
+column simply accumulated a mix of `5` and `"5"`. That is also the bug the filter cast exists to
+survive, since `'9' >= 10` is true when the value was stored as text. Fixed once as
+`NUMERIC_FIELD_TYPES`, not three times as ternaries.
+
+**Line items.** A register field can hold rows, not just a value — 22 places had a list flattened into
+a textarea, and `sov`/`estimate` were documents pretending to be single records. Legacy prose in those
+fields is accepted and shown verbatim above the grid rather than rejected or dropped: it is the only
+copy.
+
+**Fieldsets** across 58 registers, so a form is grouped sections rather than one column.
+
+**Reference backfill** for the 54 reference fields added beside their text twins — exact match after
+normalisation only, unique matches only, never overwriting, dry-run by default, ambiguity reported
+rather than resolved. The asymmetry that drives it: an empty reference is visibly empty and gets
+filled; a wrong one resolves, opens a real record, and is never questioned.
+
+**Option economics, the quality evidence chain, and vendor memory across projects** — plus a clawback
+that reports `unavailable` with its reason instead of inventing a number when the IRR solve does not
+converge, and a vendor scorecard that states in the payload which registers it could *not* examine.
+
+**The authoring guide can no longer drift.** It documented 10 of the 16 field types the platform
+accepts — missing the two most recent. It is now asserted against the schema **as a set in both
+directions**, because the two failure modes differ: a type in the schema but not the guide cannot be
+discovered, and a type in the guide but not the schema fails only after the module is written.
+
+**SCALE-SEAM ⑥** — `/procurement` out of `client.ts`, and the surface ratchet had gone slack again.
+
 ## v0.3.805 — R31-SCHEMA-DIAG: the IFC checked against the schema, and a parser crash found on the way
 
 **Validate the file, not just the spec.** Every existing check scores a model against *rules* — IDS
