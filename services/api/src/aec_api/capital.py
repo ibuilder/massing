@@ -51,6 +51,84 @@ def cap_table(investors: list[dict]) -> dict[str, Any]:
     }
 
 
+#: What a K-1 needs that this platform does not hold. Named individually and returned with every pack,
+#: because the failure mode here is not a missing number — it is a document that LOOKS complete. An
+#: accountant who is told what is absent can supply it; one handed a plausible-looking pack cannot know.
+K1_NOT_INCLUDED = [
+    "taxable income or loss allocated per IRC §704(b) — the platform holds no income statement",
+    "depreciation, amortisation and §754/§743(b) basis adjustments",
+    "guaranteed payments to partners",
+    "outside basis, at-risk and passive-activity limitations (partner-level, not partnership-level)",
+    "separately stated items (§179, interest, charitable, foreign)",
+    "state apportionment and composite-return detail",
+]
+
+
+def k1_pack(investors: list[dict], project_name: str, period: str) -> dict[str, Any]:
+    """**K-1 PREPARATION pack — deliberately NOT a K-1, and it says so in its own payload.**
+
+    A Schedule K-1 (Form 1065) reports each partner's *distributive share of taxable income*, which
+    requires a partnership income statement allocated under §704(b). This platform has capital
+    movements — commitments, contributions, distributions — and **no income statement at all**. Emitting
+    something K-1-shaped from that would be the [[confident-wrong-beats-missing]] defect at its most
+    expensive: a tax document is relied on, filed, and not re-derived.
+
+    So this returns the half we genuinely hold — the capital-account movement an accountant needs as an
+    input — plus `not_included`, an explicit list of what they must still supply. `statement_pdf`
+    already draws exactly this boundary in prose (*"not a tax document; K-1s are issued separately"*);
+    this makes the same boundary machine-readable.
+
+    **`ownership_pct` is the allocation ratio, and allocation ratios must close.** Percentages are
+    rounded for display and rounded shares do not sum to 100 — so `allocation_check` reports the exact
+    residual rather than hiding it. A pack whose ratios silently sum to 99.9997% would allocate income
+    slightly wrong for every partner, every year, and look right on inspection.
+    """
+    ct = cap_table(investors)
+    rows = []
+    for r in ct["rows"]:
+        contributed, distributed = r["contributed"], r["distributed"]
+        rows.append({
+            "investor": r["investor"], "ref": r["ref"], "investor_class": r["investor_class"],
+            "entity_type": r["entity_type"],
+            "ownership_pct": r["ownership_pct"],
+            "commitment": r["commitment"],
+            # The capital-account movement we can actually evidence. NOT a §L rollforward: that needs
+            # the income allocation above, so the beginning/ending balance is deliberately absent
+            # rather than guessed from contributions alone.
+            "contributions_to_date": contributed,
+            "distributions_to_date": distributed,
+            "net_capital_to_date": round(contributed - distributed, 2),
+            "unreturned_capital": r["unreturned"],
+            "status": r["status"],
+        })
+    pct_sum = round(sum(r["ownership_pct"] for r in rows), 6)
+    return {
+        "document_type": "k1_preparation_pack",
+        "is_tax_document": False,
+        "project": project_name,
+        "period": period,
+        "investor_count": ct["investor_count"],
+        "totals": {
+            "commitment": ct["total_commitment"],
+            "contributions_to_date": ct["total_contributed"],
+            "distributions_to_date": ct["total_distributed"],
+            "unreturned_capital": ct["total_unreturned"],
+        },
+        "rows": rows,
+        # Reported, not asserted: an empty fund legitimately sums to 0, and a rounding residual is a
+        # fact the preparer should see rather than an error that hides the pack.
+        "allocation_check": {
+            "ownership_pct_sum": pct_sum,
+            "residual": round((100.0 if rows else 0.0) - pct_sum, 6),
+            "closes": abs((100.0 if rows else 0.0) - pct_sum) < 0.01,
+        },
+        "not_included": list(K1_NOT_INCLUDED),
+        "note": ("Preparation input for Schedule K-1 (Form 1065) — NOT a K-1 and not a tax document. "
+                 "It reports capital movement only; the distributive share of taxable income requires "
+                 "a partnership income statement this platform does not hold. See `not_included`."),
+    }
+
+
 def statement_pdf(row: dict, totals: dict, project_name: str) -> bytes:
     """A one-page investor capital-account statement (commitment, ownership, contributed/distributed,
     unreturned). `row`: a cap_table row; `totals`: the cap_table summary."""

@@ -3,6 +3,8 @@ appraisal, the RESO export seam (bridge to WPRealWise / MLS), and a signed, read
 link for sharing a 3D tour / fact sheet without a session."""
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
@@ -33,6 +35,22 @@ def _investors(db: Session, pid: str) -> list[dict]:
 def cap_table(pid: str, db: Session = Depends(get_db), _: str = Depends(rbac.require_role("viewer"))):
     """Investor cap table — ownership by commitment + contributed/distributed/unreturned totals."""
     return capital.cap_table(_investors(db, pid))
+
+
+@router.get("/projects/{pid}/k1-pack")
+def k1_pack(pid: str, period: str = "", db: Session = Depends(get_db),
+            _: str = Depends(rbac.require_role("viewer"))):
+    """R31-K1-PACK — the capital-movement input an accountant needs to prepare Schedule K-1s.
+
+    **Not a K-1 and not a tax document**, and the payload says so in `is_tax_document: false` plus a
+    `not_included` list naming what the platform cannot supply (chiefly the §704(b) income allocation —
+    there is no income statement here). The honest half is machine-readable; the missing half is named
+    rather than approximated, because a tax document is relied on and filed, not re-derived.
+    """
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    return capital.k1_pack(_investors(db, pid), p.name or pid, period or str(date.today().year))
 
 
 def _allocate(db: Session, pid: str, amount: float, kind: str, persist: bool, user: str) -> dict:
