@@ -567,11 +567,37 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   through `loader.fragments.raycast()` (`viewer/app.ts:391`, not `:337` — the file moved), which is the
   Fragments runtime's own call, so only a **live** measurement answers this; a bare `THREE.Raycaster`
   benchmark would be a different reader answering a different question. Two things are missing: the dev
-  API is down (`curl :8093/health` → `000`) and, more importantly, **there is no genuinely large model
-  converted** — the biggest fragment set in `preview_storage/` is **3.6 MB**, and the gate this entry
-  sets is explicitly "a genuinely large model". Taking the measurement therefore requires converting one
-  of the 50 MB `samples/*.ifc` first. Do that before re-opening this, and if the numbers come back in
-  single-digit ms, **close it unbuilt** as the entry already instructs.
+  API is down (`curl :8093/health` → `000`) and **there is no genuinely large model anywhere in the
+  repo** — the biggest fragment set in `preview_storage/` is 3.6 MB, against a gate reading "a genuinely
+  large model".
+
+  ⚠️ **CORRECTION 2026-07-31 — my own prescription here was wrong, and inverted.** I first wrote that
+  the fix was to *convert one of the 50 MB `samples/*.ifc`*. Measured, that produces the second-smallest
+  model in the repo. **File size is anti-correlated with element count in these samples**, because the
+  50 MB files are large as *text*, not as geometry:
+
+  | fixture | elements | IFC MB | frag MB |
+  |---|---|---|---|
+  | `basichouse` (the 50 MB one) | **154** | 50.3 | 3.6 |
+  | `school_str` | 1,536 | 8.2 | 0.6 |
+  | `vertical_farm` (densest) | **1,840** | 1.5 | — |
+  | generated, 10 storeys | 2,401 | 2.5 | 0.3 |
+
+  `basichouse.ifc` was converted rather than argued about: 52.7 MB → 3.6 MB frag in 7.0 s, i.e. *exactly
+  the size of the set we already had*. **Following the instruction lands you back where you started.**
+
+  So this is not blocked on converting a fixture; it is blocked on **a fixture that does not exist**.
+  The repo maximum is 1,840 elements and picking needs 10k–100k+ — not within an order of magnitude.
+  The fixture step is therefore **generate, not convert**, and must be specified in **elements**, never
+  megabytes: `generate_blank_ifc` + `edit_struct` produced 2,401 elements in 21.6 s, extrapolating to
+  ~20k in roughly 3 minutes. Unlike the samples this is reproducible from a clean clone, since
+  `samples/*.ifc` are gitignored.
+
+  **Worth measuring rather than closing**, for one specific reason: `app.ts:389` already asserts in a
+  comment that *"Normal raycasts answer in ms"*, and that prose is load-bearing — it justifies the
+  1500 ms timeout fallback. Replacing a prose performance claim with a number is precisely what this
+  ring exists to do. If the number comes back single-digit ms, **close the item unbuilt** and keep the
+  measurement.
 - **R23-BATCH-OVERLAYS** *(S)* — app-authored overlays (pins, grid, snap markers, dimensions, clash
   markers) use **zero** instancing; `three@0.184.0` has `BatchedMesh`. Keep the default BIM pass off
   `MeshStandardMaterial` (presentation mode only); make FOV/FAR responsive by viewport class.
