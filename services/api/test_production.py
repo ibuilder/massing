@@ -17,6 +17,9 @@ import sys
 sys.path.insert(0, "src")
 
 from aec_api.production import (  # noqa: E402
+    MATCH_EXACT,
+    MATCH_INHERITED,
+    MATCH_MIXED,
     STATUS_NOT_STARTED,
     STATUS_OK,
     STATUS_OVER,
@@ -170,6 +173,51 @@ check("every status used is documented in the payload",
       set(res["by_status"]) <= set(res["status_meaning"]), res["by_status"])
 check("  and `not_started` is documented as absence, not a measured zero",
       "absence of a record" in res["status_meaning"][STATUS_NOT_STARTED])
+
+# --- 10. HOW a code was matched travels with the quantity ------------------------------------------
+# `qto.cost_code_for()` matches by IFC class INCLUDING ancestors and reports the key it hit. A quantity
+# priced through an ancestor is a weaker claim than one priced exactly, and summing hides the
+# difference — the same reason the takeoff surfaces the key at all, one layer up.
+def tm(guid, code, unit, ifc_class, matched, **q):
+    return {"guid": guid, "ifc_class": ifc_class, "matched_class": matched, "cost_code": code,
+            "unit": unit, "cost_description": None, **q}
+
+
+ex = reconcile([tm("w1", "03 30 00", "area", "IfcWall", "IfcWall", area=100.0)], [])
+check("an exactly-matched code reports `exact`",
+      line_for(ex, "03 30 00")["match_basis"] == MATCH_EXACT, line_for(ex, "03 30 00"))
+check("  and names the key that priced it",
+      line_for(ex, "03 30 00")["matched_keys"] == ["IfcWall"], line_for(ex, "03 30 00"))
+
+inh = reconcile([tm("w1", "03 30 00", "area", "IfcWallStandardCase", "IfcWall", area=100.0)], [])
+check("a code priced through an ANCESTOR key reports `inherited`, not `exact`",
+      line_for(inh, "03 30 00")["match_basis"] == MATCH_INHERITED, line_for(inh, "03 30 00"))
+
+# THE CASE THIS EXISTS FOR: one cost code reached by two different keys. Summed, the line would read
+# as a single confident quantity while half its denominator rests on a general key.
+mix = reconcile([tm("w1", "03 30 00", "area", "IfcWall", "IfcWall", area=100.0),
+                 tm("w2", "03 30 00", "area", "IfcWallStandardCase", "IfcWall", area=100.0)], [])
+l_mixb = line_for(mix, "03 30 00")
+check("one code matched BOTH exactly and by inheritance reports `mixed`",
+      l_mixb["match_basis"] == MATCH_MIXED, l_mixb["match_basis"])
+check("  the quantities still sum — mixed is a caveat on the number, not a refusal",
+      l_mixb["modeled"] == 200.0, l_mixb["modeled"])
+check("  and the affected codes are NAMED at the top level, not just counted",
+      mix["inherited_codes"] == ["03 30 00"], mix["inherited_codes"])
+check("an exactly-matched code is NOT listed as inherited", ex["inherited_codes"] == [],
+      ex["inherited_codes"])
+
+# Silence is unstated, never `exact`. A takeoff predating `matched_class` said nothing about how it
+# matched, and reading silence as the strongest option is how a weak claim gets quoted as a strong one.
+old = reconcile([t("w1", "03 30 00", "area", area=100.0)], [])
+check("a takeoff with no `matched_class` reports basis None — unstated, NOT `exact`",
+      line_for(old, "03 30 00")["match_basis"] is None, line_for(old, "03 30 00")["match_basis"])
+check("  and claims no matched key it was never given",
+      line_for(old, "03 30 00")["matched_keys"] == [], line_for(old, "03 30 00")["matched_keys"])
+check("  while the quantity itself is unaffected — provenance is missing, the measurement is not",
+      line_for(old, "03 30 00")["modeled"] == 100.0)
+check("every basis used is documented in the payload",
+      MATCH_MIXED in mix["match_meaning"] and MATCH_INHERITED in mix["match_meaning"])
 
 print()
 if FAILED:
