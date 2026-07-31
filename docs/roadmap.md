@@ -54,7 +54,7 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**54 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+**53 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
 merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
@@ -112,7 +112,7 @@ Seven of eleven engines once shipped with no route. These are the current instan
 |---|---|---|
 | ~~**R32-CURRENT-SET**~~ | S | ✅ **CLOSED 2026-07-31 by decision, no code change.** The gap-check found the register already picks the newest revision per sheet — the defect was never "superseded sheets are shown". The real question was *which* "current" a viewer sees, and the user's call is **latest authored**, which is what it already shows. The issued set remains separately authoritative (filed `Drawing Set`, issuance register, transmittal). |
 | **R24-TRACE-UI ②** | L | Backend. Make the proforma emit its own derivation — each figure carrying its inputs and a *model-derived / overridden / market-assumption* tag. Independently corroborated as the industry's real gap. |
-| **R27-LAYOUT ①** | S | The sheet layout is written and never read back. |
+| ~~**R27-LAYOUT ①**~~ | S | ✅ **STALE BAND ENTRY — closed 2026-07-31, both halves were already shipped.** (a) our own sheets: `sheet_layout.sheet_regions()` keeps the page←world affine with `basis: "authored"` (v0.3.702). (b) received sheets: `sheet_recover.py` + `POST /projects/{pid}/drawings/received-regions` (v0.3.778). Reached at `analysis.py:610`; covered by `test_sheet_layout` and `test_sheet_recover`. The detail entry recorded both as shipped and this table row was never updated — **the roadmap's own drift, not the code's.** |
 
 ✅ **R32-MODEL-IN-TREE + R32-FILE-GENERATED — SHIPPED 2026-07-31** (`44a901bd`, `4f6a5c84`). Two thirds
 of the filing ask are done. `12_Model/IFC` holds the model, and **issuing a set now files it**: the
@@ -232,7 +232,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R31-PIPELINE-ALLOCATE · R22-PHOTO-CV · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
