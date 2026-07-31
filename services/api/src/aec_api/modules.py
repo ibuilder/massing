@@ -80,6 +80,43 @@ def _validate_fields(mod: dict, data: dict) -> None:
         raise HTTPException(422, f"missing required field(s): {', '.join(missing)}")
 
 
+def apply_table_totals(mod: dict, merged: dict) -> dict:
+    """MOD-TOTALS — a `table` field with `totals_into` writes its sum into the named numeric field.
+
+    Line items and the number the engines read were two separate facts a user had to keep in
+    agreement by hand. `tm.summarize` reads `eticket.labor_total`; the labour rows live in
+    `labor_lines`; nothing connected them, so itemising a ticket meant typing the total again and
+    every later edit could silently disagree with its own lines.
+
+    Declared rather than inferred. A convention like "`<table>_total`" would be invisible in the
+    config and would surprise the first module whose field happens to be named that way, so the table
+    says where its sum goes and `validate_module` checks the target exists and is numeric.
+
+    Computed over the MERGED record, not the incoming patch: a PATCH that touches only the lines must
+    still update the total, and one that touches only the total must not be able to contradict its
+    lines — the lines win, because they are the evidence and the total is the summary.
+    """
+    for f in mod.get("fields", []):
+        if f.get("type") != "table" or not f.get("totals_into"):
+            continue
+        rows = merged.get(f["name"])
+        if not isinstance(rows, list):
+            continue                      # legacy free text, or the field was never filled in
+        col = f.get("total_column")
+        if not col:
+            continue
+        total = 0.0
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            try:
+                total += float(r.get(col) or 0)
+            except (TypeError, ValueError):
+                continue                  # a bad cell is already reported by validate_record
+        merged[f["totals_into"]] = round(total, 2)
+    return merged
+
+
 def _validate_values(mod: dict, data: dict) -> None:
     """Reject clearly-invalid field values (select outside options, non-numeric numbers) before a
     write — so bad data can't slip into the JSON `data` blob. Partial (present-only) so PATCH works."""
@@ -121,6 +158,7 @@ def create_record(db: Session, key: str, project_id: str, body: dict, actor: str
         data[title_field] = data["subject"]
     _validate_fields(mod, data)
     _validate_values(mod, data)
+    apply_table_totals(mod, data)        # MOD-TOTALS: line items drive the total the engines read
     if (why := fin_gov.locked_reason(key, project_id, data)):     # FIN-GOV period lock
         raise HTTPException(409, why)
     rid = str(uuid.uuid4())
@@ -725,7 +763,7 @@ def update_record(db: Session, key: str, project_id: str, rid: str, data: dict,
                                       "message": "This record changed since you opened it — reload to see the latest.",
                                       "modified_at": cur_iso})
     _validate_values(get_module(key), data)         # partial: only the fields being changed
-    merged = {**(rec.get("data") or {}), **data}
+    merged = apply_table_totals(get_module(key), {**(rec.get("data") or {}), **data})
     # FIN-GOV period lock: a record already in a closed month is frozen, and an open-month record
     # can't be re-dated INTO a closed month — both sides of the merge are checked.
     if (why := fin_gov.locked_reason(key, project_id, rec.get("data"))

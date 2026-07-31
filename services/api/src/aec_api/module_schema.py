@@ -83,6 +83,10 @@ class FieldDef(BaseModel):
     columns: list[ColumnDef] | None = None
     #: Column whose values are summed into a footer total (must name a numeric column).
     total_column: str | None = None
+    #: MOD-TOTALS — the sibling numeric FIELD this table's total is written into on every write.
+    #: Declared rather than inferred from a naming convention, so it is visible in the config and
+    #: cannot surprise a module whose field happens to be named `<table>_total`.
+    totals_into: str | None = None
     # MOD-SWEEP — the unit a numeric value is measured in ("ft", "yr", "days", "kWh"). The sweep found
     # 170 numeric fields with no unit declared, most encoding it in the field NAME instead
     # (`elevation_ft`, `expected_life_years`). A unit in a name is readable only by a human: it cannot
@@ -231,6 +235,8 @@ def validate_module(mod: dict, *, known_modules: set[str] | None = None,
                         errors.append(f"{key}.{f.name}.{c.name}: select column has no options")
                     if c.unit and c.type not in _NUMERIC_TYPES:
                         errors.append(f"{key}.{f.name}.{c.name}: unit on a {c.type} column")
+                if f.totals_into and not f.total_column:
+                    errors.append(f"{key}.{f.name}: totals_into needs a total_column to sum")
                 if f.total_column:
                     tc = next((c for c in f.columns if c.name == f.total_column), None)
                     if tc is None:
@@ -256,6 +262,19 @@ def validate_module(mod: dict, *, known_modules: set[str] | None = None,
         seen_dest.add(t.dest)
 
     nameset = set(names)
+    by_name = {f.name: f for f in m.fields}
+    for f in m.fields:
+        if f.type == "table" and f.totals_into:
+            tgt = by_name.get(f.totals_into)
+            if tgt is None:
+                errors.append(f"{key}.{f.name}: totals_into {f.totals_into!r} is not a field")
+            elif tgt.type not in _NUMERIC_TYPES:
+                # Writing a sum into a text field would store a number the renderer formats as a
+                # string and no engine can add up — a value that looks right and is inert.
+                errors.append(f"{key}.{f.name}: totals_into {f.totals_into!r} is {tgt.type}, "
+                              "not numeric")
+            elif tgt.type == "table":
+                errors.append(f"{key}.{f.name}: totals_into cannot target another table")
     if m.title_field and m.title_field not in nameset:
         errors.append(f"{key}: title_field {m.title_field!r} is not a field")
     for c in m.list_columns:

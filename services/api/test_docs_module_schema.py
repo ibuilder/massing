@@ -77,6 +77,7 @@ for phrase, why in (
     ("adjacent", "fieldset contiguity — the renderer draws a duplicate heading otherwise"),
     ("additive", "text->reference conversion is unsafe; the convention is to add beside"),
     ("total_column", "a table's total must name a numeric column"),
+    ("totals_into", "a table can drive a sibling numeric field; engines read that field"),
     ("unmapped section", "a section with no room makes the module unreachable"),
 ):
     assert phrase in text, f"the guide does not cover: {why}"

@@ -128,6 +128,24 @@ per-record machinery a repeating row has no room for. A column accepts `label`, 
 `total_column` must name a column that exists **and is numeric**. The register cell shows a summary
 (`3 lines · $118,260`) rather than the grid.
 
+**`totals_into`** writes that sum into a sibling numeric field on every write:
+
+```json
+{ "name": "labor_total", "label": "Labor", "type": "currency" },
+{ "name": "labor_lines", "label": "Labor", "type": "table",
+  "total_column": "amount", "totals_into": "labor_total", "columns": [ … ] }
+```
+
+Use it when an engine or report reads a single number that the rows are the evidence for — an eTicket
+itemises labour but `tm.summarize` reads `labor_total`. The lines win: a hand-typed total cannot
+contradict them, and a `PATCH` touching only the rows still moves the total. The target must exist and
+be numeric.
+
+**Snapshot, do not reference, a rate.** A line that records work done at an agreed rate stores that
+rate. If it pointed at the rate library, re-pricing the library would retroactively change what is
+owed for work already done — an accounting error, not a feature. This is also why `reference` is not a
+column type.
+
 **Do not use a `textarea` for a list.** Prose cannot be summed, filtered, or read by the engines.
 
 ## 3. Workflow (states + buttons)

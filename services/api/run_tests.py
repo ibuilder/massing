@@ -38,7 +38,7 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          "test_ask", "test_verification", "test_webhooks", "test_operate_capital", "test_payroll_drawings", "test_assistant_itb", "test_construction_depth", "test_distribution", "test_e57", "test_empty_project", "test_metrics", "test_metrics_auth", "test_licensing", "test_revit_bridge", "test_precon", "test_specs", "test_feasibility", "test_clash_import", "test_clash_intel", "test_layout", "test_loads", "test_verified_progress", "test_element_records", "test_securities_bridge", "test_imports", "test_search_alerts", "test_attachments",
          # previously not wired into the gate (glob would have caught these) — now covered:
          "test_analytics", "test_discipline", "test_gbxml", "test_review", "test_interop",
-         "test_module_config", "test_module_schema", "test_ref_backfill", "test_module_tables", "test_module_filters", "test_module_fields", "test_throttle", "test_route_order",
+         "test_module_config", "test_module_schema", "test_eticket_tm", "test_ref_backfill", "test_module_tables", "test_module_filters", "test_module_fields", "test_throttle", "test_route_order",
          # R23-PREFAB-KIT — the kit join + its register routes:
          "test_prefab_kit", "test_prefab_route",
          # Tier-1 competitive upgrades:
