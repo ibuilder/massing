@@ -731,6 +731,29 @@ def _can_read(db: Session, s: Scenario, user: str) -> bool:
     return False
 
 
+@router.get("/proforma/scenarios/{sid}/provenance")
+def scenario_provenance(sid: str, revision: str | None = None,
+                        db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """Which of this scenario's MATERIAL assumptions carry a source, and which do not.
+
+    Citations are keyed by the same dotted paths `sensitivity` and `monte_carlo` already use
+    (`operations.potential_rent_annual`, `exit.exit_cap`, …), so the driver a sensitivity table
+    varies is addressed identically to the citation that justifies it.
+
+    Coverage is over numeric drivers only — switches are excluded because citing "american" is not a
+    provenance claim about a number, and cost lines are excluded because `boe_ledger` already owns
+    their sources. `uncited` is NAMED, not merely counted: an uncited assumption is the absence of a
+    source, neither a finding that the value is wrong nor a pass. Pass `revision` to have citations
+    against an older revision counted as stale."""
+    s = db.get(Scenario, sid)
+    if not s:
+        raise HTTPException(404, "scenario not found")
+    if not _can_read(db, s, user):
+        raise HTTPException(403, "not shared with you")
+    from .. import assumption_provenance
+    return assumption_provenance.scenario_provenance(s, current_revision=revision)
+
+
 @router.get("/proforma/scenarios/{sid}")
 def get_scenario(sid: str, db: Session = Depends(get_db), user: str = Depends(current_user)):
     s = db.get(Scenario, sid)
