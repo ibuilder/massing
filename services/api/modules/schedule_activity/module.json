@@ -1,7 +1,7 @@
 {
   "key": "schedule_activity",
   "name": "Schedule",
-  "section": "Schedule",
+  "section": "Sequencing",
   "icon": "â–¸",
   "ref_prefix": "ACT",
   "title_field": "name",

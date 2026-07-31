@@ -1,7 +1,7 @@
 {
   "key": "commitment",
   "name": "Commitments (POs)",
-  "section": "Cost",
+  "section": "Budget & Actuals",
   "icon": "▣",
   "ref_prefix": "PO",
   "title_field": "description",

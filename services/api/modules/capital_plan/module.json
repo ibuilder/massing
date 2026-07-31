@@ -1,7 +1,7 @@
 {
   "key": "capital_plan",
   "name": "Capital Plan (CIP)",
-  "section": "Facilities",
+  "section": "Condition & Capital",
   "icon": "🏗️",
   "ref_prefix": "CIP",
   "title_field": "subject",

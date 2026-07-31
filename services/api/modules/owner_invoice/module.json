@@ -1,7 +1,7 @@
 {
   "key": "owner_invoice",
   "name": "Owner Invoices",
-  "section": "Cost",
+  "section": "Billing",
   "icon": "$",
   "ref_prefix": "OINV",
   "title_field": "number",

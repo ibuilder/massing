@@ -1,7 +1,7 @@
 {
   "key": "pull_plan_task",
   "name": "Pull Plan Tasks",
-  "section": "Schedule",
+  "section": "Sequencing",
   "icon": "🧲",
   "ref_prefix": "PP",
   "title_field": "task",

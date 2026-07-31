@@ -130,9 +130,9 @@ for r in alloc["rooms"]:
 # ---- unmapped sections are a FAILURE, not a default ----------------------------------------------
 assert rooms.room_of_section("Not A Real Section") is None
 assert rooms.room_of_section("") is None
-assert rooms.room_of({"section": "Cost"}) == "cost"
+assert rooms.room_of({"section": "Billing"}) == "cost"
 assert rooms.room_of({}) is None
-assert rooms.unmapped_sections({"Cost", "Ghost"}) == ["Ghost"]
+assert rooms.unmapped_sections({"Billing", "Ghost"}) == ["Ghost"]
 
 # a module whose section is unknown is REPORTED, never quietly filed somewhere
 odd = rooms.allocate([{"key": "mystery", "section": "Nowhere"}])
@@ -163,17 +163,55 @@ for r in alloc["rooms"]:
 # Asserted by NAME rather than by a size rule, because size is not the defect: `Field` legitimately
 # holds 14 and `Preconstruction` 12. What made these four wrong is that they named nothing a user
 # would go looking for — and `Design`, as a section INSIDE the Design room, named nothing at all.
-for dead in ("Engineering", "BIM", "Design", "Programming"):
+# A SECTION THAT RESTATES ITS ROOM CARRIES NO INFORMATION. Every room had one:
+#
+#     Design   > Design           Planning > Preconstruction
+#     Schedule > Field   ("run the field" is the room's own job line)
+#     Schedule > Schedule         Cost     > Cost           Operate > Facilities
+#
+# The last three were found by THIS assertion, in rooms being edited at the time — the eye slides
+# straight past a heading that repeats the tab above it.
+#
+# Only the literal case is mechanically checkable, and it is checked here. The synonym cases are not,
+# and a hand-maintained synonym table is deliberately NOT the answer: it would be another list to
+# keep in step, and the term nobody added would be the one that mattered. Those are pinned by name
+# below instead, which at least fails loudly if one comes back.
+for r in alloc["rooms"]:
+    for g in r["groups"]:
+        assert g["section"] != r["label"], (
+            f"{r['label']} > {g['section']}: a section repeating its room's name tells the user "
+            "nothing they did not already know from clicking the room")
+
+for dead in ("Engineering", "BIM", "Design", "Programming", "Field", "Preconstruction", "Facilities"):
     assert dead not in rooms.ROOM_OF_SECTION, (
         f"{dead!r} is back in ROOM_OF_SECTION. It was retired because it was where a module went when "
         "nobody decided, and a section like that is invisible until something groups by it.")
 
+# ---- R32: the cap is a RATCHET over every room, not a Design special case ------------------------
+# 8 is not a style rule. It is the size at which a heading stops narrowing anything: `Field` held 14
+# and `Preconstruction` 12, and opening either put you back in front of the wall the spine exists to
+# replace. A ratchet rather than an allowlist — a new module may join any group, but the moment one
+# passes 8 somebody has to decide where the seam is, which is the decision that kept being skipped.
+SECTION_MAX = 8
+for r in alloc["rooms"]:
+    for g in r["groups"]:
+        assert g["count"] <= SECTION_MAX, (
+            f"{r['label']} > {g['section']} holds {g['count']} modules. Past {SECTION_MAX} a heading "
+            f"stops narrowing anything - split it on the seam (what JOB differs), not on the count.")
+
+# Split on the seam, not the size. Cost's change chain was ten and the seam was WHO ACTS: an
+# architect issues a change, a contractor prices it. A purely numeric split would have cut the chain
+# in a meaningless place.
+by_sec = {g["section"]: g for r in alloc["rooms"] for g in r["groups"]}
+assert set(by_sec["Change Instruments"]["modules"]) == {"asi", "bulletin", "sketch", "directive"},     by_sec["Change Instruments"]["modules"]
+assert "change_event" in by_sec["Change Management"]["modules"], (
+    "change_event is the FIRST link of the change chain and was filed under Cost, apart from the "
+    "rest of the chain it starts")
+
 design = next(r for r in alloc["rooms"] if r["id"] == "design")
 assert design["count"] == 32, design["count"]
-# The largest Design group is capped: past this the heading stops narrowing anything. Not a style
-# rule — 9 of 32 under one meaningless word is what this change was about.
 biggest = design["groups"][0]
-assert biggest["count"] <= 8, f"Design's largest group is {biggest['section']} at {biggest['count']}"
+assert biggest["count"] <= SECTION_MAX, f"Design's largest is {biggest['section']} at {biggest['count']}"
 assert {g["section"] for g in design["groups"]} == {
     "Model", "Drawings", "Specifications", "Design Phases", "Coordination",
     "Information Management", "Sustainability", "Resilience"}, [g["section"] for g in design["groups"]]
@@ -186,6 +224,45 @@ for key, sec in [("drawing", "Drawings"), ("drawing_set", "Drawings"), ("transmi
                  ("design_review", "Design Phases"), ("concept_render", "Design Phases")]:
     got = next(m["section"] for m in mods if m["key"] == key)
     assert got == sec, f"{key} is sectioned {got!r}, expected {sec!r}"
+
+# the R32 moves, by name — the reasoning is in rooms.py; this is what stops a bulk edit undoing it
+for key, sec in [("timesheet", "Daily Log"), ("photo", "Daily Log"), ("daily_report", "Daily Log"),
+                 ("progress_actual", "Progress"), ("field_verification", "Progress"),
+                 ("delivery", "Logistics"), ("prefab_kit", "Logistics"),
+                 ("punchlist", "Quality"), ("checklist", "Quality"),
+                 ("bid_package", "Bidding"), ("estimate", "Estimating"),
+                 ("responsibility", "Project Governance"), ("decision", "Project Governance"),
+                 ("change_event", "Change Management"), ("asi", "Change Instruments"),
+                 ("schedule_activity", "Sequencing"), ("staffing", "Resourcing"),
+                 ("sov", "Billing"), ("owner_invoice", "Billing"), ("budget", "Budget & Actuals"),
+                 ("work_order", "Maintenance"), ("meter", "Performance"),
+                 ("fca_element", "Condition & Capital")]:
+    got = next(m["section"] for m in mods if m["key"] == key)
+    assert got == sec, f"{key} is sectioned {got!r}, expected {sec!r}"
+
+# `punchlist` moving to Quality is a promise rooms.py ALREADY made and did not keep: its own note
+# calls deficiency and ncr "near-twins of punchlist". A stated reason nothing acts on is how twins
+# come to live in different sections.
+for twin in ("deficiency", "ncr", "punchlist"):
+    assert next(m["section"] for m in mods if m["key"] == twin) == "Quality", twin
+
+# ---- the FIFTH taxonomy: report categories ------------------------------------------------------
+# The redesign's premise was that seven workspaces carried four left-rail taxonomies. `reports.py`
+# carries a fifth, invisible because it renders in a different panel — and three of its categories
+# named sections that had been retired (`Preconstruction`, `Field`, `Engineering`), so eleven reports
+# were filed under places the product no longer has.
+#
+# NOT forced into full agreement: `Executive`, `Logs`, `Health`, `Capital` and `Disposition` group by
+# AUDIENCE and purpose, a legitimately different axis from where a register lives. The rule is only
+# that a category may not name a place that does not exist.
+from aec_api import reports  # noqa: E402
+
+PURPOSE_CATEGORIES = {"Logs", "Executive", "Health", "Capital", "Disposition"}
+live_vocab = set(rooms.ROOM_OF_SECTION) | {r["label"] for r in rooms.ROOMS} | PURPOSE_CATEGORIES
+stale = sorted({c for _, c in reports.REPORTS.values()} - live_vocab)
+assert not stale, (
+    f"report categories naming neither a live section, a room, nor a purpose: {stale}. A report filed "
+    "under a retired section is a heading the user cannot reach from anywhere else.")
 
 # A room the rail will subgroup (>= SUBGROUP_MIN, the web constant) must have groups worth reading.
 # `schedule` holds 38 in six sections and is the next room to look at; this asserts the mechanism

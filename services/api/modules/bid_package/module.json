@@ -1,7 +1,7 @@
 {
   "key": "bid_package",
   "name": "Bid Packages",
-  "section": "Preconstruction",
+  "section": "Bidding",
   "icon": "▦",
   "ref_prefix": "BP",
   "title_field": "name",

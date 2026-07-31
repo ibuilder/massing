@@ -1,7 +1,7 @@
 {
   "key": "estimate",
   "name": "Estimates",
-  "section": "Preconstruction",
+  "section": "Estimating",
   "icon": "Σ",
   "ref_prefix": "EST",
   "title_field": "name",

@@ -1,7 +1,7 @@
 {
   "key": "resource_assignment",
   "name": "Resource Assignments",
-  "section": "Schedule",
+  "section": "Resourcing",
   "icon": "👷",
   "ref_prefix": "RA",
   "title_field": "resource_name",

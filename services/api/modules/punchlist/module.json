@@ -1,7 +1,7 @@
 {
   "key": "punchlist",
   "name": "Punchlist",
-  "section": "Field",
+  "section": "Quality",
   "icon": "✗",
   "ref_prefix": "PL",
   "title_field": "description",

@@ -1,7 +1,7 @@
 {
   "key": "progress_actual",
   "name": "Productivity Actuals",
-  "section": "Field",
+  "section": "Progress",
   "icon": "⏱",
   "ref_prefix": "PA",
   "title_field": "activity",

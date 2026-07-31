@@ -1,7 +1,7 @@
 {
   "key": "productivity_log",
   "name": "Productivity Log",
-  "section": "Field",
+  "section": "Daily Log",
   "icon": "📈",
   "ref_prefix": "PR",
   "title_field": "activity",

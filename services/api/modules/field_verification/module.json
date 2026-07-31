@@ -1,7 +1,7 @@
 {
   "key": "field_verification",
   "name": "Field Verification",
-  "section": "Field",
+  "section": "Progress",
   "icon": "✅",
   "ref_prefix": "FV",
   "title_field": "element",

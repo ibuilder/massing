@@ -120,7 +120,13 @@ ROOM_OF_SECTION: dict[str, str] = {
     # Split out of Cost. Estimating, taking off and buying out are *planning* work with an outcome
     # in money — filing them under Cost put a quantity surveyor and an accounts clerk in one room,
     # and buried the takeoff a preconstruction lead uses daily under a general ledger they never open.
-    "Preconstruction": "planning",
+    # R32 (2026-07-31): "Preconstruction" held twelve and described eight of them. `assumption`,
+    # `decision`, `project_charter` and `responsibility` are project GOVERNANCE — they run for the
+    # whole job, and calling them a phase of it is what buried a RACI matrix and a decision log under
+    # a heading a preconstruction lead owns and a project manager never opens.
+    "Bidding": "planning",
+    "Estimating": "planning",
+    "Project Governance": "planning",
     "Contracts": "planning",
     # Approvals are one spine — zoning, entitlement, permit, certificate of occupancy are successive
     # gates on the same path — and they had been cut in two: `permit` sat under Engineering (design)
@@ -132,22 +138,55 @@ ROOM_OF_SECTION: dict[str, str] = {
     "Reference Data": "planning",
     "Directory": "planning",
     # ── Cost: money against the building, once the scope is bought ──────────────────────────────
-    "Cost": "cost",
+    # R32: `Cost ▸ Cost`, the third one this change's own rule found. The seam is direction of
+    # money: what the job is expected and committed to spend, versus what is being billed to the
+    # owner and by the subs. `sov` sits with billing because a schedule of values IS the basis of a
+    # pay application — see MOD-G702.
+    "Budget & Actuals": "cost",
+    "Billing": "cost",
+    # R32: the change chain held ten under one heading. The seam is who acts: an architect ISSUES a
+    # change (ASI, bulletin, sketch, construction change directive), a contractor PRICES it (change
+    # event → PCO → proposal → COR, plus the T&M tickets that carry the work). Split on that rather
+    # than on the count — a group is worth a heading when it names a different job, not when it gets
+    # long.
+    "Change Instruments": "cost",
     "Change Management": "cost",
     # ── Schedule: time, the field that consumes it, and the quality of what it produces ─────────
-    "Schedule": "schedule",
-    "Field": "schedule",
+    # R32: `Schedule ▸ Schedule` was caught by this change's OWN new rule — a section repeating its
+    # room's name, in the room being edited at the time. The seam is CPM/Last-Planner sequencing
+    # versus who is assigned to it: one answers "when", the other "by whom", and they are maintained
+    # by different people on different cadences.
+    "Sequencing": "schedule",
+    "Resourcing": "schedule",
+    # R32: "Field" held FOURTEEN, and unlike Design's `Engineering` the name was not wrong — it was
+    # just the *place* rather than the *job*. A timesheet, a production quantity and a delivery all
+    # happen in the field and are otherwise nothing alike: one is a daily record, one is a
+    # measurement of what got built, one is material arriving. Filing by where something happens
+    # groups everything a superintendent touches into a single heading, which is the same as no
+    # heading. Split by what the record IS.
+    "Daily Log": "schedule",         # what happened today — reports, manpower, equipment, hours, photos
+    "Progress": "schedule",          # what got BUILT, and whether it is verifiably where it should be
+    "Logistics": "schedule",         # material and fabrication arriving on site
     "Safety": "schedule",            # safety is a field-operations concern, logged where work happens
     "Project Controls": "schedule",
     # Quality moved out of Design (R30). The old reasoning — "inspections/ITP describe the built thing
     # against the design" — is true of the reference standard and false of the *user*: an ITP hold
     # point is released by a field engineer standing at the pour, and an NCR is written by a
     # superintendent. `deficiency` and `ncr` are near-twins of `punchlist`, which was already here.
+    # R32 moved `punchlist` and `checklist` in from Field. rooms.py had ALREADY argued for this — the
+    # note below calls deficiency and ncr "near-twins of punchlist" — and then left punchlist where it
+    # was. A stated reason that nothing acts on is how the twins came to live in different sections.
     "Quality": "schedule",
     "Closeout": "schedule",          # the end of the sequence — what construction *finishes*
     # ── Operate: the asset in service, which is most of its life ────────────────────────────────
     "Handover": "operate",           # what operations *receives*; see the R30 note above
-    "Facilities": "operate",
+    # R32: "Facilities" is an honest name for eight modules doing three jobs — fixing things,
+    # tracking their condition and the capital to renew them, and measuring how the building
+    # performs. `work_order` is the highest-volume register in the product over an asset's life, and
+    # it was one of eight bullets under a heading naming the department rather than the work.
+    "Maintenance": "operate",
+    "Condition & Capital": "operate",
+    "Performance": "operate",
     # ── Deal: the asset as an investment ────────────────────────────────────────────────────────
     "Acquisition": "deal",
     "Feasibility": "deal",

@@ -1,7 +1,7 @@
 {
   "key": "photo",
   "name": "Photo Library",
-  "section": "Field",
+  "section": "Daily Log",
   "icon": "▣",
   "ref_prefix": "PH",
   "title_field": "caption",

@@ -1,7 +1,7 @@
 {
   "key": "work_order",
   "name": "Work Orders",
-  "section": "Facilities",
+  "section": "Maintenance",
   "icon": "🔧",
   "ref_prefix": "WO",
   "title_field": "subject",

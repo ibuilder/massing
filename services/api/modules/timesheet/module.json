@@ -1,7 +1,7 @@
 {
   "key": "timesheet",
   "name": "Timesheets",
-  "section": "Field",
+  "section": "Daily Log",
   "icon": "⏱",
   "ref_prefix": "TS",
   "title_field": "worker",

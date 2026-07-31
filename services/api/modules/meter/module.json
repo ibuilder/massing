@@ -1,7 +1,7 @@
 {
   "key": "meter",
   "name": "Utility Meters",
-  "section": "Facilities",
+  "section": "Performance",
   "icon": "⏲️",
   "ref_prefix": "MTR",
   "title_field": "subject",

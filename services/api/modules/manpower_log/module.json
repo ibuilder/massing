@@ -1,7 +1,7 @@
 {
   "key": "manpower_log",
   "name": "Manpower Log",
-  "section": "Field",
+  "section": "Daily Log",
   "icon": "☺",
   "ref_prefix": "MP",
   "title_field": "company",
