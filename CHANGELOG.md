@@ -4,6 +4,186 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.808 — measure the model, price the model, file the model: provenance from the traced region to the controlled folder
+
+Thirty-eight commits, batched — a single working day's output, and more than one release should carry.
+Everything below landed within about nine hours of v0.3.807, which is the honest reading: not a long
+silence, but a day of work that outran its release. A green suite is not a shipped thing.
+
+### Fixed — a cost map keyed `IfcWall` priced none of the walls
+
+`qto.takeoff` matched cost codes with `cost_map.get(el.is_a())` — an exact string match against the
+**concrete** IFC class. Most authoring tools emit `IfcWallStandardCase`, so an ordinary cost map keyed
+`IfcWall` matched **zero** walls. Found on a real model: 13 of 13 walls in `basichouse.ifc` went
+unpriced.
+
+The expense is in the *shape* of the wrong answer. It was not an error and not a zero-cost line — the
+walls came back **uncoded**, which reads as *"no cost data is configured for this project"* rather than
+*"your cost map does not match this model's classes"*. A takeoff silently missing every wall was
+indistinguishable from a clean unconfigured project. Estimates were low by the entire wall scope with
+nothing on screen to say so.
+
+Matching now walks the class chain read from the ifcopenshell **schema** — not a hand-written table.
+The hierarchy differs between IFC2X3 and IFC4, and a table is the hand-maintained list that stops
+covering new classes the moment nobody remembers it exists. Most-specific still wins over an
+ancestor, and inheritance is not a wildcard (`IfcSlab` is not priced by an `IfcWall` rule). Every row
+now reports `matched_class`: the field whose absence made the original failure invisible, and which
+says plainly when a line was priced through an ancestor rather than an exact key.
+
+The defect was found by running the takeoff against a real model rather than against its own fixtures
+— see the reconciliation work below, which is what put a real model through that path. Every suite
+here uses purpose-built fixtures, and a fixture-shaped hole is precisely what a purpose-built fixture
+cannot show you.
+
+### Added — field-installed quantity reconciled against the model takeoff
+
+**R22-PRODUCTION.** `GET /projects/{pid}/progress/reconciliation` compares what the field installed
+against what the model contains, per cost code. Both halves already existed and had never been joined:
+the takeoff produces per-cost-code model quantities, the production module records installed quantity,
+and the production analysis compared an installed *rate* against a planned rate **supplied by the
+caller in the request body** — so "are we ahead or behind" was answered against a number somebody
+typed, not against the model.
+
+Why it was never wired is structural rather than an oversight. The module that carries `cost_code` —
+the model's join key — is read only by pricing, carbon and unit-rate consumers. The module the
+production loop actually consumes has **no `cost_code` field at all**. The loop reads the module that
+cannot join; the module that can join is read only by cost.
+
+A percent-complete drives a pay application, so the engine is built as four refusals:
+
+- **Units are two vocabularies and are never silently equated.** The model's unit names a dimension
+  (`area`); the field's is a trade unit (`m²`, `SF`, `EA`). Conversion goes through an explicit table
+  with the factor reported, and an unrecognised unit **refuses** rather than assuming 1.0 — SF read as
+  m² is a 10.76× overstatement that prices perfectly cleanly.
+- **Over-installation reports >100%** instead of clamping. A clamp hides over-installation, a bad join
+  and a stale model behind one healthy-looking number.
+- **An uncoded takeoff says so.** With no cost map every element has `cost_code=None`, and reconciling
+  that matches nothing — which reads as "nothing to report" when it means "the model was never
+  cost-coded".
+- **Unmatched field codes are named, not counted.**
+
+Every headline percentage carries `covered_pct`, because 97% complete computed across 3% of the model
+is true and useless.
+
+### Added — a measurement records how it was made
+
+**R34-MEASURE-PROVENANCE / R34-SHEET-SCALE.** A traced 2D region is now measured at the scale it was
+traced under, stamped at trace time rather than read from whatever the sheet's scale happens to be
+when the total is computed. Sets that mix 1:50 and 1:100 on one sheet report the mix instead of
+quietly applying one scale to both. A takeoff that cannot state its basis says so rather than
+producing a confident number.
+
+**R34-TAKEOFF-COUNT** — the platform can count, and a count is never scaled. Scaling a count is always
+wrong; four doors are four doors at any scale.
+
+### Fixed — a scale has to be a number, not something that survives `float()`
+
+Validating the region scale with `float()` is a wider door than it looks, and it let two expensive
+values through.
+
+`float()` accepts **booleans**. A region carrying `"scale_units_per_px": true` measured at 1.0 units/px
+instead of 0.01 — and because the area path squares the scale, that is a **10,000× overprice**:
+quantity 10,000 and cost 1,000,000 against a correct 1.0 and 100. Worse, the row then reported
+`scale_source: "region"`, asserting the region had deliberately recorded a scale when the value was a
+boolean. That is precisely the claim this feature exists to refuse.
+
+Separately, `1e300` is finite and positive, so it passed the `> 0` guard and then overflowed to
+infinity once squared. FastAPI encodes infinity as `null`, so **one** malformed region silently
+returned `total_cost: null` for the *whole* takeoff under an HTTP 200, with nothing naming the region
+responsible. The call-level scale had the identical hole: an infinite sheet scale nulled every
+quantity while still returning 200, and a non-numeric string raised a 500. Both are 422 now.
+
+Scales are now validated by type (booleans excluded explicitly, since `isinstance(True, int)` is
+true), finiteness, sign, and an upper bound of 1e6 units/px — generous by orders of magnitude for any
+real drawing, and low enough that squaring cannot overflow. An unusable region scale falls back to the
+call's and says `scale_source: "call"`, so a row never claims a provenance its input did not carry. A
+takeoff whose scale cannot be trusted now raises rather than answering with nulls.
+
+### Added — every headline figure reports what it was built from
+
+**R24-TRACE-UI ②.** Nineteen pro-forma headline figures now report their basis, separating four states
+that on screen looked identical: **declared** (every input came from the user), **defaulted** (every
+input fell back to a default), **mixed** (some of each), and **none**.
+
+`defaulted` and `mixed` are the ones that matter. A figure assembled entirely from defaults renders as
+a confident number indistinguishable from one the user actually entered — the same failure mode as the
+typo'd money field below, where a misspelled key inherited a plausible default instead of erroring.
+A return that says *mixed* tells a reader which figures deserve a second look before they are relied
+on. `element_link` is reported as `None` **with a stated reason** rather than omitted — "not linked to
+an element" and "linking is not available at this layer" are different facts and a reader is entitled
+to both.
+
+**R31-CITE-HIGHLIGHT** (data half) ships the resolvable half of the citation: a citation now carries
+enough to be located. The viewer-side highlight needs an entry point the vendored viewer kernel does
+not currently expose and is tracked separately.
+
+### Added — the model has a home in the controlled tree
+
+**R32-MODEL-IN-TREE / R32-FILE-GENERATED.** Issuing a drawing set now files it. The model files to
+`12_Model/IFC` and generated sets to `02_Drawings` under a stable set title, so a re-issue supersedes
+its predecessor instead of accumulating near-duplicates. An **unfiled model is now a compliance gap**
+rather than a silent absence — the state a document-control audit actually asks about.
+
+Filing history sorts by a monotonic index sequence, not by `uploaded_at`: upload timestamps are
+second-resolution here, so two files landing in the same second sorted arbitrarily and the "latest"
+model was a coin flip.
+
+### Fixed — finance
+
+- **R33 clawback** now *solves* the amount instead of approximating it with a rate. The old
+  `(pref_rate − lp_irr) × lp_contrib` multiplies a rate by capital: a one-year figure with no time
+  dimension, which cannot express the money needed to move a multi-year return. On a conventional
+  five-year deal at an 8% preferred return, the proxy said **41,509** where the true restitution is
+  **240,776** — a **5.8× understatement** of money the GP owes back. The solver is verified by
+  construction rather than by argument: adding 240,776 at the final date takes the LP's XIRR to
+  exactly 0.080000. It is capped at the promote actually paid, since a clawback returns excess
+  promote and cannot return more than the GP received.
+- A **typo'd money field was accepted and silently priced at the default** — a misspelled key created
+  no error and no zero, it inherited a plausible number.
+- **R31-K1-PACK** assembles the preparation input for a K-1 and is explicit that **it is not a K-1 and
+  not a tax document**. It names the six things it does not include and reports the rounding residual
+  from its allocation rather than hiding it.
+
+### Fixed — the 4D clash blocker that was never real
+
+The install-before-support half of 4D clash was documented as blocked on "no element binding", and the
+test asserted that blocker to hold it in place. The claim was **false**: `element_guids` is a column on
+every module record and already reaches the analysis. The real gap is narrower — the **support
+relationship** between elements is what is missing, not the binding. The gap is now measurable rather
+than asserted: the result reports how many activities are actually bound today.
+
+A documented dead end is the worst kind of coverage, because it is the one nobody re-checks.
+
+### Security
+
+- **G-8 — a new route prefix could opt out of the RBAC middleware unnoticed.** The protected-prefix
+  list is hand-maintained and covered **8 of 67** top-level prefixes; nothing noticed when a 68th
+  appeared, it simply sat outside the safety net and no test failed. This is the *root cause* of the
+  authorisation holes fixed in v0.3.807 — `/pdf` (including the unauthenticated seal forgery),
+  `/templates`, `/samples` and `/firm` were each also defective in their own gate, but the middleware
+  would have caught all four and never got the chance.
+
+  Coverage is now a gate rather than a note, and it fails on three things, of which only the first is
+  obvious: an unclassified prefix; a **read-only prefix that has gained its first mutating route**
+  (plain set membership waves this through); and a frozen entry with no referent, because a stale name
+  does not merely look untidy — it **pre-authorises** whatever later claims it.
+- A step-up assertion is **spent once**, not reusable for the whole of its TTL.
+- A filing failure no longer narrates the exception back to the caller.
+
+### Added — sections are annotated the way plans are
+
+**R21-SPACE-TAG-SECT.** Room names now appear on sections, and a section is annotated by default
+exactly as a plan is. The section frame is read from the view definition rather than restated:
+a section on the X axis draws (Y,Z) and one on the Y axis draws (X,Z), so hardcoding a single pair
+would have worked on one axis and placed every tag wrong on the other — a failure a reader would
+have blamed on the geometry rather than the annotation.
+
+### Added — modules
+
+**MOD-FIELDATTRS.** `min`, `max`, `placeholder` and `default` complete the field vocabulary, so a
+register can express the constraints it previously only documented in a label.
+
+
 ## v0.3.807 — a seal attests to a person: the security pass on sealing, firm standards, and the audit trail
 
 Seven commits, batched. Four exploitable findings, each verified end to end before and after the fix,
