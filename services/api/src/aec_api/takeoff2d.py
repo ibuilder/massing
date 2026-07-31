@@ -28,8 +28,35 @@ TAKEOFF_ASSEMBLIES: dict[str, tuple[str, float, str]] = {
     "wall_linear": ("length", 210.0, "Wall run (linear)"),
     "footing_linear": ("length", 240.0, "Strip footing (linear)"),
     "generic_linear": ("length", 50.0, "Generic linear"),
+    # R34-TAKEOFF-COUNT — the platform had no count measure at all. Every assembly was `area` or
+    # `length`, so a door, a fixture, a receptacle or a sprinkler head — the thing an estimator counts
+    # most often — could not be taken off a drawing. Rates are per EACH, not per unit of geometry.
+    "door": ("count", 850.0, "Doors"),
+    "window": ("count", 650.0, "Windows"),
+    "plumbing_fixture": ("count", 1200.0, "Plumbing fixtures"),
+    "receptacle": ("count", 145.0, "Receptacles"),
+    "light_fixture": ("count", 320.0, "Light fixtures"),
+    "sprinkler_head": ("count", 185.0, "Sprinkler heads"),
+    "generic_count": ("count", 100.0, "Generic count"),
 }
-_UNIT_LABEL = {"area": "m²", "length": "m"}
+_UNIT_LABEL = {"area": "m²", "length": "m", "count": "ea"}
+
+
+def _count_of(reg: dict) -> float:
+    """How many items a count region stands for. One marker is one item unless it says otherwise.
+
+    A region may carry an explicit `count` for a marker that represents several ("12 receptacles on
+    this run"). It must be a positive whole number: a fractional count is not a quantity anyone can
+    order, and a string that survives `float()` is the type-confusion `valid_scale` already refuses
+    one field over. Anything else falls back to 1 — the marker exists, so the count is at least one;
+    what is unknown is the multiplicity, not the presence.
+    """
+    v = reg.get("count")
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return 1.0
+    if not math.isfinite(v) or v <= 0 or float(v) != int(v):
+        return 1.0
+    return float(int(v))
 
 
 def polygon_area_px2(points: list) -> float:
@@ -133,7 +160,15 @@ def quantify(regions: list[dict], scale_units_per_px: float, *,
         pts = reg.get("points") or []
         prov = _provenance(reg, s)
         rs = prov["scale_applied"]
-        if measure == "length":
+        if measure == "count":
+            # A COUNT IS NOT SCALED. This is the whole reason it is a third measure rather than a
+            # third unit: area goes as scale², length as scale¹, and a count as scale⁰ — six doors are
+            # six doors whether the sheet is 1/8"=1' or 1/2"=1'. Multiplying a count by a scale would
+            # produce a plausible non-integer ("7.3 doors") that prices cleanly and is wrong, and the
+            # mis-scaled-plan defect this ring already fixed shows exactly how such a number travels.
+            qty = _count_of(reg)
+            qunit = _UNIT_LABEL["count"]
+        elif measure == "length":
             qty = polyline_length_px(pts) * rs
             qunit = unit
         else:
