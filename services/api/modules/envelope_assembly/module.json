@@ -1,7 +1,7 @@
 {
   "key": "envelope_assembly",
   "name": "Envelope Assemblies",
-  "section": "Engineering",
+  "section": "Model",
   "icon": "🧱",
   "ref_prefix": "ENV",
   "title_field": "name",

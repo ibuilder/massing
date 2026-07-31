@@ -1,7 +1,7 @@
 {
   "key": "space_program",
   "name": "Space Program",
-  "section": "Programming",
+  "section": "Model",
   "icon": "🧩",
   "ref_prefix": "SP",
   "title_field": "name",

@@ -1,7 +1,7 @@
 {
   "key": "clash_run",
   "name": "Clash Runs",
-  "section": "BIM",
+  "section": "Coordination",
   "icon": "🌂",
   "ref_prefix": "CLR",
   "title_field": "label",

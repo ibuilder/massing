@@ -1,7 +1,7 @@
 {
   "key": "drawing_issuance",
   "name": "Drawing Issuances",
-  "section": "Engineering",
+  "section": "Drawings",
   "icon": "📤",
   "ref_prefix": "ISS",
   "title_field": "number",

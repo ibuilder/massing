@@ -1,7 +1,7 @@
 {
   "key": "design_option",
   "name": "Design Options",
-  "section": "Design",
+  "section": "Design Phases",
   "icon": "🎨",
   "ref_prefix": "OPT",
   "title_field": "name",

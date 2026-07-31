@@ -1,7 +1,7 @@
 {
   "key": "drawing",
   "name": "Drawings",
-  "section": "Engineering",
+  "section": "Drawings",
   "icon": "▭",
   "ref_prefix": "DWG",
   "title_field": "number",

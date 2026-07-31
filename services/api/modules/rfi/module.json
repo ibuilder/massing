@@ -1,7 +1,7 @@
 {
   "key": "rfi",
   "name": "RFIs",
-  "section": "Engineering",
+  "section": "Coordination",
   "icon": "?",
   "ref_prefix": "RFI",
   "title_field": "subject",

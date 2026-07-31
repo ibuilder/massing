@@ -1,7 +1,7 @@
 {
   "key": "submittal",
   "name": "Submittals",
-  "section": "Engineering",
+  "section": "Coordination",
   "icon": "▤",
   "ref_prefix": "SUB",
   "title_field": "title",

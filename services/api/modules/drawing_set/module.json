@@ -1,7 +1,7 @@
 {
   "key": "drawing_set",
   "name": "Drawing Set",
-  "section": "Engineering",
+  "section": "Drawings",
   "icon": "📚",
   "ref_prefix": "SET",
   "title_field": "name",

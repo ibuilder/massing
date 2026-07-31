@@ -1,7 +1,7 @@
 {
   "key": "coordination_issue",
   "name": "Coordination Issues",
-  "section": "BIM",
+  "section": "Coordination",
   "icon": "✶",
   "ref_prefix": "CI",
   "title_field": "subject",
