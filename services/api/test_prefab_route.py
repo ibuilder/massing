@@ -37,12 +37,17 @@ def el(guid, cls, type_name, storey, qtos=None):
             "storey": storey, "psets": {}, "qtos": qtos or {}}
 
 
+# MOD-GUID: real 22-char GlobalIds. These were G1/G2/G3 — placeholders that could not be
+# an IfcGloballyUniqueId, which is now refused on write. Named constants rather than literals
+# so the assertions below still read as being about three ducts.
+G1, G2, G3 = '1Aq7bR3xM9wZcTf0KpLnEd', '2Bs8cS4yN0xAdUg1LqMoFe', '3Ct9dT5zO1yBeVh2MrNpGf'
+
 ELEMENTS = [
-    el("g1", "IfcDuctSegment", "600x300", "L3",
+    el(G1, "IfcDuctSegment", "600x300", "L3",
        {"Qto_DuctSegmentBaseQuantities": {"Length": 4.0}}),
-    el("g2", "IfcDuctSegment", "600x300", "L3",
+    el(G2, "IfcDuctSegment", "600x300", "L3",
        {"Qto_DuctSegmentBaseQuantities": {"Length": 6.0}}),
-    el("g3", "IfcDuctSegment", "400x200", "L2",
+    el(G3, "IfcDuctSegment", "400x200", "L2",
        {"Qto_DuctSegmentBaseQuantities": {"Length": 3.0}}),
 ]
 
@@ -110,7 +115,7 @@ with TestClient(app) as c:
     check("  it froze the two matching elements", fr.json()["frozen"] == 2, fr.json())
     rec = c.get(f"/projects/{pid}/modules/prefab_kit/{rid}").json()
     check("  and PERSISTED the list onto the record — not just returned it",
-          sorted((rec["data"].get("frozen_guids") or "").split()) == ["g1", "g2"],
+          sorted((rec["data"].get("frozen_guids") or "").split()) == [G1, G2],
           rec["data"].get("frozen_guids"))
 
     # Release it, then change the model underneath. This is the whole feature.
@@ -134,7 +139,7 @@ with TestClient(app) as c:
     check("  and it has not drifted yet", after["drift"]["drifted"] is False, after["drift"])
 
     # A design change: one duct moves off L3, and a new one appears on it.
-    changed = [e for e in ELEMENTS if e["guid"] != "g2"]
+    changed = [e for e in ELEMENTS if e["guid"] != G2]
     changed.append({**ELEMENTS[1], "storey": "L4"})
     changed.append(el("g9", "IfcDuctSegment", "600x300", "L3",
                       {"Qto_DuctSegmentBaseQuantities": {"Length": 5.0}}))
@@ -146,7 +151,7 @@ with TestClient(app) as c:
           drifted["drift"]["drifted"] is True, drifted["drift"])
     check("  the kit still contains what the shop was given", drifted["elements"] == 2)
     check("  the element that left the scope is named",
-          drifted["drift"]["removed"] == ["g2"], drifted["drift"])
+          drifted["drift"]["removed"] == [G2], drifted["drift"])
     check("  and the one that joined it is named separately",
           drifted["drift"]["added"] == ["g9"], drifted["drift"])
     check("  drift is a blocker", "scope_drift" in {b["code"] for b in drifted["blockers"]})
