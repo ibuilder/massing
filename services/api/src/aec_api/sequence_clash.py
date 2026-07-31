@@ -132,7 +132,20 @@ def analyze(activities: list[dict], min_overlap_days: int = DEFAULT_MIN_OVERLAP_
                  "zone is planning. Activities without a location or dates are skipped and counted, "
                  "never silently dropped: a clean result over a half-unreadable schedule would "
                  "overstate what was checked."),
-        "not_covered": ("Install-before-support sequencing is NOT checked: schedule_activity carries "
-                        "no element GlobalId, so there is no way to know what a task installs. That "
-                        "needs a task→element binding, not an approximation."),
+        # CORRECTED 2026-07-31. This previously read "schedule_activity carries no element GlobalId, so
+        # there is no way to know what a task installs" — and that was **false**. `element_guids` is a
+        # column on EVERY module record (`models.py:312`, written by `modules.set_element_guids`), and
+        # `me.list_records` returns it, so each activity reaching `analyze()` already carries its
+        # binding when a project has populated one. A stated blocker that is not real is worse than a
+        # true one: it stops work that could have proceeded, and nobody re-checks a documented dead end.
+        "not_covered": ("Install-before-support sequencing is NOT checked, and the reason is narrower "
+                        "than it looks: the task→element binding EXISTS (`element_guids` on every "
+                        "activity record). What is missing is the SUPPORT relationship — knowing that "
+                        "element B holds up element A. Nothing here reads IfcRelConnectsElements or a "
+                        "structural graph, and inferring support from bounding boxes would invent a "
+                        "load path. That inference, not the binding, is the open work."),
+        # Reported so the gap is measurable rather than asserted: how many activities could be checked
+        # today if the support relationship existed. Zero here means the binding is unpopulated on this
+        # project, which is a different problem from the engine being unable to use it.
+        "bound_activities": sum(1 for a in (activities or []) if (a or {}).get("element_guids")),
     }

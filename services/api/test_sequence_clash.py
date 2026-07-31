@@ -98,7 +98,19 @@ assert many["findings"][0]["location"] == "L3", many["findings"]
 assert many["findings"][0]["overlap_days"] > many["findings"][1]["overlap_days"]
 
 # ---- the unbuilt half is NAMED, not approximated -------------------------------------------------
-assert "GlobalId" in many["not_covered"] and "not" in many["not_covered"].lower()
+# This used to assert `"GlobalId" in not_covered`, pinning the claim that schedule_activity carries no
+# element GlobalId "so there is no way to know what a task installs". That claim was FALSE:
+# `element_guids` is a column on every module record (models.py:312) and `me.list_records` returns it,
+# so the binding reaches `analyze()` already. The test was holding a wrong statement in place — the
+# worst kind of coverage, since a documented dead end is one nobody re-checks.
+assert "SUPPORT relationship" in many["not_covered"], many["not_covered"]
+assert "binding EXISTS" in many["not_covered"], many["not_covered"]
+# ...and the gap is now MEASURABLE rather than asserted: how many activities could be checked today.
+assert many["bound_activities"] == 0, many["bound_activities"]   # this fixture binds no elements
+bound = sq.analyze([{"data": {"name": "Hanger", "location": "L9", "trade": "Mechanical",
+                              "start": "2026-03-01", "finish": "2026-03-10"},
+                     "element_guids": ["0aaaaaaaaaaaaaaaaaaaaa"]}])
+assert bound["bound_activities"] == 1, bound["bound_activities"]
 
 # a bare dict (no "data" wrapper) is accepted too — the module engine hands both shapes around
 flat = sq.analyze([{"name": "Duct", "location": "L3", "trade": "Mechanical",
