@@ -2,6 +2,7 @@
 from the project source IFC by the data service."""
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -21,6 +22,13 @@ if str(_DATA_SRC) not in sys.path:
     sys.path.insert(0, str(_DATA_SRC))
 
 router = APIRouter()
+log = logging.getLogger(__name__)
+
+#: SEC — the ONLY thing an API response may say about a filing failure. A module-level constant rather
+#: than an inline literal is deliberate: `py/stack-trace-exposure` tracks the flow into the response, and
+#: an f-string carrying the exception is the leak regardless of how narrowly the exception is typed. The
+#: operator gets the detail from the log; the caller gets the fact.
+_FILING_FAILED = "the release was issued, but filing it into the document tree failed — see server logs"
 
 # Whole-model triangulation (glTF export) is the heaviest geometry op here — cap per caller.
 _export_throttle = rate_limited("model_export", 10)
@@ -214,9 +222,14 @@ def issue_drawing_set(pid: str, body: dict = Body(default={}), db: Session = Dep
         p = db.get(Project, pid)
         out["filed"] = filing.file_transmittal(db, pid, out["id"], p.name if p else pid, actor)["entry"]
         out["filed_error"] = None
-    except Exception as e:                  # noqa: BLE001 — filing must not undo a completed issuance
+    except Exception:                        # noqa: BLE001 — filing must not undo a completed issuance
+        # SEC (py/stack-trace-exposure): the detail goes to the LOG, never to the caller. Interpolating
+        # the exception here leaked internal paths and state into an API response — caught by CodeQL on
+        # the very push that introduced it. Per [[codeql-stack-trace-exposure]], returning a CONSTANT is
+        # what fixes it; narrowing the exception type does not, because the message is the leak.
+        log.exception("filing the transmittal failed for project %s issuance %s", pid, out.get("id"))
         out["filed"] = None
-        out["filed_error"] = f"{type(e).__name__}: {e}"
+        out["filed_error"] = _FILING_FAILED
     return out
 
 

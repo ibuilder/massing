@@ -164,6 +164,26 @@ with TestClient(app) as c:
     # refuses (409) rather than filing an empty set.
     assert c.post(f"{P}/drawing-set/file-drawing-set", json={}, headers=HDR).status_code == 409
 
+    # SEC (py/stack-trace-exposure) — when filing FAILS, the caller learns the fact and never the
+    # exception. This was a real alert on the push that introduced the feature: interpolating the
+    # exception into `filed_error` leaked internal detail into an API response. Asserted by forcing a
+    # failure, because the safe path proves nothing about the unsafe one.
+    _orig = filing.file_transmittal
+    try:
+        def _boom(*a, **k):
+            raise RuntimeError("C:/secret/path/internals.py line 42 — connection string s3cr3t")
+        filing.file_transmittal = _boom
+        c.post(f"{P}/drawing-set/generate", json={"disciplines": ["Plumbing"]}, headers=HDR)
+        b3 = c.post(f"{P}/drawing-set/issue", json={"purpose": "Issued for Record"}, headers=HDR).json()
+    finally:
+        filing.file_transmittal = _orig
+    # The release still succeeded — filing is non-fatal, so the issuance must not be reported as failed.
+    assert b3.get("id") and b3["filed"] is None, b3
+    err = b3["filed_error"] or ""
+    assert err and "see server logs" in err, err
+    for leak in ("secret", "s3cr3t", "RuntimeError", "line 42", "internals.py"):
+        assert leak not in err, f"filed_error leaked {leak!r}: {err}"
+
 # The set's title is CONSTANT by design, so repeated issues become revisions of ONE document — that is
 # what lets the document tree answer "which set is current" without a second register. Asserted as the
 # property rather than by rendering a real set, which would cost a full sheet render for no extra proof.
