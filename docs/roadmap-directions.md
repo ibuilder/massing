@@ -68,6 +68,19 @@ running total is now over a dozen items that turned out to be mostly built. Befo
   disk, so following the instruction reproduced the starting position. Picking scales with *elements*,
   so the fixture must be specified in elements. The tell: the instruction named a unit nobody was
   actually testing against.
+- **A benchmark must assert that it measured something.** A picking benchmark returned a confident
+  **p50 of 135 ms with `hits: 0`** — the browser pane was collapsed, `clientWidth` was 0, and every ray
+  missed. That number would have *justified* the very timeout it was sent to test. Three sibling
+  instrument bugs in the same run each produced a plausible result too: `byteLength` read **0** after
+  `core.load` detached the ArrayBuffer to a worker ("fetched nothing, loaded fine"); canvas-relative
+  coordinates hit 0/12 because the app passes viewport `clientX/clientY` and the canvas is offset; and
+  the camera sat at its default. **Timings and counts are produced just as readily by a broken setup as
+  a working one** — so assert on the evidence that the instrument engaged (`hits > 0`, bytes > 0), never
+  on the output alone. Same shape as an all-zeros geometry import that "succeeds".
+- **Report the distribution, not a mean.** p50 4 ms with p99 400 ms is a different verdict from a flat
+  4 ms, and only the tail decides whether a fallback is justified. Split code paths that differ (a
+  raycast *miss* was ~5× cheaper than a hit; a mean hid it), and always attach the scale the number was
+  taken at — an unattached latency figure drifts to whatever claim wants support.
 - **Never assemble a measurement from several reads of a live system.** Take one snapshot and derive.
 - **`$?` after a pipe is the pipe's status.** Read exit codes directly.
 - **"No test files found" is not a pass.** Neither is a `FAIL` with no traceback.

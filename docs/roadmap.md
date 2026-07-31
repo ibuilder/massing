@@ -54,17 +54,24 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**59 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+**58 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
 merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
 
-| item | size | why it is first |
-|---|---|---|
-| ⭐ **R23-PICKING** | M | ⚠️ premise already corrected — **do not build on the stated evidence.** Re-scope or close. |
+## ✅ **BAND 1 IS EMPTY as of 2026-07-31.**
 
-**Band 1 is down to a single item, and that item is a decision rather than a build.** Both defects that
-were live here shipped on 2026-07-31 — see the two notes below.
+Three items left it in one day and **none of them left the same way**: two were real defects and shipped,
+and the third was closed *unbuilt by measurement*. That third outcome is the one worth protecting — an
+item can be finished by producing a number that says it should not be built, and that is a result, not
+a failure to deliver.
+
+- ✅ **R33-CLAWBACK-AMOUNT** — shipped (`856970c8`). Verified by reading the implementation, not the PR
+  title.
+- ✅ **R34-SHEET-SCALE** — shipped (`365976d8`). The engine was already right; nothing set the field.
+- ⛔️ **R23-PICKING — CLOSED UNBUILT, on a measurement.** See below.
+- ↘️ **SEC-PLUGIN-SANDBOX** — left the band (still open, moved to platform); the threat model was
+  checked rather than assumed and no unprivileged path reaches it.
 
 ✅ **R33-CLAWBACK-AMOUNT — SHIPPED** in PR #136 (`856970c8`). `waterfall.solve_clawback_for_pref(lp_cf,
 lp_dates, pref_rate, cap)` now solves for the cash added at the final date that lifts the LP's **XIRR**
@@ -197,7 +204,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R23-PICKING · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-ITP-NCR · R22-PM-CONTRACTS |
@@ -553,7 +560,28 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   small parts, MEP and furniture, swapping to real fragments on demand. Server-side keeps it
   deterministic, offline and $0. *`docs/internal/archive/phase2-large-models.md` claims no custom LOD is needed and is
   itself marked superseded — that claim is the thing to retire.*
-- **R23-PICKING** *(M)* — ⚠️ **premise corrected 2026-07-25; do NOT build this on the stated evidence.**
+- ⛔️ **R23-PICKING** *(M)* — **CLOSED UNBUILT 2026-07-31, on a measurement. Do not reopen without a
+  new one.** Raycast latency was measured directly on `loader.fragments.raycast()` against a generated
+  **35,030-element** fixture (19× the densest sample), 300 samples after a discarded warm-up:
+
+  | | n | min | p50 | p90 | p95 | p99 | max |
+  |---|---|---|---|---|---|---|---|
+  | **hits** | 143 | 0.7 | 1.6 | 3.0 | 3.8 | **4.8** | **5.4** ms |
+  | **misses** | 157 | 0.0 | 0.3 | 0.8 | 1.2 | 2.0 | 6.0 ms |
+
+  **Single-digit ms across the entire distribution, p99 and max included.** The 1500 ms fallback the
+  prose justifies has ~**250× headroom** over the worst observed sample. Hits and misses are reported
+  separately because they are different code paths and a mean would have hidden that misses are ~5×
+  cheaper. **The comment at `app.ts:389` — *"Normal raycasts answer in ms"* — is correct, and now has a
+  number behind it instead of a claim.** GPU ID-buffer picking would optimise something that is not slow.
+
+  *Fixture is generated and LOCAL; `samples/*.ifc` are gitignored, so the reproducible artefact is the
+  recipe, not the file:* `generate_blank_ifc(storeys=20, storey_height=3.5)`, then per storey 250×
+  `edit_struct.add_wall` + 250× `add_column` → 10,000 products / 35,030 local ids / 10.9 MB IFC →
+  1.1 MB frag. **Generation is superlinear**: 10,000 elements took 407 s where a linear extrapolation
+  from 2,400-in-21.6 s predicted ~90 s. Budget from that, not from the linear estimate.
+
+  *Original premise correction, kept because it is why the item survived to be measured:*
   The scan read the 1500 ms `Promise.race` at `viewer/app.ts:337` as "an admission that picking latency
   already hurts". The source says the opposite, in its own comment: the race guards against *a stalled
   Fragments worker (hidden tab / heavy load)* silently eating clicks, and states plainly that **normal
