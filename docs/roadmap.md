@@ -54,7 +54,7 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**60 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+**59 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
 merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
@@ -103,11 +103,34 @@ Seven of eleven engines once shipped with no route. These are the current instan
 
 | item | size | the gap |
 |---|---|---|
-| ⭐ **R32-FILE-GENERATED** | M | ✔ **premise re-checked 2026-07-31 and it HOLDS** — the rare one. `sheetgen` · `drawingset` · `issuance` · `specs` · `specialty` · `speckle_bridge` all have **0** `docmanager` references. Generated drawings and specs never enter the controlled tree — no revision, no supersession, invisible in the file manager. The receiving side is already built (`docmanager.upload()`, `_next_rev()`, `_active()`), so this is wiring, not new machinery. *(The entry said `specmanual`; that module does not exist — the spec generator is `specs.py`.)* |
-| ~~**R32-MODEL-IN-TREE**~~ | S | ✅ **SHIPPED 2026-07-31** (`44a901bd`). `12_Model` / `12_Model/IFC` / `12_Model/Federated` added to the taxonomy; `filing.file_model()` files `source.ifc` through `docmanager`, so a model revision **is** a document revision. Routes `POST /projects/{pid}/documents/file-model` + `GET …/model-history`. |
-| **R32-CURRENT-SET** | S | The drawings display reads the registers, not the document tree, so "only the current set" is not enforced where field users look. |
+| ⭐ **R32-CURRENT-SET** | S | The drawings display reads the registers, not the document tree, so "only the current set" is not enforced where field users look. **The groundwork now exists** — a re-issued set supersedes into one current document (see below), so this is a read-side change, not a new store. |
 | **R24-TRACE-UI ②** | L | Backend. Make the proforma emit its own derivation — each figure carrying its inputs and a *model-derived / overridden / market-assumption* tag. Independently corroborated as the industry's real gap. |
 | **R27-LAYOUT ①** | S | The sheet layout is written and never read back. |
+
+✅ **R32-MODEL-IN-TREE + R32-FILE-GENERATED — SHIPPED 2026-07-31** (`44a901bd`, `4f6a5c84`). Two thirds
+of the filing ask are done. `12_Model/IFC` holds the model, and **issuing a set now files it**: the
+transmittal lands in `02_Drawings` on issue, beside the hand-uploaded drawings rather than in a
+"generated" silo. The remaining third is `R32-CURRENT-SET` above, and it is now a *read-side* change.
+
+Four decisions, recorded because they are the constraints the next filing caller inherits:
+
+1. **File on publish, never on save.** `source.ifc` is rewritten by every edit recipe; filing on write
+   would mint a revision per keystroke and make the chain meaningless.
+2. **File by KIND, into the folder that kind already uses** — there is no `Generated Drawings` folder,
+   and a test asserts none exists. A silo would rebuild the two-parallel-stores problem and split "the
+   current set" across two places, which is exactly what `R32-CURRENT-SET` then has to reconcile.
+3. **Titles carry the semantics.** The set's title is *constant*, so re-issues supersede into one
+   current document (P01, P02, …) — that is what lets the tree answer "which set is current". A
+   transmittal is titled *per issuance*, because one that superseded its predecessor would destroy the
+   release history it exists to provide.
+4. **Filing at issue is non-fatal and reported.** The issuance is already committed when filing runs, so
+   raising would surface as "issuing failed" for a release that *did* happen. The response carries
+   `filed` or a `filed_error` reason — an explicit unavailable, never a silent success.
+
+⚠️ **Open, and deliberately left to the user:** `12_Model` is **not** `required`. `required_paths()`
+feeds the document-control health score, so marking it required would drop every existing project's
+compliance number at once, with no obvious cause. Whether an unfiled model *should* count against
+health is a real policy question and not a side effect to slip into a commit.
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
@@ -172,7 +195,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R23-PICKING · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
@@ -1327,16 +1350,25 @@ apply to this product, so nobody re-derives any of it.
 So "standardise the format" and "version it" are, at the file-store layer, **done**. The gaps are
 elsewhere and they are specific.
 
-### ⭐ R32-FILE-GENERATED *(M)* — nothing generated is ever filed
+### ✅ R32-FILE-GENERATED *(M)* — SHIPPED 2026-07-31 (`4f6a5c84`)
 
-**Measured:** `sheetgen.py`, `specmanual.py`, `drawingset.py` and `issuance.py` contain **zero**
-references to `docmanager`. Generated drawings and generated specs are produced, returned and never
-enter the controlled tree — so they get no revision, never supersede anything, and do not appear in the
-file manager at all. Every governance property the document layer already implements is unavailable to
-exactly the artefacts the platform itself produces.
+**Was measured:** `sheetgen.py`, `drawingset.py`, `issuance.py` and `specs.py` contained **zero**
+references to `docmanager`. Generated drawings and specs were produced, returned and never entered the
+controlled tree — no revision, never superseding anything, absent from the file manager. Every
+governance property the document layer implements was unavailable to exactly the artefacts the platform
+itself produces. *(The original entry named `specmanual.py`, which does not exist.)*
 
-Publishing a sheet set or a spec manual should **file it**: into its discipline folder, with a revision,
-superseding the prior issue. The supersession logic exists; it has no caller.
+**Now:** issuing a set files it. `filing.file_transmittal()` runs on issue and lands the transmittal in
+`02_Drawings`; `filing.file_drawing_set()` compiles and files the set as the next revision of one
+document. The supersession logic finally has a caller — which was always the whole item.
+
+**Still open here, and it is the honest remainder:** only the **drawing** path is wired.
+`specs.py` produces a submittal log rather than a spec manual PDF, so there is no spec artefact to file
+yet; when one exists it belongs in `01_Contract Documents/Specifications`, by rule 2. Recorded rather
+than quietly counted as done.
+
+The four decisions this shipped with are listed in Band 2 above, and the `12_Model`-not-`required`
+question is still the user's to answer.
 
 ### ✅ R32-MODEL-IN-TREE *(S)* — SHIPPED 2026-07-31 (`44a901bd`)
 
