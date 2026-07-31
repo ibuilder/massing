@@ -118,7 +118,7 @@ jobs:
       # per-platform with PyInstaller and place it where tauri.conf's externalBin expects it.
       # (tauri-action runs beforeBuildCommand = `npm run build:desktop` to produce the SPA the
       # sidecar serves, so this only needs the Python side.)
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           # 3.12 to match the CI + the pip-compiled lock (services/api/requirements.lock is generated
           # under 3.12 and pins numpy 2.5.x, which requires Python >= 3.12 — 3.11 can't resolve it).
