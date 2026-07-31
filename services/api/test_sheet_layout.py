@@ -64,6 +64,25 @@ assert allp[:, 1].min() >= cy - 1e-6 and allp[:, 1].max() <= cy + ch + 1e-6, "cl
 seg = np.vstack(v1["polys"]) if v1["polys"] else None
 assert v1["scale_text"].startswith("1:"), v1["scale_text"]
 
+# R21-MULTISCALE — TWO DIFFERENT FIXED SCALES on ONE sheet, which is the actual claim. The pairing
+# above (one fixed + one fit-to-rect) does not prove it: "fit" is not a scale anyone specified, so a
+# build that silently applied ONE fixed denominator to every viewport would still pass it. Here both
+# viewports name a scale, they differ, and each must keep its own.
+vp_50 = {"kind": "plan", "elevation": 0.0, "rect": [0.0, 0.0, 0.5, 1.0], "scale": 50, "title": "Detail"}
+vp_100 = {"kind": "plan", "elevation": 0.0, "rect": [0.5, 0.0, 0.5, 1.0], "scale": 100, "title": "Plan"}
+multi = sl.compose_viewports(meshes, [vp_50, vp_100], page="A1")
+m0, m1 = multi["views"]
+assert m0["scale_text"] == "1:50" and m1["scale_text"] == "1:100", (m0["scale_text"], m1["scale_text"])
+assert m0["scale_denom"] == 50 and m1["scale_denom"] == 100, (m0["scale_denom"], m1["scale_denom"])
+# ...and the RATIO must be real, not just the label. A label is cosmetic; the extent is the drawing.
+# Clipping caps a span at the viewport rect, so assert the direction rather than exactly 2x: at the
+# finer scale the same geometry is never SMALLER on paper.
+if m0["polys"] and m1["polys"]:
+    def _span(v):
+        p = np.vstack(v["polys"])
+        return max(p[:, 0].max() - p[:, 0].min(), p[:, 1].max() - p[:, 1].min())
+    assert _span(m0) >= _span(m1) - 1e-6, (_span(m0), _span(m1))
+
 # per-viewport class freeze: a slab-only plan has no wall linework (fewer polys than the full cut)
 full = sl.compose_viewports(meshes, [{"kind": "plan", "elevation": 0.0, "rect": [0, 0, 1, 1]}])
 slab_only = sl.compose_viewports(meshes, [{"kind": "plan", "elevation": 0.0, "rect": [0, 0, 1, 1],

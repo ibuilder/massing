@@ -54,7 +54,7 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**50 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+**49 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
 merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
@@ -182,8 +182,7 @@ written) and **R22-PHOTO-CV**.
 ✅ **R34-TAKEOFF-COUNT — SHIPPED (#139, `29c26f27`); it was still listed here.** The platform had **no count measure at all**: every assembly was `area` or `length`, so a door, fixture, receptacle or sprinkler head — the thing an estimator counts most often — could not be taken off a drawing. Now a third measure, and **a count is never scaled**: area goes as scale², length as scale¹, and six doors are six doors at any sheet scale. Making it a third *measure* rather than a third *unit* is what makes that structural instead of remembered. Verified present: 13 count refs in `takeoff2d.py`, `test_takeoff_count` registered.
 
 ⭐ **R22-PRODUCTION** (L) field production against model quantities · **R22-CAD-IMPORT** (M) · **R22-ENTITLEMENT** (M/L) · **R31-PIPELINE-ALLOCATE** (L) ·
-**R22-REPORT-BUILDER** (M) · **R22-PIPELINE** (M) · **R21-DIM-COMPONENT** (M) · **R21-MULTISCALE** (S) ·
-**R21-SPACE-TAG-SECT** (S) · **R21-4D-CLASH** (phase 2)
+**R22-REPORT-BUILDER** (M) · **R22-PIPELINE** (M) · **R21-DIM-COMPONENT** (M) · **R21-SPACE-TAG-SECT** (S) · **R21-4D-CLASH** (phase 2)
 
 ### Band 5 — interface and feel
 
@@ -232,7 +231,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R31-PIPELINE-ALLOCATE · R22-PHOTO-CV · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
@@ -469,7 +468,10 @@ These are the gaps between what the platform draws today and what that package c
   GlobalId, so nothing knows *what a task installs*. Install-before-support cannot be computed
   without a real **task→element binding** — that binding is the actual next piece of work, and
   approximating it (by trade, by name match) would produce confident findings nobody can trust.
-- **R21-MULTISCALE** *(S)* — several viewports at **different scales** on one sheet (1:100 overall +
+- ✅ **R21-MULTISCALE — the capability was already there; the entry was stale.** Checked 2026-07-31: `compose_viewports` has taken a **per-viewport `scale`** since the viewport work — its docstring documents `"scale": 100  # 1:100 on paper; omit/None → fit-to-rect`, it reads `vp.get("scale")` per view, and emits a per-view `scale_denom`. Reached at `analysis.py:603`. The entry said "per-viewport scale is the missing parameter"; it was not missing.
+
+  **What WAS missing was the proof, and that is now a gate.** `test_sheet_layout` paired one fixed scale with one fit-to-rect view — which does not test the claim, because "fit" is not a scale anyone specified and a build applying ONE denominator to every viewport would still pass. It now composes **1:50 and 1:100 on one sheet** and asserts each keeps its own denominator *and* that the finer scale is never smaller on paper — a label is cosmetic, an extent is the drawing. Mutation-checked: forcing the first viewport's scale onto all views yields `('1:50','1:50')` and goes red. *(Original entry below.)*
+- ~~**R21-MULTISCALE**~~ *(S)* — several viewports at **different scales** on one sheet (1:100 overall +
   1:50 parts), each with its own title/scale block. `sheet_layout.py` composes viewports; per-viewport
   scale is the missing parameter.
 - **R21-SPACE-TAG-SECT** *(S)* — room names on sections (CLINIC 1, IP RM., DAY CASE RM.). `space_tags`
