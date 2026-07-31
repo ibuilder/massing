@@ -54,7 +54,7 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**61 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+**60 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
 merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
@@ -104,7 +104,7 @@ Seven of eleven engines once shipped with no route. These are the current instan
 | item | size | the gap |
 |---|---|---|
 | ⭐ **R32-FILE-GENERATED** | M | ✔ **premise re-checked 2026-07-31 and it HOLDS** — the rare one. `sheetgen` · `drawingset` · `issuance` · `specs` · `specialty` · `speckle_bridge` all have **0** `docmanager` references. Generated drawings and specs never enter the controlled tree — no revision, no supersession, invisible in the file manager. The receiving side is already built (`docmanager.upload()`, `_next_rev()`, `_active()`), so this is wiring, not new machinery. *(The entry said `specmanual`; that module does not exist — the spec generator is `specs.py`.)* |
-| **R32-MODEL-IN-TREE** | S | Two parallel stores: the model at `{pid}/source.ifc`, documents at `{pid}/docs/`. No folder hosts the model or the generated output. |
+| ~~**R32-MODEL-IN-TREE**~~ | S | ✅ **SHIPPED 2026-07-31** (`44a901bd`). `12_Model` / `12_Model/IFC` / `12_Model/Federated` added to the taxonomy; `filing.file_model()` files `source.ifc` through `docmanager`, so a model revision **is** a document revision. Routes `POST /projects/{pid}/documents/file-model` + `GET …/model-history`. |
 | **R32-CURRENT-SET** | S | The drawings display reads the registers, not the document tree, so "only the current set" is not enforced where field users look. |
 | **R24-TRACE-UI ②** | L | Backend. Make the proforma emit its own derivation — each figure carrying its inputs and a *model-derived / overridden / market-assumption* tag. Independently corroborated as the industry's real gap. |
 | **R27-LAYOUT ①** | S | The sheet layout is written and never read back. |
@@ -172,7 +172,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R32-MODEL-IN-TREE · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R23-PICKING · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
@@ -1338,15 +1338,33 @@ exactly the artefacts the platform itself produces.
 Publishing a sheet set or a spec manual should **file it**: into its discipline folder, with a revision,
 superseding the prior issue. The supersession logic exists; it has no caller.
 
-### ⭐ R32-MODEL-IN-TREE *(S)* — the model is not in the filing at all
+### ✅ R32-MODEL-IN-TREE *(S)* — SHIPPED 2026-07-31 (`44a901bd`)
 
-Two parallel stores: the source model at `{pid}/source.ifc`, the document tree at `{pid}/docs/<folder>/`.
-There is **no folder for the model**, and none for generated output. The user's ask — *a place within
-the filing that hosts the model, the generated drawings and the generated specs* — is precisely this.
+Was: two parallel stores — the source model at `{pid}/source.ifc`, the document tree at
+`{pid}/docs/<folder>/`, with **no folder for the model**. The artefact everything else derives from was
+the only one with no revision, no supersession and no presence in the file manager.
 
-Add the folders and file the IFC on publish, so a model revision is a document revision and the
-as-issued model sits beside the drawings it produced. This is the prerequisite for R32-FILE-GENERATED
-and is the smaller half.
+Now: `12_Model` / `12_Model/IFC` / `12_Model/Federated` are in the standard taxonomy, and
+`filing.file_model()` files the model through `docmanager` — so a model revision **is** a document
+revision, superseding the prior one and leaving the as-issued version recoverable. Reachable at
+`POST /projects/{pid}/documents/file-model` and `GET /projects/{pid}/documents/model-history`.
+
+**Three decisions recorded here because they constrain R32-FILE-GENERATED:**
+
+1. **File on publish, never on save.** `source.ifc` is rewritten by every edit recipe; filing on write
+   would mint a revision per keystroke and make the chain meaningless.
+2. **File by KIND, into the folder that kind already uses** — no `Generated Drawings` folder. A silo
+   for generated output would rebuild the same two-stores problem and split "the current drawing set"
+   across two places, which is exactly what R32-CURRENT-SET then has to reconcile. **A test asserts no
+   such folder exists**, so this cannot be quietly reversed.
+3. **`12_Model` is deliberately NOT `required`.** `required_paths()` feeds the document-control health
+   score, so marking it required would drop every existing project's compliance number for something
+   they have not had the chance to do. Whether an unfiled model *should* count against health is a real
+   question — but it is a policy change, and it needs the user's call rather than a side effect.
+
+*Bug found by its own test: history was ordered by `uploaded_at`, which is second-resolution, so two
+revisions filed in the same second tied and the order became whatever the sort did. Now ordered by the
+monotonic index sequence.*
 
 ### R32-CURRENT-SET *(S)* — the drawing display is not the file manager
 
