@@ -116,6 +116,51 @@ for bad in (0, -1, "wide", None):
 check("an empty takeoff reports 0% rather than dividing by zero",
       quantify([], 0.01)["provenance"]["recorded_pct"] == 0.0)
 
+# --- 5b. a scale must be a NUMBER, not something that survives float() ---------------------------
+# Code review 2026-07-30. The `bad` list above is float()-based, and float() is a wider door than it
+# looks: it accepts `True` and numeric strings. Both used to arrive as a perfectly plausible scale,
+# and the row then claimed `scale_source: "region"` — asserting the region had recorded a scale it
+# never recorded, which is the exact claim this module exists to refuse.
+for bad, why in ((True, "JSON `true` is not 1.0 units/px"),
+                 ("0.02", "a numeric string is a client type-confusion, not a measurement"),
+                 (float("inf"), "infinity cannot be measured with"),
+                 (1e300, "finite, but overflows to inf once an area squares it")):
+    q = quantify([{"category": "generic_area", "points": SQUARE, "scale_units_per_px": bad}], 0.01)
+    r = q["regions"][0]
+    check(f"a non-numeric/absurd region scale ({bad!r}) falls back to the call's — {why}",
+          r["scale_applied"] == 0.01 and r["scale_source"] == "call",
+          (r["scale_applied"], r["scale_source"]))
+    check(f"  ...and the row never claims `region` provenance for it ({bad!r})",
+          r["scale_source"] == "call", r["scale_source"])
+
+# `true` was the sharp one: 1.0 instead of 0.01, squared by the area path = a 10,000x overprice.
+_t = quantify([{"category": "generic_area", "points": SQUARE, "scale_units_per_px": True}], 0.01)
+check("`true` is not priced at scale 1.0 (it was a 10,000x error: cost 1,000,000 vs 100)",
+      _t["regions"][0]["cost"] == 100.0, _t["regions"][0]["cost"])
+
+# One overflowing region used to null the WHOLE takeoff's total under an HTTP 200, because the grand
+# total sums every row and FastAPI encodes inf as null. Nothing said which region did it.
+_o = quantify([{"category": "generic_area", "points": SQUARE},
+               {"category": "generic_area", "points": SQUARE, "scale_units_per_px": 1e300}], 0.01)
+check("one bad region no longer destroys the grand total",
+      isinstance(_o["total_cost"], float) and _o["total_cost"] == 200.0, _o["total_cost"])
+check("  and every quantity stays a finite number",
+      all(isinstance(r["quantity"], float) and r["quantity"] == r["quantity"]
+          and abs(r["quantity"]) != float("inf") for r in _o["regions"]),
+      [r["quantity"] for r in _o["regions"]])
+
+# --- 5c. the CALL scale had the identical hole ---------------------------------------------------
+# The route guarded `<= 0`, which `inf` passes. An infinite sheet scale nulled every quantity and the
+# total while still returning 200. quantify now refuses rather than answering with nulls.
+for bad in (float("inf"), float("nan"), 0, -1, "abc", None, True):
+    try:
+        quantify([{"category": "generic_area", "points": SQUARE}], bad)
+        check(f"an unusable call scale ({bad!r}) is refused", False, "accepted it")
+    except ValueError:
+        check(f"an unusable call scale ({bad!r}) is refused, not answered with nulls", True)
+check("a legitimate call scale still works", quantify(
+    [{"category": "generic_area", "points": SQUARE}], 0.01)["regions"][0]["quantity"] == 1.0)
+
 # --- 6. additive — the pre-existing shape is untouched -------------------------------------------------
 check("the original row fields still mean what they meant",
       all(k in r0 for k in ("index", "category", "assembly", "measure", "quantity", "unit",

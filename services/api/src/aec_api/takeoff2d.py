@@ -11,6 +11,7 @@ tracer/flood-fill lives in the browser; this is the deterministic, testable meas
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 # 2D-takeoff assemblies: category → (measure, $/unit, label). `area` bills the polygon area, `length`
@@ -65,20 +66,47 @@ MEASURE_METHODS = ("one_click", "traced", "imported", "unrecorded")
 MEASURE_AUTHORS = ("person", "agent", "unrecorded")
 
 
+#: Upper bound on units-per-pixel. Generous by three orders of magnitude for any real drawing (1e6
+#: would be 1,000 km per pixel) and low enough that squaring it for an area cannot overflow.
+MAX_SCALE_UNITS_PER_PX = 1e6
+
+
+def valid_scale(v: Any) -> float | None:
+    """A real, finite, sane units-per-pixel value — or None, which callers read as "not stated".
+
+    **Type-based, not `float()`-based, and that is the whole point.** `float()` accepts `True` (JSON
+    `true` → 1.0) and numeric strings, so a client type-confusion used to arrive as a perfectly
+    plausible scale: a region carrying `"scale_units_per_px": true` was measured at 1.0 units/px
+    instead of 0.01 — a **10,000x** error once the area path squares it — and the row then reported
+    `scale_source: "region"`, asserting that the region had deliberately recorded a scale when the
+    value was a boolean. That is precisely the claim this module exists to refuse.
+
+    Non-finite and absurd magnitudes go the same way. `1e300` is finite and positive, so it passed
+    the old `rs > 0` test, then overflowed to `inf` when squared; FastAPI encodes `inf` as `null`, so
+    ONE bad region silently returned `total_cost: null` for the whole takeoff under an HTTP 200.
+    A number that cannot be measured with is not a scale.
+    """
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    f = float(v)
+    if not math.isfinite(f) or f <= 0 or f > MAX_SCALE_UNITS_PER_PX:
+        return None
+    return f
+
+
 def _provenance(reg: dict, scale: float) -> dict:
     """What a region records about HOW it was measured, normalised. Never guesses."""
     m = str(reg.get("method") or "").strip().lower().replace("-", "_").replace(" ", "_")
     a = str(reg.get("measured_by") or reg.get("by") or "").strip().lower()
     # A region may carry its own scale (different sheets are scaled differently); when it does not,
     # the call's scale is what was applied, and either way the row records the one actually used.
-    try:
-        rs = float(reg.get("scale_units_per_px"))
-    except (TypeError, ValueError):
-        rs = None
+    # An unusable region scale falls back to the call's and is reported as `scale_source: "call"`, so
+    # the row never claims a provenance the input did not actually carry.
+    rs = valid_scale(reg.get("scale_units_per_px"))
     return {"method": m if m in MEASURE_METHODS else "unrecorded",
             "measured_by": a if a in MEASURE_AUTHORS else "unrecorded",
-            "scale_applied": rs if rs and rs > 0 else scale,
-            "scale_source": "region" if rs and rs > 0 else "call"}
+            "scale_applied": rs if rs else scale,
+            "scale_source": "region" if rs else "call"}
 
 
 def quantify(regions: list[dict], scale_units_per_px: float, *,
@@ -88,7 +116,13 @@ def quantify(regions: list[dict], scale_units_per_px: float, *,
     ``{category, points:[[x,y],…], label?}``; an `area` assembly bills the polygon area, a `length`
     assembly the polyline length. Returns per-region rows, per-assembly subtotals, and the grand total."""
     overrides = overrides or {}
-    s = float(scale_units_per_px)
+    # The same validation as a region's. The route guards `<= 0`, which `inf` passes — and an `inf`
+    # sheet scale nulls every quantity and the grand total while still returning 200. Refusing is the
+    # honest outcome: a takeoff whose scale cannot be measured with has no answer to give.
+    s = valid_scale(scale_units_per_px)
+    if s is None:
+        raise ValueError("scale_units_per_px must be a finite positive number "
+                         f"(0 < scale <= {MAX_SCALE_UNITS_PER_PX:g})")
     area_unit = f"{unit}²"
     rows: list[dict] = []
     for i, reg in enumerate(regions or []):
