@@ -674,6 +674,58 @@ def space_tags(model: ifcopenshell.file, cut_z: float | None = None) -> list[dic
     return tags
 
 
+def space_tags_section(model: ifcopenshell.file, axis: str, offset: float,
+                       tol: float = 0.05) -> list[dict]:
+    """R21-SPACE-TAG-SECT — room names on a SECTION (CLINIC 1, IP RM.), not just on plans.
+
+    `space_tags` tags rooms on a *horizontal* cut and returns plan centroids `(x, y)`. A section cuts on
+    a **vertical** plane, so both halves of that are wrong for it: the inclusion test is against a
+    different axis, and the label belongs at the room's centroid **in the section's own 2D frame**.
+
+    The frame is read from `_VIEWS` rather than restated here — `section-x` cuts at X and draws (Y, Z),
+    `section-y` cuts at Y and draws (X, Z). Hardcoding `(y, z)` would work for one axis and silently
+    place every tag wrong for the other, which is the failure a reader would blame on the geometry
+    rather than on the tagger.
+
+    A room is tagged only when the cut plane actually passes through it, for the same reason the plan
+    version takes `cut_z`: otherwise a section shows every room in the building stacked onto one cut.
+    Returns `x`/`y` in **section 2D coordinates** (x = the in-plane horizontal, y = elevation), matching
+    what `cut_baked` produces, so tags and linework share a frame.
+    """
+    import ifcopenshell.geom as _geom
+    import ifcopenshell.util.element as _ue
+
+    view = "section-x" if axis == "x" else "section-y"
+    normal, (u, v) = _VIEWS[view]
+    cut_axis = int(np.argmax(np.abs(normal)))      # 0 for section-x, 1 for section-y
+
+    settings = _world_settings(_geom)
+    tags: list[dict] = []
+    skipped = 0
+    for sp in model.by_type("IfcSpace"):
+        name = getattr(sp, "LongName", None) or getattr(sp, "Name", None) or "Room"
+        area = None
+        for qset in _ue.get_psets(sp, qtos_only=True).values():
+            area = area or qset.get("NetFloorArea") or qset.get("GrossFloorArea")
+        try:
+            shape = _geom.create_shape(settings, sp)
+            pts = np.asarray(shape.geometry.verts, dtype=float).reshape(-1, 3)
+            lo, hi = pts[:, cut_axis].min(), pts[:, cut_axis].max()
+            if not (lo - tol <= offset <= hi + tol):
+                continue                            # the cut misses this room — no tag
+            cu, cv = float(pts[:, u].mean()), float(pts[:, v].mean())
+        except Exception as exc:                    # noqa: BLE001 — one broken room loses its tag only
+            skipped += 1
+            log.debug("drawings.space_tags_section: geometry failed on %s (%s)",
+                      getattr(sp, "GlobalId", "?"), exc)
+            continue
+        tags.append({"name": name, "area": float(area) if area else None, "x": cu, "y": cv})
+    if skipped:
+        log.warning("drawings.space_tags_section: %d room(s) untagged (geometry failed) — the section "
+                    "shows their linework without a room tag", skipped)
+    return tags
+
+
 def element_callouts(model: ifcopenshell.file, classes=("IfcDoor", "IfcWindow"),
                      cut_z: float | None = None) -> list[dict]:
     """Plan callouts for taggable elements: a label (Tag → Name → class) at the element's plan
@@ -1243,7 +1295,7 @@ def _keynote_leaders(entries, col_x: float, top: float, bottom: float,
 def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], title: str,
                         grid: dict | None = None, lod: str = "coarse", width: int = 1300,
                         hatch: bool = True, materials: dict[str, str] | None = None,
-                        keynotes: bool = True) -> str:
+                        keynotes: bool = True, tags: list[dict] | None = None) -> str:
     """An **annotated** section: poché, level datums, grid bubbles and a floor-to-floor dimension
     chain — the things that make a cut issuable rather than merely correct.
 
@@ -1317,6 +1369,20 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
                        f'<text x="{gx:.1f}" y="{oy-21:.1f}" text-anchor="middle" '
                        f'font-family="sans-serif" font-size="10" font-weight="700">{_xesc(str(label))}</text>')
 
+    # R21-SPACE-TAG-SECT: room names on the cut, at each space's centroid in the section's own frame.
+    # `space_tags_section` already filtered to rooms the cut plane passes through, so this only has to
+    # place them — and it clips to the drawn extent for the same reason the plan does, since a room
+    # whose centroid falls outside the framed area would print its label over the titleblock.
+    for tag in (tags or []):
+        if not (mn[0] <= tag["x"] <= mx[0] and mn[1] <= tag["y"] <= mx[1]):
+            continue
+        tx, tyy = T(tag["x"], tag["y"])              # room names are user data — escape &/<
+        out.append(f'<text x="{tx:.1f}" y="{tyy:.1f}" text-anchor="middle" font-family="sans-serif" '
+                   f'font-size="12" font-weight="700" fill="#333">{_xesc(str(tag["name"]))}</text>')
+        if tag.get("area"):
+            out.append(f'<text x="{tx:.1f}" y="{tyy+13:.1f}" text-anchor="middle" '
+                       f'font-family="sans-serif" font-size="10" fill="#777">{tag["area"]:.1f} m²</text>')
+
     # C6 reference-line datums: the level line runs the full width and past the drawing on the left,
     # because a datum is a reference for the whole drawing rather than a label on one element
     shown = [lv for lv in levels if mn[1] - 0.1 <= lv["elevation"] <= mx[1] + 0.1]
@@ -1376,7 +1442,7 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
 
 def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None,
                 title: str = "SECTION", lod: str = "coarse", annotate: bool = True,
-                hatch: bool = True, keynotes: bool = True) -> str:
+                hatch: bool = True, keynotes: bool = True, rooms: bool = True) -> str:
     """Cut the model on a vertical plane. `offset` is the world coordinate (metres) of the cut on the
     perpendicular axis; when None the cut auto-centres on the model so it lands through the building
     regardless of where the model sits relative to the origin.
@@ -1396,6 +1462,10 @@ def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None
     return section_drawing_svg(meshes, axis, offset, storey_elevations(model), title,
                                grid=grid_from_meshes(meshes), lod=lod, hatch=hatch,
                                keynotes=keynotes,
+                               # R21-SPACE-TAG-SECT — computed here, beside the cut it belongs to, so a
+                               # section is annotated by default exactly as a plan is. `rooms=False`
+                               # returns the un-tagged cut for a CAD hand-off.
+                               tags=space_tags_section(model, axis, offset) if rooms else None,
                                materials=material_by_class(model) if (hatch or keynotes) else None)
 
 

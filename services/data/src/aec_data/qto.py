@@ -222,6 +222,47 @@ def load_cost_map(path: str | None) -> dict[str, CostCodeRow]:
     return {r["match_class"]: CostCodeRow(**r) for r in data}
 
 
+def _class_chain(model: ifcopenshell.file, cls: str) -> list[str]:
+    """`cls` then each ancestor, most specific first — e.g. IfcWallStandardCase → IfcWall → IfcElement…
+
+    Read from the schema rather than a hand-written table: IFC's hierarchy is large, differs between
+    IFC2X3 and IFC4, and a table would be the kind of hand-maintained list that silently stops covering
+    new classes. Returns just `[cls]` if the schema cannot be read, so a lookup degrades to today's
+    exact match instead of raising.
+    """
+    try:
+        import ifcopenshell.ifcopenshell_wrapper as _w
+        decl = _w.schema_by_name(model.schema).declaration_by_name(cls)
+    except Exception:                              # noqa: BLE001 — no schema → exact match only
+        return [cls]
+    chain = []
+    while decl is not None:
+        chain.append(decl.name())
+        decl = decl.supertype()
+    return chain
+
+
+def cost_code_for(model: ifcopenshell.file, el, cost_map: dict[str, CostCodeRow]) -> tuple[Any, str | None]:
+    """The cost row for `el`, matched by IFC class **including inherited classes**, plus the key it hit.
+
+    `cost_map.get(el.is_a())` — the exact-string match this replaced — is wrong in a way that produces
+    **zero cost silently**. `el.is_a()` returns the CONCRETE class, so a perfectly ordinary cost map
+    keyed `IfcWall` matched none of a model's `IfcWallStandardCase` walls: 13 real walls priced at
+    nothing, and the takeoff reported them as *uncoded*, which reads as "no cost data was configured"
+    rather than "your map does not match this model's classes". Found on `samples/basichouse.ifc`.
+
+    Most specific wins: an exact key beats an ancestor, and a nearer ancestor beats a farther one, so a
+    map carrying both `IfcWallStandardCase` and `IfcWall` still gets the intended one. The matched key
+    is returned rather than swallowed, so callers can show *which* rule priced an element — a match by
+    inheritance is a fact the estimator is entitled to, not an implementation detail.
+    """
+    for name in _class_chain(model, el.is_a()):
+        row = cost_map.get(name)
+        if row is not None:
+            return row, name
+    return None, None
+
+
 def takeoff(
     model: ifcopenshell.file,
     cost_map: dict[str, CostCodeRow] | None = None,
@@ -242,7 +283,10 @@ def takeoff(
             continue
         q = _quantities(el)
         el_type = ue.get_type(el)
-        cc = cost_map.get(el.is_a())
+        # Matched by inheritance, not by exact class name — see `cost_code_for`. `matched_class` is the
+        # cost-map key that actually priced this element; it differs from `ifc_class` exactly when the
+        # match came from an ancestor, which is the case that used to price silently at zero.
+        cc, matched_class = cost_code_for(model, el, cost_map)
 
         if force_geometry and settings is not None and ("area" not in q or "volume" not in q):
             for k, v in _geom_quantities(el, settings).items():
@@ -261,6 +305,12 @@ def takeoff(
         rows.append({
             "guid": el.GlobalId,
             "ifc_class": el.is_a(),
+            # Which cost-map key priced this element. Equal to `ifc_class` on an exact hit; an ANCESTOR
+            # class when the map was keyed more generally (a map keyed `IfcWall` pricing an
+            # `IfcWallStandardCase`); `None` when nothing matched. Surfaced rather than kept internal
+            # because "priced by a rule for a different class" is a fact an estimator should be able to
+            # see — and because its absence is what made the old exact-match failure invisible.
+            "matched_class": matched_class,
             "name": getattr(el, "Name", None),
             "type": getattr(el_type, "Name", None) if el_type else None,
             "storey": storey_name(el),
