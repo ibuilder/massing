@@ -5,17 +5,39 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class Timing(BaseModel):
+class _StrictModel(BaseModel):
+    """Base for every proforma input: an unknown field is a 400, not a silent default.
+
+    Pydantic's default for unknown keys is `extra="ignore"` — it drops them and returns 200. On a money
+    contract that is the worst possible behaviour, and it was demonstrable rather than theoretical:
+
+        Waterfall(pref_rat=0.10, clawbck=True)   ->   accepted, HTTP 200
+                                                      pref_rate = 0.08   (the default)
+                                                      clawback  = False  (the default)
+
+    The caller asked for a 10% pref with clawback ON and the engine priced an 8% pref with clawback
+    OFF, with no exception, no warning and no field in the response saying so. A typo in an API client,
+    a renamed field on one side of a deploy, or a hand-written cURL is enough.
+
+    `extra="forbid"` turns each of those into a 422 naming the offending key. A rejected request is
+    visible and gets fixed in minutes; a silently-defaulted one is priced, exported into a memo, and
+    never questioned. Same reasoning as `clawback.status = unavailable` — refuse rather than invent.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class Timing(_StrictModel):
     construction_months: int = Field(gt=0)
     leaseup_months: int = 0
     hold_years: float = Field(gt=0)
     start_date: str | None = None
 
 
-class CostLine(BaseModel):
+class CostLine(_StrictModel):
     category: Literal["land", "hard", "soft", "contingency", "fee"]
     name: str
     amount: float = 0
@@ -31,7 +53,7 @@ class CostLine(BaseModel):
     csi_code: str | None = None
 
 
-class Debt(BaseModel):
+class Debt(_StrictModel):
     ltc: float = Field(ge=0, le=1)
     rate: float = Field(ge=0)
     points: float = 0.0
@@ -42,12 +64,12 @@ class Debt(BaseModel):
     min_debt_yield: float | None = Field(default=None, gt=0)       # NOI / loan ≥ debt yield
 
 
-class Equity(BaseModel):
+class Equity(_StrictModel):
     lp_pct: float = Field(ge=0, le=1)
     gp_pct: float = Field(ge=0, le=1)
 
 
-class Ops(BaseModel):
+class Ops(_StrictModel):
     potential_rent_annual: float
     other_income_annual: float = 0
     opex_annual: float
@@ -56,18 +78,18 @@ class Ops(BaseModel):
     credit_loss_pct: float = 0.0
 
 
-class Exit(BaseModel):
+class Exit(_StrictModel):
     exit_cap: float = Field(gt=0)
     selling_cost_pct: float = 0.0
 
 
-class Tier(BaseModel):
+class Tier(_StrictModel):
     hurdle: float | None = None
     lp: float
     gp: float
 
 
-class Waterfall(BaseModel):
+class Waterfall(_StrictModel):
     pref_rate: float = 0.08
     style: Literal["american", "european"] = "american"
     clawback: bool = False
@@ -78,7 +100,7 @@ class Waterfall(BaseModel):
     tiers: list[Tier]
 
 
-class Tax(BaseModel):
+class Tax(_StrictModel):
     income_tax_rate: float = Field(default=0.25, ge=0, le=1)     # ordinary rate on operating income
     depreciation_years: float = Field(default=27.5, gt=0)        # 27.5 residential · 39 commercial
     capital_gains_rate: float = Field(default=0.20, ge=0, le=1)  # long-term capital gains
@@ -86,7 +108,7 @@ class Tax(BaseModel):
     recapture_rate: float = Field(default=0.25, ge=0, le=1)      # §1250 depreciation recapture (≤25%)
 
 
-class Assumptions(BaseModel):
+class Assumptions(_StrictModel):
     timing: Timing
     cost_lines: list[CostLine]
     debt: Debt
