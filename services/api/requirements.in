@@ -54,4 +54,4 @@ sentry-sdk[fastapi]>=2.0  # external error alerting (sentry.py); no-op unless AE
 opentelemetry-sdk>=1.27
 opentelemetry-exporter-otlp-proto-http>=1.27
 opentelemetry-instrumentation-fastapi>=0.48b0
-opentelemetry-instrumentation-sqlalchemy>=0.48b0
+opentelemetry-instrumentation-sqlalchemy>=0.65b0
