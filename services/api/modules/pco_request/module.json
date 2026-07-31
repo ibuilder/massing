@@ -37,7 +37,8 @@
       "name": "rough_cost",
       "label": "Rough Order Cost",
       "type": "currency",
-      "fieldset": "Cost & schedule"
+      "fieldset": "Cost & schedule",
+      "min": 0
     },
     {
       "name": "schedule_impact_days",

@@ -2,6 +2,7 @@
 from the project source IFC by the data service."""
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -21,6 +22,13 @@ if str(_DATA_SRC) not in sys.path:
     sys.path.insert(0, str(_DATA_SRC))
 
 router = APIRouter()
+log = logging.getLogger(__name__)
+
+#: SEC — the ONLY thing an API response may say about a filing failure. A module-level constant rather
+#: than an inline literal is deliberate: `py/stack-trace-exposure` tracks the flow into the response, and
+#: an f-string carrying the exception is the leak regardless of how narrowly the exception is typed. The
+#: operator gets the detail from the log; the caller gets the fact.
+_FILING_FAILED = "the release was issued, but filing it into the document tree failed — see server logs"
 
 # Whole-model triangulation (glTF export) is the heaviest geometry op here — cap per caller.
 _export_throttle = rate_limited("model_export", 10)
@@ -176,7 +184,7 @@ def drawing_issuances(pid: str, db: Session = Depends(get_db), _: str = Depends(
 
 @router.post("/projects/{pid}/drawing-set/issue", status_code=201)
 def issue_drawing_set(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
-                      _: str = Depends(require_role("editor"))):
+                      actor: str = Depends(require_role("editor"))):
     """Issue the current drawing set for a purpose — snapshots every current sheet + its revision.
     Body: `{purpose, date?, description?, recipients?, enforce?}`. The **pre-flight issuance gate**
     runs automatically and its verdict is stamped on the issuance record; with `enforce: true` a HOLD
@@ -195,9 +203,56 @@ def issue_drawing_set(pid: str, body: dict = Body(default={}), db: Session = Dep
         from fastapi import HTTPException
         raise HTTPException(409, "pre-flight HOLD — blocking checks: "
                                  + ", ".join(pf["blocking_checks"]) + " (see /preflight)")
-    return issuance.issue(db, pid, purpose, body.get("date"),
-                          str(body.get("description") or ""), str(body.get("recipients") or ""),
-                          preflight=pf)
+    out = issuance.issue(db, pid, purpose, body.get("date"),
+                         str(body.get("description") or ""), str(body.get("recipients") or ""),
+                         preflight=pf)
+
+    # R32-FILE-GENERATED — issuing IS the publish event, so this is where the release enters the
+    # controlled tree. Only the transmittal: it renders from the stored snapshot, needs no model, and is
+    # the record of exactly what was released to whom. The compiled set is a separate, deliberate call
+    # (`…/file-drawing-set`) because it re-renders every sheet, and a slow render must never be able to
+    # hold up the cheap record of a release.
+    #
+    # NON-FATAL by construction, and reported rather than swallowed. The issuance is already committed
+    # at this point; raising here would surface as "issuing failed" for a release that DID happen, which
+    # is a worse lie than an unfiled transmittal. `filed` is null with a reason instead — an explicit
+    # unavailable, never a silent success.
+    try:
+        from .. import filing
+        p = db.get(Project, pid)
+        out["filed"] = filing.file_transmittal(db, pid, out["id"], p.name if p else pid, actor)["entry"]
+        out["filed_error"] = None
+    except Exception:                        # noqa: BLE001 — filing must not undo a completed issuance
+        # SEC (py/stack-trace-exposure): the detail goes to the LOG, never to the caller. Interpolating
+        # the exception here leaked internal paths and state into an API response — caught by CodeQL on
+        # the very push that introduced it. Per [[codeql-stack-trace-exposure]], returning a CONSTANT is
+        # what fixes it; narrowing the exception type does not, because the message is the leak.
+        log.exception("filing the transmittal failed for project %s issuance %s", pid, out.get("id"))
+        out["filed"] = None
+        out["filed_error"] = _FILING_FAILED
+    return out
+
+
+@router.post("/projects/{pid}/drawing-set/file-drawing-set", status_code=201)
+def file_drawing_set_route(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                           actor: str = Depends(require_role("editor"))):
+    """R32-FILE-GENERATED — compile the current set to one PDF and file it into `02_Drawings`.
+
+    A deliberate act, not a side effect of issuing: this re-renders every sheet and merges them. Each
+    call supersedes the previous one as the next revision of a single "Drawing Set" document, so the
+    document tree — not a second register — answers which set is current.
+    """
+    from .. import filing
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    src = _source_ifc(db, pid)                       # raises 409 if no accessible source IFC
+    try:
+        return filing.file_drawing_set(pid, src, p.name or pid, actor,
+                                       scale=int(body.get("scale") or 200),
+                                       max_sheets=int(body.get("max_sheets") or 16))
+    except filing.NothingToFile as e:
+        raise HTTPException(409, str(e))
 
 
 @router.get("/projects/{pid}/drawing-set/issuance-matrix")
@@ -455,7 +510,6 @@ async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
 
     from starlette.concurrency import run_in_threadpool
 
-    from .. import auth as _auth
     from .. import rbac as _rbac
     from .. import stamps
     from ..models import ProfessionalLicense, User
@@ -474,11 +528,14 @@ async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
         u = db.get(User, actor)
         if not u or not u.password_hash:
             raise HTTPException(403, "sealing requires an account with a local password")
-        if _auth.verify_stepup_token(step_up, "pdf.seal", u.password_hash) != actor:
-            # One status for every failure mode (absent / wrong act / expired / another user's / stale
-            # after a password change) so the response cannot be used to probe which one it was.
+        # Verifies AND spends: an assertion seals one document, not every document reachable inside
+        # its 5-minute TTL. A seal's claim is per-document, so the thing authorising it has to be too.
+        if not _rbac.consume_stepup(db, step_up, "pdf.seal", u.password_hash, actor):
+            # One status for every failure mode (absent / wrong act / expired / another user's /
+            # stale after a password change / ALREADY SPENT) so the response cannot be used to probe
+            # which one it was.
             raise HTTPException(403, "a fresh step-up assertion for 'pdf.seal' is required — "
-                                     "POST /auth/step-up")
+                                     "POST /auth/step-up (each one may be spent once)")
 
     if license_id:
         lic = db.get(ProfessionalLicense, license_id)
@@ -522,7 +579,11 @@ async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
     # without this field they are indistinguishable.
     audit.record(db, action="pdf.seal", actor=actor, method="POST", path="/pdf/seal",
                  detail={"template_id": template_id, "signed": bool(meta.get("sealed")),
-                         "via": via, "license_id": lic_ref, "step_up": True,
+                         # `multi_user`, NOT a literal True: single-operator mode verifies no
+                         # step-up at all, so a hardcoded True would have every desktop seal claim a
+                         # human re-proved their password when nothing checked. An audit row that
+                         # cannot be wrong in the operator's favour is the only kind worth keeping.
+                         "via": via, "license_id": lic_ref, "step_up": multi_user,
                          "seal_name": str(prof.get("name") or "")[:120],
                          "license_no": str(prof.get("license_no") or "")[:60],
                          "state": str(prof.get("state") or "")[:16]})

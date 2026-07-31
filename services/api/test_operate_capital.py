@@ -10,8 +10,9 @@ for _f in ("./test_opcap.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient   # noqa: E402
-from aec_api.main import app                # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 
 def mk(c, pid, key, data):
@@ -103,6 +104,30 @@ with TestClient(app) as c:
     assert abs(after["total_contributed"] - (before + 2_000_000)) < 1.0, after
     lp1c = next(r for r in after["rows"] if r["investor"] == "LP One")
     assert abs(lp1c["contributed"] - 1_200_000) < 1.0, lp1c       # 60% of 2M
+
+    # --- R31-K1-PACK: preparation input, and honest about NOT being a K-1 ---------------------
+    k1 = c.get(f"/projects/{pid}/k1-pack", params={"period": "2026"}).json()
+    assert k1["document_type"] == "k1_preparation_pack", k1.get("document_type")
+    # The refusal is the feature. A pack that let a caller believe it was a K-1 would be the whole
+    # defect, so this is asserted as hard as the arithmetic.
+    assert k1["is_tax_document"] is False, k1
+    assert any("704" in s for s in k1["not_included"]), k1["not_included"]
+    assert "not a tax document" in k1["note"].lower(), k1["note"]
+
+    # Value-checked, not range-checked: 60 / 30 / 10 on a 10M fund, and LP One's 60% of the 2M call.
+    k1rows = {r["investor"]: r for r in k1["rows"]}
+    assert abs(k1rows["LP One"]["ownership_pct"] - 60.0) < 0.01, k1rows["LP One"]
+    assert abs(k1rows["LP Two"]["ownership_pct"] - 30.0) < 0.01, k1rows["LP Two"]
+    assert abs(k1rows["GP"]["ownership_pct"] - 10.0) < 0.01, k1rows["GP"]
+    assert abs(k1rows["LP One"]["contributions_to_date"] - 1_200_000) < 1.0, k1rows["LP One"]
+    assert abs(k1rows["LP One"]["net_capital_to_date"]
+               - (k1rows["LP One"]["contributions_to_date"]
+                  - k1rows["LP One"]["distributions_to_date"])) < 0.01, k1rows["LP One"]
+
+    # Allocation ratios must CLOSE. Rounded shares that sum to 99.9997% would misallocate income for
+    # every partner every year and look right on inspection, so the residual is reported explicitly.
+    assert k1["allocation_check"]["closes"] is True, k1["allocation_check"]
+    assert abs(k1["allocation_check"]["ownership_pct_sum"] - 100.0) < 0.01, k1["allocation_check"]
 
     # --- G2b: distribution / equity-waterfall scenario ------------------------
     wf = c.post(f"/projects/{pid}/waterfall",

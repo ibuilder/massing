@@ -99,6 +99,30 @@ STANDARD_TREE: list[dict[str, Any]] = [
     _n("11_Final Account/Final BOQ", QS, cde=PUBLISHED),
     _n("11_Final Account/Final Variations", QS, cde=PUBLISHED),
     _n("11_Final Account/Close-Out", PM, cde=PUBLISHED, required=True),
+
+    # R32-MODEL-IN-TREE — the model had no home in the filing at all. Until this, the source model lived
+    # at `{pid}/source.ifc` and the document tree at `{pid}/docs/<folder>/`: two parallel stores, so the
+    # one artefact everything else is derived from was the only one with no revision, no supersession and
+    # no presence in the file manager. Filing the as-issued model here means a model revision IS a
+    # document revision, and the model sits beside the drawings it produced.
+    #
+    # `12_Model/IFC` is **required** — the user's call, 2026-07-31, asked explicitly because it moves
+    # every existing project's document-control health score at once. That is the intended effect: a
+    # project whose model has never been filed genuinely IS non-compliant, and the score should say so
+    # rather than stay comfortable. Expect existing projects to show `required_missing` until someone
+    # files a model; that is a true finding, not a regression.
+    #
+    # Only the IFC leaf is required. `12_Model/Federated` is not — a project with one authored model and
+    # no federated coordination model is complete, and requiring it would manufacture a permanent gap.
+    #
+    # Note what is NOT here: no "Generated Drawings" or "Generated Specifications" folder. Generated
+    # sheets file into `02_Drawings/<discipline>` and generated specs into `01_Contract Documents/
+    # Specifications`, i.e. where documents of that KIND already live. A separate silo for generated
+    # output would rebuild the very two-parallel-stores problem this item exists to remove, and would
+    # leave "the current drawing set" split across two folders again.
+    _n("12_Model", ARCH, cde=PUBLISHED, required=True),
+    _n("12_Model/IFC", ARCH, cde=PUBLISHED, required=True),
+    _n("12_Model/Federated", ENGR, cde=SHARED),
 ]
 
 _BY_PATH = {n["path"]: n for n in STANDARD_TREE}

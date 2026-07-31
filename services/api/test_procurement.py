@@ -83,18 +83,23 @@ with TestClient(app) as c:
     assert only["material_count"] == 1, only
 
     # --- PROC-LOOP material requests: pure QTO suggestion maths + the module round-trip ------------
-    rows_tk = [{"guid": "w1", "ifc_class": "IfcWall", "area": 10.0, "volume": 2.0},
-               {"guid": "w2", "ifc_class": "IfcWall", "area": 12.0, "volume": 2.5},
-               {"guid": "d1", "ifc_class": "IfcDoor", "area": None, "volume": None}]
+    # MOD-GUID: real 22-char GlobalIds — "w1"/"w2"/"d1" could not be an IfcGloballyUniqueId and are
+    # now refused on write. Note the separator: `parse_guids` has always split on newline/comma, so
+    # the old "w1 w2" was ONE token to every reader — the fixture only looked like two ids.
+    W1, W2, D1 = "4Du0eU6$P2zCfWi3NsOqHg", "5Ev1fV7aQ3AdGxj4OtPrIh", "6Fw2gW8bR4BeHyk5PuQsJi"
+    rows_tk = [{"guid": W1, "ifc_class": "IfcWall", "area": 10.0, "volume": 2.0},
+               {"guid": W2, "ifc_class": "IfcWall", "area": 12.0, "volume": 2.5},
+               {"guid": D1, "ifc_class": "IfcDoor", "area": None, "volume": None}]
     sug = procurement.suggest_material_requests(rows_tk, None)
     wall = next(s for s in sug if s["ifc_class"] == "IfcWall")
     assert wall["qty"] == 4.5 and wall["unit"] == "m3" and wall["elements"] == 2, wall  # volume preferred
     door = next(s for s in sug if s["ifc_class"] == "IfcDoor")
     assert door["qty"] == 1 and door["unit"] == "ea", door                              # count fallback
-    assert procurement.suggest_material_requests(rows_tk, {"d1"}) == [door | {"guids": ["d1"]}], "guid narrowing"
+    assert procurement.suggest_material_requests(rows_tk, {D1}) == [door | {"guids": [D1]}], "guid narrowing"
     # the module workflow: requested → approved → ordered → delivered
     mr = c.post(f"/projects/{pid}/modules/material_request",
-                json={"data": {"material": "Wall", "qty": 4.5, "unit": "m3", "guids": "w1 w2"}}).json()
+                json={"data": {"material": "Wall", "qty": 4.5, "unit": "m3",
+                               "guids": "\n".join([W1, W2])}}).json()
     assert mr["workflow_state"] == "requested", mr
     for a in ("approve", "order", "receive"):
         tr = c.post(f"/projects/{pid}/modules/material_request/{mr['id']}/transition", json={"action": a})

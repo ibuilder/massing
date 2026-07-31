@@ -16,6 +16,7 @@ from .. import rbac
 from ..db import get_db
 from ..models import Scenario
 from ..proforma import entitlement_risk
+from ..proforma import provenance as _provenance
 from ..proforma.draws import reforecast
 from ..proforma.monte_carlo import monte_carlo
 from ..proforma.sensitivity import sensitivity
@@ -39,7 +40,22 @@ def solve_stateless(a: Assumptions):
     guardrails (U5) that flag returns outside typical market bands."""
     from .. import underwrite
     result = solve(a.model_dump())
-    return {**result, "guardrails": underwrite.guardrails(result)}
+    return {**result, "guardrails": underwrite.guardrails(result),
+            "provenance": _provenance.derive(_provenance.declared_from(a), result)}
+
+
+@router.post("/proforma/provenance")
+def proforma_provenance(a: Assumptions):
+    """R24-TRACE-UI ② — which assumptions behind each headline figure the CALLER declared, and which the
+    engine defaulted.
+
+    Note what is passed: `declared_from(a)`, i.e. `model_dump(exclude_unset=True)`. By the time
+    `solve()` sees `a.model_dump()` pydantic has filled every default, and deriving from *that* would
+    report every input as declared — a record that answers the reviewer's question with fiction. No
+    figure carries an element link; the proforma holds no GlobalId, and inventing a terminus is the one
+    failure worse than having none.
+    """
+    return _provenance.derive(_provenance.declared_from(a), solve(a.model_dump()))
 
 
 @router.post("/projects/{pid}/proforma/solve")

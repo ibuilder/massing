@@ -54,14 +54,16 @@
       "name": "cost_estimate",
       "label": "Est. Cost",
       "type": "currency",
-      "fieldset": "Impact"
+      "fieldset": "Impact",
+      "min": 0
     },
     {
       "name": "schedule_days",
       "label": "Schedule Days",
       "type": "number",
       "fieldset": "Impact",
-      "unit": "days"
+      "unit": "days",
+      "min": 0
     },
     {
       "name": "issued_date",

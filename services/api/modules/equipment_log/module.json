@@ -18,13 +18,15 @@
       "name": "date",
       "label": "Date",
       "type": "date",
-      "fieldset": "Dates"
+      "fieldset": "Dates",
+      "default": "@today"
     },
     {
       "name": "hours",
       "label": "Hours",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "daily_report",

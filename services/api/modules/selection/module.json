@@ -1,7 +1,7 @@
 {
   "key": "selection",
   "name": "Selections",
-  "section": "Engineering",
+  "section": "Specifications",
   "icon": "◈",
   "ref_prefix": "SEL",
   "title_field": "item",
@@ -58,13 +58,15 @@
       "name": "actual_cost",
       "label": "Actual Cost",
       "type": "currency",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "allowance",
       "label": "Allowance",
       "type": "currency",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "client_approval",

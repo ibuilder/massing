@@ -470,18 +470,39 @@ export class PortalUI {
       if (roomMods.length) {
         // Sub-rooms, by SECTION.
         //
-        // Design owns 39 registers and Schedule 41 — a flat list at that size is precisely the wall
+        // Design owns 32 registers and Schedule 38 — a flat list at that size is precisely the wall
         // the spine was built to replace, so the room needs a second level. The grouping key is the
-        // module's `section`, which is *already* what decides its room: this is a strict refinement
-        // of the existing table, not a new taxonomy competing with it. Inventing a separate
-        // sub-room table would recreate the drift this whole restructure removed.
+        // module's `section`, which is *already* what decides its room: a strict refinement of the
+        // existing table, not a new taxonomy competing with it.
+        //
+        // R31-DESIGN-GROUPS: the ORDER and the membership now come from `/rooms`, for the same reason
+        // stated forty lines up about the room itself — the server already computes this, and a
+        // client that re-derives it is how four competing rails came to exist. The local fallback
+        // stays because the rail must render when `/rooms` fails.
+        //
+        // **The headings were the actual defect, not the absence of them.** This grouping shipped
+        // before the sections were fit to be read as headings: Design's largest was `Engineering`,
+        // nine modules that included drawings, RFIs, submittals and MEP equipment — a heading a user
+        // would open expecting engineering and find a filing accident. Grouping by a meaningless key
+        // produces meaningless groups, confidently labelled, which is worse than a flat list because
+        // it looks like somebody decided.
+        //
+        // Server order is largest-first: the heading most likely to be wanted should not sit under a
+        // three-module one because of its initial letter.
         //
         // Below SUBGROUP_MIN the headings cost more than they explain, so a small room stays flat.
         const SUBGROUP_MIN = 8;
+        const byKey = new Map(roomMods.map((m) => [m.key, m]));
         const bySection = new Map<string, ModuleDef[]>();
-        for (const m of roomMods) {
-          const sec = m.section || "Other";
-          (bySection.get(sec) ?? bySection.set(sec, []).get(sec)!).push(m);
+        for (const g of room.groups ?? []) {
+          const mods = g.modules.map((k) => byKey.get(k)).filter(Boolean) as ModuleDef[];
+          if (mods.length) bySection.set(g.section || "Other", mods);
+        }
+        if (!bySection.size) {
+          for (const m of roomMods) {
+            const sec = m.section || "Other";
+            (bySection.get(sec) ?? bySection.set(sec, []).get(sec)!).push(m);
+          }
         }
         const subgroup = roomMods.length >= SUBGROUP_MIN && bySection.size > 1;
         const rule = document.createElement("div");
@@ -489,7 +510,7 @@ export class PortalUI {
         rule.textContent = `Registers (${roomMods.length})`;
         det.appendChild(rule);
         if (subgroup) {
-          for (const [sec, mods] of [...bySection].sort((a, b) => a[0].localeCompare(b[0]))) {
+          for (const [sec, mods] of bySection) {
             const h = document.createElement("div");
             h.className = "pnav-subsec meta";
             h.textContent = `${sec} · ${mods.length}`;
@@ -2552,9 +2573,20 @@ export class PortalUI {
         // the field-sweep branch, which is merged to `main` but not into this one — and it cannot be
         // merged in right now without git overwriting two files another session is holding dirty. A
         // local structural read is correct on both sides of that merge and costs nothing once it lands.
-        const unit = (f as { unit?: string }).unit;
-        if (unit) { inp.placeholder = unit; inp.setAttribute("aria-description", `in ${unit}`); }
-        inp.value = String(cur(f.name) ?? "");
+        const unit = f.unit;
+        // MOD-FIELDATTRS: an explicit placeholder wins over the unit hint — the unit was only ever a
+        // fallback for "this box has no guidance at all".
+        if (f.placeholder) inp.placeholder = f.placeholder;
+        else if (unit) inp.placeholder = unit;
+        if (unit) inp.setAttribute("aria-description", `in ${unit}`);
+        if (f.min != null) inp.min = String(f.min);
+        if (f.max != null) inp.max = String(f.max);
+        // A default is for a NEW record. On an edit, an absent value is a value the user cleared.
+        const existing = cur(f.name);
+        // `@today` is resolved on both sides: the form shows the date the user is about to save, and
+        // the server fills it for any caller that never opened a form (import, integration, script).
+        const dflt = f.default === "@today" ? new Date().toISOString().slice(0, 10) : f.default;
+        inp.value = String(existing ?? (editing ? "" : (dflt ?? "")));
       }
       inputs[f.name] = el; wrap.appendChild(el);
       if (f.type === "select" || f.type === "multiselect") wrap.appendChild(addOptBtn(f, el as HTMLSelectElement));

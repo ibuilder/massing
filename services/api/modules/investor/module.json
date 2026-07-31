@@ -81,14 +81,18 @@
       "label": "Ownership / interest %",
       "type": "percent",
       "unit": "%",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0,
+      "max": 100
     },
     {
       "name": "pref_return_pct",
       "label": "Preferred return %",
       "type": "percent",
       "unit": "%",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0,
+      "max": 100
     },
     {
       "name": "notes",

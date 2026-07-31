@@ -85,6 +85,7 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 | Route authz coverage | `test_route_authz` (suite-gated) |
 | Global-route authz (no `{pid}`) | `test_global_mutating_authz` (23 checks, RBAC-on, mutation-verified) + `test_global_authz` ratchet |
 | Seal identity + human step-up | `test_seal_identity` (26 checks, RBAC-on, mutation-verified) |
+| RBAC middleware prefix coverage | `test_protected_prefix_coverage` (ratchet; 3 failure modes, mutation-verified) |
 | Webhook signature + payload bounding | `test_esign` (valid signature replayed onto a different payload is refused) |
 | Login lockout / throttles | `routers/auth.py` + `throttle.py` tests |
 | Token revocation | session-revocation tests (`token_epoch`) |
@@ -120,17 +121,26 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
    bearer token identifies a session, not a person, so any process holding one — including an
    automation driving this API — could still emit sealed documents in the licensee's name, and the
    audit row would faithfully record a human act that never happened. Sealing therefore also
-   requires a fresh single-action step-up assertion (`POST /auth/step-up`, 5-minute TTL, bound to
+   requires a fresh single-action step-up assertion (`POST /auth/step-up`, **single-use**
+   via a `jti` spent in `stepup_spent`, 5-minute TTL, bound to
    the password hash so a password change invalidates it, rejected as a bearer token by
    `verify_token_claims`), and the `api-key` machine identity is refused outright. Single-operator
    mode (RBAC off / `LOCAL_MODE`) is exempt by design: it has no accounts and no passwords, so a
    step-up there would be theatre in front of an app that is unauthenticated by design.
    `test_seal_identity` (26 checks, mutation-verified).
-7. **G-8 (S) `_PROTECTED_PREFIXES` is hand-maintained** — the RBAC middleware's prefix list covers
-   8 of 66 top-level prefixes, so a new prefix opts out of the safety net silently. The risk that
-   matters is ratcheted (`test_global_authz` freezes unguarded global mutating routes, currently
-   29 and falling), but a completeness gate forcing every new prefix to be declared
-   protected-or-reviewed-public would close the class instead of the instances.
+7. ✅ **G-8 `_PROTECTED_PREFIXES` completeness gate** — *closed in-sprint.* The RBAC middleware's
+   prefix list still covers only 8 of 67 top-level prefixes — that is a posture choice, not the bug.
+   The bug was that a **68th could appear and nothing would fail**, which is how /pdf (the
+   unauthenticated PE-seal forgery), /templates, /samples and /firm all got in: each was also
+   defective in its own gate, but the middleware would have caught all four and never got the chance.
+   `test_protected_prefix_coverage` freezes the current sets and fails on three things — an
+   unclassified new prefix; a frozen **read-only** prefix that has gained its first mutating route
+   (plain set membership would wave that through, and it is the likeliest real regression); and a
+   frozen entry with no referent, which would otherwise pre-authorise whatever reuses the name. A
+   ratchet rather than an allowlist-with-reasons: the sets record "this existed and was looked at",
+   never "this is safe", because a stale justification reads exactly like a live one. All three modes
+   mutation-verified. Complements `test_global_authz` (individual unguarded global mutating routes,
+   29) — that measures routes, this measures the middleware's blast radius.
 8. **G-6 (M) Pen test** — no third-party penetration test on record; recommended before the first
    enterprise deployment. Operator action.
 

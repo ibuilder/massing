@@ -5,6 +5,8 @@ description: The Massing release discipline — how to ship a verified, CI-green
 
 # Ship a Massing release
 
+> Standing directions for this repo: [docs/roadmap-directions.md](../../../docs/roadmap-directions.md). Read those first.
+
 `main` is unprotected and ships version-numbered releases via **direct commits** (no PR gate). Each shippable change is its own release. Follow this exactly.
 
 ## 1. Verify before you ship

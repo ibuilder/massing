@@ -162,14 +162,16 @@
       "label": "Days Away",
       "type": "number",
       "fieldset": "OSHA",
-      "unit": "days"
+      "unit": "days",
+      "min": 0
     },
     {
       "name": "restricted_days",
       "label": "Restricted / Transfer Days",
       "type": "number",
       "fieldset": "OSHA",
-      "unit": "days"
+      "unit": "days",
+      "min": 0
     },
     {
       "name": "reported_to",

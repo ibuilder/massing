@@ -625,6 +625,12 @@ def step_up(password: str = Body(..., embed=True), act: str = Body("pdf.seal", e
     detail: the api-key is a machine credential with no password and no person behind it, so there is
     nothing it could re-prove. Allowing it would reintroduce exactly the hole this closes — an
     automation emitting sealed documents in a licensee's name.
+
+    **Single-use.** Each assertion carries a `jti` and is spent by the operation that consumes it
+    (`rbac.consume_stepup`), so it attests "a human confirmed THIS act", not merely "a human re-proved
+    this password in the last five minutes". It was time-bounded only until 2026-07-31; the weaker
+    form let one captured assertion seal a stack of documents inside its TTL, which is the wrong claim
+    for a per-document legal attestation. Expect to mint one per document.
     """
     if act not in _STEPUP_ACTS:
         raise HTTPException(400, f"unknown step-up action {act!r}")
@@ -632,11 +638,20 @@ def step_up(password: str = Body(..., embed=True), act: str = Body("pdf.seal", e
         raise HTTPException(403, "step-up requires a personal account; the API key cannot re-prove a "
                                  "password and has no person behind it")
     u = db.get(User, user)
-    if not u or not u.password_hash or not auth.verify_password(password, u.password_hash):
-        # Deliberately not distinguishing "no such account" from "wrong password".
+    # Order matters. The no-local-password case must be tested BEFORE verify_password, not after:
+    # the combined check below already raises on a falsy hash, so an SSO-provisioned account used to
+    # fall out as a generic "password verification failed" and the 409 that explains it was
+    # unreachable — dead code that read like a handled case.
+    #
+    # Distinguishing the two is safe here in a way it would not be on /auth/login: `user` comes from
+    # require_identified, so this only ever describes the CALLER'S OWN account. There is no third
+    # party whose existence could be probed.
+    if u is not None and not u.password_hash:
+        raise HTTPException(409, "this account has no local password to re-prove (SSO-provisioned) — "
+                                 "step-up is unavailable for it")
+    if not u or not auth.verify_password(password, u.password_hash):
+        # Wrong password and no-such-account stay indistinguishable.
         raise HTTPException(403, "password verification failed")
-    if u.provisioned and not u.password_hash:
-        raise HTTPException(409, "SSO-provisioned account has no local password to re-prove")
     audit.record(db, action="auth.step_up", actor=user, method="POST", path="/auth/step-up",
                  detail={"act": act})
     db.commit()

@@ -39,7 +39,7 @@ def g703(db: Session, pid: str) -> dict[str, Any]:
     """Schedule of Values register with AIA G703 computed columns."""
     lines = []
     tot = {"scheduled": 0.0, "prev": 0.0, "this": 0.0, "stored": 0.0,
-           "completed": 0.0, "balance": 0.0, "retainage": 0.0}
+           "completed": 0.0, "balance": 0.0, "retainage": 0.0, "retainage_prev": 0.0}
     for r in sorted(_records(db, "sov", pid), key=lambda x: str(x["data"].get("item_no", ""))):
         d = r["data"]
         scheduled = _n(d.get("scheduled_value"))
@@ -47,6 +47,10 @@ def g703(db: Session, pid: str) -> dict[str, Any]:
         completed = prev + this + stored
         ret_pct = _n(d.get("retainage_pct")) or DEFAULT_RETAINAGE
         retainage = round(completed * ret_pct / 100, 2)
+        # MOD-G702: the same line's retainage on the PREVIOUS period alone. G702 line 7 needs it, and
+        # computing it there from the global default while line 5 used the per-line rate is what made
+        # a 10%-retainage contract report a negative payment due.
+        retainage_prev = round(prev * ret_pct / 100, 2)
         line = {
             "item_no": d.get("item_no"), "description": d.get("description"),
             "cost_code": d.get("cost_code"), "scheduled_value": scheduled,
@@ -54,17 +58,19 @@ def g703(db: Session, pid: str) -> dict[str, Any]:
             "total_completed_stored": round(completed, 2),
             "percent": round(completed / scheduled * 100, 1) if scheduled else 0.0,
             "balance_to_finish": round(scheduled - completed, 2), "retainage": retainage,
+            "retainage_prev": retainage_prev,
         }
         lines.append(line)
         tot["scheduled"] += scheduled; tot["prev"] += prev; tot["this"] += this
         tot["stored"] += stored; tot["completed"] += completed
         tot["balance"] += scheduled - completed; tot["retainage"] += retainage
+        tot["retainage_prev"] += retainage_prev
     tot = {k: round(v, 2) for k, v in tot.items()}
     return {"lines": lines, "totals": tot}
 
 
 def g702(db: Session, pid: str, app_no: int = 1, period: str | None = None,
-         release_retainage: bool = False) -> dict[str, Any]:
+         release_retainage: bool = False, previous_certificates: float | None = None) -> dict[str, Any]:
     """AIA G702 Application & Certificate for Payment (lines 1-9). `release_retainage` (final app):
     the previously-held retainage is released — retainage held → 0 and the held amount becomes due."""
     sov = g703(db, pid)
@@ -75,10 +81,18 @@ def g702(db: Session, pid: str, app_no: int = 1, period: str | None = None,
     completed = t["completed"]
     retainage = 0.0 if release_retainage else t["retainage"]
     earned_less_retainage = round(completed - retainage, 2)
-    # previous certificates ≈ prior-period earned less retainage (from "completed_prev")
+    # Line 7, "less previous certificates for payment". Derived from `completed_prev` because until
+    # MOD-G702 no application was ever STORED — there was no prior certificate to read, only a
+    # reconstruction of one. It is now a fallback: `previous_certificates` is passed in when a
+    # submitted `owner_invoice` exists, and that is a fact rather than an approximation.
+    #
+    # The retainage here is summed PER LINE, matching line 5. It used to apply DEFAULT_RETAINAGE to
+    # the aggregate, so any line overriding the rate made lines 7 and 5 disagree — on a 10% contract
+    # with $50k completed and nothing this period, line 8 came out at MINUS $2,500. `closeout.py`
+    # reads line 8 for the final-payment amount, so the number had a consumer.
     prev = t["prev"]
-    ret_prev = round(prev * DEFAULT_RETAINAGE / 100, 2)
-    previous_certificates = round(prev - ret_prev, 2)
+    if previous_certificates is None:
+        previous_certificates = round(prev - t["retainage_prev"], 2)
     current_due = round(earned_less_retainage - previous_certificates, 2)
     balance_to_finish = round(contract_to_date - earned_less_retainage, 2)
     return {
@@ -93,6 +107,78 @@ def g702(db: Session, pid: str, app_no: int = 1, period: str | None = None,
         "line8_current_payment_due": current_due,
         "line9_balance_to_finish_incl_retainage": balance_to_finish,
     }
+
+
+def _certified_to_date(db: Session, pid: str) -> float | None:
+    """MOD-G702 — what previous applications actually certified, or None if none has been submitted.
+
+    Line 7 of a G702 is "less previous certificates for payment", and the AIA form tells you where to
+    get it: *line 6 from the prior certificate*. It is a historical fact, not a recomputation. This
+    codebase had no stored application, so it reconstructed the figure from the SOV's `completed_prev`
+    — which is only equal to the truth while nothing about the earlier periods has changed. Edit a
+    retainage rate, correct a scheduled value, or approve a change order that restates an earlier
+    line, and the reconstruction moves. The certificate does not: it was signed.
+
+    `architect_certified_amount` wins over line 8 when present, because the architect may certify less
+    than was applied for, and what was actually certified is what a later application must deduct.
+    """
+    best = None
+    for r in _records(db, "owner_invoice", pid):
+        if r.get("workflow_state") not in ("submitted", "approved", "paid"):
+            continue                       # a draft has certified nothing
+        d = r.get("data") or {}
+        amt = d.get("architect_certified_amount")
+        if amt in (None, ""):
+            amt = d.get("current_payment_due")
+        prior = _n(d.get("previous_certificates"))
+        # cumulative-to-date = what this application deducted, plus what it added
+        tot = round(prior + _n(amt), 2)
+        if best is None or tot > best:
+            best = tot
+    return best
+
+
+def build_application(db: Session, pid: str, app_no: int | None = None, period: str | None = None,
+                      period_from: str | None = None, period_to: str | None = None,
+                      release_retainage: bool = False, actor: str = "system") -> dict[str, Any]:
+    """MOD-G702 — snapshot the live SOV into an `owner_invoice` record: an application, not a view.
+
+    A pay application is a CLAIM MADE ON A DATE. Everything that fed it — the schedule of values, the
+    change orders, the retainage rates — keeps moving afterwards, so a "current" G702 assembled on
+    demand silently restates applications that have already been signed and paid. That is the same
+    defect shape as MOD-TOTALS, where re-pricing a rate library would have changed what was already
+    owed: the fix there and here is to freeze the numbers into the document at the moment it is made.
+
+    Draft, deliberately. This produces the record; submitting and certifying it are workflow
+    transitions a person performs, because a certificate nobody signed is not a certificate.
+    """
+    sheet = g703(db, pid)
+    if app_no is None:
+        app_no = 1 + len(_records(db, "owner_invoice", pid))
+    cert = g702(db, pid, app_no=app_no, period=period, release_retainage=release_retainage,
+                previous_certificates=_certified_to_date(db, pid))
+    data = {
+        "number": str(app_no), "period": period or "", "period_from": period_from or "",
+        "period_to": period_to or "",
+        "line_items": sheet["lines"],
+        "original_contract_sum": cert["line1_original_contract_sum"],
+        "net_change_orders": cert["line2_net_change_orders"],
+        "contract_sum_to_date": cert["line3_contract_sum_to_date"],
+        "amount": cert["line4_total_completed_stored"],
+        "retainage_total": cert["line5_retainage"],
+        "earned_less_retainage": cert["line6_total_earned_less_retainage"],
+        "previous_certificates": cert["line7_less_previous_certificates"],
+        "current_payment_due": cert["line8_current_payment_due"],
+        "balance_to_finish": cert["line9_balance_to_finish_incl_retainage"],
+        "sov_snapshot_at": _now_date(),
+        "status": "draft",
+    }
+    return me.create_record(db, "owner_invoice", pid, {"data": data}, actor, "GC")
+
+
+def _now_date() -> str:
+    from .timeutil import utc_today
+    return utc_today().isoformat()
 
 
 def advance_period(db: Session, pid: str, actor: str = "system") -> dict[str, Any]:

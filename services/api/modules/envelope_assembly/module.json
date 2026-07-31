@@ -1,7 +1,7 @@
 {
   "key": "envelope_assembly",
   "name": "Envelope Assemblies",
-  "section": "Engineering",
+  "section": "Model",
   "icon": "🧱",
   "ref_prefix": "ENV",
   "title_field": "name",
@@ -33,14 +33,24 @@
       "name": "climate_zone",
       "label": "Climate zone (IECC)",
       "type": "select",
-      "options": ["1", "2", "3", "4", "5", "6", "7", "8"],
+      "options": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8"
+      ],
       "fieldset": "Assembly"
     },
     {
       "name": "r_value",
       "label": "R-value (h·ft²·°F/Btu)",
       "type": "number",
-      "fieldset": "Thermal"
+      "fieldset": "Thermal",
+      "min": 0
     },
     {
       "name": "u_factor",
@@ -57,16 +67,27 @@
   ],
   "workflow": {
     "initial": "proposed",
-    "states": ["proposed", "approved"],
+    "states": [
+      "proposed",
+      "approved"
+    ],
     "transitions": [
       {
         "from": "proposed",
         "to": "approved",
         "action": "approve",
-        "party": ["Engineer", "Architect", "PM"]
+        "party": [
+          "Engineer",
+          "Architect",
+          "PM"
+        ]
       }
     ]
   },
-  "list_columns": ["element_type", "climate_zone", "r_value"],
+  "list_columns": [
+    "element_type",
+    "climate_zone",
+    "r_value"
+  ],
   "workspace": "design"
 }

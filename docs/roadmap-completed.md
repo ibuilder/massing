@@ -1,9 +1,54 @@
 # Roadmap — completed / shipped archive
 
+*Working conventions live in [roadmap-directions.md](roadmap-directions.md); open work lives in
+[roadmap.md](roadmap.md). This file is what shipped, and why.*
+
 Historical reference: everything **already shipped**. The single **open** backlog lives in
 [roadmap.md](roadmap.md) ("What's left"). Nothing here is a to-do — it's the record of what was built,
 wave by wave and track by track, so the working roadmap can stay lean. Sections are in rough
 chronological / thematic order; ✅ markers and version tags are the source of truth for *when*.
+
+---
+
+## ✅ R34-SHEET-SCALE — a takeoff region is measured at the scale it was traced under *(2026-07-31)*
+
+**The engine was right and the defect was live anyway.** `takeoff2d.quantify()` has honoured a per-region
+`scale_units_per_px` since R34-MEASURE-PROVENANCE, falling back to the call-wide scale when absent, and
+recorded which it used in `scale_source`. **Nothing ever set it, and no test ever exercised it** — so the
+capability shipped, was never reached, and the roadmap entry describing the gap was itself understated.
+
+The real failure was worse than "one scale per plan set". The trace overlay keeps a single module-level
+`scale` that recalibration overwrites, and passed *that* to `quantify()` when Quantify was pressed —
+not when the region was drawn. Loading a second sheet clears neither the regions nor the scale. So:
+
+> calibrate at 1/8"=1' → trace the plan → load the detail sheet → recalibrate at 1/2"=1' → Quantify
+> ⇒ **the plan regions are re-measured at the detail's scale.** Areas go as scale², so a 4× ratio is a
+> 16× area error, priced, with a plausible number as the output.
+
+**Fix:** stamp the scale onto each region at *commit* time. All three commit paths (trace double-click,
+trace Enter, flood-fill click) now funnel through one `addRegion()`; the client declares
+`scale_units_per_px` on the wire type rather than relying on structural typing to carry an undeclared
+property; and a multi-scale result reports the range instead of leaving it to be discovered.
+
+**Grade of the verification** — engine gate `test_takeoff2d.py` mutation-checked: with
+`scale_applied` forced to the call scale it fails with *"the region's own 0.10 m/px must win over the
+call's 0.05, giving 100 m² not 25"*, green on restore. Web gate `takeoff2d.test.ts` mutation-checked
+under the CI invocation: removing the stamp turns 2 of 5 red (stamp count verified 0 before trusting the
+run — a mutation that did not land tells you nothing), green on restore. `npm run test --workspace
+apps/web` 927/927; typecheck and lint clean. Not exercised live in a browser — the overlay needs an
+uploaded drawing and a canvas.
+
+**Two lessons worth more than the fix.**
+
+1. **"Built" and "reachable" are independent, and a *tested* engine can still be an untested feature.**
+   The value-check that would have caught this (`assert quantity == 100.0`) did not exist; a range-check
+   (`> 0`) would have passed throughout. Ask of any provenance-style field: *who writes it?*
+2. **Running `vitest` from the repo root sweeps `.claude/worktrees/`** and tests other sessions' working
+   copies — it reported *152 failed / 756 tests* here, none of them real. A positional path filter does
+   **not** help, because a worktree path contains `apps/web/src` too. The canonical command is
+   `npm run test --workspace apps/web` (what CI runs); it reads `include: ["src/**/*.test.ts"]` relative
+   to `apps/web` and cannot see a worktree. A seventh shared-clone hazard, and the first that fabricates
+   *failures* rather than hiding them.
 
 ---
 

@@ -16,7 +16,8 @@
     {
       "name": "rate",
       "label": "Unit Rate",
-      "type": "currency"
+      "type": "currency",
+      "min": 0
     },
     {
       "name": "unit",

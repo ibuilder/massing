@@ -57,7 +57,8 @@
       "name": "list_price",
       "label": "List price",
       "type": "currency",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "noi",
@@ -70,7 +71,8 @@
       "label": "$/SF",
       "type": "number",
       "unit": "$/sf",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "baths",
@@ -88,7 +90,8 @@
       "name": "cap_rate",
       "label": "Cap rate %",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "lot_sqft",

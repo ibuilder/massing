@@ -32,7 +32,8 @@
       "name": "amount",
       "label": "Amount",
       "type": "currency",
-      "fieldset": "Pricing"
+      "fieldset": "Pricing",
+      "min": 0
     },
     {
       "name": "base_bid",

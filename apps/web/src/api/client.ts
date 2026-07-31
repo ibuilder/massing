@@ -2933,12 +2933,19 @@ export class ApiClient extends withProcurement(withEstimate(withModules(withMode
       use_case: string | null }>(`/projects/${pid}/openbim/quality${qs}`);
   }
 
-  takeoff2d(pid: string, regions: { category: string; points: [number, number][]; label?: string }[],
+  /** R34-SHEET-SCALE: `scale_units_per_px` on a **region** overrides the call-wide `scaleUnitsPerPx`, so
+   *  one takeoff can span sheets at different scales. Declared rather than merely tolerated — structural
+   *  typing carries an undeclared extra property onto the wire today, so this works either way, but the
+   *  next normalisation pass over `regions` would drop it with no type error and no visible symptom. */
+  takeoff2d(pid: string, regions: { category: string; points: [number, number][]; label?: string;
+                                    scale_units_per_px?: number }[],
             scaleUnitsPerPx: number, unit = "m") {
     return this.json<{
       region_count: number; total_cost: number; unit: string;
+      provenance?: { scales_used?: number[] };
       regions: { index: number; category: string; assembly: string; measure: string; quantity: number;
-                 unit: string; rate: number; cost: number }[];
+                 unit: string; rate: number; cost: number;
+                 scale_applied?: number; scale_source?: "region" | "call" }[];
       by_assembly: { category: string; assembly: string; unit: string; quantity: number; cost: number; count: number }[];
       assemblies: { category: string; measure: string; rate: number; label: string; unit: string | null }[];
       disclaimer: string;

@@ -82,6 +82,39 @@ def project_prod_actuals(pid: str, body: ProdActualsIn, db: Session = Depends(ge
     return {**pa.analyze(rows, body.planned), "source": source}
 
 
+@router.get("/projects/{pid}/progress/reconciliation")
+def project_progress_reconciliation(pid: str, force_geometry: bool = False,
+                                    db: Session = Depends(get_db),
+                                    _: str = Depends(require_role("viewer"))):
+    """R22-PRODUCTION: field-installed quantity reconciled against the **model** takeoff, per cost code.
+
+    The sibling route above compares an installed *rate* against a planned rate **the caller supplies in
+    the request body** — so "are we ahead or behind" was answered against a typed-in number, never
+    against the model. This one sources the planned side from `qto.takeoff()` itself.
+
+    It reads `production_quantity`, not the `progress_actual` module the sibling uses, because
+    `progress_actual` has **no `cost_code` field** — the model's join key exists on only one of the two
+    field modules, which is why this reconciliation was never possible rather than merely never wired.
+
+    `force_geometry` meshes elements lacking declared quantities: more complete and materially slower,
+    so it is opt-in and off by default.
+    """
+    from aec_data import qto  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from .. import production
+    from ..deps import source_ifc_path as _src
+
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    rows = qto.takeoff(open_model(_src(db, pid)), force_geometry=force_geometry)  # 409 if no source IFC
+    field = (me.list_records(db, "production_quantity", pid, limit=100_000)
+             if "production_quantity" in me.TABLES else [])
+    return {**production.reconcile(rows, field),
+            "field_source": "production_quantity module",
+            "field_records": len(field)}
+
+
 def _takt_actuals_from_activities(acts: list[dict], floors: int) -> tuple[list[dict], int]:
     """Roll GC `schedule_activity` records up into per-trade actual floors-complete + an as-of day.
     A floor counts as done for a trade when its activity is 100% complete or carries an actual finish.

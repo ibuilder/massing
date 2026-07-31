@@ -73,13 +73,15 @@
       "label": "Expected Life (yrs)",
       "type": "number",
       "fieldset": "Condition",
-      "unit": "yr"
+      "unit": "yr",
+      "min": 0
     },
     {
       "name": "replacement_cost",
       "label": "Replacement Cost (CRV)",
       "type": "currency",
-      "fieldset": "Condition"
+      "fieldset": "Condition",
+      "min": 0
     },
     {
       "name": "deficiency",
@@ -91,7 +93,8 @@
       "name": "deficiency_cost",
       "label": "Repair / Deferred Cost",
       "type": "currency",
-      "fieldset": "Deficiency"
+      "fieldset": "Deficiency",
+      "min": 0
     },
     {
       "name": "recommended_year",

@@ -147,13 +147,65 @@ link does not.
 requires editing it, undoing the work fails it. It also asserts the pair-adjacency and shared-fieldset
 rules, and the three calendar-year exceptions by name.
 
-## 8. Not done
+## 8. Not done — CLOSED 2026-07-31
 
-1. **Per-field filters and server-side sort** (§6) — the biggest remaining CRUD gap.
-2. **The `table` field type** — still the blocker for the 22 list-in-a-textarea fields and for `sov`,
-   `estimate`, `bid_submission` being documents rather than rows.
-3. **Backfilling the 54 new reference fields** from their text twins — needs a matcher and a review
-   step; a wrong auto-link is worse than an empty one.
-4. **`eticket` → rate libraries** (§4), the highest-value relationship still missing.
-5. **`default`, `min`/`max`, `placeholder`, `readonly`** — the rest of the field vocabulary.
-6. **Fieldsets on the remaining 62 modules** with none.
+All six items shipped. Kept with their outcomes rather than deleted, because what each one turned
+into is more useful than the fact that it is finished.
+
+| # | Item | Shipped as | What it actually turned out to be |
+|---|---|---|---|
+| 1 | Per-field filters + server-side sort | `MOD-FILTER` (#109) | The sort was the real defect: it ran in the browser over the fetched page, so "sort by amount" on a 500-row register ordered 200 rows and presented them as the largest. Nothing looked wrong; it was the wrong 200 rows |
+| 2 | The `table` field type | `MOD-TABLE` (#111) | Shippable only because a **legacy string is preserved**, not rejected — 22 of these were textareas, so live records hold prose where rows are expected |
+| 3 | Backfill the 54 references | `MOD-BACKFILL` (#113) | A refusal engine. Exact-match-only, unique-or-nothing, every skip reported. *An empty reference is visibly empty and gets filled; a wrong one resolves, opens a real record, shows a plausible name, and is never questioned* |
+| 4 | `eticket` → rate libraries | `MOD-TOTALS` (#134) | The rate is **snapshot, not referenced** — re-pricing the library must not change what is already owed. And the workflow had three states *named* for signing with no `requires`, so a ticket reached `super_signed` unsigned |
+| 5 | `min` / `max` / `placeholder` / `default` | `MOD-FIELDATTRS` | `default` is different in kind from the other three: it **writes a value nobody chose**. Four fields in 133 modules carry one, and the gate is a **ceiling** |
+| 6 | Fieldsets on 62 modules | `MOD-FIELDSET` (#112) | Surfaced three modules non-contiguous since before the sweep, because `test_modules` checked contiguity for an *enumerated list of thirteen* |
+
+**`readonly` was dropped rather than built.** It was listed here as a field attribute, but nothing in
+the sweep found a field that needed one: a value the user must not edit is either computed (`rollup`,
+or a table's `totals_into` target) or set by a workflow transition. A `readonly` flag would have been
+a fourth way to say the same thing, and the first place it disagreed with the other three would have
+been a bug nobody could locate.
+
+### Still open, and genuinely so
+
+- ~~**`sov` and `owner_invoice` as documents.**~~ **Shipped as `MOD-G702`.** The structural item was
+  real — `owner_invoice` had five fields standing in for an AIA G702, and the continuation sheet was
+  assembled on every read rather than stored. But looking for the missing fields turned up a **money
+  bug** underneath it:
+
+  `g703` retained each SOV line at that line's own `retainage_pct`; `g702` line 7 applied the global
+  `DEFAULT_RETAINAGE` to the aggregate. Any contract not on the default made the two disagree. On a
+  10% contract with $50,000 completed and nothing this period, **line 8 — current payment due — came
+  out at −$2,500**, and `closeout.py` reads line 8 for the final-payment amount.
+
+  **`test_cost.py` contains no assertion on line 7, line 8, or retainage at all.** It was not a weak
+  test of this behaviour; it was structurally unable to see it. That is the shape worth remembering
+  from this item, more than the fields that were added.
+
+  The deeper fix is that an application is now a **document**: `POST /cost/pay-application` freezes
+  the G703 sheet and lines 1-9 into an `owner_invoice`, and line 7 deducts what was actually
+  certified - including a reduced architect certification - instead of reconstructing it from
+  `completed_prev`, which moves whenever anyone edits an earlier period. `GET /cost/g702` stays a
+  live view, because "where do we stand today" is a real question; it is just not a certificate.
+- **A `reference` column type for tables.** Deliberately excluded (see `TABLE_COLUMN_TYPES`) because a
+  picker per row is a real feature and shipping it half-done would put unresolvable ids in rows.
+- ~~**The element link (`§5 T4`).**~~ **Shipped as `MOD-GUID`.** Three defects, and the second was
+  the one worth having:
+  1. All three GlobalId fields were plain `text`, so `"TBD"`, a truncated paste and a *transient
+     viewer id* — the thing the repo's first non-negotiable forbids by name — were indistinguishable
+     from a real one. The rule was prose, and prose cannot fail.
+  2. **Two stores held one fact.** `element_facts._claims` checked `element_guids` **or**
+     `data["guid"]`, so a record could be anchored to element A by its column and element B by its
+     field, with each consumer correct about a different element. It also read only the *singular*
+     `guid`, so `material_request.guids` and `prefab_kit.frozen_guids` never matched at all.
+  3. `parse_guids` was a second reader of the same list format, defined independently.
+
+  **This item was written once and pulled, for a reason that turned out to be wrong.** The stated
+  reason was that it had no legacy story — that live records holding a malformed id would become
+  un-saveable. They would not: `update_record` validates only the fields in the patch, so an
+  untouched bad value keeps saving. The blast radius was also given as ~25 test files; it was **one**
+  (`test_verified_progress`), the rest being element-level fixtures that never reach the module
+  engine. Both figures came from pattern-matching rather than reading, which is the same failure the
+  work itself is about: a confident answer where the honest one was "I have not checked". The claim
+  is now `test_guid_integrity` §2 rather than a belief.

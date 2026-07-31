@@ -1,7 +1,7 @@
 {
   "key": "submittal",
   "name": "Submittals",
-  "section": "Engineering",
+  "section": "Coordination",
   "icon": "▤",
   "ref_prefix": "SUB",
   "title_field": "title",
@@ -76,7 +76,8 @@
       "label": "Lead Time (days)",
       "type": "number",
       "fieldset": "Schedule",
-      "unit": "days"
+      "unit": "days",
+      "min": 0
     },
     {
       "name": "required_on_site",

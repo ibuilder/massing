@@ -47,10 +47,18 @@ def _rows(db: Session, key: str, pid: str) -> list[dict[str, Any]]:
 
 
 def _claims(row: dict[str, Any], guid: str) -> bool:
-    """Whether a record refers to this element — by pin, or by a `guid` field it stores."""
+    """Whether a record refers to this element — by pin, or by any GlobalId field it stores.
+
+    MOD-GUID: this read only the singular `guid` field, so `material_request.guids` and
+    `prefab_kit.frozen_guids` — the other two fields holding a GlobalId — never matched here. A frozen
+    prefab kit could name an element and this said the element was unclaimed. Now it asks the schema
+    layer which fields hold a GlobalId instead of naming one, so a fourth such field is covered the day
+    it is added rather than the day someone notices.
+    """
+    from .module_schema import guids_from_fields
     if guid in (row.get("element_guids") or []):
         return True
-    return str((row.get("data") or {}).get("guid") or "").strip() == guid
+    return guid in guids_from_fields(row.get("data") or {})
 
 
 def checked(model, guid: str) -> bool | None:

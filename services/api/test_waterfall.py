@@ -109,18 +109,55 @@ cb_on = run_waterfall(CB, CB_DATES, LP, GP, PREF, TIERS, style="american", clawb
 
 assert cb_off["lp_irr"] is not None and cb_off["lp_irr"] < PREF, cb_off["lp_irr"]
 assert cb_off["gp_distributions"] > 0.0, cb_off          # the GP promoted before the LP fell short
-# restitution moves money GP -> LP, and it is PARTIAL here (105.49 of 151.13), which is what
-# distinguishes `min(owed, gp)` from `max`: a wrong extreme would move more than the period holds.
-assert abs(cb_on["gp_distributions"] - 45.64) < 0.01, cb_on["gp_distributions"]
-assert abs(cb_on["lp_distributions"] - 1954.36) < 0.01, cb_on["lp_distributions"]
+# R33: the amount is SOLVED, not approximated. The old figure was
+# `owed = (pref_rate - lp_irr) * lp_contrib` — a RATE times CAPITAL, i.e. a one-year number with no
+# time dimension, which cannot express the money needed to move a multi-year return. On this fixture
+# the proxy yields (0.08 - (-0.037216)) * 900 = 105.49 and the true requirement is 151.13; on a
+# conventional five-year deal the gap is 41,509 against 240,776, a 5.8x understatement.
+_proxy = (PREF - cb_off["lp_irr"]) * LP
+assert abs(_proxy - 105.49) < 0.02, _proxy            # the old answer, pinned so the change is legible
+assert abs(cb_on["clawback"]["owed"] - 151.13) < 0.02, cb_on["clawback"]["owed"]
+assert cb_on["clawback"]["owed"] > _proxy, (cb_on["clawback"]["owed"], _proxy)
+
+# Here the whole promote is returned and the LP is STILL short, so restitution is capped by what the
+# GP actually received. `restored == owed` in that situation is an artefact of the cap, NOT evidence
+# the LP was made whole — `fully_restored` is read from the outcome instead of from that comparison.
+assert cb_on["gp_distributions"] == 0.0, cb_on["gp_distributions"]
+assert cb_on["clawback"]["capped_by_promote"] is True, cb_on["clawback"]
+assert cb_on["clawback"]["requirement_met"] is False, cb_on["clawback"]
+assert cb_on["clawback"]["restored"] == cb_on["clawback"]["owed"], cb_on["clawback"]
 assert cb_on["gp_distributions"] < cb_off["gp_distributions"], (cb_on, cb_off)
 assert cb_on["lp_distributions"] > cb_off["lp_distributions"], (cb_on, cb_off)
 # conservation survives the transfer, and no period is left owing more than it holds
 assert abs((cb_on["lp_distributions"] + cb_on["gp_distributions"])
            - (cb_off["lp_distributions"] + cb_off["gp_distributions"])) < 0.01, (cb_on, cb_off)
 assert all(p["gp"] >= -0.01 for p in cb_on["periods"]), cb_on["periods"]
-# and it improves the LP's return rather than merely shuffling labels
 assert cb_on["lp_irr"] > cb_off["lp_irr"], (cb_on["lp_irr"], cb_off["lp_irr"])
+
+# --- PARTIAL restitution: the promote covers the shortfall and survives ------------------------------
+# This is what exercises `min(owed, period_gp)` as a genuine partial move. Without a case where the
+# promote is NOT exhausted, flipping that `min` to `max` is unobservable.
+PC = [5000.0, -2000.0, -900.0]
+pc_off = run_waterfall(PC, CB_DATES, LP, GP, PREF, TIERS, style="american", clawback=False)
+pc_on = run_waterfall(PC, CB_DATES, LP, GP, PREF, TIERS, style="american", clawback=True)
+assert pc_off["lp_irr"] < PREF, pc_off["lp_irr"]
+assert abs(pc_on["clawback"]["owed"] - 524.16) < 0.02, pc_on["clawback"]["owed"]
+assert pc_on["clawback"]["requirement_met"] is True, pc_on["clawback"]
+assert pc_on["clawback"]["capped_by_promote"] is False, pc_on["clawback"]
+# the GP keeps what was not owed — a clawback returns the EXCESS promote, not all of it
+assert pc_on["gp_distributions"] > 0.0, pc_on["gp_distributions"]
+assert abs(pc_on["gp_distributions"] - (pc_off["gp_distributions"]
+                                        - pc_on["clawback"]["restored"])) < 0.02, pc_on
+# `requirement_met` says the promote COVERED the solved figure — not that the realised IRR equals
+# the pref. The solve places restitution at the final date; the transfer comes out of earlier periods,
+# so the realised series differs and for this fixture has no IRR root at all. Asserting
+# `lp_irr >= PREF` here looked obviously right and fails with a TypeError on None.
+assert pc_on["lp_irr"] is None or pc_on["lp_irr"] >= pc_off["lp_irr"], pc_on["lp_irr"]
+
+# the basis is STATED rather than picked: NPV-at-pref is right for the amount but not a safe drop-in
+# for the TRIGGER (for multi-sign-change flows the two genuinely disagree), so which applies is a
+# deal term and is reported.
+assert cb_on["clawback"]["basis"] == "irr", cb_on["clawback"]
 
 # --- Clawback STATUS: "we could not tell" is reported, never inferred as "nothing owed" -------------
 # `lp_irr is None` means XIRR did not converge — 26% of cash-flow shapes in a 729-pattern sweep. That
@@ -147,7 +184,8 @@ assert _unsolvable["clawback"]["status"] != _healthy["clawback"]["status"]
 print("WATERFALL OK - promote split value-checked (the residual tier's 20%, not the below-hurdle "
       "tier's 10%); the IRR hurdle is measured INCLUDING the pref + RoC paid in the same period "
       "(GP was under-promoted 102.78 vs 205.57 before); clawback exercised for the first time "
-      "(partial restitution, GP 151.13 -> 45.64). "
+      "(amount SOLVED, not the rate-x-capital proxy: 151.13 required vs 105.49 under the old "
+      "formula; capped by promote here, and a second fixture covers the partial case). "
       "pref accrual + return-of-capital exact to the dollar (72 pref + 428 RoC = 500, "
       "472 unreturned); large distribution fully returns capital + pays a real GP promote; dollar "
       "conservation holds across arbitrary multi-period cash; European style withholds promote until "

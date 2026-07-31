@@ -39,28 +39,205 @@ work**.
 
 ---
 
+## 📌 START HERE
+
+1. **[roadmap-directions.md](roadmap-directions.md)** — non-negotiables, how to verify, shared-clone
+   hazards, lanes, testing, release discipline, what "done" means. **Read before touching anything.**
+2. **[What is left, prioritised](#-what-is-left--prioritised)** — the ranked view, below.
+3. **[The lanes](#-now--parallel-lanes)** — who owns which paths, so two agents do not collide.
+4. **[roadmap-completed.md](roadmap-completed.md)** — what shipped, and why it was built that way.
+
+*This file is the list of work. It is not the place for working conventions — those drifted into it
+over several months and were moved out on 2026-07-31 so this could stay readable.*
+
+---
+
+## 🥇 What is left — prioritised
+
+**49 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
+
+### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
+
+## ✅ **BAND 1 IS EMPTY as of 2026-07-31.**
+
+Three items left it in one day and **none of them left the same way**: two were real defects and shipped,
+and the third was closed *unbuilt by measurement*. That third outcome is the one worth protecting — an
+item can be finished by producing a number that says it should not be built, and that is a result, not
+a failure to deliver.
+
+- ✅ **R33-CLAWBACK-AMOUNT** — shipped (`856970c8`). Verified by reading the implementation, not the PR
+  title.
+- ✅ **R34-SHEET-SCALE** — shipped (`365976d8`). The engine was already right; nothing set the field.
+- ⛔️ **R23-PICKING — CLOSED UNBUILT, on a measurement.** See below.
+- ↘️ **SEC-PLUGIN-SANDBOX** — left the band (still open, moved to platform); the threat model was
+  checked rather than assumed and no unprivileged path reaches it.
+
+✅ **R33-CLAWBACK-AMOUNT — SHIPPED** in PR #136 (`856970c8`). `waterfall.solve_clawback_for_pref(lp_cf,
+lp_dates, pref_rate, cap)` now solves for the cash added at the final date that lifts the LP's **XIRR**
+to the pref, capped at the promote actually paid, and `run_waterfall` reports the shortfall when the
+promote cannot cover it. The rate-times-principal proxy with no time dimension is gone. Verified by
+reading the implementation, not the PR title: `xirr` is imported and used, and the docstring carries the
+5.8x construction that motivated the entry.
+
+✅ **R34-SHEET-SCALE — SHIPPED 2026-07-31.** The engine had accepted a per-region `scale_units_per_px`
+since R34-MEASURE-PROVENANCE; **nothing ever set it, and nothing tested it**, so the capability existed
+and the defect was live — the gap was *reach*, not capability. The overlay kept one `scale` that
+recalibration overwrote and passed it at Quantify time, so tracing a plan at 1/8"=1' and then
+recalibrating for a detail at 1/2"=1' **retroactively re-measured the plan regions at the detail's
+scale** — worse than the "one scale per set" this entry described. Scale is now stamped onto each region
+at trace time. Details in [`roadmap-completed.md`](roadmap-completed.md).
+
+↘️ **SEC-PLUGIN-SANDBOX left this band on 2026-07-31** (still open, now under Band 6 · platform). The
+loader really does `exec_module` arbitrary Python with the API's privileges — but the threat model was
+checked rather than assumed, and **no unprivileged path reaches it**: the plugin dir does not overlap
+the upload root, no route writes into it, reload is platform-admin gated, and discovery is off by
+default. That makes it operator-installed code, i.e. `pip install`, not an open door. It becomes Band 1
+the day plugins are *distributed* rather than operator-placed. Full reasoning at the item.
+
+✅ **SEC-SEAL / SEC-FIRM-RULES / SEC-ESIGN-HOOK / SEC-CACHE — SHIPPED v0.3.807.** Four exploitable
+findings, none of which were on this list because none had been noticed: an **unauthenticated** caller
+could obtain a PDF bearing a rendered PE seal with a name and licence number of their choosing; any
+project-admin could replace (and thereby erase) the firm's standards library by naming their own
+throwaway project; `/esign/webhook` accepted anonymous unbounded writes into the audit table; and
+tenant JSON was served with no cache policy. Sealing now requires a verified licence **and** a human
+step-up a stored token cannot satisfy. See CHANGELOG v0.3.807; migration `b06f7bc8ba2f` plus a
+**go-live data-entry step** (a licence row per licensee) is documented in `docs/PRODUCTION_CHECKLIST.md`.
+
+### Band 2 — built but unreachable (cheapest real value in the file)
+
+Seven of eleven engines once shipped with no route. These are the current instances.
+
+| item | size | the gap |
+|---|---|---|
+| ~~**R32-CURRENT-SET**~~ | S | ✅ **CLOSED 2026-07-31 by decision, no code change.** The gap-check found the register already picks the newest revision per sheet — the defect was never "superseded sheets are shown". The real question was *which* "current" a viewer sees, and the user's call is **latest authored**, which is what it already shows. The issued set remains separately authoritative (filed `Drawing Set`, issuance register, transmittal). |
+| ~~**R24-TRACE-UI ②**~~ | L | ✅ **SHIPPED 2026-07-31** (`b3a630ea`). 19 headline figures report which assumptions the caller **declared** vs the engine **defaulted**, derived from `model_dump(exclude_unset=True)` — deriving from the validated dump would report everything as declared and answer the reviewer's question with fiction. `element_link` is `None` everywhere with a stated reason: the proforma holds no GlobalId and an invented terminus is worse than none. `POST /proforma/provenance`. |
+| ~~**R27-LAYOUT ①**~~ | S | ✅ **STALE BAND ENTRY — closed 2026-07-31, both halves were already shipped.** (a) our own sheets: `sheet_layout.sheet_regions()` keeps the page←world affine with `basis: "authored"` (v0.3.702). (b) received sheets: `sheet_recover.py` + `POST /projects/{pid}/drawings/received-regions` (v0.3.778). Reached at `analysis.py:610`; covered by `test_sheet_layout` and `test_sheet_recover`. The detail entry recorded both as shipped and this table row was never updated — **the roadmap's own drift, not the code's.** |
+
+✅ **R32-MODEL-IN-TREE + R32-FILE-GENERATED — SHIPPED 2026-07-31** (`44a901bd`, `4f6a5c84`). Two thirds
+of the filing ask are done. `12_Model/IFC` holds the model, and **issuing a set now files it**: the
+transmittal lands in `02_Drawings` on issue, beside the hand-uploaded drawings rather than in a
+"generated" silo. The remaining third is `R32-CURRENT-SET` above, and it is now a *read-side* change.
+
+Four decisions, recorded because they are the constraints the next filing caller inherits:
+
+1. **File on publish, never on save.** `source.ifc` is rewritten by every edit recipe; filing on write
+   would mint a revision per keystroke and make the chain meaningless.
+2. **File by KIND, into the folder that kind already uses** — there is no `Generated Drawings` folder,
+   and a test asserts none exists. A silo would rebuild the two-parallel-stores problem and split "the
+   current set" across two places, which is exactly what `R32-CURRENT-SET` then has to reconcile.
+3. **Titles carry the semantics.** The set's title is *constant*, so re-issues supersede into one
+   current document (P01, P02, …) — that is what lets the tree answer "which set is current". A
+   transmittal is titled *per issuance*, because one that superseded its predecessor would destroy the
+   release history it exists to provide.
+4. **Filing at issue is non-fatal and reported.** The issuance is already committed when filing runs, so
+   raising would surface as "issuing failed" for a release that *did* happen. The response carries
+   `filed` or a `filed_error` reason — an explicit unavailable, never a silent success.
+
+✅ **DECIDED by the user, 2026-07-31: `12_Model/IFC` IS `required`.** Asked precisely because it moves
+every existing project's document-control health score at once — and that is the intended effect. A
+project whose model has never been filed is genuinely non-compliant, and the score should say so rather
+than stay comfortable. Existing projects will show `12_Model/IFC` under `required_missing` until someone
+files a model; **that is a true finding, not a regression.** Only the IFC leaf is required —
+`12_Model/Federated` is not, because a project with one authored model and no federated coordination
+model is complete, and requiring it would manufacture a permanent gap nobody can close.
+
+The gate is on *reach*, not on the flag: the test asserts an unfiled model **appears** in
+`documents/health` → `required_missing`, and that filing it **clears** the gap. A `required` flag that
+no health report surfaced would be the same defect this band exists to catch.
+
+### Band 3 — gap-checks (hours, not days; each may close for free)
+
+## ✅ **BAND 3 IS COMPLETE — all five checked 2026-07-31. Five closed, zero builds.**
+
+The band's own thesis held again, and harder than expected: **five of five premises failed.** What the
+whole exercise cost was a few hours of reading; what it saved was five builds.
+
+*Corrected after a re-check.* This first read "four closed, one reframed": `R31-SYNDICATION-TAIL` was
+recorded as mostly-failing with one genuine remainder, the K-1 pack. That remainder was then **built and
+shipped the same day** (`aabad457`), so the band's real output is five closures.
+
+⚠️ **Recorded as *shipped today*, not as *never a gap*** — and the distinction is the point. On the
+re-check the sibling session found `capital.k1_pack()` present and concluded it had always been there.
+It had not; it existed because that session's own finding caused it to be built hours earlier. **All
+sessions share one git identity, so a sibling's fresh work is indistinguishable from history** unless
+you read the file's `git log`. Writing "we were always fine here" would have been false and would make
+every other closure in this band less trustworthy.
+
+**The closures were re-checked for REACH, not just capability** — a `module.json` on disk is not reach,
+and an engine nothing calls is the defect this file keeps finding. Every closure below names a live
+caller:
+
+| closed item | why | reached from |
+|---|---|---|
+| **R22-ITP-NCR** | all four asks exist — `itp.point_type` is a required select (Hold/Witness/Review/Surveillance/Monitor) with method, acceptance criteria, frequency and both parties; `ncr` runs `open → dispositioned → closed` with disposition, corrective action, root cause, severity; element attachment is `element_guids` | `quality_chain` ← `routers/construction.py:260,283` · modules → section `Quality` → room `schedule` |
+| **R22-PROCURE-DEPTH** | all three named remainders are built — `prequalification` module (EMR, bonding capacity, revenue, references, workflow), `clause_playbook.py` (accept/negotiate/refuse per contract type, severity, fallback, deviation register), `vendor_memory.py` cross-project scorecards | `routers/realestate.py:300,309,332` · `routers/benchmarking.py:83` · modules → `Preconstruction` → room `planning` |
+| **R27-SKILL-GAP** | the corpus diff is nearly empty — `ids-checker`, `energy-simulation`, `schedule-compression`, `weather-impact-scheduler` and ~15 more all already have engines or modules | see the entry for the file-level list |
+| **R31-SYNDICATION-TAIL** *(mostly)* | the entry's own instruction was *"do not build a cap table before confirming `capital.py` lacks one"* — **it does not lack one.** `capital.cap_table()` returns ownership %, contributed/distributed/unreturned and per-class rollup. Soft/hard commitments are built under a different name: `investor` states `prospect → committed → funded → exited` | `distwaterfall.py:67` · `report_builders/finance.py:293,510` · `reports.py:103` |
+
+**Three real remainders survived, all small**, and each is now its own entry rather than hiding inside a
+closed one: **R31-K1-PACK**, **R31-CITE-HIGHLIGHT** (reframed — see below, it is far cheaper than
+written) and **R22-PHOTO-CV**.
+
+⚠️ **Two traps recorded so the next reader does not re-fall into them:**
+
+1. **`commitment` is a CONSTRUCTION module, not an investor one** — Purchase Order / Subcontract / Work
+   Authorization, with `retainage_pct` and `cost_code`. Reading it as the syndication side is almost
+   certainly what produced the R31-SYNDICATION-TAIL entry in the first place. A name collision, not a
+   missing feature.
+2. **A loose `grep -i "ids"` matches "bids" and "considers"** and nearly produced a false gap. Same
+   substring-contamination shape as `EIR`/"their" and `MIDP`/"midpoint". Word-bound it.
+
+### Band 4 — capability the product is judged on
+
+✅ **R34-TAKEOFF-COUNT — SHIPPED (#139, `29c26f27`); it was still listed here.** The platform had **no count measure at all**: every assembly was `area` or `length`, so a door, fixture, receptacle or sprinkler head — the thing an estimator counts most often — could not be taken off a drawing. Now a third measure, and **a count is never scaled**: area goes as scale², length as scale¹, and six doors are six doors at any sheet scale. Making it a third *measure* rather than a third *unit* is what makes that structural instead of remembered. Verified present: 13 count refs in `takeoff2d.py`, `test_takeoff_count` registered.
+
+⭐ **R22-ENTITLEMENT** (M/L) · **R31-PIPELINE-ALLOCATE** (L) · **R22-REPORT-BUILDER** (M) ·
+**R22-PIPELINE** (M) · **R21-DIM-COMPONENT** (M) · **R21-4D-CLASH** (phase 2)
+
+*Three items left this row on 2026-07-31, all already built:* **R22-PRODUCTION** (`c23c26dd`),
+**R21-SPACE-TAG-SECT** (rode inside `50f195cf`, no commit of its own), and **R22-CAD-IMPORT** (the DXF
+path shipped long ago; its "we only run on models we authored" premise was false). That is three in
+one row, on top of five earlier the same day. **A band row is a cache of the detail entries and it is
+never invalidated** — nothing recomputes it when an item ships, so it drifts in one direction only:
+toward advertising work that is already done. Check the code before picking up a row, and note that
+`R22-ENTITLEMENT` below survives a grep for "entitlement" **only** because `entitlements.py` is
+subscription tiers — a pure name collision, and the reason this sweep verified semantics, not strings.
+
+### Band 5 — interface and feel
+
+⭐ **R24-PERF-BUDGET** (S) · ⭐ **R24-CMDK-VERBS** (M) · ⭐ **R24-ELEMENT-CARD ②** (M) ·
+**R24-RUNS-INBOX** (M) · **R24-DENSITY ②** (M) · **R24-FIELD-MODE** (L) · **R24-CHARTS-GRAMMAR** ·
+**R24-REPORTS-BY-MOMENT** · **R24-TOOLS-SPLIT** (S) · **R24-TERMS** (S) · **R24-MONO-DATA** (S) ·
+**UX-READINESS-EVERYWHERE** (M) · **UX-DUP-DESTINATIONS** (S) · **UX-GANTT** (M) · **UX-VIEWED** (S) ·
+**UX-AR** (S) · the five **A29** authoring-feel items · **R23-BATCH-OVERLAYS** (S)
+
+### Band 6 — platform and format
+
+**R28-UNIFY ①** · **R28-BUNDLE ②** · **R28-ICDD ③** · **R28-VIEWER ④** · **PERF-WORKERS ①** ·
+**PERF-RATE ②** · **PERF-THREADS ③** · **R23-STOREY-LOD** (L) · **SCALE-SEAM ⑥** ·
+**R34-MEASURE-PROVENANCE** (S) · **R22-AGENT-PACKS** (M) · **R22-ROUTINES** (S) ·
+**R22-OPTION-OBJECT** (S/M) · **R22-PM-CONTRACTS** (M) · **R22-PUBLIC-VIEWER** (S) ·
+**R23-SYMBOL-COUNT** (M) · **R22-PROVENANCE** (L)
+
+### Parked — needs a decision, not an engineer
+
+**R32-TAXONOMY-LIFECYCLE** (the user has since answered: derive the document taxonomy from the seven
+rooms) · **R24-PERSONA-SHAPE** · **R24-IDENTITY** · **R26-V-TIMING** · **QUALITY-ROOM** ·
+**PHOTO-PIN** and **CMMS-OPS** (BIG-TICKET: open **one**, slice it) · **REL-7** (gated on RT-KNIP).
+
+---
+
 ## ▶ NOW — parallel lanes *(rebuilt 2026-07-29 at v0.3.785)*
 
-The previous NOW list — eight items, v0.3.773–777 — is closed and archived in
-[roadmap-completed.md](roadmap-completed.md). Seven shipped; **R27-UW-PANEL was closed unbuilt**
-because its premise did not survive the offline constraint, recorded rather than deleted so the idea
-is not re-proposed next quarter.
+**How to work here lives in [roadmap-directions.md](roadmap-directions.md), not in this file.** Claim a
+lane rather than an item, premise-check before building, announce before a full suite, and land what
+you finish. Those rules and the reasons behind them are in the directions; this section is only the
+lane assignment.
 
-**This section is organised by LANE rather than by priority, because the constraint changed.** Four
-sessions work this repo concurrently. A single ranked list is the wrong shape for that: it serialises
-work with no reason to be serial, and — as happened twice on 2026-07-29 — it leaves finished work
-sitting uncommitted in a shared tree while somebody else edits around it.
-
-### How to use this
-
-1. **Claim a lane, not an item.** Lanes are disjoint by *file path*. Two sessions in one lane collide;
-   two in different lanes do not.
-2. **Land what you finish.** Do not leave completed work dirty in the tree — it is one `git add -A`
-   from being committed by someone who has not read it.
-3. **Version files and CHANGELOG belong to whoever holds the release**, not to the lane. Ship without
-   them and let the batch pick them up, or take the release yourself — but say which.
-4. **Check the premise before building.** Six of seven roadmap premises checked on 2026-07-28 were
-   wrong. See the Practice note below; it has cost more than any other habit here.
+**Organised by LANE rather than by priority**, because several sessions work concurrently and a single
+ranked list serialises work with no reason to be serial. For a ranked view of the same items, see
+**[What is left, prioritised](#-what-is-left--prioritised)** above.
 
 ### The lanes
 
@@ -73,12 +250,12 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R32-MODEL-IN-TREE · R33-CLAWBACK-AMOUNT · R34-TAKEOFF-COUNT · R34-SHEET-SCALE · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R23-PICKING · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R31-PIPELINE-ALLOCATE · R22-PHOTO-CV · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
-| **H · Registers** | `services/api/modules/*/module.json` | R22-ITP-NCR · R22-PM-CONTRACTS |
+| **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑥ |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -201,6 +378,31 @@ It has indexed **`f3b171f` = v0.3.363**; main is **v0.3.789**. Every count it re
 symbols, 2,771 findings, 45 dead exports) describes a codebase that no longer exists. Same failure as
 the demo snapshot: **a capture rots and nothing fails when it does.** Re-index before quoting any figure.
 
+**UPDATE 2026-07-30 — re-indexed and now CURRENT, and the verdict changes shape.** Connected as an MCP
+connector and re-indexed: 1,488 files / 12,064 symbols (was 881 / 6,587). Freshness confirmed the only
+way that can't be fooled — `create_stepup_token`, a symbol ~24 h old, resolves. So the staleness
+objection above is **closed**.
+
+The findings still do not survive verification, but for a different and more useful reason: three
+**systematic** confounds, each checked against this repo rather than argued:
+
+| layer | what it reports | why it is wrong here |
+|---|---|---|
+| `untested_hotspot` (64) | `has_test_file: false` on `main.py`, `models.py`, `db.py` — and on **`run_tests.py`** | looks for a *paired* test file; our Python tests live at `services/api/test_*.py`, not beside the source. `proforma.ts` correctly reports `true`, so the heuristic works for TS only |
+| `dead_code` (8, all `safe_to_delete: true`) | incl. `plugins/example-wall-brand/plugin.py::register` | that IS the plugin contract — `plugin_registry.py:143` does `mod.register(PluginApi(...))` after a `hasattr` check. The editor-bridge recipes are dispatched by name via `f"recipes.{recipe}(...)"` at `bridge.py:70`. Every one sits at a **dynamic-dispatch boundary** the analyser cannot see |
+| `import cycles` (3) | 20 files in `aec_api`, 15 in `aec_data`, 1 TS pair | `test_import_cycles.py` passes: *no* top-level cycles across 493 modules. It counts **deferred/function-local** imports — which are the *fix* for cycles. The TS pair is `import type` on **both** sides, erased at compile time |
+
+**Do not action any of those three layers.** Acting on the dead-code list would delete the plugin API.
+
+What IS worth reading: `get_risk` in PR-review mode. Its `missing_cochanges` correctly caught that a
+change touching `main.py` had not updated `CHANGELOG.md` or `apps/web/package.json` — the version bump
+this very release then made. Its `defect_profile` also flags `routers/drawings.py` as a `bug_magnet`
+(4 fixes / 6 months, naming `pdf_seal`), which matches where the v0.3.807 findings actually were. The
+history-derived layers are sound; the static-analysis layers are not.
+
+`get_security` (CVEs, secrets, SBOM) is **Pro-gated** and returns `upgrade_required` — unavailable, not
+empty. Do not read a missing security section as a clean one.
+
 Its **"45 dead exports"** does not survive verification, and that is the useful part of this review.
 Re-derived against current code: 1,097 exported symbols, **231** referenced nowhere outside their own
 file — but split by kind that is **153 interfaces + 45 types + 17 consts + 16 functions**. Dead *types*
@@ -286,11 +488,17 @@ These are the gaps between what the platform draws today and what that package c
   GlobalId, so nothing knows *what a task installs*. Install-before-support cannot be computed
   without a real **task→element binding** — that binding is the actual next piece of work, and
   approximating it (by trade, by name match) would produce confident findings nobody can trust.
-- **R21-MULTISCALE** *(S)* — several viewports at **different scales** on one sheet (1:100 overall +
+- ✅ **R21-MULTISCALE — the capability was already there; the entry was stale.** Checked 2026-07-31: `compose_viewports` has taken a **per-viewport `scale`** since the viewport work — its docstring documents `"scale": 100  # 1:100 on paper; omit/None → fit-to-rect`, it reads `vp.get("scale")` per view, and emits a per-view `scale_denom`. Reached at `analysis.py:603`. The entry said "per-viewport scale is the missing parameter"; it was not missing.
+
+  **What WAS missing was the proof, and that is now a gate.** `test_sheet_layout` paired one fixed scale with one fit-to-rect view — which does not test the claim, because "fit" is not a scale anyone specified and a build applying ONE denominator to every viewport would still pass. It now composes **1:50 and 1:100 on one sheet** and asserts each keeps its own denominator *and* that the finer scale is never smaller on paper — a label is cosmetic, an extent is the drawing. Mutation-checked: forcing the first viewport's scale onto all views yields `('1:50','1:50')` and goes red. *(Original entry below.)*
+- ~~**R21-MULTISCALE**~~ *(S)* — several viewports at **different scales** on one sheet (1:100 overall +
   1:50 parts), each with its own title/scale block. `sheet_layout.py` composes viewports; per-viewport
   scale is the missing parameter.
-- **R21-SPACE-TAG-SECT** *(S)* — room names on sections (CLINIC 1, IP RM., DAY CASE RM.). `space_tags`
-  exists for plans; sections need the same treatment against the cut plane.
+- ✅ **R21-SPACE-TAG-SECT** — **SHIPPED inside `50f195cf`**, which is why nobody noticed: it rode along
+  with the qto class-match fix rather than getting its own commit, so the band row went on advertising
+  it. `space_tags_section()` is at `drawings.py:677` and is genuinely called at `drawings.py:1468` —
+  checked for a *caller*, not merely a definition, because the log lines inside a function match a
+  grep for its own name and read exactly like use.
 - **R21-DIM-COMPONENT** *(M)* — component-level dimension strings beside the floor-to-floor chain
   (cladding offsets, insulation thickness, canopy projections), which is what a fabricator measures.
 
@@ -320,11 +528,14 @@ stakes we are missing.
 
 **Tier 1 — closes the mission's own gaps**
 
-- ⭐ **R22-PRODUCTION** *(L)* — **field production tracking against model quantities.** Crews claim
-  installed quantity against an element GUID; percent-complete, pay-app line, 4D status and EAC all
-  update from that one entry. Field-capture competitors do this *without* a model, reconciling to
-  cost codes by hand. This is the specific feature that makes LOD 500 pay for itself, and it closes
-  the loop between the QTO we already generate and the EAC we already compute.
+- ✅ **R22-PRODUCTION** — **SHIPPED (`c23c26dd`, PR #142).** `GET /projects/{pid}/progress/reconciliation`
+  compares field-installed quantity against the model takeoff per cost code. Both halves had existed
+  for months without being joined, and the reason was structural rather than an oversight: the module
+  carrying `cost_code` — the join key — is read only by pricing and carbon, while the module the
+  production loop actually consumes has no `cost_code` field at all. The loop read the module that
+  cannot join. Built as four refusals (units never silently equated, over-install reports >100% rather
+  than clamping, an uncoded takeoff says so, unmatched field codes named not counted), and every
+  headline percentage carries `covered_pct` — 97% complete across 3% of the model is true and useless.
 - **R22-ENTITLEMENT** *(M/L)* — **permit & entitlement workflow**: jurisdiction submittal packages,
   review cycles, comment responses, and **conditions of approval carried into the model as
   constraints**. Today there is a hole between "acquisition" and "construction" in our own mission
@@ -337,21 +548,48 @@ stakes we are missing.
 
 **Tier 2 — evidence, provenance and procurement**
 
-- **R22-ITP-NCR** *(M)* — **quality module: ITPs, hold/witness points, NCR lifecycle**, attached to
-  elements. This is precisely the evidence chain COBie turnover is meant to hand over and currently
-  cannot assemble — and it is the natural feeder for LOD-500 verification.
+- ✅ **R22-ITP-NCR** *(M)* — **CLOSED 2026-07-31, premise FAILED.** All four asks exist and are reached.
+  `itp.point_type` is a **required select** — Hold Point · Witness Point · Review Point · Surveillance ·
+  Monitor — alongside `method`, `acceptance_criteria`, `frequency`, `responsible_party`,
+  `verifying_party`, `record_form`. `ncr` runs a real lifecycle `open → dispositioned → closed` with
+  `disposition`, `corrective_action`, `root_cause`, `severity` and a link to `inspection`. Element
+  attachment is `element_guids`, which `quality_chain.py` reads per element (built by R22-QUALITY-CHAIN,
+  #110) and which `routers/construction.py:260,283` serves as the chain and turnover-readiness. Modules
+  resolve section `Quality` → room `schedule`, and `test_module_rooms` fails the build on an unmapped
+  section, so this cannot rot silently.
 - **R22-PROVENANCE** *(L)* — **cite to file, page and revision.** Every proforma assumption, estimate
   line and agent answer traceable to a source page. Three of thirteen platforms *lead* with this; it
   is what makes AI output admissible in an IC memo or a claim.
-- **R22-PROCURE-DEPTH** *(M)* — sub **prequalification** (bonding/EMR/capacity), **contract-clause
-  risk extraction**, and **vendor scorecards persisting across projects**. Bid leveling covers one
-  step of five.
+- ✅ **R22-PROCURE-DEPTH** *(M)* — **CLOSED 2026-07-31, premise FAILED.** Claimed "bid leveling covers
+  one step of five" and named three remainders; **all three were already built**, and all three are
+  reached: `prequalification` module (EMR, bonding capacity, annual revenue, references, rating,
+  expiry, workflow `invited → submitted → approved/rejected`) · `clause_playbook.py`, a per-contract-type
+  registry of accept/negotiate/refuse positions with severity and fallback plus a deviation register,
+  called from `routers/realestate.py:300,309,332` · `vendor_memory.py` cross-project scorecards, called
+  from `routers/benchmarking.py:83`. Module reach resolves `Preconstruction` → room `planning`.
 
 **Tier 3 — on-ramps and reach**
 
-- **R22-CAD-IMPORT** *(M)* — **DWG/DXF/PDF base-plan import.** The existing building stock is legacy
-  CAD; today feasibility and test-fit only run on models we authored. This is the on-ramp for every
-  non-BIM firm.
+- ✅ **R22-CAD-IMPORT** — **the DXF path was already SHIPPED, and its stated premise was false.** The
+  entry read "today feasibility and test-fit only run on models we authored". They do not:
+  `POST /projects/{pid}/raise-plan` (`routers/authoring.py:1161`, `require_role("editor")`) raises an
+  uploaded DXF into a real IFC4 model registered as a *2D Raise* discipline model — which flows into
+  the viewer, QTO, the estimate and federated clash like any other. `preview=true` returns detected
+  wall/room counts without writing. Two readers exist, both on **ezdxf (MIT)**: `dxf_takeoff.py`
+  (measured quantities per layer) and `plan_to_bim.py` (walls extruded from line-work, `IfcSpace`s from
+  closed polygons).
+
+  **Measured, not read.** A metric DXF (`$INSUNITS=6`) with one 8×6 m closed room raised to 4 `IfcWall`
+  + 1 `IfcSpace`, area 48.0 m² (exact), schema IFC4, GUIDs present on every wall. Units are detected
+  from the header rather than assumed.
+
+  **What is genuinely NOT built, stated plainly rather than left to look shipped:** *DWG* natively —
+  it must be converted to DXF externally first, which is a deliberate licence choice (the available
+  converters are AGPL or proprietary) and should stay a documented external step, not a dependency.
+  And *PDF* → base plan: PDF **takeoff** exists (TAKEOFF-2D), but raising a PDF to geometry does not.
+  If the PDF half is still wanted it should be re-cut as its own item with its own sizing, because it
+  shares nothing with the DXF path — vector recovery from a PDF is a different problem, not a format
+  variation.
 - **R22-OPTION-OBJECT** *(S/M)* — make **option the primary object**: geometry + unit mix + cost +
   carbon + IRR as one comparable record, so no massing is ever evaluated without its returns.
 - **R22-REPORT-BUILDER** *(M)* — no-code report/dashboard builder. 132 modules of structured data
@@ -391,7 +629,8 @@ a gate is a hypothesis until someone tests it.* See [[check-the-blocker-premise]
 **Tier 1 — measure, then take the cheap wins.** *Every item below is unverifiable until R23-PERF-TEST
 exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions.*
 
-- ⭐ **R23-CONSTRAINTS** *(L)* — W10-9 via **scipy's `least_squares`, which is already a dependency**
+- ✅ **R23-CONSTRAINTS — SHIPPED; the band row was stale.** Verified 2026-07-31 against the code, not the entry: `services/data/src/aec_data/dim_constraints.py` solves dimensional locks as a **linear least-squares system with priority tiers**, reached at `POST /projects/{pid}/constraints/solve` (`analysis.py:522,542`), with `test_dim_constraints` registered and passing. **No new dependency was added** — the module's own docstring records why: the roadmap had unblocked this by accepting `kiwisolver`, and that reasoning was right about the *shape* and wrong about the *need*, since `lstsq`'s **rank** is the degrees of freedom and its **residual** is whether a tier is satisfiable — the two numbers the UX actually needs. *(Original entry below.)*
+- ~~**R23-CONSTRAINTS**~~ *(L)* — W10-9 via **scipy's `least_squares`, which is already a dependency**
   (`services/api/requirements.in:27` and `services/data/requirements.txt:8`, both `scipy>=1.11`).
   This entry said "via kiwisolver + least_squares" until 2026-07-29. **`kiwisolver` is NOT a
   dependency of this repo** — so the entry pointed at a package someone would have had to add, in a
@@ -406,7 +645,28 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   small parts, MEP and furniture, swapping to real fragments on demand. Server-side keeps it
   deterministic, offline and $0. *`docs/internal/archive/phase2-large-models.md` claims no custom LOD is needed and is
   itself marked superseded — that claim is the thing to retire.*
-- **R23-PICKING** *(M)* — ⚠️ **premise corrected 2026-07-25; do NOT build this on the stated evidence.**
+- ⛔️ **R23-PICKING** *(M)* — **CLOSED UNBUILT 2026-07-31, on a measurement. Do not reopen without a
+  new one.** Raycast latency was measured directly on `loader.fragments.raycast()` against a generated
+  **35,030-element** fixture (19× the densest sample), 300 samples after a discarded warm-up:
+
+  | | n | min | p50 | p90 | p95 | p99 | max |
+  |---|---|---|---|---|---|---|---|
+  | **hits** | 143 | 0.7 | 1.6 | 3.0 | 3.8 | **4.8** | **5.4** ms |
+  | **misses** | 157 | 0.0 | 0.3 | 0.8 | 1.2 | 2.0 | 6.0 ms |
+
+  **Single-digit ms across the entire distribution, p99 and max included.** The 1500 ms fallback the
+  prose justifies has ~**250× headroom** over the worst observed sample. Hits and misses are reported
+  separately because they are different code paths and a mean would have hidden that misses are ~5×
+  cheaper. **The comment at `app.ts:389` — *"Normal raycasts answer in ms"* — is correct, and now has a
+  number behind it instead of a claim.** GPU ID-buffer picking would optimise something that is not slow.
+
+  *Fixture is generated and LOCAL; `samples/*.ifc` are gitignored, so the reproducible artefact is the
+  recipe, not the file:* `generate_blank_ifc(storeys=20, storey_height=3.5)`, then per storey 250×
+  `edit_struct.add_wall` + 250× `add_column` → 10,000 products / 35,030 local ids / 10.9 MB IFC →
+  1.1 MB frag. **Generation is superlinear**: 10,000 elements took 407 s where a linear extrapolation
+  from 2,400-in-21.6 s predicted ~90 s. Budget from that, not from the linear estimate.
+
+  *Original premise correction, kept because it is why the item survived to be measured:*
   The scan read the 1500 ms `Promise.race` at `viewer/app.ts:337` as "an admission that picking latency
   already hurts". The source says the opposite, in its own comment: the race guards against *a stalled
   Fragments worker (hidden tab / heavy load)* silently eating clicks, and states plainly that **normal
@@ -416,6 +676,41 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   three-mesh-bvh is present transitively (MIT) — but this is now gated on **measuring raycast latency
   on a genuinely large model first**. If the measurement does not justify it, the correct outcome is to
   close this item unbuilt. *Fourth false premise found this session; see [[check-the-blocker-premise]].*
+  **Blocked on a fixture, checked 2026-07-31 — the measurement cannot currently be taken.** Picking goes
+  through `loader.fragments.raycast()` (`viewer/app.ts:391`, not `:337` — the file moved), which is the
+  Fragments runtime's own call, so only a **live** measurement answers this; a bare `THREE.Raycaster`
+  benchmark would be a different reader answering a different question. Two things are missing: the dev
+  API is down (`curl :8093/health` → `000`) and **there is no genuinely large model anywhere in the
+  repo** — the biggest fragment set in `preview_storage/` is 3.6 MB, against a gate reading "a genuinely
+  large model".
+
+  ⚠️ **CORRECTION 2026-07-31 — my own prescription here was wrong, and inverted.** I first wrote that
+  the fix was to *convert one of the 50 MB `samples/*.ifc`*. Measured, that produces the second-smallest
+  model in the repo. **File size is anti-correlated with element count in these samples**, because the
+  50 MB files are large as *text*, not as geometry:
+
+  | fixture | elements | IFC MB | frag MB |
+  |---|---|---|---|
+  | `basichouse` (the 50 MB one) | **154** | 50.3 | 3.6 |
+  | `school_str` | 1,536 | 8.2 | 0.6 |
+  | `vertical_farm` (densest) | **1,840** | 1.5 | — |
+  | generated, 10 storeys | 2,401 | 2.5 | 0.3 |
+
+  `basichouse.ifc` was converted rather than argued about: 52.7 MB → 3.6 MB frag in 7.0 s, i.e. *exactly
+  the size of the set we already had*. **Following the instruction lands you back where you started.**
+
+  So this is not blocked on converting a fixture; it is blocked on **a fixture that does not exist**.
+  The repo maximum is 1,840 elements and picking needs 10k–100k+ — not within an order of magnitude.
+  The fixture step is therefore **generate, not convert**, and must be specified in **elements**, never
+  megabytes: `generate_blank_ifc` + `edit_struct` produced 2,401 elements in 21.6 s, extrapolating to
+  ~20k in roughly 3 minutes. Unlike the samples this is reproducible from a clean clone, since
+  `samples/*.ifc` are gitignored.
+
+  **Worth measuring rather than closing**, for one specific reason: `app.ts:389` already asserts in a
+  comment that *"Normal raycasts answer in ms"*, and that prose is load-bearing — it justifies the
+  1500 ms timeout fallback. Replacing a prose performance claim with a number is precisely what this
+  ring exists to do. If the number comes back single-digit ms, **close the item unbuilt** and keep the
+  measurement.
 - **R23-BATCH-OVERLAYS** *(S)* — app-authored overlays (pins, grid, snap markers, dimensions, clash
   markers) use **zero** instancing; `three@0.184.0` has `BatchedMesh`. Keep the default BIM pass off
   `MeshStandardMaterial` (presentation mode only); make FOV/FAR responsive by viewport class.
@@ -526,7 +821,16 @@ refute one, so this goes first even though it is the least visible.
   **call sites**, not components: render it in RFI, estimate line, pay app and COBie row. Extract from
   `viewer/inspectorTabs.ts` into a viewer-independent module first, since those four surfaces must not
   pull in three/@thatopen.
-- ⭐ **R24-TRACE-UI ②** *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
+- ✅ **R24-TRACE-UI ② — SHIPPED 2026-07-31 (`b3a630ea`).** 19 headline figures report which assumptions
+  the caller **declared** and which the engine **defaulted**, derived from `model_dump(exclude_unset=True)`
+  — deriving from the validated dump would report everything as declared and answer the reviewer's
+  question with fiction (mutation-checked: it drops the sparse deal from 8 defaulted inputs to 2).
+  `element_link` is `None` on every figure with a stated reason, because the proforma holds no GlobalId
+  and an invented terminus is worse than none. `FIGURE_INPUTS` is completeness-checked **both ways**
+  against `solve()`'s own output. `POST /proforma/provenance`, plus inline on `/proforma/solve`.
+
+  *Original entry below — the premise correction is the reason this was built backend-first:*
+- ~~**R24-TRACE-UI ②**~~ *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
   **proforma emit its own derivation**: each headline figure carrying its inputs and a
   **model-derived / overridden / market-assumption** tag, terminating in a GlobalId where one exists.
   `proforma/solve.py` · `returns.py` · `operations.py`. The UI half is genuinely small once the data
@@ -726,7 +1030,8 @@ viewport frames, table rules are **paths**, not inferred shapes. So the first im
 deterministic geometry over `pypdf`'s content stream, not detection. Detection is what you need when
 you have thrown the vectors away; we mostly have not. Rasters fall back to "unknown", stated.
 
-* **R27-LAYOUT ① — the layout is written but never read back.** *(Corrected after checking the code:
+* ✅ **R27-LAYOUT ① — DONE; both halves shipped (v0.3.702 + v0.3.778).** *Was: the layout is written but
+  never read back.* *(Corrected after checking the code:
   the first draft of this item said "add `sheet_layout.py`". That module already exists —
   [sheet_layout.py](../services/data/src/aec_data/sheet_layout.py), and it is good — but it runs in
   the **write** direction: it composes viewport rectangles, fixed 1:N paper scales, per-viewport class
@@ -892,10 +1197,44 @@ those repos closes a capability gap. What the 221-skill corpus *is* good for is 
 construction teams actually automate**, at a granularity nobody publishes otherwise. Read as a
 coverage checklist against our 130 modules it is a gap-analysis input, not an import.
 
-* **R27-SKILL-GAP** *(S — reading, not building)* — diff the MIT skills taxonomy against our module
-  catalog and the master-builder skill; record only the gaps that fit the mission. Explicitly **not**
-  a bulk import: 221 generated skill files would bloat the repo and duplicate engines we already have
-  tested. The output is a short list of missing *capabilities*, not files.
+* ✅ **R27-SKILL-GAP** *(S)* — **DONE 2026-07-31. Premise mostly FAILED; the diff is nearly empty.**
+
+  **The corpus is [`datadrivenconstruction/DDC_Skills_for_AI_Agents_in_Construction`](https://github.com/datadrivenconstruction/DDC_Skills_for_AI_Agents_in_Construction)** — recorded here because the
+  entry named it only as "a 221-file skills corpus (MIT)", and *a gap-check whose input nobody can find
+  is not repeatable*. Identity confirmed by count (exactly **221 `SKILL.md` files**) and the licence
+  read **from the LICENSE file, not the README**, per this ring's own rule: MIT.
+
+  **32 of the 221 (15%) are dead on arrival.** They are CWICR-based (`cwicr-*`,
+  `bim-cost-estimation-cwicr`, `semantic-search-cwicr`) and this ring already refused **CWICR data as
+  CC BY-NC 4.0**. The MIT skill files are usable; the data they operate on is not. Effective corpus
+  ~189 — and the single largest domain in it is one already ruled out on licence.
+
+  **Checked precisely rather than by keyword, and the plausible gaps were all already built:**
+  `ids-checker` → `ids_authoring.py:63` + `model_ci._ids_check:78` with real `.ids` files at
+  `{pid}/ids/project.ids` · `energy-simulation` → `energy.py`, `energy_star_bridge.py` ·
+  `schedule-compression` → `px.py:286-309`, crash **and** fast-track levers with `days_potential` ·
+  `weather-impact-scheduler` → `notice_clock.py:128`, weather-delay notice citing §15.1.6.2 · plus
+  procurement, contract-clause, prequal, payment-app, punchlist, lien-waiver, warranty, RFI, submittal,
+  look-ahead, resource-levelling, QTO, clash, 4D and carbon — all with modules or engines.
+
+  ❌ **Deliberate divergence — do NOT file this as a gap and do not "close" it.** The corpus has
+  `vector-search`, `rag-construction` and `semantic-search-cwicr`; we have **zero** embedding/vector
+  code and `doc_text.search()` is pure token overlap. That is a **stated design choice**, not an
+  omission — the module docstring says *"Deterministic retrieval … fully offline; no LLM required and
+  none silently invoked."* Adopting semantic search trades that away. Refused on purpose.
+
+* ⭐ **R22-PHOTO-CV** *(M — needs a mission-fit call before building)* — **the one real gap the corpus
+  surfaced.** Three skills (`progress-monitoring-cv`, `progress-photo-analyzer`, `defect-detection-ai`)
+  have no counterpart here; grepping for photo analysis returns nothing but storage.
+
+  **The substrate already exists, and it is the reach shape one layer up:** `routers/verification.py:109`
+  uploads a photo **against a GUID**, so site photos are already element-attached — and *nothing reads
+  them*. The data is landing and no consumer exists. That makes this cheaper than a green-field CV
+  feature and it is why it is worth recording rather than dismissing.
+
+  **Gate it on the non-negotiables before any build:** a CV model is a new dependency and probably a
+  large one, the viewer must stay fully offline, and licences must be MIT/BSD/Apache. If those cannot
+  all hold, the honest outcome is to refuse it in place — the way semantic search was refused above.
 
 **⛔ Licence exclusions recorded from this scan (evaluated, refused, do not re-litigate).** Two
 otherwise-relevant OSS projects are unusable under the standing MIT/BSD/Apache-only rule: a GPU map-
@@ -1080,16 +1419,7 @@ is the proven one and automatic symbol recognition is genuinely unsolved rather 
 Build the honest version first: a count measure, priced per unit, that a human or an agent places.
 Pairs with **R23-SYMBOL-COUNT** (Lane B) which is the recognition half.
 
-### ⭐ R34-SHEET-SCALE *(S)* — one scale is applied to a whole plan set
-
-`quantify(regions, scale_units_per_px, ...)` takes **a single scale per call**. Real plan sets are not
-uniformly scaled: plans at 1/8"=1', details at 1/2"=1', enlarged plans somewhere between. OpenTakeoff
-stores scale **per sheet** for exactly this reason.
-
-Applying one scale across a mixed set makes every measurement on an off-scale sheet wrong **by the
-ratio** — a 4x error on a detail, silently, with a plausible number as the output. This is the
-[[the-dangerous-default-is-the-plausible-one]] shape on money, and it is a small fix: scale belongs to
-the sheet, and a region must carry which sheet it came from.
+### ✅ R34-SHEET-SCALE *(S)* — SHIPPED 2026-07-31 · see [`roadmap-completed.md`](roadmap-completed.md)
 
 ### R34-MEASURE-PROVENANCE *(S)* — a measurement does not record how it was made
 
@@ -1109,7 +1439,13 @@ equivalents (`takeoff2d` does shoelace area and polyline length server-side; the
 measurement engine is **deterministic geometry, not ML**, which is the same choice we made — worth
 recording because "AI takeoff" invites the opposite assumption.
 
-## 💰 R33-CLAWBACK-AMOUNT — the GP giveback is computed with no time dimension *(2026-07-30)*
+## ✅ R33-CLAWBACK-AMOUNT — SHIPPED in PR #136 (`856970c8`), 2026-07-31
+
+*Kept below with its original text because the reasoning is the reusable part — it is the worked example
+of why a money check must compare a **value**, not a range. Fixed by `solve_clawback_for_pref()`, which
+solves for the cash at the final date that lifts the LP's XIRR to the pref.*
+
+### 💰 the GP giveback was computed with no time dimension *(diagnosed 2026-07-30)*
 
 **Lane C. Researched and specified here; deliberately NOT implemented in this session** — see the note
 at the end, which is part of the item.
@@ -1197,34 +1533,94 @@ apply to this product, so nobody re-derives any of it.
 So "standardise the format" and "version it" are, at the file-store layer, **done**. The gaps are
 elsewhere and they are specific.
 
-### ⭐ R32-FILE-GENERATED *(M)* — nothing generated is ever filed
+### ✅ R32-FILE-GENERATED *(M)* — SHIPPED 2026-07-31 (`4f6a5c84`)
 
-**Measured:** `sheetgen.py`, `specmanual.py`, `drawingset.py` and `issuance.py` contain **zero**
-references to `docmanager`. Generated drawings and generated specs are produced, returned and never
-enter the controlled tree — so they get no revision, never supersede anything, and do not appear in the
-file manager at all. Every governance property the document layer already implements is unavailable to
-exactly the artefacts the platform itself produces.
+**Was measured:** `sheetgen.py`, `drawingset.py`, `issuance.py` and `specs.py` contained **zero**
+references to `docmanager`. Generated drawings and specs were produced, returned and never entered the
+controlled tree — no revision, never superseding anything, absent from the file manager. Every
+governance property the document layer implements was unavailable to exactly the artefacts the platform
+itself produces. *(The original entry named `specmanual.py`, which does not exist.)*
 
-Publishing a sheet set or a spec manual should **file it**: into its discipline folder, with a revision,
-superseding the prior issue. The supersession logic exists; it has no caller.
+**Now:** issuing a set files it. `filing.file_transmittal()` runs on issue and lands the transmittal in
+`02_Drawings`; `filing.file_drawing_set()` compiles and files the set as the next revision of one
+document. The supersession logic finally has a caller — which was always the whole item.
 
-### ⭐ R32-MODEL-IN-TREE *(S)* — the model is not in the filing at all
+**Still open here, and it is the honest remainder:** only the **drawing** path is wired.
+`specs.py` produces a submittal log rather than a spec manual PDF, so there is no spec artefact to file
+yet; when one exists it belongs in `01_Contract Documents/Specifications`, by rule 2. Recorded rather
+than quietly counted as done.
 
-Two parallel stores: the source model at `{pid}/source.ifc`, the document tree at `{pid}/docs/<folder>/`.
-There is **no folder for the model**, and none for generated output. The user's ask — *a place within
-the filing that hosts the model, the generated drawings and the generated specs* — is precisely this.
+The four decisions this shipped with are listed in Band 2 above, and the `12_Model`-not-`required`
+question is still the user's to answer.
 
-Add the folders and file the IFC on publish, so a model revision is a document revision and the
-as-issued model sits beside the drawings it produced. This is the prerequisite for R32-FILE-GENERATED
-and is the smaller half.
+### ✅ R32-MODEL-IN-TREE *(S)* — SHIPPED 2026-07-31 (`44a901bd`)
+
+Was: two parallel stores — the source model at `{pid}/source.ifc`, the document tree at
+`{pid}/docs/<folder>/`, with **no folder for the model**. The artefact everything else derives from was
+the only one with no revision, no supersession and no presence in the file manager.
+
+Now: `12_Model` / `12_Model/IFC` / `12_Model/Federated` are in the standard taxonomy, and
+`filing.file_model()` files the model through `docmanager` — so a model revision **is** a document
+revision, superseding the prior one and leaving the as-issued version recoverable. Reachable at
+`POST /projects/{pid}/documents/file-model` and `GET /projects/{pid}/documents/model-history`.
+
+**Three decisions recorded here because they constrain R32-FILE-GENERATED:**
+
+1. **File on publish, never on save.** `source.ifc` is rewritten by every edit recipe; filing on write
+   would mint a revision per keystroke and make the chain meaningless.
+2. **File by KIND, into the folder that kind already uses** — no `Generated Drawings` folder. A silo
+   for generated output would rebuild the same two-stores problem and split "the current drawing set"
+   across two places, which is exactly what R32-CURRENT-SET then has to reconcile. **A test asserts no
+   such folder exists**, so this cannot be quietly reversed.
+3. **`12_Model` is deliberately NOT `required`.** `required_paths()` feeds the document-control health
+   score, so marking it required would drop every existing project's compliance number for something
+   they have not had the chance to do. Whether an unfiled model *should* count against health is a real
+   question — but it is a policy change, and it needs the user's call rather than a side effect.
+
+*Bug found by its own test: history was ordered by `uploaded_at`, which is second-resolution, so two
+revisions filed in the same second tied and the order became whatever the sort did. Now ordered by the
+monotonic index sequence.*
 
 ### R32-CURRENT-SET *(S)* — the drawing display is not the file manager
 
 `docmanager` defaults to current-only, but the drawings UI reads the drawing registers, not the
 document tree, so "show only the current set" is not enforced where field users actually look.
 Once generated sheets are filed, the display should read the **published, non-superseded** set — one
-source, not two. Gap-check first whether `drawing_set` + `drawing_issuance` already carry enough state
-to answer "which issue is current" without new fields.
+source, not two.
+
+⚠️ **Gap-check done 2026-07-31, and the premise needs restating — the real gap is worse than "two
+sources", and it is a PRODUCT decision rather than a wiring job.**
+
+The register *does* already compute a current set, so "superseded sheets are shown" is **not** the
+defect. `drawingset.register()` groups revisions per sheet number and takes `revs[-1]` after sorting by
+`_rev_key` — the newest revision wins and older ones go to `superseded`. What it does **not** do is
+consult issuance at all: there is **no reference to `drawing_issuance` in that computation**, and
+`workflow_state` is carried onto the row but never filtered on.
+
+So the register's "current" means **the latest revision anyone authored**. The document tree's "current"
+now means **the latest revision actually issued** (`SET_TITLE` supersession, shipped with
+R32-FILE-GENERATED). Both are legitimate answers to different questions:
+
+| question | answered by |
+|---|---|
+| what is the newest revision of record? | the register — right for the design team |
+| what was released, and is therefore buildable? | the filed set — right for the field |
+
+✅ **DECIDED by the user, 2026-07-31: the display shows the LATEST AUTHORED revision.** The current
+behaviour is therefore correct and this item **closes without a code change** —
+`apps/web/src/reportCenter.ts:139` calls `api.drawingSet(pid)`, which is the register, which is
+latest-authored. Nothing to rewire.
+
+**The concern was raised and the decision stands, so it is recorded rather than re-argued:** a viewer of
+that panel can be looking at a revision that was never issued. The mitigation is that the issued set is
+*also* reachable and is now first-class — the filed `Drawing Set` document in `02_Drawings` supersedes
+per issue, the issuance register records every release, and a transmittal PDF names exactly which sheets
+and revisions went out. Anyone who needs "what was released" has an authoritative answer; the panel
+simply is not that answer.
+
+**Do not "fix" this later by redefining `current_set`.** If the two meanings ever need to appear
+together, add a labelled `issued` view beside `latest` — never change what the existing number means.
+Two things called "current" that silently swap meaning is worse than two clearly-named things.
 
 ### R32-TAXONOMY-LIFECYCLE *(M — needs the user's call on scope)* — 11 folders is construction-only
 
@@ -1311,15 +1707,75 @@ scan, because it stops the exercise being re-run.
   and what sizing. `scipy` is already a dependency (`requirements.in:27`), so the optimiser needs **no new
   package** — this is deliberately not the "add a portfolio library" version of the idea.
 
-- **R31-SYNDICATION-TAIL** *(M — gap-check, then close only what is missing)* — cap-table automation,
-  soft/hard commitment tracking, and a K-1 / tax pack. `capital.py`, `distwaterfall.py` and the
-  `investor` + `commitment` modules exist; their **depth is unverified** and that is the whole point of
-  scoping this as a check first. Do not build a cap table before confirming `capital.py` lacks one.
+- ✅ **R31-SYNDICATION-TAIL** *(M)* — **CHECKED 2026-07-31; two of three asks already built. Rescoped to
+  `R31-K1-PACK` below.** The entry's own instruction — *"Do not build a cap table before confirming
+  `capital.py` lacks one"* — was the right one and it **does not lack one**: `capital.cap_table()`
+  returns ownership %, contributed / distributed / **unreturned**, per-class rollup and sorted rows, and
+  is reached from `distwaterfall.py:67`, `report_builders/finance.py:293,510` and `reports.py:103`
+  ("Investor Cap Table"). Soft/hard commitment tracking is built **under a different name**: `investor`
+  states are `prospect → committed → funded → exited`, so soft circle and hard commitment are workflow
+  states rather than an enum somebody was looking for.
 
-- **R31-CITE-HIGHLIGHT** *(S — gap-check)* — our cited answers name the source document
-  (`cited_answer`, RFI NL-QA). Verify whether they also **highlight the passage** inside it. Citing a
-  40-page PDF and citing a paragraph are different products, and the second is what makes a reviewer
-  trust it without re-reading.
+  ⚠️ **The name collision that probably produced this entry:** the **`commitment` module is
+  CONSTRUCTION commitments** — Purchase Order / Subcontract / Work Authorization, with `retainage_pct`
+  and `cost_code`. It has nothing to do with investor commitments. Reading it as the syndication side
+  badly misjudges the item.
+
+- ✅ **R31-K1-PACK** *(S/M)* — **SHIPPED 2026-07-31** (`aabad457`), and it deliberately does **not**
+  emit a K-1. A Schedule K-1 reports a partner's distributive share of *taxable income*, which needs a
+  §704(b)-allocated income statement; this platform has capital movements and **no income statement at
+  all**. So `capital.k1_pack()` returns the half we can evidence and **names what it cannot supply** —
+  `is_tax_document: false` plus a `not_included` list (704(b) allocation, depreciation and §754/§743(b)
+  basis, guaranteed payments, outside basis / at-risk, separately stated items, state apportionment).
+  An accountant told what is absent can supply it; one handed a plausible-looking pack cannot know to.
+  `GET /projects/{pid}/k1-pack`.
+
+  **Two money-math decisions worth not undoing:** there is *no beginning/ending capital balance*,
+  because that is a §704(b) rollforward needing the income allocation we lack — absent beats guessed
+  from contributions, which would be wrong in a way that looks right. And `ownership_pct` is an
+  **allocation ratio**, so `allocation_check` reports the exact rounding residual rather than hiding
+  it; ratios silently summing to 99.9997% would misallocate income for every partner every year and
+  survive inspection. Mutation-checked both ways.
+
+  *(Original entry, kept because the boundary sentence was the spec:)*
+- ~~**R31-K1-PACK**~~ *(was S/M)* — **the one genuine remainder of R31-SYNDICATION-TAIL.** `capital.py:90`
+  already states the boundary in the statement PDF itself: *"…is informational and not a tax document;
+  K-1s are issued separately."* That sentence is the spec. Everything a K-1 pack needs upstream — per
+  investor contributions, distributions, unreturned capital, class rollup — already exists and is
+  reached; what is missing is the allocation and the document. Well-bounded precisely because the
+  boundary was written down rather than left implied.
+
+- ⭐ **R31-CITE-HIGHLIGHT** *(S — premise HOLDS, and it is far cheaper than written)* — **checked
+  2026-07-31.** Confirmed: we cite document and page and do **not** highlight the passage.
+  `aiassist.ts:334` renders `"Source: p.12"` as **inert text** — not a link, and nothing calls the
+  viewer. Citing a 40-page PDF and citing a paragraph are different products.
+
+  ✅ **HALF SHIPPED 2026-07-31 — the data half is done.** `doc_text.answer()` now carries `doc_id` into
+  every citation, and `rfi_qa.py` prefers it over the display name and passes the snippet as `span`.
+  Pinned end-to-end: `test_doc_text` asserts every citation carries a `doc_id` **and that the id
+  resolves against the catalog** — an id matching nothing is as dead as a name. Mutation-checked.
+
+  The dropped field was the real blocker and is worth remembering as a shape: `search()` always
+  produced `doc_id`, `answer()` rebuilt the citation list without it, and **both functions read
+  correctly on their own.** The defect lived in the seam.
+
+  ⚠️ **CORRECTION to this entry's own cost estimate — the viewer side is NOT as available as recorded.**
+  It was written here (from the gap-check) that `find(page, query, limit)` and `flash(v, page, box)`
+  were callable. Checked against the file: `vendor/massingpdf/plugins/search.ts` exports only
+  **`findInWords`** and **`searchPlugin`**. `flash` exists — at line 279, drawing the rect and scrolling
+  to centre exactly as described — but it is **module-private**, invoked only from a click handler on a
+  search-result row (line 247). And **nothing outside the vendor tree imports the plugin at all.**
+
+  So the remaining work is not "call the existing function". It is: expose a highlight entry point from
+  the plugin, then have `portal/panels/aiassist.ts:334` — which today renders `"Source: p.12"` as inert
+  `textContent` — open the document and drive it. **The catch worth pausing on:** `vendor/massingpdf/`
+  is vendored from the separate `MassingCloud/massingifc` kernel repo, so an edit there is either lost
+  on the next re-vendor or has to go upstream first. That is a real decision, not a line of code, and
+  it is why the frontend half is *not* claimed as trivial.
+
+  Still true and still the reason this is cheap overall: **no stored bbox is needed** (`extract_pdf_text`
+  is pypdf and discards positions, so storing one would have forced a new extractor and possible AGPL
+  exposure), because the passage text now travels in the citation and the client can re-find it.
 
 ### Corroboration, not a new item — R24-TRACE-UI ② is the right target
 
@@ -1456,6 +1912,27 @@ full-suite-on-merged-tree runs exist to prevent.
   ambient DB or storage handle. Signing is the weaker alternative — it answers *who wrote this*, not
   *what it may do*, and this repo already learned from [[sandbox-object-api-surface]] that a denylist
   cannot see methods reached through an injected object. Gate the design on that lesson.
+
+  **Threat model, checked 2026-07-31 — this is a PRODUCT gap, not a live vulnerability, so it does not
+  belong in the exploitable band.** What was checked, not concluded: `_plugins_dir()` defaults to
+  `<repo-root>/plugins` and is overridden only by `AEC_PLUGINS_DIR`; user uploads land under
+  `STORAGE_DIR` (`./storage`) — **the two do not overlap**; no route anywhere under `routers/` writes
+  into the plugin directory (`/plugins` is a GET, `/plugins/reload` is platform-admin gated); and
+  discovery is off unless `AEC_PLUGINS_ENABLED=1`. So the only way a `.py` reaches `exec_module` today
+  is an operator putting it on the disk — which is the same privilege as `pip install`, and an env var
+  is a trusted input. **There is no path from an unprivileged caller to plugin execution.**
+
+  That changes the moment plugins are *distributed* — a marketplace, a shared pack, anything a user
+  installs rather than the operator. Build the boundary **when that ships, and as its prerequisite**,
+  not before; an L-sized process boundary for a dormant operator-only path is cost with no risk retired.
+
+  **Do not confuse this with the A1 `execute_ifc_code` sandbox — a different surface that IS bounded.**
+  Probed 2026-07-31 by execution rather than by reading its docstring; all 12 escapes refused and the
+  benign case ran: dunder ladder (`__subclasses__`), `import`, `__import__`, `open`, `eval`, `getattr`,
+  `lambda`, `def`, `while True`, `model.write` → `SandboxError`; `for i in range(10**12)` hit the
+  5s wall-clock deadline at 5.02 s; `10**10**9` hit the chained-`**` integer-blowup guard. No file was
+  written. This retires the [[sandbox-object-api-surface]] note's "banning `while` does not bound
+  execution" — a deadline now exists and was observed firing.
 
 - ❌ **SRI for the offline WASM/fragment assets — considered 2026-07-29 and REJECTED.** An external
   audit recommended Subresource Integrity for the WASM and fragment assets. **It does not apply

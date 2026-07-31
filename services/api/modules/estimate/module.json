@@ -37,7 +37,8 @@
       "name": "amount",
       "label": "Amount",
       "type": "number",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "line_items",

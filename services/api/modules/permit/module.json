@@ -2,7 +2,7 @@
   "key": "permit",
   "name": "Permitting",
   "section": "Approvals",
-  "icon": "\u25a3",
+  "icon": "▣",
   "ref_prefix": "PMT",
   "title_field": "name",
   "pinnable": false,
@@ -81,7 +81,8 @@
       "name": "fee",
       "label": "Permit Fee",
       "type": "currency",
-      "fieldset": "Status & dates"
+      "fieldset": "Status & dates",
+      "min": 0
     }
   ],
   "workflow": {

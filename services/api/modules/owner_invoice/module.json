@@ -16,15 +16,183 @@
     },
     {
       "name": "period",
-      "label": "Period",
       "type": "text",
+      "label": "Period",
       "fieldset": "Identity"
     },
     {
-      "name": "amount",
-      "label": "Amount",
+      "name": "period_from",
+      "type": "date",
+      "label": "Period from",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "period_to",
+      "type": "date",
+      "label": "Period to",
+      "fieldset": "Identity"
+    },
+    {
+      "name": "line_items",
+      "type": "table",
+      "label": "Continuation sheet (G703)",
+      "fieldset": "Money",
+      "columns": [
+        {
+          "name": "item_no",
+          "label": "Item",
+          "type": "text"
+        },
+        {
+          "name": "description",
+          "label": "Description of work",
+          "type": "text"
+        },
+        {
+          "name": "scheduled_value",
+          "label": "Scheduled value",
+          "type": "currency"
+        },
+        {
+          "name": "completed_prev",
+          "label": "From previous application",
+          "type": "currency"
+        },
+        {
+          "name": "completed_this",
+          "label": "This period",
+          "type": "currency"
+        },
+        {
+          "name": "materials_stored",
+          "label": "Materials presently stored",
+          "type": "currency"
+        },
+        {
+          "name": "total_completed_stored",
+          "label": "Total completed & stored",
+          "type": "currency"
+        },
+        {
+          "name": "percent",
+          "label": "%",
+          "type": "percent"
+        },
+        {
+          "name": "balance_to_finish",
+          "label": "Balance to finish",
+          "type": "currency"
+        },
+        {
+          "name": "retainage",
+          "label": "Retainage",
+          "type": "currency"
+        }
+      ],
+      "total_column": "total_completed_stored",
+      "totals_into": "amount"
+    },
+    {
+      "name": "original_contract_sum",
       "type": "currency",
+      "label": "1. Original contract sum",
       "fieldset": "Money"
+    },
+    {
+      "name": "net_change_orders",
+      "type": "currency",
+      "label": "2. Net change by change orders",
+      "fieldset": "Money"
+    },
+    {
+      "name": "contract_sum_to_date",
+      "type": "currency",
+      "label": "3. Contract sum to date",
+      "fieldset": "Money"
+    },
+    {
+      "name": "amount",
+      "type": "currency",
+      "label": "4. Total completed & stored to date",
+      "fieldset": "Money"
+    },
+    {
+      "name": "retainage_work_pct",
+      "type": "percent",
+      "label": "5a. Retainage on completed work",
+      "unit": "%",
+      "min": 0,
+      "max": 100,
+      "fieldset": "Money"
+    },
+    {
+      "name": "retainage_stored_pct",
+      "type": "percent",
+      "label": "5b. Retainage on stored material",
+      "unit": "%",
+      "min": 0,
+      "max": 100,
+      "fieldset": "Money"
+    },
+    {
+      "name": "retainage_total",
+      "type": "currency",
+      "label": "5. Total retainage",
+      "fieldset": "Money"
+    },
+    {
+      "name": "earned_less_retainage",
+      "type": "currency",
+      "label": "6. Total earned less retainage",
+      "fieldset": "Money"
+    },
+    {
+      "name": "previous_certificates",
+      "type": "currency",
+      "label": "7. Less previous certificates",
+      "fieldset": "Money"
+    },
+    {
+      "name": "current_payment_due",
+      "type": "currency",
+      "label": "8. CURRENT PAYMENT DUE",
+      "fieldset": "Money"
+    },
+    {
+      "name": "balance_to_finish",
+      "type": "currency",
+      "label": "9. Balance to finish incl. retainage",
+      "fieldset": "Money"
+    },
+    {
+      "name": "contractor_signature",
+      "type": "signature",
+      "label": "Contractor certification",
+      "fieldset": "Certification"
+    },
+    {
+      "name": "contractor_signed_date",
+      "type": "date",
+      "label": "Date certified",
+      "fieldset": "Certification"
+    },
+    {
+      "name": "architect_certified_amount",
+      "type": "currency",
+      "label": "Amount certified by architect",
+      "fieldset": "Certification"
+    },
+    {
+      "name": "architect_signature",
+      "type": "signature",
+      "label": "Architect certification",
+      "fieldset": "Certification"
+    },
+    {
+      "name": "architect_signed_date",
+      "type": "date",
+      "label": "Date certified",
+      "fieldset": "Certification"
     },
     {
       "name": "status",
@@ -44,6 +212,26 @@
       "label": "Prime contract",
       "type": "reference",
       "module": "prime_contract",
+      "fieldset": "Links"
+    },
+    {
+      "name": "coi",
+      "type": "reference",
+      "module": "coi",
+      "label": "Certificate of insurance",
+      "fieldset": "Links"
+    },
+    {
+      "name": "lien_waiver",
+      "type": "reference",
+      "module": "lien_waiver",
+      "label": "Lien waiver",
+      "fieldset": "Links"
+    },
+    {
+      "name": "sov_snapshot_at",
+      "type": "date",
+      "label": "Continuation sheet snapshotted",
       "fieldset": "Links"
     }
   ],
@@ -100,7 +288,9 @@
     ]
   },
   "list_columns": [
+    "period_to",
     "amount",
+    "current_payment_due",
     "status",
     "prime_contract"
   ],

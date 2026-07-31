@@ -33,14 +33,16 @@
       "type": "number",
       "required": true,
       "fieldset": "Schedule",
-      "unit": "days"
+      "unit": "days",
+      "min": 0
     },
     {
       "name": "est_hours",
       "label": "Est. Hours",
       "type": "number",
       "fieldset": "Schedule",
-      "unit": "hr"
+      "unit": "hr",
+      "min": 0
     },
     {
       "name": "last_done",

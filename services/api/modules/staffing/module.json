@@ -46,13 +46,15 @@
       "name": "count",
       "label": "Headcount",
       "type": "number",
-      "fieldset": "Role"
+      "fieldset": "Role",
+      "min": 0
     },
     {
       "name": "rate",
       "label": "Rate",
       "type": "currency",
-      "fieldset": "Cost"
+      "fieldset": "Cost",
+      "min": 0
     },
     {
       "name": "rate_period",

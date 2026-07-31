@@ -646,10 +646,16 @@ def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(ge
     if scale is None and cal:
         scale = takeoff2d.calibration_scale(cal.get("p1", [0, 0]), cal.get("p2", [1, 0]),
                                             float(cal.get("real_distance", 1.0)))
-    if not scale or float(scale) <= 0:
-        raise HTTPException(422, "a positive scale_units_per_px (or a valid calibration) is required")
+    # `takeoff2d.valid_scale` rather than `float(scale) <= 0`: the old guard let `inf` through (inf > 0
+    # is true), and an infinite scale nulls every quantity AND the grand total while still returning
+    # 200 — FastAPI encodes inf as null. It also raised ValueError -> 500 on a non-numeric string.
+    # Refusing here is the honest outcome; a takeoff whose scale cannot be measured with has no answer.
+    s = takeoff2d.valid_scale(scale)
+    if s is None:
+        raise HTTPException(422, "a positive, finite scale_units_per_px (or a valid calibration) is "
+                                 "required")
     regions = body.get("regions") or []
-    out = takeoff2d.quantify(regions, float(scale),
+    out = takeoff2d.quantify(regions, s,
                              unit=str(body.get("unit") or "m"),
                              overrides=body.get("overrides") or {})
     # R27-LAYOUT ②: when the caller supplies the sheet's layout, say which drawing each trace is on.

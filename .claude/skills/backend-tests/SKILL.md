@@ -5,6 +5,8 @@ description: How to run and add Python tests in the Massing API/data services. I
 
 # Massing backend tests
 
+> Standing directions for this repo: [docs/roadmap-directions.md](../../../docs/roadmap-directions.md). Read those first.
+
 There is **no pytest**. Tests are self-contained `test_*.py` scripts in `services/api/` that spin up their own `TestClient`, assert, print a one-line summary, and exit non-zero on failure.
 
 ## Run

@@ -90,20 +90,23 @@
       "name": "price",
       "label": "Sale price",
       "type": "currency",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "price_per_unit",
       "label": "$/unit",
       "type": "number",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "price_psf",
       "label": "$/SF",
       "type": "number",
       "unit": "$/sf",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "rent_psf",
@@ -116,7 +119,8 @@
       "name": "cap_rate",
       "label": "Cap rate %",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "distance_mi",
@@ -135,7 +139,8 @@
       "name": "land_area",
       "label": "Land area (SF)",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "net_adjustment",

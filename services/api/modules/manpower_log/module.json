@@ -31,25 +31,29 @@
       "name": "date",
       "label": "Date",
       "type": "date",
-      "fieldset": "Dates"
+      "fieldset": "Dates",
+      "default": "@today"
     },
     {
       "name": "count",
       "label": "Headcount",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "headcount",
       "label": "Workers",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "hours",
       "label": "Hours",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "daily_report",

@@ -234,6 +234,14 @@ export interface ModuleField {
    *  converted, or checked. Declaring it makes the number self-describing, which is most of the
    *  difference between a form and a tool. */
   unit?: string;
+  /** MOD-FIELDATTRS — numeric bounds. Rendered as input attributes AND enforced server-side; the
+   *  HTML attribute is advice to one browser and nothing to a CSV import or an integration. */
+  min?: number;
+  max?: number;
+  /** Hint text inside an empty input. Only on types that HAVE a text box to put it in. */
+  placeholder?: string;
+  /** Pre-filled on a NEW record only — re-filling on update would make "empty" unreachable. */
+  default?: string | number | boolean;
   /** MOD-TABLE — the columns of a `table` field (line items). Absent on every other type. */
   columns?: ModuleColumn[];
   /** Numeric column summed into a footer total. Validated server-side to name a numeric column. */
@@ -292,7 +300,10 @@ export interface LifecycleStrip {
   evidence?: Record<string, unknown>;
 }
 
-export interface RoomDef { id: string; label: string; job: string; count: number; modules: string[] }
+/** R31-DESIGN-GROUPS: `groups` is the room's second navigation level, keyed on the same `section`
+ *  that decides the room — one table, refined, never a parallel one. Largest group first. */
+export interface RoomGroup { section: string; count: number; modules: string[] }
+export interface RoomDef { id: string; label: string; job: string; count: number; modules: string[]; groups?: RoomGroup[] }
 export interface RoomAllocation {
   rooms: RoomDef[]; placed: number;
   /** Must always be empty — a module with no room is one nobody can reach. */

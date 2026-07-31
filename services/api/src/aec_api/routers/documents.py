@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 
-from .. import docmanager, folder_template
+from .. import docmanager, filing, folder_template
 from ..db import get_db
 from ..models import Project
 from ..rbac import require_role
@@ -74,6 +74,37 @@ async def documents_upload(pid: str, path: str = Form(...), file: UploadFile = F
                                  cde_state=cde_state, revision=revision)
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@router.post("/projects/{pid}/documents/file-model", status_code=201)
+def documents_file_model(pid: str, title: str = Form("Federated Model"),
+                         discipline: str | None = Form(None), cde_state: str = Form("published"),
+                         db=Depends(get_db), actor: str = Depends(require_role("editor")),
+                         __: None = Depends(_upload_throttle)):
+    """R32-MODEL-IN-TREE — file the project's current `source.ifc` into `12_Model/IFC` as a revision.
+
+    Deliberately an explicit act rather than a hook on the storage write: `source.ifc` is rewritten by
+    every edit recipe, so filing on save would mint a revision per keystroke and make the chain
+    meaningless. Re-filing under the same `title` supersedes the prior revision, so the as-issued model
+    stays recoverable and the current one is what the file manager shows.
+    """
+    _project_or_404(pid, db)
+    try:
+        return filing.file_model(pid, actor, title=title, discipline=discipline, cde_state=cde_state)
+    except filing.NothingToFile as e:
+        raise HTTPException(409, str(e))          # nothing to file is a state, not a bad request
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/projects/{pid}/documents/model-history")
+def documents_model_history(pid: str, db=Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """Every filed revision of the model, newest first, **including superseded ones** — the point of
+    filing the model is that the as-issued version stays recoverable."""
+    _project_or_404(pid, db)
+    revs = filing.filed_model_history(pid)
+    return {"folder": filing.MODEL_FOLDER, "count": len(revs), "revisions": revs,
+            "model_present": filing.has_model(pid)}
 
 
 @router.post("/projects/{pid}/documents/{fid}/move")

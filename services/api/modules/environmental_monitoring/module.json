@@ -18,7 +18,8 @@
       "name": "value",
       "label": "Value",
       "type": "number",
-      "fieldset": "Reading"
+      "fieldset": "Reading",
+      "min": 0
     },
     {
       "name": "date",

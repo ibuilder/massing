@@ -15,6 +15,7 @@ bearing structure without freezing the format.
 "construction|design" so it shows for both the GC and the architect/engineer."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
@@ -35,6 +36,71 @@ FIELD_TYPES = {"text", "number", "currency", "date", "textarea", "select", "mult
 #: is a real feature rather than a column type, and shipping it half-done would put unresolvable ids in
 #: rows, which is the exact defect `refCell` was written to stop.
 TABLE_COLUMN_TYPES = {"text", "number", "currency", "percent", "date", "select", "checkbox"}
+
+#: MOD-GUID — an IFC GlobalId is 22 characters over a fixed base64-ish alphabet (IfcOpenShell's
+#: compressed form of a 128-bit UUID). Anything else in a field labelled "GlobalId" is not one.
+#:
+#: This repo's FIRST non-negotiable is "reference model elements by IFC GlobalId, never by transient
+#: viewer IDs". The three fields that store one were plain `text`, so they accepted "TBD", a truncated
+#: paste, and exactly the transient viewer id the rule forbids — indistinguishably. The rule was
+#: written down and nothing could fail on it.
+#:
+#: THE LEGACY STORY IS ALREADY IN THE ENGINE, which is worth stating because it is easy to assume
+#: otherwise: `validate_record` only checks fields PRESENT in the incoming payload, and `update_record`
+#: passes just the patch. So a record holding a malformed id from before this rule keeps saving as long
+#: as nobody edits that field — the check applies to values being written, not values already stored.
+IFC_GUID_RE = re.compile(r"^[0-9A-Za-z_$]{22}$")
+
+#: Field names whose value IS an IFC GlobalId. Matched by NAME because these fields predate any type
+#: for it; `guids`/`frozen_guids` hold newline- or comma-separated lists.
+_GUID_FIELDS = {"guid", "guids", "frozen_guids", "element_guid", "global_id"}
+
+
+def split_guids(value) -> list[str]:
+    """A GlobalId field's value as a list, whether it holds one or many."""
+    sep = re.compile(r"[\n,;]+")
+    parts = [str(v) for v in value] if isinstance(value, list) else sep.split(str(value or ""))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def guid_errors(name: str, value) -> list[str]:
+    """Every malformed GlobalId, capped at three so one bad paste is not a wall of text."""
+    bad = [g for g in split_guids(value) if not IFC_GUID_RE.match(g)]
+    if not bad:
+        return []
+    out = [f"{name}: {b!r} is not an IFC GlobalId (22 chars over [0-9A-Za-z_$])" for b in bad[:3]]
+    if len(bad) > 3:
+        out.append(f"{name}: …and {len(bad) - 3} more malformed GlobalId(s)")
+    return out
+
+
+def guids_from_fields(data: dict) -> list[str]:
+    """MOD-GUID — the GlobalIds a record's own FIELDS name, for mirroring into `element_guids`.
+
+    TWO STORES HELD ONE FACT. `element_guids` is the record-level column — written by BCF import,
+    clash import, pins and the viewer's anchor-to-selection, and read by `pins.py`, `bcf_io.py` and
+    the 5D map. Three modules ALSO keep a GlobalId in a plain field, and `element_facts._claims`
+    checks both:
+
+        if guid in (row.get("element_guids") or []): return True
+        return str((row.get("data") or {}).get("guid") or "").strip() == guid
+
+    That `or` is the tell: a record could be anchored to element A by its column and element B by its
+    field, with each consumer right about a different element depending on which it read.
+
+    Mirroring on write makes the column a superset — the field stays authoritative for the user (it is
+    what they typed) and every consumer reading the column now sees it too. Additive, so nothing that
+    already anchors a record loses its anchor. Only WELL-FORMED ids are mirrored: a malformed one is
+    already reported by `validate_record`, and copying it into the one place every consumer trusts
+    would spread the bad value rather than contain it.
+    """
+    out: list[str] = []
+    for name in _GUID_FIELDS:
+        v = data.get(name)
+        if v:
+            out.extend(g for g in split_guids(v) if IFC_GUID_RE.match(g))
+    return out
+
 
 #: Types that hold a magnitude, and so are the only ones a `unit` or a numeric check applies to.
 #: Defined here rather than beside `validate_record` because `validate_module` needs it first.
@@ -92,6 +158,23 @@ class FieldDef(BaseModel):
     # (`elevation_ft`, `expected_life_years`). A unit in a name is readable only by a human: it cannot
     # be rendered beside an input, appended to a table cell, converted, or validated.
     unit: str | None = None
+    # ---- MOD-FIELDATTRS — the rest of the field vocabulary -------------------------------------
+    #
+    # `min`/`max`/`placeholder` CONSTRAIN or EXPLAIN a value the user supplies. `default` is different
+    # in kind: it WRITES A VALUE NOBODY CHOSE, and a wrong one is invisible because it looks
+    # deliberate. Default `retainage_pct` to 10 and every record on a 5% job silently carries the
+    # wrong number, formatted correctly, in the right field. That is this codebase's signature defect
+    # — the plausible answer for the missing case — so `default` is deliberately rare in the shipped
+    # modules and is restricted here to facts that are true of the RECORD rather than of a policy.
+    #
+    # Bounds are enforced SERVER-SIDE in `validate_record`, not only rendered as input attributes: an
+    # HTML `min` is a hint to a browser and nothing to a script, a CSV import, or an integration.
+    min: float | None = None
+    max: float | None = None
+    placeholder: str | None = None
+    #: Pre-filled on a NEW record only. Never applied on update — re-filling a field the user just
+    #: cleared would make "empty" unreachable.
+    default: str | float | bool | None = None
     # rollup wiring (type == "rollup")
     source_module: str | None = None
     source_field: str | None = None
@@ -221,6 +304,34 @@ def validate_module(mod: dict, *, known_modules: set[str] | None = None,
             errors.append(f"{key}.{f.name}: {f.type} field has no options")
         if f.unit and f.type not in _NUMERIC_TYPES:
             errors.append(f"{key}.{f.name}: unit {f.unit!r} on a {f.type} field (units are numeric)")
+        # ---- MOD-FIELDATTRS ----------------------------------------------------------------------
+        if (f.min is not None or f.max is not None) and f.type not in _NUMERIC_TYPES:
+            errors.append(f"{key}.{f.name}: min/max on a {f.type} field (bounds are numeric)")
+        if f.min is not None and f.max is not None and f.min > f.max:
+            # An inverted range accepts NOTHING, and reads as a typo nobody notices until a save fails.
+            errors.append(f"{key}.{f.name}: min {f.min} is greater than max {f.max}")
+        if f.placeholder and f.type in ("select", "multiselect", "checkbox", "table", "rollup",
+                                        "signature", "reference", "file"):
+            # A placeholder is hint text INSIDE an empty text box. On a dropdown or a grid there is no
+            # box to put it in, so it would be declared and never rendered.
+            errors.append(f"{key}.{f.name}: placeholder on a {f.type} field has nowhere to render")
+        if f.default is not None:
+            if f.type in ("rollup", "signature", "table", "file", "reference"):
+                # A default reference would invent a link; a default signature would forge an
+                # attestation. Neither is a value a config file gets to supply.
+                errors.append(f"{key}.{f.name}: a {f.type} field cannot have a default")
+            elif f.type in _NUMERIC_TYPES:
+                try:
+                    d = float(f.default)
+                except (TypeError, ValueError):
+                    errors.append(f"{key}.{f.name}: default {f.default!r} is not a number")
+                else:
+                    if f.min is not None and d < f.min:
+                        errors.append(f"{key}.{f.name}: default {d} is below min {f.min}")
+                    if f.max is not None and d > f.max:
+                        errors.append(f"{key}.{f.name}: default {d} is above max {f.max}")
+            elif f.type == "select" and f.options and str(f.default) not in f.options:
+                errors.append(f"{key}.{f.name}: default {f.default!r} is not one of the options")
         # ---- MOD-TABLE ----------------------------------------------------------------------------
         if f.type == "table":
             if not f.columns:
@@ -313,11 +424,24 @@ def validate_record(mod: dict, data: dict) -> list[str]:
             continue                          # unknown key or empty -> skip (partial update / clear)
         if f.get("type") in _NUMERIC_TYPES:
             try:
-                float(value)
+                n = float(value)
             except (TypeError, ValueError):
                 errors.append(f"{name}: {value!r} is not a number")
+            else:
+                # MOD-FIELDATTRS — bounds enforced HERE, not only as HTML input attributes. An HTML
+                # `min` is advice to one browser and nothing at all to a CSV import, an integration
+                # or a script, which is how out-of-range values get in.
+                lo, hi = f.get("min"), f.get("max")
+                if lo is not None and n < float(lo):
+                    errors.append(f"{name}: {n:g} is below the minimum {float(lo):g}")
+                if hi is not None and n > float(hi):
+                    errors.append(f"{name}: {n:g} is above the maximum {float(hi):g}")
         elif f.get("type") == "table":
             errors.extend(_table_errors(name, f, value))
+        elif name in _GUID_FIELDS:
+            # MOD-GUID: the only place that can tell a GlobalId from the transient viewer id the
+            # non-negotiable forbids — a viewer id is a small integer, a GlobalId is 22 characters.
+            errors.extend(guid_errors(name, value))
     return errors
 
 

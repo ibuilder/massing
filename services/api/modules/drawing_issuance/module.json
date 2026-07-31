@@ -1,7 +1,7 @@
 {
   "key": "drawing_issuance",
   "name": "Drawing Issuances",
-  "section": "Engineering",
+  "section": "Drawings",
   "icon": "📤",
   "ref_prefix": "ISS",
   "title_field": "number",
@@ -74,7 +74,8 @@
       "name": "sheet_count",
       "label": "Sheets",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "description",

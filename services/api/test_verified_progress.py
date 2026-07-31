@@ -51,9 +51,13 @@ with TestClient(app) as tc:
                 json={"data": {"name": "Columns", "trade": "Structure", "percent": 100}})
     assert a.status_code in (200, 201), a.text[:200]
     # two field-verification records (installed as the module's default 'captured' state)
-    for g in ("gA", "gB"):
+    # MOD-GUID: real 22-char GlobalIds. These were "gA"/"gB" — placeholders that read as element ids
+    # but could not be one, which is exactly what the field now rejects. The `elements`/`acts` fixtures
+    # above keep their short ids on purpose: they exercise the pure rollup, which never sees a module
+    # record, and shortening them there would hide that the check lives on the WRITE path.
+    for g in ("1kTvXnbbzCWw8lcMd1dR4o", "0Ln$JgLR9ETfP2m3nQrStU"):
         rr = tc.post(f"/projects/{pid}/modules/field_verification",
-                     json={"data": {"guid": g, "element": f"C-{g}", "ifc_class": "IfcColumn"}})
+                     json={"data": {"guid": g, "element": f"C-{g[:4]}", "ifc_class": "IfcColumn"}})
         assert rr.status_code in (200, 201), rr.text[:200]
     # the endpoint responds with a rollup shape (records counted) even before a published element index
     r = tc.get(f"/projects/{pid}/verified-progress")

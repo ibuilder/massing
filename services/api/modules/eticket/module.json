@@ -19,13 +19,15 @@
       "label": "Date of Work",
       "type": "date",
       "required": true,
-      "fieldset": "Dates"
+      "fieldset": "Dates",
+      "default": "@today"
     },
     {
       "name": "labor_total",
       "label": "Labor",
       "type": "currency",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "labor_lines",
@@ -86,7 +88,8 @@
       "name": "material_total",
       "label": "Material",
       "type": "currency",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "material_lines",
@@ -127,7 +130,8 @@
       "name": "equipment_total",
       "label": "Equipment",
       "type": "currency",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "equipment_lines",
