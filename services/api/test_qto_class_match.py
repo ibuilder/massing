@@ -82,6 +82,29 @@ for r in wall_rows:
 slab_rows = [r for r in rows if r["ifc_class"] == "IfcSlab"]
 assert slab_rows and slab_rows[0]["matched_class"] is None, slab_rows
 
+# --- the chain is MEMOISED, and the memo must not become a way to corrupt callers ------------------
+# Reviewed into existence: `_class_chain` ran the schema walk once per element for an answer that
+# depends only on (schema, class). The cache is a consistency change, NOT a speedup — measured at 0.92%
+# of a first takeoff on a 10,001-element model — so nothing below asserts a timing. What it does assert
+# is the two ways a memo silently goes wrong.
+t = qto._chain_for("IFC4", "IfcWallStandardCase")
+assert isinstance(t, tuple), f"a cached chain must be immutable, got {type(t)}"
+_a = qto._class_chain(model, "IfcWallStandardCase")
+_a.append("MUTATED")
+assert "MUTATED" not in qto._class_chain(model, "IfcWallStandardCase"), \
+    "a caller mutated the SHARED cache entry — every later lookup would carry its edit"
+
+# The memo must actually be consulted. A cache that is never hit is not a slow cache, it is a silent
+# no-op that reads as done: this fails if the key stops matching or the call path bypasses it.
+qto._chain_for.cache_clear()
+_rows = qto.takeoff(model, {"IfcWall": row}, geometry_fallback=False)
+_ci = qto._chain_for.cache_info()
+assert _ci.hits > 0, f"the chain memo was never hit ({_ci}) — key mismatch or bypassed call path"
+# `takeoff` hoists `model.schema` out of its loop: it is a wrapper property (~5.3us) not an attribute
+# (~0.2us dict hit), so reading it per element costs 26x the lookup it feeds. Passing the name must not
+# change the ANSWER — only who pays for the key.
+assert qto.cost_code_for(model, w, {"IfcWall": row}, "IFC4") == qto.cost_code_for(model, w, {"IfcWall": row})
+
 print("QTO CLASS MATCH OK - a cost map keyed `IfcWall` now prices IfcWallStandardCase walls, which it "
       "silently did not: the exact-string match returned None and the walls came back UNCODED, so a "
       "takeoff missing every wall was indistinguishable from a project with no cost data configured "
