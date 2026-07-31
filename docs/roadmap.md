@@ -54,7 +54,7 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**51 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+**50 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
 merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
@@ -181,8 +181,7 @@ written) and **R22-PHOTO-CV**.
 
 ✅ **R34-TAKEOFF-COUNT — SHIPPED (#139, `29c26f27`); it was still listed here.** The platform had **no count measure at all**: every assembly was `area` or `length`, so a door, fixture, receptacle or sprinkler head — the thing an estimator counts most often — could not be taken off a drawing. Now a third measure, and **a count is never scaled**: area goes as scale², length as scale¹, and six doors are six doors at any sheet scale. Making it a third *measure* rather than a third *unit* is what makes that structural instead of remembered. Verified present: 13 count refs in `takeoff2d.py`, `test_takeoff_count` registered.
 
-⭐ **R22-PRODUCTION** (L) field production against model quantities · ⭐ **R23-CONSTRAINTS** (L) dimensional locks on scipy ·
-**R22-CAD-IMPORT** (M) · **R22-ENTITLEMENT** (M/L) · **R31-PIPELINE-ALLOCATE** (L) ·
+⭐ **R22-PRODUCTION** (L) field production against model quantities · **R22-CAD-IMPORT** (M) · **R22-ENTITLEMENT** (M/L) · **R31-PIPELINE-ALLOCATE** (L) ·
 **R22-REPORT-BUILDER** (M) · **R22-PIPELINE** (M) · **R21-DIM-COMPONENT** (M) · **R21-MULTISCALE** (S) ·
 **R21-SPACE-TAG-SECT** (S) · **R21-4D-CLASH** (phase 2)
 
@@ -233,7 +232,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R31-PIPELINE-ALLOCATE · R22-PHOTO-CV · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
@@ -585,7 +584,8 @@ a gate is a hypothesis until someone tests it.* See [[check-the-blocker-premise]
 **Tier 1 — measure, then take the cheap wins.** *Every item below is unverifiable until R23-PERF-TEST
 exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions.*
 
-- ⭐ **R23-CONSTRAINTS** *(L)* — W10-9 via **scipy's `least_squares`, which is already a dependency**
+- ✅ **R23-CONSTRAINTS — SHIPPED; the band row was stale.** Verified 2026-07-31 against the code, not the entry: `services/data/src/aec_data/dim_constraints.py` solves dimensional locks as a **linear least-squares system with priority tiers**, reached at `POST /projects/{pid}/constraints/solve` (`analysis.py:522,542`), with `test_dim_constraints` registered and passing. **No new dependency was added** — the module's own docstring records why: the roadmap had unblocked this by accepting `kiwisolver`, and that reasoning was right about the *shape* and wrong about the *need*, since `lstsq`'s **rank** is the degrees of freedom and its **residual** is whether a tier is satisfiable — the two numbers the UX actually needs. *(Original entry below.)*
+- ~~**R23-CONSTRAINTS**~~ *(L)* — W10-9 via **scipy's `least_squares`, which is already a dependency**
   (`services/api/requirements.in:27` and `services/data/requirements.txt:8`, both `scipy>=1.11`).
   This entry said "via kiwisolver + least_squares" until 2026-07-29. **`kiwisolver` is NOT a
   dependency of this repo** — so the entry pointed at a package someone would have had to add, in a
