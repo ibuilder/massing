@@ -47,6 +47,13 @@ Phase 0 smoke tests → 1 conversion → 2 large-model → 3 viewer/tools → 4 
 - Backend suite runs **from `services/api`**, never the repo root — the root exits 127 and reports
   "0 failures", which reads exactly like a pass.
 
+## Directions come before the roadmap
+**Read [`docs/roadmap-directions.md`](docs/roadmap-directions.md) first**, then the lane table, then an
+item from `docs/roadmap.md`. The directions carry the non-negotiables, the shared-clone hazards, the
+testing and release discipline, and what "done" means. They were split out of the roadmap on
+2026-07-31 so the roadmap could stay a clean list of work — if a rule seems to be missing from the
+roadmap, it is in the directions.
+
 ## Verify, don't recall
 Long sessions drift: instructions written early lose influence, and stale file contents linger in
 context beside current ones. The countermeasure is not a better memory, it is **checks that fail**:

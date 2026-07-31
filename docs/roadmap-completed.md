@@ -1,5 +1,8 @@
 # Roadmap — completed / shipped archive
 
+*Working conventions live in [roadmap-directions.md](roadmap-directions.md); open work lives in
+[roadmap.md](roadmap.md). This file is what shipped, and why.*
+
 Historical reference: everything **already shipped**. The single **open** backlog lives in
 [roadmap.md](roadmap.md) ("What's left"). Nothing here is a to-do — it's the record of what was built,
 wave by wave and track by track, so the working roadmap can stay lean. Sections are in rough

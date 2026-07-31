@@ -5,6 +5,8 @@ description: How to monitor and fix security issues in Massing — CodeQL alerts
 
 # Security monitoring — Massing
 
+> Standing directions for this repo: [docs/roadmap-directions.md](../../../docs/roadmap-directions.md). Read those first.
+
 Standing directive: **check CodeQL after every push and fix any HIGH that appears.**
 
 ## CodeQL — check ALERTS, not run status

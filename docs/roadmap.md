@@ -39,28 +39,96 @@ work**.
 
 ---
 
+## 📌 START HERE
+
+1. **[roadmap-directions.md](roadmap-directions.md)** — non-negotiables, how to verify, shared-clone
+   hazards, lanes, testing, release discipline, what "done" means. **Read before touching anything.**
+2. **[What is left, prioritised](#-what-is-left--prioritised)** — the ranked view, below.
+3. **[The lanes](#-now--parallel-lanes)** — who owns which paths, so two agents do not collide.
+4. **[roadmap-completed.md](roadmap-completed.md)** — what shipped, and why it was built that way.
+
+*This file is the list of work. It is not the place for working conventions — those drifted into it
+over several months and were moved out on 2026-07-31 so this could stay readable.*
+
+---
+
+## 🥇 What is left — prioritised
+
+**63 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
+
+### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
+
+| item | size | why it is first |
+|---|---|---|
+| ⭐ **R33-CLAWBACK-AMOUNT** | S | The GP giveback is a rate times a principal with **no time dimension** — understates the true shortfall **5.8x** on an ordinary 5-year deal, and skips entirely in the 26% of deals where XIRR has no root. Real money, wrong today. |
+| ⭐ **SEC-PLUGIN-SANDBOX** | L | Plugin Python executes **inside the API process**. The blast radius is the whole service. |
+| **R34-SHEET-SCALE** | S | One scale is applied to a whole plan set; a differently-scaled detail sheet is wrong **by the ratio**, silently, with a plausible number out. |
+| **R23-PICKING** | M | ⚠️ premise already corrected — **do not build on the stated evidence.** Re-scope or close. |
+
+### Band 2 — built but unreachable (cheapest real value in the file)
+
+Seven of eleven engines once shipped with no route. These are the current instances.
+
+| item | size | the gap |
+|---|---|---|
+| ⭐ **R32-FILE-GENERATED** | M | `sheetgen`/`specmanual`/`drawingset`/`issuance` have **zero** references to `docmanager`. Generated drawings and specs never enter the controlled tree — no revision, no supersession, invisible in the file manager. |
+| **R32-MODEL-IN-TREE** | S | Two parallel stores: the model at `{pid}/source.ifc`, documents at `{pid}/docs/`. No folder hosts the model or the generated output. |
+| **R32-CURRENT-SET** | S | The drawings display reads the registers, not the document tree, so "only the current set" is not enforced where field users look. |
+| **R24-TRACE-UI ②** | L | Backend. Make the proforma emit its own derivation — each figure carrying its inputs and a *model-derived / overridden / market-assumption* tag. Independently corroborated as the industry's real gap. |
+| **R27-LAYOUT ①** | S | The sheet layout is written and never read back. |
+
+### Band 3 — gap-checks (hours, not days; each may close for free)
+
+**R31-SYNDICATION-TAIL** (M) · **R31-CITE-HIGHLIGHT** (S) · **R22-ITP-NCR** (M) · **R27-SKILL-GAP** (S)
+· **R22-PROCURE-DEPTH** (M)
+
+Every one of these is "verify the premise, then build only the remainder". The running score on this
+repo is that **most premises are already built** — a dozen so far — so these are the highest
+value-per-hour items in the file. Do them before anything in Band 4.
+
+### Band 4 — capability the product is judged on
+
+⭐ **R22-PRODUCTION** (L) field production against model quantities · ⭐ **R34-TAKEOFF-COUNT** (M) *the
+platform has no count measure at all* · ⭐ **R23-CONSTRAINTS** (L) dimensional locks on scipy ·
+**R22-CAD-IMPORT** (M) · **R22-ENTITLEMENT** (M/L) · **R31-PIPELINE-ALLOCATE** (L) ·
+**R22-REPORT-BUILDER** (M) · **R22-PIPELINE** (M) · **R21-DIM-COMPONENT** (M) · **R21-MULTISCALE** (S) ·
+**R21-SPACE-TAG-SECT** (S) · **R21-4D-CLASH** (phase 2)
+
+### Band 5 — interface and feel
+
+⭐ **R24-PERF-BUDGET** (S) · ⭐ **R24-CMDK-VERBS** (M) · ⭐ **R24-ELEMENT-CARD ②** (M) ·
+**R24-RUNS-INBOX** (M) · **R24-DENSITY ②** (M) · **R24-FIELD-MODE** (L) · **R24-CHARTS-GRAMMAR** ·
+**R24-REPORTS-BY-MOMENT** · **R24-TOOLS-SPLIT** (S) · **R24-TERMS** (S) · **R24-MONO-DATA** (S) ·
+**UX-READINESS-EVERYWHERE** (M) · **UX-DUP-DESTINATIONS** (S) · **UX-GANTT** (M) · **UX-VIEWED** (S) ·
+**UX-AR** (S) · the five **A29** authoring-feel items · **R23-BATCH-OVERLAYS** (S)
+
+### Band 6 — platform and format
+
+**R28-UNIFY ①** · **R28-BUNDLE ②** · **R28-ICDD ③** · **R28-VIEWER ④** · **PERF-WORKERS ①** ·
+**PERF-RATE ②** · **PERF-THREADS ③** · **R23-STOREY-LOD** (L) · **SCALE-SEAM ⑥** ·
+**R34-MEASURE-PROVENANCE** (S) · **R22-AGENT-PACKS** (M) · **R22-ROUTINES** (S) ·
+**R22-OPTION-OBJECT** (S/M) · **R22-PM-CONTRACTS** (M) · **R22-PUBLIC-VIEWER** (S) ·
+**R23-SYMBOL-COUNT** (M) · **R22-PROVENANCE** (L)
+
+### Parked — needs a decision, not an engineer
+
+**R32-TAXONOMY-LIFECYCLE** (the user has since answered: derive the document taxonomy from the seven
+rooms) · **R24-PERSONA-SHAPE** · **R24-IDENTITY** · **R26-V-TIMING** · **QUALITY-ROOM** ·
+**PHOTO-PIN** and **CMMS-OPS** (BIG-TICKET: open **one**, slice it) · **REL-7** (gated on RT-KNIP).
+
+---
+
 ## ▶ NOW — parallel lanes *(rebuilt 2026-07-29 at v0.3.785)*
 
-The previous NOW list — eight items, v0.3.773–777 — is closed and archived in
-[roadmap-completed.md](roadmap-completed.md). Seven shipped; **R27-UW-PANEL was closed unbuilt**
-because its premise did not survive the offline constraint, recorded rather than deleted so the idea
-is not re-proposed next quarter.
+**How to work here lives in [roadmap-directions.md](roadmap-directions.md), not in this file.** Claim a
+lane rather than an item, premise-check before building, announce before a full suite, and land what
+you finish. Those rules and the reasons behind them are in the directions; this section is only the
+lane assignment.
 
-**This section is organised by LANE rather than by priority, because the constraint changed.** Four
-sessions work this repo concurrently. A single ranked list is the wrong shape for that: it serialises
-work with no reason to be serial, and — as happened twice on 2026-07-29 — it leaves finished work
-sitting uncommitted in a shared tree while somebody else edits around it.
-
-### How to use this
-
-1. **Claim a lane, not an item.** Lanes are disjoint by *file path*. Two sessions in one lane collide;
-   two in different lanes do not.
-2. **Land what you finish.** Do not leave completed work dirty in the tree — it is one `git add -A`
-   from being committed by someone who has not read it.
-3. **Version files and CHANGELOG belong to whoever holds the release**, not to the lane. Ship without
-   them and let the batch pick them up, or take the release yourself — but say which.
-4. **Check the premise before building.** Six of seven roadmap premises checked on 2026-07-28 were
-   wrong. See the Practice note below; it has cost more than any other habit here.
+**Organised by LANE rather than by priority**, because several sessions work concurrently and a single
+ranked list serialises work with no reason to be serial. For a ranked view of the same items, see
+**[What is left, prioritised](#-what-is-left--prioritised)** above.
 
 ### The lanes
 

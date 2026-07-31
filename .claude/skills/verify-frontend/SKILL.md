@@ -5,6 +5,8 @@ description: How to verify Massing web/viewer UI changes given that the dev-prev
 
 # Verify a Massing frontend change
 
+> Standing directions for this repo: [docs/roadmap-directions.md](../../../docs/roadmap-directions.md). Read those first.
+
 **The "preview stall" was diagnosed and FIXED in v0.3.703 — it was never the geometry loader.** Five
 SSE endpoints polled the database inside `async def gen()`, blocking the event loop for every other
 client; two open tabs left the server wedged and *every* request timed out, including the app's boot
