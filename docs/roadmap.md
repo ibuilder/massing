@@ -975,7 +975,8 @@ viewport frames, table rules are **paths**, not inferred shapes. So the first im
 deterministic geometry over `pypdf`'s content stream, not detection. Detection is what you need when
 you have thrown the vectors away; we mostly have not. Rasters fall back to "unknown", stated.
 
-* **R27-LAYOUT ① — the layout is written but never read back.** *(Corrected after checking the code:
+* ✅ **R27-LAYOUT ① — DONE; both halves shipped (v0.3.702 + v0.3.778).** *Was: the layout is written but
+  never read back.* *(Corrected after checking the code:
   the first draft of this item said "add `sheet_layout.py`". That module already exists —
   [sheet_layout.py](../services/data/src/aec_data/sheet_layout.py), and it is good — but it runs in
   the **write** direction: it composes viewport rectangles, fixed 1:N paper scales, per-viewport class
