@@ -24,7 +24,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Session
 
-from . import fin_gov, rbac
+from . import fin_gov, module_schema, rbac
 from .models import EnumOption, RecordActivity, RecordComment
 
 # the read + workflow-evaluation base is a leaf over the registry (no writes, no cycles); re-exported
@@ -208,7 +208,13 @@ def create_record(db: Session, key: str, project_id: str, body: dict, actor: str
         "workflow_state": mod.get("workflow", {}).get("initial", "open"),
         "party_owner": party, "assignee": body.get("assignee"),
         "created_by": actor, "created_at": _now(), "modified_at": _now(),
-        "anchor": body.get("anchor"), "element_guids": body.get("element_guids"),
+        # MOD-GUID: the union of what the caller anchored and what the record's own GlobalId fields
+        # name, so the canonical column can never be a subset of the record's own data. `or` keeps a
+        # caller-supplied None as None rather than turning it into [].
+        "anchor": body.get("anchor"),
+        "element_guids": (sorted({*(body.get("element_guids") or []),
+                                  *module_schema.guids_from_fields(data)})
+                          or body.get("element_guids")),
         "links": body.get("links") or [], "data": data,
     }
     db.execute(insert(t).values(**row))
@@ -808,7 +814,20 @@ def update_record(db: Session, key: str, project_id: str, rid: str, data: dict,
     if (why := fin_gov.locked_reason(key, project_id, rec.get("data"))
             or fin_gov.locked_reason(key, project_id, merged)):
         raise HTTPException(409, why)
-    db.execute(update(t).where(t.c.id == rid).values(data=merged, modified_at=_now()))
+    # MOD-GUID: keep `element_guids` in step with the record's own GlobalId fields. Create-only
+    # mirroring would have missed the ordinary case — file the record, add the GlobalId when you get
+    # back from the field — and left the two stores disagreeing exactly when someone CORRECTS a
+    # mistyped id: the old value would sit in the column forever.
+    #
+    # Not a blind union. Subtract what this record's fields contributed BEFORE, then add what they
+    # contribute now, so a correction moves the anchor while a GlobalId set by another route (a pin,
+    # a BCF import, anchor-to-selection) is untouched — those were never ours to remove.
+    vals = {"data": merged, "modified_at": _now()}
+    was, now = module_schema.guids_from_fields(rec.get("data") or {}), module_schema.guids_from_fields(merged)
+    if was != now:
+        col = (set(rec.get("element_guids") or []) - set(was)) | set(now)
+        vals["element_guids"] = sorted(col) or None
+    db.execute(update(t).where(t.c.id == rid).values(**vals))
     _log(db, project_id, key, rid, actor, party, "update", {"fields": list(data.keys())})
     db.commit()
     return get_record(db, key, project_id, rid)

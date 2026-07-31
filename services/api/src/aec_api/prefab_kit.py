@@ -107,11 +107,15 @@ def parse_guids(text: Any) -> list[str]:
     """The frozen list, from a textarea. Newline or comma separated, deduped, order preserved.
 
     Order-preserving rather than sorted: the list is a shop document as much as a data structure, and
-    the order somebody wrote it in is information."""
-    if isinstance(text, (list, tuple)):
-        raw = [str(t) for t in text]
-    else:
-        raw = str(text or "").replace(",", "\n").split("\n")
+    the order somebody wrote it in is information.
+
+    MOD-GUID: the separators are defined once, in `module_schema.split_guids`, because this was the
+    second reader of the same format. Two readers of one format drift — and they drift in the worst
+    direction, where one accepts a separator the other silently folds into a single token, so a list
+    of forty elements validates as one malformed id or, worse, freezes as one.
+    """
+    from .module_schema import split_guids
+    raw = split_guids(text)
     out, seen = [], set()
     for tok in raw:
         g = tok.strip()

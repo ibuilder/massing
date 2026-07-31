@@ -174,6 +174,22 @@ been a bug nobody could locate.
   by `cost.g703` rather than stored. That is the last structural item from §6.
 - **A `reference` column type for tables.** Deliberately excluded (see `TABLE_COLUMN_TYPES`) because a
   picker per row is a real feature and shipping it half-done would put unresolvable ids in rows.
-- **The element link (`§5 T4`).** Ten registers describe things that *are* model elements and only
-  three carry a GUID, all as plain text. This is the largest remaining gap between the platform's
-  stated premise and the layer users touch.
+- ~~**The element link (`§5 T4`).**~~ **Shipped as `MOD-GUID`.** Three defects, and the second was
+  the one worth having:
+  1. All three GlobalId fields were plain `text`, so `"TBD"`, a truncated paste and a *transient
+     viewer id* — the thing the repo's first non-negotiable forbids by name — were indistinguishable
+     from a real one. The rule was prose, and prose cannot fail.
+  2. **Two stores held one fact.** `element_facts._claims` checked `element_guids` **or**
+     `data["guid"]`, so a record could be anchored to element A by its column and element B by its
+     field, with each consumer correct about a different element. It also read only the *singular*
+     `guid`, so `material_request.guids` and `prefab_kit.frozen_guids` never matched at all.
+  3. `parse_guids` was a second reader of the same list format, defined independently.
+
+  **This item was written once and pulled, for a reason that turned out to be wrong.** The stated
+  reason was that it had no legacy story — that live records holding a malformed id would become
+  un-saveable. They would not: `update_record` validates only the fields in the patch, so an
+  untouched bad value keeps saving. The blast radius was also given as ~25 test files; it was **one**
+  (`test_verified_progress`), the rest being element-level fixtures that never reach the module
+  engine. Both figures came from pattern-matching rather than reading, which is the same failure the
+  work itself is about: a confident answer where the honest one was "I have not checked". The claim
+  is now `test_guid_integrity` §2 rather than a belief.
