@@ -8,11 +8,19 @@
  */
 
 type Pt = [number, number];
-type Region = { category: string; points: Pt[]; label?: string };
+/** R34-SHEET-SCALE: a region carries **the scale it was traced under**, not the scale that happens to be
+ *  current when Quantify is pressed. A takeoff spans sheets at different scales (plans at 1/8"=1', details
+ *  at 1/2"=1'), and this overlay keeps one `scale` that recalibration overwrites — so without this stamp,
+ *  recalibrating for a detail sheet silently **re-measured every region already traced on the plan**, at
+ *  a ratio-wrong scale, with a plausible number as the output. The server has accepted a per-region
+ *  `scale_units_per_px` since R34-MEASURE-PROVENANCE; nothing was ever setting it. */
+type Region = { category: string; points: Pt[]; label?: string; scale_units_per_px?: number };
 type QuantifyResult = {
   region_count: number; total_cost: number; unit: string;
+  provenance?: { scales_used?: number[] };
   regions: { index: number; category: string; assembly: string; measure: string; quantity: number;
-             unit: string; rate: number; cost: number }[];
+             unit: string; rate: number; cost: number;
+             scale_applied?: number; scale_source?: "region" | "call" }[];
   by_assembly: { category: string; assembly: string; unit: string; quantity: number; cost: number; count: number }[];
   assemblies: { category: string; measure: string; rate: number; label: string; unit: string | null }[];
 };
@@ -91,6 +99,17 @@ export function openTakeoff2d(opts: Takeoff2dOpts): void {
   let draft: Pt[] = [];                  // in-progress polygon (trace) or calibration points
   let calPts: Pt[] = [];
 
+  /** Commit a traced/filled polygon, stamping the scale **in force at trace time**. `ensureReady()` gates
+   *  both trace and fill on a calibrated scale, so `scale` is always > 0 here; the guard is kept so a
+   *  future caller cannot introduce a 0 that would silently re-enable the whole-set fallback. */
+  const addRegion = (points: Pt[]) => {
+    const r: Region = { category: catSel.value, points };
+    if (scale > 0) r.scale_units_per_px = scale;
+    regions.push(r);
+    draw();
+    setStatus(`region added (${regions.length}) @ ${scale.toFixed(4)} ${unit}/px`);
+  };
+
   const setStatus = (t: string) => { status.textContent = t; };
   const setMode = (m: Mode) => {
     mode = m; draft = []; calPts = [];
@@ -150,7 +169,14 @@ export function openTakeoff2d(opts: Takeoff2dOpts): void {
         const c0 = calPts[0]!, c1 = calPts[1]!;
         const dpx = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]);
         const real = parseFloat(prompt(`Real distance between the two points, in ${unit}:`, "5") || "0");
-        if (dpx > 0 && real > 0) { scale = real / dpx; opts.notify(`scale set: ${scale.toFixed(4)} ${unit}/px`, "success"); }
+        if (dpx > 0 && real > 0) {
+          scale = real / dpx;
+          // Say what recalibration does NOT do. Regions already traced keep the scale they were traced
+          // under, so switching sheets mid-takeoff is safe — but that is only obvious if it is stated.
+          opts.notify(regions.length
+            ? `scale set: ${scale.toFixed(4)} ${unit}/px — applies to new regions; the ${regions.length} already traced keep theirs`
+            : `scale set: ${scale.toFixed(4)} ${unit}/px`, "success");
+        }
         setMode("idle");
       }
       draw();
@@ -158,15 +184,15 @@ export function openTakeoff2d(opts: Takeoff2dOpts): void {
       draft.push(p); draw();
     } else if (mode === "fill") {
       const poly = floodFillPolygon(ctx, canvas.width, canvas.height, p[0], p[1]);
-      if (poly.length >= 3) { regions.push({ category: catSel.value, points: poly }); draw(); setStatus(`region added (${regions.length})`); }
+      if (poly.length >= 3) { addRegion(poly); }
       else opts.notify("no enclosed area found there", "error");
     }
   };
-  canvas.ondblclick = () => { if (mode === "trace" && draft.length >= 3) { regions.push({ category: catSel.value, points: draft.slice() }); draft = []; draw(); setStatus(`region added (${regions.length})`); } };
+  canvas.ondblclick = () => { if (mode === "trace" && draft.length >= 3) { addRegion(draft.slice()); draft = []; draw(); } };
   window.addEventListener("keydown", onKey);
   function onKey(e: KeyboardEvent) {
     if (!overlay.isConnected) { window.removeEventListener("keydown", onKey); return; }
-    if (e.key === "Enter" && mode === "trace" && draft.length >= 3) { regions.push({ category: catSel.value, points: draft.slice() }); draft = []; draw(); }
+    if (e.key === "Enter" && mode === "trace" && draft.length >= 3) { addRegion(draft.slice()); draft = []; draw(); }
     if (e.key === "Escape") { if (draft.length) { draft = []; draw(); } else overlay.remove(); }
   }
 
@@ -261,6 +287,23 @@ function segDist(p: Pt, a: Pt, b: Pt): number {
   return Math.abs((p[0] - a[0]) * dy - (p[1] - a[1]) * dx) / len;
 }
 
+/** R34-SHEET-SCALE: say **how many scales** the total was measured across.
+ *
+ *  A mixed-scale takeoff is legitimate — that is the whole point of stamping scale per region — but it is
+ *  also the state in which a mis-calibrated sheet hides best, because every number stays plausible. One
+ *  scale is the ordinary case and needs no comment; more than one is worth a glance before the total is
+ *  quoted. All values here are server-computed numbers, so they are safe to interpolate (per the
+ *  `innerHTML` escaping rule, numerics need no `esc()`; free text would). */
+function scaleNote(res: QuantifyResult): string {
+  const used = res.provenance?.scales_used || [];
+  if (used.length < 2) return "";
+  const lo = Math.min(...used), hi = Math.max(...used);
+  return `<div class="meta" style="margin-top:6px;font-size:11px">`
+    + `📐 measured across <strong>${used.length} scales</strong> `
+    + `(${lo.toFixed(4)}–${hi.toFixed(4)} ${res.unit}/px) — each region priced at the scale it was traced under.`
+    + `</div>`;
+}
+
 function renderResults(host: HTMLElement, res: QuantifyResult) {
   const rows = res.by_assembly.map((a) =>
     `<tr><td>${a.assembly}</td><td style="text-align:right">${a.quantity.toLocaleString()} ${a.unit}</td>`
@@ -269,5 +312,6 @@ function renderResults(host: HTMLElement, res: QuantifyResult) {
     + `<table style="width:100%;border-collapse:collapse;font-size:12px">`
     + `<tr style="opacity:.7"><th style="text-align:left">Assembly</th><th style="text-align:right">Qty</th><th style="text-align:right">Cost</th></tr>`
     + rows + `</table>`
+    + scaleNote(res)
     + `<div class="meta" style="margin-top:8px;font-size:10px;opacity:.65">Preliminary — trace/scale dependent; verify against the model takeoff where a model exists.</div>`;
 }

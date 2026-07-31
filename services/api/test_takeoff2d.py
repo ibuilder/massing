@@ -55,6 +55,36 @@ assert unknown["regions"][0]["assembly"] == T.TAKEOFF_ASSEMBLIES["generic_area"]
 r2 = T.quantify([{"category": "floor_slab", "points": sq}], 0.10)
 assert abs(r2["regions"][0]["quantity"] - 100.0) < 1e-6, r2["regions"][0]["quantity"]
 
+# --- R34-SHEET-SCALE: a region is measured at the scale it was TRACED under -------------------------
+# A takeoff spans sheets at different scales (plan at 1/8"=1', detail at 1/2"=1'). The engine has
+# accepted a per-region `scale_units_per_px` since R34-MEASURE-PROVENANCE, but nothing set it and
+# nothing tested it, so the property was never actually pinned. Value-checked, not range-checked: the
+# failure mode here is a *plausible* number, so `> 0` would have passed throughout the bug's life.
+mixed = T.quantify([{"category": "floor_slab", "points": sq},                                 # call scale
+                    {"category": "floor_slab", "points": sq, "scale_units_per_px": 0.10}],     # own scale
+                   0.05)
+a_call, a_own = mixed["regions"][0], mixed["regions"][1]
+assert abs(a_call["quantity"] - 25.0) < 1e-6, a_call["quantity"]
+assert abs(a_own["quantity"] - 100.0) < 1e-6, ("the region's own 0.10 m/px must win over the call's "
+                                               f"0.05, giving 100 m² not 25: {a_own['quantity']}")
+# Area goes as scale², so a 2x scale is a 4x quantity — the exact ratio, not merely "bigger".
+assert abs(a_own["quantity"] / a_call["quantity"] - 4.0) < 1e-9, "area must scale by the square of the ratio"
+assert a_call["scale_applied"] == 0.05 and a_call["scale_source"] == "call"
+assert a_own["scale_applied"] == 0.10 and a_own["scale_source"] == "region"
+assert mixed["provenance"]["scales_used"] == [0.05, 0.10], mixed["provenance"]["scales_used"]
+
+# Length scales linearly (not squared) — the same override on a linear assembly.
+line = [[0, 0], [100, 0]]
+lin = T.quantify([{"category": "wall_linear", "points": line, "scale_units_per_px": 0.10}], 0.05)
+assert abs(lin["regions"][0]["quantity"] - 10.0) < 1e-6, lin["regions"][0]["quantity"]
+
+# A junk or non-positive region scale must FALL BACK to the call scale, never silently measure at zero —
+# a zero-scale row prices to $0 and reads as "nothing there" instead of as an error.
+for junk in (0, -1, "abc", None):
+    fb = T.quantify([{"category": "floor_slab", "points": sq, "scale_units_per_px": junk}], 0.05)
+    assert abs(fb["regions"][0]["quantity"] - 25.0) < 1e-6, (junk, fb["regions"][0]["quantity"])
+    assert fb["regions"][0]["scale_source"] == "call", junk
+
 # empty regions → a clean zero result
 empty = T.quantify([], 0.05)
 assert empty["region_count"] == 0 and empty["total_cost"] == 0.0, empty
@@ -64,4 +94,7 @@ print("TAKEOFF-2D OK - shoelace area (winding-independent) + polyline length in 
       "calibration gives real units/px; quantify() converts each traced region to a real area (×scale²) or "
       "length (×scale), prices it at the assembly rate (overridable per project vintage), rolls up by "
       "assembly sorted by cost, and totals — a 100×100 px slab at 0.05 m/px = 25 m² @ $130 = $3,250; unknown "
-      "categories fall back to a generic area; empty input is a clean zero.")
+      "categories fall back to a generic area; empty input is a clean zero. R34-SHEET-SCALE: a region "
+      "carrying its own scale is measured at THAT scale (0.10 over a 0.05 call = 100 m², exactly 4× — area "
+      "goes as scale²; length linearly), `scale_source` distinguishes region from call, `scales_used` lists "
+      "both, and a junk/non-positive region scale falls back to the call scale rather than pricing at zero.")

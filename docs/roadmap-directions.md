@@ -66,7 +66,7 @@ running total is now over a dozen items that turned out to be mostly built. Befo
 
 ---
 
-## 3. Working in a shared clone — six hazards
+## 3. Working in a shared clone — seven hazards
 
 Several agent sessions use **one checkout, one index, one branch set**. Every form below has happened.
 
@@ -78,6 +78,14 @@ Several agent sessions use **one checkout, one index, one branch set**. Every fo
 | 4 | **same file, different hunks** | staging by name still takes every change in that file |
 | 5 | **`git commit` binds to whatever branch HEAD is on** | a session that never touched a branch can author its tip |
 | 6 | **another session's uncommitted file fails your test run** | gates that read repo files from disk read whatever the checkout holds |
+| 7 | **`.claude/worktrees/` is inside the repo** | a test runner started at the repo root collects **other sessions' worktrees** as if they were your source |
+
+Hazard 7 is the only one that manufactures *failures* rather than hiding them, which makes it the
+easiest to act on wrongly. `vitest run` from the repo root reported **152 failed files / 756 failed
+tests** — every one of them another session's working copy. A positional path filter does **not** save
+you: `.claude/worktrees/<name>/apps/web/src/…` contains `apps/web/src` as a substring, so the filter
+matches the worktrees too. Run the workspace command (§5), which is scoped by config and is what CI runs.
+**Before believing a mass failure, read the failing paths** — the fix is the invocation, not the code.
 
 **Rules that follow:**
 
@@ -135,7 +143,18 @@ PYTHONUTF8=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="src;../data/src" ./.venv/Scri
 ```
 
 **Web** — Node **24+** (`export PATH="/c/Program Files/nodejs:$PATH"`; the default `node` on PATH is v18
-and breaks the build). `npx tsc --noEmit`, `vitest run`.
+and breaks the build). Typecheck with `npx tsc --noEmit` from `apps/web`. For the suite, run the
+workspace command — **not a bare `vitest run` from the repo root**, which collects `.claude/worktrees/`
+(hazard 7 above):
+
+```
+npm run test --workspace apps/web
+```
+
+This is the CI invocation; its `include: ["src/**/*.test.ts"]` is relative to `apps/web`, so worktrees
+are structurally out of reach. Note the suite environment is **happy-dom**, where `import.meta.url` has
+no `file:` scheme — a test that reads source off disk must resolve from `process.cwd()` (which is
+`apps/web`), the way `shell/roadmapLanes.test.ts` does, not via `fileURLToPath`.
 
 ### Announce before a full suite
 

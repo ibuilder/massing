@@ -54,7 +54,7 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**63 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+**62 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
 merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
@@ -62,9 +62,22 @@ merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in
 | item | size | why it is first |
 |---|---|---|
 | ⭐ **R33-CLAWBACK-AMOUNT** | S | The GP giveback is a rate times a principal with **no time dimension** — understates the true shortfall **5.8x** on an ordinary 5-year deal, and skips entirely in the 26% of deals where XIRR has no root. Real money, wrong today. |
-| ⭐ **SEC-PLUGIN-SANDBOX** | L | Plugin Python executes **inside the API process**. The blast radius is the whole service. |
-| **R34-SHEET-SCALE** | S | One scale is applied to a whole plan set; a differently-scaled detail sheet is wrong **by the ratio**, silently, with a plausible number out. |
 | **R23-PICKING** | M | ⚠️ premise already corrected — **do not build on the stated evidence.** Re-scope or close. |
+
+✅ **R34-SHEET-SCALE — SHIPPED 2026-07-31.** The engine had accepted a per-region `scale_units_per_px`
+since R34-MEASURE-PROVENANCE; **nothing ever set it, and nothing tested it**, so the capability existed
+and the defect was live — the gap was *reach*, not capability. The overlay kept one `scale` that
+recalibration overwrote and passed it at Quantify time, so tracing a plan at 1/8"=1' and then
+recalibrating for a detail at 1/2"=1' **retroactively re-measured the plan regions at the detail's
+scale** — worse than the "one scale per set" this entry described. Scale is now stamped onto each region
+at trace time. Details in [`roadmap-completed.md`](roadmap-completed.md).
+
+↘️ **SEC-PLUGIN-SANDBOX left this band on 2026-07-31** (still open, now under Band 6 · platform). The
+loader really does `exec_module` arbitrary Python with the API's privileges — but the threat model was
+checked rather than assumed, and **no unprivileged path reaches it**: the plugin dir does not overlap
+the upload root, no route writes into it, reload is platform-admin gated, and discovery is off by
+default. That makes it operator-installed code, i.e. `pip install`, not an open door. It becomes Band 1
+the day plugins are *distributed* rather than operator-placed. Full reasoning at the item.
 
 ✅ **SEC-SEAL / SEC-FIRM-RULES / SEC-ESIGN-HOOK / SEC-CACHE — SHIPPED v0.3.807.** Four exploitable
 findings, none of which were on this list because none had been noticed: an **unauthenticated** caller
@@ -150,7 +163,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R32-MODEL-IN-TREE · R33-CLAWBACK-AMOUNT · R34-TAKEOFF-COUNT · R34-SHEET-SCALE · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R32-MODEL-IN-TREE · R33-CLAWBACK-AMOUNT · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R23-PICKING · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
@@ -1182,16 +1195,7 @@ is the proven one and automatic symbol recognition is genuinely unsolved rather 
 Build the honest version first: a count measure, priced per unit, that a human or an agent places.
 Pairs with **R23-SYMBOL-COUNT** (Lane B) which is the recognition half.
 
-### ⭐ R34-SHEET-SCALE *(S)* — one scale is applied to a whole plan set
-
-`quantify(regions, scale_units_per_px, ...)` takes **a single scale per call**. Real plan sets are not
-uniformly scaled: plans at 1/8"=1', details at 1/2"=1', enlarged plans somewhere between. OpenTakeoff
-stores scale **per sheet** for exactly this reason.
-
-Applying one scale across a mixed set makes every measurement on an off-scale sheet wrong **by the
-ratio** — a 4x error on a detail, silently, with a plausible number as the output. This is the
-[[the-dangerous-default-is-the-plausible-one]] shape on money, and it is a small fix: scale belongs to
-the sheet, and a region must carry which sheet it came from.
+### ✅ R34-SHEET-SCALE *(S)* — SHIPPED 2026-07-31 · see [`roadmap-completed.md`](roadmap-completed.md)
 
 ### R34-MEASURE-PROVENANCE *(S)* — a measurement does not record how it was made
 
@@ -1558,6 +1562,27 @@ full-suite-on-merged-tree runs exist to prevent.
   ambient DB or storage handle. Signing is the weaker alternative — it answers *who wrote this*, not
   *what it may do*, and this repo already learned from [[sandbox-object-api-surface]] that a denylist
   cannot see methods reached through an injected object. Gate the design on that lesson.
+
+  **Threat model, checked 2026-07-31 — this is a PRODUCT gap, not a live vulnerability, so it does not
+  belong in the exploitable band.** What was checked, not concluded: `_plugins_dir()` defaults to
+  `<repo-root>/plugins` and is overridden only by `AEC_PLUGINS_DIR`; user uploads land under
+  `STORAGE_DIR` (`./storage`) — **the two do not overlap**; no route anywhere under `routers/` writes
+  into the plugin directory (`/plugins` is a GET, `/plugins/reload` is platform-admin gated); and
+  discovery is off unless `AEC_PLUGINS_ENABLED=1`. So the only way a `.py` reaches `exec_module` today
+  is an operator putting it on the disk — which is the same privilege as `pip install`, and an env var
+  is a trusted input. **There is no path from an unprivileged caller to plugin execution.**
+
+  That changes the moment plugins are *distributed* — a marketplace, a shared pack, anything a user
+  installs rather than the operator. Build the boundary **when that ships, and as its prerequisite**,
+  not before; an L-sized process boundary for a dormant operator-only path is cost with no risk retired.
+
+  **Do not confuse this with the A1 `execute_ifc_code` sandbox — a different surface that IS bounded.**
+  Probed 2026-07-31 by execution rather than by reading its docstring; all 12 escapes refused and the
+  benign case ran: dunder ladder (`__subclasses__`), `import`, `__import__`, `open`, `eval`, `getattr`,
+  `lambda`, `def`, `while True`, `model.write` → `SandboxError`; `for i in range(10**12)` hit the
+  5s wall-clock deadline at 5.02 s; `10**10**9` hit the chained-`**` integer-blowup guard. No file was
+  written. This retires the [[sandbox-object-api-surface]] note's "banning `while` does not bound
+  execution" — a deadline now exists and was observed firing.
 
 - ❌ **SRI for the offline WASM/fragment assets — considered 2026-07-29 and REJECTED.** An external
   audit recommended Subresource Integrity for the WASM and fragment assets. **It does not apply
