@@ -147,13 +147,33 @@ link does not.
 requires editing it, undoing the work fails it. It also asserts the pair-adjacency and shared-fieldset
 rules, and the three calendar-year exceptions by name.
 
-## 8. Not done
+## 8. Not done — CLOSED 2026-07-31
 
-1. **Per-field filters and server-side sort** (§6) — the biggest remaining CRUD gap.
-2. **The `table` field type** — still the blocker for the 22 list-in-a-textarea fields and for `sov`,
-   `estimate`, `bid_submission` being documents rather than rows.
-3. **Backfilling the 54 new reference fields** from their text twins — needs a matcher and a review
-   step; a wrong auto-link is worse than an empty one.
-4. **`eticket` → rate libraries** (§4), the highest-value relationship still missing.
-5. **`default`, `min`/`max`, `placeholder`, `readonly`** — the rest of the field vocabulary.
-6. **Fieldsets on the remaining 62 modules** with none.
+All six items shipped. Kept with their outcomes rather than deleted, because what each one turned
+into is more useful than the fact that it is finished.
+
+| # | Item | Shipped as | What it actually turned out to be |
+|---|---|---|---|
+| 1 | Per-field filters + server-side sort | `MOD-FILTER` (#109) | The sort was the real defect: it ran in the browser over the fetched page, so "sort by amount" on a 500-row register ordered 200 rows and presented them as the largest. Nothing looked wrong; it was the wrong 200 rows |
+| 2 | The `table` field type | `MOD-TABLE` (#111) | Shippable only because a **legacy string is preserved**, not rejected — 22 of these were textareas, so live records hold prose where rows are expected |
+| 3 | Backfill the 54 references | `MOD-BACKFILL` (#113) | A refusal engine. Exact-match-only, unique-or-nothing, every skip reported. *An empty reference is visibly empty and gets filled; a wrong one resolves, opens a real record, shows a plausible name, and is never questioned* |
+| 4 | `eticket` → rate libraries | `MOD-TOTALS` (#134) | The rate is **snapshot, not referenced** — re-pricing the library must not change what is already owed. And the workflow had three states *named* for signing with no `requires`, so a ticket reached `super_signed` unsigned |
+| 5 | `min` / `max` / `placeholder` / `default` | `MOD-FIELDATTRS` | `default` is different in kind from the other three: it **writes a value nobody chose**. Four fields in 133 modules carry one, and the gate is a **ceiling** |
+| 6 | Fieldsets on 62 modules | `MOD-FIELDSET` (#112) | Surfaced three modules non-contiguous since before the sweep, because `test_modules` checked contiguity for an *enumerated list of thirteen* |
+
+**`readonly` was dropped rather than built.** It was listed here as a field attribute, but nothing in
+the sweep found a field that needed one: a value the user must not edit is either computed (`rollup`,
+or a table's `totals_into` target) or set by a workflow transition. A `readonly` flag would have been
+a fourth way to say the same thing, and the first place it disagreed with the other three would have
+been a bug nobody could locate.
+
+### Still open, and genuinely so
+
+- **`sov` and `owner_invoice` as documents.** `estimate` gained `line_items`; the AIA G702/G703 pair
+  did not. `sov` is still one record per line with no parent, so the continuation sheet is assembled
+  by `cost.g703` rather than stored. That is the last structural item from §6.
+- **A `reference` column type for tables.** Deliberately excluded (see `TABLE_COLUMN_TYPES`) because a
+  picker per row is a real feature and shipping it half-done would put unresolvable ids in rows.
+- **The element link (`§5 T4`).** Ten registers describe things that *are* model elements and only
+  three carry a GUID, all as plain text. This is the largest remaining gap between the platform's
+  stated premise and the layer users touch.

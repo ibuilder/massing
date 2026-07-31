@@ -49,14 +49,17 @@
       "label": "Committed Amount",
       "type": "currency",
       "required": true,
-      "fieldset": "Cost"
+      "fieldset": "Cost",
+      "min": 0
     },
     {
       "name": "retainage_pct",
       "label": "Retainage %",
       "type": "percent",
       "fieldset": "Cost",
-      "unit": "%"
+      "unit": "%",
+      "min": 0,
+      "max": 100
     },
     {
       "name": "cost_code",

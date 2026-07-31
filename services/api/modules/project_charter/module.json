@@ -96,7 +96,8 @@
       "name": "budget_authority",
       "label": "Budget Authority",
       "type": "currency",
-      "fieldset": "Budget & Schedule"
+      "fieldset": "Budget & Schedule",
+      "min": 0
     },
     {
       "name": "target_completion",

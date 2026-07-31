@@ -92,6 +92,23 @@ class FieldDef(BaseModel):
     # (`elevation_ft`, `expected_life_years`). A unit in a name is readable only by a human: it cannot
     # be rendered beside an input, appended to a table cell, converted, or validated.
     unit: str | None = None
+    # ---- MOD-FIELDATTRS — the rest of the field vocabulary -------------------------------------
+    #
+    # `min`/`max`/`placeholder` CONSTRAIN or EXPLAIN a value the user supplies. `default` is different
+    # in kind: it WRITES A VALUE NOBODY CHOSE, and a wrong one is invisible because it looks
+    # deliberate. Default `retainage_pct` to 10 and every record on a 5% job silently carries the
+    # wrong number, formatted correctly, in the right field. That is this codebase's signature defect
+    # — the plausible answer for the missing case — so `default` is deliberately rare in the shipped
+    # modules and is restricted here to facts that are true of the RECORD rather than of a policy.
+    #
+    # Bounds are enforced SERVER-SIDE in `validate_record`, not only rendered as input attributes: an
+    # HTML `min` is a hint to a browser and nothing to a script, a CSV import, or an integration.
+    min: float | None = None
+    max: float | None = None
+    placeholder: str | None = None
+    #: Pre-filled on a NEW record only. Never applied on update — re-filling a field the user just
+    #: cleared would make "empty" unreachable.
+    default: str | float | bool | None = None
     # rollup wiring (type == "rollup")
     source_module: str | None = None
     source_field: str | None = None
@@ -221,6 +238,34 @@ def validate_module(mod: dict, *, known_modules: set[str] | None = None,
             errors.append(f"{key}.{f.name}: {f.type} field has no options")
         if f.unit and f.type not in _NUMERIC_TYPES:
             errors.append(f"{key}.{f.name}: unit {f.unit!r} on a {f.type} field (units are numeric)")
+        # ---- MOD-FIELDATTRS ----------------------------------------------------------------------
+        if (f.min is not None or f.max is not None) and f.type not in _NUMERIC_TYPES:
+            errors.append(f"{key}.{f.name}: min/max on a {f.type} field (bounds are numeric)")
+        if f.min is not None and f.max is not None and f.min > f.max:
+            # An inverted range accepts NOTHING, and reads as a typo nobody notices until a save fails.
+            errors.append(f"{key}.{f.name}: min {f.min} is greater than max {f.max}")
+        if f.placeholder and f.type in ("select", "multiselect", "checkbox", "table", "rollup",
+                                        "signature", "reference", "file"):
+            # A placeholder is hint text INSIDE an empty text box. On a dropdown or a grid there is no
+            # box to put it in, so it would be declared and never rendered.
+            errors.append(f"{key}.{f.name}: placeholder on a {f.type} field has nowhere to render")
+        if f.default is not None:
+            if f.type in ("rollup", "signature", "table", "file", "reference"):
+                # A default reference would invent a link; a default signature would forge an
+                # attestation. Neither is a value a config file gets to supply.
+                errors.append(f"{key}.{f.name}: a {f.type} field cannot have a default")
+            elif f.type in _NUMERIC_TYPES:
+                try:
+                    d = float(f.default)
+                except (TypeError, ValueError):
+                    errors.append(f"{key}.{f.name}: default {f.default!r} is not a number")
+                else:
+                    if f.min is not None and d < f.min:
+                        errors.append(f"{key}.{f.name}: default {d} is below min {f.min}")
+                    if f.max is not None and d > f.max:
+                        errors.append(f"{key}.{f.name}: default {d} is above max {f.max}")
+            elif f.type == "select" and f.options and str(f.default) not in f.options:
+                errors.append(f"{key}.{f.name}: default {f.default!r} is not one of the options")
         # ---- MOD-TABLE ----------------------------------------------------------------------------
         if f.type == "table":
             if not f.columns:
@@ -313,9 +358,18 @@ def validate_record(mod: dict, data: dict) -> list[str]:
             continue                          # unknown key or empty -> skip (partial update / clear)
         if f.get("type") in _NUMERIC_TYPES:
             try:
-                float(value)
+                n = float(value)
             except (TypeError, ValueError):
                 errors.append(f"{name}: {value!r} is not a number")
+            else:
+                # MOD-FIELDATTRS — bounds enforced HERE, not only as HTML input attributes. An HTML
+                # `min` is advice to one browser and nothing at all to a CSV import, an integration
+                # or a script, which is how out-of-range values get in.
+                lo, hi = f.get("min"), f.get("max")
+                if lo is not None and n < float(lo):
+                    errors.append(f"{name}: {n:g} is below the minimum {float(lo):g}")
+                if hi is not None and n > float(hi):
+                    errors.append(f"{name}: {n:g} is above the maximum {float(hi):g}")
         elif f.get("type") == "table":
             errors.extend(_table_errors(name, f, value))
     return errors

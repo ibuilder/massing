@@ -30,7 +30,8 @@
       "name": "hours",
       "label": "Hours",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "cost_code",

@@ -48,7 +48,9 @@
       "label": "Punch List % Complete",
       "type": "percent",
       "unit": "%",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0,
+      "max": 100
     },
     {
       "name": "record_model_version",

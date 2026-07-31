@@ -76,7 +76,8 @@
       "label": "Free rent (months)",
       "type": "number",
       "unit": "mo",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "recovery_psf",
@@ -91,20 +92,23 @@
       "type": "number",
       "required": true,
       "unit": "sf",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "security_deposit",
       "label": "Security deposit",
       "type": "currency",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "ti_allowance_psf",
       "label": "TI allowance $/SF",
       "type": "number",
       "unit": "$/sf",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "notes",

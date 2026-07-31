@@ -24,7 +24,8 @@
       "name": "crew_size",
       "label": "Crew Size",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "controls",

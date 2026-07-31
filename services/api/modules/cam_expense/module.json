@@ -44,7 +44,8 @@
       "name": "budget_annual",
       "label": "Budget (annual)",
       "type": "currency",
-      "fieldset": "Amounts"
+      "fieldset": "Amounts",
+      "min": 0
     },
     {
       "name": "actual_annual",

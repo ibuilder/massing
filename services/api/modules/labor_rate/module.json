@@ -16,7 +16,8 @@
     {
       "name": "rate",
       "label": "Rate $/hr",
-      "type": "currency"
+      "type": "currency",
+      "min": 0
     },
     {
       "name": "unit",

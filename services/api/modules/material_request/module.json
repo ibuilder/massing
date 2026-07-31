@@ -30,7 +30,8 @@
       "name": "qty",
       "label": "Quantity",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "activity",

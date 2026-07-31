@@ -2552,9 +2552,20 @@ export class PortalUI {
         // the field-sweep branch, which is merged to `main` but not into this one — and it cannot be
         // merged in right now without git overwriting two files another session is holding dirty. A
         // local structural read is correct on both sides of that merge and costs nothing once it lands.
-        const unit = (f as { unit?: string }).unit;
-        if (unit) { inp.placeholder = unit; inp.setAttribute("aria-description", `in ${unit}`); }
-        inp.value = String(cur(f.name) ?? "");
+        const unit = f.unit;
+        // MOD-FIELDATTRS: an explicit placeholder wins over the unit hint — the unit was only ever a
+        // fallback for "this box has no guidance at all".
+        if (f.placeholder) inp.placeholder = f.placeholder;
+        else if (unit) inp.placeholder = unit;
+        if (unit) inp.setAttribute("aria-description", `in ${unit}`);
+        if (f.min != null) inp.min = String(f.min);
+        if (f.max != null) inp.max = String(f.max);
+        // A default is for a NEW record. On an edit, an absent value is a value the user cleared.
+        const existing = cur(f.name);
+        // `@today` is resolved on both sides: the form shows the date the user is about to save, and
+        // the server fills it for any caller that never opened a form (import, integration, script).
+        const dflt = f.default === "@today" ? new Date().toISOString().slice(0, 10) : f.default;
+        inp.value = String(existing ?? (editing ? "" : (dflt ?? "")));
       }
       inputs[f.name] = el; wrap.appendChild(el);
       if (f.type === "select" || f.type === "multiselect") wrap.appendChild(addOptBtn(f, el as HTMLSelectElement));

@@ -74,7 +74,8 @@
       "name": "sheet_count",
       "label": "Sheets",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "description",

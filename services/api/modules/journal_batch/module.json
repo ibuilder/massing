@@ -34,19 +34,22 @@
       "name": "entry_count",
       "label": "GL entries",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "total_credits",
       "label": "Total credits",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "total_debits",
       "label": "Total debits",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "approved_by",

@@ -58,13 +58,15 @@
       "name": "actual_cost",
       "label": "Actual Cost",
       "type": "currency",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "allowance",
       "label": "Allowance",
       "type": "currency",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "client_approval",

@@ -44,20 +44,24 @@
       "label": "Gross area (sf)",
       "type": "number",
       "fieldset": "Program",
-      "unit": "sf"
+      "unit": "sf",
+      "min": 0
     },
     {
       "name": "unit_count",
       "label": "Units / key rooms",
       "type": "number",
-      "fieldset": "Program"
+      "fieldset": "Program",
+      "min": 0
     },
     {
       "name": "efficiency_pct",
       "label": "Efficiency (%)",
       "type": "percent",
       "fieldset": "Program",
-      "unit": "%"
+      "unit": "%",
+      "min": 0,
+      "max": 100
     },
     {
       "name": "building_type",
@@ -86,7 +90,8 @@
       "name": "hard_cost",
       "label": "Hard cost ($)",
       "type": "number",
-      "fieldset": "Economics"
+      "fieldset": "Economics",
+      "min": 0
     },
     {
       "name": "energy_eui",

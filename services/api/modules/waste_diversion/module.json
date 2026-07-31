@@ -49,7 +49,9 @@
       "label": "Diversion %",
       "type": "percent",
       "fieldset": "Disposition",
-      "unit": "%"
+      "unit": "%",
+      "min": 0,
+      "max": 100
     }
   ],
   "workflow": {

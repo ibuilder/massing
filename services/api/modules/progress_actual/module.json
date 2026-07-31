@@ -37,7 +37,8 @@
       "label": "Installed Quantity",
       "type": "number",
       "required": true,
-      "fieldset": "Production"
+      "fieldset": "Production",
+      "min": 0
     },
     {
       "name": "unit",
@@ -73,11 +74,28 @@
   ],
   "workflow": {
     "initial": "logged",
-    "states": ["logged", "verified"],
+    "states": [
+      "logged",
+      "verified"
+    ],
     "transitions": [
-      {"from": "logged", "to": "verified", "action": "verify", "party": ["GC"]}
+      {
+        "from": "logged",
+        "to": "verified",
+        "action": "verify",
+        "party": [
+          "GC"
+        ]
+      }
     ]
   },
-  "list_columns": ["activity", "qty", "unit", "cycle_time", "idle_time", "log_date"],
+  "list_columns": [
+    "activity",
+    "qty",
+    "unit",
+    "cycle_time",
+    "idle_time",
+    "log_date"
+  ],
   "workspace": "construction"
 }

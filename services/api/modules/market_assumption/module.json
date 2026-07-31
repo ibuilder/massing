@@ -72,7 +72,8 @@
       "label": "Construction duration (months)",
       "type": "number",
       "unit": "mo",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "location_override",

@@ -55,7 +55,8 @@
       "name": "clash_count",
       "label": "Clashes in group",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "severity_score",

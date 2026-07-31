@@ -43,7 +43,8 @@
       "name": "quantity",
       "label": "Quantity installed",
       "type": "number",
-      "fieldset": "Production"
+      "fieldset": "Production",
+      "min": 0
     },
     {
       "name": "unit",
@@ -61,7 +62,8 @@
       "name": "hours",
       "label": "Hours (per worker)",
       "type": "number",
-      "fieldset": "Production"
+      "fieldset": "Production",
+      "min": 0
     },
     {
       "name": "notes",

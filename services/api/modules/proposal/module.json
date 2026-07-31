@@ -19,14 +19,16 @@
       "label": "Proposed Amount",
       "type": "currency",
       "required": true,
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "schedule_days",
       "label": "Schedule Days",
       "type": "number",
       "unit": "days",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "cost_code",

@@ -73,7 +73,9 @@
       "label": "% complete",
       "type": "percent",
       "fieldset": "Forecast",
-      "unit": "%"
+      "unit": "%",
+      "min": 0,
+      "max": 100
     },
     {
       "name": "notes",

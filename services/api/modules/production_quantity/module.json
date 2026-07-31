@@ -24,7 +24,8 @@
       "name": "quantity",
       "label": "Qty Installed",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "activity",

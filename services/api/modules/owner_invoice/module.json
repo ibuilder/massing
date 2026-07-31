@@ -24,7 +24,8 @@
       "name": "amount",
       "label": "Amount",
       "type": "currency",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "status",

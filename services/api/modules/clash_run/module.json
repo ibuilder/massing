@@ -23,31 +23,36 @@
       "name": "active_count",
       "label": "Active",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "clash_count",
       "label": "Raw clashes",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "group_count",
       "label": "Coordination issues",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "new_count",
       "label": "New",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "reappeared_count",
       "label": "Reappeared",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "reduction",
@@ -59,7 +64,8 @@
       "name": "resolved_count",
       "label": "Resolved",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     }
   ],
   "list_columns": [
