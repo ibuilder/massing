@@ -54,7 +54,7 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**55 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+**54 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
 merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
@@ -231,7 +231,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R31-PIPELINE-ALLOCATE · R31-K1-PACK · R22-PHOTO-CV · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R31-PIPELINE-ALLOCATE · R22-PHOTO-CV · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
@@ -1665,7 +1665,24 @@ scan, because it stops the exercise being re-run.
   and `cost_code`. It has nothing to do with investor commitments. Reading it as the syndication side
   badly misjudges the item.
 
-- ⭐ **R31-K1-PACK** *(S/M)* — **the one genuine remainder of R31-SYNDICATION-TAIL.** `capital.py:90`
+- ✅ **R31-K1-PACK** *(S/M)* — **SHIPPED 2026-07-31** (`aabad457`), and it deliberately does **not**
+  emit a K-1. A Schedule K-1 reports a partner's distributive share of *taxable income*, which needs a
+  §704(b)-allocated income statement; this platform has capital movements and **no income statement at
+  all**. So `capital.k1_pack()` returns the half we can evidence and **names what it cannot supply** —
+  `is_tax_document: false` plus a `not_included` list (704(b) allocation, depreciation and §754/§743(b)
+  basis, guaranteed payments, outside basis / at-risk, separately stated items, state apportionment).
+  An accountant told what is absent can supply it; one handed a plausible-looking pack cannot know to.
+  `GET /projects/{pid}/k1-pack`.
+
+  **Two money-math decisions worth not undoing:** there is *no beginning/ending capital balance*,
+  because that is a §704(b) rollforward needing the income allocation we lack — absent beats guessed
+  from contributions, which would be wrong in a way that looks right. And `ownership_pct` is an
+  **allocation ratio**, so `allocation_check` reports the exact rounding residual rather than hiding
+  it; ratios silently summing to 99.9997% would misallocate income for every partner every year and
+  survive inspection. Mutation-checked both ways.
+
+  *(Original entry, kept because the boundary sentence was the spec:)*
+- ~~**R31-K1-PACK**~~ *(was S/M)* — **the one genuine remainder of R31-SYNDICATION-TAIL.** `capital.py:90`
   already states the boundary in the statement PDF itself: *"…is informational and not a tax document;
   K-1s are issued separately."* That sentence is the spec. Everything a K-1 pack needs upstream — per
   investor contributions, distributions, unreturned capital, class rollup — already exists and is
