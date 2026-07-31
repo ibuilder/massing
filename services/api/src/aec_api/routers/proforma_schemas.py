@@ -96,3 +96,16 @@ class Assumptions(BaseModel):
     waterfall: Waterfall
     discount_rate: float = 0.10
     tax: Tax | None = None        # optional; financial statements use institutional defaults if absent
+    #: R22-PROVENANCE — where each assumption CAME FROM, keyed by the same dotted path
+    #: `sensitivity._set_path` and `monte_carlo` already use (`operations.potential_rent_annual`,
+    #: `exit.exit_cap`, …), so a deal has ONE addressing scheme rather than two.
+    #:
+    #: This field has to exist for the citations to survive at all. Pydantic v2 defaults to
+    #: `extra="ignore"`, so a `sources` block POSTed against the previous model was accepted with a
+    #: 200 and then **silently dropped by `model_dump()`** before the scenario was stored — the
+    #: caller had no way to tell their provenance had been discarded. Verified before this was added:
+    #: `Assumptions(**deal_with_sources).model_dump()` did not contain the key.
+    #:
+    #: Values are `cited_answer` citation dicts (`cite_doc` / `cite_record` / `cite_rule` / `cite_ifc`),
+    #: not a new shape — file, page and revision are already modelled there.
+    sources: dict[str, list[dict]] | None = None
