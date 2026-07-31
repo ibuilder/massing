@@ -99,6 +99,26 @@ STANDARD_TREE: list[dict[str, Any]] = [
     _n("11_Final Account/Final BOQ", QS, cde=PUBLISHED),
     _n("11_Final Account/Final Variations", QS, cde=PUBLISHED),
     _n("11_Final Account/Close-Out", PM, cde=PUBLISHED, required=True),
+
+    # R32-MODEL-IN-TREE — the model had no home in the filing at all. Until this, the source model lived
+    # at `{pid}/source.ifc` and the document tree at `{pid}/docs/<folder>/`: two parallel stores, so the
+    # one artefact everything else is derived from was the only one with no revision, no supersession and
+    # no presence in the file manager. Filing the as-issued model here means a model revision IS a
+    # document revision, and the model sits beside the drawings it produced.
+    #
+    # Deliberately NOT `required=True`. `required_paths()` feeds the document-control health score, so
+    # marking these required would drop every existing project's compliance number for something they
+    # have not had the chance to do. Whether an unfiled model *should* count against health is a real
+    # question, but it is a policy change and not part of this item.
+    #
+    # Note what is NOT here: no "Generated Drawings" or "Generated Specifications" folder. Generated
+    # sheets file into `02_Drawings/<discipline>` and generated specs into `01_Contract Documents/
+    # Specifications`, i.e. where documents of that KIND already live. A separate silo for generated
+    # output would rebuild the very two-parallel-stores problem this item exists to remove, and would
+    # leave "the current drawing set" split across two folders again.
+    _n("12_Model", ARCH, cde=PUBLISHED),
+    _n("12_Model/IFC", ARCH, cde=PUBLISHED),
+    _n("12_Model/Federated", ENGR, cde=SHARED),
 ]
 
 _BY_PATH = {n["path"]: n for n in STANDARD_TREE}

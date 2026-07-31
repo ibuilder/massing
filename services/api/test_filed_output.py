@@ -1,0 +1,137 @@
+"""R32-MODEL-IN-TREE — the model is filed into the controlled tree, with revisions.
+
+Before this, the source model lived at `{pid}/source.ifc` and the documents at `{pid}/docs/<folder>/`:
+two parallel stores. The one artefact every drawing, schedule and quantity is derived from was the only
+one with no revision, no supersession, and no presence in the file manager at all.
+
+Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_filed_output.py
+"""
+import os
+import shutil
+
+os.environ["DATABASE_URL"] = "sqlite:///./test_filed_output.db"
+os.environ["STORAGE_DIR"] = "./test_storage_filed_output"
+os.environ.pop("AEC_RBAC", None)
+for _f in ("./test_filed_output.db",):
+    if os.path.exists(_f):
+        os.remove(_f)
+# `docmanager` keeps a sidecar index in STORAGE_DIR; clear it so the fixed-pid assertions below are
+# isolated across runs, and so a stale index cannot make a revision assertion pass for the wrong reason.
+shutil.rmtree(os.environ["STORAGE_DIR"], ignore_errors=True)
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api import docmanager, filing, folder_template, storage  # noqa: E402
+from aec_api.main import app  # noqa: E402
+
+# --- the taxonomy gained a home for the model -----------------------------------------------------
+paths = {n["path"] for n in folder_template.tree()}
+assert "12_Model" in paths and "12_Model/IFC" in paths, "the model has a folder"
+assert folder_template.is_valid(filing.MODEL_FOLDER), filing.MODEL_FOLDER
+assert folder_template.owner_of("12_Model/IFC") == "Architect"
+assert folder_template.node("12_Model/IFC")["cde_default"] == "published"
+
+# The DESIGN decision, asserted so it cannot be quietly reversed: generated output files into the
+# folder its KIND already uses, never into a parallel "generated" silo. A silo would rebuild the same
+# two-stores problem this work removes, and would split "the current drawing set" across two folders.
+assert not [p for p in paths if "generated" in p.lower()], \
+    f"no generated-output silo: {[p for p in paths if 'generated' in p.lower()]}"
+
+# Adding folders must not change the document-control health baseline for existing projects: these are
+# deliberately NOT `required`, so no project's compliance score moves because of this commit.
+assert not [p for p in folder_template.required_paths() if p.startswith("12_Model")], \
+    "12_Model must not be required — it would drop every existing project's health score"
+
+# --- refusing is better than filing nothing -------------------------------------------------------
+PID = "proj-filing"
+try:
+    filing.file_model(PID, "arch")
+except filing.NothingToFile as e:
+    assert "no model" in str(e), str(e)
+else:
+    raise AssertionError("filing a project with no model must refuse, not file an empty document")
+
+# A zero-byte model is the more dangerous case: it would supersede a real revision with nothing.
+storage.put(filing.model_key(PID), b"")
+try:
+    filing.file_model(PID, "arch")
+except filing.NothingToFile as e:
+    assert "empty" in str(e), str(e)
+else:
+    raise AssertionError("a zero-byte model must not supersede a real revision")
+
+# --- filing, and re-filing, produces a revision chain ---------------------------------------------
+IFC_V1 = b"ISO-10303-21;\nHEADER;\nFILE_NAME('v1');\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n"
+IFC_V2 = b"ISO-10303-21;\nHEADER;\nFILE_NAME('v2');\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n"
+
+storage.put(filing.model_key(PID), IFC_V1)
+r1 = filing.file_model(PID, "arch")
+assert r1["entry"]["revision"] == "P01", r1["entry"]
+assert r1["entry"]["folder"] == "12_Model/IFC", r1["entry"]
+assert r1["entry"]["doc_type"] == "MODEL" and r1["entry"]["cde_state"] == "published", r1["entry"]
+assert r1["superseded"] is None, "first filing supersedes nothing"
+assert r1["entry"]["size"] == len(IFC_V1), r1["entry"]["size"]
+
+storage.put(filing.model_key(PID), IFC_V2)
+r2 = filing.file_model(PID, "arch")
+assert r2["entry"]["revision"] == "P02", r2["entry"]
+assert r2["superseded"] == r1["entry"]["id"], "re-filing supersedes the prior revision, not a new doc"
+
+# Current view shows exactly one model; the superseded revision is retained, not deleted.
+current = docmanager.list_folder(PID, "12_Model/IFC")
+assert current["count"] == 1 and current["files"][0]["revision"] == "P02", current
+
+# --- the as-issued model stays RECOVERABLE, which is the whole point ------------------------------
+hist = filing.filed_model_history(PID)
+assert len(hist) == 2, [h["revision"] for h in hist]
+assert {h["revision"] for h in hist} == {"P01", "P02"}, [h["revision"] for h in hist]
+# Value-check the bytes, not merely the presence of a row: an entry pointing at the wrong blob would
+# satisfy every count assertion above while losing the exact thing filing the model is FOR.
+old = next(h for h in hist if h["revision"] == "P01")
+assert storage.get(old["key"]) == IFC_V1, "the superseded revision must still hold the v1 bytes"
+new = next(h for h in hist if h["revision"] == "P02")
+assert storage.get(new["key"]) == IFC_V2, "the current revision must hold the v2 bytes"
+
+# --- reachable over HTTP, with authz (a route that is only defined is not a feature) ---------------
+with TestClient(app) as c:
+    pid = c.post("/projects", json={"name": "Filing Test"}).json()["id"]
+
+    # Nothing filed yet, and no model present — reported as a state, not invented as an empty set.
+    h0 = c.get(f"/projects/{pid}/documents/model-history")
+    assert h0.status_code == 200, h0.text
+    assert h0.json()["count"] == 0 and h0.json()["model_present"] is False, h0.json()
+
+    # Filing with no model is a 409 (a state), not a 400 (a malformed request).
+    r = c.post(f"/projects/{pid}/documents/file-model", data={"title": "Federated Model"})
+    assert r.status_code == 409, (r.status_code, r.text)
+
+    storage.put(filing.model_key(pid), IFC_V1)
+    r = c.post(f"/projects/{pid}/documents/file-model", data={"title": "Federated Model"})
+    assert r.status_code == 201, (r.status_code, r.text)
+    assert r.json()["entry"]["revision"] == "P01", r.json()
+
+    storage.put(filing.model_key(pid), IFC_V2)
+    r = c.post(f"/projects/{pid}/documents/file-model", data={"title": "Federated Model"})
+    assert r.status_code == 201 and r.json()["entry"]["revision"] == "P02", r.json()
+
+    hist = c.get(f"/projects/{pid}/documents/model-history").json()
+    assert hist["count"] == 2 and hist["model_present"] is True, hist
+    assert [x["revision"] for x in hist["revisions"]] == ["P02", "P01"], "newest first"
+
+    # The model now appears in the file manager the field actually looks at — the reach half of R32.
+    folder = c.get(f"/projects/{pid}/documents/folder", params={"path": "12_Model/IFC"}).json()
+    assert folder["count"] == 1 and folder["files"][0]["revision"] == "P02", folder
+    assert c.get(f"/projects/{pid}/documents/tree").status_code == 200
+
+    # An unknown project must 404 rather than filing into a tree that does not exist.
+    assert c.post("/projects/no-such-project/documents/file-model", data={}).status_code == 404
+
+print("FILED OUTPUT (R32-MODEL-IN-TREE) OK - the model has a home in the standard taxonomy "
+      "(12_Model/IFC, Architect-owned, published) and filing it goes through docmanager, so a model "
+      "revision IS a document revision: first filing is P01, re-filing supersedes it as P02, the "
+      "current folder view shows exactly one model, and the superseded P01 still holds its original "
+      "bytes (value-checked, not just counted) so the as-issued model stays recoverable. Filing a "
+      "project with no model, or a zero-byte one, REFUSES rather than superseding a real revision with "
+      "nothing. Reachable over HTTP: 201 on file, 409 when there is nothing to file, 404 on an unknown "
+      "project, history newest-first including superseded. No 'generated' silo folder exists, and "
+      "12_Model is not `required`, so no existing project's health score moves.")
