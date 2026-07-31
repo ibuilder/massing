@@ -54,15 +54,24 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**62 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+**61 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
 merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
 
 | item | size | why it is first |
 |---|---|---|
-| ⭐ **R33-CLAWBACK-AMOUNT** | S | The GP giveback is a rate times a principal with **no time dimension** — understates the true shortfall **5.8x** on an ordinary 5-year deal, and skips entirely in the 26% of deals where XIRR has no root. Real money, wrong today. |
-| **R23-PICKING** | M | ⚠️ premise already corrected — **do not build on the stated evidence.** Re-scope or close. |
+| ⭐ **R23-PICKING** | M | ⚠️ premise already corrected — **do not build on the stated evidence.** Re-scope or close. |
+
+**Band 1 is down to a single item, and that item is a decision rather than a build.** Both defects that
+were live here shipped on 2026-07-31 — see the two notes below.
+
+✅ **R33-CLAWBACK-AMOUNT — SHIPPED** in PR #136 (`856970c8`). `waterfall.solve_clawback_for_pref(lp_cf,
+lp_dates, pref_rate, cap)` now solves for the cash added at the final date that lifts the LP's **XIRR**
+to the pref, capped at the promote actually paid, and `run_waterfall` reports the shortfall when the
+promote cannot cover it. The rate-times-principal proxy with no time dimension is gone. Verified by
+reading the implementation, not the PR title: `xirr` is imported and used, and the docstring carries the
+5.8x construction that motivated the entry.
 
 ✅ **R34-SHEET-SCALE — SHIPPED 2026-07-31.** The engine had accepted a per-region `scale_units_per_px`
 since R34-MEASURE-PROVENANCE; **nothing ever set it, and nothing tested it**, so the capability existed
@@ -163,7 +172,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R32-MODEL-IN-TREE · R33-CLAWBACK-AMOUNT · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R32-MODEL-IN-TREE · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R23-PICKING · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
@@ -1215,7 +1224,13 @@ equivalents (`takeoff2d` does shoelace area and polyline length server-side; the
 measurement engine is **deterministic geometry, not ML**, which is the same choice we made — worth
 recording because "AI takeoff" invites the opposite assumption.
 
-## 💰 R33-CLAWBACK-AMOUNT — the GP giveback is computed with no time dimension *(2026-07-30)*
+## ✅ R33-CLAWBACK-AMOUNT — SHIPPED in PR #136 (`856970c8`), 2026-07-31
+
+*Kept below with its original text because the reasoning is the reusable part — it is the worked example
+of why a money check must compare a **value**, not a range. Fixed by `solve_clawback_for_pref()`, which
+solves for the cash at the final date that lifts the LP's XIRR to the pref.*
+
+### 💰 the GP giveback was computed with no time dimension *(diagnosed 2026-07-30)*
 
 **Lane C. Researched and specified here; deliberately NOT implemented in this session** — see the note
 at the end, which is part of the item.
