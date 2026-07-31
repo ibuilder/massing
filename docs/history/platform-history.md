@@ -252,6 +252,11 @@ Platform interface (vector renders of the redesigned UI — see the [live demo](
 | ![tools panel](../img/ui-tools-panel.svg) | ![portal catalog](../img/ui-portal-catalog.svg) |
 
 The ⚙ Tools panel is a persona-ordered, collapsible, state-aware accordion (secondary tools fold
-under "More tools"; analysis opens in a readable modal); the GC-portal catalog tames 130 modules
-with ★ favorites, collapsible persona-aware sections, and a filter.
+under "More tools"; analysis opens in a readable modal); the GC-portal catalog tames the full module
+set with ★ favorites, collapsible persona-aware sections, and a filter.
+
+*(The module count that stood here has been removed rather than updated. This is a history file — it
+should not be where anyone reads a current figure, and a number in a record of past states is
+guaranteed to drift. `GET /modules` is authoritative; [../user-guide/modules.md](../user-guide/modules.md)
+carries the current count, gated against the files on disk.)*
 

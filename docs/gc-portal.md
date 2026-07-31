@@ -30,9 +30,10 @@ activity timeline. Adding a module = dropping a JSON file in `services/api/modul
 }
 ```
 
-**78 modules across 14 sections** ship today (Preconstruction, Engineering, Change
-Management, Field, Quality, Safety, Sustainability, Contracts, Cost, BIM, Closeout,
-Resources). Regenerate/extend via `services/api/generate_modules.py`.
+**133 modules across 30 sections** ship today — including Preconstruction, Engineering, Change
+Management, Field, Quality, Safety, Sustainability, Contracts, Cost, BIM, Closeout, Facilities,
+Handover, Schedule and Resilience. `GET /modules` is authoritative; the section→room allocation lives
+in `rooms.py`. Regenerate/extend via `services/api/generate_modules.py`.
 
 ## Two role dimensions
 

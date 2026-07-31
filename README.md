@@ -234,7 +234,7 @@ A construction-management portal on top of the viewer — full writeup in
 [docs/gc-portal.md](docs/gc-portal.md). Highlights:
 
 - **Module engine** — every process (RFIs, Submittals, PCO/Change-Order chain, Daily
-  Reports, …) is a `module.json` → its own auto-created table. **130 modules / 16 sections**,
+  Reports, …) is a `module.json` → its own auto-created table. **133 modules / 30 sections**,
   no per-module code. Each gets CRUD, role-gated workflow, comments, CSV/PDF, pins, timeline.
 - **Two role dimensions** — capability roles (viewer→admin) + party roles
   (GC/Owner/OwnersRep/Consultant/Subcontractor) that gate workflow transitions.

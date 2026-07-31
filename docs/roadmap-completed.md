@@ -7,6 +7,246 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## 🗓 Reconciliation 2026-07-30 — thirteen items shipped but still listed as open
+
+Ten of these were **merged pull requests** (#94 – #106) whose roadmap entries were never moved; three
+were marked ✅ in place and left sitting in the open rings. Together they were **203 lines** of the
+1,457-line working roadmap presenting finished work as available work — the exact failure the roadmap's
+own housekeeping note warns about, and worse than a stale line elsewhere because an agent picking a
+sprint item off this file would have started building something that already exists.
+
+**Why they are archived with their full text rather than one-lined.** Six of the thirteen carry a
+*corrected premise* — the entry described the code wrongly and someone found out only by opening the
+file. Those corrections are the most reusable thing in the batch, and three of them are three distinct
+flavours of the same failure, worth keeping side by side:
+
+- **R23-RECIPE-ARTIFACT** — *"it already is X, just formalise it"* and nothing existed. The single most
+  expensive kind of roadmap sentence, because it sets the estimate before anyone opens the file.
+- **R22-CLASSIFY-AI** — the entry described a *harmless visible* failure; the truth was a **confident
+  wrong number** (an unclassified model priced entirely as *General Requirements* while the estimate
+  reported a complete takeoff).
+- **R22-MEMORY** — described an unbuilt feature that was **two-thirds already shipped**.
+
+**Also fixed in the same pass:** `R24-PERF-BUDGET` appeared **twice** as an open item, once as
+⭐ *(S)* and once as *(S, reinstated)*, with different text.
+
+- **R22-NOTICE-CLOCK** *(S/M; **PR #95** — `notice_clock.py` + `routers/notices.py`; adds
+  `notice_family` to `prime_contract` and `occurred_on`/`became_aware_on` to `change_event`)* —
+  contractual notice clocks / time-bar tracking. Detect a triggering event in a daily log or RFI,
+  start the contract's notice period, draft the notice. Highest dollar-per-line-of-code feature in
+  construction administration; we already hold the contract calendar and the daily record.
+
+- ⭐ **R22-CLASSIFY-AI** *(M; **PR #97** — `classify_assist.py` + `routers/classify.py`)* — assisted
+  classification of *imported* IFC. Propose codes, human confirms.
+  **The premise was wrong in a way that makes this more urgent, not less** (corrected 2026-07-29 while
+  implementing it). The entry said an unclassified model "gets nothing" — a visible, harmless failure.
+  It does not. `classification.classify()` returns a `(code, title)` for **any** `ifc_class`, silently
+  falling back to the default bucket when unmapped. So an imported proxy-heavy model prices everything
+  as *01 00 00 General Requirements* while the estimate reports a **complete takeoff**. That is not a
+  gap, it is a confident wrong number — the same shape as the `get_area` defect ([[qto-measured-area]]):
+  a fabricated value is worse than a missing one because nothing downstream can tell. #97's coverage
+  figure therefore counts only what the model **declares**, never what the fallback supplied.
+  *The IfcClass half is already built and routed* (`ifc_classify.py` via `conceptual.py`).
+
+- ✅ **R22-MEMORY** *(**PR #104**, merged 2026-07-29 — `unit_rate_memory.py` is on `main`)* —
+  **two-thirds already built.** Verified 2026-07-29
+  by reading the file, not the entry: `benchmarking.cost_benchmarks()` already mines `direct_cost`
+  records **across all the caller's projects** and returns a low/p25/median/p75/high distribution per
+  **cost code**, with a `min_samples` floor, routed via `routers/benchmarking.py`. Cross-project
+  pull-planning stats, RFI/submittal response rates and space utilisation are there too. So *"every
+  bid result makes the next estimate better"* is true today at the cost-code level.
+  **What is missing is exactly the half the entry called the differentiator.** `grep -i
+  "qto\|quantity\|unit_rate\|guid" benchmarking.py` returns **zero**. It knows what a cost code cost,
+  never what it cost **per measured unit** — and a cost-code distribution is what anyone with an
+  accounting export can build. `$/m² of IfcWall, from our own actuals, cross-project` is the part
+  that needs the QTO spine and the part that does not exist.
+  **Remainder, correctly sized:** *unit-rate memory* — join `direct_cost` actuals to the estimate's
+  measured quantities so the distribution is per unit rather than per code.
+  **Shipped in PR #104** (`unit_rate_memory.py`): cost ÷ **installed quantity**, joining `direct_cost`
+  to `production_quantity` — two modules owned by different engines that had never been read together.
+  Rates are computed **per project then distributed**, never Σcost ÷ Σquantity, which is a weighted
+  average wearing a distribution's clothes; the pooled figure is reported alongside and labelled. Units
+  are grouped, never converted. A review caught the totals being summed from **display-rounded** values
+  — 6000.00 against a true 6000.30, and a pooled rate contradicting the formula printed beside it;
+  aggregates now come from raw values, mutation-checked.
+  *Third entry in one day whose estimate was set by a description that had drifted from the code, and
+  the third distinct flavour: R23-RECIPE-ARTIFACT said "already is X" and nothing existed;
+  R22-CLASSIFY-AI described a harmless failure that was really a confident wrong number; this one
+  describes an unbuilt feature that is mostly shipped. All three were visible only by opening the
+  file.*
+
+- ✅ **R22-CARBON-OPTION** *(M; **PR #106**, merged 2026-07-29 22:37Z — `option_carbon.py` +
+  `design_options.py`)* — verified on `main` by content, not by merge status: `option_carbon.py`
+  present, `kgco2e_per_sf` ×3 in `design_options.py`, `POST /options/carbon` routed, and both
+  `test_option_carbon` and `test_option_carbon_route` named in `run_tests.py` with both files on disk.
+  The premise was right about the capability and wrong about its REACH. `option_score` already scored **generated** massing variants
+  on carbon, `option_takeoff.embodied()` computed it bottom-up, `carbon.py` rolled up a whole project —
+  and `design_options.compare()`, the card a project keeps its schemes on, had none. `energy_eui` was
+  not standing in: that is **operational** energy, a different lifecycle stage. Every row now states its
+  basis — `declared` / `benchmark` / `unavailable` — and unmeasurable options are listed but never
+  ranked, because an option with no area is not an option with zero carbon. The intensity table is
+  **imported** from `option_score`, never copied, and a test asserts this module defines none of its own.
+
+- ✅ **R22-ACCT-SEAM** *(M; already shipped — verified on `main` 2026-07-29, no new code)* — the seam
+  exists in full and the entry had simply not been re-read. Outbound: `accounting.py` (GL CSV,
+  QuickBooks IIF bills, journal entries, trial balance, approval-gated frozen batches). Inbound:
+  `imports.py` (generic CSV/Excel → any module, incl. `direct_cost`) + `fin_ingest.py` (budget↔actuals
+  two-way reconcile on the cost-code spine, unmatched surfaced BOTH ways and never netted, plus import
+  lineage). Credentials: `connectors.py` (quickbooks / sage-erp / procore / acc). All routed via
+  `routers/accounting.py`, and `test_accounting.py` **value-checks** the double-entry invariant exactly
+  — `abs(dr - cr) < 0.01 and abs(dr - 125000) < 0.01`, not a range. **Remaining and genuinely blocked:**
+  a live API *pull* needs real credentials, so it belongs in the gated table, not the open list.
+
+  *Reporting "already covered" was the deliverable here.* The session that checked went in expecting to
+  add a missing double-entry balance gate, found the assertion already exact, and wrote nothing rather
+  than landing a redundant gate so the day would show a commit. That is the right call and the harder
+  one.
+
+- **R22-ENTITLE-RISK** *(S/M; **PR #99** — `proforma/entitlement_risk.py` + `POST /proforma/entitlement-risk`;
+  no new module, no migration)* — approval probability + entitlement duration in the Monte Carlo.
+  The largest unmodelled uncertainty in any acquisition proforma.
+  **Premise corrected 2026-07-29 during implementation — the entry reads "add two inputs" and the
+  truth was "the model has no place to put either":**
+  * `Timing` has **no pre-construction period at all** (`construction_months` / `leaseup_months` /
+    `hold_years`). The 6–30 months between buying a site and being allowed to build on it were not
+    merely unpriced, they were **unrepresentable**.
+  * `monte_carlo` samples only **continuous** drivers onto dotted paths, so a **binary** approval
+    event could not be expressed in the first place.
+
+  **The design decision a reader will want to argue with, so it is recorded rather than buried: a
+  denied entitlement is NOT modelled as a bad IRR.** The draw is not solved at all. Pushing *"the
+  building was never built"* through a solver that assumes construction proceeds produces a number,
+  and that number then sits inside the P5–P95 of a distribution describing **a project that does not
+  exist** — the same class of defect as `get_area` and the classification fallback, where a
+  fabricated value survives review that a missing one would not. The consequence is the whole point:
+  on the sample deal the 15% hurdle clears **1.00 conditional on approval and 0.58 unconditional**.
+  A proforma that only ever reports the conditional figure is not being optimistic, it is answering
+  a different question than the one the investment committee asked.
+
+- **R23-DIGEST** *(M; **PR #94** — `routers/digest.py` + `aec_data/model_digest.py`)* — a deterministic
+  multi-scale model digest (project → storey → zone → system → element) as compact JSON. Immediate
+  non-AI value as a **diffable change-detection snapshot** between IFC versions; becomes the retrieval
+  index if AI features land.
+
+- **R23-RECIPE-ARTIFACT** *(M; **PR #98** — `recipe_log.py` + `routers/recipes.py`)* — versioned,
+  diffable, exportable, replayable edit history.
+  **Premise corrected 2026-07-29 during implementation: it was NOT already a CAD operation timeline.**
+  The entry claimed formalising an existing thing. In fact `edit_history.json` is a stack of **file
+  paths**, and the audit log records an edit's **outputs** (`/edit`) or merely recipe **names**
+  (`/edit/batch`). **The parameters were nowhere**, so replay, diff and export had nothing to rest on.
+  #98 records the missing half rather than formalising a present one — which is why it needed four
+  capture hooks in `routers/authoring.py` rather than a serialiser.
+  *Worth generalising: "it already is X, just formalise it" is the single most expensive kind of
+  roadmap sentence, because it sets the estimate before anyone opens the file* ([[check-the-blocker-premise]]).
+
+- ✅ **R23-GLTF-COMPRESS** *(S/M; **PR #105**, merged 2026-07-29 — `services/data/src/aec_data/gltf_export.py`
+  + `test_gltf_compress.py` / `test_gltf_export.py`)* — verified on `main` by content: `draco_available()`
+  present, the 65536 ceiling present, `DracoPy==1.7.0` in `requirements-dev.txt`, and **nothing added to
+  `requirements.in`** — the hash lock is deliberately untouched. Note the module is in **`aec_data`**, the
+  engine layer, not `aec_api`; `aec_api` may import `aec_data` and never the reverse.
+  Shipped in two halves, split by what each costs the consumer. **Per-mesh index width** is free and on
+  by default: measured first, indices were **60%** of a 175 KB export and every mesh was far under the
+  ceiling, so a fixed uint32 was paying double. uint16 is core glTF 2.0 — no extension, ~30% off every
+  export, nothing to check on the reader. **Draco is opt-in** (`draco=True`): 42,592 B → 5,040 B
+  (**88%**), but `KHR_draco_mesh_compression` is *required*, not optional, so a consumer without the
+  decoder reads nothing. Verified against **headless Blender 3.5**, which decodes Draco; trimesh does
+  NOT, and returns the right vertex and triangle counts with every position at (0,0,0) while raising
+  nothing — see the note under R22-ACCT-SEAM on what an independent-reader check actually proves.
+  `DracoPy==1.7.0` pinned in `requirements-dev.txt` — 2.0.0 ships **Windows wheels only**, and
+  `requirements.in` would force a hash-lock recompile. Shipping it in the API image is a
+  `requirements.in` line + a Lockfile-workflow run, **not done here**.
+
+  **The review finding is worth more than the feature.** The **uint32 fallback branch was unreachable by
+  every fixture in the suite** — all of them ran on ~960-vertex meshes, so nothing could cross a 65,536
+  ceiling. It was reached by synthesising the mesh and substituting the producer at the seam, and then
+  mutating the ceiling by one exposed the real corruption: index 65,536 reads back as **65,535** — same
+  byte length, valid glTF, wrong triangle. **If no fixture can reach a branch, manufacture the input at
+  the seam rather than concluding the branch is fine.**
+
+  **Four instances of one shape in a single day, across three subsystems and three authors** — a check
+  standing where the failure cannot arrive:
+  1. this uint32 branch, unreachable by any fixture in the suite;
+  2. the trimesh reader "confirming" a Draco file whose every vertex was `(0,0,0)` (see R22-ACCT-SEAM);
+  3. the README room-count gate, satisfied by the word "operate" sitting in an unrelated sentence while
+     the README told readers there were six rooms and there were seven;
+  4. and the one worth the most, because the instrument itself was wrong: a check for "did #105 ship?"
+     that looked for `gltf_export.py` under `services/api/` — the wrong source root — and so would have
+     reported MISS for a file that existed. It gave the right answer only because `gh pr list` ran beside
+     it and the two disagreed. **Two independent signals is what turns a mis-aimed check into a caught
+     one**; a single confident negative is indistinguishable from a true one.
+
+- **R23-PREFAB-KIT** *(M; **PR #96** — `prefab_kit` module, 133 total, + an Alembic revision)* — a
+  prefab kit is a `query_dsl.select()` scope + BOM + pull-plan task + delivery date. A join across
+  spines we already have, not a new engine. Strong LOD-500 fit: kits are what actually get
+  field-verified.
+
+- ✅ **R23-JURISDICTION-PACKS** *(M; **PR #101**, merged — `jurisdiction_packs.py` +
+  `routers/jurisdiction.py`)* — jurisdiction-scoped data-requirement rule packs. The shape was there
+  and the scoping was not: `rule_library` rules are per-project and hand-authored, `ids_authoring`
+  builds from a *use case* rather than a place, and `Project.jurisdiction` already resolved the IBC
+  edition while nothing read it for **data** requirements. Requirements are `rule_library`-shaped and
+  run through `rule_library.evaluate()` — the same evaluator, not a second one.
+  **Ships no regulatory claims on purpose:** one built-in `example` pack attributed to nobody, and
+  `authority` / `edition` / `source` required to store a real one, because a requirement nobody can
+  trace is indistinguishable from one somebody made up — and this pack fails other people's models.
+  Two defects its own tests caught, both the same shape: the example pack used
+  `Pset_WallCommon.FireRating`, which *parses* as a bare-field test, matches nothing, and passes on
+  every model forever (now refused at import — a rule that cannot fail is worse than a missing one);
+  and the fixture invented a flat pset shape when the index nests under `psets`.
+  **Its authz hole is the more useful legacy** — see SEC-GLOBAL-AUTHZ under Decomposition &
+  reliability.
+
+- ✅ **R24-BASELINE** — **SHIPPED**: `baseline.py` + `GET /admin/baseline` (admin-gated, cross-project).
+  **Three of the six are measured, three refuse — and the split is the finding.** The entry listed six
+  metrics as though they were one kind of thing:
+  - **Derivable from `record_activity`** (every create/update/transition already carries an actor and
+    a timestamp): *rooms touched per user per week* (module → section → room via `rooms.room_of`, so
+    it cannot drift from the rail), *field captures per super per day*, *median RFI turnaround*
+    (paired transitions into `open` then `answered`).
+  - **`available: false` with a reason**: *time-to-first-meaningful-action* and *p95 **interaction**
+    latency* are client-side — no server event marks either end; *"where is X" support threads* lives
+    in a support inbox this product cannot see. A client measure faked from a server proxy reads like
+    the target and answers a different question, which is precisely how a shell nobody can score gets
+    shipped with a dashboard.
+
+  Two things fell out of building it. **`http_request_duration_seconds` was `_sum`/`_count` only** —
+  that is a *mean*, and a mean cannot answer the p95 R24-PERF-BUDGET asserts, so a latency
+  **histogram** was added with 0.1 s as a deliberate bucket edge. And an unanswered RFI is excluded
+  from the numerator and reported as `open_unanswered` rather than counted as zero days — the same
+  defect shape as the draw priced at zero. Tests are **value-checked against hand arithmetic**, not
+  range-checked, and mutation-checked both ways.
+
+- ✅ **SEC-GLOBAL-AUTHZ** — **SHIPPED**: the ratchet landed as PR #102, the HIGH was fixed in #101,
+  and the allowlist was hardened in v0.3.793/794. `test_global_authz.py` freezes 39 known global
+  mutating routes and fails the build on a new one; coverage checked against `app.openapi()` (0 of 51
+  invisible to it); mutation-checked before merge, not after. The `AUTHORISING` set is now verified
+  against the source — two names in it (`require_license`, `require_plan`) resolved to nothing, which
+  is a pre-authorised hole waiting for someone to define a matching name. Original entry kept below
+  because the *mechanism* is the durable lesson. — **there is no authz gate for platform-global
+  routes, and a HIGH got through the hole on 2026-07-29.** `test_route_authz` enumerates `/projects/{pid}` routes and
+  asserts each carries `require_role`; it passed on 695 routes while three brand-new routes with no
+  `{pid}` in the path — `GET`/`POST`/`DELETE /jurisdiction/packs` (PR #101) — were reachable
+  **unauthenticated**. Measured with RBAC on and no credentials: `200` / **`201`** / `200`, with
+  `GET /admin/errors` correctly `403` in the same run.
+
+  The mechanism generalises past that PR and is the reason this is a ring item rather than a bug
+  note: **`Depends(current_user)` identifies, it does not authorise.** With RBAC on and no bearer
+  token, cookie or trusted header it returns the literal string `"anonymous"`, so a route guarded
+  only by it *has a name attached and no gate* — and the signature reads like a gate, which is how it
+  survives review. Any non-`{pid}` route that mutates shared state has the same exposure and nothing
+  currently checks for it.
+
+  The work: a companion to `test_route_authz` that enumerates **mutating routes with no `{pid}`** and
+  fails any whose dependency chain is only `current_user`. Then audit the existing ones — this was
+  found on new code and nobody has looked at the routes already on `main`. Note the second-order
+  trap when writing it: every jurisdiction suite popped `AEC_RBAC`, and with RBAC **off**
+  `current_user` returns the `X-User` header, so the bug **cannot appear** — the new test must run
+  RBAC-**on** and lead with a control assertion, or it passes for the wrong reason.
+  *(Fixed on the branch: writes → `require_admin_user`, reads → a `require_identified` that refuses
+  `anonymous`; `test_jurisdiction_authz.py` pins it. The general gate is what remains.)*
+
+---
+
 ## 🗓 Session v0.3.703–710 (2026-07-26) — the stall, the container, the claims, and seven engines nobody could call
 
 The second half of 2026-07-26. **R26 THE SPINE completed** and **R27** shipped six of its eight items.
