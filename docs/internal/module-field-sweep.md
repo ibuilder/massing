@@ -169,9 +169,25 @@ been a bug nobody could locate.
 
 ### Still open, and genuinely so
 
-- **`sov` and `owner_invoice` as documents.** `estimate` gained `line_items`; the AIA G702/G703 pair
-  did not. `sov` is still one record per line with no parent, so the continuation sheet is assembled
-  by `cost.g703` rather than stored. That is the last structural item from §6.
+- ~~**`sov` and `owner_invoice` as documents.**~~ **Shipped as `MOD-G702`.** The structural item was
+  real — `owner_invoice` had five fields standing in for an AIA G702, and the continuation sheet was
+  assembled on every read rather than stored. But looking for the missing fields turned up a **money
+  bug** underneath it:
+
+  `g703` retained each SOV line at that line's own `retainage_pct`; `g702` line 7 applied the global
+  `DEFAULT_RETAINAGE` to the aggregate. Any contract not on the default made the two disagree. On a
+  10% contract with $50,000 completed and nothing this period, **line 8 — current payment due — came
+  out at −$2,500**, and `closeout.py` reads line 8 for the final-payment amount.
+
+  **`test_cost.py` contains no assertion on line 7, line 8, or retainage at all.** It was not a weak
+  test of this behaviour; it was structurally unable to see it. That is the shape worth remembering
+  from this item, more than the fields that were added.
+
+  The deeper fix is that an application is now a **document**: `POST /cost/pay-application` freezes
+  the G703 sheet and lines 1-9 into an `owner_invoice`, and line 7 deducts what was actually
+  certified - including a reduced architect certification - instead of reconstructing it from
+  `completed_prev`, which moves whenever anyone edits an earlier period. `GET /cost/g702` stays a
+  live view, because "where do we stand today" is a real question; it is just not a certificate.
 - **A `reference` column type for tables.** Deliberately excluded (see `TABLE_COLUMN_TYPES`) because a
   picker per row is a real feature and shipping it half-done would put unresolvable ids in rows.
 - ~~**The element link (`§5 T4`).**~~ **Shipped as `MOD-GUID`.** Three defects, and the second was

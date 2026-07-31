@@ -337,7 +337,30 @@ def g703(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role(
 @router.get("/projects/{pid}/cost/g702")
 def g702(pid: str, app_no: int = 1, period: str | None = None, release_retainage: bool = False,
          db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    return cost.g702(db, pid, app_no, period, release_retainage)
+    return cost.g702(db, pid, app_no, period, release_retainage,
+                     previous_certificates=cost._certified_to_date(db, pid))
+
+
+@router.post("/projects/{pid}/cost/pay-application", status_code=201)
+def build_pay_application(pid: str, app_no: int | None = Body(None, embed=True),
+                          period: str | None = Body(None, embed=True),
+                          period_from: str | None = Body(None, embed=True),
+                          period_to: str | None = Body(None, embed=True),
+                          release_retainage: bool = Body(False, embed=True),
+                          db: Session = Depends(get_db),
+                          user: str = Depends(require_role("reviewer"))):
+    """MOD-G702 — snapshot the live SOV and G702 into a draft `owner_invoice`.
+
+    `GET /cost/g702` stays a live view, which is the right thing for "where do we stand today". This
+    is the other thing: the application you actually send, with its numbers frozen. A pay application
+    is a claim made on a date, and everything feeding it keeps moving afterwards — so a certificate
+    reassembled on demand silently restates applications already signed and paid.
+
+    Created as a DRAFT. Submitting and certifying are transitions a person performs; a certificate
+    nobody signed is not a certificate.
+    """
+    return cost.build_application(db, pid, app_no, period, period_from, period_to,
+                                  release_retainage, user)
 
 
 def _proforma_hard(p) -> float | None:
