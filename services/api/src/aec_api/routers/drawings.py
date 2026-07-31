@@ -522,7 +522,11 @@ async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
     # without this field they are indistinguishable.
     audit.record(db, action="pdf.seal", actor=actor, method="POST", path="/pdf/seal",
                  detail={"template_id": template_id, "signed": bool(meta.get("sealed")),
-                         "via": via, "license_id": lic_ref, "step_up": True,
+                         # `multi_user`, NOT a literal True: single-operator mode verifies no
+                         # step-up at all, so a hardcoded True would have every desktop seal claim a
+                         # human re-proved their password when nothing checked. An audit row that
+                         # cannot be wrong in the operator's favour is the only kind worth keeping.
+                         "via": via, "license_id": lic_ref, "step_up": multi_user,
                          "seal_name": str(prof.get("name") or "")[:120],
                          "license_no": str(prof.get("license_no") or "")[:60],
                          "state": str(prof.get("state") or "")[:16]})

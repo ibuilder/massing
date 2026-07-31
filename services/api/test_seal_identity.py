@@ -153,6 +153,20 @@ with TestClient(app) as c:
     check("the api-key identity cannot step up — a machine credential has no person behind it",
           r.status_code == 403, r.status_code)
 
+    # An SSO-provisioned account has no local password, so there is nothing to re-prove. It must say
+    # so (409) rather than fall out as "password verification failed" — that 409 was unreachable dead
+    # code until 2026-07-30, because the combined check above already raised on a falsy hash.
+    from aec_api import auth as _auth
+    from aec_api.db import SessionLocal as _S
+    from aec_api.models import User as _U
+    _db = _S()
+    _db.add(_U(username="sso@seal.test", password_hash="", role="user", active=True, provisioned=True))
+    _db.commit(); _db.close()
+    _r = c.post("/auth/step-up", json={"password": "anything", "act": "pdf.seal"},
+                headers={"Authorization": f"Bearer {_auth.create_token('sso@seal.test')}"})
+    check("an SSO account with no local password gets 409, not a misleading 403",
+          _r.status_code == 409, f"{_r.status_code} {_r.text[:80]}")
+
     su = (c.post("/auth/step-up", json={"password": PW, "act": "pdf.seal"},
                  headers=BOB).json() or {}).get("token")
     check("a correct password yields a step-up assertion", bool(su), "no token — probe is inert")

@@ -110,6 +110,18 @@ with TestClient(app) as c:
                      "sign": "true", "profile": json.dumps(profile)}, headers=HDR)
     assert r.status_code == 200 and r.content[:4] == b"%PDF", r.text
     assert r.headers["X-Seal-Sealed"] == "true" and r.headers.get("X-Seal-Compliance"), r.headers
+    # SEC: single-operator mode verifies no step-up (there are no accounts and no passwords), so the
+    # audit row must SAY so. `step_up` was hardcoded True, which made every desktop seal claim a human
+    # re-proved their password when nothing had checked — an audit row wrong in the operator's favour.
+    from aec_api.db import SessionLocal as _S
+    from aec_api.models import AuditLog as _A
+    _db = _S()
+    _rows = [a.detail for a in _db.query(_A).filter(_A.action == "pdf.seal").all()]
+    _db.close()
+    assert len(_rows) == 1, f"expected one seal row, got {len(_rows)}"
+    assert _rows[0].get("step_up") is False, _rows[0]
+    assert _rows[0].get("via") == "profile:local", _rows[0]
+
     # a plain stamp via /pdf/seal → 422
     assert c.post("/pdf/seal", files={"file": ("s.pdf", make_pdf(1), "application/pdf")},
                   data={"template_id": "review-ejcdc", "profile": "{}"}, headers=HDR).status_code == 422
