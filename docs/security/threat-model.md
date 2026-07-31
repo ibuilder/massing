@@ -121,7 +121,8 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
    bearer token identifies a session, not a person, so any process holding one — including an
    automation driving this API — could still emit sealed documents in the licensee's name, and the
    audit row would faithfully record a human act that never happened. Sealing therefore also
-   requires a fresh single-action step-up assertion (`POST /auth/step-up`, 5-minute TTL, bound to
+   requires a fresh single-action step-up assertion (`POST /auth/step-up`, **single-use**
+   via a `jti` spent in `stepup_spent`, 5-minute TTL, bound to
    the password hash so a password change invalidates it, rejected as a bearer token by
    `verify_token_claims`), and the `api-key` machine identity is refused outright. Single-operator
    mode (RBAC off / `LOCAL_MODE`) is exempt by design: it has no accounts and no passwords, so a

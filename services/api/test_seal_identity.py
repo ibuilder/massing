@@ -87,6 +87,16 @@ def login(c, who):
     return (c.post("/auth/login", json={"username": who, "password": PW}).json() or {}).get("token")
 
 
+def _seal_rows():
+    from aec_api.db import SessionLocal as _S
+    from aec_api.models import AuditLog as _A
+    _db = _S()
+    try:
+        return [a.detail for a in _db.query(_A).filter(_A.action == "pdf.seal").all()]
+    finally:
+        _db.close()
+
+
 def seal(c, tok, **data):
     return c.post("/pdf/seal", files={"file": ("d.pdf", PDF, "application/pdf")},
                   data={"template_id": "seal-pe", "sign": "false", "page": "1", **data},
@@ -171,6 +181,13 @@ with TestClient(app) as c:
                  headers=BOB).json() or {}).get("token")
     check("a correct password yields a step-up assertion", bool(su), "no token — probe is inert")
 
+    def fresh():
+        """A NEW assertion. Required per attempt now that a step-up is spent on use — reusing one
+        would make every check below pass with 403-because-spent instead of 403-for-its-own-reason,
+        which is the failure mode where a test keeps passing while measuring nothing."""
+        return (c.post("/auth/step-up", json={"password": PW, "act": "pdf.seal"},
+                       headers=BOB).json() or {}).get("token")
+
     # A step-up must not be promotable into a session, even though it is signed with the same key.
     #
     # This MUST use a fresh client. `/auth/login` sets an httponly `aec_token` cookie and TestClient
@@ -190,14 +207,26 @@ with TestClient(app) as c:
     check("the seal carries the LICENCE's name, not anything the caller typed",
           "Bob R. Builder" in txt and "PE-77341" in txt, txt[:160])
 
-    r = seal(c, bob, license_id=boss_lic, step_up=su)
+    # SINGLE-USE. `su` was spent by the seal above; replaying it must not seal a second document.
+    # A time-bounded assertion says "a human re-proved this password in the last five minutes"; a
+    # seal claims "this human was in responsible charge of THIS work". Only a spent-once assertion
+    # supports the second sentence, and an agent that captured one token could otherwise seal a stack.
+    replay = seal(c, bob, license_id=bob_lic, step_up=su)
+    check("a step-up assertion cannot be spent twice — replay is refused",
+          replay.status_code == 403, f"{replay.status_code} {replay.text[:90]}")
+    check("  ...and the replay produced no second audit row",
+          len(_seal_rows()) == 1, _seal_rows())
+    check("a FRESH assertion still seals — single-use is not use-once-ever",
+          seal(c, bob, license_id=bob_lic, step_up=fresh()).status_code == 200)
+
+    r = seal(c, bob, license_id=boss_lic, step_up=fresh())
     check("bob cannot seal with ANOTHER user's licence id", r.status_code == 403, r.status_code)
 
-    r = seal(c, bob, step_up=su, profile=json.dumps(
+    r = seal(c, bob, step_up=fresh(), profile=json.dumps(
         {"name": "Someone Else, PE", "license_no": "PE-99999", "state": "NY"}))
     check("the legacy free-text profile is refused by default", r.status_code == 403, r.status_code)
 
-    r = seal(c, bob, step_up=su)
+    r = seal(c, bob, step_up=fresh())
     check("sealing with no licence at all is refused", r.status_code == 422, r.status_code)
 
     # An expired licence must refuse: a document sealed under a lapsed licence is precisely what a
@@ -205,7 +234,7 @@ with TestClient(app) as c:
     exp_lic = (c.post("/admin/licenses", json={
         "user": "bob@seal.test", "name_on_seal": "Bob R. Builder, P.E.", "license_no": "PE-OLD",
         "state": "TX", "expiration": PAST}, headers=BOSS).json() or {}).get("id")
-    r = seal(c, bob, license_id=exp_lic, step_up=su)
+    r = seal(c, bob, license_id=exp_lic, step_up=fresh())
     check("an EXPIRED licence refuses to seal", r.status_code == 409, f"{r.status_code} {r.text[:90]}")
 
     # --- the fp binding: a password change kills outstanding assertions ---------------------------
@@ -220,7 +249,8 @@ with TestClient(app) as c:
     db = SessionLocal()
     rows = [a.detail for a in db.query(AuditLog).filter(AuditLog.action == "pdf.seal").all()]
     db.close()
-    check("exactly one seal succeeded, so exactly one audit row exists", len(rows) == 1, len(rows))
+    check("two seals succeeded (the original and the fresh-assertion one), so two rows exist",
+          len(rows) == 2, len(rows))
     if rows:
         d = rows[0]
         check("the row records it was derived from a verified licence", d.get("via") == "license", d)

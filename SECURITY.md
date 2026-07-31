@@ -61,7 +61,7 @@ automatically:
    deliberately **not** self-served: a user asserting their own licence number carries exactly as much
    weight as the free-text field this replaced. The admin who records it is stored in `verified_by`.
 
-Sealing then also requires the licensee to re-enter their password (`POST /auth/step-up`, a 5-minute
+Sealing then also requires the licensee to re-enter their password (`POST /auth/step-up`, a single-use, 5-minute
 single-action assertion). That is not a UX preference. A seal attests that a named licensed human was
 in *responsible charge* of the work — a personal legal act that cannot be delegated to software — and a
 bearer token identifies a session, not a person, so any process holding one could otherwise emit sealed

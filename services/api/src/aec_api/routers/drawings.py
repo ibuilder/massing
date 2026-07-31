@@ -510,7 +510,6 @@ async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
 
     from starlette.concurrency import run_in_threadpool
 
-    from .. import auth as _auth
     from .. import rbac as _rbac
     from .. import stamps
     from ..models import ProfessionalLicense, User
@@ -529,11 +528,14 @@ async def pdf_seal(file: UploadFile = File(...), template_id: str = Form(...),
         u = db.get(User, actor)
         if not u or not u.password_hash:
             raise HTTPException(403, "sealing requires an account with a local password")
-        if _auth.verify_stepup_token(step_up, "pdf.seal", u.password_hash) != actor:
-            # One status for every failure mode (absent / wrong act / expired / another user's / stale
-            # after a password change) so the response cannot be used to probe which one it was.
+        # Verifies AND spends: an assertion seals one document, not every document reachable inside
+        # its 5-minute TTL. A seal's claim is per-document, so the thing authorising it has to be too.
+        if not _rbac.consume_stepup(db, step_up, "pdf.seal", u.password_hash, actor):
+            # One status for every failure mode (absent / wrong act / expired / another user's /
+            # stale after a password change / ALREADY SPENT) so the response cannot be used to probe
+            # which one it was.
             raise HTTPException(403, "a fresh step-up assertion for 'pdf.seal' is required — "
-                                     "POST /auth/step-up")
+                                     "POST /auth/step-up (each one may be spent once)")
 
     if license_id:
         lic = db.get(ProfessionalLicense, license_id)
