@@ -53,15 +53,25 @@ _SCHEMA_RE = re.compile(r"FILE_SCHEMA\s*\(\s*\(\s*'([^']{1,80})'", re.IGNORECASE
 _INSTANCE_RE = re.compile(r"#(\d{1,12})\s*=\s*", re.ASCII)
 
 #: In-memory cap for the FULL diagnostic. `diagnose_text` holds the whole file as a `str` plus a map of
-#: every `#N` reference, so peak memory is roughly 2-3x the file size — a 51 MB model costs a few
-#: hundred MB. This was **512 MB and that was a lie**: a 512 MB cap cannot be honoured by a whole-file
+#: every `#N` reference. This was **512 MB and that was a lie**: a 512 MB cap cannot be honoured by a whole-file
 #: read, and the first full-suite run proved it. `test_schema_diag` raised `MemoryError` and took
 #: `test_clash_xml_import` and `test_cbs` down with it, because a diagnostic that exhausts the process
 #: does not fail alone. A cap you cannot honour is worse than no cap: it reads as a considered limit.
 #:
 #: The streaming pre-flight (`scan_unterminated_string`) is not affected and has no such limit — it is
 #: the one that runs on the hot path, and it is chunked precisely so it never holds the file.
-MAX_BYTES = 96 * 1024 * 1024
+#: MEASURED, not guessed: `tracemalloc` over the 50 MB / 1.03 M-instance `basichouse.ifc` peaks at
+#: **166 MB — 3.3x the file size**. 96 MB was therefore far too conservative on the axis it named; the
+#: cap now sits at 384 MB, implying a ~1.3 GB peak, which a worker can hold.
+#:
+#: **Memory was never the binding constraint — time is.** The same file takes ~38 s. At the new cap
+#: that is roughly five minutes, which is a background job and not a request, so raising the ceiling
+#: without moving large models onto the job queue would trade a wrong refusal for a timeout. Running it
+#: as a background job (`jobs.py`) is the next step and is not yet built; until it is, this cap is what
+#: stops the second failure mode.
+#: Accurate counts matter more than a conservative ceiling: below this size every count is exact, and
+#: `FILE_TOO_LARGE` says plainly that nothing was counted rather than reporting a clean file.
+MAX_BYTES = 384 * 1024 * 1024
 
 MAX_FINDINGS_PER_CODE = 100
 

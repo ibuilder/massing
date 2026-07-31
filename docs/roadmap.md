@@ -73,7 +73,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R32-MODEL-IN-TREE · R33-CLAWBACK-AMOUNT · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R32-MODEL-IN-TREE · R33-CLAWBACK-AMOUNT · R34-TAKEOFF-COUNT · R34-SHEET-SCALE · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R23-PICKING · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
@@ -1057,6 +1057,57 @@ higher-value than its size suggests — it is the measurable floor under every t
 The framing worth adopting even though it is not a feature: **reduce verification cost, not just
 production cost.** Several items already do this without saying so; it is the sharper way to argue for
 them.
+
+## 📐 R34 — TAKEOFF ACCURACY: the platform cannot count *(2026-07-30)*
+
+Prompted by the user ("accurate counts are important") and researched against **OpenTakeoff**
+([Kentucky-ai/opentakeoff](https://github.com/Kentucky-ai/opentakeoff), **Apache-2.0**, browser-only,
+no paid dependencies — licence and offline constraints both satisfied, so it is usable as guidance and
+in principle as code). Three gaps, all verified in our source rather than assumed.
+
+### ⭐ R34-TAKEOFF-COUNT *(M)* — there is no count measure at all
+
+`takeoff2d.py` defines `_UNIT_LABEL = {"area": "m²", "length": "m"}` and every entry in
+`TAKEOFF_ASSEMBLIES` is `area` or `length`. **The platform cannot take a count off a drawing.** Not
+doors, not fixtures, not receptacles, not sprinkler heads — the operation an estimator performs most
+often on a plan set is absent, so a count today is done outside the platform and typed back in.
+
+That is also the item with an external measurement attached: models score **40–55% on object-counting
+from drawing sets**, symbols and linework the weakest part, which makes counting the measurable floor
+under every takeoff claim. Worth noting that OpenTakeoff — a dedicated takeoff tool — offers a Count
+*tool* but **no automated symbol-detection algorithm**, so the manual-count-with-good-ergonomics path
+is the proven one and automatic symbol recognition is genuinely unsolved rather than merely unbuilt.
+Build the honest version first: a count measure, priced per unit, that a human or an agent places.
+Pairs with **R23-SYMBOL-COUNT** (Lane B) which is the recognition half.
+
+### ⭐ R34-SHEET-SCALE *(S)* — one scale is applied to a whole plan set
+
+`quantify(regions, scale_units_per_px, ...)` takes **a single scale per call**. Real plan sets are not
+uniformly scaled: plans at 1/8"=1', details at 1/2"=1', enlarged plans somewhere between. OpenTakeoff
+stores scale **per sheet** for exactly this reason.
+
+Applying one scale across a mixed set makes every measurement on an off-scale sheet wrong **by the
+ratio** — a 4x error on a detail, silently, with a plausible number as the output. This is the
+[[the-dangerous-default-is-the-plausible-one]] shape on money, and it is a small fix: scale belongs to
+the sheet, and a region must carry which sheet it came from.
+
+### R34-MEASURE-PROVENANCE *(S)* — a measurement does not record how it was made
+
+OpenTakeoff's best idea, and the one most aligned with where this platform already went: **every
+measurement records its scale, whether it was one-click or hand-drawn, and whether a person or an agent
+made it.** We record the number.
+
+We already apply exactly this principle to money (`COST-DB` rate + vintage + source) and to options
+(`derived / declared / unlinked / unavailable`). A traced quantity is at least as contestable as a
+rate, and once an agent can place measurements the question "who measured this, how, at what scale"
+stops being bookkeeping and becomes the basis of the estimate. Same argument as **R24-TRACE-UI ②**.
+
+### Not adopted
+
+Its flood-fill room tracer, adaptive thresholding for scans, and angle-locking already have our
+equivalents (`takeoff2d` does shoelace area and polyline length server-side; the browser traces). Its
+measurement engine is **deterministic geometry, not ML**, which is the same choice we made — worth
+recording because "AI takeoff" invites the opposite assumption.
 
 ## 💰 R33-CLAWBACK-AMOUNT — the GP giveback is computed with no time dimension *(2026-07-30)*
 
