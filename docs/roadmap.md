@@ -148,10 +148,21 @@ no health report surfaced would be the same defect this band exists to catch.
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
-## ✅ **BAND 3 IS COMPLETE — all five checked 2026-07-31. Four closed, one reframed.**
+## ✅ **BAND 3 IS COMPLETE — all five checked 2026-07-31. Five closed, zero builds.**
 
-The band's own thesis held again, and harder than expected: **four of five premises failed or mostly
-failed.** What the whole exercise cost was a few hours of reading; what it saved was four builds.
+The band's own thesis held again, and harder than expected: **five of five premises failed.** What the
+whole exercise cost was a few hours of reading; what it saved was five builds.
+
+*Corrected after a re-check.* This first read "four closed, one reframed": `R31-SYNDICATION-TAIL` was
+recorded as mostly-failing with one genuine remainder, the K-1 pack. That remainder was then **built and
+shipped the same day** (`aabad457`), so the band's real output is five closures.
+
+⚠️ **Recorded as *shipped today*, not as *never a gap*** — and the distinction is the point. On the
+re-check the sibling session found `capital.k1_pack()` present and concluded it had always been there.
+It had not; it existed because that session's own finding caused it to be built hours earlier. **All
+sessions share one git identity, so a sibling's fresh work is indistinguishable from history** unless
+you read the file's `git log`. Writing "we were always fine here" would have been false and would make
+every other closure in this band less trustworthy.
 
 **The closures were re-checked for REACH, not just capability** — a `module.json` on disk is not reach,
 and an engine nothing calls is the defect this file keeps finding. Every closure below names a live
