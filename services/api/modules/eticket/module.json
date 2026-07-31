@@ -22,22 +22,180 @@
       "fieldset": "Dates"
     },
     {
-      "name": "equipment_total",
-      "label": "Equipment $",
-      "type": "number",
-      "fieldset": "Quantities"
+      "name": "labor_total",
+      "label": "Labor",
+      "type": "currency",
+      "fieldset": "Money"
     },
     {
-      "name": "labor_total",
-      "label": "Labor $",
-      "type": "number",
-      "fieldset": "Quantities"
+      "name": "labor_lines",
+      "label": "Labor",
+      "type": "table",
+      "total_column": "amount",
+      "fieldset": "Money",
+      "columns": [
+        {
+          "name": "worker",
+          "label": "Worker / crew",
+          "type": "text"
+        },
+        {
+          "name": "trade",
+          "label": "Trade",
+          "type": "text"
+        },
+        {
+          "name": "classification",
+          "label": "Class",
+          "type": "select",
+          "options": [
+            "Journeyman",
+            "Apprentice",
+            "Foreman",
+            "General Foreman",
+            "Superintendent"
+          ]
+        },
+        {
+          "name": "hours",
+          "label": "Hours",
+          "type": "number",
+          "unit": "hr"
+        },
+        {
+          "name": "ot_hours",
+          "label": "OT hours",
+          "type": "number",
+          "unit": "hr"
+        },
+        {
+          "name": "rate",
+          "label": "Rate",
+          "type": "currency",
+          "unit": "$/hr"
+        },
+        {
+          "name": "amount",
+          "label": "Amount",
+          "type": "currency"
+        }
+      ],
+      "totals_into": "labor_total"
     },
     {
       "name": "material_total",
-      "label": "Material $",
-      "type": "number",
-      "fieldset": "Quantities"
+      "label": "Material",
+      "type": "currency",
+      "fieldset": "Money"
+    },
+    {
+      "name": "material_lines",
+      "label": "Material",
+      "type": "table",
+      "total_column": "amount",
+      "fieldset": "Money",
+      "columns": [
+        {
+          "name": "description",
+          "label": "Description",
+          "type": "text"
+        },
+        {
+          "name": "qty",
+          "label": "Qty",
+          "type": "number"
+        },
+        {
+          "name": "unit",
+          "label": "Unit",
+          "type": "text"
+        },
+        {
+          "name": "unit_price",
+          "label": "Unit price",
+          "type": "currency"
+        },
+        {
+          "name": "amount",
+          "label": "Amount",
+          "type": "currency"
+        }
+      ],
+      "totals_into": "material_total"
+    },
+    {
+      "name": "equipment_total",
+      "label": "Equipment",
+      "type": "currency",
+      "fieldset": "Money"
+    },
+    {
+      "name": "equipment_lines",
+      "label": "Equipment",
+      "type": "table",
+      "total_column": "amount",
+      "fieldset": "Money",
+      "columns": [
+        {
+          "name": "equipment",
+          "label": "Equipment",
+          "type": "text"
+        },
+        {
+          "name": "hours",
+          "label": "Hours",
+          "type": "number",
+          "unit": "hr"
+        },
+        {
+          "name": "idle_hours",
+          "label": "Idle hours",
+          "type": "number",
+          "unit": "hr"
+        },
+        {
+          "name": "rate",
+          "label": "Rate",
+          "type": "currency",
+          "unit": "$/hr"
+        },
+        {
+          "name": "amount",
+          "label": "Amount",
+          "type": "currency"
+        }
+      ],
+      "totals_into": "equipment_total"
+    },
+    {
+      "name": "signed_by",
+      "label": "Signed by (field)",
+      "type": "text",
+      "fieldset": "Sign-off"
+    },
+    {
+      "name": "signed_on",
+      "label": "Signed on",
+      "type": "date",
+      "fieldset": "Sign-off"
+    },
+    {
+      "name": "signature",
+      "label": "Field signature",
+      "type": "signature",
+      "fieldset": "Sign-off"
+    },
+    {
+      "name": "gc_approved_by",
+      "label": "Approved by (GC)",
+      "type": "text",
+      "fieldset": "Sign-off"
+    },
+    {
+      "name": "gc_approved_on",
+      "label": "Approved on",
+      "type": "date",
+      "fieldset": "Sign-off"
     },
     {
       "name": "change_event",
@@ -63,6 +221,10 @@
         "party": [
           "Subcontractor",
           "GC"
+        ],
+        "requires": [
+          "signed_by",
+          "signature"
         ]
       },
       {
@@ -71,6 +233,9 @@
         "action": "gc_sign",
         "party": [
           "GC"
+        ],
+        "requires": [
+          "gc_approved_by"
         ]
       },
       {
@@ -85,9 +250,9 @@
   },
   "workspace": "construction",
   "list_columns": [
-    "change_event",
     "work_date",
     "labor_total",
-    "material_total"
+    "material_total",
+    "signed_by"
   ]
 }
