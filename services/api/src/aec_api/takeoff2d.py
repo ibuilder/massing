@@ -54,6 +54,33 @@ def polyline_length_px(points: list) -> float:
     return total
 
 
+#: How a measurement was produced. `unrecorded` is a real answer and the DEFAULT one — a region that
+#: does not say how it was made is not assumed to have been carefully traced. Recording the number
+#: while inventing its method is the failure this exists to prevent.
+MEASURE_METHODS = ("one_click", "traced", "imported", "unrecorded")
+
+#: Who produced it. Same rule: absent means `unrecorded`, not `person`. An agent-generated takeoff and
+#: a hand-traced one carry different weight in a claim, and only one of them is defensible without a
+#: witness — so the distinction has to survive into the row rather than being reconstructed later.
+MEASURE_AUTHORS = ("person", "agent", "unrecorded")
+
+
+def _provenance(reg: dict, scale: float) -> dict:
+    """What a region records about HOW it was measured, normalised. Never guesses."""
+    m = str(reg.get("method") or "").strip().lower().replace("-", "_").replace(" ", "_")
+    a = str(reg.get("measured_by") or reg.get("by") or "").strip().lower()
+    # A region may carry its own scale (different sheets are scaled differently); when it does not,
+    # the call's scale is what was applied, and either way the row records the one actually used.
+    try:
+        rs = float(reg.get("scale_units_per_px"))
+    except (TypeError, ValueError):
+        rs = None
+    return {"method": m if m in MEASURE_METHODS else "unrecorded",
+            "measured_by": a if a in MEASURE_AUTHORS else "unrecorded",
+            "scale_applied": rs if rs and rs > 0 else scale,
+            "scale_source": "region" if rs and rs > 0 else "call"}
+
+
 def quantify(regions: list[dict], scale_units_per_px: float, *,
              unit: str = "m", overrides: dict[str, float] | None = None) -> dict[str, Any]:
     """Measure + price traced regions. `scale_units_per_px` converts pixels → real units (`unit`, from the
@@ -70,16 +97,20 @@ def quantify(regions: list[dict], scale_units_per_px: float, *,
         measure, default_rate, label = spec
         rate = float(overrides.get(cat, default_rate))
         pts = reg.get("points") or []
+        prov = _provenance(reg, s)
+        rs = prov["scale_applied"]
         if measure == "length":
-            qty = polyline_length_px(pts) * s
+            qty = polyline_length_px(pts) * rs
             qunit = unit
         else:
-            qty = polygon_area_px2(pts) * s * s
+            qty = polygon_area_px2(pts) * rs * rs
             qunit = area_unit
         cost = qty * rate
         rows.append({"index": i, "category": cat, "assembly": label, "measure": measure,
                      "label": reg.get("label"), "quantity": round(qty, 2), "unit": qunit,
-                     "rate": round(rate, 2), "cost": round(cost, 2)})
+                     "rate": round(rate, 2), "cost": round(cost, 2),
+                     # R34-MEASURE-PROVENANCE: the number alone cannot be defended in a claim.
+                     **prov})
 
     by_assembly: dict[str, dict] = {}
     for r in rows:
@@ -91,8 +122,27 @@ def quantify(regions: list[dict], scale_units_per_px: float, *,
         agg["count"] += 1
 
     total = round(sum(r["cost"] for r in rows), 2)
+    by_method = {m: sum(1 for r in rows if r["method"] == m) for m in MEASURE_METHODS}
+    by_author = {a: sum(1 for r in rows if r["measured_by"] == a) for a in MEASURE_AUTHORS}
+    unrecorded = [r["index"] for r in rows
+                  if r["method"] == "unrecorded" or r["measured_by"] == "unrecorded"]
+    scales_used = sorted({r["scale_applied"] for r in rows})
     return {
         "scale_units_per_px": s, "unit": unit,
+        "provenance": {
+            "by_method": by_method, "by_author": by_author,
+            # Named, not just counted — an index list can be chased; a percentage cannot.
+            "unrecorded_regions": unrecorded,
+            "recorded_pct": (round(100 * (len(rows) - len(unrecorded)) / len(rows), 1)
+                             if rows else 0.0),
+            "scales_used": scales_used,
+            # More than one scale in a single takeoff is not an error — real plan sets mix them — but
+            # it is the thing a reviewer must see, because a wrong scale is a plausible number.
+            "mixed_scales": len(scales_used) > 1,
+            "note": ("a region that does not state its method or author is `unrecorded`, never "
+                     "assumed traced-by-a-person; the number is recorded either way but its "
+                     "defensibility is not"),
+        },
         "region_count": len(rows), "total_cost": total,
         "regions": rows,
         "by_assembly": sorted(by_assembly.values(), key=lambda a: -a["cost"]),
