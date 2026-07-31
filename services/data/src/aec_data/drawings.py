@@ -726,6 +726,105 @@ def space_tags_section(model: ifcopenshell.file, axis: str, offset: float,
     return tags
 
 
+def component_dims_section(model: ifcopenshell.file, axis: str, offset: float,
+                           tol: float = 0.05, thickness_tol: float = 0.005) -> list[dict]:
+    """R21-DIM-COMPONENT — the layer breakdown of each assembly the cut passes through.
+
+    The floor-to-floor chain answers "how high"; a fabricator asks "made of what, how thick". That is
+    the `IfcMaterialLayerSet` — cladding, cavity, insulation, structure — and until now a section
+    carried a single overall thickness with the build-up invisible, so the one drawing a trade works
+    from could not be built from.
+
+    Grouped by layer SET, not by element: a wall assembly repeated on eight storeys is one dimension
+    string, for the same reason keynotes group. Only assemblies the cut actually passes through are
+    returned, so a section does not advertise build-ups it never shows.
+
+    **`declared` and `measured` are two different claims and both are reported.** `declared_m` is the
+    sum of the layer thicknesses the model states; `measured_m` is the element's own thickness taken
+    off its geometry. When they disagree the assembly is flagged rather than reconciled, because there
+    is no basis for choosing: a layer set summing to 300 mm on a wall modelled at 250 mm means the
+    drawing and the specification disagree, and a fabricator building to either one is building to a
+    number nobody checked. Silently printing the declared total would hide exactly that.
+
+    An element with **no** layer set is not a defect and is not invented — it is simply absent from the
+    result, and `section_drawing_svg` says how many were skipped rather than implying full coverage.
+    """
+    import ifcopenshell.geom as _geom
+    import ifcopenshell.util.element as _ue
+
+    view = "section-x" if axis == "x" else "section-y"
+    normal, (u, v) = _VIEWS[view]
+    cut_axis = int(np.argmax(np.abs(normal)))
+    settings = _world_settings(_geom)
+
+    sets: dict[int, dict] = {}
+    no_layers = 0
+    skipped = 0
+    for el in model.by_type("IfcElement"):
+        mat = None
+        try:
+            mat = _ue.get_material(el)
+        except Exception:                              # noqa: BLE001 — material lookup is optional
+            mat = None
+        if mat is not None and mat.is_a("IfcMaterialLayerSetUsage"):
+            mat = mat.ForLayerSet
+        if mat is None or not mat.is_a("IfcMaterialLayerSet"):
+            continue                                   # not a layered assembly — nothing to break down
+        try:
+            shape = _geom.create_shape(settings, el)
+            pts = np.asarray(shape.geometry.verts, dtype=float).reshape(-1, 3)
+            lo, hi = pts[:, cut_axis].min(), pts[:, cut_axis].max()
+            if not (lo - tol <= offset <= hi + tol):
+                continue                               # the cut misses this element
+            # thickness = the SMALLER in-plane footprint dimension; for a wall that is its thickness.
+            # Taken from geometry so it is independent of what the layer set claims — the whole point
+            # is to be able to disagree with it.
+            ext = [pts[:, i].max() - pts[:, i].min() for i in (0, 1)]
+            measured = float(min(ext))
+        except Exception as exc:                       # noqa: BLE001 — one bad element loses its string
+            skipped += 1
+            log.debug("drawings.component_dims_section: geometry failed on %s (%s)",
+                      getattr(el, "GlobalId", "?"), exc)
+            continue
+
+        layers = []
+        for ly in (mat.MaterialLayers or []):
+            m = getattr(ly, "Material", None)
+            th = getattr(ly, "LayerThickness", None)
+            layers.append({"name": getattr(ly, "Name", None),
+                           "material": getattr(m, "Name", None) if m is not None else None,
+                           "thickness_m": float(th) if isinstance(th, (int, float)) else None})
+        if not layers:
+            no_layers += 1
+            continue                                   # a layer SET with no layers states nothing
+
+        s = sets.setdefault(mat.id(), {
+            "name": getattr(mat, "LayerSetName", None) or getattr(mat, "Name", None) or "ASSEMBLY",
+            "layers": layers, "ifc_class": el.is_a(), "count": 0, "measured": []})
+        s["count"] += 1
+        s["measured"].append(measured)
+
+    out: list[dict] = []
+    for s in sets.values():
+        # A layer with no stated thickness makes the SUM unknowable — refuse the total rather than
+        # summing the ones that happen to be present, which would silently under-report the assembly.
+        thicks = [ly["thickness_m"] for ly in s["layers"]]
+        declared = round(sum(thicks), 4) if all(t is not None for t in thicks) else None
+        measured = round(float(np.median(s["measured"])), 4) if s["measured"] else None
+        agrees = None
+        if declared is not None and measured is not None:
+            agrees = abs(declared - measured) <= thickness_tol
+        out.append({"name": s["name"], "ifc_class": s["ifc_class"], "element_count": s["count"],
+                    "layers": s["layers"], "declared_m": declared, "measured_m": measured,
+                    "agrees": agrees,
+                    "delta_m": None if agrees is None else round(measured - declared, 4)})
+    out.sort(key=lambda a: (-(a["declared_m"] or a["measured_m"] or 0), a["name"]))
+    if skipped or no_layers:
+        log.warning("drawings.component_dims_section: %d element(s) with unreadable geometry, %d layer "
+                    "set(s) with no layers — those assemblies carry no dimension string", skipped, no_layers)
+    return out
+
+
 def element_callouts(model: ifcopenshell.file, classes=("IfcDoor", "IfcWindow"),
                      cut_z: float | None = None) -> list[dict]:
     """Plan callouts for taggable elements: a label (Tag → Name → class) at the element's plan
@@ -1249,6 +1348,10 @@ def break_line(x1: float, y1: float, x2: float, y2: float,
 
 KEYNOTE_GUTTER = 320          # paper-space room for the text column, left of the level datums
 MAX_KEYNOTES = 14             # past this a section stops being readable; the largest assemblies win
+COMPONENT_COL = 170           # R21-DIM-COMPONENT: right-hand column for the assembly build-ups
+COMPONENT_BAND_H = 34         # paper height one assembly's layer stack occupies, split in proportion
+MAX_COMPONENT_DIMS = 6        # thickest assemblies win; the remainder is COUNTED on the sheet, not
+                              # dropped silently — a truncated list that says nothing reads as complete
 
 
 def keynote_text(cls: str, material: str, thickness_m: float | None = None) -> str:
@@ -1295,7 +1398,8 @@ def _keynote_leaders(entries, col_x: float, top: float, bottom: float,
 def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], title: str,
                         grid: dict | None = None, lod: str = "coarse", width: int = 1300,
                         hatch: bool = True, materials: dict[str, str] | None = None,
-                        keynotes: bool = True, tags: list[dict] | None = None) -> str:
+                        keynotes: bool = True, tags: list[dict] | None = None,
+                        components: list[dict] | None = None) -> str:
     """An **annotated** section: poché, level datums, grid bubbles and a floor-to-floor dimension
     chain — the things that make a cut issuable rather than merely correct.
 
@@ -1317,7 +1421,12 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
     span = np.maximum(mx - mn, 1e-6)
     # the keynote column needs its own room: the existing 130 gutter is already spoken for by the
     # level-datum labels, and letting the two share it would overlap annotation with annotation
+    # R21-DIM-COMPONENT: the assembly strings need their own column. Claimed only when there is
+    # something to put in it — an empty reserved column would shrink every drawing that has no
+    # layered assemblies, which is most sections at coarse LOD.
+    comp_col = COMPONENT_COL if components else 0
     gutter, dim_col, pad, top = (KEYNOTE_GUTTER if keynotes else 130), 90, 30, 40
+    dim_col += comp_col
     draw_w = width - 2 * pad - gutter - dim_col
     scale = draw_w / span[0]
     draw_h = span[1] * scale
@@ -1429,6 +1538,54 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
         out.append(_dim_v(dx + 40, y0, y1,
                           f'{(shown[-1]["elevation"] - shown[0]["elevation"]) * 1000:.0f} OVERALL'))
 
+    # R21-DIM-COMPONENT: the assembly build-ups, beside the floor-to-floor chain. The vertical chain
+    # says how high; these say what it is made of and how thick each layer is — what a fabricator
+    # measures. Each layer band is drawn in PROPORTION to its thickness, so a 12 mm board next to a
+    # 150 mm insulation reads as the sliver it is rather than as an equal stripe.
+    if components:
+        cx0 = ox + draw_w + 34 + 88
+        cy = top + 4
+        out.append(f'<text x="{cx0}" y="{cy}" font-family="sans-serif" font-size="10" '
+                   f'font-weight="700" fill="#111">ASSEMBLIES</text>')
+        cy += 14
+        for a in components[:MAX_COMPONENT_DIMS]:
+            usable = [ly for ly in a["layers"] if (ly.get("thickness_m") or 0) > 0]
+            total = sum(ly["thickness_m"] for ly in usable) or 1.0
+            out.append(f'<text x="{cx0}" y="{cy}" font-family="sans-serif" font-size="9" '
+                       f'font-weight="700" fill="#333">{_xesc(str(a["name"])[:22])}</text>')
+            cy += 4
+            band_top = cy
+            for ly in usable:
+                h = max(2.0, COMPONENT_BAND_H * ly["thickness_m"] / total)
+                out.append(f'<rect x="{cx0}" y="{cy:.1f}" width="14" height="{h:.1f}" '
+                           f'fill="none" stroke="#111" stroke-width="0.6"/>')
+                label = ly.get("material") or ly.get("name") or "—"
+                out.append(f'<text x="{cx0+18}" y="{cy + h/2 + 3:.1f}" font-family="sans-serif" '
+                           f'font-size="8" fill="#111">{ly["thickness_m"]*1000:.0f}  '
+                           f'{_xesc(str(label)[:16])}</text>')
+                cy += h
+            # the overall bracket carries BOTH numbers when they disagree — see component_dims_section:
+            # declared and measured are different claims and reconciling them here would invent one
+            if a["declared_m"] is not None:
+                out.append(f'<line x1="{cx0-5}" y1="{band_top:.1f}" x2="{cx0-5}" y2="{cy:.1f}" '
+                           f'stroke="#111" stroke-width="0.6"/>')
+                out.append(f'<text x="{cx0-8}" y="{(band_top+cy)/2+3:.1f}" text-anchor="end" '
+                           f'font-family="sans-serif" font-size="8" font-weight="700" '
+                           f'fill="#111">{a["declared_m"]*1000:.0f}</text>')
+            if a["agrees"] is False:
+                out.append(f'<text x="{cx0}" y="{cy+9:.1f}" font-family="sans-serif" font-size="7.5" '
+                           f'font-weight="700" fill="#b00">! modelled {a["measured_m"]*1000:.0f} '
+                           f'({a["delta_m"]*1000:+.0f})</text>')
+                cy += 9
+            elif a["declared_m"] is None:
+                out.append(f'<text x="{cx0}" y="{cy+9:.1f}" font-family="sans-serif" font-size="7.5" '
+                           f'fill="#b00">! layer thickness not stated</text>')
+                cy += 9
+            cy += 12
+        if len(components) > MAX_COMPONENT_DIMS:
+            out.append(f'<text x="{cx0}" y="{cy:.1f}" font-family="sans-serif" font-size="8" '
+                       f'fill="#555">+{len(components)-MAX_COMPONENT_DIMS} more assemblies</text>')
+
     ty = height - 24
     note = f'{axis.upper()} = {offset:.2f} m  ·  {len(classed)} cut elements  ·  poché {lod}'
     out.append(f'<line x1="{pad}" y1="{ty-12}" x2="{width-pad}" y2="{ty-12}" stroke="#111" stroke-width="1"/>'
@@ -1442,7 +1599,8 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
 
 def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None,
                 title: str = "SECTION", lod: str = "coarse", annotate: bool = True,
-                hatch: bool = True, keynotes: bool = True, rooms: bool = True) -> str:
+                hatch: bool = True, keynotes: bool = True, rooms: bool = True,
+                components: bool = True) -> str:
     """Cut the model on a vertical plane. `offset` is the world coordinate (metres) of the cut on the
     perpendicular axis; when None the cut auto-centres on the model so it lands through the building
     regardless of where the model sits relative to the origin.
@@ -1466,6 +1624,11 @@ def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None
                                # section is annotated by default exactly as a plan is. `rooms=False`
                                # returns the un-tagged cut for a CAD hand-off.
                                tags=space_tags_section(model, axis, offset) if rooms else None,
+                               # R21-DIM-COMPONENT — the layer build-ups of the assemblies this cut
+                               # passes through. Empty list when the model carries no layer sets, which
+                               # claims the column's width back rather than reserving it for nothing.
+                               components=(component_dims_section(model, axis, offset) or None)
+                               if components else None,
                                materials=material_by_class(model) if (hatch or keynotes) else None)
 
 
