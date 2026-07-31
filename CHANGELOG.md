@@ -4,6 +4,78 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.807 — a seal attests to a person: the security pass on sealing, firm standards, and the audit trail
+
+Seven commits, batched. Four exploitable findings, each verified end to end before and after the fix,
+each pinned by a mutation-verified test.
+
+### Fixed — unauthenticated professional seal forgery
+The seven `POST /pdf/*` routes guarded with `Depends(current_user)`, which **identifies without
+authorising**: with RBAC on and no credential it returns the string `"anonymous"` and the handler
+proceeds. `/pdf` is not in the RBAC middleware's prefix list either, so nothing else challenged them.
+Reproduced: an unauthenticated request returned a PDF bearing a rendered Professional Engineer seal
+with an attacker-chosen name, licence number and state, all read back out of the returned document.
+A sealed drawing is what a plan reviewer accepts and an engineer is personally liable for. Sealing
+also had no audit row at all.
+
+### Fixed — a project-admin could replace the firm's standards library
+`GET/PUT /firm/rules` gated `require_role("admin")` — a *project* gate on a *firm-wide* route. That
+dependency's signature is `dep(pid: str, …)`, so with no `{pid}` in the path FastAPI made `pid` a
+**caller-supplied query parameter** and the caller chose which project's role was checked. Measured
+with an ordinary account (`role="user"`, admin only of a project it had just created):
+`PUT /firm/rules?pid=<own project>` returned `200 {"saved": 1}`. Because `save_rules` replaces the
+library, the same call erased the firm's real standards, after which every project's rule-check
+passes against nothing. Now `rbac.require_platform_admin`, promoted out of `routers/cost.py` where
+it had been written correctly but privately.
+
+### Fixed — the seal now attests to a PERSON, not a session
+Gating the route stopped anonymity; deriving the identity from a verified licence stopped
+impersonation; **neither stopped automation**. A bearer token identifies a session, so any process
+holding one — including an agent driving the API — could emit sealed documents in the licensee's name
+and the audit row would faithfully record a human act that never happened.
+
+Sealing now requires a fresh single-action step-up (`POST /auth/step-up`): 5-minute TTL, scoped by
+`act`, bound to the password hash so a password change invalidates it, and refused as a bearer token.
+The `api-key` machine identity is refused outright. The seal text is rendered from a
+`professional_licenses` row belonging to the caller, recorded by a platform admin
+(`verified_by`/`verified_at`) and never self-served; an expired licence refuses with `409`. The
+free-text `profile` field is refused by default (`AEC_SEAL_ALLOW_PROFILE=1` re-opens it, audited as
+`via: profile:legacy`).
+
+Single-operator/desktop is unchanged by design — no accounts, no passwords, so a step-up there would
+be theatre in front of an app that is unauthenticated by design.
+
+### Fixed — anonymous unbounded writes into the audit table
+`POST /esign/webhook` is anonymous by necessity (a provider holds no user credential) and correctly
+carries no authority. The exposure was the row it wrote per request: caller-chosen strings of
+unbounded length, unthrottled, from the internet. Now HMAC-SHA256 over the raw body when
+`AEC_ESIGN_WEBHOOK_SECRET` is set, rate-limited, 64 KB cap, 200-char field caps, and every row stamped
+`signature_verified`.
+
+### Fixed — tenant JSON had no cache policy
+`Cache-Control` was set nowhere outside the SSE streams, so project records, financials and audit
+feeds were free for a browser disk cache or shared proxy to retain. Now `no-store`, scoped to
+`application/json` so the `.frag` geometry stream and tiles stay cacheable.
+
+### Fixed — two defects in the above, found by self-review
+`"step_up": True` was a literal in the seal audit row, so every desktop seal claimed a human had
+re-proved their password when nothing had checked — an audit row wrong in the operator's favour. And
+the SSO branch in `/auth/step-up` sat after a check that already raised, making its explaining `409`
+unreachable dead code.
+
+### Gates
+`test_seal_identity` (26 checks) and `test_global_mutating_authz` (23 checks) both run RBAC-on and
+assert `rbac.RBAC_ON` directly — the previous control (`GET /admin/errors == 403`) could not tell RBAC
+on from off, since a non-admin is refused either way. The generalising check: **no global route may
+expose a `pid` query parameter**, asserted against the OpenAPI schema rather than as a list of
+known-bad routes. `test_global_authz`'s frozen baseline drops 36 → 29, fixed rather than re-frozen.
+
+### Migration + operator action
+Alembic `b06f7bc8ba2f` adds `professional_licenses`. **With RBAC on, sealing refuses until a platform
+admin records a licence per licensee** (`POST /admin/licenses`) — nothing is created automatically.
+`AEC_ADMIN_EMAILS` is now load-bearing for firm standards and licence provisioning, and had never been
+listed in the hardening checklist; `SECURITY.md` and `docs/PRODUCTION_CHECKLIST.md` now cover it.
+
 ## v0.3.806 — the registers stop being paper forms: filters, fieldsets, line items, and a guide that cannot drift
 
 Six merged branches and one refactor, batched. The through-line is that a config-driven register was

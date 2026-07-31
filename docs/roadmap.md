@@ -66,6 +66,15 @@ merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in
 | **R34-SHEET-SCALE** | S | One scale is applied to a whole plan set; a differently-scaled detail sheet is wrong **by the ratio**, silently, with a plausible number out. |
 | **R23-PICKING** | M | ⚠️ premise already corrected — **do not build on the stated evidence.** Re-scope or close. |
 
+✅ **SEC-SEAL / SEC-FIRM-RULES / SEC-ESIGN-HOOK / SEC-CACHE — SHIPPED v0.3.807.** Four exploitable
+findings, none of which were on this list because none had been noticed: an **unauthenticated** caller
+could obtain a PDF bearing a rendered PE seal with a name and licence number of their choosing; any
+project-admin could replace (and thereby erase) the firm's standards library by naming their own
+throwaway project; `/esign/webhook` accepted anonymous unbounded writes into the audit table; and
+tenant JSON was served with no cache policy. Sealing now requires a verified licence **and** a human
+step-up a stored token cannot satisfy. See CHANGELOG v0.3.807; migration `b06f7bc8ba2f` plus a
+**go-live data-entry step** (a licence row per licensee) is documented in `docs/PRODUCTION_CHECKLIST.md`.
+
 ### Band 2 — built but unreachable (cheapest real value in the file)
 
 Seven of eleven engines once shipped with no route. These are the current instances.
@@ -268,6 +277,31 @@ PRs**, every one reporting `"CodeFlow was not able to perform analysis"` — the
 It has indexed **`f3b171f` = v0.3.363**; main is **v0.3.789**. Every count it reports (881 files, 6,587
 symbols, 2,771 findings, 45 dead exports) describes a codebase that no longer exists. Same failure as
 the demo snapshot: **a capture rots and nothing fails when it does.** Re-index before quoting any figure.
+
+**UPDATE 2026-07-30 — re-indexed and now CURRENT, and the verdict changes shape.** Connected as an MCP
+connector and re-indexed: 1,488 files / 12,064 symbols (was 881 / 6,587). Freshness confirmed the only
+way that can't be fooled — `create_stepup_token`, a symbol ~24 h old, resolves. So the staleness
+objection above is **closed**.
+
+The findings still do not survive verification, but for a different and more useful reason: three
+**systematic** confounds, each checked against this repo rather than argued:
+
+| layer | what it reports | why it is wrong here |
+|---|---|---|
+| `untested_hotspot` (64) | `has_test_file: false` on `main.py`, `models.py`, `db.py` — and on **`run_tests.py`** | looks for a *paired* test file; our Python tests live at `services/api/test_*.py`, not beside the source. `proforma.ts` correctly reports `true`, so the heuristic works for TS only |
+| `dead_code` (8, all `safe_to_delete: true`) | incl. `plugins/example-wall-brand/plugin.py::register` | that IS the plugin contract — `plugin_registry.py:143` does `mod.register(PluginApi(...))` after a `hasattr` check. The editor-bridge recipes are dispatched by name via `f"recipes.{recipe}(...)"` at `bridge.py:70`. Every one sits at a **dynamic-dispatch boundary** the analyser cannot see |
+| `import cycles` (3) | 20 files in `aec_api`, 15 in `aec_data`, 1 TS pair | `test_import_cycles.py` passes: *no* top-level cycles across 493 modules. It counts **deferred/function-local** imports — which are the *fix* for cycles. The TS pair is `import type` on **both** sides, erased at compile time |
+
+**Do not action any of those three layers.** Acting on the dead-code list would delete the plugin API.
+
+What IS worth reading: `get_risk` in PR-review mode. Its `missing_cochanges` correctly caught that a
+change touching `main.py` had not updated `CHANGELOG.md` or `apps/web/package.json` — the version bump
+this very release then made. Its `defect_profile` also flags `routers/drawings.py` as a `bug_magnet`
+(4 fixes / 6 months, naming `pdf_seal`), which matches where the v0.3.807 findings actually were. The
+history-derived layers are sound; the static-analysis layers are not.
+
+`get_security` (CVEs, secrets, SBOM) is **Pro-gated** and returns `upgrade_required` — unavailable, not
+empty. Do not read a missing security section as a clean one.
 
 Its **"45 dead exports"** does not survive verification, and that is the useful part of this review.
 Re-derived against current code: 1,097 exported symbols, **231** referenced nowhere outside their own
