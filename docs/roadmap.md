@@ -192,8 +192,17 @@ written) and **R22-PHOTO-CV**.
 
 ✅ **R34-TAKEOFF-COUNT — SHIPPED (#139, `29c26f27`); it was still listed here.** The platform had **no count measure at all**: every assembly was `area` or `length`, so a door, fixture, receptacle or sprinkler head — the thing an estimator counts most often — could not be taken off a drawing. Now a third measure, and **a count is never scaled**: area goes as scale², length as scale¹, and six doors are six doors at any sheet scale. Making it a third *measure* rather than a third *unit* is what makes that structural instead of remembered. Verified present: 13 count refs in `takeoff2d.py`, `test_takeoff_count` registered.
 
-⭐ **R22-PRODUCTION** (L) field production against model quantities · **R22-CAD-IMPORT** (M) · **R22-ENTITLEMENT** (M/L) · **R31-PIPELINE-ALLOCATE** (L) ·
-**R22-REPORT-BUILDER** (M) · **R22-PIPELINE** (M) · **R21-DIM-COMPONENT** (M) · **R21-SPACE-TAG-SECT** (S) · **R21-4D-CLASH** (phase 2)
+⭐ **R22-ENTITLEMENT** (M/L) · **R31-PIPELINE-ALLOCATE** (L) · **R22-REPORT-BUILDER** (M) ·
+**R22-PIPELINE** (M) · **R21-DIM-COMPONENT** (M) · **R21-4D-CLASH** (phase 2)
+
+*Three items left this row on 2026-07-31, all already built:* **R22-PRODUCTION** (`c23c26dd`),
+**R21-SPACE-TAG-SECT** (rode inside `50f195cf`, no commit of its own), and **R22-CAD-IMPORT** (the DXF
+path shipped long ago; its "we only run on models we authored" premise was false). That is three in
+one row, on top of five earlier the same day. **A band row is a cache of the detail entries and it is
+never invalidated** — nothing recomputes it when an item ships, so it drifts in one direction only:
+toward advertising work that is already done. Check the code before picking up a row, and note that
+`R22-ENTITLEMENT` below survives a grep for "entitlement" **only** because `entitlements.py` is
+subscription tiers — a pure name collision, and the reason this sweep verified semantics, not strings.
 
 ### Band 5 — interface and feel
 
@@ -485,8 +494,11 @@ These are the gaps between what the platform draws today and what that package c
 - ~~**R21-MULTISCALE**~~ *(S)* — several viewports at **different scales** on one sheet (1:100 overall +
   1:50 parts), each with its own title/scale block. `sheet_layout.py` composes viewports; per-viewport
   scale is the missing parameter.
-- **R21-SPACE-TAG-SECT** *(S)* — room names on sections (CLINIC 1, IP RM., DAY CASE RM.). `space_tags`
-  exists for plans; sections need the same treatment against the cut plane.
+- ✅ **R21-SPACE-TAG-SECT** — **SHIPPED inside `50f195cf`**, which is why nobody noticed: it rode along
+  with the qto class-match fix rather than getting its own commit, so the band row went on advertising
+  it. `space_tags_section()` is at `drawings.py:677` and is genuinely called at `drawings.py:1468` —
+  checked for a *caller*, not merely a definition, because the log lines inside a function match a
+  grep for its own name and read exactly like use.
 - **R21-DIM-COMPONENT** *(M)* — component-level dimension strings beside the floor-to-floor chain
   (cladding offsets, insulation thickness, canopy projections), which is what a fabricator measures.
 
@@ -516,11 +528,14 @@ stakes we are missing.
 
 **Tier 1 — closes the mission's own gaps**
 
-- ⭐ **R22-PRODUCTION** *(L)* — **field production tracking against model quantities.** Crews claim
-  installed quantity against an element GUID; percent-complete, pay-app line, 4D status and EAC all
-  update from that one entry. Field-capture competitors do this *without* a model, reconciling to
-  cost codes by hand. This is the specific feature that makes LOD 500 pay for itself, and it closes
-  the loop between the QTO we already generate and the EAC we already compute.
+- ✅ **R22-PRODUCTION** — **SHIPPED (`c23c26dd`, PR #142).** `GET /projects/{pid}/progress/reconciliation`
+  compares field-installed quantity against the model takeoff per cost code. Both halves had existed
+  for months without being joined, and the reason was structural rather than an oversight: the module
+  carrying `cost_code` — the join key — is read only by pricing and carbon, while the module the
+  production loop actually consumes has no `cost_code` field at all. The loop read the module that
+  cannot join. Built as four refusals (units never silently equated, over-install reports >100% rather
+  than clamping, an uncoded takeoff says so, unmatched field codes named not counted), and every
+  headline percentage carries `covered_pct` — 97% complete across 3% of the model is true and useless.
 - **R22-ENTITLEMENT** *(M/L)* — **permit & entitlement workflow**: jurisdiction submittal packages,
   review cycles, comment responses, and **conditions of approval carried into the model as
   constraints**. Today there is a hole between "acquisition" and "construction" in our own mission
@@ -555,9 +570,26 @@ stakes we are missing.
 
 **Tier 3 — on-ramps and reach**
 
-- **R22-CAD-IMPORT** *(M)* — **DWG/DXF/PDF base-plan import.** The existing building stock is legacy
-  CAD; today feasibility and test-fit only run on models we authored. This is the on-ramp for every
-  non-BIM firm.
+- ✅ **R22-CAD-IMPORT** — **the DXF path was already SHIPPED, and its stated premise was false.** The
+  entry read "today feasibility and test-fit only run on models we authored". They do not:
+  `POST /projects/{pid}/raise-plan` (`routers/authoring.py:1161`, `require_role("editor")`) raises an
+  uploaded DXF into a real IFC4 model registered as a *2D Raise* discipline model — which flows into
+  the viewer, QTO, the estimate and federated clash like any other. `preview=true` returns detected
+  wall/room counts without writing. Two readers exist, both on **ezdxf (MIT)**: `dxf_takeoff.py`
+  (measured quantities per layer) and `plan_to_bim.py` (walls extruded from line-work, `IfcSpace`s from
+  closed polygons).
+
+  **Measured, not read.** A metric DXF (`$INSUNITS=6`) with one 8×6 m closed room raised to 4 `IfcWall`
+  + 1 `IfcSpace`, area 48.0 m² (exact), schema IFC4, GUIDs present on every wall. Units are detected
+  from the header rather than assumed.
+
+  **What is genuinely NOT built, stated plainly rather than left to look shipped:** *DWG* natively —
+  it must be converted to DXF externally first, which is a deliberate licence choice (the available
+  converters are AGPL or proprietary) and should stay a documented external step, not a dependency.
+  And *PDF* → base plan: PDF **takeoff** exists (TAKEOFF-2D), but raising a PDF to geometry does not.
+  If the PDF half is still wanted it should be re-cut as its own item with its own sizing, because it
+  shares nothing with the DXF path — vector recovery from a PDF is a different problem, not a format
+  variation.
 - **R22-OPTION-OBJECT** *(S/M)* — make **option the primary object**: geometry + unit mix + cost +
   carbon + IRR as one comparable record, so no massing is ever evaluated without its returns.
 - **R22-REPORT-BUILDER** *(M)* — no-code report/dashboard builder. 132 modules of structured data
