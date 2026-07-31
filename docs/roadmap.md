@@ -54,7 +54,7 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**57 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
+**55 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
 merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
@@ -148,12 +148,34 @@ no health report surfaced would be the same defect this band exists to catch.
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
-**R31-SYNDICATION-TAIL** (M) · **R31-CITE-HIGHLIGHT** (S) · **R22-ITP-NCR** (M) · **R27-SKILL-GAP** (S)
-· **R22-PROCURE-DEPTH** (M)
+## ✅ **BAND 3 IS COMPLETE — all five checked 2026-07-31. Four closed, one reframed.**
 
-Every one of these is "verify the premise, then build only the remainder". The running score on this
-repo is that **most premises are already built** — a dozen so far — so these are the highest
-value-per-hour items in the file. Do them before anything in Band 4.
+The band's own thesis held again, and harder than expected: **four of five premises failed or mostly
+failed.** What the whole exercise cost was a few hours of reading; what it saved was four builds.
+
+**The closures were re-checked for REACH, not just capability** — a `module.json` on disk is not reach,
+and an engine nothing calls is the defect this file keeps finding. Every closure below names a live
+caller:
+
+| closed item | why | reached from |
+|---|---|---|
+| **R22-ITP-NCR** | all four asks exist — `itp.point_type` is a required select (Hold/Witness/Review/Surveillance/Monitor) with method, acceptance criteria, frequency and both parties; `ncr` runs `open → dispositioned → closed` with disposition, corrective action, root cause, severity; element attachment is `element_guids` | `quality_chain` ← `routers/construction.py:260,283` · modules → section `Quality` → room `schedule` |
+| **R22-PROCURE-DEPTH** | all three named remainders are built — `prequalification` module (EMR, bonding capacity, revenue, references, workflow), `clause_playbook.py` (accept/negotiate/refuse per contract type, severity, fallback, deviation register), `vendor_memory.py` cross-project scorecards | `routers/realestate.py:300,309,332` · `routers/benchmarking.py:83` · modules → `Preconstruction` → room `planning` |
+| **R27-SKILL-GAP** | the corpus diff is nearly empty — `ids-checker`, `energy-simulation`, `schedule-compression`, `weather-impact-scheduler` and ~15 more all already have engines or modules | see the entry for the file-level list |
+| **R31-SYNDICATION-TAIL** *(mostly)* | the entry's own instruction was *"do not build a cap table before confirming `capital.py` lacks one"* — **it does not lack one.** `capital.cap_table()` returns ownership %, contributed/distributed/unreturned and per-class rollup. Soft/hard commitments are built under a different name: `investor` states `prospect → committed → funded → exited` | `distwaterfall.py:67` · `report_builders/finance.py:293,510` · `reports.py:103` |
+
+**Three real remainders survived, all small**, and each is now its own entry rather than hiding inside a
+closed one: **R31-K1-PACK**, **R31-CITE-HIGHLIGHT** (reframed — see below, it is far cheaper than
+written) and **R22-PHOTO-CV**.
+
+⚠️ **Two traps recorded so the next reader does not re-fall into them:**
+
+1. **`commitment` is a CONSTRUCTION module, not an investor one** — Purchase Order / Subcontract / Work
+   Authorization, with `retainage_pct` and `cost_code`. Reading it as the syndication side is almost
+   certainly what produced the R31-SYNDICATION-TAIL entry in the first place. A name collision, not a
+   missing feature.
+2. **A loose `grep -i "ids"` matches "bids" and "considers"** and nearly produced a false gap. Same
+   substring-contamination shape as `EIR`/"their" and `MIDP`/"midpoint". Word-bound it.
 
 ### Band 4 — capability the product is judged on
 
@@ -209,12 +231,12 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R31-PIPELINE-ALLOCATE · R31-K1-PACK · R22-PHOTO-CV · R34-TAKEOFF-COUNT · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
-| **H · Registers** | `services/api/modules/*/module.json` | R22-ITP-NCR · R22-PM-CONTRACTS |
+| **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑥ |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -498,15 +520,25 @@ stakes we are missing.
 
 **Tier 2 — evidence, provenance and procurement**
 
-- **R22-ITP-NCR** *(M)* — **quality module: ITPs, hold/witness points, NCR lifecycle**, attached to
-  elements. This is precisely the evidence chain COBie turnover is meant to hand over and currently
-  cannot assemble — and it is the natural feeder for LOD-500 verification.
+- ✅ **R22-ITP-NCR** *(M)* — **CLOSED 2026-07-31, premise FAILED.** All four asks exist and are reached.
+  `itp.point_type` is a **required select** — Hold Point · Witness Point · Review Point · Surveillance ·
+  Monitor — alongside `method`, `acceptance_criteria`, `frequency`, `responsible_party`,
+  `verifying_party`, `record_form`. `ncr` runs a real lifecycle `open → dispositioned → closed` with
+  `disposition`, `corrective_action`, `root_cause`, `severity` and a link to `inspection`. Element
+  attachment is `element_guids`, which `quality_chain.py` reads per element (built by R22-QUALITY-CHAIN,
+  #110) and which `routers/construction.py:260,283` serves as the chain and turnover-readiness. Modules
+  resolve section `Quality` → room `schedule`, and `test_module_rooms` fails the build on an unmapped
+  section, so this cannot rot silently.
 - **R22-PROVENANCE** *(L)* — **cite to file, page and revision.** Every proforma assumption, estimate
   line and agent answer traceable to a source page. Three of thirteen platforms *lead* with this; it
   is what makes AI output admissible in an IC memo or a claim.
-- **R22-PROCURE-DEPTH** *(M)* — sub **prequalification** (bonding/EMR/capacity), **contract-clause
-  risk extraction**, and **vendor scorecards persisting across projects**. Bid leveling covers one
-  step of five.
+- ✅ **R22-PROCURE-DEPTH** *(M)* — **CLOSED 2026-07-31, premise FAILED.** Claimed "bid leveling covers
+  one step of five" and named three remainders; **all three were already built**, and all three are
+  reached: `prequalification` module (EMR, bonding capacity, annual revenue, references, rating,
+  expiry, workflow `invited → submitted → approved/rejected`) · `clause_playbook.py`, a per-contract-type
+  registry of accept/negotiate/refuse positions with severity and fallback plus a deviation register,
+  called from `routers/realestate.py:300,309,332` · `vendor_memory.py` cross-project scorecards, called
+  from `routers/benchmarking.py:83`. Module reach resolves `Preconstruction` → room `planning`.
 
 **Tier 3 — on-ramps and reach**
 
@@ -1109,10 +1141,44 @@ those repos closes a capability gap. What the 221-skill corpus *is* good for is 
 construction teams actually automate**, at a granularity nobody publishes otherwise. Read as a
 coverage checklist against our 130 modules it is a gap-analysis input, not an import.
 
-* **R27-SKILL-GAP** *(S — reading, not building)* — diff the MIT skills taxonomy against our module
-  catalog and the master-builder skill; record only the gaps that fit the mission. Explicitly **not**
-  a bulk import: 221 generated skill files would bloat the repo and duplicate engines we already have
-  tested. The output is a short list of missing *capabilities*, not files.
+* ✅ **R27-SKILL-GAP** *(S)* — **DONE 2026-07-31. Premise mostly FAILED; the diff is nearly empty.**
+
+  **The corpus is [`datadrivenconstruction/DDC_Skills_for_AI_Agents_in_Construction`](https://github.com/datadrivenconstruction/DDC_Skills_for_AI_Agents_in_Construction)** — recorded here because the
+  entry named it only as "a 221-file skills corpus (MIT)", and *a gap-check whose input nobody can find
+  is not repeatable*. Identity confirmed by count (exactly **221 `SKILL.md` files**) and the licence
+  read **from the LICENSE file, not the README**, per this ring's own rule: MIT.
+
+  **32 of the 221 (15%) are dead on arrival.** They are CWICR-based (`cwicr-*`,
+  `bim-cost-estimation-cwicr`, `semantic-search-cwicr`) and this ring already refused **CWICR data as
+  CC BY-NC 4.0**. The MIT skill files are usable; the data they operate on is not. Effective corpus
+  ~189 — and the single largest domain in it is one already ruled out on licence.
+
+  **Checked precisely rather than by keyword, and the plausible gaps were all already built:**
+  `ids-checker` → `ids_authoring.py:63` + `model_ci._ids_check:78` with real `.ids` files at
+  `{pid}/ids/project.ids` · `energy-simulation` → `energy.py`, `energy_star_bridge.py` ·
+  `schedule-compression` → `px.py:286-309`, crash **and** fast-track levers with `days_potential` ·
+  `weather-impact-scheduler` → `notice_clock.py:128`, weather-delay notice citing §15.1.6.2 · plus
+  procurement, contract-clause, prequal, payment-app, punchlist, lien-waiver, warranty, RFI, submittal,
+  look-ahead, resource-levelling, QTO, clash, 4D and carbon — all with modules or engines.
+
+  ❌ **Deliberate divergence — do NOT file this as a gap and do not "close" it.** The corpus has
+  `vector-search`, `rag-construction` and `semantic-search-cwicr`; we have **zero** embedding/vector
+  code and `doc_text.search()` is pure token overlap. That is a **stated design choice**, not an
+  omission — the module docstring says *"Deterministic retrieval … fully offline; no LLM required and
+  none silently invoked."* Adopting semantic search trades that away. Refused on purpose.
+
+* ⭐ **R22-PHOTO-CV** *(M — needs a mission-fit call before building)* — **the one real gap the corpus
+  surfaced.** Three skills (`progress-monitoring-cv`, `progress-photo-analyzer`, `defect-detection-ai`)
+  have no counterpart here; grepping for photo analysis returns nothing but storage.
+
+  **The substrate already exists, and it is the reach shape one layer up:** `routers/verification.py:109`
+  uploads a photo **against a GUID**, so site photos are already element-attached — and *nothing reads
+  them*. The data is landing and no consumer exists. That makes this cheaper than a green-field CV
+  feature and it is why it is worth recording rather than dismissing.
+
+  **Gate it on the non-negotiables before any build:** a CV model is a new dependency and probably a
+  large one, the viewer must stay fully offline, and licences must be MIT/BSD/Apache. If those cannot
+  all hold, the honest outcome is to refuse it in place — the way semantic search was refused above.
 
 **⛔ Licence exclusions recorded from this scan (evaluated, refused, do not re-litigate).** Two
 otherwise-relevant OSS projects are unusable under the standing MIT/BSD/Apache-only rule: a GPU map-
@@ -1585,15 +1651,50 @@ scan, because it stops the exercise being re-run.
   and what sizing. `scipy` is already a dependency (`requirements.in:27`), so the optimiser needs **no new
   package** — this is deliberately not the "add a portfolio library" version of the idea.
 
-- **R31-SYNDICATION-TAIL** *(M — gap-check, then close only what is missing)* — cap-table automation,
-  soft/hard commitment tracking, and a K-1 / tax pack. `capital.py`, `distwaterfall.py` and the
-  `investor` + `commitment` modules exist; their **depth is unverified** and that is the whole point of
-  scoping this as a check first. Do not build a cap table before confirming `capital.py` lacks one.
+- ✅ **R31-SYNDICATION-TAIL** *(M)* — **CHECKED 2026-07-31; two of three asks already built. Rescoped to
+  `R31-K1-PACK` below.** The entry's own instruction — *"Do not build a cap table before confirming
+  `capital.py` lacks one"* — was the right one and it **does not lack one**: `capital.cap_table()`
+  returns ownership %, contributed / distributed / **unreturned**, per-class rollup and sorted rows, and
+  is reached from `distwaterfall.py:67`, `report_builders/finance.py:293,510` and `reports.py:103`
+  ("Investor Cap Table"). Soft/hard commitment tracking is built **under a different name**: `investor`
+  states are `prospect → committed → funded → exited`, so soft circle and hard commitment are workflow
+  states rather than an enum somebody was looking for.
 
-- **R31-CITE-HIGHLIGHT** *(S — gap-check)* — our cited answers name the source document
-  (`cited_answer`, RFI NL-QA). Verify whether they also **highlight the passage** inside it. Citing a
-  40-page PDF and citing a paragraph are different products, and the second is what makes a reviewer
-  trust it without re-reading.
+  ⚠️ **The name collision that probably produced this entry:** the **`commitment` module is
+  CONSTRUCTION commitments** — Purchase Order / Subcontract / Work Authorization, with `retainage_pct`
+  and `cost_code`. It has nothing to do with investor commitments. Reading it as the syndication side
+  badly misjudges the item.
+
+- ⭐ **R31-K1-PACK** *(S/M)* — **the one genuine remainder of R31-SYNDICATION-TAIL.** `capital.py:90`
+  already states the boundary in the statement PDF itself: *"…is informational and not a tax document;
+  K-1s are issued separately."* That sentence is the spec. Everything a K-1 pack needs upstream — per
+  investor contributions, distributions, unreturned capital, class rollup — already exists and is
+  reached; what is missing is the allocation and the document. Well-bounded precisely because the
+  boundary was written down rather than left implied.
+
+- ⭐ **R31-CITE-HIGHLIGHT** *(S — premise HOLDS, and it is far cheaper than written)* — **checked
+  2026-07-31.** Confirmed: we cite document and page and do **not** highlight the passage.
+  `aiassist.ts:334` renders `"Source: p.12"` as **inert text** — not a link, and nothing calls the
+  viewer. Citing a 40-page PDF and citing a paragraph are different products.
+
+  **The whole viewer side already exists**, in `vendor/massingpdf/plugins/search.ts`:
+  `TextIndex.words(page)` gives per-word boxes from pdf.js, `find(page, query, limit)` returns
+  `SearchHit { page, snippet, box? }`, and **`flash(v, page, box)` already draws the highlight rect and
+  scrolls it to centre.** So this needs **no server work, no stored bbox, no new PDF library and no AGPL
+  exposure** — which matters, because `extract_pdf_text` is pypdf and discards positions, so a *stored*
+  bbox would have forced a new extractor. The passage text already travels in the citation; the client
+  can re-find and box it at render time.
+
+  **The actual blocker is one dropped field.** `doc_text.search()` produces both `doc` (display name)
+  and **`doc_id`**; `doc_text.answer()` builds citations as `{doc, section, title, page, snippet}` and
+  **drops `doc_id`**. `rfi_qa.py:182` then calls `cite_doc(str(c.get("ref") or c.get("doc") or
+  "document"), page=…)` — so a citation carries **a name, not a resolvable identifier**, and a citation
+  you cannot resolve back to a document cannot be opened, let alone highlighted in. Tellingly,
+  `cite_doc`'s `bbox` and `span` parameters are **referenced nowhere in the repo except their own
+  definition** — the shape was anticipated and never wired.
+
+  **The work, therefore:** carry `doc_id` through to the citation → make the page a link → call the
+  existing `find` + `flash`. That is the whole item.
 
 ### Corroboration, not a new item — R24-TRACE-UI ② is the right target
 
