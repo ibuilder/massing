@@ -139,6 +139,61 @@ odd = rooms.allocate([{"key": "mystery", "section": "Nowhere"}])
 assert odd["unplaced_count"] == 1 and odd["unplaced"][0]["key"] == "mystery", odd
 assert odd["placed"] == 0
 
+# ---- R31-DESIGN-GROUPS: the room's second level ---------------------------------------------------
+# The groups a room is read in ARE its sections. That is the whole design: one table decides the room
+# and refines into the sub-rooms, so the two can never disagree. These assertions exist because the
+# cheap alternative — a parallel GROUP_OF_SECTION table — would pass a naive test just as well and
+# drift within a release.
+for r in alloc["rooms"]:
+    gs = r["groups"]
+    flat = [k for g in gs for k in g["modules"]]
+    assert sorted(flat) == sorted(r["modules"]), (
+        f"{r['id']}: groups must PARTITION the room — every module in exactly one group. "
+        f"missing={sorted(set(r['modules']) - set(flat))} extra={sorted(set(flat) - set(r['modules']))}")
+    assert len(flat) == len(set(flat)), f"{r['id']}: a module appears in two groups"
+    assert all(g["count"] == len(g["modules"]) for g in gs), f"{r['id']}: a group's count lies"
+    # largest first, name as the tie-break — so the heading most likely to be wanted is at the top
+    assert gs == sorted(gs, key=lambda g: (-g["count"], g["section"])),         f"{r['id']}: groups out of order: {[g['section'] for g in gs]}"
+    assert all(g["section"] for g in gs), f"{r['id']}: a group with no section name"
+
+# THE JUNK DRAWER. `Engineering` held nine Design modules and described none of them — drawings, RFIs,
+# submittals, MEP equipment, selections. Harmless while nothing grouped by section; the moment the rail
+# rendered "Engineering · 9" as a heading it became a confident label for a filing accident.
+#
+# Asserted by NAME rather than by a size rule, because size is not the defect: `Field` legitimately
+# holds 14 and `Preconstruction` 12. What made these four wrong is that they named nothing a user
+# would go looking for — and `Design`, as a section INSIDE the Design room, named nothing at all.
+for dead in ("Engineering", "BIM", "Design", "Programming"):
+    assert dead not in rooms.ROOM_OF_SECTION, (
+        f"{dead!r} is back in ROOM_OF_SECTION. It was retired because it was where a module went when "
+        "nobody decided, and a section like that is invisible until something groups by it.")
+
+design = next(r for r in alloc["rooms"] if r["id"] == "design")
+assert design["count"] == 32, design["count"]
+# The largest Design group is capped: past this the heading stops narrowing anything. Not a style
+# rule — 9 of 32 under one meaningless word is what this change was about.
+biggest = design["groups"][0]
+assert biggest["count"] <= 8, f"Design's largest group is {biggest['section']} at {biggest['count']}"
+assert {g["section"] for g in design["groups"]} == {
+    "Model", "Drawings", "Specifications", "Design Phases", "Coordination",
+    "Information Management", "Sustainability", "Resilience"}, [g["section"] for g in design["groups"]]
+
+# the modules that moved, by name, so a later bulk edit cannot quietly undo the reasoning
+for key, sec in [("drawing", "Drawings"), ("drawing_set", "Drawings"), ("transmittal", "Drawings"),
+                 ("rfi", "Coordination"), ("submittal", "Coordination"), ("clash_run", "Coordination"),
+                 ("envelope_assembly", "Model"), ("mep_equipment", "Model"), ("space_program", "Model"),
+                 ("selection", "Specifications"), ("design_standard", "Specifications"),
+                 ("design_review", "Design Phases"), ("concept_render", "Design Phases")]:
+    got = next(m["section"] for m in mods if m["key"] == key)
+    assert got == sec, f"{key} is sectioned {got!r}, expected {sec!r}"
+
+# A room the rail will subgroup (>= SUBGROUP_MIN, the web constant) must have groups worth reading.
+# `schedule` holds 38 in six sections and is the next room to look at; this asserts the mechanism
+# reaches it rather than being a one-room special case.
+for r in alloc["rooms"]:
+    if r["count"] >= 8:
+        assert len(r["groups"]) > 1, f"{r['id']} has {r['count']} modules in a single group"
+
 counts = {r["id"]: r["count"] for r in alloc["rooms"]}
 print(f"R26-MODULE-HOME OK - all {len(mods)} modules resolve to exactly one canonical room "
       f"({counts}), read from the module.json files on disk rather than a hand-maintained list, so a "

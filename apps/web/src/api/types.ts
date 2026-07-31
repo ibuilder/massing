@@ -300,7 +300,10 @@ export interface LifecycleStrip {
   evidence?: Record<string, unknown>;
 }
 
-export interface RoomDef { id: string; label: string; job: string; count: number; modules: string[] }
+/** R31-DESIGN-GROUPS: `groups` is the room's second navigation level, keyed on the same `section`
+ *  that decides the room — one table, refined, never a parallel one. Largest group first. */
+export interface RoomGroup { section: string; count: number; modules: string[] }
+export interface RoomDef { id: string; label: string; job: string; count: number; modules: string[]; groups?: RoomGroup[] }
 export interface RoomAllocation {
   rooms: RoomDef[]; placed: number;
   /** Must always be empty — a module with no room is one nobody can reach. */

@@ -1,7 +1,7 @@
 {
   "key": "design_review",
   "name": "Design Reviews",
-  "section": "Engineering",
+  "section": "Design Phases",
   "icon": "◉",
   "ref_prefix": "DR",
   "title_field": "subject",

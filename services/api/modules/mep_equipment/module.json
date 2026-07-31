@@ -1,7 +1,7 @@
 {
   "key": "mep_equipment",
   "name": "MEP Equipment",
-  "section": "Engineering",
+  "section": "Model",
   "icon": "🔧",
   "ref_prefix": "EQ",
   "title_field": "tag",

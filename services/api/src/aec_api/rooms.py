@@ -93,15 +93,27 @@ ROOM_OF_SECTION: dict[str, str] = {
     # left drawings and specifications looking like they belonged somewhere else — which is exactly
     # where specifications had ended up (filed under Preconstruction, and therefore under Cost).
     # An architect or engineer does all of it here: model, draw, specify, analyse.
-    "BIM": "design",
-    "Design": "design",
-    "Design Phases": "design",
-    "Engineering": "design",
-    "Coordination": "design",        # RFIs, meetings, transmittals — project-wide, but raised against
-                                     # the documents, so they sit beside the documents
+    #
+    # R31-DESIGN-GROUPS (2026-07-31): the sections BELOW are also the groups Design is read in, so the
+    # list is short and each entry names something an architect or engineer would recognise as a place
+    # to go. Four sections were retired to get there, and the reason is worth keeping:
+    #
+    # **"Engineering" held nine modules and described none of them** — `drawing`, `drawing_set` and
+    # `drawing_issuance` (documents), `rfi` and `submittal` (coordination), `design_review` and
+    # `selection` (design process), `envelope_assembly` and `mep_equipment` (model content). It was
+    # not a section, it was the place a module went when nobody decided. `Design`, `BIM` and
+    # `Programming` were the same failure at smaller scale: `Design`, inside the Design room, carried
+    # no information at all.
+    #
+    # A junk-drawer section is invisible while nothing groups by it. The moment the room rail started
+    # rendering groups, "Engineering (9)" became a heading a user would open expecting engineering.
+    "Model": "design",               # the building as modelled, and the space program it satisfies
+    "Drawings": "design",            # the drawn documents and their issue record
     "Specifications": "design",      # the written half of the documents; the drawings are the other
-    "Information Management": "design",
-    "Programming": "design",
+    "Design Phases": "design",       # options, reviews, renders — the design as it develops
+    "Coordination": "design",        # RFIs, submittals, clashes — raised AGAINST the documents, so
+                                     # they sit beside the documents
+    "Information Management": "design",   # LOD, information requirements, the CDE — ISO 19650 work
     "Sustainability": "design",
     "Resilience": "design",
     # ── Planning: turning a design into a bought, contracted, approved scope ────────────────────
@@ -159,6 +171,26 @@ def unmapped_sections(sections: set[str]) -> list[str]:
     return sorted(s for s in sections if s and s not in ROOM_OF_SECTION)
 
 
+#: R31-DESIGN-GROUPS — a room's second level of navigation.
+#:
+#: Design held 32 modules as ONE flat alphabetical list, from `action_item` to `waste_diversion`. A
+#: list that long is not navigation, it is a search box you have to read. (`schedule` holds 38 and has
+#: the same problem; this ships the mechanism, and the sections there are the next thing to fix.)
+#:
+#: **The group IS the section — there is no second table.** The obvious move was a new
+#: `GROUP_OF_SECTION` mapping, and it was the wrong one: this file's own argument for deriving rooms
+#: from sections is that one table cannot disagree with itself, and adding a parallel table to slice
+#: the same modules a second way gives up exactly that. So where a section was too vague to be a
+#: heading, the SECTION was fixed rather than papered over with a group name.
+#:
+#: Ordered largest-first with a stable tie-break on the name. Not alphabetical: the heading a user is
+#: most likely to want should not sit below one holding three modules because it starts with a later
+#: letter. Not hand-ordered either — a hand-ordered list is a fourth place to keep in step.
+def _groups(sections: dict[str, list[str]]) -> list[dict[str, Any]]:
+    return [{"section": sec, "count": len(keys), "modules": keys}
+            for sec, keys in sorted(sections.items(), key=lambda kv: (-len(kv[1]), kv[0]))]
+
+
 def allocate(modules: list[dict[str, Any]]) -> dict[str, Any]:
     """Group modules into rooms, and report anything that could not be placed.
 
@@ -166,18 +198,23 @@ def allocate(modules: list[dict[str, Any]]) -> dict[str, Any]:
     user can no longer reach, and it would otherwise be invisible until someone went looking for it.
     """
     by_room: dict[str, list[str]] = {r["id"]: [] for r in ROOMS}
+    by_group: dict[str, dict[str, list[str]]] = {r["id"]: {} for r in ROOMS}
     unplaced: list[dict[str, str]] = []
     for m in modules or []:
         key = str(m.get("key") or m.get("name") or "?")
         room = room_of(m)
         if room in by_room:
             by_room[room].append(key)
+            by_group[room].setdefault(str(m.get("section") or ""), []).append(key)
         else:
             unplaced.append({"key": key, "section": str(m.get("section") or "")})
     for k in by_room:
         by_room[k].sort()
+        for g in by_group[k].values():
+            g.sort()
     return {
-        "rooms": [{**r, "count": len(by_room[r["id"]]), "modules": by_room[r["id"]]} for r in ROOMS],
+        "rooms": [{**r, "count": len(by_room[r["id"]]), "modules": by_room[r["id"]],
+                   "groups": _groups(by_group[r["id"]])} for r in ROOMS],
         "placed": sum(len(v) for v in by_room.values()),
         "unplaced": sorted(unplaced, key=lambda u: u["key"]),
         "unplaced_count": len(unplaced),
