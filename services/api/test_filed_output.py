@@ -11,6 +11,7 @@ import shutil
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_filed_output.db"
 os.environ["STORAGE_DIR"] = "./test_storage_filed_output"
+os.environ["AEC_TRUST_XUSER"] = "1"
 os.environ.pop("AEC_RBAC", None)
 for _f in ("./test_filed_output.db",):
     if os.path.exists(_f):
@@ -126,6 +127,56 @@ with TestClient(app) as c:
     # An unknown project must 404 rather than filing into a tree that does not exist.
     assert c.post("/projects/no-such-project/documents/file-model", data={}).status_code == 404
 
+# --- R32-FILE-GENERATED: issuing a set files it into the same controlled tree ---------------------
+# Issuing IS the publish event, so it is where a release must enter the tree. Before this, sheets were
+# generated, released, and never filed: no revision, no supersession, invisible in the file manager.
+with TestClient(app) as c:
+    HDR = {"X-User": "architect"}
+    pid2 = c.post("/projects", json={"name": "Issued Set"}, headers=HDR).json()["id"]
+    P = f"/projects/{pid2}"
+
+    c.post(f"{P}/drawing-set/generate", json={"disciplines": ["Mechanical"]}, headers=HDR)
+    i1 = c.post(f"{P}/drawing-set/issue", json={"purpose": "Issued for Permit",
+                                                "recipients": "gc@example.com"}, headers=HDR)
+    assert i1.status_code == 201, i1.text
+    b1 = i1.json()
+    # The filing result is REPORTED, never silent: `filed` carries the entry, `filed_error` the reason.
+    assert b1.get("filed_error") is None, b1.get("filed_error")
+    assert b1["filed"] and b1["filed"]["folder"] == "02_Drawings", b1["filed"]
+    assert b1["filed"]["doc_type"] == "TRANSMTL", b1["filed"]
+    assert b1["filed"]["revision"] == "P01", b1["filed"]
+
+    # A second issuance is a DIFFERENT release, so it must be its own document — a transmittal that
+    # superseded its predecessor would destroy exactly the history it exists to provide.
+    c.post(f"{P}/drawing-set/generate", json={"disciplines": ["Electrical"]}, headers=HDR)
+    b2 = c.post(f"{P}/drawing-set/issue", json={"purpose": "Issued for Bid"}, headers=HDR).json()
+    assert b2["filed"] and b2["filed"]["revision"] == "P01", \
+        f"each release is its own document, not a revision of the last: {b2['filed']}"
+    assert b2["filed"]["supersedes"] is None, b2["filed"]
+    assert b2["filed"]["title"] != b1["filed"]["title"], (b1["filed"]["title"], b2["filed"]["title"])
+
+    # Both transmittals are now visible in the file manager — the reach half of R32.
+    folder = c.get(f"{P}/documents/folder", params={"path": "02_Drawings"}, headers=HDR).json()
+    titles = {f["title"] for f in folder["files"]}
+    assert len(titles) == 2 and all(t.startswith("Transmittal") for t in titles), folder
+
+    # The drawing SET is a deliberate act, not a side effect of issuing — and with no source model it
+    # refuses (409) rather than filing an empty set.
+    assert c.post(f"{P}/drawing-set/file-drawing-set", json={}, headers=HDR).status_code == 409
+
+# The set's title is CONSTANT by design, so repeated issues become revisions of ONE document — that is
+# what lets the document tree answer "which set is current" without a second register. Asserted as the
+# property rather than by rendering a real set, which would cost a full sheet render for no extra proof.
+assert filing.SET_TITLE == "Drawing Set", filing.SET_TITLE
+_p = "proj-setrev"
+s1 = docmanager.upload(_p, filing.DRAWINGS_FOLDER, "a.pdf", b"%PDF-1 set1", "arch",
+                       title=filing.SET_TITLE, doc_type="DWGSET")
+s2 = docmanager.upload(_p, filing.DRAWINGS_FOLDER, "a.pdf", b"%PDF-1 set2", "arch",
+                       title=filing.SET_TITLE, doc_type="DWGSET")
+assert s1["entry"]["revision"] == "P01" and s2["entry"]["revision"] == "P02", (s1, s2)
+assert s2["superseded"] == s1["entry"]["id"], "a re-issued set supersedes, giving one current set"
+assert docmanager.list_folder(_p, filing.DRAWINGS_FOLDER)["count"] == 1, "exactly one current set"
+
 print("FILED OUTPUT (R32-MODEL-IN-TREE) OK - the model has a home in the standard taxonomy "
       "(12_Model/IFC, Architect-owned, published) and filing it goes through docmanager, so a model "
       "revision IS a document revision: first filing is P01, re-filing supersedes it as P02, the "
@@ -134,4 +185,9 @@ print("FILED OUTPUT (R32-MODEL-IN-TREE) OK - the model has a home in the standar
       "project with no model, or a zero-byte one, REFUSES rather than superseding a real revision with "
       "nothing. Reachable over HTTP: 201 on file, 409 when there is nothing to file, 404 on an unknown "
       "project, history newest-first including superseded. No 'generated' silo folder exists, and "
-      "12_Model is not `required`, so no existing project's health score moves.")
+      "12_Model is not `required`, so no existing project's health score moves. "
+      "R32-FILE-GENERATED: issuing a set now FILES it — the transmittal lands in 02_Drawings on issue "
+      "(reported as `filed`/`filed_error`, never silently), each release is its own document rather "
+      "than a revision of the last so the release history survives, and both are visible in the file "
+      "manager. The compiled set is a separate deliberate call that 409s with no source model, and its "
+      "title is constant so re-issues supersede into ONE current set.")

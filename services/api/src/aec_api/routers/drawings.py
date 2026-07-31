@@ -176,7 +176,7 @@ def drawing_issuances(pid: str, db: Session = Depends(get_db), _: str = Depends(
 
 @router.post("/projects/{pid}/drawing-set/issue", status_code=201)
 def issue_drawing_set(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
-                      _: str = Depends(require_role("editor"))):
+                      actor: str = Depends(require_role("editor"))):
     """Issue the current drawing set for a purpose — snapshots every current sheet + its revision.
     Body: `{purpose, date?, description?, recipients?, enforce?}`. The **pre-flight issuance gate**
     runs automatically and its verdict is stamped on the issuance record; with `enforce: true` a HOLD
@@ -195,9 +195,51 @@ def issue_drawing_set(pid: str, body: dict = Body(default={}), db: Session = Dep
         from fastapi import HTTPException
         raise HTTPException(409, "pre-flight HOLD — blocking checks: "
                                  + ", ".join(pf["blocking_checks"]) + " (see /preflight)")
-    return issuance.issue(db, pid, purpose, body.get("date"),
-                          str(body.get("description") or ""), str(body.get("recipients") or ""),
-                          preflight=pf)
+    out = issuance.issue(db, pid, purpose, body.get("date"),
+                         str(body.get("description") or ""), str(body.get("recipients") or ""),
+                         preflight=pf)
+
+    # R32-FILE-GENERATED — issuing IS the publish event, so this is where the release enters the
+    # controlled tree. Only the transmittal: it renders from the stored snapshot, needs no model, and is
+    # the record of exactly what was released to whom. The compiled set is a separate, deliberate call
+    # (`…/file-drawing-set`) because it re-renders every sheet, and a slow render must never be able to
+    # hold up the cheap record of a release.
+    #
+    # NON-FATAL by construction, and reported rather than swallowed. The issuance is already committed
+    # at this point; raising here would surface as "issuing failed" for a release that DID happen, which
+    # is a worse lie than an unfiled transmittal. `filed` is null with a reason instead — an explicit
+    # unavailable, never a silent success.
+    try:
+        from .. import filing
+        p = db.get(Project, pid)
+        out["filed"] = filing.file_transmittal(db, pid, out["id"], p.name if p else pid, actor)["entry"]
+        out["filed_error"] = None
+    except Exception as e:                  # noqa: BLE001 — filing must not undo a completed issuance
+        out["filed"] = None
+        out["filed_error"] = f"{type(e).__name__}: {e}"
+    return out
+
+
+@router.post("/projects/{pid}/drawing-set/file-drawing-set", status_code=201)
+def file_drawing_set_route(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                           actor: str = Depends(require_role("editor"))):
+    """R32-FILE-GENERATED — compile the current set to one PDF and file it into `02_Drawings`.
+
+    A deliberate act, not a side effect of issuing: this re-renders every sheet and merges them. Each
+    call supersedes the previous one as the next revision of a single "Drawing Set" document, so the
+    document tree — not a second register — answers which set is current.
+    """
+    from .. import filing
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+    src = _source_ifc(db, pid)                       # raises 409 if no accessible source IFC
+    try:
+        return filing.file_drawing_set(pid, src, p.name or pid, actor,
+                                       scale=int(body.get("scale") or 200),
+                                       max_sheets=int(body.get("max_sheets") or 16))
+    except filing.NothingToFile as e:
+        raise HTTPException(409, str(e))
 
 
 @router.get("/projects/{pid}/drawing-set/issuance-matrix")

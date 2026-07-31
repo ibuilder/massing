@@ -77,6 +77,55 @@ def file_model(pid: str, actor: str, *, title: str = "Federated Model",
         title=title, discipline=discipline, doc_type="MODEL", cde_state=cde_state, when=when)
 
 
+# --- R32-FILE-GENERATED: the drawings the platform produces enter the same tree ---------------------
+#: Generated sheets file where drawings already live. See rule 2 in the module docstring — there is no
+#: `Generated Drawings` folder, and `test_filed_output` asserts none exists.
+DRAWINGS_FOLDER = "02_Drawings"
+
+#: The set's title is CONSTANT on purpose. `docmanager` supersedes on (folder, title), so every issue of
+#: the set becomes the next revision of one document — P01, P02, … — which is what makes "the current
+#: set" answerable from the document tree instead of from a second register. A transmittal, by contrast,
+#: is titled per issuance: it records one release and must never supersede the release before it.
+SET_TITLE = "Drawing Set"
+
+
+def file_transmittal(db, pid: str, issuance_id: str, project_name: str, actor: str,
+                     *, when: datetime | None = None) -> dict[str, Any]:
+    """File one issuance's transmittal — the record of exactly what was released, and to whom.
+
+    Cheap: `issuance.transmittal_pdf` renders from the stored snapshot and needs no model, so this can
+    run on every issue. Titled with the issuance number so each release is its own document; a
+    transmittal that superseded its predecessor would destroy the very history it exists to provide.
+    """
+    from . import issuance  # local: issuance imports filing back for the hook
+    iss = next((i for i in issuance._issuances(db, pid) if i["id"] == issuance_id), None)
+    if not iss:
+        raise NothingToFile(f"issuance {issuance_id} not found on project {pid}")
+    pdf = issuance.transmittal_pdf(db, pid, issuance_id, project_name)
+    title = f"Transmittal {iss.get('number') or issuance_id}"
+    return docmanager.upload(pid, DRAWINGS_FOLDER, f"{title}.pdf", pdf, actor,
+                             title=title, doc_type="TRANSMTL", cde_state="published", when=when)
+
+
+def file_drawing_set(pid: str, source_ifc: str, project_name: str, actor: str,
+                     *, scale: int = 200, max_sheets: int = 16,
+                     when: datetime | None = None) -> dict[str, Any]:
+    """Compile the current drawing set to one PDF and file it as the next revision of `SET_TITLE`.
+
+    Expensive — `compiled_set_pdf` renders every sheet and merges them — so this is a deliberate act,
+    never a side effect of issuing. Kept separate from `file_transmittal` for exactly that reason: the
+    cheap record of a release should not be hostage to a slow render.
+    """
+    from . import drawingset
+    if not source_ifc:
+        raise NothingToFile("no source model supplied — a drawing set is rendered FROM the model")
+    pdf = drawingset.compiled_set_pdf(source_ifc, project_name, scale=scale, max_sheets=max_sheets)
+    if not pdf:
+        raise NothingToFile("the compiled set came back empty — refusing to file a zero-page set")
+    return docmanager.upload(pid, DRAWINGS_FOLDER, "drawing-set.pdf", pdf, actor,
+                             title=SET_TITLE, doc_type="DWGSET", cde_state="published", when=when)
+
+
 def filed_model_history(pid: str) -> list[dict[str, Any]]:
     """Every revision of the model ever filed, newest first — superseded ones included.
 
