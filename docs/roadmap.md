@@ -1457,8 +1457,35 @@ monotonic index sequence.*
 `docmanager` defaults to current-only, but the drawings UI reads the drawing registers, not the
 document tree, so "show only the current set" is not enforced where field users actually look.
 Once generated sheets are filed, the display should read the **published, non-superseded** set — one
-source, not two. Gap-check first whether `drawing_set` + `drawing_issuance` already carry enough state
-to answer "which issue is current" without new fields.
+source, not two.
+
+⚠️ **Gap-check done 2026-07-31, and the premise needs restating — the real gap is worse than "two
+sources", and it is a PRODUCT decision rather than a wiring job.**
+
+The register *does* already compute a current set, so "superseded sheets are shown" is **not** the
+defect. `drawingset.register()` groups revisions per sheet number and takes `revs[-1]` after sorting by
+`_rev_key` — the newest revision wins and older ones go to `superseded`. What it does **not** do is
+consult issuance at all: there is **no reference to `drawing_issuance` in that computation**, and
+`workflow_state` is carried onto the row but never filtered on.
+
+So the register's "current" means **the latest revision anyone authored**. The document tree's "current"
+now means **the latest revision actually issued** (`SET_TITLE` supersession, shipped with
+R32-FILE-GENERATED). Both are legitimate answers to different questions:
+
+| question | answered by |
+|---|---|
+| what is the newest revision of record? | the register — right for the design team |
+| what was released, and is therefore buildable? | the filed set — right for the field |
+
+**The decision this needs:** which one a *field* user sees. `apps/web/src/reportCenter.ts:139` calls
+`api.drawingSet(pid)`, i.e. the register — so today the field-facing view can show a revision that was
+**never issued**. On a construction project that is the wrong default and arguably a liability one:
+crews must build from the issued set. But flipping it silently would also be wrong — a design team
+looking at the same view would stop seeing their own latest work.
+
+Do **not** "fix" this by changing what `current_set` means. The likely shape is to keep both and label
+them (`issued` vs `latest`), defaulting by workspace/persona, and to say plainly in the UI which one is
+on screen. That is a scoped product call, so it needs the user's answer before code.
 
 ### R32-TAXONOMY-LIFECYCLE *(M — needs the user's call on scope)* — 11 folders is construction-only
 
