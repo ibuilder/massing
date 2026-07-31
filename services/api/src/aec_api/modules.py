@@ -86,10 +86,16 @@ def apply_defaults(mod: dict, data: dict) -> dict:
     Create-only, deliberately. Applying a default on update would re-fill a field the user had just
     cleared, making "empty" unreachable and the clearing look like it failed.
 
-    Only fills a key that is ABSENT or empty-string. A caller that sent `0`, `false` or `""` meaning
-    "no" has expressed an intent, and a default that overrode it would be the config out-voting the
-    user — which is the whole risk of defaults: the value is invisible precisely because it looks
-    like something somebody chose.
+    Only fills a key that is ABSENT or empty-string. A caller that sent `0` or `false` meaning "no" has
+    expressed an intent, and a default that overrode it would be the config out-voting the user — which
+    is the whole risk of defaults: the value is invisible precisely because it looks like something
+    somebody chose. Note `0` and `false` survive this because neither equals `""` in Python; if that
+    test is ever rewritten as a truthiness check (`if not cur`), **both start being overridden** and a
+    deliberate zero silently becomes the default. `test_field_attrs` pins that.
+
+    `""` IS filled, and that is the one case where the create-only scope is doing the work: on a NEW
+    record an empty string is a form field nobody typed in, not a value someone cleared. On update the
+    function does not run at all, so a cleared field stays cleared.
     """
     for f in mod.get("fields", []):
         d = f.get("default")

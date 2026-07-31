@@ -84,6 +84,13 @@ assert filled["n"] == 5
 # a caller that said something keeps it — INCLUDING a zero, which is an answer, not an absence
 assert apply_defaults(DMOD, {"n": 0})["n"] == 0, "a default overrode an explicit 0"
 assert apply_defaults(DMOD, {"n": 99})["n"] == 99
+# `false` completes the partition of falsy-but-answered values. Both survive only because the guard
+# tests `cur is None or cur == ""` — neither `0` nor `False` equals `""` in Python. Rewriting it as a
+# truthiness check (`if not cur`) would silently override BOTH, turning a deliberate "no" into the
+# configured default. Asserting only the `0` case would leave that rewrite half-caught.
+BMOD = {"fields": [{"name": "b", "type": "checkbox", "default": True}]}
+assert apply_defaults(BMOD, {"b": False})["b"] is False, "a default overrode an explicit false"
+assert apply_defaults(BMOD, {})["b"] is True, "an absent checkbox still takes its default"
 # a field with no default is not invented
 assert "s" not in apply_defaults(DMOD, {})
 
