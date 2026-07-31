@@ -626,11 +626,11 @@ def step_up(password: str = Body(..., embed=True), act: str = Body("pdf.seal", e
     nothing it could re-prove. Allowing it would reintroduce exactly the hole this closes — an
     automation emitting sealed documents in a licensee's name.
 
-    **Not single-use.** Within its TTL the same assertion can be spent more than once, so it attests
-    "a human re-proved this password in the last five minutes", not "a human confirmed this specific
-    document". Making it single-use needs server-side state (a spent-jti set); the short TTL plus the
-    `act` scope is the bound today. Stated because the difference matters for what an audit row can
-    honestly claim, and a reader would otherwise assume the stronger property.
+    **Single-use.** Each assertion carries a `jti` and is spent by the operation that consumes it
+    (`rbac.consume_stepup`), so it attests "a human confirmed THIS act", not merely "a human re-proved
+    this password in the last five minutes". It was time-bounded only until 2026-07-31; the weaker
+    form let one captured assertion seal a stack of documents inside its TTL, which is the wrong claim
+    for a per-document legal attestation. Expect to mint one per document.
     """
     if act not in _STEPUP_ACTS:
         raise HTTPException(400, f"unknown step-up action {act!r}")

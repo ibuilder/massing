@@ -208,6 +208,28 @@ class ProfessionalLicense(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class StepUpSpent(Base):
+    """A step-up assertion that has been used. Its presence is what makes the assertion single-use.
+
+    Why a table and not an in-process set: the API runs multi-worker (SECURITY.md ships a Redis
+    service precisely because per-process counters do not hold across workers). An in-memory set
+    would refuse a replay only on the worker that saw the original, so a second seal issued from the
+    same assertion would succeed roughly (n-1)/n of the time — a control that works often enough to
+    look like it works.
+
+    `jti` is the PRIMARY KEY, so the second insert of the same assertion violates the constraint and
+    the replay is refused by the database rather than by a read-then-write in application code, which
+    two concurrent requests can both pass.
+
+    Rows are worthless once the assertion has expired (5 minutes) and are pruned opportunistically.
+    """
+    __tablename__ = "stepup_spent"
+    jti: Mapped[str] = mapped_column(String, primary_key=True)
+    sub: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    act: Mapped[str] = mapped_column(String, nullable=False)
+    spent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+
 class SavedView(Base):
     """A user's saved filter/sort/column config for a module's list (server-side, so it
     follows them across devices). Keyed by project + module + user + name."""

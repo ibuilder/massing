@@ -12,6 +12,7 @@ identified by the `X-User` header; an optional `AEC_API_KEY` bearer is treated a
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Cookie, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
@@ -153,6 +154,48 @@ def require_platform_admin(db: Session = Depends(get_db),
     from .routers.auth import require_admin_user  # deferred: routers import rbac, not the reverse
     require_admin_user(db=db, user=user)           # raises 403 unless AEC_ADMIN_EMAILS / legacy admin
     return user
+
+
+def consume_stepup(db: Session, token: str, act: str, pw_hash: str, actor: str) -> bool:
+    """Verify a step-up assertion AND spend it. True exactly once per assertion.
+
+    `verify_stepup_token` alone makes the assertion time-bounded, not single-use: inside its 5-minute
+    TTL the same token seals any number of documents. That gap matters for a professional seal
+    specifically, because the claim a seal makes is per-document — "this human was in responsible
+    charge of THIS work" — and a reusable assertion can only support the weaker "a human re-proved
+    their password recently". An agent that captured one token could seal a stack.
+
+    The spend is a PRIMARY KEY insert inside a SAVEPOINT, not a read-then-write: two concurrent
+    replays would both pass an `if already_spent` check and both proceed. Here the second insert
+    violates the constraint and the database refuses it, so the race has no winner to give away.
+    The savepoint means that refusal rolls back only this insert, leaving the caller's transaction
+    (and any audit row it has staged) intact.
+
+    Returns False for every failure — bad signature, wrong act, expired, someone else's assertion,
+    or already spent — so the caller cannot accidentally distinguish them in a response.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    from . import auth as _auth
+    from .models import StepUpSpent
+    claims = _auth.verify_stepup_claims(token, act, pw_hash)
+    if not claims or claims.get("sub") != actor:
+        return False
+    try:
+        with db.begin_nested():
+            db.add(StepUpSpent(jti=str(claims["jti"]), sub=actor, act=act))
+    except IntegrityError:
+        return False                      # already spent — a replay
+    try:
+        # Opportunistic prune: a spent row is worthless once its assertion could no longer verify.
+        # Best-effort by design — failing to tidy must never fail a seal.
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=max(3600, _auth._STEPUP_TTL * 4))
+        with db.begin_nested():
+            db.query(StepUpSpent).filter(StepUpSpent.spent_at < cutoff).delete(
+                synchronize_session=False)
+    except Exception:  # noqa: BLE001
+        pass
+    return True
 
 
 def member_project_ids(db: Session, user: str) -> set[str] | None:
