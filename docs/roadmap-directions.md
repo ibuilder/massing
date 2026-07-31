@@ -57,6 +57,19 @@ running total is now over a dozen items that turned out to be mostly built. Befo
 
 - **A count from a different reader answers a different question.** A whole-file regex said 455/455
   registered; the runner's own guard said five unregistered. Use the reader that *decides*.
+- **`grep -l` answers "does this file contain it", never "where".** A gap-check grepped for the K-1
+  code, got a **correct hit** on `capital.py`, then read one occurrence — a disclaimer at line 90 — and
+  concluded the feature was absent. `grep -n` on the same pattern showed `k1_pack` at line 67
+  immediately. **A correct hit, sampled wrongly, produces a confident absence** — worse than a miss,
+  because the tool appeared to agree. Use `-n` and read the hits, or you are searching your sample
+  rather than the file.
+- **Search every tree, not the one you expect.** A Band 4 probe reported "no module" for
+  `R23-CONSTRAINTS` because it looked only in `services/api`; the module is in `services/data` and had
+  a caller the same session had already read. Scope a probe to the capability, not to a directory.
+- **On this repo, "already there" and "landed an hour ago" are indistinguishable** without checking the
+  file's own `git log`. All sessions share one identity, so a sibling's fresh work reads exactly like
+  history — one session re-checked a gap it had itself caused to be fixed and reported it as never
+  having been one.
 - **`grep -i` matches substrings.** `EIR` matches "their"; `MIDP` matches "midpoint". Word-bound it.
 - **Long-line diffs lie.** `run_tests.py` packs ~200 entries per line, so one change re-renders the whole
   line. Ask for content (`git show <ref>:file | grep -c`), never a diff.
