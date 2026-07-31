@@ -103,7 +103,7 @@ Seven of eleven engines once shipped with no route. These are the current instan
 
 | item | size | the gap |
 |---|---|---|
-| ⭐ **R32-FILE-GENERATED** | M | `sheetgen`/`specmanual`/`drawingset`/`issuance` have **zero** references to `docmanager`. Generated drawings and specs never enter the controlled tree — no revision, no supersession, invisible in the file manager. |
+| ⭐ **R32-FILE-GENERATED** | M | ✔ **premise re-checked 2026-07-31 and it HOLDS** — the rare one. `sheetgen` · `drawingset` · `issuance` · `specs` · `specialty` · `speckle_bridge` all have **0** `docmanager` references. Generated drawings and specs never enter the controlled tree — no revision, no supersession, invisible in the file manager. The receiving side is already built (`docmanager.upload()`, `_next_rev()`, `_active()`), so this is wiring, not new machinery. *(The entry said `specmanual`; that module does not exist — the spec generator is `specs.py`.)* |
 | **R32-MODEL-IN-TREE** | S | Two parallel stores: the model at `{pid}/source.ifc`, documents at `{pid}/docs/`. No folder hosts the model or the generated output. |
 | **R32-CURRENT-SET** | S | The drawings display reads the registers, not the document tree, so "only the current set" is not enforced where field users look. |
 | **R24-TRACE-UI ②** | L | Backend. Make the proforma emit its own derivation — each figure carrying its inputs and a *model-derived / overridden / market-assumption* tag. Independently corroborated as the industry's real gap. |
@@ -540,6 +540,15 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   three-mesh-bvh is present transitively (MIT) — but this is now gated on **measuring raycast latency
   on a genuinely large model first**. If the measurement does not justify it, the correct outcome is to
   close this item unbuilt. *Fourth false premise found this session; see [[check-the-blocker-premise]].*
+  **Blocked on a fixture, checked 2026-07-31 — the measurement cannot currently be taken.** Picking goes
+  through `loader.fragments.raycast()` (`viewer/app.ts:391`, not `:337` — the file moved), which is the
+  Fragments runtime's own call, so only a **live** measurement answers this; a bare `THREE.Raycaster`
+  benchmark would be a different reader answering a different question. Two things are missing: the dev
+  API is down (`curl :8093/health` → `000`) and, more importantly, **there is no genuinely large model
+  converted** — the biggest fragment set in `preview_storage/` is **3.6 MB**, and the gate this entry
+  sets is explicitly "a genuinely large model". Taking the measurement therefore requires converting one
+  of the 50 MB `samples/*.ifc` first. Do that before re-opening this, and if the numbers come back in
+  single-digit ms, **close it unbuilt** as the entry already instructs.
 - **R23-BATCH-OVERLAYS** *(S)* — app-authored overlays (pins, grid, snap markers, dimensions, clash
   markers) use **zero** instancing; `three@0.184.0` has `BatchedMesh`. Keep the default BIM pass off
   `MeshStandardMaterial` (presentation mode only); make FOV/FAR responsive by viewport class.
