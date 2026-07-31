@@ -73,7 +73,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R32-MODEL-IN-TREE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PROCURE-DEPTH · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-TRACE-UI ② · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R27-SKILL-GAP · R31-PIPELINE-ALLOCATE · R31-SYNDICATION-TAIL · R32-FILE-GENERATED · R32-MODEL-IN-TREE · R33-CLAWBACK-AMOUNT · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-MULTISCALE · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-CONSTRAINTS · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R27-LAYOUT ① · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R23-PICKING · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
@@ -1029,6 +1029,73 @@ removed. Remaining, in priority order:
   assistant.
 - **SITE-1 remaining** *(S–M)* — parcel overlays *(terrain DEM auto-fetch is network-dependent →
   flagged, offline-degrading)*.
+
+## 💰 R33-CLAWBACK-AMOUNT — the GP giveback is computed with no time dimension *(2026-07-30)*
+
+**Lane C. Researched and specified here; deliberately NOT implemented in this session** — see the note
+at the end, which is part of the item.
+
+### The defect, measured on the repo's own fixture
+
+`proforma/waterfall.py` computes the clawback as:
+
+```python
+owed = (pref_rate - lp_irr) * lp_contrib   # rough restitution proxy
+```
+
+Its own comment calls it a proxy. It is **a rate multiplied by a principal with no time factor**, so it
+cannot express the money needed to move a multi-year return. On the clawback fixture already in
+`test_waterfall.py` — `lp_irr = -3.72%` against an 8% pref, `lp_contrib = 900`, three years — it yields
+`(0.08 - (-0.0372)) x 900 = 105.49`, and the GP returns that out of 151.13 of promote. An LP sitting
+11.7 percentage points under its pref for three years on 900 of capital is owed materially more than
+105.49; on a separate clean 5-year conventional case the same formula understated the exact shortfall
+**5.8x** ($41,485 against $240,466).
+
+Second, smaller defect, already documented in that test file's own comments: the guard
+`if lp_irr is not None` means the clawback **silently does nothing** whenever XIRR has no root —
+**26% of a 729-pattern sweep**.
+
+### What the market actually does (researched, two independent sources)
+
+- The pref is an **accruing balance on unreturned capital** (simple or compounding) — a capital-account
+  mechanic. **We already do this correctly** (`pref_accrual="compounding"`, `lp_unreturned`).
+- The clawback runs at the capital event when the GP has taken more promote than it was entitled to on
+  a whole-deal basis, and it returns **the excess, capped at the promote actually received**.
+  Our `min(owed, period_gp)` cap is therefore **already right**; only the `owed` figure is wrong.
+- The hurdle is *usually* stated as an IRR and *can* be stated as an NPV/accrual test — the user's own
+  framing, and the reason the implementation must not assume a root exists.
+
+### The fix, and the reason it is small
+
+**The correct solver is already in the same file, twenty lines above.**
+`solve_cash_for_irr_hurdle(...)` bisects on a distribution until the LP's XIRR reaches a target. The
+clawback needs exactly the inverse: *the cash added at the final date that lifts the LP to the pref*,
+capped at the promote paid. The file contained the right technique and the clawback path used the proxy.
+
+```
+owed = bisect(extra in [0, promote_paid]) until xirr(lp_cf with extra at final date) >= pref
+```
+
+Two edge cases, both decided in the LP's favour, because a lookback exists to protect the LP:
+`xirr` returning `None`, and a promote too small to close the gap — **return the full cap** in each.
+Report `clawback_owed` and `clawback_restored` separately: they differ when the promote cannot cover
+the shortfall, and reporting only the restored figure lets a partly-cured deal read as fully cured.
+Both must be `None` (not `0.0`) when clawback is off, so "not requested" never reads as "nothing owed".
+
+### Why this is specified rather than shipped
+
+Two implementation attempts were made and both reverted. The first changed the *test* (IRR to NPV) as
+well as the amount, which silently alters behaviour on non-conventional cash flows; the second was
+abandoned mid-patch. More usefully: during the first attempt the "verification" was run against
+**fabricated fixture constants** — `LP`/`GP`/`TIERS` invented rather than read from the test file, and
+the tier key guessed as `irr` when it is `hurdle` — so every number it produced described a deal that
+does not exist, and one of them was reported as a finding before being withdrawn.
+
+That is the [[confident-wrong-beats-missing]] shape on money code, and the reason the item carries this
+paragraph: **read the fixture, never reconstruct it**, and verify a waterfall change through
+`run_waterfall`'s returned dict rather than by rebuilding `lp_cf` outside the function, which is where
+both errors entered. Conservation, monotonicity, cap-respected and LP-reaches-hurdle are all assertable
+from the public output alone.
 
 ## 🗄 R32 — THE FILING SPINE: model, drawings and specs as controlled documents (2026-07-30)
 
