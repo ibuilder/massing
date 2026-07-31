@@ -165,7 +165,13 @@ def answer(pid: str, question: str) -> dict:
     return {"question": question,
             "answer": best["snippet"],
             "answered_from": where,
-            "citations": [{"doc": h["doc"], "section": h["section"], "title": h.get("title"),
+            # R31-CITE-HIGHLIGHT: `doc_id` travels with the citation. `search()` has always produced it
+            # and this rebuild used to drop it, so a citation carried a **display name, not a resolvable
+            # identifier** — and a citation you cannot resolve back to a document cannot be opened, let
+            # alone highlighted inside. Two documents may legitimately share a name; only the id is the
+            # answer to "which file".
+            "citations": [{"doc": h["doc"], "doc_id": h.get("doc_id"), "section": h["section"],
+                           "title": h.get("title"),
                            "page": h["page"], "snippet": h["snippet"][:200]} for h in hits],
             "note": "extractive — the answer is the document's own text (deterministic retrieval, "
                     "no paraphrase)"}

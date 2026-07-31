@@ -1677,24 +1677,32 @@ scan, because it stops the exercise being re-run.
   `aiassist.ts:334` renders `"Source: p.12"` as **inert text** — not a link, and nothing calls the
   viewer. Citing a 40-page PDF and citing a paragraph are different products.
 
-  **The whole viewer side already exists**, in `vendor/massingpdf/plugins/search.ts`:
-  `TextIndex.words(page)` gives per-word boxes from pdf.js, `find(page, query, limit)` returns
-  `SearchHit { page, snippet, box? }`, and **`flash(v, page, box)` already draws the highlight rect and
-  scrolls it to centre.** So this needs **no server work, no stored bbox, no new PDF library and no AGPL
-  exposure** — which matters, because `extract_pdf_text` is pypdf and discards positions, so a *stored*
-  bbox would have forced a new extractor. The passage text already travels in the citation; the client
-  can re-find and box it at render time.
+  ✅ **HALF SHIPPED 2026-07-31 — the data half is done.** `doc_text.answer()` now carries `doc_id` into
+  every citation, and `rfi_qa.py` prefers it over the display name and passes the snippet as `span`.
+  Pinned end-to-end: `test_doc_text` asserts every citation carries a `doc_id` **and that the id
+  resolves against the catalog** — an id matching nothing is as dead as a name. Mutation-checked.
 
-  **The actual blocker is one dropped field.** `doc_text.search()` produces both `doc` (display name)
-  and **`doc_id`**; `doc_text.answer()` builds citations as `{doc, section, title, page, snippet}` and
-  **drops `doc_id`**. `rfi_qa.py:182` then calls `cite_doc(str(c.get("ref") or c.get("doc") or
-  "document"), page=…)` — so a citation carries **a name, not a resolvable identifier**, and a citation
-  you cannot resolve back to a document cannot be opened, let alone highlighted in. Tellingly,
-  `cite_doc`'s `bbox` and `span` parameters are **referenced nowhere in the repo except their own
-  definition** — the shape was anticipated and never wired.
+  The dropped field was the real blocker and is worth remembering as a shape: `search()` always
+  produced `doc_id`, `answer()` rebuilt the citation list without it, and **both functions read
+  correctly on their own.** The defect lived in the seam.
 
-  **The work, therefore:** carry `doc_id` through to the citation → make the page a link → call the
-  existing `find` + `flash`. That is the whole item.
+  ⚠️ **CORRECTION to this entry's own cost estimate — the viewer side is NOT as available as recorded.**
+  It was written here (from the gap-check) that `find(page, query, limit)` and `flash(v, page, box)`
+  were callable. Checked against the file: `vendor/massingpdf/plugins/search.ts` exports only
+  **`findInWords`** and **`searchPlugin`**. `flash` exists — at line 279, drawing the rect and scrolling
+  to centre exactly as described — but it is **module-private**, invoked only from a click handler on a
+  search-result row (line 247). And **nothing outside the vendor tree imports the plugin at all.**
+
+  So the remaining work is not "call the existing function". It is: expose a highlight entry point from
+  the plugin, then have `portal/panels/aiassist.ts:334` — which today renders `"Source: p.12"` as inert
+  `textContent` — open the document and drive it. **The catch worth pausing on:** `vendor/massingpdf/`
+  is vendored from the separate `MassingCloud/massingifc` kernel repo, so an edit there is either lost
+  on the next re-vendor or has to go upstream first. That is a real decision, not a line of code, and
+  it is why the frontend half is *not* claimed as trivial.
+
+  Still true and still the reason this is cheap overall: **no stored bbox is needed** (`extract_pdf_text`
+  is pypdf and discards positions, so storing one would have forced a new extractor and possible AGPL
+  exposure), because the passage text now travels in the citation and the client can re-find it.
 
 ### Corroboration, not a new item — R24-TRACE-UI ② is the right target
 

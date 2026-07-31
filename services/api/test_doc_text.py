@@ -104,6 +104,26 @@ with TestClient(app) as c:
     assert qa["intent"] == "document" and "4000 psi" in qa["answer"], (qa["intent"], qa.get("answer"))
     assert qa["citations"] and qa["citations"][0]["kind"] == "document", qa["citations"][:1]
 
+    # R31-CITE-HIGHLIGHT — a citation must carry a RESOLVABLE identifier, not just a display name.
+    # `search()` always produced `doc_id`; `answer()` dropped it when rebuilding the citation list, so
+    # the citation named a document it could not open. Asserted end-to-end over HTTP, because the drop
+    # happened between two functions that each looked correct on their own.
+    ask = c.post(f"/projects/{pid}/doctext/ask",
+                 json={"question": "what psi must cast-in-place concrete reach?"}, headers=H).json()
+    assert ask["citations"], ask
+    for cite in ask["citations"]:
+        assert cite.get("doc_id"), f"citation carries no resolvable doc_id: {cite}"
+    # The id must actually resolve against the catalog — an id that matches nothing is as dead as a name.
+    known = {e["doc_id"] for e in c.get(f"/projects/{pid}/doctext", headers=H).json()["documents"]}
+    assert {x["doc_id"] for x in ask["citations"]} <= known, (ask["citations"], known)
+
+    # And it must survive the RFI-QA path. Note what this asserts and what it does NOT: `/rfi/qa`
+    # returns the raw citation dicts, so this pins that `doc_id` reaches the caller there too. The
+    # `cite_doc`-built claim structure is a separate surface and is not exercised here.
+    doc_cites = [x for x in qa["citations"] if x["kind"] == "document"]
+    assert doc_cites and all(x.get("doc_id") for x in doc_cites), doc_cites[:2]
+    assert any(x["doc_id"] in known for x in doc_cites), (doc_cites[:2], known)
+
 print("DOC-TEXT OK - W9-4 harder half: chunking splits at spec-section headers (title+page kept, "
       "headerless -> paragraph chunks); ingest/catalog/replace; search boosts section-number queries "
       "and finds content ('gypsum fastener spacing' -> 09 21 16); answers are the document's OWN text "

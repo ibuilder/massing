@@ -179,8 +179,15 @@ def to_cited(result: dict[str, Any]) -> dict[str, Any]:
         for c in result.get("citations", []):
             kind = c.get("kind")
             if kind in ("spec", "document", "location"):
-                cites.append(ca.cite_doc(str(c.get("ref") or c.get("doc") or "document"),
-                                         page=c.get("page")))
+                # R31-CITE-HIGHLIGHT — prefer the RESOLVABLE identifier. `ref` and `doc` are display
+                # names: they render fine and cannot be opened, which is why the citation was a dead
+                # end. `doc_id` first, the names only as a fallback for citation kinds that carry no id.
+                # `span` carries the snippet so the client can re-find the passage in the page and box
+                # it — no stored bbox, which would have meant replacing pypdf (it discards positions).
+                snippet = str(c.get("snippet") or "")[:200]
+                cites.append(ca.cite_doc(
+                    str(c.get("doc_id") or c.get("ref") or c.get("doc") or "document"),
+                    page=c.get("page"), span=[snippet] if snippet else None))
             elif kind == "gap":
                 cites.append(ca.cite_rule(f"readiness/{c.get('category', 'gap')}"))
             for g in (c.get("guids") or [])[:10]:
