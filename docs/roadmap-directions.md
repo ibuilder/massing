@@ -60,6 +60,14 @@ running total is now over a dozen items that turned out to be mostly built. Befo
 - **`grep -i` matches substrings.** `EIR` matches "their"; `MIDP` matches "midpoint". Word-bound it.
 - **Long-line diffs lie.** `run_tests.py` packs ~200 entries per line, so one change re-renders the whole
   line. Ask for content (`git show <ref>:file | grep -c`), never a diff.
+- **Specify a fixture by the property under test, never by a proxy for it.** "Convert one of the 50 MB
+  `samples/*.ifc`" to get a big model for a *picking* benchmark was wrong and **inverted**: file size is
+  anti-correlated with element count here, because those files are large as *text*, not as geometry.
+  `basichouse.ifc` is 50.3 MB and holds **154** elements; `vertical_farm.ifc` is 1.5 MB and holds
+  **1,840**. Converting the 50 MB file produced a 3.6 MB fragment set — exactly the size already on
+  disk, so following the instruction reproduced the starting position. Picking scales with *elements*,
+  so the fixture must be specified in elements. The tell: the instruction named a unit nobody was
+  actually testing against.
 - **Never assemble a measurement from several reads of a live system.** Take one snapshot and derive.
 - **`$?` after a pipe is the pipe's status.** Read exit codes directly.
 - **"No test files found" is not a pass.** Neither is a `FAIL` with no traceback.
