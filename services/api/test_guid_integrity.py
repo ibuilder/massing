@@ -154,6 +154,27 @@ with TestClient(app) as tc:
     assert GOOD3 in after, f"the new field value must be anchored, got {after}"
     assert GOOD2 not in after, f"the replaced field value must be dropped, got {after}"
 
+# --- the DEMO must obey the rule the product enforces ------------------------------------------------
+# The seeded demo filed "Level 2 slab 1" into `field_verification.guid` and a sentence about
+# coordinating before the next pour into `material_request.guids`: the generator falls through to
+# prose for any `text`/`textarea` it does not recognise, and nothing rejected it. So the demo every
+# new user opens was showing the platform's first non-negotiable being broken. `test_demo_seed`
+# validates the whole corpus and catches this now; asserted here too, because the generator is what
+# has to know, and it must learn it from the same list the validator uses.
+from aec_api.demo_seed import _fake_guid, _value  # noqa: E402
+
+for i in range(200):
+    g = _fake_guid("mod", "guid", i)
+    assert ms.IFC_GUID_RE.match(g), g
+assert _fake_guid("a", 1) == _fake_guid("a", 1), "a re-seeded demo must be byte-identical"
+assert len({_fake_guid("m", i) for i in range(200)}) == 200, "distinct rows must differ"
+from datetime import date  # noqa: E402
+
+for fname, ftype, n in [("guid", "text", 1), ("guids", "textarea", 2), ("frozen_guids", "textarea", 2)]:
+    v = _value({"name": fname, "type": ftype}, "m", 0, date.today())
+    got = ms.split_guids(v)
+    assert len(got) == n and all(ms.IFC_GUID_RE.match(g) for g in got), (fname, v)
+
 # --- the three fields are still the three fields ----------------------------------------------------
 # Not a floor and not an allowlist: if a module gains a field named `guid`, this fails and whoever
 # added it decides whether it is a GlobalId. A silent fourth field is how `_claims` came to cover one.

@@ -43,11 +43,37 @@ def _pick(pool, *seed):
     return pool[_h(*seed) % len(pool)]
 
 
+#: The alphabet IfcOpenShell compresses a 128-bit UUID into. Deterministic from the same hash as
+#: every other seeded value, so a demo re-seed produces the same building twice.
+_GUID_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_$"
+
+
+def _fake_guid(*seed: Any) -> str:
+    n, out = _h(*seed), []
+    for k in range(22):
+        n = (n * 6364136223846793005 + _h(k, *seed)) & ((1 << 64) - 1)
+        out.append(_GUID_ALPHABET[n % 64])
+    return "".join(out)
+
+
 def _value(field: dict, module: str, i: int, today: date) -> Any:
     """A plausible, schema-valid value for one field — or None to leave it unset."""
     ftype = str(field.get("type") or "text")
     name = str(field.get("name") or "")
     seed = (module, name, i)
+
+    # MOD-GUID: a GlobalId field, before the type dispatch — because these fields are `text` and
+    # `textarea`, and both fall through to prose. The seeded demo really did file "Level 2 slab 1"
+    # into `field_verification.guid` and a whole sentence about coordinating before the next pour
+    # into `material_request.guids`. Nothing rejected it, so the demo every new user opens has been
+    # showing the platform's first non-negotiable being broken — a filing accident dressed as data.
+    #
+    # Asked of `module_schema`, not re-listed here: the point of MOD-GUID is that "which fields hold
+    # a GlobalId" has one definition.
+    from .module_schema import _GUID_FIELDS
+    if name in _GUID_FIELDS:
+        n = 2 if name.endswith("guids") else 1        # the plural fields hold a list
+        return "\n".join(_fake_guid(*seed, k) for k in range(n))
 
     if ftype == "select" or ftype == "multiselect":
         opts = [o for o in (field.get("options") or []) if o]
