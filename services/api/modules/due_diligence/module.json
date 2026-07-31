@@ -62,7 +62,8 @@
       "name": "cost",
       "label": "Study Cost",
       "type": "currency",
-      "fieldset": "Commercial"
+      "fieldset": "Commercial",
+      "min": 0
     },
     {
       "name": "ordered_date",

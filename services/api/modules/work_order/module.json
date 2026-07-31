@@ -89,13 +89,15 @@
       "label": "Labor Hours",
       "type": "number",
       "fieldset": "Cost",
-      "unit": "hr"
+      "unit": "hr",
+      "min": 0
     },
     {
       "name": "cost",
       "label": "Cost (parts + labor)",
       "type": "currency",
-      "fieldset": "Cost"
+      "fieldset": "Cost",
+      "min": 0
     }
   ],
   "workflow": {

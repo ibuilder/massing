@@ -32,7 +32,8 @@
       "label": "Area (sf)",
       "type": "number",
       "fieldset": "Catchment",
-      "unit": "sf"
+      "unit": "sf",
+      "min": 0
     },
     {
       "name": "runoff_coefficient",
@@ -65,7 +66,8 @@
       "label": "Storm Depth (in)",
       "type": "number",
       "fieldset": "Storm",
-      "unit": "in"
+      "unit": "in",
+      "min": 0
     }
   ],
   "workflow": {

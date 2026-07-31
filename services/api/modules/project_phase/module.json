@@ -43,7 +43,9 @@
       "label": "A/E Design Fee %",
       "type": "percent",
       "fieldset": "Commercial",
-      "unit": "%"
+      "unit": "%",
+      "min": 0,
+      "max": 100
     },
     {
       "name": "iso_status",

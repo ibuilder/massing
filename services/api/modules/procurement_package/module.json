@@ -30,13 +30,15 @@
       "name": "est_cost",
       "label": "Estimated Cost",
       "type": "number",
-      "fieldset": "Package"
+      "fieldset": "Package",
+      "min": 0
     },
     {
       "name": "line_count",
       "label": "Scope Lines",
       "type": "number",
-      "fieldset": "Package"
+      "fieldset": "Package",
+      "min": 0
     },
     {
       "name": "scope_json",
@@ -60,7 +62,8 @@
       "name": "award_amount",
       "label": "Award Amount",
       "type": "number",
-      "fieldset": "Award"
+      "fieldset": "Award",
+      "min": 0
     },
     {
       "name": "notes",
@@ -71,13 +74,46 @@
   ],
   "workflow": {
     "initial": "draft",
-    "states": ["draft", "rfq_sent", "quotes_in", "awarded"],
+    "states": [
+      "draft",
+      "rfq_sent",
+      "quotes_in",
+      "awarded"
+    ],
     "transitions": [
-      {"from": "draft", "to": "rfq_sent", "action": "send_rfq", "party": ["GC"]},
-      {"from": "rfq_sent", "to": "quotes_in", "action": "receive_quotes", "party": ["GC"]},
-      {"from": "quotes_in", "to": "awarded", "action": "award", "party": ["GC"]}
+      {
+        "from": "draft",
+        "to": "rfq_sent",
+        "action": "send_rfq",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "rfq_sent",
+        "to": "quotes_in",
+        "action": "receive_quotes",
+        "party": [
+          "GC"
+        ]
+      },
+      {
+        "from": "quotes_in",
+        "to": "awarded",
+        "action": "award",
+        "party": [
+          "GC"
+        ]
+      }
     ]
   },
-  "list_columns": ["name", "trade", "est_cost", "line_count", "rfq_due", "awarded_to"],
+  "list_columns": [
+    "name",
+    "trade",
+    "est_cost",
+    "line_count",
+    "rfq_due",
+    "awarded_to"
+  ],
   "workspace": "construction"
 }

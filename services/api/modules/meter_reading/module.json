@@ -40,7 +40,8 @@
       "name": "cost",
       "label": "Utility Cost",
       "type": "currency",
-      "fieldset": "Reading"
+      "fieldset": "Reading",
+      "min": 0
     }
   ],
   "workflow": {

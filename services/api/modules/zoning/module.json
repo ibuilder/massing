@@ -38,14 +38,17 @@
       "label": "Avg unit size (SF)",
       "type": "number",
       "unit": "sf",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "efficiency_pct",
       "label": "Net-to-gross efficiency (%)",
       "type": "percent",
       "unit": "%",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0,
+      "max": 100
     },
     {
       "name": "far",
@@ -72,28 +75,33 @@
       "label": "Height limit (ft)",
       "type": "number",
       "unit": "ft",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "lot_coverage_pct",
       "label": "Max lot coverage (%)",
       "type": "percent",
       "unit": "%",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0,
+      "max": 100
     },
     {
       "name": "lot_depth_ft",
       "label": "Lot depth (ft)",
       "type": "number",
       "unit": "ft",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "lot_width_ft",
       "label": "Lot width (ft)",
       "type": "number",
       "unit": "ft",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "max_floors",
@@ -106,7 +114,9 @@
       "label": "Required open space (%)",
       "type": "percent",
       "unit": "%",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0,
+      "max": 100
     },
     {
       "name": "parking_ratio",
@@ -134,7 +144,8 @@
       "type": "number",
       "required": true,
       "unit": "sf",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     },
     {
       "name": "notes",

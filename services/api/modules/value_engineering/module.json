@@ -18,7 +18,8 @@
       "name": "savings",
       "label": "Est. Savings",
       "type": "number",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "status",

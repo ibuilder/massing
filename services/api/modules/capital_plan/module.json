@@ -51,7 +51,8 @@
       "label": "Estimated Cost",
       "type": "currency",
       "required": true,
-      "fieldset": "Plan"
+      "fieldset": "Plan",
+      "min": 0
     },
     {
       "name": "priority",

@@ -55,7 +55,8 @@
       "label": "Duration (days)",
       "type": "number",
       "fieldset": "Sequence",
-      "unit": "days"
+      "unit": "days",
+      "min": 0
     },
     {
       "name": "planned_week",

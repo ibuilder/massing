@@ -80,6 +80,37 @@ def _validate_fields(mod: dict, data: dict) -> None:
         raise HTTPException(422, f"missing required field(s): {', '.join(missing)}")
 
 
+def apply_defaults(mod: dict, data: dict) -> dict:
+    """MOD-FIELDATTRS — fill declared defaults on a NEW record, and only where the caller said nothing.
+
+    Create-only, deliberately. Applying a default on update would re-fill a field the user had just
+    cleared, making "empty" unreachable and the clearing look like it failed.
+
+    Only fills a key that is ABSENT or empty-string. A caller that sent `0`, `false` or `""` meaning
+    "no" has expressed an intent, and a default that overrode it would be the config out-voting the
+    user — which is the whole risk of defaults: the value is invisible precisely because it looks
+    like something somebody chose.
+    """
+    for f in mod.get("fields", []):
+        d = f.get("default")
+        if d is None:
+            continue
+        cur = data.get(f["name"])
+        if cur is None or cur == "":
+            data[f["name"]] = _resolve_default(d)
+    return data
+
+
+#: Defaults that are computed rather than literal. Only one so far, and it earns its keep: a daily
+#: report, a T&M ticket and a manpower log are all filed for the day they happened, so "today" is a
+#: fact about the record. A literal date in config would be wrong the day after it was written.
+def _resolve_default(d):
+    if d == "@today":
+        from .timeutil import utc_today
+        return utc_today().isoformat()
+    return d
+
+
 def apply_table_totals(mod: dict, merged: dict) -> dict:
     """MOD-TOTALS — a `table` field with `totals_into` writes its sum into the named numeric field.
 
@@ -156,6 +187,8 @@ def create_record(db: Session, key: str, project_id: str, body: dict, actor: str
     # scripts and integrations don't have to special-case each module's field name.
     if title_field and title_field != "subject" and not data.get(title_field) and data.get("subject"):
         data[title_field] = data["subject"]
+    apply_defaults(mod, data)            # MOD-FIELDATTRS: before the required check, so a defaulted
+                                         # field satisfies `required` rather than failing it
     _validate_fields(mod, data)
     _validate_values(mod, data)
     apply_table_totals(mod, data)        # MOD-TOTALS: line items drive the total the engines read

@@ -50,7 +50,8 @@
       "label": "Through Amount",
       "type": "currency",
       "required": true,
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "subcontract",

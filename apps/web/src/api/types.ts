@@ -234,6 +234,14 @@ export interface ModuleField {
    *  converted, or checked. Declaring it makes the number self-describing, which is most of the
    *  difference between a form and a tool. */
   unit?: string;
+  /** MOD-FIELDATTRS — numeric bounds. Rendered as input attributes AND enforced server-side; the
+   *  HTML attribute is advice to one browser and nothing to a CSV import or an integration. */
+  min?: number;
+  max?: number;
+  /** Hint text inside an empty input. Only on types that HAVE a text box to put it in. */
+  placeholder?: string;
+  /** Pre-filled on a NEW record only — re-filling on update would make "empty" unreachable. */
+  default?: string | number | boolean;
   /** MOD-TABLE — the columns of a `table` field (line items). Absent on every other type. */
   columns?: ModuleColumn[];
   /** Numeric column summed into a footer total. Validated server-side to name a numeric column. */

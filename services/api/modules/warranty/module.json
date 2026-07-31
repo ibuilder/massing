@@ -69,7 +69,8 @@
       "label": "Term (years)",
       "type": "number",
       "fieldset": "Term",
-      "unit": "yr"
+      "unit": "yr",
+      "min": 0
     },
     {
       "name": "submittal",

@@ -76,7 +76,8 @@
       "label": "Lead Time (days)",
       "type": "number",
       "fieldset": "Schedule",
-      "unit": "days"
+      "unit": "days",
+      "min": 0
     },
     {
       "name": "required_on_site",

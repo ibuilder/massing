@@ -56,13 +56,15 @@
       "label": "Unit Price",
       "type": "currency",
       "required": true,
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "qty",
       "label": "Quantity",
       "type": "number",
-      "fieldset": "Quantities"
+      "fieldset": "Quantities",
+      "min": 0
     }
   ],
   "workflow": {

@@ -56,7 +56,8 @@
       "name": "bonding_capacity",
       "label": "Bonding Capacity",
       "type": "number",
-      "fieldset": "Capacity"
+      "fieldset": "Capacity",
+      "min": 0
     },
     {
       "name": "annual_revenue",

@@ -26,14 +26,17 @@
       "label": "Retainage %",
       "type": "percent",
       "unit": "%",
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0,
+      "max": 100
     },
     {
       "name": "scheduled_value",
       "label": "Scheduled Value",
       "type": "number",
       "required": true,
-      "fieldset": "Money"
+      "fieldset": "Money",
+      "min": 0
     },
     {
       "name": "completed_prev",

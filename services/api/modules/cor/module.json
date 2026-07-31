@@ -19,7 +19,8 @@
       "label": "Amount",
       "type": "currency",
       "required": true,
-      "fieldset": "Cost & schedule"
+      "fieldset": "Cost & schedule",
+      "min": 0
     },
     {
       "name": "reason",
@@ -54,31 +55,36 @@
       "label": "Schedule Days",
       "type": "number",
       "fieldset": "Cost & schedule",
-      "unit": "days"
+      "unit": "days",
+      "min": 0
     },
     {
       "name": "labor_cost",
       "label": "Labor",
       "type": "currency",
-      "fieldset": "Cost & schedule"
+      "fieldset": "Cost & schedule",
+      "min": 0
     },
     {
       "name": "material_cost",
       "label": "Material",
       "type": "currency",
-      "fieldset": "Cost & schedule"
+      "fieldset": "Cost & schedule",
+      "min": 0
     },
     {
       "name": "equipment_cost",
       "label": "Equipment",
       "type": "currency",
-      "fieldset": "Cost & schedule"
+      "fieldset": "Cost & schedule",
+      "min": 0
     },
     {
       "name": "markup_cost",
       "label": "Overhead & profit",
       "type": "currency",
-      "fieldset": "Cost & schedule"
+      "fieldset": "Cost & schedule",
+      "min": 0
     },
     {
       "name": "justification",

@@ -68,13 +68,15 @@
       "name": "rate",
       "label": "Rate ($/unit)",
       "type": "currency",
-      "fieldset": "Loading"
+      "fieldset": "Loading",
+      "min": 0
     },
     {
       "name": "budgeted_cost",
       "label": "Budgeted cost ($)",
       "type": "currency",
-      "fieldset": "Loading"
+      "fieldset": "Loading",
+      "min": 0
     },
     {
       "name": "actual_units",

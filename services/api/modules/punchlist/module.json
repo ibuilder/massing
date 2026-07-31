@@ -74,7 +74,8 @@
       "name": "cost",
       "label": "Est. Cost",
       "type": "currency",
-      "fieldset": "Closeout"
+      "fieldset": "Closeout",
+      "min": 0
     },
     {
       "name": "verified_by",

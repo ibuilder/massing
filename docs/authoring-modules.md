@@ -148,6 +148,37 @@ column type.
 
 **Do not use a `textarea` for a list.** Prose cannot be summed, filtered, or read by the engines.
 
+## Bounds, hints and defaults
+
+`min` / `max` (numeric only) are enforced **server-side** in `validate_record`, not just rendered as
+input attributes — an HTML `min` is advice to one browser and nothing to a CSV import, an integration
+or a script, which is how out-of-range values actually arrive.
+
+A bound that rejects a real value is worse than no bound: it makes the honest number un-enterable and
+pushes it somewhere unvalidated. `percent` means *proportion*, not *0..100* — an IRR is negative on a
+losing deal and over 100% on a fast one, and escalation is negative under deflation. Bound a
+percentage only when the quantity genuinely cannot leave the range.
+
+`placeholder` is hint text inside an empty box, so it is rejected on types that have no box (select,
+checkbox, table, reference, …) rather than declared and silently never rendered.
+
+**`default` is different in kind from the other three, and is deliberately rare.** They constrain or
+explain a value the user supplies; a default **writes a value nobody chose**. Default `retainage_pct`
+to 10 and every record on a 5% job carries the wrong number — formatted correctly, in the right
+field, looking exactly like something somebody decided.
+
+Use it only where the value is a fact about the **record**, never a **policy**:
+
+```json
+{ "name": "report_date", "type": "date", "default": "@today" }
+```
+
+`@today` resolves on both sides — the form shows the date about to be saved, the server fills it for
+any caller that never opened a form. Applied on **create only**: re-filling on update would make
+"empty" unreachable and a user's clearing look like it failed. An explicit `0` is an answer and
+survives. `test_field_attrs.py` caps the number of defaulted fields — the only **ceiling** in the
+module gates, because here the risk runs the other way.
+
 ## 3. Workflow (states + buttons)
 
 Add a `workflow` to give records a lifecycle (draft → submitted → answered → closed). Each transition

@@ -12,7 +12,8 @@
       "label": "Date",
       "type": "date",
       "required": true,
-      "fieldset": "Conditions"
+      "fieldset": "Conditions",
+      "default": "@today"
     },
     {
       "name": "weather",
