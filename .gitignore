@@ -136,3 +136,24 @@ preview.db
 # Inside the repo so the browser preview will actually RUN them (files outside the project folder
 # only render as static snapshots); ignored so they never reach a commit.
 _prototypes/
+
+# Agent-harness scaffold written into the clone by a coding-agent init (2026-08-01): AGENTS.md,
+# .codex/ (hooks) and .agents/skills/. Ignored so a pathspec-less `git add -A` from any of the
+# sessions sharing this checkout cannot publish them to a PUBLIC repo by accident — that was a live
+# path: `git ls-files --others --exclude-standard` listed 16 such files.
+#
+# NOT a judgement that they should never be committed. `AGENTS.md` is a real convention some repos
+# commit deliberately, and it is currently byte-identical to the tracked CLAUDE.md. If you want any
+# of them in the repo, `git add -f <path>` still works and this rule does not stand in the way.
+#
+# The argument against committing `.agents/skills/`: it MIRRORS `.claude/skills/`, which is already
+# tracked (14 files, all five skills overlapping by name), so committing it duplicates this repo's
+# own skill tree with nothing gating the two against drift.
+#
+# NB `git check-ignore -q <dir>/` is not a reliable way to test this. Before these rules existed it
+# returned exit-0 "ignored" for `.codex/` and `.agents/` while every file inside was NOT ignored,
+# citing `.gitignore:134` — a blank line, with an empty pattern field. Ask the command that does the
+# work instead: `git ls-files --others --exclude-standard`.
+AGENTS.md
+.codex/
+.agents/
