@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.815 — three of seven rooms were named once and never explained
+
+### Fixed — the product tour listed rooms it never visited
+
+The walkthrough is the document a new user follows, and a gate already required it to name every room.
+It did — in one headline line — and that was the whole of the coverage for three of them. Counted:
+`planning`, `work` and `operate` appeared **once each**, in the room list, and nowhere else, while
+`cost` appeared eleven times. A reader was told the room exists and never told what it is for, which
+is the documentation form of a tab that highlights but does not navigate.
+
+The click-through now visits all three with their shipped job statements — Planning takes a quantity
+off the model and turns it into a number somebody has agreed to; Work is the ball-in-court queue,
+a filter across every subject rather than one of them; Operate carries handover into the asset
+register, the condition assessment and the reserve study.
+
+Two gates close the hole rather than the instance. **Order:** a doc that *lists* the rooms must list
+them in shipped order — count and membership were already checked, but order is what a reader follows,
+and a doc can name all seven correctly in the wrong sequence. **Substance:** every room must appear in
+the walkthrough somewhere beyond the enumeration, so a single line can no longer stand in for a tour.
+
+The order gate's first draft used a proximity window and failed on writing that was correct: it read
+the click-through's *route* ("Schedule → Budget … back in Design … the Cost room") as a claim about
+tab order. It now matches only verb-free lists. A gate that can be satisfied by rewriting good prose
+is worse than no gate — the same correction the comparative-names pattern needed one release ago.
+
 ## v0.3.814 — a reserve suggestion that did not clear its own horizon, and a gate that checked a third of the repo
 
 ### Fixed — the suggested reserve contribution was not solved, it was guessed at

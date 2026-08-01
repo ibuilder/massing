@@ -98,10 +98,23 @@ element for its **5D** cost readout, then the **cost heatmap** coloring the buil
 4. **Model** → see the building. **Finance → Test Fit → Compare / ⚡ Optimize**.
 5. **Finance** → cost budget → **Apply** → **Sources & Uses** → tune drivers → read the returns bar.
 6. **📄 Investment memo** + **📊 Pitch deck** PDFs. Then the capital chain: **sync the GMP** to hard cost, model **construction-loan draws**, export the **lender draw-request** PDF.
-7. **＋ New** project → **Construction** → create an RFI → **Schedule → 4D sequence** scrub → **Ask AI**.
-8. **Schedule → Budget** (GMP table + cash-flow) → back in **Model**, click an element for its **5D** cost → open the **cost heatmap**. Generate a **pay app (G702/G703)**.
-9. Invite a teammate (account menu) with a **capability** + **party** role (multi-user).
-10. **Punchlist** verify → **COBie / turnover package** export.
+7. **Planning** room — *take it off, estimate it, bid it, buy it out, contract it and get it approved.*
+   Run a **takeoff** against the model, build the **estimate** from it, send a **bid package**, level
+   the returns, and buy the scope out into a subcontract. This is the room where a quantity becomes a
+   number somebody has agreed to.
+8. **＋ New** project → **Schedule** room → create an RFI → **4D sequence** scrub → **Ask AI**.
+9. **Schedule → Budget** (GMP table + cash-flow) → back in **Design**, click an element for its **5D**
+   cost → open the **cost heatmap**. In the **Cost** room, generate a **pay app (G702/G703)**.
+10. **Work** room — *whatever is in your court right now.* Not a subject area but a filter across all
+    of them: the ball-in-court queue, every open item assigned to you, actionable inline without
+    leaving the page. It is the room to open first on a Monday and the one to check before you log
+    off.
+11. Invite a teammate (account menu) with a **capability** + **party** role (multi-user).
+12. **Operate** room — *hand it over, maintain it, meter it and plan its renewal.* **Punchlist** verify
+    → **COBie / turnover package** export → then the asset register, the facility-condition assessment
+    (FCI) and the reserve study, which projects replacement year by year and tells you the flat annual
+    contribution that keeps the fund solvent. Handover is where most tools stop; here it is where the
+    building's own record starts.
 
 ## Recording tips
 - 1080p, hide the cursor trail, slow the mouse. ~3 min keeps attention; a 60-sec cut (scenes at

@@ -66,7 +66,7 @@ Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
 
-- ⭐ **FIN-SUITE-BLIND** *(S, reduced 2026-08-01)* — **the G702 slice is done; the sweep across the
+- ✅ ~~**FIN-SUITE-BLIND**~~ *(CLOSED 2026-08-01, v0.3.814)* — **the G702 slice is done; the sweep across the
   other finance suites is not.** The named evidence was checked and acted on: `retainage_prev` (G702
   line 7) was asserted in **zero tests, in any file**, which is why a 10%-retainage contract could
   report a negative payment due while the suite stayed green. `test_g702_lines.py` now value-checks
@@ -77,10 +77,30 @@ Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
   treated an **explicit 0%** as unset, so a line the owner had agreed to hold nothing on had the 5%
   default withheld anyway — $1,000 wrongly held on a $20,000 line. Fixed and mutation-proved.
 
-  **What remains** is the same question asked of `proforma/`, `reserve.py`, `benchmarking.py` and the
-  rest: name the outputs each suite never asserts on, and write the fixture that distinguishes.
-  Memory already flags `proforma/` as highest-yield because its tests **range-check** rather than
-  value-check — `assert 0 <= p <= 1` cannot tell a right answer from a wrong one.
+  ✅ **THE SWEEP IS DONE — 2026-08-01 (v0.3.814).** `reserve.py`, `benchmarking.py` and `proforma/`
+  were each asked what their suites cannot see.
+
+  * **`reserve.py` — two live defects.** The suggested annual contribution came from a binary search
+    that returned its upper bound after forty halvings **without ever testing that bound was
+    feasible**; against an opening deficit it is not, so a 500k shortfall produced a confident
+    80,001/yr that came back underfunded from year one when re-run at exactly that figure. There was
+    nothing to search for — solvency through year *k* means `c >= (cum_out(k) - opening) / k`, so the
+    answer is the largest of those, solved in one pass. It now re-runs its own schedule at its own
+    answer and reports `suggestion_clears_horizon`. Second: an asset with a cost and a life but **no
+    install date** was projected as installed *today* — the most optimistic reading available — so a
+    20-year component contributed nothing to a 25-year study while `components_missing_data` read 0.
+    Now named and counted, not dropped.
+    The test could not see either: `assert suggested > 10000` passed for ~10⁵ wrong answers, and no
+    fixture had a negative opening balance. It now pins the exact value (66667, binding year named)
+    and asserts **one dollar less does NOT clear** — otherwise any over-estimate satisfies it.
+  * **`benchmarking.py` — the tests were already sound** (p25/median/p75 interpolation, overdue
+    counts, a 14-day turnaround all value-checked). The defect found was a directive violation in the
+    module docstring, not a maths hole.
+  * **`proforma/` — covered.** `loan.py` exercises all three funding modes with value assertions and
+    names what it deliberately does *not* assert; `exit_cap` is schema-validated `gt=0` so the
+    defensive `or 0.0` in `operations.reversion` is unreachable from the route. Live invariants were
+    re-verified over HTTP across all three funding modes: sources == uses, LP+GP == equity, no
+    unscheduled cost lines, and a `min_dscr` covenant provably binding (19.00M → 18.74M).
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
 
@@ -237,7 +257,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · FIN-SUITE-BLIND |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
@@ -295,9 +315,20 @@ a list of stale claims that had itself gone stale. Measured, not assumed:
   (10×), the vitals strip (2×), `.mass` (3×) and samples (4×); the README names rooms (11×),
   received-sheet regions and firm standards. The R26-era gap this entry described has been closed by
   the doc gates plus ordinary release notes.
-* **Still genuinely open:** nobody has read the walkthrough end-to-end against the *seven*-room spine
-  introduced at v0.3.796 (`deal · design · planning · schedule · cost · work · operate`). Room COUNT
-  is gated; room ORDER and the Operate room's content are not.
+* ✅ **CLOSED 2026-08-01 (v0.3.815).** The walkthrough was read end-to-end against the seven-room
+  spine, and the gap was worse than "unread": the existing membership gate is satisfied by a **single
+  headline enumeration**, and that is exactly what the doc had. Measured, `planning`, `work` and
+  `operate` appeared **once each** — in the room list — and **nowhere else**, while `cost` appeared
+  eleven times. Three of seven rooms were named and never explained: the doc-level form of a tab that
+  highlights but does not navigate. The click-through now visits Planning, Work and Operate with their
+  shipped job statements.
+
+  Both missing gates are now in `docsCurrent.test.ts`, mutation-checked: **room ORDER** (a doc that
+  *lists* the rooms must list them in `ROOM_IDS` order) and **room SUBSTANCE** (every room must appear
+  in the walkthrough beyond the enumeration). The order gate's first draft used a proximity window and
+  failed on correct prose — it read the click-through's *route* ("Schedule → Budget … back in Design …
+  the Cost room") as a claim about tab order. It now matches only verb-free lists, because **a gate
+  answered by rewriting good writing is worse than no gate.**
 
 `docsCurrent.test.ts` gates **10** assertions across `README.md` and `docs/walkthrough.md` — shell
 flags in both directions, every room appearing in the README, the retired three-tab nav, the vitals

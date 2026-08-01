@@ -115,6 +115,61 @@ describe("the docs name the navigation the user will actually see", () => {
     }
   });
 
+  it("a doc that enumerates the rooms lists them in the shipped ORDER", () => {
+    /*
+     * COUNT and MEMBERSHIP were gated above; ORDER was not, and order is what a reader follows.
+     * `ROOM_IDS` is the tab strip left-to-right, so a doc that walks the rooms in a different
+     * sequence describes a screen nobody has — the same class of defect as a wrong count, and
+     * invisible to both checks above because every name is present and there are seven of them.
+     *
+     * Only a genuine LIST is judged — >= 4 room names separated by nothing but punctuation,
+     * conjunctions and formatting. A proximity window was tried first and was wrong: it read the
+     * click-through's *route* ("Schedule → Budget … back in Design … the Cost room … Work") as a
+     * claim about tab order and failed on correct prose. A navigation sequence is not an
+     * enumeration, and a gate that cannot tell them apart would be answered by rewriting good
+     * writing to suit it — the same false-positive trap as matching "X like" without a hyphen.
+     *
+     * Requiring the separators to be verb-free is what makes the difference: "Deal, Design,
+     * Planning, …" is a list; "go to Schedule, then back in Design" is not.
+     */
+    const canonical = ROOM_IDS.join(" > ");
+    const SEP = "[\\s,;·•/&>→—–-]|\\*\\*|and|then";           // list glue, never a verb
+    const listRe = new RegExp(
+      `\\b(?:(?:${ROOM_IDS.join("|")})\\b(?:${SEP})+){3,}(?:${ROOM_IDS.join("|")})\\b`, "gi");
+    for (const [name, text] of [["README.md", README], ["walkthrough.md", WALKTHROUGH]] as const) {
+      for (const m of text.matchAll(listRe)) {
+        const seen: string[] = [];
+        for (const h of m[0].matchAll(new RegExp(`\\b(${ROOM_IDS.join("|")})\\b`, "gi"))) {
+          const id = h[1]!.toLowerCase();
+          if (!seen.includes(id)) seen.push(id);
+        }
+        if (seen.length < 4) continue;
+        const expectedOrder = ROOM_IDS.filter((id) => seen.includes(id));
+        expect(seen, `${name} lists the rooms as "${seen.join(" > ")}" but they ship as `
+          + `"${canonical}" — a reader following this doc clicks along a strip that is not there`)
+          .toEqual([...expectedOrder]);
+      }
+    }
+  });
+
+  it("the walkthrough SAYS something about every room, not just names it once", () => {
+    /*
+     * The membership check above is satisfied by a single headline enumeration — and it was. On
+     * 2026-08-01 the walkthrough named all seven rooms in one line and then never mentioned
+     * `planning`, `work` or `operate` again: three of seven rooms were listed and never explained,
+     * while `cost` got eleven mentions. A reader was told the room exists and never told what it is
+     * for, which is the doc-level version of a tab that highlights but does not navigate.
+     *
+     * The bar is deliberately low — mentioned at least twice, i.e. somewhere beyond the enumeration.
+     * It cannot judge prose quality; it can prove a room was not silently dropped from the tour.
+     */
+    const counts = Object.fromEntries(ROOM_IDS.map((id) =>
+      [id, (WALKTHROUGH.match(new RegExp(`\\b${id}\\b`, "gi")) ?? []).length]));
+    const namedOnce = ROOM_IDS.filter((id) => counts[id]! < 2);
+    expect(namedOnce, `walkthrough.md names ${namedOnce.join(", ")} in the room list and nowhere `
+      + `else, so the tour never visits it. Counts: ${JSON.stringify(counts)}`).toEqual([]);
+  });
+
   it("the retired three-tab bar is not described as the primary nav", () => {
     // Workspaces still exist underneath — a room maps to one. What is gone is the *bar*: it is not
     // what a user clicks any more, so a doc that tells them to click it sends them looking for
