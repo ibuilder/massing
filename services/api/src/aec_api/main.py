@@ -488,7 +488,7 @@ _CSP = "frame-ancestors 'none'" if not _CSP_ENV else (_CSP_STRICT if _CSP_ENV ==
 # that lacks its own require_role dependency still can't be reached anonymously. Public auth / health /
 # capability / catalog / stateless-compute paths stay open.
 _PROTECTED_PREFIXES = ("/projects", "/proforma", "/connections", "/settings", "/audit", "/auth/users",
-                       "/convert", "/interop")
+                       "/convert", "/interop", "/pipeline")
 
 
 def _routed_path(request: Request) -> str:
