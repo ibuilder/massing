@@ -66,8 +66,16 @@ names were wrong until 2026-07-31.** "test_no_competitors.py" never existed at a
 guard is `test_file_sizes.py`, not "check_file_sizes.py".
 
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
-`services/api/test_claude_md_gates.py`: every backticked code file named here **and** in
-`docs/roadmap-directions.md` must resolve to a tracked path. **Backticks are therefore reserved for
-files that exist** — a dead or historical name goes in plain quotes, since a backticked name reads as
-a live citation whether or not anything backs it. Read that test's docstring before editing this
-list; the lessons that cost the most live there, next to the check, not here.
+`services/api/test_claude_md_gates.py`: every backticked code file named here, in
+`docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including
+citations that carry a locator (a trailing ":line", "::symbol" or "#anchor"), which escaped the check
+until 2026-08-01 and hid 21 of them. *Those example forms are in plain quotes on purpose — backticking
+an illustrative filename makes it a citation, which is how this very sentence failed the gate once.* The roadmap contributes ~115 of the ~128 citations, so **it is the
+doc most likely to fail a build on this**; two wrong paths were found the day it was added, one of
+them naming the wrong *directory*, which matters because lanes are assigned by directory.
+
+`docs/roadmap-completed.md` is deliberately **not** gated: it is a historical record and names things
+that were proposed and never built. **Backticks are therefore reserved for files that exist** — a
+dead, historical or merely proposed name goes in plain quotes, since a backticked name reads as a live
+citation whether or not anything backs it. Read that test's docstring before editing this list; the
+lessons that cost the most live there, next to the check, not here.

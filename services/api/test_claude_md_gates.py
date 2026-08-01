@@ -140,6 +140,7 @@ def resolve(name):
 
 
 total_cited = 0
+per_doc: dict[str, int] = {}   # citations found PER doc — a summed floor lets one doc drop to zero
 missing = []
 
 for doc in DOCS:
@@ -156,12 +157,18 @@ for doc in DOCS:
     with open(path, encoding="utf-8") as fh:
         text = fh.read()
 
+    # The path may carry a LOCATOR — `foo.py:64`, `foo.py:64-67`, `foo.py::register`, `foo.ts#anchor`.
+    # The original pattern required the closing backtick immediately after the extension, so every
+    # located citation was invisible: 21 roadmap files were cited ONLY that way and went unchecked
+    # while the gate reported a confident count. A citation is *more* precise when it names a line,
+    # so the most specific references were exactly the ones escaping the check.
     cited = {
         tok
-        for tok in re.findall(r"`([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)`", text)
+        for tok in re.findall(r"`([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)(?:[:#][^`]*)?`", text)
         if tok.endswith(CODE_SUFFIXES) and tok not in NOT_A_SINGLE_FILE
     }
     total_cited += len(cited)
+    per_doc[doc] = len(cited)
 
     print(f"\n  {doc}  ({len(cited)} gate name(s) cited)")
     for name in sorted(cited):
@@ -177,6 +184,18 @@ print()
 
 # A gate that matches nothing passes vacuously and is worse than no gate, because it reports PASS
 # forever. If the citation style in these docs ever changes, this is the check that notices.
+#
+# PER-DOC, not summed. A single total lets one doc's contribution fall to ZERO while the others hold
+# the number up — split `roadmap.md`, stub it, or reformat its citations and the gate stays green with
+# its largest subject silently unscanned. The floor has to bind on every doc or it does not bind on
+# any of them; the same argument as asserting families as SETS rather than counts.
+_empty = sorted(d for d, n in per_doc.items() if n < 1)
+check(
+    "every scanned doc contributed at least one citation",
+    not _empty,
+    f"contributed nothing: {', '.join(_empty)}" if _empty else
+    " · ".join(f"{d}={n}" for d, n in per_doc.items()),
+)
 check(
     "the citation scan actually found gate names to check",
     total_cited >= 5,

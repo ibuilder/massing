@@ -788,7 +788,7 @@ is recorded. Filed under Decisions below.
 | 03 | roles gate the UI invisibly | R24-ROLE-EXPLAIN | ✅ v0.3.685 |
 | 04 | long jobs, foreground UI | R24-JOB-TRAY | ❌ **and cheaper than logged** — see below |
 | 05 | analyses are modals → no history | R24-RUNS-INBOX | ❌ no runs concept in the web app |
-| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | 🟡 `apps/web/src/ui/lifecycleStrip.ts` + `inspectorTabs.ts` are built and good, rendered from **one** call site (`viewer/app.ts:321`) |
+| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | 🟡 `apps/web/src/ui/lifecycleStrip.ts` + `inspectorTabs.ts` built; now **two** call sites — the viewer inspector and `apps/web/src/ui/elementCard.ts`, mounted from `apps/web/src/portal/panels/traceability.ts:75`. Four surfaces still unwired |
 | 07 | onboarding teaches the chrome | FIRST-RUN | 🟡 improved v0.3.777; still not the lot → building → deal chain |
 | 08 | persona picker only relabels | *(none)* | ⚠️ reversed on purpose — see Decisions |
 | 09 | tools panel mixes verbs with analyses | *(none)* | ❌ dropped in transfer → `R24-TOOLS-SPLIT` |
@@ -830,10 +830,16 @@ refute one, so this goes first even though it is the least visible.
   server-side and now real; **click-echo latency is client-side and still needs a beacon.**
 ### Sprint 2 — cash the moat *(the differentiation no competitor can copy)*
 
-- ⭐ **R24-ELEMENT-CARD ②** *(M — was L)* — the strip exists and works. The remaining work is
-  **call sites**, not components: render it in RFI, estimate line, pay app and COBie row. Extract from
-  `viewer/inspectorTabs.ts` into a viewer-independent module first, since those four surfaces must not
-  pull in three/@thatopen.
+- ⭐ **R24-ELEMENT-CARD ②** *(S — was M, was L)* — the strip exists and works, **and the extraction it
+  was blocked on is DONE.** The card's frame + loader live in `apps/web/src/ui/elementCard.ts` and one
+  non-viewer surface already mounts it (`apps/web/src/portal/panels/traceability.ts:75`).
+
+  The extraction cost two import lines: `lifecycleStrip.ts` imported **one type** and nothing else — it
+  was already viewer-independent and merely *filed* under `viewer/`. Another estimate that came from
+  where a file sat rather than what it contained, which is why this dropped L → M → S.
+
+  Remaining is purely call sites: **RFI, estimate line, pay app, COBie row.** No component work, no
+  dependency risk — `elementCard.ts` takes a GlobalId and an API client.
 - ~~**R24-TRACE-UI ②**~~ *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
   **proforma emit its own derivation**: each headline figure carrying its inputs and a
   **model-derived / overridden / market-assumption** tag, terminating in a GlobalId where one exists.
