@@ -4,6 +4,116 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.810 — four hand-maintained lists become checks that fail, and a third route learns that identity is not authority
+
+Twelve commits, five pull requests, three sessions. The theme is one the last two releases have been
+circling and this one makes explicit: **a rule kept as a list is a rule that drifts.** Four separate
+lists in this release stopped being memory and started being tests.
+
+### Fixed — a platform-global mutating route shipped with no gate
+
+`POST /pipeline/allocate` guarded with `Depends(current_user)`, which **identifies without
+authorising**: with RBAC on and no credential it returns the literal string `"anonymous"` and the
+handler proceeds. This is the **third** appearance of that exact defect — the seal routes in v0.3.807
+returned a rendered Professional Engineer seal to an unauthenticated caller for the same reason, and
+the firm-standards library was writable by any project admin for a related one.
+
+`require_role` is the *wrong* fix on a global route: its signature takes `pid`, so with no `{pid}` in
+the path the framework turns it into a **caller-supplied query parameter** and the caller chooses
+which project's role is checked. `require_identified` is the platform-global sibling and the correct
+gate.
+
+**The prefix gate added in v0.3.808 is what caught it.** `/pipeline` was a new top-level prefix, and
+the coverage check refuses to let a new prefix opt out of the RBAC middleware unclassified. That gate
+existed for exactly one release before it earned itself.
+
+### Added — choosing which projects to fund, not just ranking them
+
+The portfolio view ranks buildings worst-first and advises funding those first. That is a greedy
+heuristic, and greedy is the thing that is *nearly* right: it loses whenever one high-return project
+crowds out two smaller ones that together beat it. **Ranking is not selection.**
+
+Given candidate projects with a cost and a value, and a capital constraint, `POST /pipeline/allocate`
+returns the subset with the highest total value — an exact optimum, not an ordering.
+
+**You cannot fund 60% of a building**, so the allocation is a whole-project decision and never a
+proportional one. The most likely way a capital tool produces a confidently wrong number is by
+answering the easier fractional question instead: it converges, returns a plausible total, and nothing
+in the result says the answer was not buildable. Every way this can fail to produce a real answer says
+so instead:
+
+* a project that cannot fit even with the entire budget is **named**, with how far over it is, rather
+  than quietly excluded alongside projects that lost on merit;
+* a candidate with no stated value is **refused**, not treated as worth zero — a value nobody supplied
+  is the one number that must not be inferred here, because it decides what gets funded;
+* if no optimum can be computed, the result says so and returns **no selection**. A ranking is never
+  substituted: it is a different decision, and returning it under this endpoint's name would give it
+  authority it has not earned.
+
+The result reports what the ranking would have chosen alongside the optimum, and the value forgone
+between them. **A difference of zero means these candidates have no crowding-out between them — not
+that the ranking is safe in general.** Alongside the chosen set it reports what was displaced, its cost
+and value, why, and the capital left unspent, so the decision can be reviewed rather than trusted.
+
+### Changed — every room's sections, and a taxonomy nobody had counted
+
+`Field` (14 modules), `Preconstruction` (12), `Facilities`, `Cost` and `Schedule` are retired as
+section names. **53 modules re-sectioned** into groups named for the job rather than the place:
+Daily Log · Progress · Logistics · Bidding · Estimating · Project Governance · Sequencing · Resourcing ·
+Billing · Budget & Actuals · Change Instruments · Maintenance · Condition & Capital · Performance.
+No section now exceeds 8 modules, and none repeats its room's name.
+
+`change_event` moved to Change Management — it is the first link of the change chain and was filed
+apart from the rest of it. `punchlist` and `checklist` moved to Quality, beside `deficiency` and `ncr`.
+
+### Fixed — 11 reports were filed under sections that no longer exist
+
+Report categories are an **independent taxonomy** from module sections, rendered in a different panel,
+which is why nobody had counted them. Three of them named retired sections, and a report string still
+directed users to a route that had moved. A report category must now be a live section, a room label,
+or one of five explicit purpose categories — enforced by a test, and deliberately *not* forced into
+agreement with sections, because grouping by audience is a legitimately different axis from where a
+register lives.
+
+### Added — reference columns, and nine fields that stopped being retyped
+
+A line-item table row can now **link to a record in another register**. A stored value the picker
+cannot resolve is preserved and marked rather than silently replaced — inside a `<select>` an
+unresolvable id is not a bad label, it is **data loss**, because the next save writes the blank over
+the link.
+
+Nine plural fields became tables of links rather than free text somebody retypes: `spec_sections`
+(bid packages, bulletins), `photos` (daily reports, incidents, inspections, punchlists),
+`deficiencies` (commissioning), `deliveries` (daily reports), `assumptions` (project charters).
+
+### Changed — two more standing rules became tests
+
+- **Competitor names in public docs.** The rule allowed them for interop and forbade them for
+  comparison, and nothing checked which was which; twelve comparative mentions had accumulated. Two
+  names are now hard-banned, comparative *phrasing* is ratcheted **down-only**, and six legitimate
+  interop mentions are asserted **present** — so the gate cannot be satisfied by deleting the
+  integrations it exists to protect.
+- **The gates the project's own instructions name.** The section arguing *"if a rule matters, write it
+  as a test"* listed four checks by name; two were wrong — one had never existed, and one named a file
+  that does not exist while the capability does, under another name. Its own list had drifted. The
+  names are now asserted against the filesystem, across both standing docs rather than the one that
+  happened to break.
+
+### Fixed — the test manifest could lose a suite silently
+
+The runner filtered its own registration list down to entries whose file existed, so a registered test
+that was deleted or typo'd was **dropped without a word** and the run still reported "N/N suites
+passed". **A count that shrinks silently reads exactly like a clean run.**
+
+The manifest now enforces a 1:1 map in all three directions — no name registered twice, every
+registered name has a file, every test file is registered — and reports every problem at once rather
+than one per full-suite round trip.
+
+*(The duplicate registration originally reported did not exist: the check that found it scanned every
+quoted name in the file rather than the registration list, so it matched functional code. Chasing a
+false positive is what surfaced the real hole, which ran the other way.)*
+
+
 ## v0.3.809 — the non-negotiable becomes a check that can fail, and a pay application stops going negative
 
 Eleven commits from three concurrent sessions. The theme is not planned: four of these are a *stated
