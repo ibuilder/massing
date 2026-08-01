@@ -4,6 +4,133 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.809 — the non-negotiable becomes a check that can fail, and a pay application stops going negative
+
+Eleven commits from three concurrent sessions. The theme is not planned: four of these are a *stated
+rule* or a *stated number* that nothing was actually enforcing, found by making the rule executable.
+
+### Fixed — CURRENT PAYMENT DUE came out negative
+
+The AIA G703 continuation sheet retained each schedule-of-values line at **that line's own**
+retainage percentage; the G702 certificate applied the **global default** to the aggregate. Any
+contract not on the default made lines 5 and 7 disagree. On a 10% retainage contract with $50,000
+completed and nothing this period, **line 8 — CURRENT PAYMENT DUE — came out at −$2,500**, and
+closeout reads line 8 for the final-payment amount.
+
+The existing cost test contained **no assertion on line 7, line 8, or retainage at all**. It was not a
+weak test of this behaviour; it was structurally unable to see it. Line 7 now deducts what was
+actually *certified*, read from the prior stored application rather than recomputed.
+
+### Added — a pay application is a claim made on a date, not a live view
+
+The G702/G703 pair was assembled on every read, so the certificate moved whenever the SOV moved.
+`POST /cost/pay-application` now **freezes** the continuation sheet and lines 1–9 into an owner-invoice
+draft; editing the schedule of values afterwards cannot restate an application already submitted.
+`GET /cost/g702` stays live, because "where do we stand today" is a real question — it is just not a
+certificate.
+
+### Added — MOD-GUID: the first non-negotiable, as a check that can fail
+
+The project's own first rule is *reference model elements by IFC GlobalId, never by transient viewer
+IDs*. The three fields that store one were plain text, so a viewer id, `"TBD"` and a truncated paste
+were indistinguishable from a real GlobalId. **The rule existed only as prose, and prose cannot fail.**
+
+Format is now validated on write — 22 characters over `[0-9A-Za-z_$]` — in the one layer that can tell
+a GlobalId from the id the rule forbids. Two further defects came out with it:
+
+- **Two stores held one fact.** An element claim checked the `element_guids` column *or* the `guid`
+  field, so a record could be anchored to element A by its column and element B by its field, each
+  consumer correct about a different element. It also read only the singular `guid`, so plural fields
+  never matched at all. The column is now a superset on create *and* update, and the claim asks the
+  schema which fields hold a GlobalId rather than naming one.
+- The update arithmetic subtracts what the record's own fields contributed *before* and adds what they
+  contribute *now* — not a blind union, which would accumulate stale anchors forever.
+
+### Fixed — the demo shipped the first non-negotiable being broken
+
+CI caught this, and it is a better finding than the change that exposed it. The demo seeder falls
+through to prose for any text field it does not recognise by name, so the demo project every new user
+opens contained:
+
+```
+field_verification.guid = "Level 2 slab 1"
+material_request.guids  = "Chiller plant — closeout noted during the weekly walk…"
+```
+
+A filing accident dressed as data, in the one place chosen to represent the product. Seeded GlobalIds
+are now real 22-character compressed ids, deterministic from the same hash as every other seeded value
+so a re-seed stays byte-identical and a captured snapshot stays stable. **Which fields need one is
+asked of the schema rather than re-listed** — the whole point of MOD-GUID is that this has one
+definition.
+
+### Added — a section carries its layer build-up, and says when the model disagrees with itself
+
+**R21-DIM-COMPONENT.** The floor-to-floor chain answers "how high". A fabricator asks "made of what,
+how thick" — and a section showing one 300 mm overall figure cannot be built from. Every assembly the
+cut passes through now carries its material-layer breakdown, each band drawn in **proportion**, so a
+12 mm board beside 150 mm of insulation reads as the sliver it is rather than as an equal stripe.
+
+The load-bearing part is the **disagreement**. What the layer set *declares* and what the geometry
+*measures* are two different claims. A layer set summing to 300 mm on a wall modelled at 250 mm means
+the drawing and the specification disagree, and there is no basis for preferring either — so the sheet
+prints `! modelled 250 (-50)` rather than reconciling them. Printing the declared total silently is how
+a trade builds to a number nobody checked.
+
+Three further refusals, each of which would otherwise produce data-shaped nothing: an element with no
+layer set is **absent**, not fabricated from its overall thickness; a layer with no stated thickness
+makes the total **unknown**, not a confident under-count of the layers that happen to state one; and
+assemblies past the display limit are **counted on the sheet**, because a truncated list that says
+nothing reads as complete.
+
+### Added — a production line now says HOW its cost code was matched
+
+Cost codes match by IFC class **including inherited classes**, so one code can be reached through more
+than one key: some elements matching a key that names their own class, others priced through an
+ancestor. Reconciliation aggregates by cost code, so those were summed into a single confident
+quantity with nothing to distinguish them.
+
+A quantity matched by inheritance is a **weaker claim** than one matched exactly — the cost map did not
+name those classes, so it may be pricing element types the estimator never had in mind — and that
+difference disappears the moment the quantities are added together.
+
+Each reconciliation line now reports its match basis (`exact` / `inherited` / `mixed`) and the keys
+behind it, and the affected codes are **named** at the top level rather than counted. Where the takeoff
+never stated how it matched, the basis is **unstated rather than `exact`**: reading silence as the
+strongest available claim is how a weak number gets quoted as a strong one.
+
+A blended basis is a caveat on the quantity, not a refusal — the total is still correct, it simply
+rests on two different strengths of claim. That is the difference from a unit mismatch, where no
+correct number exists at all. (This completes the cost-map fix shipped in v0.3.808: that one made the
+walls *price*; this one makes the line say the map never named their class.)
+
+### Changed — a junk-drawer section is worse than a flat list
+
+**R31-DESIGN-GROUPS.** The plan for this said the Design room was 32 modules in one flat list. It was
+not — the rail has grouped registers by section for many releases, and reading the renderer is what
+corrected the premise. What was actually broken was what the groups were **named**.
+
+Design's largest group was `Engineering`: nine modules spanning drawings, issuances, RFIs, submittals,
+selections, design reviews, envelope assemblies and MEP equipment. That is not a section, it is where a
+module went when nobody decided. `Design` — as a section *inside* the Design room — carried no
+information at all.
+
+**A junk-drawer section is invisible while nothing groups by it.** The moment the rail rendered
+"Engineering · 9" as a heading, it became a confident label for a filing accident, which is worse than
+a flat list because it looks like somebody decided. 17 modules re-sectioned and four sections retired;
+Design now reads Coordination 8 · Design Phases 4 · Drawings 4 · Model 4 · Information Management 3 ·
+Resilience 3 · Specifications 3 · Sustainability 3.
+
+### Changed — internal
+
+- The IFC class-chain lookup behind cost-code matching is now memoised. **This is a consistency change
+  and claims no speedup:** measured on a 10,001-element model the walk is 0.92% of a first takeoff and
+  the cache recovers 0.5% of that, and takeoff results are themselves cached per file so even that is a
+  first-call cost. An interim measurement on a 154-element model suggested 6.44% and did not survive
+  scale — that model's takeoff does almost no geometry, so a fixed per-element cost looked large
+  against nothing.
+- `eslint` 9.39.5 → 10.8.0 (dev dependency).
+
+
 ## v0.3.808 — measure the model, price the model, file the model: provenance from the traced region to the controlled folder
 
 Thirty-eight commits, batched — a single working day's output, and more than one release should carry.
@@ -7359,8 +7486,8 @@ gains **⚖ Level** behind an explicit confirm; re-renders CPM/Gantt on success.
   performance audits. Headline finding: the **backend is far ahead of the frontend** (~72 shipped
   capabilities have no UI), so the new order leads with security/perf hygiene, then UI-surfacing
   waves, then a real workflow state-machine layer, then the twice-validated interop gaps
-  (P6/MSP export round-trip, 4D simulation, model query DSL, Solibri-style rule library, model-CI,
-  Bluebeam-parity markup), then the R14/R15 feature tiers. All deterministic + offline; licenses
+  (P6/MSP export round-trip, 4D simulation, model query DSL, a rule-based model-checking library,
+  model-CI, PDF markup parity), then the R14/R15 feature tiers. All deterministic + offline; licenses
   mapped; non-deterministic AI/photogrammetry features explicitly out of scope.
 - The performance audit's ranked fixes (GEOM-CACHE, ASYNC-BLOCK, QTO-CACHE, CLASH-JOBS, PANEL-LAZY,
   DASH-UNION, PAYLOAD-CAPS, TEST-FASTPATH) are queued as the NOW block for execution.
@@ -10589,7 +10716,7 @@ storey with editable **name** and **elevation** fields — Save re-authors the I
 `rename_storey` / `set_storey_elevation` recipes and republishes, so levels are finally editable, not
 just addable. The storey listing now carries each level's **GUID** so edits target the right storey.
 
-**Named selection sets** (Layers panel, the Navisworks / Bluebeam "search set" pattern) let you save a
+**Named selection sets** (Layers panel, the saved-search-set pattern) let you save a
 search — by name, IFC class, type, discipline, or level — as a named set and **isolate** it in one click;
 "Show all" clears the isolation. Sets persist per-project in the browser (a personal view aid, they never
 touch the model). Verified live on a 108-element federated model: a "structural" set resolves to 75
@@ -10624,8 +10751,8 @@ are still open (see the roadmap).
 
 ## v0.3.237 — Modeling program, phase 6c: cluster the rail Navigate / Author / Coordinate
 
-The left rail's toggles are now grouped into the three workflow clusters every reference tool uses (Revit,
-BlenderBIM/Bonsai, Bluebeam): **Navigate** (Tree · Layers) · **Author** (Tools) · **Coordinate** (Clash ·
+The left rail's toggles are now grouped into the three workflow clusters standard across BIM authoring
+and coordination tools: **Navigate** (Tree · Layers) · **Author** (Tools) · **Coordinate** (Clash ·
 Issues), with a subtle divider/label between them (a thin rule in icon mode, the cluster name when the rail
 is expanded). Each toggle's aria-label is prefixed with its cluster for screen readers. This completes the
 core of the rail redesign — the model workspace now reads as a modeling+coordination cockpit rather than a
@@ -10650,10 +10777,11 @@ next: a docked Properties panel (Revit-style type/instance) and Navigate/Author/
 
 ## v0.3.235 — Modeling program, phase 6a: cut the duplicative rail sections
 
-Starting the left-rail redesign (a modeling+coordination cockpit, grounded in how Revit, BlenderBIM/Bonsai,
-and Bluebeam lay out their panels). The Model workspace's "Tools" panel had become an 11-section dumping
-ground, four sections of which **re-plotted whole other workspaces**: Cost/Pay Apps, Schedule, Drawings (2D),
-and Energy & MEP. A modeler coordinating geometry shouldn't scroll past pay-app tables to reach a tool.
+Starting the left-rail redesign (a modeling+coordination cockpit, grounded in how established BIM
+authoring and markup tools lay out their panels). The Model workspace's "Tools" panel had become an
+11-section dumping ground, four sections of which **re-plotted whole other workspaces**: Cost/Pay Apps,
+Schedule, Drawings (2D), and Energy & MEP. A modeler coordinating geometry shouldn't scroll past
+pay-app tables to reach a tool.
 
 Removed those four from the model rail — and deleted ~700 lines of their now-duplicate builder code — leaving
 a compact **deep-link row** (💰 Cost → Construction · 📅 Schedule → Construction · 📐 Drawings → Drawings ·
@@ -12119,7 +12247,7 @@ client, and server-side page ops via pypdf. Still permissive-only (no PyMuPDF/AG
   `{{user}}/{{date}}/{{time}}/{{file}}` fields resolve at placement. They render on the overlay and
   **flatten into the exported PDF** (stamps in a red box).
 - **Tool sets** — 💾 Save / 📂 Load the whole markup scene (calibration + all markups) as JSON, so a
-  set of stamps/measurements is reusable and shareable across sheets (the Bluebeam Tool Chest idea).
+  set of stamps/measurements is reusable and shareable across sheets (a reusable tool set).
 - **Server PDF ops (`pdfops.py`, pypdf)** — `POST /pdf/{info,merge,split,extract,rotate}`: merge a
   drawing set into one file, split to one-PDF-per-page (zip), extract a page range (`1,3,5-7`), rotate
   by 90°. A **🗂 PDF tools** launcher (merge/split/rotate/extract uploaded PDFs). Non-PDF uploads 422.
@@ -12128,7 +12256,7 @@ Verified: `test_pdfops` (engine + HTTP merge/split/extract/rotate + non-PDF reje
 build + 59 vitest.
 
 ## v0.3.125 — PDF markup: flatten to a real PDF (markup stack, phase 1)
-First phase of a Bluebeam-Revu-style PDF markup/manipulation stack (three decoupled layers: PDF.js
+First phase of a PDF markup/manipulation stack (three decoupled layers: PDF.js
 render · interactive markup · pdf-lib/pypdf persistence). Built on the existing PDF takeoff.
 
 - **Flatten markups into a downloadable PDF** — the ⤓ PDF button in the PDF takeoff burns every markup
@@ -14578,8 +14706,9 @@ BIM-native platform can do, because Massing owns the model + proforma. (See
 
 ### PDF digital signatures (PAdES) + e-sign options
 - **Digitally sign (PAdES)** — a contract/CO can be signed with a certificate-based **PAdES** digital
-  signature (Bluebeam's model) via **pyHanko**: the document is rendered, signed (tamper-evident,
-  self-validating), attached, and the signer + cert **fingerprint** recorded. Uses a self-signed
+  signature (a true digital signature, not a SaaS e-signature) via **pyHanko**: the document is
+  rendered, signed (tamper-evident, self-validating), attached, and the signer + cert
+  **fingerprint** recorded. Uses a self-signed
   platform certificate by default (offline, no cost); set `ESIGN_P12` to sign with your own / a CA cert.
 - **3rd-party bridge (feature-flagged)** — `esign_bridge.py` + `GET /esign/status` scope DocuSign /
   Dropbox Sign / self-hosted DocuSeal·Documenso for legally-binding multi-party signing (off until

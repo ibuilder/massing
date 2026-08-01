@@ -41,7 +41,7 @@ The same shell ships in two configurations:
 1. **Pro / cloud client** — the frontend points at a hosted API (`VITE_API_URL=https://api.your-host`),
    accounts + admin gates on. This is what `npm run build` + the commands above produce.
 2. **Free single-project app (offline)** — the shell bundles and spawns a **local API sidecar**
-   so the whole platform runs on the machine with no server, à la Bluebeam controlling one site.
+   so the whole platform runs on the machine with no server — one operator, one site, no login.
 
 ### Free single-project build (local sidecar)
 

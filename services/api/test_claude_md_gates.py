@@ -28,15 +28,23 @@ TWO LESSONS, PAID FOR
        constant named MAX_LINES, which appears nowhere in that file. The failure mode reproduces
        itself if you let it.
 
-    2. "The file exists" is not "main is protected" — name the ref you checked. The old citation
-       here pointed at a no-competitor-names gate nobody had written. Chasing that down produced a
-       second wrong answer in the opposite direction within the same day: a grep across origin/main,
-       the sibling worktrees, and the local branch refs reported the gate did not exist ANYWHERE,
-       because it never looked at `origin/claude/*` — where a sibling session had it built, green,
-       and open as PR #148. Both readings were confident; both were wrong. As of 2026-07-31 that
-       gate is real but NOT on main, so the directive is genuinely unenforced on main while the
-       file plainly exists. State which ref a claim is about, and check the ref that would hold the
-       answer — a stale local branch ref will happily answer for a remote that has moved.
+    2. Name the ref, and expect it to move. The same question — "is there a no-competitor-names
+       gate?" — produced THREE different true answers inside one day:
+
+         (a) "It does not exist."          The original CLAUDE.md cited test_no_competitors.py,
+                                           which never existed at any commit. Correct to reject.
+         (b) "It exists nowhere."          A grep over origin/main, the sibling worktrees and the
+                                           LOCAL branch refs. Wrong: it never looked at
+                                           origin/claude/*, where a sibling had it built and green
+                                           as PR #148. A stale local ref answered for a remote that
+                                           had moved.
+         (c) "It exists, not on main."     True for about an hour. #148 then merged, and the claim
+                                           went stale while a PR asserting it was still open.
+
+       So: state which ref a claim is about, check the ref that would actually hold the answer, and
+       prefer a claim that stays true — "ask origin/main" outlives "as of today, main lacks it".
+       This is why the list above is asserted rather than described. A date-stamped sentence about
+       the tree is a fact with a short shelf life; a test is a fact that re-checks itself.
 
 SCOPE — WHY MORE THAN ONE DOC
     The first version of this test read CLAUDE.md alone. That was the same defect one level up: a

@@ -170,8 +170,8 @@ caller:
 
 | closed item | why | reached from |
 |---|---|---|
-| **R22-ITP-NCR** | all four asks exist — `itp.point_type` is a required select (Hold/Witness/Review/Surveillance/Monitor) with method, acceptance criteria, frequency and both parties; `ncr` runs `open → dispositioned → closed` with disposition, corrective action, root cause, severity; element attachment is `element_guids` | `quality_chain` ← `routers/construction.py:260,283` · modules → section `Quality` → room `schedule` |
-| **R22-PROCURE-DEPTH** | all three named remainders are built — `prequalification` module (EMR, bonding capacity, revenue, references, workflow), `clause_playbook.py` (accept/negotiate/refuse per contract type, severity, fallback, deviation register), `vendor_memory.py` cross-project scorecards | `routers/realestate.py:300,309,332` · `routers/benchmarking.py:83` · modules → `Preconstruction` → room `planning` |
+| **R22-ITP-NCR** | all four asks exist — `itp.point_type` is a required select (Hold/Witness/Review/Surveillance/Monitor) with method, acceptance criteria, frequency and both parties; `ncr` runs `open → dispositioned → closed` with disposition, corrective action, root cause, severity; element attachment is `element_guids` | `quality_chain` ← `routers/construction.py:260,283` · modules reachable in room `schedule` (`rooms.room_of`) |
+| **R22-PROCURE-DEPTH** | all three named remainders are built — `prequalification` module (EMR, bonding capacity, revenue, references, workflow), `clause_playbook.py` (accept/negotiate/refuse per contract type, severity, fallback, deviation register), `vendor_memory.py` cross-project scorecards | `routers/realestate.py:300,309,332` · `routers/benchmarking.py:83` · modules reachable in room `planning` (`rooms.room_of`) |
 | **R27-SKILL-GAP** | the corpus diff is nearly empty — `ids-checker`, `energy-simulation`, `schedule-compression`, `weather-impact-scheduler` and ~15 more all already have engines or modules | see the entry for the file-level list |
 | **R31-SYNDICATION-TAIL** *(mostly)* | the entry's own instruction was *"do not build a cap table before confirming `capital.py` lacks one"* — **it does not lack one.** `capital.cap_table()` returns ownership %, contributed/distributed/unreturned and per-class rollup. Soft/hard commitments are built under a different name: `investor` states `prospect → committed → funded → exited` | `distwaterfall.py:67` · `report_builders/finance.py:293,510` · `reports.py:103` |
 
@@ -564,8 +564,8 @@ stakes we are missing.
   `disposition`, `corrective_action`, `root_cause`, `severity` and a link to `inspection`. Element
   attachment is `element_guids`, which `quality_chain.py` reads per element (built by R22-QUALITY-CHAIN,
   #110) and which `routers/construction.py:260,283` serves as the chain and turnover-readiness. Modules
-  resolve section `Quality` → room `schedule`, and `test_module_rooms` fails the build on an unmapped
-  section, so this cannot rot silently.
+  are reachable in room `schedule` via `rooms.room_of`, and `test_module_rooms` fails the build on an
+  unmapped section, so this cannot rot silently.
 - **R22-PROVENANCE** *(L)* — **cite to file, page and revision.** Every proforma assumption, estimate
   line and agent answer traceable to a source page. Three of thirteen platforms *lead* with this; it
   is what makes AI output admissible in an IC memo or a claim.
@@ -575,7 +575,9 @@ stakes we are missing.
   expiry, workflow `invited → submitted → approved/rejected`) · `clause_playbook.py`, a per-contract-type
   registry of accept/negotiate/refuse positions with severity and fallback plus a deviation register,
   called from `routers/realestate.py:300,309,332` · `vendor_memory.py` cross-project scorecards, called
-  from `routers/benchmarking.py:83`. Module reach resolves `Preconstruction` → room `planning`.
+  from `routers/benchmarking.py:83`. Module reach resolves to room `planning` via `rooms.room_of`, and
+  `test_module_rooms` fails the build on an unmapped section — so the reach claim is checked, not
+  asserted.
 
 **Tier 3 — on-ramps and reach**
 
@@ -834,18 +836,19 @@ is recorded. Filed under Decisions below.
 | 17 | three vocabularies collide | R24-TERMS | ❌ open |
 | 18 | site promises a lifecycle, app opens on a shell | *(none)* | 🟡 R26-VITALS (v0.3.773) is arguably a **better** answer than the audit's lifecycle strip — treat as closed |
 
-**External corroboration** (13-platform UI scan, 2026-07-29). Procore's design system evaluates
-office and field as **separate** UX, not one responsive layout — independent support for #12. Solibri
-beats Navisworks on IFC by making rulesets and checks **durable first-class objects**, and ACC's
-answer to breadth is **saved, re-runnable, shareable** searches — both are the same shape as
-`R24-RUNS-INBOX`, and it is the most externally validated item in the ring. LayOut 2026's tray
-redesign drew open backlash ("bulky, less legible and inefficient", broken shortcuts) — density is a
-**regression risk**, not a taste call, which is why `R24-DENSITY` ships as a user switch and why
-`R24-KEYS` is not optional. Bluebeam Revu 21 deliberately did **not** restyle and invested in
-customizable profiles instead. And two conclusions worth keeping: **no incumbent ships a command
-palette as a primary entry point** — a real opening, and a warning that ⌘K must be *taught*, not just
-bound — and **none of them can trace a number to a GlobalId**. That is the moat and it is still
-uncashed.
+**External corroboration** (13-platform UI scan, 2026-07-29). One major construction-management
+platform's design system evaluates office and field as **separate** UX, not one responsive layout —
+independent support for #12. Among model-checking tools, the ones that lead on IFC do so by making
+rulesets and checks **durable first-class objects**, and the leading common-data-environment answer
+to breadth is **saved, re-runnable, shareable** searches — both are the same shape as
+`R24-RUNS-INBOX`, and it is the most externally validated item in the ring. One 2026 drawing-layout
+tray redesign drew open backlash ("bulky, less legible and inefficient", broken shortcuts) — density
+is a **regression risk**, not a taste call, which is why `R24-DENSITY` ships as a user switch and why
+`R24-KEYS` is not optional. A major PDF review tool's most recent release deliberately did **not**
+restyle and invested in customizable profiles instead. And two conclusions worth keeping: **no
+incumbent ships a command palette as a primary entry point** — a real opening, and a warning that ⌘K
+must be *taught*, not just bound — and **none of them can trace a number to a GlobalId**. That is the
+moat and it is still uncashed.
 
 ---
 

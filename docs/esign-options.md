@@ -10,7 +10,7 @@ the contract lifecycle (generate → markup → sign) in the GC portal.
   in the PDF. Makes the document **tamper-evident** and verifiable offline. The PDF profile is
   **PAdES** (PDF Advanced Electronic Signatures): it packages the certificate chain, a timestamp, and
   validation data **into the PDF**, so the signature stays verifiable over time without a live service.
-  This is the model **Bluebeam Revu** uses (Windows Certificate Store / PKCS#12 / Adobe CDS).
+  This is the model established PDF review tools use (Windows Certificate Store / PKCS#12 / Adobe CDS).
 - **AdES vs QES** — an *advanced* signature (AdES/PAdES) proves integrity + signer key. A *qualified*
   signature (QES, eIDAS) additionally uses a certificate from a qualified Trust Service Provider and
   has the legal weight of a handwritten signature in the EU. QES requires a public/qualified CA.
@@ -53,4 +53,4 @@ the contract lifecycle (generate → markup → sign) in the GC portal.
 
 ## Out of scope (for now)
 Running our own qualified CA / trust chain; a live DocuSign/Adobe integration (scoped behind the flag);
-real-time Studio-session co-markup (Bluebeam Studio).
+real-time hosted-session co-markup (multiple reviewers marking up one PDF live).
