@@ -55,6 +55,7 @@ deliberately deferred. A reader should treat every claim here as a **proposal**.
 | `caching-research.md` | Research, 2026-07-27: our caches bound the wrong quantity. |
 | `cost-db-import-plan.md` | Partially built. Vintage-versioned cost DB; referenced from `cost_db.py` and `models.py`. |
 | `proforma-asset-class-scope.md` | Research, 2026-08-01: what six institutional CRE underwriting models require that our proforma cannot express. Scope + sequencing; items 1-2 shipped, 3-6 unbuilt. |
+| `sibling-repo-import-2026-08-01.md` | Evaluation + outcome, 2026-08-01: what to import from the four sibling repos. **Executed** — the four phases shipped in v0.3.811, and the "Outcome" section records that three of them changed on contact (a premise check shrank one, a measurement moved a threshold 4x, and a Fragments-writer blocker rescoped another). Read the Outcome before the Plan. |
 | `marketing-copy.md` | Messaging drafts. Reflects shipped capability only — check before reuse, copy rots faster than code. |
 
 ## Adding to this directory
