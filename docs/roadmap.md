@@ -540,6 +540,15 @@ stakes we are missing.
   review cycles, comment responses, and **conditions of approval carried into the model as
   constraints**. Today there is a hole between "acquisition" and "construction" in our own mission
   statement — we underwrite the deal and we build it, and nothing spans approval.
+
+  ⚠️ **Two name collisions sit on this item; gap-check on SEMANTICS before touching it.**
+  `entitlements.py` is **subscription tiers** (free/pro/enterprise), nothing to do with land use.
+  `proforma/entitlement_risk.py` is genuinely adjacent — but it *scores risk*, it does not run a
+  submittal workflow, so it neither closes this nor is irrelevant to it. A name-based sweep gets this
+  item wrong in **both** directions: `entitlements.py` makes it look shipped, and stopping there means
+  never noticing `entitlement_risk.py`, which the eventual build should probably feed. Third
+  collision found on 2026-07-31, after `report_builders/` (five hardcoded builders, not the no-code
+  builder R22-REPORT-BUILDER describes).
 - ⭐ **R22-AGENT-PACKS** *(M)* — **named agent packs + org "Skills" + a governance console** over the
   MCP layer we already ship. We expose raw capability; the market ships "Submittal Review Agent",
   which a superintendent understands. Pure packaging of existing tools, plus per-run audit logging —
