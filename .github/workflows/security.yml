@@ -39,6 +39,22 @@ jobs:
         run: |
           echo "## bandit (services/api + services/data)" >> "$GITHUB_STEP_SUMMARY"
           bandit -q -r services/api/src services/data/src -ll -ii >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+      - name: bandit — GATE on HIGH severity (blocking)
+        # The medium+ step above is report-only and stays that way: it is a triage surface, and a
+        # blocking check that cries wolf is one people learn to scroll past — this repo already
+        # recorded that lesson when a permanently-red analyser trained everyone to ignore red.
+        #
+        # HIGH is different, and 2026-07-31 is why this exists. A HIGH finding (B613, bidirectional
+        # control characters) sat in this workflow's step summary unread for as long as it existed,
+        # while the code it flagged was the MCP tool-poisoning detector — whose own character class
+        # was written in invisible characters and, as a direct result, missed U+202E entirely. The
+        # scanner did its job; nothing was listening.
+        #
+        # Zero HIGH findings as of this commit, so the gate starts green and can only be tripped by
+        # something new. If it fires, read it — do not add continue-on-error.
+        run: |
+          bandit -q -r services/api/src services/data/src -lll -ii
+
       - name: MCP tool-poisoning self-audit (SEC-SUPPLY, report-only)
         continue-on-error: true        # non-gating — surfaces catalog poisoning, never blocks
         working-directory: services/api
