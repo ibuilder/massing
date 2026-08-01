@@ -105,6 +105,33 @@ describe("internal notes live under docs/internal/", () => {
     expect(undocumented, `add these to docs/internal/README.md: ${undocumented.join(", ")}`).toEqual([]);
   });
 
+  it("every name the internal index cites still exists", () => {
+    /**
+     * The mirror of the check above, and the half that was missing. That one asks "is every file in
+     * the index?"; without this one, nothing asks "is every index entry a real file?".
+     *
+     * A dead entry is worse than a missing one, which is why it earns its own assertion rather than
+     * being left to tidiness: the index is the thing people read to decide whether a note still
+     * matters, so a row pointing at a deleted file reads exactly like a live one. This repo has
+     * recorded the same shape twice already — an `AUTHORISING` name with no referent silently becomes
+     * an approved gate the day something reuses it, and `test_claude_md_gates` exists because
+     * backticked paths in the docs drifted from the tree.
+     *
+     * Currently zero, so this starts green and can only be tripped by a future deletion that leaves
+     * its row behind.
+     */
+    const index = read(join(INTERNAL, "README.md"));
+    const real = new Set(
+      DOC_PATHS.filter(isInternal).map((p) => p.split("/").pop()!),
+    );
+    const cited = [...index.matchAll(/`([^`]+\.md)`/g)].map((m) => m[1]!);
+    const dangling = [...new Set(cited)].filter((name) => !real.has(name));
+    expect(
+      dangling,
+      `these are cited in docs/internal/README.md but no such file exists: ${dangling.join(", ")}`,
+    ).toEqual([]);
+  });
+
   /**
    * The content-driven half. A doc that calls itself superseded, or a point-in-time audit, or says
    * nothing is built yet, is a working note by its own admission — so it does not belong on the public
