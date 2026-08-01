@@ -137,6 +137,48 @@ matches the worktrees too. Run the workspace command (§5), which is scoped by c
 - **Uncommitted work is invisible to every git-based check.** A branch that exists only on disk is one
   `checkout` from gone — 419 lines were rescued that way once, and only because someone looked.
 
+### The structural fix: don't share the tree at all
+
+Every rule above is a way to *survive* a shared checkout. The cheaper answer is to stop sharing one,
+and the reason nobody does is a cost that turns out not to exist.
+
+Isolation looks expensive — a full environment is **~1.3 GB** (`node_modules` 478M + 15M, `.venv`
+795M) and the disk sits at **97%**. But a worktree does not need its own copy of any of it. Measured
+2026-07-31: **ten worktrees exist and not one has its own `node_modules` or `.venv`.**
+
+- **Web:** an *in-repo* worktree resolves the root modules by upward lookup — verified from
+  `.claude/worktrees/prov/apps/web`, `require.resolve('vitest')` →
+  `C:\Server\modelmaker\node_modules\vitest`.
+- **Backend:** run the **main clone's interpreter** with `PYTHONPATH` pointed at the *worktree's*
+  sources. A full 473-suite gate ran that way for v0.3.809.
+
+So the marginal cost of an isolated session is a source checkout — tens of MB, not gigabytes.
+
+**The convention:**
+
+1. **Work in `.claude/worktrees/<lane>`. The main clone is reserved for releases** — one owner for
+   HEAD, so hazards 1, 2, 3 and 5 have no shared object to collide in.
+2. **In-repo worktrees only.** An out-of-repo worktree (e.g. under scratchpad) is *outside* the
+   upward-resolution path and gets **no `node_modules`** — a web suite there fails with a confusing
+   missing-module error. The v0.3.809 gate only worked out-of-repo because the backend needs
+   `PYTHONPATH`, not `node_modules`.
+3. **Distinct dev-server ports per session.** `:8093` and `:5173` are singletons; tests are already
+   headless (happy-dom, no browser) so only a live preview needs one.
+
+    git worktree add .claude/worktrees/<lane> -b <branch> origin/main
+    cd .claude/worktrees/<lane>
+    # web:     npm run test --workspace apps/web      (resolves the root node_modules)
+    # backend: PYTHONPATH="<wt>/services/api/src;<wt>/services/data/src" \
+    #          /c/Server/modelmaker/services/api/.venv/Scripts/python.exe run_tests.py
+
+**This does not change where logic runs.** The platform stays server-side-first by non-negotiable —
+the server pre-converts IFC to fragments, the API serves data, the viewer renders. Worktree isolation
+is a *development* boundary and is orthogonal to that.
+
+**Still true in a worktree:** hazard 7 (a root-scoped runner collects every worktree — use the
+workspace command), and the temp-index pattern remains the right way to land a commit when you are
+*not* in your own tree.
+
 ### Resolving a conflict
 
 When a conflict is **additive on both sides**, "keep both" is right about the semantics and unreliable
