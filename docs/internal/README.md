@@ -54,6 +54,7 @@ deliberately deferred. A reader should treat every claim here as a **proposal**.
 | `plugin-architecture-plan.md` | Plan only — nothing built. Free core + installable capability plugins. |
 | `caching-research.md` | Research, 2026-07-27: our caches bound the wrong quantity. |
 | `cost-db-import-plan.md` | Partially built. Vintage-versioned cost DB; referenced from `cost_db.py` and `models.py`. |
+| `proforma-asset-class-scope.md` | Research, 2026-08-01: what six institutional CRE underwriting models require that our proforma cannot express. Scope + sequencing; items 1-2 shipped, 3-6 unbuilt. |
 | `marketing-copy.md` | Messaging drafts. Reflects shipped capability only — check before reuse, copy rots faster than code. |
 
 ## Adding to this directory
