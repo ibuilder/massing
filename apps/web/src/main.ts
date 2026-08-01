@@ -457,7 +457,7 @@ const RAIL_ICONS: Record<string, string> = {
   specs: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 2.2h9.6v11.6H3.2z"/><path d="M5.4 5.2h5.2M5.4 8h5.2M5.4 10.8h3"/></svg>`,
 };
 // Rail toggles grouped into three workflow clusters (Navigate / Author / Coordinate) — the taxonomy
-// every reference tool uses (Revit, BlenderBIM/Bonsai, Bluebeam). A subtle group label separates them.
+// every mature authoring/coordination tool converges on. A subtle group label separates them.
 /**
  * The viewer rail.
  *

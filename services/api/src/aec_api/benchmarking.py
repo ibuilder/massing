@@ -1,11 +1,11 @@
 """Cross-project benchmarking — turn your own historical records into portfolio intelligence.
 
-The report finds 80% of leaders say historical data is critical yet 76% aren't realizing its potential.
-This mines records ACROSS all projects (not one) into two things teams actually ask for:
+Most firms keep every record they would need to benchmark themselves and never aggregate them. This
+mines records ACROSS all projects (not one) into two things teams actually ask for:
   1. Cost benchmarks — the distribution (low / p25 / median / p75 / high) of actual costs per cost code,
      from `direct_cost`, so a new estimate can be sanity-checked against what things really cost you.
   2. Response-rate KPIs — RFI and submittal turnaround + overdue %, the ball-in-court accountability
-     metric competitors (Jet.build) sell, computed from the records you already keep.
+     metric, computed from the records you already keep.
 
 Deterministic, no AI, no external data — your data, aggregated. Percentiles need the full distribution,
 so the cost query loads the relevant rows (an analytics endpoint, not a hot path)."""

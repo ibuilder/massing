@@ -1,7 +1,12 @@
-"""Public docs name competitor products for INTEROP, never for COMPARISON.
+"""The repo names competitor products for INTEROP, never for COMPARISON.
 
 The standing directive: no competitor product names in README / CHANGELOG / docs. The repo is
-public, so every one of these files is a shipped surface. But the directive has an edge that a blunt
+public, so every one of these files is a shipped surface — and so, it turned out on 2026-08-01, is
+every docstring and `//` comment. This gate read only markdown for its first two weeks and printed
+OK while seven hard-banned mentions and thirty comparative constructions sat in shipped source. A
+gate's scope is part of its claim; this one claimed the repo and checked a third of it.
+
+But the directive has an edge that a blunt
 "ban the word" gate gets wrong, and getting it wrong is worse than the violation — it would delete
 things the product genuinely does:
 
@@ -70,19 +75,67 @@ assert len(TEXT["CHANGELOG.md"]) > 2000, "CHANGELOG.md is suspiciously short —
 # apps/web/src-tauri/README.md. `git ls-files` rather than a walk, so the population is exactly what
 # a stranger cloning the repo receives — untracked scratch files are not published and not our
 # problem (see the sample-fixture lesson: if a test reads a repo path, check it is in the archive).
-_tracked = subprocess.run(
-    ["git", "ls-files", "*.md", "*.html"],
+#
+# ...and SOURCE too, since 2026-08-01. Prose is not the only public surface: the repo is public, so a
+# docstring and a `//` comment ship exactly as far as a README does. Scoped to markdown, this gate
+# reported OK while SEVEN hard-banned mentions sat in shipped source — a viewer comment, two in the
+# PDF takeoff tool, the drawings-set header, the selection-set store and the e-sign docstring — plus
+# one competitor named *as a competitor* in an engine docstring ("the metric competitors (X) sell").
+# Check 1 says "there is no legitimate sentence in this repo containing them"; until this line, it
+# only ever looked at a third of the repo's sentences.
+_SOURCE_GLOBS = ("*.md", "*.html", "*.py", "*.ts", "*.tsx", "*.js", "*.mjs", "*.json")
+# `-z` and split on NUL, not `.split()`. Whitespace-splitting worked only while the population was
+# markdown; the pyRevit extension ships directories with spaces in their names
+# ("Massing.panel/Open Massing.pushbutton/…"), and a whitespace split turned one real path into two
+# nonexistent ones. That surfaced as a FileNotFoundError, which is the good outcome — the same bug in
+# a `glob`-style scan would have silently skipped those files instead.
+_tracked = [p for p in subprocess.run(
+    ["git", "ls-files", "-z", *_SOURCE_GLOBS],
     cwd=_ROOT, capture_output=True, text=True, check=True,
-).stdout.split()
-assert len(_tracked) > 60, f"git ls-files returned only {len(_tracked)} docs — the scan is broken"
+).stdout.split("\0") if p]
+# Vendored sibling code is carried VERBATIM and deliberately not patched — rewriting a comment in it
+# would break the property that makes an upstream re-sync an overwrite rather than a merge. It is
+# also not our prose. Same set `ruff.toml` excludes, for the same reason.
+#
+# EVERY prefix is asserted to match something, not just the list as a whole. The first draft of this
+# guarded `assert _excluded` over the whole tuple and named one path that does not exist
+# (`services/data/src/aec_data/vendor/`) — so the three vendored PYTHON trees, which live directly
+# under `services/data/src/`, were being scanned while the assertion passed on the strength of the
+# TypeScript path alone. An aggregate non-empty check cannot see a dead entry beside a live one.
+_VENDOR = (
+    "apps/web/src/vendor/",
+    "services/data/src/massingifc_scene/",
+    "services/data/src/massingifc_ifc/",
+    "services/data/src/massingviser_geometry/",
+)
+for _v in _VENDOR:
+    assert any(p.startswith(_v) for p in _tracked), (
+        f"vendor prefix {_v!r} matches no tracked file — it moved or was renamed. Either this gate is "
+        "now scanning code it must not rewrite, or the prefix is dead weight pretending to protect "
+        "something."
+    )
+_excluded = [p for p in _tracked if p.startswith(_VENDOR)]
+_tracked = [p for p in _tracked if not p.startswith(_VENDOR)]
+assert len(_tracked) > 400, f"git ls-files returned only {len(_tracked)} files — the scan is broken"
+assert any(p.endswith(".py") for p in _tracked), "no .py files in the scan — the globs are broken"
+assert any(p.endswith(".ts") for p in _tracked), "no .ts files in the scan — the globs are broken"
 
 # ---- 1. hard ban -------------------------------------------------------------------------------
 # Names with no connector, no import format, no SSO provider and no paid bridge in this product.
 # `revu` is separate from `bluebeam` on purpose: the product has been referred to by either half.
-BANNED = ("bluebeam", "revu")
+# `jet.build` was named *as a competitor* ("the metric competitors (X) sell") in an engine docstring,
+# which is the comparative use in its purest form — the name stood in for a capability the same
+# sentence already names.
+BANNED = ("bluebeam", "revu", r"jet\.build")
+
+_SELF = os.path.relpath(os.path.abspath(__file__), _ROOT).replace(os.sep, "/")
 
 _banned_hits = []
 for rel in _tracked:
+    # This file necessarily contains every banned name — it is the list. Skipping it is required, and
+    # check 3 below is what stops the skip from being usable as an escape hatch.
+    if rel == _SELF:
+        continue
     with open(os.path.join(_ROOT, rel), encoding="utf-8") as fh:
         body = fh.read()
     for i, ln in enumerate(body.splitlines(), 1):
@@ -105,8 +158,14 @@ INTEROP_NAMES = (
     r"|rhino|vectorworks|allplan|bentley|trimble|plangrid|speckle|autodesk)"
 )
 COMPARATIVE = (
-    # "Revit-style", "Bluebeam-parity", "Navisworks-like"
-    re.compile(INTEROP_NAMES + r"[a-z]*[-‑ ](?:style|parity|like|esque)", re.I),
+    # "Revit-style", "Bluebeam-parity" — a space is allowed here ("Procore parity" is a real hit).
+    re.compile(INTEROP_NAMES + r"[a-z]*[-‑ ](?:style|parity|esque)", re.I),
+    # "Navisworks-like" — HYPHEN ONLY. With a space this matched "round-trips into Solibri / ACC /
+    # BIMcollab like any other issue", where "like" governs what FOLLOWS and no comparison is being
+    # drawn. Three copies of that sentence would have had to be grandfathered as violations, and a
+    # baseline that carries false positives teaches the next person to add a key instead of rewriting
+    # the line — which is the one habit this file exists to prevent.
+    re.compile(INTEROP_NAMES + r"[a-z]*[-‑]like", re.I),
     # "the way Revit does it", "beats Navisworks", "unlike Solibri"
     re.compile(
         r"(?:like|unlike|than|beats|versus|vs\.?|compared to|the way|how|similar to)\s+"
@@ -154,6 +213,56 @@ assert not shrank, (
     "sag back. (found, baseline): " + repr(shrank)
 )
 
+# ---- 2b. the same ratchet over SOURCE ------------------------------------------------------------
+# A separate counter and a separate baseline, because the two populations move for different reasons:
+# docs get rewritten deliberately, source comments drift as code moves. Merging them into one number
+# would let a doc rewrite pay for a new comment.
+#
+# Without this, extending only the HARD BAN to source would leave the comparative half of the
+# directive unenforced everywhere except markdown — and comparative phrasing is the half that
+# actually accumulates (29 in docs, 30 more in source, none of them noticed).
+SOURCE_BASELINE = {
+    "navisworks-style": 2,
+    "procore parity": 2,
+    "revit-parity": 1,
+    "revit-style": 16,
+    "sketchup-style": 2,
+    "solibri-style": 1,
+    "the way navisworks": 1,
+    "the way revit": 2,
+}
+
+src_found = collections.Counter()
+_src_scanned = 0
+for rel in _tracked:
+    if rel == _SELF or rel.endswith((".md", ".html")):
+        continue
+    with open(os.path.join(_ROOT, rel), encoding="utf-8", errors="replace") as fh:
+        body = fh.read()
+    _src_scanned += 1
+    for pat in COMPARATIVE:
+        for m in pat.findall(body):
+            src_found[" ".join(m.lower().split())] += 1
+
+# The source population is the bulk of the repo; if this collapses, the ratchet below is comparing
+# zero against zero and passing.
+assert _src_scanned > 300, f"only {_src_scanned} source files scanned — the source ratchet is a no-op"
+
+src_new = sorted(set(src_found) - set(SOURCE_BASELINE))
+assert not src_new, (
+    "new comparative use of a competitor product name in SOURCE: "
+    + ", ".join(repr(k) for k in src_new)
+    + ". The repo is public — a docstring and a `//` comment ship as far as the README does. Name "
+    "the capability, not the product."
+)
+src_grew = {k: (src_found[k], n) for k, n in SOURCE_BASELINE.items() if src_found[k] > n}
+assert not src_grew, "comparative uses in source INCREASED (found, baseline): " + repr(src_grew)
+src_shrank = {k: (src_found[k], n) for k, n in SOURCE_BASELINE.items() if src_found[k] < n}
+assert not src_shrank, (
+    "comparative uses in source were removed — good; now tighten SOURCE_BASELINE so the ratchet "
+    "cannot sag back. (found, baseline): " + repr(src_shrank)
+)
+
 # ---- 3. the inverse: interop mentions must survive ----------------------------------------------
 # Deleting these would make checks 1-2 greener. They are the product, not a violation.
 REQUIRED = (
@@ -171,12 +280,15 @@ for rel, phrase, why in REQUIRED:
     )
 
 print(
-    f"NO COMPARATIVE NAMES OK - {len(_tracked)} tracked docs scanned for the hard ban, "
-    f"{len(FILES)} public docs (README + CHANGELOG + all of docs/) read from disk for the ratchet. "
-    f"{len(BANNED)} names hard-banned (no interop role, zero tolerance); comparative PHRASING "
-    f"({sum(found.values())} grandfathered uses across {len(BASELINE)} phrases) ratcheted DOWN-ONLY, "
-    "so a new 'X-style' or 'the way X does it' fails and a removal forces the baseline to tighten; "
-    f"and {len(REQUIRED)} legitimate interop mentions (SSO providers, the Navisworks XML clash "
-    "format, the connector list, Autodesk APS) asserted PRESENT so the gate cannot be satisfied by "
-    "deleting the integrations it exists to protect."
+    f"NO COMPARATIVE NAMES OK - {len(_tracked)} tracked files (docs AND source: .py/.ts/.tsx/.js/"
+    f".json, vendored trees excluded) scanned for the hard ban, of which {_src_scanned} are source; "
+    f"{len(FILES)} public docs (README + CHANGELOG + all of docs/) read from disk for the doc "
+    f"ratchet. {len(BANNED)} names hard-banned (no interop role, zero tolerance); comparative "
+    f"PHRASING ratcheted DOWN-ONLY on two independent baselines — {sum(found.values())} "
+    f"grandfathered uses across {len(BASELINE)} phrases in docs, {sum(src_found.values())} across "
+    f"{len(SOURCE_BASELINE)} in source — so a new 'X-style' or 'the way X does it' fails in either "
+    f"population and a removal forces its baseline to tighten; and {len(REQUIRED)} legitimate "
+    "interop mentions (SSO providers, the Navisworks XML clash format, the connector list, Autodesk "
+    "APS) asserted PRESENT so the gate cannot be satisfied by deleting the integrations it exists "
+    "to protect."
 )

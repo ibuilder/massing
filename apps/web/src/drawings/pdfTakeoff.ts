@@ -23,7 +23,7 @@ type Mode = "pan" | "distance" | "area" | "count" | "rect" | "calibrate" | "text
 interface Pt { x: number; y: number }                       // PDF user-space
 export interface Measure { id: number; kind: Mode; pts: Pt[]; value: number; unit: string; label: string; page: number; text?: string }
 
-// Dynamic stamps (Bluebeam-style): {{user}}/{{date}}/{{time}}/{{file}} resolve at placement time.
+// Dynamic stamps: {{user}}/{{date}}/{{time}}/{{file}} resolve at placement time.
 const STAMPS = ["APPROVED", "REVIEWED", "FOR CONSTRUCTION", "NOT FOR CONSTRUCTION", "VOID",
                 "AS-BUILT", "REVISE & RESUBMIT", "{{user}} · {{date}}", "REVISED {{date}}"];
 
@@ -181,7 +181,7 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
     s.onchange = () => { stampTpl = s.value; setMode("stamp"); };
     return s;
   }
-  // Tool set = the serialized markup scene (calibration + markups) — save/share/reload, Bluebeam-style.
+  // Tool set = the serialized markup scene (calibration + markups) — save, share and reload it.
   function saveSet() {
     const data = JSON.stringify({ v: 1, calibration: { unitsPerPt, unit }, measures });
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));

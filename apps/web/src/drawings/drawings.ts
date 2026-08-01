@@ -6,7 +6,7 @@ import { sanitizeSvg } from "../ui/sanitizeSvg";
 import { escapeHtml } from "../ui/feedback";
 
 /** 2D Drawings Set — a sheet-set browser for the server-generated plans / elevations / sections
- *  (cf. PlanGrid plan room + Bluebeam markup + Fieldlens field pins). Left: a sheet register;
+ *  (a plan room, a PDF markup layer and field pins in one view). Left: a sheet register;
  *  right: a pan/zoom drawing viewer with a markup layer (numbered pins + notes). */
 
 interface DrawingsHost {

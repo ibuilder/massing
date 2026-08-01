@@ -1,7 +1,7 @@
 import type { ElementProps } from "../api/client";
 
 /**
- * Named selection sets (Navisworks / Bluebeam "Search Set" pattern). A set is a saved query
+ * Named selection sets (the saved-search-set pattern). A set is a saved query
  * plus the GUIDs it resolved to at save time; applying a set isolates those elements. Sets are
  * persisted per-project in localStorage — they're a personal view aid, not model data, so they
  * don't touch the IFC.

@@ -1119,7 +1119,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       layersPanel.appendChild(row);
     }
 
-    // Named selection sets (Navisworks/Bluebeam Search-Set pattern) — saved queries you can isolate.
+    // Named selection sets (the saved-search-set pattern) — saved queries you can isolate.
     buildSelSets(layersPanel, elements);
 
     await refreshIssues();

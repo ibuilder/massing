@@ -4,6 +4,58 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.814 — a reserve suggestion that did not clear its own horizon, and a gate that checked a third of the repo
+
+### Fixed — the suggested reserve contribution was not solved, it was guessed at
+
+A reserve study answers one question a board actually votes on: *what flat annual contribution keeps
+this fund solvent?* The answer was produced by a binary search that bracketed the requirement between
+zero and a generous upper bound, halved forty times, and returned the bound — **without ever checking
+that the bound it started from was reachable**. Against an opening deficit it is not. A property
+carrying a £500k shortfall and one £80k component got back a confident £80,001 a year, and re-running
+the same study at exactly that contribution came back underfunded from year one. A suggestion that
+does not clear its own horizon is worse than no suggestion; it is the number somebody funds to.
+
+There was never anything to search for. Staying solvent through year *k* means the contribution must
+cover the cumulative outflow to that year less the opening balance, spread over *k* years — so the
+requirement is simply the largest of those, computed directly and exactly. The study now solves it,
+then re-runs the schedule at its own answer and reports `suggestion_clears_horizon` so the claim is
+verified rather than asserted. The same fixture that used to pass with any of a hundred thousand wrong
+answers now pins the exact figure, and asserts that one pound less does **not** clear.
+
+### Fixed — a component with no install date was quietly assumed brand new
+
+An asset carrying a replacement cost and an expected life but no install date was projected as if it
+had been installed this year: the most optimistic reading available. A twenty-year component
+contributed nothing at all to a twenty-five-year study while still being counted as a complete
+component, and `components_missing_data` stayed at zero.
+
+It is still projected — dropping it would understate the requirement harder — but it is now named.
+`components_without_install_date` counts them, the names are listed, and the note says plainly that
+the earliest replacement year is an assumption rather than a record.
+
+### Fixed — the no-comparative-names gate read markdown and called it the repo
+
+The gate that keeps competitor product names out of public surfaces says, in its own words, that
+there is no legitimate sentence in this repository containing the hard-banned ones. It was reading
+README, CHANGELOG and `docs/` — about a third of the repo's sentences — and reporting OK. This is a
+public repository: a docstring and a `//` comment ship exactly as far as a README does.
+
+Seven hard-banned mentions were sitting in shipped source, and one engine docstring named a
+competitor *as a competitor* while the same sentence already named the capability. All eight are
+rewritten as the thing they describe. The hard ban now covers `.py`, `.ts`, `.tsx`, `.js` and `.json`
+as well — vendored trees excluded by path, because those are carried verbatim and rewriting a comment
+in one would turn an upstream re-sync from an overwrite into a merge — and comparative *phrasing* gets
+a second down-only ratchet with its own baseline, so a doc rewrite can never pay for a new comment.
+
+Two traps the widening exposed, both fixed rather than worked around. A false positive
+("…round-trips into BIMcollab like any other issue", where nothing is being compared) was fixed in
+the pattern instead of grandfathered — a baseline that carries false positives teaches the next
+person to add a key instead of rewriting the line. And the vendor exclusion was asserted non-empty
+over the whole list while one of its paths did not exist, so fifteen vendored files were being
+scanned on the strength of a different path matching; every prefix is now asserted individually,
+because an aggregate check cannot see a dead entry beside a live one.
+
 ## v0.3.813 — a value-add premium that starts before the unit turns, and the fractional gap three more defects hid in
 
 Four commits. The proforma gains the phase it was missing, and a race test is fixed by the same

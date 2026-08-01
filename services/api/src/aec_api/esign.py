@@ -1,5 +1,5 @@
 """PDF digital signatures (PAdES) via pyHanko — certificate-based, tamper-evident signing of our
-generated documents (Bluebeam's model: PKCS#12 / Adobe-style signatures).
+generated documents (PKCS#12 certificates producing standard PAdES/Adobe-readable signatures).
 
 A signer is loaded from a configured PKCS#12 (ESIGN_P12 + ESIGN_P12_PASS) for production, or a
 self-signed signer is generated once and cached under the storage dir for offline/self-hosted use
