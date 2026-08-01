@@ -85,6 +85,39 @@ def _latest_scenario(db: Session, pid: str):
             .order_by(Scenario.created_at.desc()).first())
 
 
+@router.get("/projects/{pid}/proforma/rollover")
+def project_rollover(pid: str, renewal_probability: float | None = None,
+                     downtime_months: float | None = None,
+                     ti_new_psf: float = 0.0, ti_renewal_psf: float = 0.0,
+                     lc_new_pct: float = 0.0, lc_renewal_pct: float = 0.0,
+                     market_rent_psf: float = 0.0, new_term_years: float = 5.0,
+                     horizon_years: int = 10, db: Session = Depends(get_db),
+                     _sec: str = Depends(rbac.require_role("viewer"))):
+    """PF-ROLLOVER — what the property's lease expiries actually cost over the hold.
+
+    A rollover is not a date on a calendar: it is downtime plus tenant improvements plus a leasing
+    commission, weighted by whether the tenant renews. Without it a proforma carries in-place rent
+    forever, which is optimistic in three directions at once and compounds on every turn.
+
+    **`renewal_probability` and `downtime_months` are required and are NOT defaulted.** Assuming every
+    tenant renews, or that a vacated suite re-lets instantly, removes the exact risk being priced —
+    and the result is indistinguishable from a deal that genuinely has neither. Omit them and this
+    returns `assumptions_incomplete` naming what is missing and what defaulting would have hidden.
+
+    Downtime is charged to the non-renewal branch only, because a renewing tenant does not vacate.
+    """
+    from .. import modules as me
+    from ..proforma import rollover
+
+    leases = me.list_records(db, "lease", pid, limit=100000) if "lease" in me.TABLES else []
+    return rollover.schedule(leases, {
+        "renewal_probability": renewal_probability, "downtime_months": downtime_months,
+        "ti_new_psf": ti_new_psf, "ti_renewal_psf": ti_renewal_psf,
+        "lc_new_pct": lc_new_pct, "lc_renewal_pct": lc_renewal_pct,
+        "market_rent_psf": market_rent_psf, "new_term_years": new_term_years,
+    }, horizon_years=horizon_years)
+
+
 @router.get("/projects/{pid}/financials")
 def project_financials(pid: str, db: Session = Depends(get_db), _sec: str = Depends(rbac.require_role("viewer"))):
     """Financial statements for the project's latest saved scenario (income statement · balance sheet ·
