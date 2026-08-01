@@ -89,6 +89,12 @@ fieldset (both asserted, because a pair rendered in two different places is a pa
 - `photos`, `deficiencies`, `deliveries`, `assumptions`, `spec_sections` → **plural**. These are child
   lists, not single references. They need the `table` type (still unbuilt) and a reference would be
   wrong in a way that looks right.
+  **Closed 2026-07-31.** Both halves now exist — `table` (MOD-TABLE) and a `reference` column
+  (MOD-TABLEREF) — so all nine became tables of links. Each had been a textarea in which somebody
+  retyped, by hand, records that already existed in the register next door. This is the argument for
+  writing down *why* a candidate was rejected rather than just dropping it: the reason named the
+  missing capability, so the item became actionable the moment that capability shipped, without
+  anyone having to rediscover the analysis.
 
 ## 4. Ideas worth taking from the reference repo
 
