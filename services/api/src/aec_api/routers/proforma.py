@@ -85,6 +85,32 @@ def _latest_scenario(db: Session, pid: str):
             .order_by(Scenario.created_at.desc()).first())
 
 
+@router.get("/projects/{pid}/proforma/income-basis")
+def project_income_basis(pid: str, declared_annual: float | None = None,
+                         db: Session = Depends(get_db),
+                         _sec: str = Depends(rbac.require_role("viewer"))):
+    """PF-INCOME-BASIS — the operating income a proforma should use, and where it came from.
+
+    A proforma's `potential_rent_annual` is one blended number for the whole asset. This derives it
+    from the property's OWN lease records instead — in-place base rent, expense recoveries and the
+    concession load, each kept as a separate line — and, when the deal also declares a figure,
+    reports **both** with the gap between them.
+
+    That disagreement is the point. A deal underwritten at a figure its own rent roll contradicts is
+    not missing a number; it is reporting one whose provenance nobody can see. Pass `declared_annual`
+    to compare against the deal's stated income.
+
+    An empty rent roll returns `unavailable`, never an income of zero: a property with no lease
+    records has UNKNOWN income, and zero is the one value that reads as a measurement.
+    """
+    from .. import net_effective, rentroll
+    from ..proforma import income_basis
+
+    rr = rentroll.rent_roll(db, pid)
+    ner = net_effective.from_project(db, pid)
+    return income_basis.resolve(declared_annual=declared_annual, rent_roll=rr, ner=ner)
+
+
 @router.get("/projects/{pid}/financials")
 def project_financials(pid: str, db: Session = Depends(get_db), _sec: str = Depends(rbac.require_role("viewer"))):
     """Financial statements for the project's latest saved scenario (income statement · balance sheet ·
