@@ -85,9 +85,22 @@
     },
     {
       "name": "photos",
-      "label": "Photos (before / after)",
-      "type": "textarea",
-      "fieldset": "Closeout"
+      "label": "Photos",
+      "type": "table",
+      "fieldset": "Closeout",
+      "columns": [
+        {
+          "name": "photo",
+          "label": "Photo",
+          "type": "reference",
+          "module": "photo"
+        },
+        {
+          "name": "note",
+          "label": "Note",
+          "type": "text"
+        }
+      ]
     }
   ],
   "workflow": {

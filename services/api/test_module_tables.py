@@ -186,5 +186,30 @@ for mj in Path("modules").glob("*/module.json"):
         for c in f.get("columns", []) or []:
             if c.get("type") == "reference":
                 users.append(f"{mj.parent.name}.{f['name']}[{c['name']}]->{c['module']}")
-assert sorted(users) == ["bid_package.spec_sections[spec_section]->spec_section",
-                         "bulletin.spec_sections[spec_section]->spec_section"], users
+# The sweep's §3 REJECTED list, now unblocked. These seven were turned down as `reference` FIELDS
+# for the right reason — a reference holds one id and these are child lists — with the note that they
+# "need the `table` type (still unbuilt)". Both halves exist now, so a plural field that names a
+# register is a table of links to it rather than a textarea somebody retypes.
+assert sorted(users) == [
+    "bid_package.spec_sections[spec_section]->spec_section",
+    "bulletin.spec_sections[spec_section]->spec_section",
+    "commissioning.deficiencies[deficiency]->deficiency",
+    "daily_report.deliveries[delivery]->delivery",
+    "daily_report.photos[photo]->photo",
+    "incident.photos[photo]->photo",
+    "inspection.photos[photo]->photo",
+    "project_charter.assumptions[assumption]->assumption",
+    "punchlist.photos[photo]->photo",
+], users
+
+# NOT a floor. A plural field naming a register that is still a textarea is the defect this closes,
+# so the set is exact — adding one without a column, or quietly reverting one to prose, fails here.
+import json as _json  # noqa: E402
+
+_PLURALS = {"photos", "deficiencies", "deliveries", "assumptions", "spec_sections"}
+for _mj in Path("modules").glob("*/module.json"):
+    for _f in _json.loads(_mj.read_text(encoding="utf-8")).get("fields", []):
+        if _f["name"] in _PLURALS:
+            assert _f["type"] == "table", (
+                f"{_mj.parent.name}.{_f['name']} is a {_f['type']}. A plural field naming a register "
+                "is a child list — it holds links, not prose somebody retypes.")

@@ -96,9 +96,22 @@
     },
     {
       "name": "deliveries",
-      "label": "Deliveries Received",
-      "type": "textarea",
-      "fieldset": "Site"
+      "label": "Deliveries",
+      "type": "table",
+      "fieldset": "Site",
+      "columns": [
+        {
+          "name": "delivery",
+          "label": "Delivery",
+          "type": "reference",
+          "module": "delivery"
+        },
+        {
+          "name": "note",
+          "label": "Note",
+          "type": "text"
+        }
+      ]
     },
     {
       "name": "equipment_on_site",
@@ -145,9 +158,22 @@
     },
     {
       "name": "photos",
-      "label": "Photo Links",
-      "type": "textarea",
-      "fieldset": "Safety & record"
+      "label": "Photos",
+      "type": "table",
+      "fieldset": "Safety & record",
+      "columns": [
+        {
+          "name": "photo",
+          "label": "Photo",
+          "type": "reference",
+          "module": "photo"
+        },
+        {
+          "name": "note",
+          "label": "Note",
+          "type": "text"
+        }
+      ]
     },
     {
       "name": "crew_total",

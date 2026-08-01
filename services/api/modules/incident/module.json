@@ -208,8 +208,21 @@
     {
       "name": "photos",
       "label": "Photos",
-      "type": "textarea",
-      "fieldset": "Investigation"
+      "type": "table",
+      "fieldset": "Investigation",
+      "columns": [
+        {
+          "name": "photo",
+          "label": "Photo",
+          "type": "reference",
+          "module": "photo"
+        },
+        {
+          "name": "note",
+          "label": "Note",
+          "type": "text"
+        }
+      ]
     }
   ],
   "workflow": {
