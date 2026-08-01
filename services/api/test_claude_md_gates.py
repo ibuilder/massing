@@ -99,8 +99,12 @@ DOCS = (
     # Added 2026-08-01 by the GATE-VACUITY-SWEEP. The roadmap cites more code files than either doc
     # above (95 backticked paths vs ~13), every one of them offered as EVIDENCE for a claim about what
     # is built — so a dead citation here is a roadmap asserting a gap or a capability against a file
-    # that does not exist. It was clean when added (0 dead of 95), which is precisely when to ratchet:
-    # adding a check that already passes costs nothing and pins the state.
+    # that does not exist. It was NOT clean when added — the same commit fixed two dead citations it
+    # caught immediately, one of them naming the wrong *directory* (lanes are assigned by directory,
+    # so that misroutes a reader). An earlier version of this comment claimed "0 dead of 95", which
+    # was my own pre-check reporting a false all-clear: it matched by BASENAME, so two wrong PATHS
+    # resolved to real files elsewhere and passed. A looser reader confirming a stricter one's subject
+    # is not corroboration.
     "docs/roadmap.md",
     # `docs/roadmap-completed.md` is deliberately NOT here. It is a historical record, and its 245
     # citations include PROPOSED names for things never built (the market-data connector was one, in an
@@ -189,11 +193,24 @@ print()
 # the number up — split `roadmap.md`, stub it, or reformat its citations and the gate stays green with
 # its largest subject silently unscanned. The floor has to bind on every doc or it does not bind on
 # any of them; the same argument as asserting families as SETS rather than counts.
-_empty = sorted(d for d, n in per_doc.items() if n < 1)
+#: Per-doc RATCHET, not a floor of 1. `roadmap.md` contributes ~118 of ~131 citations, so ">= 1"
+#: would let a restructure leave a single citation and pass with ~117 unscanned — the floor has to
+#: bind near the real number to bind at all. Set below today's counts with headroom for ordinary
+#: editing; raise them when a doc grows. Lowering one is a deliberate act that should be argued for
+#: in the commit, which is the point of a ratchet.
+MIN_CITATIONS = {
+    "CLAUDE.md": 4,                    # 6 today
+    "docs/roadmap-directions.md": 5,   # 7 today
+    "docs/roadmap.md": 90,             # 118 today
+}
+_thin = sorted(
+    f"{d}={n} (min {MIN_CITATIONS[d]})"
+    for d, n in per_doc.items() if n < MIN_CITATIONS.get(d, 1)
+)
 check(
-    "every scanned doc contributed at least one citation",
-    not _empty,
-    f"contributed nothing: {', '.join(_empty)}" if _empty else
+    "every scanned doc still contributes its expected citations",
+    not _thin,
+    f"below the ratchet: {', '.join(_thin)}" if _thin else
     " · ".join(f"{d}={n}" for d, n in per_doc.items()),
 )
 check(

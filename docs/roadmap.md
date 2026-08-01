@@ -80,6 +80,24 @@ Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
   in the last three releases (the clawback proxy, the negative payment due, the silently-defaulted
   money field, the uncoded walls) was invisible to a green suite for the same reason.
 
+- ⭐ **MOD-COMPLETE ②** *(S)* — **the two recovered keys are served and still read by nothing.** `#151`
+  fixed `GET /modules` dropping `close_requires_attachment` (enforced server-side, 5 modules) and
+  `help`, and added a completeness gate. But `ModuleDef` in `apps/web/src/api/types.ts` was not
+  extended and no file under `apps/web/` reads either key — so the stated benefit, *"a client that
+  cannot see the rule cannot warn about it"*, is **not delivered**. A user still learns the attachment
+  requirement by having a transition rejected.
+
+  This is the same "declared, consumed by nothing" shape the completeness gate's own docstring cites
+  for `tools:` — recreated one layer out, in the fix for it. Serving a key is step one of two, and the
+  test cannot see step two: it asserts *declared → served* and stops at the API boundary.
+
+- ⭐ **MOD-COMPLETE ③** *(S)* — **`relations` is served but never declared, defined or set**, so it is
+  permanently `[]`. `routers/modules.py` emits it, no `module.json` declares it, `module_schema.py` has
+  no definition, and the loader never populates it. The mirror of ②: the completeness gate checks
+  *declared → served* and is structurally blind to *served → never declared*. Either wire it or stop
+  emitting it — a field that is always empty teaches every client to ignore it, which is how a real
+  value later goes unnoticed. **The gate needs the reverse direction too.**
+
 - ⭐ **GATE-VACUITY-SWEEP** *(S)* — **audit every existence check for self-satisfying evidence.** Found
   2026-08-01: the lane gate's "names no item that has left the roadmap" assertion searched the whole
   roadmap **including the lane table**, so a lane row satisfied its own existence check. It stayed green
@@ -284,7 +302,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
-| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
+| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file · MOD-COMPLETE ② · MOD-COMPLETE ③ |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑥ |
 

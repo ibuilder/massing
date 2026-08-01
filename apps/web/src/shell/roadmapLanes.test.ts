@@ -200,15 +200,26 @@ describe("the roadmap lane table", () => {
     // on a line (so `R24-MONO-DATA`, sitting second, never matches). Tightening a check by borrowing a
     // narrower population inherits that population's blind spots — and a gate that reports live work as
     // dead gets items deleted.
-    // Subtract exactly the lines `laneRows()` consumed — recorded by that parser, not re-matched here.
-    const ROADMAP_MINUS_LANES = LINES.filter((_, i) => !LANE_ROW_LINES.has(i)).join("\n");
+    // Requires a real ENTRY, not a mention. Subtracting only lane rows was still too weak: the Band
+    // index lines and any planning paragraph could vouch for an archived item — and the roadmap itself
+    // calls those index lines "a cache of the detail entries… never invalidated", so they are the least
+    // trustworthy evidence in the file. Four shipped R27 items survived exactly that way.
+    //
+    // An entry is the code appearing as the SUBJECT of a bullet or a table row: bolded, on a line that
+    // starts with `-`/`*` or `|`, outside the lane table. Band rows start with a glyph (⭐/◧/🟡) and
+    // prose starts with a word, so neither qualifies. `~~STRIKETHROUGH~~` is allowed — a struck row is
+    // still a real entry recording a decision.
+    //
+    // Verified against every lane item before adopting: 48 of 48 still resolve, so this tightens the
+    // check without the false-positive class that sank the CODES attempt (REL-4, R24-MONO-DATA).
+    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const base = (c: string) => c.split(" ")[0] ?? c;
-    // Word-bounded: a bare `.includes()` lets a longer code vouch for a shorter prefix of itself
-    // (`R27-SOV-LOOP-2` would keep `R27-SOV-LOOP` alive). Latent today — no such pair exists — but the
-    // whole point of this check is that it must not depend on today's names.
-    const mentioned = (c: string) =>
-      new RegExp(`\\b${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b(?!-)`).test(ROADMAP_MINUS_LANES);
-    const stale = LANES.flatMap((l) => l.items).filter((c) => !mentioned(base(c)));
+    const hasEntry = (code: string) => LINES.some((l, i) => {
+      if (LANE_ROW_LINES.has(i)) return false;
+      if (!/^\s*[-*] /.test(l) && !/^\|/.test(l)) return false;
+      return new RegExp(`\\*\\*~{0,2}${esc(code)}\\b`).test(l);
+    });
+    const stale = LANES.flatMap((l) => l.items).filter((c) => !hasEntry(base(c)));
     expect([...new Set(stale)],
       `lane rows advertise items with no entry left in the roadmap: ${stale.join(", ")}`)
       .toEqual([]);
