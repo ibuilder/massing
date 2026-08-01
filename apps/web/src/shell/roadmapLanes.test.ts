@@ -62,6 +62,16 @@ function itemCodes(lines: string[]): Set<string> {
  */
 interface Lane { name: string; paths: string[]; excludes: string[]; items: string[] }
 
+/**
+ * Line numbers consumed by `laneRows()`. Recorded BY THE PARSER ITSELF so the "has this item left the
+ * roadmap" check can subtract exactly the region it read — never a second, independently-written
+ * matcher. A prior fix used its own `/^\|\s*\*\*[A-Z] · /`, which was narrower than this loop (that
+ * loop tolerates an unbolded name cell via `?? nameCell`), so an unbolded row escaped the subtraction
+ * and became its own evidence again — silently, and only for that row. **Two readers of one structure
+ * WILL drift; the second one is the bug.**
+ */
+const LANE_ROW_LINES = new Set<number>();
+
 function laneRows(): Lane[] {
   const start = LINES.findIndex((l) => l.startsWith("| Lane | Owns these paths"));
   expect(start, "the lane table header moved or was renamed — this whole file is measuring nothing")
@@ -70,6 +80,7 @@ function laneRows(): Lane[] {
   for (let i = start + 2; i < LINES.length; i++) {
     const line = LINES[i];
     if (!line?.startsWith("|")) break;
+    LANE_ROW_LINES.add(i);
     const cells = line.split("|").slice(1, -1).map((c) => c.trim());
     const [nameCell, pathCell, itemCell] = cells;
     if (nameCell === undefined || pathCell === undefined || itemCell === undefined) continue;
@@ -189,10 +200,15 @@ describe("the roadmap lane table", () => {
     // on a line (so `R24-MONO-DATA`, sitting second, never matches). Tightening a check by borrowing a
     // narrower population inherits that population's blind spots — and a gate that reports live work as
     // dead gets items deleted.
-    const laneRowRe = /^\|\s*\*\*[A-Z] · /;
-    const ROADMAP_MINUS_LANES = ROADMAP.split("\n").filter((l) => !laneRowRe.test(l)).join("\n");
+    // Subtract exactly the lines `laneRows()` consumed — recorded by that parser, not re-matched here.
+    const ROADMAP_MINUS_LANES = LINES.filter((_, i) => !LANE_ROW_LINES.has(i)).join("\n");
     const base = (c: string) => c.split(" ")[0] ?? c;
-    const stale = LANES.flatMap((l) => l.items).filter((c) => !ROADMAP_MINUS_LANES.includes(base(c)));
+    // Word-bounded: a bare `.includes()` lets a longer code vouch for a shorter prefix of itself
+    // (`R27-SOV-LOOP-2` would keep `R27-SOV-LOOP` alive). Latent today — no such pair exists — but the
+    // whole point of this check is that it must not depend on today's names.
+    const mentioned = (c: string) =>
+      new RegExp(`\\b${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b(?!-)`).test(ROADMAP_MINUS_LANES);
+    const stale = LANES.flatMap((l) => l.items).filter((c) => !mentioned(base(c)));
     expect([...new Set(stale)],
       `lane rows advertise items with no entry left in the roadmap: ${stale.join(", ")}`)
       .toEqual([]);

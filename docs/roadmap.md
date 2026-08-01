@@ -54,8 +54,15 @@ over several months and were moved out on 2026-07-31 so this could stay readable
 
 ## 🥇 What is left — prioritised
 
-**49 open items.** Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than
-merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
+**Open items: count them, do not read them here.** This line said "49" while the file's own extractor
+found 51 and the lane table named 48 — three numbers for one quantity, and the prose one had no way to
+notice it was wrong. **A hardcoded total in prose is the drift this roadmap keeps re-learning**, so it
+is replaced by its method: `roadmapLanes.test.ts` extracts open items with the `ITEM` regex (bullets
+carrying no ✅) and asserts every one is in a lane or explicitly Parked, so the lane table and the item
+list cannot disagree without failing a build. Run it for today's number.
+
+Ranked by consequence-if-wrong, then by whether the thing is *reachable* rather than merely *built*.
+Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
 
@@ -83,8 +90,9 @@ merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in
   Sweep the other doc gates for the same shape (`test_claude_md_gates`, `test_no_comparative_names`,
   `docsPublished`, `test_manifest`). Cheap, and the failure mode is a permanently green check.
 
-## ✅ **BAND 1 WAS EMPTY as of 2026-07-31** — refilled 2026-08-01 by two findings, both about checks
-## rather than features. Kept as a band entry because a check that cannot fail is a live wrong answer.
+✅ **BAND 1 WAS EMPTY as of 2026-07-31** — refilled 2026-08-01 by the two findings above, both about
+checks rather than features. They belong in Band 1 because **a check that cannot fail is a live wrong
+answer**: it reports safety that was never measured.
 
 Three items left it in one day and **none of them left the same way**: two were real defects and shipped,
 and the third was closed *unbuilt by measurement*. That third outcome is the one worth protecting — an
@@ -271,8 +279,8 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · GATE-VACUITY-SWEEP |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · FIN-SUITE-BLIND |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · FIN-SUITE-BLIND |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
@@ -1173,10 +1181,17 @@ remain open as options: a **MIT** OpenCascade-based geometry kernel (C#/.NET —
 a real cost) and a **MIT** TypeScript canvas UI toolkit. Nothing in this ring depends on any of them;
 the deterministic path above needs **no new dependency at all**.
 
-**Sequencing.** R27-SOV-LOOP first — it is the smallest change with the largest reach and needs no
-research. Then R27-LAYOUT ①→②→③ as one track, since ② and ③ are meaningless without ①.
-R27-CLAIM-TYPE and R27-RISK-CALIBRATE are independent and can interleave. R27-FIRM-MEMORY last: it
-is a data-scoping change and wants the org tier settled first.
+**Sequencing — HISTORICAL, all of it shipped.** *Kept for the reasoning, not as work.* R27-SOV-LOOP,
+R27-CLAIM-TYPE, R27-RISK-CALIBRATE, R27-FIRM-MEMORY and R27-LAYOUT ①→③ are all in
+[roadmap-completed.md](roadmap-completed.md). The original plan: SOV-LOOP first as the smallest change
+with the largest reach; LAYOUT as one track because ② and ③ are meaningless without ①; CLAIM-TYPE and
+RISK-CALIBRATE independent and interleavable; FIRM-MEMORY last, being a data-scoping change that wanted
+the org tier settled.
+
+This paragraph is why the lane table went on advertising four shipped items after their entries were
+archived: **a planning note mentions a code, and a mention is indistinguishable from an entry** to any
+check that searches text. Marking it historical is the fix; the lesson is that prose naming an item
+keeps that item looking alive.
 
 ---
 
