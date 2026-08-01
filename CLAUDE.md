@@ -57,6 +57,11 @@ roadmap, it is in the directions.
 ## Verify, don't recall
 Long sessions drift: instructions written early lose influence, and stale file contents linger in
 context beside current ones. The countermeasure is not a better memory, it is **checks that fail**:
-`test_reachable.py` (is it wired?), `ties.test.ts` (do the aliases agree?), `test_no_competitors.py`,
-the size guard in `check_file_sizes.py`. If a rule matters, write it as a test — anything held only
-as prose will drift, including the prose in this file.
+`services/api/test_reachable.py` (is it wired?), `apps/web/src/kernel/ties.test.ts` (do the aliases
+agree?), `services/api/test_no_comparative_names.py` (do the public docs name a competitor
+*comparatively* — as opposed to as a connector, an import format or an SSO provider, which are
+allowed?), and the size guard in `services/api/test_file_sizes.py`. If a rule matters, write it as a
+test — anything held only as prose will drift, **including the prose in this file: two of those four
+names were wrong until 2026-07-31.** `test_no_competitors.py` never existed at all, and the size
+guard is `test_file_sizes.py`, not `check_file_sizes.py`. Cite a gate only after `git ls-files`
+confirms it.

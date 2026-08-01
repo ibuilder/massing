@@ -7486,8 +7486,8 @@ gains **⚖ Level** behind an explicit confirm; re-renders CPM/Gantt on success.
   performance audits. Headline finding: the **backend is far ahead of the frontend** (~72 shipped
   capabilities have no UI), so the new order leads with security/perf hygiene, then UI-surfacing
   waves, then a real workflow state-machine layer, then the twice-validated interop gaps
-  (P6/MSP export round-trip, 4D simulation, model query DSL, Solibri-style rule library, model-CI,
-  Bluebeam-parity markup), then the R14/R15 feature tiers. All deterministic + offline; licenses
+  (P6/MSP export round-trip, 4D simulation, model query DSL, a rule-based model-checking library,
+  model-CI, PDF markup parity), then the R14/R15 feature tiers. All deterministic + offline; licenses
   mapped; non-deterministic AI/photogrammetry features explicitly out of scope.
 - The performance audit's ranked fixes (GEOM-CACHE, ASYNC-BLOCK, QTO-CACHE, CLASH-JOBS, PANEL-LAZY,
   DASH-UNION, PAYLOAD-CAPS, TEST-FASTPATH) are queued as the NOW block for execution.
@@ -10716,7 +10716,7 @@ storey with editable **name** and **elevation** fields — Save re-authors the I
 `rename_storey` / `set_storey_elevation` recipes and republishes, so levels are finally editable, not
 just addable. The storey listing now carries each level's **GUID** so edits target the right storey.
 
-**Named selection sets** (Layers panel, the Navisworks / Bluebeam "search set" pattern) let you save a
+**Named selection sets** (Layers panel, the saved-search-set pattern) let you save a
 search — by name, IFC class, type, discipline, or level — as a named set and **isolate** it in one click;
 "Show all" clears the isolation. Sets persist per-project in the browser (a personal view aid, they never
 touch the model). Verified live on a 108-element federated model: a "structural" set resolves to 75
@@ -10751,8 +10751,8 @@ are still open (see the roadmap).
 
 ## v0.3.237 — Modeling program, phase 6c: cluster the rail Navigate / Author / Coordinate
 
-The left rail's toggles are now grouped into the three workflow clusters every reference tool uses (Revit,
-BlenderBIM/Bonsai, Bluebeam): **Navigate** (Tree · Layers) · **Author** (Tools) · **Coordinate** (Clash ·
+The left rail's toggles are now grouped into the three workflow clusters standard across BIM authoring
+and coordination tools: **Navigate** (Tree · Layers) · **Author** (Tools) · **Coordinate** (Clash ·
 Issues), with a subtle divider/label between them (a thin rule in icon mode, the cluster name when the rail
 is expanded). Each toggle's aria-label is prefixed with its cluster for screen readers. This completes the
 core of the rail redesign — the model workspace now reads as a modeling+coordination cockpit rather than a
@@ -10777,10 +10777,11 @@ next: a docked Properties panel (Revit-style type/instance) and Navigate/Author/
 
 ## v0.3.235 — Modeling program, phase 6a: cut the duplicative rail sections
 
-Starting the left-rail redesign (a modeling+coordination cockpit, grounded in how Revit, BlenderBIM/Bonsai,
-and Bluebeam lay out their panels). The Model workspace's "Tools" panel had become an 11-section dumping
-ground, four sections of which **re-plotted whole other workspaces**: Cost/Pay Apps, Schedule, Drawings (2D),
-and Energy & MEP. A modeler coordinating geometry shouldn't scroll past pay-app tables to reach a tool.
+Starting the left-rail redesign (a modeling+coordination cockpit, grounded in how established BIM
+authoring and markup tools lay out their panels). The Model workspace's "Tools" panel had become an
+11-section dumping ground, four sections of which **re-plotted whole other workspaces**: Cost/Pay Apps,
+Schedule, Drawings (2D), and Energy & MEP. A modeler coordinating geometry shouldn't scroll past
+pay-app tables to reach a tool.
 
 Removed those four from the model rail — and deleted ~700 lines of their now-duplicate builder code — leaving
 a compact **deep-link row** (💰 Cost → Construction · 📅 Schedule → Construction · 📐 Drawings → Drawings ·
@@ -12246,7 +12247,7 @@ client, and server-side page ops via pypdf. Still permissive-only (no PyMuPDF/AG
   `{{user}}/{{date}}/{{time}}/{{file}}` fields resolve at placement. They render on the overlay and
   **flatten into the exported PDF** (stamps in a red box).
 - **Tool sets** — 💾 Save / 📂 Load the whole markup scene (calibration + all markups) as JSON, so a
-  set of stamps/measurements is reusable and shareable across sheets (the Bluebeam Tool Chest idea).
+  set of stamps/measurements is reusable and shareable across sheets (a reusable tool set).
 - **Server PDF ops (`pdfops.py`, pypdf)** — `POST /pdf/{info,merge,split,extract,rotate}`: merge a
   drawing set into one file, split to one-PDF-per-page (zip), extract a page range (`1,3,5-7`), rotate
   by 90°. A **🗂 PDF tools** launcher (merge/split/rotate/extract uploaded PDFs). Non-PDF uploads 422.
@@ -12255,7 +12256,7 @@ Verified: `test_pdfops` (engine + HTTP merge/split/extract/rotate + non-PDF reje
 build + 59 vitest.
 
 ## v0.3.125 — PDF markup: flatten to a real PDF (markup stack, phase 1)
-First phase of a Bluebeam-Revu-style PDF markup/manipulation stack (three decoupled layers: PDF.js
+First phase of a PDF markup/manipulation stack (three decoupled layers: PDF.js
 render · interactive markup · pdf-lib/pypdf persistence). Built on the existing PDF takeoff.
 
 - **Flatten markups into a downloadable PDF** — the ⤓ PDF button in the PDF takeoff burns every markup
@@ -14705,8 +14706,9 @@ BIM-native platform can do, because Massing owns the model + proforma. (See
 
 ### PDF digital signatures (PAdES) + e-sign options
 - **Digitally sign (PAdES)** — a contract/CO can be signed with a certificate-based **PAdES** digital
-  signature (Bluebeam's model) via **pyHanko**: the document is rendered, signed (tamper-evident,
-  self-validating), attached, and the signer + cert **fingerprint** recorded. Uses a self-signed
+  signature (a true digital signature, not a SaaS e-signature) via **pyHanko**: the document is
+  rendered, signed (tamper-evident, self-validating), attached, and the signer + cert
+  **fingerprint** recorded. Uses a self-signed
   platform certificate by default (offline, no cost); set `ESIGN_P12` to sign with your own / a CA cert.
 - **3rd-party bridge (feature-flagged)** — `esign_bridge.py` + `GET /esign/status` scope DocuSign /
   Dropbox Sign / self-hosted DocuSeal·Documenso for legally-binding multi-party signing (off until
