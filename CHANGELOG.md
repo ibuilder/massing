@@ -4,7 +4,7 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.813 — a value-add premium that starts before the unit turns, and two harness defects
+## v0.3.813 — a value-add premium that starts before the unit turns, and the fractional gap three more defects hid in
 
 Four commits. The proforma gains the phase it was missing, and a race test is fixed by the same
 distinction it exists to document.
@@ -27,6 +27,27 @@ made. A unit type with no renovated rent is not renovated, and is named with its
 inventing a premium there would invent the investment thesis.
 
 `POST /projects/{pid}/proforma/renovation`.
+
+### Fixed — three renovation-schedule defects, every one invisible at whole numbers
+
+The module above was reviewed after it landed, and three defects turned up. What they share is the
+reason they survived: the original fixture used a whole-number pace and a whole-number downtime, and at
+whole numbers the correct arithmetic and the broken arithmetic agree exactly. All three lived in the
+fractional gap between them.
+
+- **A renovation pace below one unit per month renovated nothing at all.** Half a unit a month rounded
+  down to none, every month, for the entire hold — while still reporting a completed schedule, a full
+  month-by-month table, and a premium of zero. "One unit every two months" is an ordinary pace for a
+  small property. The pace now carries its remainder, so a half becomes one unit every second month.
+- **A stated half-month of downtime became no downtime.** The rounding sent 0.5 to zero, deleting the
+  vacancy that is the whole cost of a renovation programme, while sending 1.5 to 2 and 2.5 back to 2.
+  Downtime now rounds up and never silently to nothing; an explicit zero is kept, because that is a
+  choice somebody made.
+- **With zero downtime a unit was counted as finished and under renovation at the same time, for the
+  rest of the schedule.** It earned the renovated premium while also being charged its full vacancy
+  rent, every month — on ten units, half a million of vacancy the programme never suffered. Each
+  counter looked reasonable on its own; only adding them together against the unit count reveals it,
+  and nothing added them. That sum is now checked.
 
 ### Fixed — three defects in the step-up race harness, two of them the shape it documents
 
