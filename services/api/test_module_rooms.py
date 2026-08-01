@@ -246,6 +246,32 @@ for key, sec in [("timesheet", "Daily Log"), ("photo", "Daily Log"), ("daily_rep
 for twin in ("deficiency", "ncr", "punchlist"):
     assert next(m["section"] for m in mods if m["key"] == twin) == "Quality", twin
 
+# ---- no test may pin a module's SECTION -----------------------------------------------------------
+# R32 renamed five sections and broke `test_pm_close`, which asserted
+# `REGISTRY["project_charter"]["section"] == "Preconstruction"`. That assertion was standing in for
+# REACHABILITY — "this module is filed somewhere a user can get to" — and said it by naming an
+# implementation detail, so it failed in CI having tested nothing that actually changed.
+#
+# I found it the expensive way. My scan for `section` consumers covered `services/api/src` and
+# `apps/web/src` and **not `test_*.py`**, which is where the only stale one lived. A search that
+# excludes the test tree will keep missing exactly this.
+#
+# The room is the durable claim; the section is free to move. This forbids the proxy so the next
+# rename cannot cost a CI cycle. `spec_section`, code sections and steel sections are entirely
+# different meanings of the word and are not matched — that ambiguity is itself a live hazard here.
+import re  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+_PIN = re.compile(r'REGISTRY\[[^\]]+\]\[.section.\]\s*==')
+for _t in sorted(Path(".").glob("test_*.py")):
+    if _t.name == "test_module_rooms.py":
+        continue
+    _hit = _PIN.search(_t.read_text(encoding="utf-8"))
+    assert not _hit, (
+        f"{_t.name} pins a module's `section` ({_hit.group(0)}). A section is an implementation "
+        "detail and renaming one must not break a distant suite — assert `rooms.room_of(mod)` "
+        "instead, which is the reachability claim the pin was standing in for.")
+
 # ---- the FIFTH taxonomy: report categories ------------------------------------------------------
 # The redesign's premise was that seven workspaces carried four left-rail taxonomies. `reports.py`
 # carries a fifth, invisible because it renders in a different panel — and three of its categories
