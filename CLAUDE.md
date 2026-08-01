@@ -57,6 +57,14 @@ roadmap, it is in the directions.
 ## Verify, don't recall
 Long sessions drift: instructions written early lose influence, and stale file contents linger in
 context beside current ones. The countermeasure is not a better memory, it is **checks that fail**:
-`test_reachable.py` (is it wired?), `ties.test.ts` (do the aliases agree?), `test_no_competitors.py`,
-the size guard in `check_file_sizes.py`. If a rule matters, write it as a test — anything held only
-as prose will drift, including the prose in this file.
+`test_reachable.py` (is it wired?), `ties.test.ts` (do the aliases agree?), and the size ratchet in
+`test_file_sizes.py`. If a rule matters, write it as a test — anything held only as prose will drift,
+including the prose in this file.
+
+Those names are themselves asserted by `test_claude_md_gates.py` — on 2026-07-31 two of the four
+listed here were fiction, in the one section arguing prose drifts. **Backticks are therefore reserved
+for files that exist**; a dead or historical name goes in plain quotes. Two rules that cost real time
+to learn, kept with the gate rather than here: a name that does not resolve is not a missing
+capability (search the *capability* before rebuilding anything), and **"the file exists" is not "main
+is protected"** — ask `origin/main`, since a gate can be green on a branch for days. Read that test's
+docstring before editing this list.
