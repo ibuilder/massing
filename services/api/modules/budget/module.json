@@ -1,7 +1,7 @@
 {
   "key": "budget",
   "name": "Budget & Forecast",
-  "section": "Cost",
+  "section": "Budget & Actuals",
   "icon": "Î£",
   "ref_prefix": "BUD",
   "title_field": "cost_code",

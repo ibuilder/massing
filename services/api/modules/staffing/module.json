@@ -1,7 +1,7 @@
 {
   "key": "staffing",
   "name": "Staffing Plan",
-  "section": "Schedule",
+  "section": "Resourcing",
   "icon": "👷",
   "ref_prefix": "STF",
   "title_field": "role",

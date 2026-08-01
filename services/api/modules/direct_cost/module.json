@@ -1,7 +1,7 @@
 {
   "key": "direct_cost",
   "name": "Direct Costs",
-  "section": "Cost",
+  "section": "Budget & Actuals",
   "icon": "=",
   "ref_prefix": "DC",
   "title_field": "description",

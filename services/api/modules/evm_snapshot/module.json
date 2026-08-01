@@ -1,7 +1,7 @@
 {
   "key": "evm_snapshot",
   "name": "EVM Snapshots",
-  "section": "Cost",
+  "section": "Budget & Actuals",
   "icon": "📸",
   "ref_prefix": "EVM",
   "title_field": "data_date",

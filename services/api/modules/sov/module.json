@@ -1,7 +1,7 @@
 {
   "key": "sov",
   "name": "Schedule of Values",
-  "section": "Cost",
+  "section": "Billing",
   "icon": "▦",
   "ref_prefix": "SOV",
   "title_field": "description",

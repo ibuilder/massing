@@ -18,8 +18,16 @@ from aec_api.main import app  # noqa: E402
 # both modules are discovered by the registry with the expected metadata
 mr.load_registry()
 assert "project_charter" in mr.REGISTRY and "lessons_learned" in mr.REGISTRY, list(mr.REGISTRY)[:5]
-assert mr.REGISTRY["project_charter"]["section"] == "Preconstruction"
-assert mr.REGISTRY["lessons_learned"]["section"] == "Closeout"
+# What this pair is really asserting is REACHABILITY — that both modules are filed somewhere a user
+# can get to. It said that by naming a section, and a section is an implementation detail: R32 renamed
+# `Preconstruction` to `Project Governance` and this failed in CI having tested nothing that changed.
+# The room is the durable claim, so assert the room and let the section move.
+from aec_api import rooms  # noqa: E402
+
+assert rooms.room_of(mr.REGISTRY["project_charter"]) == "planning", (
+    "a project charter is planning work — reachable from the Planning room")
+assert rooms.room_of(mr.REGISTRY["lessons_learned"]) == "schedule", (
+    "lessons learned close out the construction sequence")
 
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "PM Close"}).json()["id"]

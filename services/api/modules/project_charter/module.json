@@ -1,7 +1,7 @@
 {
   "key": "project_charter",
   "name": "Project Charter",
-  "section": "Preconstruction",
+  "section": "Project Governance",
   "icon": "📜",
   "ref_prefix": "CHTR",
   "title_field": "title",
@@ -126,8 +126,21 @@
     {
       "name": "assumptions",
       "label": "Assumptions",
-      "type": "textarea",
-      "fieldset": "Risks & Assumptions"
+      "type": "table",
+      "fieldset": "Risks & Assumptions",
+      "columns": [
+        {
+          "name": "assumption",
+          "label": "Assumption",
+          "type": "reference",
+          "module": "assumption"
+        },
+        {
+          "name": "note",
+          "label": "Note",
+          "type": "text"
+        }
+      ]
     },
     {
       "name": "constraints",

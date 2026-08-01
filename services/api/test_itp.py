@@ -17,7 +17,11 @@ from aec_api import modules_registry as mr  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
 mr.load_registry()
-assert "itp" in mr.REGISTRY and mr.REGISTRY["itp"]["section"] == "Quality", list(mr.REGISTRY)[:5]
+# the room, not the section — see the guard in test_module_rooms.py
+from aec_api import rooms  # noqa: E402
+
+assert "itp" in mr.REGISTRY, list(mr.REGISTRY)[:5]
+assert rooms.room_of(mr.REGISTRY["itp"]) == "schedule"
 
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "ITP Project"}).json()["id"]

@@ -1,7 +1,7 @@
 {
   "key": "bulletin",
   "name": "Design Bulletins",
-  "section": "Change Management",
+  "section": "Change Instruments",
   "icon": "📁",
   "ref_prefix": "BUL",
   "title_field": "subject",
@@ -45,9 +45,22 @@
     },
     {
       "name": "spec_sections",
-      "label": "Spec Sections Affected",
-      "type": "text",
-      "fieldset": "References"
+      "label": "Spec sections",
+      "type": "table",
+      "fieldset": "References",
+      "columns": [
+        {
+          "name": "spec_section",
+          "label": "Specification",
+          "type": "reference",
+          "module": "spec_section"
+        },
+        {
+          "name": "note",
+          "label": "Note",
+          "type": "text"
+        }
+      ]
     },
     {
       "name": "cost_time_impact",

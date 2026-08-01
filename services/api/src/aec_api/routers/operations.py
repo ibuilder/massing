@@ -2,13 +2,13 @@
 reserve study / capital plan, and CAM reconciliation."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from .. import audit, cam, cmms, energy, energy_star_bridge, esg, fca, reserve, twin
 from ..db import get_db
 from ..models import Project
-from ..rbac import current_user, member_project_ids, require_role
+from ..rbac import current_user, member_project_ids, require_identified, require_role
 
 router = APIRouter()
 
@@ -103,6 +103,30 @@ def fca_portfolio(db: Session = Depends(get_db), user: str = Depends(current_use
     """Facility Condition Index per project across the portfolio, worst-first — the capital-
     prioritization view (fund the highest-FCI buildings first). Scoped to the caller's projects."""
     return fca.portfolio(db, project_ids=member_project_ids(db, user))
+
+
+@router.post("/pipeline/allocate")
+def pipeline_allocate_route(body: dict = Body(...),
+                            _user: str = Depends(require_identified)):
+    """R31-PIPELINE-ALLOCATE: given candidate projects with a cost and a value, and a capital
+    constraint, **which subset** — an exact integer optimum, not a ranking.
+
+    The route above ranks projects worst-first and advises funding those first. That is a greedy
+    heuristic, and greedy loses whenever one high-ratio project crowds out two smaller ones that
+    together beat it. This returns the optimal set, what it displaced, and what greedy would have
+    chosen, so the difference between the two decisions is visible rather than asserted.
+
+    Body: `{candidates: [{id, name?, cost, value}], capital: number}`. **`value` is supplied by the
+    caller** — NPV, profit, risk-adjusted return, whatever the committee is maximising. This endpoint
+    does not infer it from project data: a value nobody stated is the one number that must not be
+    invented here, since it decides what gets funded.
+    """
+    from .. import pipeline_allocate as pa
+
+    try:
+        return pa.allocate(body.get("candidates") or [], body.get("capital"))
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
 
 
 @router.get("/projects/{pid}/cam/reconciliation")

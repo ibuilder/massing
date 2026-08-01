@@ -100,8 +100,21 @@
     {
       "name": "photos",
       "label": "Photos",
-      "type": "textarea",
-      "fieldset": "Record"
+      "type": "table",
+      "fieldset": "Record",
+      "columns": [
+        {
+          "name": "photo",
+          "label": "Photo",
+          "type": "reference",
+          "module": "photo"
+        },
+        {
+          "name": "note",
+          "label": "Note",
+          "type": "text"
+        }
+      ]
     },
     {
       "name": "ncr_count",

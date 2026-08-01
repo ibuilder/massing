@@ -1,7 +1,7 @@
 {
   "key": "production_quantity",
   "name": "Production Quantities",
-  "section": "Field",
+  "section": "Progress",
   "icon": "Σ",
   "ref_prefix": "PQTY",
   "title_field": "description",

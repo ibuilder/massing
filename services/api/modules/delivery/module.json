@@ -1,7 +1,7 @@
 {
   "key": "delivery",
   "name": "Deliveries",
-  "section": "Field",
+  "section": "Logistics",
   "icon": "▤",
   "ref_prefix": "DEL",
   "title_field": "description",

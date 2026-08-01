@@ -18,7 +18,12 @@ from aec_api.db import SessionLocal  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
 mr.load_registry()
-assert "compliance_evidence" in mr.REGISTRY and mr.REGISTRY["compliance_evidence"]["section"] == "Quality"
+# the claim is REACHABILITY, so assert the room — a section is an implementation detail and
+# renaming one must not break this suite (see the guard in test_module_rooms.py)
+from aec_api import rooms  # noqa: E402
+
+assert "compliance_evidence" in mr.REGISTRY, list(mr.REGISTRY)[:5]
+assert rooms.room_of(mr.REGISTRY["compliance_evidence"]) == "schedule"
 
 
 def _mk(c, pid, data):

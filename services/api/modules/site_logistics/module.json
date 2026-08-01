@@ -1,7 +1,7 @@
 {
   "key": "site_logistics",
   "name": "Site Logistics",
-  "section": "Field",
+  "section": "Logistics",
   "icon": "▦",
   "ref_prefix": "LOG",
   "title_field": "resource",

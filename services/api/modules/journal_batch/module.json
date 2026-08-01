@@ -1,7 +1,7 @@
 {
   "key": "journal_batch",
   "name": "Journal Batches",
-  "section": "Cost",
+  "section": "Budget & Actuals",
   "icon": "📒",
   "ref_prefix": "JB",
   "title_field": "period",

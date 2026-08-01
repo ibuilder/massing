@@ -1,7 +1,7 @@
 {
   "key": "responsibility",
   "name": "Responsibility (RACI)",
-  "section": "Preconstruction",
+  "section": "Project Governance",
   "workspace": "construction|developer|design",
   "icon": "🧭",
   "ref_prefix": "RESP",

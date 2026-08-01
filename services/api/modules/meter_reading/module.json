@@ -1,7 +1,7 @@
 {
   "key": "meter_reading",
   "name": "Meter Readings",
-  "section": "Facilities",
+  "section": "Performance",
   "icon": "🔢",
   "ref_prefix": "RDG",
   "title_field": "subject",

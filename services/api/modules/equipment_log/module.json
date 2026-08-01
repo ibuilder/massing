@@ -1,7 +1,7 @@
 {
   "key": "equipment_log",
   "name": "Equipment Log",
-  "section": "Field",
+  "section": "Daily Log",
   "icon": "⚙",
   "ref_prefix": "EQ",
   "title_field": "equipment",
