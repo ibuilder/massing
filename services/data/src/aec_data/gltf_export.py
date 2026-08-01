@@ -153,18 +153,51 @@ def _draco_primitive(vflat: np.ndarray, faces: np.ndarray, blob: bytearray,
     return pos_acc, idx_acc, dv, int(pos_id)
 
 
+def _decimate_merged(merged: dict, max_faces_per_class: int) -> dict:
+    """Apply a per-class triangle budget by vertex clustering.
+
+    Per CLASS, not per model, because that is the unit the export already merges into — and a global
+    budget would spend it all on whichever class happens to sort first. `decimate_to_budget` returns
+    the input untouched when it already fits, so a small class is never degraded to satisfy a ceiling
+    it was already under.
+    """
+    from massingviser_geometry import decimate_to_budget  # type: ignore
+
+    out = {}
+    for cls, (verts, faces) in merged.items():
+        if len(faces) <= max_faces_per_class:
+            out[cls] = (verts, faces)
+            continue
+        d = decimate_to_budget(verts, faces, max_faces=max_faces_per_class)
+        # An empty result would silently delete a whole discipline from the export. Keep the original
+        # rather than ship a hole: losing detail is the trade being made, losing the element is not.
+        out[cls] = (d.vertices, d.faces) if d.face_count > 0 else (verts, faces)
+    return out
+
+
 def _build_gltf_doc(model: ifcopenshell.file, name: str, *, draco: bool = False,
-                    quantization_bits: int = DEFAULT_QUANTIZATION_BITS) -> tuple[dict[str, Any], bytes]:
+                    quantization_bits: int = DEFAULT_QUANTIZATION_BITS,
+                    max_faces_per_class: int | None = None) -> tuple[dict[str, Any], bytes]:
     """Build the glTF 2.0 document (one node per IFC class) plus the raw binary buffer, WITHOUT a buffer
     URI. The `.gltf` path adds an embedded data URI; the `.glb` path packs the buffer as a binary chunk.
 
     ``draco=True`` compresses each mesh with KHR_draco_mesh_compression. It is OFF by default and that
     is deliberate: the extension is *required*, not optional, for any file that uses it, so a consumer
     without a Draco decoder reads nothing at all. The default export stays universally readable.
+
+    ``max_faces_per_class`` caps triangles per IFC class by **vertex-clustering decimation**, so a
+    consumer receives a budget rather than a model. Off by default — decimation is lossy, and a
+    coordination or takeoff consumer wants the real geometry. It is for viewers and engines that need
+    a whole building to arrive, not a faithful one.
+
+    NOTE this is geometric level of DETAIL, and is unrelated to `aec_api/lod.py`, which is level of
+    DEVELOPMENT (LOD 100-500, BIM maturity). The names collide; the concepts do not touch.
     """
     if draco and not draco_available():
         raise DracoUnavailable(DRACO_UNAVAILABLE)
     merged = _baked_by_class(model)
+    if max_faces_per_class:
+        merged = _decimate_merged(merged, max_faces_per_class)
     blob = bytearray()
     buffer_views: list[dict] = []
     accessors: list[dict] = []
@@ -252,16 +285,21 @@ def _build_gltf_doc(model: ifcopenshell.file, name: str, *, draco: bool = False,
 
 
 def export_gltf(model: ifcopenshell.file, name: str = "model", *, draco: bool = False,
-                quantization_bits: int = DEFAULT_QUANTIZATION_BITS) -> dict[str, Any]:
+                quantization_bits: int = DEFAULT_QUANTIZATION_BITS,
+                max_faces_per_class: int | None = None) -> dict[str, Any]:
     """A self-contained glTF 2.0 document (dict) for the whole model — the binary buffer embedded as a
-    base64 data URI, so the JSON is standalone."""
-    doc, blob = _build_gltf_doc(model, name, draco=draco, quantization_bits=quantization_bits)
+    base64 data URI, so the JSON is standalone.
+
+    ``max_faces_per_class`` decimates to a per-class triangle budget (see `_build_gltf_doc`)."""
+    doc, blob = _build_gltf_doc(model, name, draco=draco, quantization_bits=quantization_bits,
+                                max_faces_per_class=max_faces_per_class)
     doc["buffers"][0]["uri"] = "data:application/octet-stream;base64," + base64.b64encode(blob).decode("ascii")
     return doc
 
 
 def export_gltf_bytes(ifc_path: str, name: str = "model", *, draco: bool = False,
-                      quantization_bits: int = DEFAULT_QUANTIZATION_BITS) -> bytes:
+                      quantization_bits: int = DEFAULT_QUANTIZATION_BITS,
+                      max_faces_per_class: int | None = None) -> bytes:
     """Open an IFC file and return a self-contained ``.gltf`` (UTF-8 JSON) of its geometry."""
     from .ifc_loader import open_model
     doc = export_gltf(open_model(ifc_path), name, draco=draco, quantization_bits=quantization_bits)

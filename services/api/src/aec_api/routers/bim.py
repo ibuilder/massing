@@ -496,6 +496,53 @@ def export_bundle(pid: str, db: Session = Depends(get_db), _sec: str = Depends(r
                     headers={"Content-Disposition": f'attachment; filename="{safe}.mass"'})
 
 
+@router.get("/projects/{pid}/scene/manifest")
+def scene_manifest(pid: str, db: Session = Depends(get_db),
+                   _sec: str = Depends(require_role("viewer"))):
+    """SCENE-PKG: the model's semantic half as a portable manifest — GlobalId-keyed nodes, property
+    sets, typed relationships, and **precomputed by-class / by-level indexes** — with geometry left out.
+
+    This is the engine-facing view. Our own web client already receives class and storey per element
+    from `/elements`, so **this endpoint makes nothing in this app load faster** and no such claim is
+    made for it. What it serves is every consumer that is not this app — an engine importer, a Blender
+    addon, a CI check, a native viewer — whose only alternative today is parsing the IFC themselves,
+    which is the one thing this platform tells people not to do.
+
+    Deterministic: `generatedAt` comes from the source IFC's own mtime, not the clock, so an unchanged
+    model yields a byte-identical manifest and its content hash means what the format says it means.
+
+    Products IFC declares but that hang outside the spatial hierarchy are reported in `_warnings`
+    rather than silently omitted — a package quietly containing fewer elements than the model reads
+    as a complete answer. 409 if the project has no accessible source IFC."""
+    from .. import scene_package
+    _project(db, pid)
+    return scene_package.manifest(db, pid)
+
+
+@router.get("/projects/{pid}/scene/package")
+def scene_package_zip(pid: str, db: Session = Depends(get_db),
+                      _sec: str = Depends(require_role("viewer"))):
+    """SCENE-PKG: the manifest above plus the `.frag` payload it names, as one zip.
+
+    Geometry is carried as **Fragments**, not re-encoded — re-encoding would mean decoding geometry
+    the engine decodes better and discarding the per-element addressing Fragments already has. The
+    payload is referenced by id and hash from the manifest, so a consumer parses a small JSON document
+    first and streams the bytes only if it is going to draw them.
+
+    If the pipeline has not produced a `.frag` yet the package is still valid and simply names no
+    payload — a manifest referencing bytes the archive does not carry would be a promise the caller
+    cannot keep, and the writer rejects that rather than shipping it. 409 if there is no source IFC."""
+    from .. import scene_package
+    p = _project(db, pid)
+    data, report = scene_package.package(db, pid)
+    safe = "".join(c if (c.isalnum() and ord(c) < 128) or c in "-_ " else "_" for c in p.name).strip() or "scene"
+    return Response(data, media_type="application/zip", headers={
+        "Content-Disposition": f'attachment; filename="{safe}-scene.zip"',
+        "X-Scene-Nodes": str(report["nodes"]),
+        "X-Scene-Unreachable": str(report["warning_count"]),
+    })
+
+
 @router.post("/projects/import-bundle", response_model=ProjectOut, status_code=201)
 async def import_bundle(file: UploadFile = File(...), name: str | None = Form(None),
                         db: Session = Depends(get_db)):

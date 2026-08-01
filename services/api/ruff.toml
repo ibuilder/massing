@@ -6,7 +6,15 @@
 # builders run past 120. Match the code's conventions; enforce correctness + consistency.
 line-length = 120
 target-version = "py310"
-extend-exclude = ["dist_desktop", ".venv", "build"]
+# `massingifc_scene` / `massingifc_ifc` are VENDORED verbatim from MassingCloud/massingifc and are
+# excluded for the same reason the TypeScript vendor is excluded from our typecheck: judging someone
+# else's code by our flags turns a verbatim copy into a fork. Their 161 findings here are almost all
+# import ordering and quoted-annotation style — our house rules, not defects — and "fixing" them would
+# make every future re-sync a merge instead of an overwrite. Anything genuinely wrong goes upstream as
+# an issue and comes back on the next sync. See services/data/src/VENDOR-massingifc-python.md.
+extend-exclude = ["dist_desktop", ".venv", "build",
+                  "../data/src/massingifc_scene", "../data/src/massingifc_ifc",
+                  "../data/src/massingviser_geometry"]
 
 [lint]
 # Correctness/defects: F = pyflakes (unused imports/vars, undefined names, f-string bugs),

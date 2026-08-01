@@ -167,3 +167,41 @@ a visual-regression check. It also needs a name that cannot be confused with the
 
 **Not planned:** `massingviser`'s kernel and fifteen families (duplicates `services/api`), and
 `massingcapture` (separate product decision, not an efficiency question).
+
+---
+
+## Outcome — all four phases executed, and three of them changed on contact
+
+Recorded here rather than left as a plan, because a plan that was not revised after the work reads as
+a description of what happened. Three of the four phases turned out differently, and each difference
+was found by a check rather than by thinking harder.
+
+**Phase 1 — landed unchanged** (`42f67671`). The verbatim-copy claim was verified by diffing our copy
+against upstream *at the old vendor point* before overwriting, so "no local patches" was checked, not
+trusted. 47 files in, 47 upstream.
+
+**Phase 2 — shrank, because the premise check fired.** The plan said the win was "precomputed class and
+level indexes served to the browser". `/elements` already accepts `ifc_class` and `storey` as filters —
+that index exists and is queryable. So the endpoint ships with the claim removed and its absence stated
+in the docstring: **it makes nothing in this app load faster**, and its value is consumers that are not
+our web client. Two further corrections came from testing rather than reading: every tracked `*.ifc`
+fixture converts to a single node (they are type libraries with no spatial containment, and the
+converter walks the hierarchy), so the test authors its own model; and `ruff` went red with 161
+findings, all vendored, resolved by excluding the vendored trees rather than patching them.
+
+**Phase 3 — the threshold was guessed wrong by 4x, and measuring found it.** `BVH_MIN_PAIRS` was first
+written as 250,000 on the reasoning that "a 500 x 500 test is big enough". Measured, the crossover is
+**1,000,000** pairs: at 800 x 800 the matrix still wins (34 ms vs 40 ms). The guess would have routed
+every 500-1000 element clash through the slower path — an optimisation that is a regression across most
+of its range, and one no small fixture could have exposed. Above the crossover the gain is real: 2.7x at
+4k x 4k, 4.1x at 8k x 8k, with an identical clash set at every scale.
+
+**Phase 4 — the original scope was blocked, and the blocker is architectural.** Serving a coarse tier
+to the viewer first requires encoding decimated geometry into Fragments, and this repo has an IFC to
+Fragments *converter*, not a Fragments *writer*. There is nothing to encode into. Rather than claim a
+first-paint win the architecture cannot deliver, decimation landed on `gltf_export.py`, which is where
+meshes are genuinely produced — as an optional per-class triangle budget, off by default.
+
+**A viewer-side LOD tier remains genuinely open**, and its prerequisite is now named: a Fragments
+writer, or a converter that can emit a reduced model. That is a real prerequisite, not a scheduling
+choice, and it belongs on the roadmap as such rather than as "LOD, deferred".
