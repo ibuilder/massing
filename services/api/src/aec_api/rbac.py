@@ -165,11 +165,21 @@ def consume_stepup(db: Session, token: str, act: str, pw_hash: str, actor: str) 
     charge of THIS work" — and a reusable assertion can only support the weaker "a human re-proved
     their password recently". An agent that captured one token could seal a stack.
 
-    The spend is a PRIMARY KEY insert inside a SAVEPOINT, not a read-then-write: two concurrent
-    replays would both pass an `if already_spent` check and both proceed. Here the second insert
-    violates the constraint and the database refuses it, so the race has no winner to give away.
-    The savepoint means that refusal rolls back only this insert, leaving the caller's transaction
-    (and any audit row it has staged) intact.
+    Two mechanisms, and they guarantee different things. Conflating them is easy and this docstring
+    did it until 2026-07-31, when a mutation test disproved the version written here:
+
+    - The **PRIMARY KEY** is what makes the spend single. A read-then-write (`if already_spent`)
+      would still end with one winner, because the insert itself is what collides. The constraint,
+      not the ordering, is why the race has no winner to give away.
+    - The **SAVEPOINT** is what keeps the loser's refusal LOCAL. Without it the failed insert leaves
+      the caller's session in a rolled-back-pending state, so the loser also discards whatever it had
+      staged — including the audit row for the attempt. Measured: winners stay at 1 either way, but
+      the savepoint-less loser raises `PendingRollbackError` and loses its staged row.
+
+    That second failure is the nastier one and the reason both halves are load-bearing: it is a
+    security control quietly erasing its own evidence while still reporting the correct outcome. A
+    test that only counts winners cannot see it — `test_stepup_race` asserts no spender raised, for
+    exactly that reason, and neither assertion should be "simplified" away.
 
     Returns False for every failure — bad signature, wrong act, expired, someone else's assertion,
     or already spent — so the caller cannot accidentally distinguish them in a response.
