@@ -18,7 +18,13 @@ PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe -X utf8 test_<name>.py  
 Use `-X utf8` — some tests print `→`/`²`/`³` and crash on the default Windows cp1252 console (a false failure; CI uses utf-8).
 
 ## The manifest guard — REGISTER NEW TESTS
-`run_tests.py` has a hand-maintained `TESTS` list and a `_manifest_guard()` that **fails the whole run** if any `test_*.py` on disk isn't in the list. After adding `test_foo.py`, add `"test_foo"` to the `TESTS` list or CI fails before running anything.
+`run_tests.py` has a hand-maintained `TESTS` list and a `manifest_problems()` guard that **fails the whole run before any suite starts** if the list and the `test_*.py` files on disk are not a 1:1 map. It enforces three rules:
+
+1. **no duplicate registration** — a name listed twice would run the suite twice, burning wall time;
+2. **every registered name has a file** — the runner used to silently drop missing entries, so a typo still printed "N/N suites passed";
+3. **every file on disk is registered** — a test nobody runs is worse than no test.
+
+After adding `test_foo.py`, add `"test_foo"` to the `TESTS` list or CI fails before running anything. `test_manifest.py` asserts the live manifest is clean *and* drives each rule with a synthetic violation to prove the guard can still go red — keep those synthetic cases if you touch the guard.
 
 ## Two test idioms
 - **DB-backed API test**: set `os.environ["DATABASE_URL"]`, `STORAGE_DIR`, and (if it uploads a source IFC) `IFC_DIR` — all to `./test_*`-prefixed local paths (gitignored). `os.environ.pop("AEC_RBAC", None)`. Use `TestClient(app)` + `X-User` header. Upload a model via `POST /projects/{pid}/source-ifc?publish=false`.
