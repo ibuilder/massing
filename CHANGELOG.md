@@ -4,6 +4,39 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.813 — a value-add premium that starts before the unit turns, and two harness defects
+
+Four commits. The proforma gains the phase it was missing, and a race test is fixed by the same
+distinction it exists to document.
+
+### Added — a value-add renovation programme, unit by unit
+
+Buying at in-place rents and renovating over time is the mechanic three of the surveyed multifamily
+models turn on, and nothing here modelled it. A unit now has the three phases it actually has: it
+earns its in-place rent until work starts, **nothing** while it is being renovated, and the renovated
+rent only from the month it comes back online.
+
+**Applying the premium from day one is the single most common way a value-add deal is overstated**,
+and it is invisible in the output — it produces a smooth, plausible income curve that is simply too
+high, too early, across the whole hold. Skipping the vacancy makes the programme look like capex only.
+
+The renovation pace and the per-unit downtime are **required and never defaulted**. Without them the
+model either renovates everything instantly or costs only its capex, and either result is
+indistinguishable from a correct one. Stating zero downtime is accepted — it is then a choice somebody
+made. A unit type with no renovated rent is not renovated, and is named with its count, because
+inventing a premium there would invent the investment thesis.
+
+`POST /projects/{pid}/proforma/renovation`.
+
+### Fixed — three defects in the step-up race harness, two of them the shape it documents
+
+The test that proves a single-use seal token cannot be redeemed twice had defects that would have let
+it pass while proving less than it claimed. Details in the commit.
+
+### Also in this release
+
+The agent-harness scaffold is now ignored, so a `git add -A` cannot publish it.
+
 ## v0.3.812 — an explicit zero was read as "unset", and a check that only ever ran one way
 
 Four correctness items, and the two findings worth reading are both about a value that looked like an

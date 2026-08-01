@@ -170,6 +170,15 @@ written) and **R22-PHOTO-CV**.
 
 ✅ **R34-TAKEOFF-COUNT — SHIPPED (#139, `29c26f27`); it was still listed here.** The platform had **no count measure at all**: every assembly was `area` or `length`, so a door, fixture, receptacle or sprinkler head — the thing an estimator counts most often — could not be taken off a drawing. Now a third measure, and **a count is never scaled**: area goes as scale², length as scale¹, and six doors are six doors at any sheet scale. Making it a third *measure* rather than a third *unit* is what makes that structural instead of remembered. Verified present: 13 count refs in `takeoff2d.py`, `test_takeoff_count` registered.
 
+✅ **PF-RENOVATION — SHIPPED v0.3.813 (#159).** Scope item 4 of the CRE asset-class survey
+(`docs/internal/research/proforma-asset-class-scope.md`). A value-add unit now has the three phases it
+actually has — in-place rent until work starts, **nothing** during renovation, renovated rent only from
+the month it comes back online. Applying the premium from day one is the standard overstatement and is
+invisible in the output. Pace and per-unit downtime are **required, never defaulted**: without them the
+model either renovates everything instantly or costs only its capex, and either is indistinguishable
+from a correct answer. Items 1–3 (income basis, rent-roll wiring, rollover pricing) shipped in
+v0.3.811–812; **items 5 (hotel ADR/RevPAR + data-centre capacity) and 6 (mezzanine/refinance) remain**.
+
 ⭐ **R22-ENTITLEMENT** (M/L) · **R22-REPORT-BUILDER** (M, rescoped) · **R22-PIPELINE** (M) ·
 **R21-4D-CLASH** (phase 2)
 
