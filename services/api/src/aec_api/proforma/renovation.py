@@ -185,11 +185,22 @@ def schedule(unit_types: list[dict] | None, assumptions: dict | None = None,
     offline: dict[int, dict] = {}          # keyed by unit index, so completions remove exactly one
     cum_capex = 0.0
     for month in range(months):
+        # STARTS are applied BEFORE completions, and the order is load-bearing at downtime == 0.
+        #
+        # Completions-first meant a unit whose start and completion fall in the SAME month (which is
+        # exactly what zero downtime means) was popped from `offline` before it had been added, then
+        # added by its own start — and never removed, because its completion month had already passed.
+        # It then sat in `online` AND `offline` simultaneously for the rest of the schedule, earning
+        # the renovation premium while still being charged full downtime rent loss, every month,
+        # forever. On ten units that was £510k of vacancy the programme never suffered.
+        #
+        # Nothing raised. `units_online_renovated` and `units_in_renovation` both read plausibly on
+        # their own; only their SUM exceeding the unit count gives it away, and nothing summed them.
+        for idx, t in starts_by_month.get(month, []):
+            offline[idx] = t
         for idx, t in completions.get(month, []):
             offline.pop(idx, None)
             online.append(t)
-        for idx, t in starts_by_month.get(month, []):
-            offline[idx] = t
 
         capex = capex_by_month.get(month, 0.0)
         cum_capex += capex

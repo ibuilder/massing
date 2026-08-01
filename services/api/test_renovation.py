@@ -145,6 +145,94 @@ check("an empty unit list schedules nothing rather than erroring",
       schedule([], A, months=6)["renovatable_units"] == 0)
 
 print()
+
+# ---------------------------------------------------------------------------------------------------
+# FIN-SUITE-BLIND follow-up (2026-08-01) — two inputs the original fixture could not distinguish.
+#
+# Both were found by asking what this suite is structurally unable to see, not by reading the code:
+# every existing case used an INTEGER pace and an INTEGER downtime, and at integer values the correct
+# implementation and the broken one agree exactly. The defects lived entirely in the fractional gap.
+# ---------------------------------------------------------------------------------------------------
+
+_UT = [{"type": "1BR", "count": 10, "current_rent_monthly": 1500,
+        "renovated_rent_monthly": 1900, "renovation_cost": 20000}]
+
+
+def _sched(pace, downtime, months=36):
+    return schedule(_UT, {"units_per_month": pace,
+                                     "downtime_months_per_unit": downtime}, months=months)
+
+
+# --- a FRACTIONAL pace must accumulate, not floor to nothing every month --------------------------
+# `int(min(pace, remaining))` floored each month independently, so ANY pace below 1 took zero units
+# every month and renovated NOTHING across the whole window — while still returning
+# status="scheduled" and a full by_month table of zeros. "One unit every two months" is an ordinary
+# pace for a small property; it produced a silently empty programme that reads like a completed one.
+_half = _sched(0.5, 1)
+check("a pace of 0.5/month renovates units — it does not silently floor to zero",
+      _half["units_renovated_in_window"] == 10,
+      f"{_half['units_renovated_in_window']} of 10 (a flooring bug gives 0)")
+check("  and earns a premium rather than reporting a zero-income programme",
+      _half["total_premium_income"] > 0, _half["total_premium_income"])
+
+# Half the pace must take about twice as long, so it earns strictly LESS than the integer pace over
+# the same window — an ordering assertion, which a wrong-but-nonzero number cannot satisfy by luck.
+_one = _sched(1, 1)
+check("half the pace earns strictly less premium than double the pace in the same window",
+      0 < _half["total_premium_income"] < _one["total_premium_income"],
+      f"0.5/mo={_half['total_premium_income']} vs 1/mo={_one['total_premium_income']}")
+
+# A pace too slow to finish must under-run and SAY so, rather than quietly reporting zero.
+_slow = _sched(0.25, 1)
+check("a pace of 0.25/month reaches some but not all units in 36 months",
+      0 < _slow["units_renovated_in_window"] < 10,
+      f"{_slow['units_renovated_in_window']} renovated, {_slow['units_not_reached']} not reached")
+
+# --- an explicit zero pace is a legitimate input, and must be LABELLED, not just zero-valued -------
+_none = _sched(0, 1)
+check("a stated pace of 0 renovates nothing AND says so explicitly",
+      _none["units_renovated_in_window"] == 0 and _none["nothing_renovated"] is True,
+      f"nothing_renovated={_none['nothing_renovated']}")
+check("  a working programme is NOT flagged as having done nothing",
+      _half["nothing_renovated"] is False)
+
+# --- downtime rounds UP and never silently to zero -------------------------------------------------
+# `int(round(x))` was banker's rounding: 0.5 -> 0 (deleting phase 2 entirely), 1.5 -> 2, 2.5 -> 2.
+# A stated half-month of vacancy becoming NO vacancy understates the exact carrying cost this module
+# exists to surface.
+for _raw, _want in ((0, 0), (0.5, 1), (1, 1), (1.5, 2), (2.5, 3)):
+    _got = _sched(2, _raw)["assumptions_used"]["downtime_months_per_unit"]
+    check(f"downtime {_raw} -> {_want} month(s)", _got == _want, f"got {_got}")
+
+# An explicit 0 must survive: it is a stated choice, not an absence. (Same defect shape as the
+# explicit-0% retainage in cost.py, found the same day.)
+_z = _sched(2, 0)
+check("an explicit downtime of 0 stays 0 and loses no rent",
+      _z["assumptions_used"]["downtime_months_per_unit"] == 0
+      and _z["total_downtime_rent_loss"] == 0.0,
+      f"{_z['total_downtime_rent_loss']}")
+check("a positive downtime DOES lose rent — so the zero case above is not vacuous",
+      _sched(2, 1)["total_downtime_rent_loss"] > 0)
+
+# --- the invariant that would have caught the ordering defect on its own --------------------------
+# A unit is online, or in renovation, or neither — never both. Completions were applied BEFORE starts,
+# so at downtime == 0 a unit landed in both sets permanently: earning the premium while still being
+# charged downtime rent, for the whole schedule. Both counters read plausibly in isolation; only their
+# SUM against the unit count exposes it, and nothing summed them.
+for _dt in (0, 1, 2):
+    _s = _sched(2, _dt)
+    _bad = [(r["month"], r["units_online_renovated"], r["units_in_renovation"])
+            for r in _s["by_month"]
+            if r["units_online_renovated"] + r["units_in_renovation"] > _s["renovatable_units"]]
+    check(f"downtime {_dt}: no unit is online AND in renovation at once",
+          not _bad, f"months where online+in_renovation exceeds {_s['renovatable_units']}: {_bad[:3]}")
+
+_z0 = _sched(2, 0)
+check("zero downtime charges no rent loss at all",
+      _z0["total_downtime_rent_loss"] == 0.0, _z0["total_downtime_rent_loss"])
+check("  and still earns the premium — zero downtime is fast, not inert",
+      _z0["total_premium_income"] > 0, _z0["total_premium_income"])
+
 if FAILED:
     print(f"renovation: {len(FAILED)} FAILED — {FAILED}")
     sys.exit(1)
