@@ -62,6 +62,12 @@ agree?), `services/api/test_no_comparative_names.py` (do the public docs name a 
 *comparatively* — as opposed to as a connector, an import format or an SSO provider, which are
 allowed?), and the size guard in `services/api/test_file_sizes.py`. If a rule matters, write it as a
 test — anything held only as prose will drift, **including the prose in this file: two of those four
-names were wrong until 2026-07-31.** `test_no_competitors.py` never existed at all, and the size
-guard is `test_file_sizes.py`, not `check_file_sizes.py`. Cite a gate only after `git ls-files`
-confirms it.
+names were wrong until 2026-07-31.** "test_no_competitors.py" never existed at all, and the size
+guard is `test_file_sizes.py`, not "check_file_sizes.py".
+
+"Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
+`services/api/test_claude_md_gates.py`: every backticked code file named here **and** in
+`docs/roadmap-directions.md` must resolve to a tracked path. **Backticks are therefore reserved for
+files that exist** — a dead or historical name goes in plain quotes, since a backticked name reads as
+a live citation whether or not anything backs it. Read that test's docstring before editing this
+list; the lessons that cost the most live there, next to the check, not here.
