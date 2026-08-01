@@ -232,7 +232,28 @@ def pdf_sanity(data: bytes, max_mb: int = 50) -> dict[str, Any]:
 # "Tool poisoning" = hostile instructions smuggled into an MCP tool's name/description, which agents
 # read as trusted context. We audit OUR OWN catalog for the known smuggling shapes so a poisoned tool
 # (a bad merge, a compromised dependency regenerating the catalog) surfaces instead of shipping.
-_INVISIBLE = re.compile("[​-‏⁠-⁤﻿­]")
+# Written as ESCAPES, never as the characters themselves. This class used to contain the literal
+# code points, so the line rendered as `re.compile("[-]")` to every reader — the one place in the
+# codebase where invisible characters ARE the threat model was the one place you could not review.
+# It also meant the class could be narrowed in a diff that looks identical to the eye, disabling
+# this control invisibly, which is the attack the file exists to catch. bandit B613 flagged it HIGH
+# and the report is non-blocking, so nothing acted on it.
+#
+# Reading it as escapes is what exposed the real gap: the old class covered zero-width and joiner
+# characters but NONE of the bidi controls — including U+202E RLO, the primary Trojan Source
+# primitive (CVE-2021-42574). Those are the ones that matter most here: they make a string RENDER
+# differently from its bytes, so an agent reads the smuggled instruction while a human reviewing
+# the tool description sees innocuous text. Verified: a description containing U+202E passed.
+_INVISIBLE = re.compile(
+    "["
+    "\u00ad"              # SOFT HYPHEN
+    "\u061c"              # ARABIC LETTER MARK
+    "\u200b-\u200f"       # ZWSP, ZWNJ, ZWJ, LRM, RLM
+    "\u202a-\u202e"       # LRE, RLE, PDF, LRO, RLO  <- Trojan Source overrides
+    "\u2060-\u2064"       # WORD JOINER, invisible operators
+    "\u2066-\u2069"       # LRI, RLI, FSI, PDI       <- Trojan Source isolates
+    "\ufeff"              # ZERO WIDTH NO-BREAK SPACE / BOM
+    "]")
 _INJECTION = re.compile(
     r"ignore\s+(all\s+|any\s+)?(previous|prior|above)\s+instructions|"
     r"system\s+prompt|do\s+not\s+tell\s+the\s+user|"
