@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -69,15 +70,45 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          # observability (error alerting + distributed tracing) — env-gated, no-op when unconfigured:
          "test_sentry", "test_otel", "test_docs_module_schema", "test_schema_strictness",
          # public docs are a shipped surface: competitor names for interop only, never comparison:
-         "test_no_comparative_names"]
+         "test_no_comparative_names",
+         # this list is itself hand-maintained, so it gets a test of its own:
+         "test_manifest"]
 
 
-def _manifest_guard() -> list[str]:
-    """Every test_*.py on disk must be registered in TESTS. The manifest is hand-maintained (so it can
-    order/skip and set per-test env), which means a newly-added test file silently escapes the gate
-    unless it's listed. Fail loudly on drift instead — a test nobody runs is worse than no test."""
-    on_disk = {p.stem for p in HERE.glob("test_*.py")}
-    return sorted(on_disk - set(TESTS))
+def manifest_problems(tests: list[str] | None = None,
+                      on_disk: set[str] | None = None) -> list[str]:
+    """The TESTS manifest must be a faithful 1:1 map of the test_*.py files on disk.
+
+    It is hand-maintained (so it can order/skip and set per-test env), and a hand-maintained list
+    drifts in three directions — only one of which used to be caught:
+
+      1. a name registered TWICE      -> the suite runs it twice, quietly burning wall time
+      2. a name with NO FILE on disk  -> silently dropped by the runner's .exists() filter
+      3. a file with NO REGISTRATION  -> a test nobody runs, which is worse than no test
+
+    (2) was the dangerous one, and it is the same shape as the G-8 RBAC prefix list: the runner
+    filtered registered-but-missing entries out without a word, so a typo'd or deleted suite still
+    printed "N/N suites passed". A count that shrinks silently reads exactly like a clean run.
+
+    `tests`/`on_disk` are injectable so test_manifest.py can drive each rule with a synthetic
+    violation and prove it FIRES. A gate nobody has watched fail is not known to work.
+
+    Returns a list of human-readable problems, empty when the manifest is sound.
+    """
+    tests = TESTS if tests is None else tests
+    if on_disk is None:
+        on_disk = {p.stem for p in HERE.glob("test_*.py")}
+    problems: list[str] = []
+    if dupes := sorted(n for n, c in Counter(tests).items() if c > 1):
+        problems.append("registered more than once — each suite must run exactly once: "
+                        + ", ".join(dupes))
+    if missing := sorted(set(tests) - on_disk):
+        problems.append("registered in TESTS but no such file on disk (typo, or the file was "
+                        "deleted without being de-registered): " + ", ".join(missing))
+    if unregistered := sorted(on_disk - set(tests)):
+        problems.append("test file(s) on disk not registered in TESTS (add to run_tests.py): "
+                        + ", ".join(unregistered))
+    return problems
 
 
 def _run_one(t: str, base: dict) -> tuple[str, bool, float, str]:
@@ -99,10 +130,9 @@ def _run_one(t: str, base: dict) -> tuple[str, bool, float, str]:
 
 
 def main() -> int:
-    unregistered = _manifest_guard()
-    if unregistered:
-        print("FAIL  run_tests manifest: test file(s) not registered in TESTS "
-              f"(add to run_tests.py): {', '.join(unregistered)}")
+    if problems := manifest_problems():
+        for p in problems:
+            print(f"FAIL  run_tests manifest: {p}")
         return 1
     # api src + the data service src (analysis/export bridge), mirroring the runtime image
     pp = os.pathsep.join([str(HERE / "src"), str(HERE.parent / "data" / "src")])
@@ -110,7 +140,9 @@ def main() -> int:
     # test-level parallelism owns the cores (no cpu-1 × cpu-1 oversubscription).
     base = {**os.environ, "PYTHONPATH": pp, "AEC_TRUST_XUSER": "1", "PYTHONUTF8": "1",
             "AEC_GEOM_WORKERS": os.environ.get("AEC_GEOM_WORKERS", "1")}
-    tests = [t for t in TESTS if (HERE / f"{t}.py").exists()]
+    # every entry, no filtering: manifest_problems() above has already proved each one exists, so a
+    # missing file is now a loud failure rather than a silently shorter run.
+    tests = list(TESTS)
     # each test is an isolated subprocess → embarrassingly parallel. TEST_JOBS overrides the worker count
     # (TEST_JOBS=1 forces the old sequential behaviour for debugging a flaky/order-sensitive test).
     jobs = int(os.environ.get("TEST_JOBS") or 0) or max(1, (os.cpu_count() or 2) - 1)
