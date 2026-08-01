@@ -55,6 +55,8 @@ HONEST LIMITS OF THIS TEST
     A `threading.Barrier` also cannot guarantee the two inserts collide; it only removes the
     thread-start skew that makes a collision unlikely. The test therefore runs several rounds, each
     with a fresh assertion, so a single lucky serialisation cannot pass it quietly.
+
+Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_stepup_race.py
 """
 import os
 import sys
@@ -63,6 +65,19 @@ import threading
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "data", "src"))
 os.environ.setdefault("AEC_TEST", "1")
+
+# Own database, set BEFORE aec_api is imported (aec_api.db reads DATABASE_URL at import time).
+# `run_tests.py` injects an isolated DSN per subprocess, so this file passed under the runner without
+# it — but the documented way to run one test is to invoke it directly, and the fallback in
+# `aec_api.db` is `sqlite:///./aec.db` **relative to the working directory**. Run from services/api,
+# that is the developer's dev database: verified, a direct run creates a 4.5 MB aec.db and writes
+# stepup_spent rows into it. It also puts this test's concurrent writers in contention with anything
+# else holding that file. 334 of the 485 test files set this in-file for exactly this reason.
+os.environ["DATABASE_URL"] = "sqlite:///./test_stepup_race.db"
+os.environ["STORAGE_DIR"] = "./test_storage_stepup_race"
+for _f in ("./test_stepup_race.db",):
+    if os.path.exists(_f):
+        os.remove(_f)
 
 FAILED = []
 
@@ -112,8 +127,16 @@ for round_no in range(ROUNDS):
                for i in range(2)]
     for t in threads:
         t.start()
-    for t in threads:
+    for i, t in enumerate(threads):
         t.join(timeout=20)
+        # `join(timeout=…)` returns whether or not the thread finished. Without this check a spender
+        # still blocked at the deadline leaves results[i] as its initial None — neither an anomaly
+        # (not a str) nor a winner (not True) — so it is counted as a legitimate loser and the round
+        # still reports exactly 1 winner and passes, having proved nothing about contention. That is
+        # the "a check that returns nothing is read as fine" shape this file documents, in its own
+        # harness.
+        if t.is_alive():
+            results[i] = f"raised: thread {i} still running after join timeout (deadlock or lock wait)"
 
     raised = [r for r in results if isinstance(r, str)]
     if raised:
@@ -142,6 +165,8 @@ check("no round let NEITHER through (a seal nobody can obtain)",
 # security control would erase its own evidence.
 db = SessionLocal()
 try:
+    from aec_api.models import StepUpSpent as _S
+    before = db.query(_S).filter(_S.sub == ACTOR).count()
     token = _auth.create_stepup_token(ACTOR, ACT, PW_HASH)
     first = rbac.consume_stepup(db, token, ACT, PW_HASH, ACTOR)
     second = rbac.consume_stepup(db, token, ACT, PW_HASH, ACTOR)
@@ -152,9 +177,23 @@ try:
     # line read `... is not None or True`, which cannot fail — the same vacuous-gate defect this whole
     # file exists to correct, written into the correction.)
     from aec_api.models import StepUpSpent
-    spent_rows = db.query(StepUpSpent).filter(StepUpSpent.sub == ACTOR).count()
-    check("the caller's session survives a refused spend, and the winning row is still there",
-          spent_rows >= 1, f"{spent_rows} spent row(s) for {ACTOR}")
+    # `>= 1` could not fail for the reason it claimed: the concurrent section above already wrote one
+    # row per round for this same ACTOR, so the count was 8 before this block ran and a missing row
+    # from the spend under test would still have passed. Assert the DELTA instead.
+    #
+    # And run the query inside try/except: a session poisoned by a missing SAVEPOINT raises
+    # PendingRollbackError here, which was uncaught and surfaced as a traceback. A crash is a worse
+    # signal than a named failure — it is easy to misread as a broken test rather than a broken
+    # control, which is the wrong conclusion about the exact defect this asserts.
+    try:
+        after = db.query(StepUpSpent).filter(StepUpSpent.sub == ACTOR).count()
+        usable, why = True, ""
+    except Exception as exc:  # noqa: BLE001 — a poisoned session is the finding, not a crash
+        after, usable, why = -1, False, f"{type(exc).__name__}: {exc}"
+    check("the caller's session survives a refused spend (a poisoned one would raise here)",
+          usable, why)
+    check("the winning spend's row landed — asserted as a delta, not a non-zero count",
+          usable and after == before + 1, f"before={before} after={after}")
     db.commit()
 finally:
     db.close()
