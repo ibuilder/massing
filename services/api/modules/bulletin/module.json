@@ -45,9 +45,22 @@
     },
     {
       "name": "spec_sections",
-      "label": "Spec Sections Affected",
-      "type": "text",
-      "fieldset": "References"
+      "label": "Spec sections",
+      "type": "table",
+      "fieldset": "References",
+      "columns": [
+        {
+          "name": "spec_section",
+          "label": "Specification",
+          "type": "reference",
+          "module": "spec_section"
+        },
+        {
+          "name": "note",
+          "label": "Note",
+          "type": "text"
+        }
+      ]
     },
     {
       "name": "cost_time_impact",

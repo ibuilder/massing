@@ -43,7 +43,11 @@ H = {"X-User": "gc"}
 MODULES = pathlib.Path(__file__).parent / "modules"
 
 # ---- 1. the column vocabulary is a subset, and the exclusions hold ------------------------------
-for banned in ("table", "rollup", "file", "signature", "reference", "multiselect", "textarea"):
+# `reference` was on this list until MOD-TABLEREF. It came off by MEETING the condition it was
+# excluded over — see the block at the foot of this file — not by deleting the line. The rest stay:
+# a grid inside a grid, a value computed from other records, and three flows (upload, signing,
+# multi-choice) that make no sense multiplied by a row count.
+for banned in ("table", "rollup", "file", "signature", "multiselect", "textarea"):
     assert banned not in TABLE_COLUMN_TYPES, f"{banned!r} must not be a table column type"
     errs = validate_module({"key": "x", "fields": [
         {"name": "l", "type": "table", "columns": [{"name": "c", "type": banned}]}]})
@@ -140,10 +144,47 @@ with TestClient(app) as c:
 
 print(f"MOD-TABLE OK - `table` field type end to end: {n_tables} shipped line-item fields across "
       f"{len(SHIPPED)} registers, column vocabulary held to a deliberate subset (nested table, rollup, "
-      "file, signature, reference and multiselect all refused, each for a stated reason), numeric cells "
+      "file, signature and multiselect all refused, each for a stated reason; `reference` came OFF "
+      "that list in MOD-TABLEREF by MEETING the condition it was excluded over, and a column "
+      "pointing at a register that is not installed still fails the build), numeric cells "
       "round-trip as NUMBERS rather than strings — the same defect that makes SQL comparison "
       "lexicographic and that the record form had for `percent` — and a LEGACY FREE-TEXT value on a "
       "converted field is accepted and preserved rather than rejected. That last one is why the change "
       "is safe to ship: 22 of these fields were textareas, so live records hold prose where rows are "
       "now expected, and refusing it would make every one of those records un-saveable the moment "
       "somebody edited an unrelated field on it.")
+
+# ---- MOD-TABLEREF: a `reference` COLUMN -----------------------------------------------------------
+# `TABLE_COLUMN_TYPES` excluded this type with a stated reason — "a picker per row is a real feature
+# and shipping it half-done would put unresolvable ids in rows". Admitting it meant meeting that
+# condition, not deleting the sentence.
+assert "reference" in TABLE_COLUMN_TYPES
+_base = {"key": "k", "name": "K", "section": "Billing", "fields": []}
+
+
+def _col(col):
+    return validate_module({**_base, "fields": [{"name": "lines", "type": "table", "columns": [col]}]},
+                           known_modules={"k", "spec_section"})
+
+
+assert _col({"name": "s", "type": "reference", "module": "spec_section"}) == []
+assert _col({"name": "s", "type": "reference"}), "a reference column with no target must be rejected"
+assert _col({"name": "s", "type": "reference", "module": "nope"}), (
+    "a column pointing at a register that is not installed must FAIL the build — the picker would "
+    "render an empty list, and an empty list reads as 'there are none of those'")
+assert _col({"name": "s", "type": "text", "module": "spec_section"}), (
+    "`module` on a non-reference column is a config that disagrees with itself about what the "
+    "column is")
+
+# the real consumers, so this is not a type nothing uses
+import json  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+users = []
+for mj in Path("modules").glob("*/module.json"):
+    for f in json.loads(mj.read_text(encoding="utf-8")).get("fields", []):
+        for c in f.get("columns", []) or []:
+            if c.get("type") == "reference":
+                users.append(f"{mj.parent.name}.{f['name']}[{c['name']}]->{c['module']}")
+assert sorted(users) == ["bid_package.spec_sections[spec_section]->spec_section",
+                         "bulletin.spec_sections[spec_section]->spec_section"], users

@@ -169,6 +169,12 @@ been a bug nobody could locate.
 
 ### Still open, and genuinely so
 
+**Nothing is. All three items in this section shipped between 2026-07-29 and 2026-07-31**, and each
+is kept below with what it turned into, because that is more useful than the fact that it is done.
+Two of the three turned up a defect underneath the item as written — a negative payment due, and a
+demo corpus filing prose into GlobalId fields — which is the argument for working the list rather
+than declaring it low-value.
+
 - ~~**`sov` and `owner_invoice` as documents.**~~ **Shipped as `MOD-G702`.** The structural item was
   real — `owner_invoice` had five fields standing in for an AIA G702, and the continuation sheet was
   assembled on every read rather than stored. But looking for the missing fields turned up a **money
@@ -188,8 +194,19 @@ been a bug nobody could locate.
   certified - including a reduced architect certification - instead of reconstructing it from
   `completed_prev`, which moves whenever anyone edits an earlier period. `GET /cost/g702` stays a
   live view, because "where do we stand today" is a real question; it is just not a certificate.
-- **A `reference` column type for tables.** Deliberately excluded (see `TABLE_COLUMN_TYPES`) because a
-  picker per row is a real feature and shipping it half-done would put unresolvable ids in rows.
+- ~~**A `reference` column type for tables.**~~ **Shipped as `MOD-TABLEREF`.** It came off the
+  exclusion list by MEETING the condition it was excluded over, not by deleting the sentence — and
+  building it showed the condition was understated. Inside a `<select>`, an unresolvable id is not a
+  bad label, it is **silent data loss**: a stored value matching no `<option>` leaves the control on
+  the blank option, and the next save writes that blank over a link somebody made. Nothing errors,
+  nothing is marked, and the evidence is gone. A fake link at least still contains the id.
+
+  Two ordinary situations produce it — the target was deleted or lies past `REF_RESOLVE_LIMIT`, and
+  the column used to be free text (`bid_package.spec_sections` held prose). Both now get an option
+  of their own, marked and selected, so the row round-trips.
+
+  `TABLE_COLUMN_TYPES` still refuses nested tables, rollups, files, signatures and multiselects, each
+  for its own stated reason.
 - ~~**The element link (`§5 T4`).**~~ **Shipped as `MOD-GUID`.** Three defects, and the second was
   the one worth having:
   1. All three GlobalId fields were plain `text`, so `"TBD"`, a truncated paste and a *transient

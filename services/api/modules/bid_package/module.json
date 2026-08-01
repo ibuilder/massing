@@ -67,9 +67,22 @@
     },
     {
       "name": "spec_sections",
-      "label": "Spec Sections",
-      "type": "text",
-      "fieldset": "Scope"
+      "label": "Spec sections",
+      "type": "table",
+      "fieldset": "Scope",
+      "columns": [
+        {
+          "name": "spec_section",
+          "label": "Specification",
+          "type": "reference",
+          "module": "spec_section"
+        },
+        {
+          "name": "note",
+          "label": "Note",
+          "type": "text"
+        }
+      ]
     },
     {
       "name": "scope",
