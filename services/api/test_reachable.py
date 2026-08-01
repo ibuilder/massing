@@ -147,6 +147,91 @@ def test_the_walk_actually_found_something():
     )
 
 
+# --- ARCH-REACH-2: the SUBPACKAGES, which the scan above cannot see -------------------------------
+#
+# `reachable()` enumerates `SRC.glob("*.py")` — **non-recursive**. So `proforma/` (15 modules of money
+# maths) and `report_builders/` were never orphan *candidates*: an engine could ship there behind no
+# route and this gate would still report OK. Found while adding a proforma module and noticing the
+# count did not move.
+#
+# It needs QUALIFIED names, not stems. **31 stems collide** between the top level and these packages
+# (`operations`, `schedule`, `cost`, `reports`, …), so matching on a bare stem would mark
+# `proforma.operations` reachable because the unrelated top-level `operations` is imported somewhere —
+# a gate reporting OK for the wrong reason, which is worse than the blind spot it replaces.
+SUBPACKAGES = ("proforma", "report_builders")
+
+
+def _qualified_refs(path) -> set[str]:
+    """Every `pkg.module` this file imports, resolved through Python's relative-import forms."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError):
+        return set()
+    here = path.parent.name
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            parts = (node.module or "").split(".") if node.module else []
+            if parts and parts[-1] in SUBPACKAGES:                 # from ..proforma import X
+                out |= {f"{parts[-1]}.{a.name}" for a in node.names}
+            elif len(parts) >= 2 and parts[-2] in SUBPACKAGES:     # from ..proforma.X import y
+                out.add(f"{parts[-2]}.{parts[-1]}")
+            elif here in SUBPACKAGES and node.level:
+                if not parts:                                      # from . import X
+                    out |= {f"{here}.{a.name}" for a in node.names}
+                elif len(parts) == 1:                              # from .X import y
+                    out.add(f"{here}.{parts[0]}")
+        elif isinstance(node, ast.Import):
+            for a in node.names:
+                p = a.name.split(".")
+                if len(p) >= 2 and p[-2] in SUBPACKAGES:
+                    out.add(f"{p[-2]}.{p[-1]}")
+    return out
+
+
+def test_subpackage_modules_are_reachable():
+    candidates = {f"{pkg}.{m.stem}"
+                  for pkg in SUBPACKAGES
+                  for m in (SRC / pkg).glob("*.py") if m.stem != "__init__"}
+    assert candidates, "no subpackage modules found — the check would pass vacuously"
+
+    graph = {c: _qualified_refs(SRC / c.split(".")[0] / f"{c.split('.')[1]}.py") for c in candidates}
+
+    seeds: set[str] = set()
+    for path in list((SRC / "routers").glob("*.py")) + [SRC / "mcp_tools.py", SRC / "main.py"]:
+        if path.exists():
+            seeds |= _qualified_refs(path)
+    for top in SRC.glob("*.py"):
+        seeds |= _qualified_refs(top)
+    # A package's own `__init__.py` is a seed: importing the package RUNS it, so everything it
+    # re-exports is reached. `reports.py` does `from .report_builders import …`, which executes that
+    # `__init__` and pulls in `.bim`, `.finance` and the rest. Omitting this hop reported five
+    # perfectly reachable builders as orphans — a gate failing the build on its own blind spot,
+    # which is a worse outcome than the gap it was written to close.
+    for pkg in SUBPACKAGES:
+        seeds |= _qualified_refs(SRC / pkg / "__init__.py")
+
+    seen: set[str] = set()
+    stack = list(seeds & candidates)
+    while stack:
+        c = stack.pop()
+        if c in seen:
+            continue
+        seen.add(c)
+        stack.extend((graph.get(c, set()) & candidates) - seen)
+
+    orphans = sorted(candidates - seen)
+    joined = ", ".join(orphans)
+    assert not orphans, (
+        "These subpackage modules cannot be reached from any route, MCP tool or top-level module: "
+        + joined
+        + ". A proforma engine behind no route is money maths nobody can call. Wire it, or move it."
+    )
+    print(f"ARCH-REACH-2 OK - {len(seen)}/{len(candidates)} modules in {list(SUBPACKAGES)} are "
+          "reachable. This check exists because the walk above globs *.py non-recursively, so these "
+          "packages were never orphan candidates at all.")
+
+
 for _name, _fn in sorted(list(globals().items())):
     if _name.startswith("test_") and callable(_fn):
         _fn()
