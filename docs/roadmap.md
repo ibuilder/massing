@@ -592,8 +592,30 @@ stakes we are missing.
   variation.
 - **R22-OPTION-OBJECT** *(S/M)* — make **option the primary object**: geometry + unit mix + cost +
   carbon + IRR as one comparable record, so no massing is ever evaluated without its returns.
-- **R22-REPORT-BUILDER** *(M)* — no-code report/dashboard builder. 132 modules of structured data
-  with no end-user query surface means every custom report is an engineering ticket.
+- **R22-REPORT-BUILDER** *(M)* — **RESCOPED 2026-07-31; the original premise was false.** The entry
+  read "132 modules of structured data with **no end-user query surface**". There is one, and it is
+  good: per-field filtering with operators (`?f.discipline=Structural&f.amount.gte=1000`, capped at
+  `MAX_FILTERS = 12`), field names validated against the module's declared fields in **one** place so
+  the two cannot drift, calculated columns (`qty * unit_cost`), generic Excel/CSV import with preview,
+  and **saved views** persisted server-side with saved-search alerts. A user can already filter,
+  compute a column, save it and be alerted on it without an engineering ticket.
+
+  The real remainder is the four things that separate a saved *list* from a *report*:
+  1. **No aggregation over user-chosen fields.** The only `group_by` in the whole module path is
+     internal and hardcoded to `workflow_state` (`modules_query.py:230,241`). No count/sum/avg by
+     discipline, trade or month. **This is the substantive one.**
+  2. **Single-module only.** `SavedView.module` is one string and nothing spans modules, so "RFIs
+     against change orders by trade" is not expressible — and that is most of what a report *is*.
+  3. **`SavedView.config` is an unvalidated JSON blob**, "filter/sort/column config" by docstring only.
+     A saved view is whatever a client happened to write, so a schema change breaks views silently
+     with no migration path. Same family as `module.json` having no capability key.
+  4. **Per-user, never shared** — `user` is part of the identity key, so a view cannot be a firm or
+     project report. A builder whose output only its author can see is a personal filter.
+
+  Still (M), but a *different* (M): add aggregation and cross-module scope to the surface that exists,
+  give `SavedView.config` a schema, and let a view be shared. **Building the entry as written would
+  have rebuilt working filtering.** Items 3 and 4 land in `models.py`/`routers/modules.py` — check the
+  lane table before starting, that is not lane C's to take unilaterally.
 - **R22-PIPELINE** *(M)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
   is a funnel, not a project.
 - **R22-ROUTINES** *(S)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
