@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from .. import audit, cam, cmms, energy, energy_star_bridge, esg, fca, reserve, twin
 from ..db import get_db
 from ..models import Project
-from ..rbac import current_user, member_project_ids, require_role
+from ..rbac import current_user, member_project_ids, require_identified, require_role
 
 router = APIRouter()
 
@@ -106,7 +106,8 @@ def fca_portfolio(db: Session = Depends(get_db), user: str = Depends(current_use
 
 
 @router.post("/pipeline/allocate")
-def pipeline_allocate_route(body: dict = Body(...), _user: str = Depends(current_user)):
+def pipeline_allocate_route(body: dict = Body(...),
+                            _user: str = Depends(require_identified)):
     """R31-PIPELINE-ALLOCATE: given candidate projects with a cost and a value, and a capital
     constraint, **which subset** — an exact integer optimum, not a ranking.
 
