@@ -2316,7 +2316,17 @@ export class PortalUI {
       if (td.querySelector("select")) return;
       const sel = document.createElement("select"); sel.className = "sb-sel";
       const cur = document.createElement("option"); cur.value = ""; cur.textContent = r.workflow_state; sel.appendChild(cur);
-      for (const t of nexts) { const o = document.createElement("option"); o.value = t.action; o.textContent = `${t.action} → ${t.to}`; sel.appendChild(o); }
+      // MOD-COMPLETE ②: mark the transitions the server will REFUSE without evidence. The rule is
+      // enforced in `modules.py` (entering one of these states with zero attachments is a 400), and
+      // #151 made `GET /modules` serve it — but nothing read it, so a user still learned the rule by
+      // having the transition rejected. Saying it in the option is the point of serving the key.
+      const needsEvidence = new Set(m.close_requires_attachment ?? []);
+      for (const t of nexts) {
+        const o = document.createElement("option"); o.value = t.action;
+        o.textContent = needsEvidence.has(t.to)
+          ? `${t.action} → ${t.to}  (needs an attachment)` : `${t.action} → ${t.to}`;
+        sel.appendChild(o);
+      }
       td.textContent = ""; td.appendChild(sel); sel.focus();
       sel.onclick = (ev) => ev.stopPropagation();
       sel.onblur = () => render();

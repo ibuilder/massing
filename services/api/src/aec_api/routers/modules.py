@@ -49,7 +49,17 @@ def list_modules():
          "icon": m.get("icon"), "pinnable": m.get("pinnable", False),
          "title_field": m.get("title_field"), "ref_prefix": m.get("ref_prefix"),
          "fields": m.get("fields", []), "workflow": m.get("workflow", {}),
-         "relations": m.get("relations", []), "list_columns": m.get("list_columns"),
+         # MOD-COMPLETE ③: `relations` was REMOVED here, not wired. It dates from Modules Phase 1
+         # (`324105d2`, "cross-module relations"), and since then nothing has declared it: 0 of 133
+         # `module.json` files, no definition in `module_schema.py`, no population by the loader, no
+         # reader in the web app. It was served as `[]` to every client, forever.
+         #
+         # It is not a missing feature — the capability shipped under a different mechanism. 85 modules
+         # express cross-module links as `"type": "reference"` FIELDS, which carry the target module
+         # and render as a picker. A second, empty relations list beside a working one is worse than no
+         # list: a field that is always empty teaches every client to ignore it, which is exactly how a
+         # real value later goes unnoticed.
+         "list_columns": m.get("list_columns"),
          # R30-TOOLS: the destinations that operate on this register. Without this the register can
          # only render itself — a table, a form and a status chip, which is a paper form — while the
          # engine that makes it a tool sits one unlinked screen away.

@@ -95,6 +95,54 @@ stale = [k for k in NOT_SERVED if k not in declared]
 check("no NOT_SERVED entry is stale — every exemption names a key that still exists",
       not stale, stale)
 
+# --- MOD-COMPLETE ③: served → declared, the direction this gate was structurally blind to ------------
+#
+# The check above asks "is every DECLARED key served?". Nothing asked the mirror: "is every SERVED key
+# actually declared by something?" A key can be emitted by the handler that no module.json declares,
+# no schema defines and no loader populates — so it is sent to every client as a constant empty value,
+# forever, and this gate stayed green the whole time.
+#
+# That is not hypothetical. `relations` was exactly this from Modules Phase 1 until 2026-08-01: served
+# as `[]` to every client, declared by 0 of 133 modules, absent from `module_schema.py`, read by
+# nothing in the web app. It was removed rather than wired, because the capability already ships as
+# `"type": "reference"` FIELDS (85 modules use them). **A field that is always empty teaches every
+# client to ignore it, which is how a real value later goes unnoticed.**
+#
+# This is the third sighting in this repo of "a check that runs one way only" — the lane gate searched
+# the region it was validating, and the doc-citation gate never asked whether an index entry named a
+# real file. Directionality is the recurring blind spot, not any one list.
+#
+#: Keys the RESPONSE adds that no `module.json` declares — each with the reason it is legitimate.
+#: A computed or renamed key belongs here; a key that is simply dead does not, it belongs deleted.
+SERVED_WITHOUT_DECLARATION: dict[str, str] = {
+    "room": (
+        "COMPUTED, not declared. `rooms.room_of(m)` derives it from the module's `section`, so no "
+        "module.json declares it and none should — the room spine is single-sourced in rooms.py "
+        "precisely so a module cannot invent its own taxonomy. Found by this check on its first run, "
+        "which is the distinction the list exists to make: `room` is derived and correct, `relations` "
+        "was dead and got deleted. Both look identical from the declared-keys side."
+    ),
+}
+
+undeclared = sorted(k for k in served
+                    if k not in declared and k not in SERVED_WITHOUT_DECLARATION)
+check("no key is served that nothing declares — an always-empty field is worse than an absent one",
+      not undeclared,
+      "served but undeclared: " + ", ".join(undeclared) if undeclared else
+      f"{len(served)} served keys, all declared by at least one module")
+
+check("every SERVED_WITHOUT_DECLARATION entry carries a real reason",
+      all(isinstance(v, str) and len(v.strip()) > 20 for v in SERVED_WITHOUT_DECLARATION.values()),
+      {k: v for k, v in SERVED_WITHOUT_DECLARATION.items()
+       if not (isinstance(v, str) and len(v.strip()) > 20)})
+
+check("no SERVED_WITHOUT_DECLARATION entry is stale — every exemption names a key still served",
+      not [k for k in SERVED_WITHOUT_DECLARATION if k not in served],
+      [k for k in SERVED_WITHOUT_DECLARATION if k not in served])
+
+check("`relations` is gone from the response — removed, not re-added as an empty list",
+      "relations" not in served)
+
 check("every NOT_SERVED entry carries a non-empty reason, so an exemption is a decision not a name",
       all(isinstance(v, str) and len(v.strip()) > 20 for v in NOT_SERVED.values()),
       {k: v for k, v in NOT_SERVED.items() if not (isinstance(v, str) and len(v.strip()) > 20)})

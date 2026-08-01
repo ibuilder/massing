@@ -66,91 +66,21 @@ Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
 
-- ⭐ **FIN-SUITE-BLIND** *(M)* — **ask what the finance suites are structurally UNABLE to see.** Opened
-  2026-08-01 on evidence, not suspicion. `test_cost.py` contained **no assertion on G702 line 7, line 8,
-  or retainage at all**, which is how a 10%-retainage contract shipped reporting a **negative payment
-  due** with `closeout.py` consuming line 8. That was not a weak test of the behaviour — it could not
-  reach it. Repo memory independently flags `proforma/` as the highest-yield bug area **because its
-  tests range-check rather than value-check** (`assert 0 <= p <= 1` on a probability cannot distinguish
-  a right answer from a wrong one).
+- ⭐ **FIN-SUITE-BLIND** *(S, reduced 2026-08-01)* — **the G702 slice is done; the sweep across the
+  other finance suites is not.** The named evidence was checked and acted on: `retainage_prev` (G702
+  line 7) was asserted in **zero tests, in any file**, which is why a 10%-retainage contract could
+  report a negative payment due while the suite stayed green. `test_g702_lines.py` now value-checks
+  lines 5–8 on a fixture that **distinguishes** — mixed per-line rates (10% / 5% / 0%), because with a
+  single default rate the broken and correct implementations agree by coincidence.
 
-  The work is not "add tests". It is: for each finance suite, name the outputs it never asserts on, and
-  write the fixture that **distinguishes** the behaviours — the one where simple and compounding differ,
-  where the horizon exceeds the schedule, where retainage is not the default. Every money defect found
-  in the last three releases (the clawback proxy, the negative payment due, the silently-defaulted
-  money field, the uncoded walls) was invisible to a green suite for the same reason.
+  Writing that fixture found a second, live money defect: `ret_pct = _n(...) or DEFAULT_RETAINAGE`
+  treated an **explicit 0%** as unset, so a line the owner had agreed to hold nothing on had the 5%
+  default withheld anyway — $1,000 wrongly held on a $20,000 line. Fixed and mutation-proved.
 
-- ⭐ **MOD-COMPLETE ②** *(S)* — **the two recovered keys are served and still read by nothing.** `#151`
-  fixed `GET /modules` dropping `close_requires_attachment` (enforced server-side, 5 modules) and
-  `help`, and added a completeness gate. But `ModuleDef` in `apps/web/src/api/types.ts` was not
-  extended and no file under `apps/web/` reads either key — so the stated benefit, *"a client that
-  cannot see the rule cannot warn about it"*, is **not delivered**. A user still learns the attachment
-  requirement by having a transition rejected.
-
-  This is the same "declared, consumed by nothing" shape the completeness gate's own docstring cites
-  for `tools:` — recreated one layer out, in the fix for it. Serving a key is step one of two, and the
-  test cannot see step two: it asserts *declared → served* and stops at the API boundary.
-
-- ⭐ **MOD-COMPLETE ③** *(S)* — **`relations` is served but never declared, defined or set**, so it is
-  permanently `[]`. `routers/modules.py` emits it, no `module.json` declares it, `module_schema.py` has
-  no definition, and the loader never populates it. The mirror of ②: the completeness gate checks
-  *declared → served* and is structurally blind to *served → never declared*. Either wire it or stop
-  emitting it — a field that is always empty teaches every client to ignore it, which is how a real
-  value later goes unnoticed. **The gate needs the reverse direction too.**
-
-- ⭐ **GATE-VACUITY-SWEEP** *(S)* — **audit every existence check for self-satisfying evidence.** Found
-  2026-08-01: the lane gate's "names no item that has left the roadmap" assertion searched the whole
-  roadmap **including the lane table**, so a lane row satisfied its own existence check. It stayed green
-  while six rows advertised shipped work. Fixed by searching the roadmap *minus* the lane rows, and
-  mutation-proved — but the **class** is what matters: any check of the form "X is referenced somewhere
-  in this document" is vacuous if X's own reference is inside the searched region.
-
-  Sweep the other doc gates for the same shape (`test_claude_md_gates`, `test_no_comparative_names`,
-  `docsPublished`, `test_manifest`). Cheap, and the failure mode is a permanently green check.
-
-✅ **BAND 1 WAS EMPTY as of 2026-07-31** — refilled 2026-08-01 by the two findings above, both about
-checks rather than features. They belong in Band 1 because **a check that cannot fail is a live wrong
-answer**: it reports safety that was never measured.
-
-Three items left it in one day and **none of them left the same way**: two were real defects and shipped,
-and the third was closed *unbuilt by measurement*. That third outcome is the one worth protecting — an
-item can be finished by producing a number that says it should not be built, and that is a result, not
-a failure to deliver.
-
-- ⛔️ **R23-PICKING — CLOSED UNBUILT, on a measurement.** See below.
-- ↘️ **SEC-PLUGIN-SANDBOX** — left the band (still open, moved to platform); the threat model was
-  checked rather than assumed and no unprivileged path reaches it.
-
-✅ **R33-CLAWBACK-AMOUNT — SHIPPED** in PR #136 (`856970c8`). `waterfall.solve_clawback_for_pref(lp_cf,
-lp_dates, pref_rate, cap)` now solves for the cash added at the final date that lifts the LP's **XIRR**
-to the pref, capped at the promote actually paid, and `run_waterfall` reports the shortfall when the
-promote cannot cover it. The rate-times-principal proxy with no time dimension is gone. Verified by
-reading the implementation, not the PR title: `xirr` is imported and used, and the docstring carries the
-5.8x construction that motivated the entry.
-
-✅ **R34-SHEET-SCALE — SHIPPED 2026-07-31.** The engine had accepted a per-region `scale_units_per_px`
-since R34-MEASURE-PROVENANCE; **nothing ever set it, and nothing tested it**, so the capability existed
-and the defect was live — the gap was *reach*, not capability. The overlay kept one `scale` that
-recalibration overwrote and passed it at Quantify time, so tracing a plan at 1/8"=1' and then
-recalibrating for a detail at 1/2"=1' **retroactively re-measured the plan regions at the detail's
-scale** — worse than the "one scale per set" this entry described. Scale is now stamped onto each region
-at trace time. Details in [`roadmap-completed.md`](roadmap-completed.md).
-
-↘️ **SEC-PLUGIN-SANDBOX left this band on 2026-07-31** (still open, now under Band 6 · platform). The
-loader really does `exec_module` arbitrary Python with the API's privileges — but the threat model was
-checked rather than assumed, and **no unprivileged path reaches it**: the plugin dir does not overlap
-the upload root, no route writes into it, reload is platform-admin gated, and discovery is off by
-default. That makes it operator-installed code, i.e. `pip install`, not an open door. It becomes Band 1
-the day plugins are *distributed* rather than operator-placed. Full reasoning at the item.
-
-✅ **SEC-SEAL / SEC-FIRM-RULES / SEC-ESIGN-HOOK / SEC-CACHE — SHIPPED v0.3.807.** Four exploitable
-findings, none of which were on this list because none had been noticed: an **unauthenticated** caller
-could obtain a PDF bearing a rendered PE seal with a name and licence number of their choosing; any
-project-admin could replace (and thereby erase) the firm's standards library by naming their own
-throwaway project; `/esign/webhook` accepted anonymous unbounded writes into the audit table; and
-tenant JSON was served with no cache policy. Sealing now requires a verified licence **and** a human
-step-up a stored token cannot satisfy. See CHANGELOG v0.3.807; migration `b06f7bc8ba2f` plus a
-**go-live data-entry step** (a licence row per licensee) is documented in `docs/PRODUCTION_CHECKLIST.md`.
+  **What remains** is the same question asked of `proforma/`, `reserve.py`, `benchmarking.py` and the
+  rest: name the outputs each suite never asserts on, and write the fixture that distinguishes.
+  Memory already flags `proforma/` as highest-yield because its tests **range-check** rather than
+  value-check — `assert 0 <= p <= 1` cannot tell a right answer from a wrong one.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
 
@@ -296,13 +226,13 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · GATE-VACUITY-SWEEP |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · FIN-SUITE-BLIND |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
-| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file · MOD-COMPLETE ② · MOD-COMPLETE ③ |
+| **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑥ |
 

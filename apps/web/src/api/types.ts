@@ -268,8 +268,19 @@ export interface ModuleDef {
   title_field?: string; ref_prefix?: string;
   fields: ModuleField[];
   workflow: { initial: string; states: string[]; transitions: WorkflowTransition[] };
-  relations?: { label: string; module: string }[];
+  // MOD-COMPLETE ③: `relations` removed 2026-08-01. The API served it as `[]` to every client since
+  // Modules Phase 1 — no `module.json` declared it, no schema defined it, nothing populated it, and
+  // nothing here read it. Cross-module links are `"type": "reference"` FIELDS, used by 85 modules.
   list_columns?: string[];
+  /** MOD-COMPLETE ② — workflow states that REQUIRE at least one attachment before a record may enter
+   *  them. This is **enforced server-side** (`modules.py`, the evidence gate: entering one of these
+   *  states with zero attachments is a 400). It is declared here so the UI can say so in advance —
+   *  #151 made the API serve it, but nothing read it, so a user still learned the rule by having their
+   *  transition rejected. Serving a key is step one of two. */
+  close_requires_attachment?: string[];
+  /** The module's own explanatory text, authored in `module.json`. Surfaced as the register's
+   *  description rather than left to each panel to invent one. */
+  help?: string;
   revisable?: boolean;
   /** R30-TOOLS — first-class destinations that operate on this register. The inverse of `Dest.needs`:
    *  `needs` lets a panel say which register it requires, `tools` lets a register say which panels

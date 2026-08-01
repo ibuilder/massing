@@ -45,7 +45,16 @@ def g703(db: Session, pid: str) -> dict[str, Any]:
         scheduled = _n(d.get("scheduled_value"))
         prev, this, stored = _n(d.get("completed_prev")), _n(d.get("completed_this")), _n(d.get("materials_stored"))
         completed = prev + this + stored
-        ret_pct = _n(d.get("retainage_pct")) or DEFAULT_RETAINAGE
+        # FIN-SUITE-BLIND: `or DEFAULT_RETAINAGE` treated an EXPLICIT 0% as unset, so a line the owner
+        # had agreed to hold nothing on — stored materials, a released line, a fully-bonded sub — had
+        # the 5% default withheld anyway. $1,000 wrongly held on a $20,000 line, and the contractor is
+        # underpaid by a number that looks entirely plausible on the certificate.
+        #
+        # Zero is a VALUE here, not an absence. Found the first time a fixture used a 0% rate; every
+        # prior test used the default, where the bug is invisible because the fallback and the real
+        # value coincide.
+        raw_pct = d.get("retainage_pct")
+        ret_pct = DEFAULT_RETAINAGE if raw_pct in (None, "") else _n(raw_pct)
         retainage = round(completed * ret_pct / 100, 2)
         # MOD-G702: the same line's retainage on the PREVIOUS period alone. G702 line 7 needs it, and
         # computing it there from the global default while line 5 used the per-line rate is what made
