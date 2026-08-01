@@ -1,7 +1,7 @@
 /**
  * XFDF import/export — the lingua franca of PDF markup exchange.
  *
- * XFDF is what Bluebeam, Acrobat, Foxit and PDF-XChange all read, so it is the format that lets a
+ * XFDF is what mainstream PDF review and annotation tools read, so it is the format that lets a
  * markup set leave this tool without leaving the workflow. Two things it is worth being careful
  * about:
  *

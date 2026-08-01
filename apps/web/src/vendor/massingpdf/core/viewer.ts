@@ -601,7 +601,7 @@ export class Viewer {
     // A failure to read the native layer — an out-of-range page, a malformed one — must fall through
     // to recognised text rather than propagate. Callers here are indexers looping over every page,
     // and one bad page should not abort the sweep.
-    let native: TextItem[] = [];
+    let native: TextItem[];
     try { native = (await this.doc?.textItems(page)) ?? []; }
     catch { native = []; }
     if (native.length) return native;

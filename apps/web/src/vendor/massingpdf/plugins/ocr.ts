@@ -356,9 +356,40 @@ export function toTextItems(
  * `tesseract.js` is not a dependency of this package — install it in the host if you want offline
  * OCR. The dynamic import means a consumer who never calls this function never downloads it.
  */
-export function tesseractProvider(opts: { lang?: string; workerPath?: string; corePath?: string; langPath?: string } = {}): OcrProvider {
+export function tesseractProvider(opts: {
+  lang?: string;
+  workerPath?: string;
+  corePath?: string;
+  langPath?: string;
+  /**
+   * Supply the module yourself instead of letting this import it.
+   *
+   * The default import is opaque to bundlers so consumers who never call this do not need
+   * `tesseract.js` installed — but that leaves the browser a bare specifier it cannot resolve. A
+   * host that bundles the package, or a test that needs it to load for real, passes it in.
+   */
+  load?: () => Promise<unknown>;
+} = {}): OcrProvider {
+  /**
+   * The shapes across tesseract.js versions.
+   *
+   * Word boxes moved. Up to v5 they were a flat `data.words`; from v6 they are nested inside
+   * `blocks → paragraphs → lines → words`, and `blocks` is only populated when the third argument
+   * asks for it. Requesting nothing returns plain text and no coordinates at all — which does not
+   * throw, it just silently yields zero words, and looks exactly like an engine that failed to read
+   * the page.
+   */
+  interface TessWord { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number } }
+  interface TessPage {
+    words?: TessWord[];
+    blocks?: { paragraphs?: { lines?: { words?: TessWord[] }[] }[] }[] | null;
+  }
   type TesseractWorker = {
-    recognize(image: HTMLCanvasElement): Promise<{ data: { words?: { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number } }[] } }>;
+    recognize(
+      image: HTMLCanvasElement,
+      options?: Record<string, unknown>,
+      output?: Record<string, boolean>,
+    ): Promise<{ data: TessPage }>;
     terminate(): Promise<void>;
   };
   let worker: TesseractWorker | null = null;
@@ -372,11 +403,15 @@ export function tesseractProvider(opts: { lang?: string; workerPath?: string; co
       // so a literal import would fail typecheck here and make bundlers try to resolve a module
       // most consumers will never install.
       const specifier = "tesseract.js";
-      mod = (await import(/* @vite-ignore */ specifier)) as TesseractModule;
-    } catch {
+      mod = (opts.load
+        ? await opts.load()
+        : await import(/* @vite-ignore */ specifier)) as TesseractModule;
+      if (!mod?.createWorker) throw new Error("no createWorker export");
+    } catch (e) {
       throw new Error(
-        "tesseractProvider() needs `tesseract.js` installed in the host application " +
-        "(npm install tesseract.js), or supply your own OcrProvider.",
+        "tesseractProvider() could not load `tesseract.js`. Install it in the host application " +
+        `(npm install tesseract.js), or pass \`load\` to supply the module yourself. Cause: ${(e as Error).message}`,
+        { cause: e },
       );
     }
     worker = await mod.createWorker(opts.lang ?? "eng", 1, {
@@ -387,20 +422,34 @@ export function tesseractProvider(opts: { lang?: string; workerPath?: string; co
     return worker;
   };
 
+  /** Flatten whichever shape this version returned. */
+  const wordsOf = (data: TessPage): TessWord[] => {
+    if (data.words?.length) return data.words;
+    const out: TessWord[] = [];
+    for (const block of data.blocks ?? []) {
+      for (const para of block.paragraphs ?? []) {
+        for (const line of para.lines ?? []) {
+          for (const word of line.words ?? []) out.push(word);
+        }
+      }
+    }
+    return out;
+  };
+
   return {
     id: "tesseract",
     async recognise({ canvas }) {
       const w = await ensure();
-      const { data } = await w.recognize(canvas);
+      // `blocks: true` is what makes coordinates come back at all on v6+.
+      const { data } = await w.recognize(canvas, {}, { blocks: true });
       return {
-        words: (data.words ?? []).map((word) => ({
+        words: wordsOf(data).map((word) => ({
           text: word.text,
           x: word.bbox.x0,
           y: word.bbox.y0,
           w: word.bbox.x1 - word.bbox.x0,
           h: word.bbox.y1 - word.bbox.y0,
-          // Tesseract reports 0..100.
-          confidence: word.confidence / 100,
+          confidence: word.confidence > 1 ? word.confidence / 100 : word.confidence,
         })),
       };
     },
@@ -410,7 +459,6 @@ export function tesseractProvider(opts: { lang?: string; workerPath?: string; co
     },
   };
 }
-
 /**
  * A provider that posts the page image to a server endpoint. The response must be
  * `{ words: [{ text, x, y, w, h, confidence? }] }` in raster pixels.

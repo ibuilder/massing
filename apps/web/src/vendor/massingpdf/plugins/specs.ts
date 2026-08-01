@@ -119,7 +119,6 @@ export interface SpecLine { text: string; box: Box; page: number }
 export function parseSpecLines(lines: readonly SpecLine[]): SpecSection[] {
   const sections: SpecSection[] = [];
   let current: SpecSection | null = null;
-  let part = "1";
   let article = "";
 
   for (const line of lines) {
@@ -138,7 +137,6 @@ export function parseSpecLines(lines: readonly SpecLine[]): SpecSection[] {
         clauses: [],
       };
       sections.push(current);
-      part = "1";
       article = "";
       continue;
     }
@@ -146,7 +144,9 @@ export function parseSpecLines(lines: readonly SpecLine[]): SpecSection[] {
 
     const partM = PART_HEADING.exec(text);
     if (partM) {
-      part = partM[1]!;
+      // Scoped here deliberately: an article's ref already carries its part number (`3.1`), so
+      // nothing downstream needs to remember which PART we are inside.
+      const part = partM[1]!;
       article = "";
       current.clauses.push({ ref: `PART ${part}`, depth: 0, text: partM[2]?.trim() || `PART ${part}`, page, box: line.box });
       continue;
@@ -483,7 +483,13 @@ function mountSpecs(
         meta.textContent = `${r.section} §${r.clause} · p.${r.page}`;
         main.append(title, meta);
         row.append(badge, main);
-        activate(row, () => void v.goToPage(r.page), { label: `Go to page ${r.page}`, roving: true });
+        activate(row, () => void v.goToPage(r.page), {
+          // Includes the row's own text: `aria-label` overrides content rather than adding to it,
+          // so a bare "Go to page 12" would suppress the reference and read identically for every
+          // row on that page.
+          label: `${r.text} — ${r.section} clause ${r.clause}, page ${r.page}`,
+          roving: true,
+        });
         body.appendChild(row);
       }
       return;
@@ -536,7 +542,12 @@ function mountSpecs(
         const txt = document.createElement("span");
         txt.textContent = clause.text;
         row.append(ref, txt);
-        activate(row, () => void v.goToPage(clause.page), { label: `Go to page ${clause.page}`, roving: true });
+        activate(row, () => void v.goToPage(clause.page), {
+          // The clause text is the whole point of this panel; labelling the row "Go to page 12"
+          // would hide it from exactly the people who cannot read it off the screen.
+          label: `${clause.ref} ${clause.text}, page ${clause.page}`,
+          roving: true,
+        });
 
         // Cite: attach this clause to whatever markup is selected.
         const cite = document.createElement("button");

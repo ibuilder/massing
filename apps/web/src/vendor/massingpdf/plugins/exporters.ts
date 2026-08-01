@@ -74,7 +74,7 @@ export function exportersPlugin(options: ExportOptions = {}) {
           const pages = await pageBoxes(v);
           const xml = toXfdf(setOf(v), { pages, href: v.doc?.name ?? "" });
           await deliver(new Blob([xml], { type: "application/vnd.adobe.xfdf" }), `${stem(v)}.xfdf`);
-          v.bus.emit("notice", { level: "success", message: "XFDF exported — opens in Bluebeam, Acrobat and Foxit." });
+          v.bus.emit("notice", { level: "success", message: "XFDF exported — opens in any PDF tool that reads markup interchange." });
         },
       });
 
@@ -88,9 +88,21 @@ export function exportersPlugin(options: ExportOptions = {}) {
             const pages = await pageBoxes(v);
             const drafts = fromXfdf(await file.text(), { pages, defaultAuthor: v.author });
             if (!drafts.length) { v.bus.emit("notice", { level: "warn", message: "No markups found in that file." }); return; }
-            v.store.addMany(drafts);
+            // The count comes back from the store, not from the file: a permission check can
+            // refuse some or all of them, and "Imported 47 markups" over an empty store is a lie
+            // the user acts on.
+            const added = v.store.addMany(drafts);
             v.redraw();
-            v.bus.emit("notice", { level: "success", message: `Imported ${drafts.length} markups.` });
+            if (!added.length) {
+              v.bus.emit("notice", { level: "warn", message: "None of those markups could be added." });
+            } else if (added.length < drafts.length) {
+              v.bus.emit("notice", {
+                level: "warn",
+                message: `Imported ${added.length} of ${drafts.length} markups — the rest were refused.`,
+              });
+            } else {
+              v.bus.emit("notice", { level: "success", message: `Imported ${added.length} markups.` });
+            }
           } catch (e) {
             v.bus.emit("notice", { level: "error", message: `XFDF import failed: ${(e as Error).message}` });
           }

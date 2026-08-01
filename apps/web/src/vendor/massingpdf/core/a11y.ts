@@ -87,7 +87,7 @@ export function rovingFocus(container: HTMLElement, itemSelector: string): () =>
     const all = items();
     if (!all.length) return;
     const at = all.findIndex((el) => el === document.activeElement || el.contains(document.activeElement));
-    let next = -1;
+    let next: number;
     if (e.key === "ArrowDown") next = at < 0 ? 0 : Math.min(at + 1, all.length - 1);
     else if (e.key === "ArrowUp") next = at < 0 ? 0 : Math.max(at - 1, 0);
     else if (e.key === "Home") next = 0;

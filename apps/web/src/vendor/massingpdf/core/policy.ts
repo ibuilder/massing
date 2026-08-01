@@ -201,6 +201,11 @@ export function capabilityCheck(options: {
     if (!granted.has(capability)) return `Your role does not allow ${describe(capability)}.`;
     // Editing or deleting someone else's markup needs the "others" capability as well as the base
     // one — holding `markup:edit` alone means you may edit your own.
+    //
+    // `markup:status` is deliberately not in this list: closing an issue someone else raised is the
+    // normal review workflow, so the capability means "may move anyone's issue along". It is only a
+    // coherent grant because the store checks every capability a patch implies — a patch bundling
+    // a status change with a reworded subject needs `markup:edit` too.
     if (annot && (capability === "markup:edit" || capability === "markup:delete") && !owns(annot, actor)) {
       const escalated = capability === "markup:edit" ? "markup:editOthers" : "markup:deleteOthers";
       if (!granted.has(escalated)) {

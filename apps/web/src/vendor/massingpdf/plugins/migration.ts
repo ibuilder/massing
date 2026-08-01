@@ -305,7 +305,12 @@ function mountQueue(
       activate(row, () => {
         v.store.select(p.annot.id);
         void v.goToAnnotation(p.annot, { zoom: false });
-      }, { label: "Open this change", roving: true });
+      }, {
+        // Every row had the same constant label, which both hid the title and reason and made the
+        // list a run of identical announcements.
+        label: `${p.annot.kind} on page ${p.annot.page}${p.annot.subject ? `: ${p.annot.subject}` : ""} — ${p.reason}`,
+        roving: true,
+      });
       list.appendChild(row);
     }
   };

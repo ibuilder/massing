@@ -1,7 +1,7 @@
 /**
  * Stamps and tool chests.
  *
- * Two ideas from Bluebeam that matter more than they look. A *dynamic* stamp resolves
+ * Two ideas that matter more than they look. A *dynamic* stamp resolves
  * `{{user}}`/`{{date}}` at placement, so the record says who approved what and when rather than
  * "APPROVED" floating with no provenance. A *tool chest* is a saved, shareable set of pre-styled
  * markups — the mechanism by which a firm's redline standard becomes something people actually

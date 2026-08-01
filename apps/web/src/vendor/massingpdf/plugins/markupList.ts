@@ -1,10 +1,10 @@
 /**
  * The markup list — the panel that makes markups feel like data.
  *
- * Bluebeam's Markups List is the feature that separates a review tool from an annotator: every
- * markup is a row with author, date, status, discipline and measurement, sortable, filterable and
- * exportable. This is that, with faceted filtering wired to the same predicate the overlay uses, so
- * "hide everything except open structural comments" hides them on the sheet too.
+ * A list like this is what separates a review tool from an annotator: every markup is a row with
+ * author, date, status, discipline and measurement, sortable, filterable and exportable. Faceted
+ * filtering is wired to the same predicate the overlay uses, so "hide everything except open
+ * structural comments" hides them on the sheet too.
  */
 import { definePlugin } from "../core/plugin";
 import { activate, refreshRovingTabstops, rovingFocus } from "../core/a11y";

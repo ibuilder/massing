@@ -189,12 +189,19 @@ export class AnnotationStore {
     const before = this.items.get(id);
     if (!before) return undefined;
     if (this.o.policy) {
-      // A status change is its own permission: a reviewer may be allowed to close an issue without
-      // being allowed to reword it, and vice versa.
-      const capability = patch.status !== undefined && patch.status !== before.status
-        ? "markup:status" as const
-        : "markup:edit" as const;
-      if (!this.o.policy.allows(capability, before)) return undefined;
+      // *Every* capability the patch implies, not whichever one it looks most like. A status change
+      // is its own permission — a reviewer may close an issue without being allowed to reword it —
+      // but picking a single capability let a patch carrying both slip the other one past the gate:
+      // `{ status: "resolved", subject: "hijacked" }` was checked only against `markup:status`.
+      const changesStatus = patch.status !== undefined && patch.status !== before.status;
+      // Any other key is an edit. Store-managed fields are excluded because the store writes them
+      // itself on every mutation, so their presence says nothing about intent.
+      const MANAGED = new Set(["id", "version", "updatedAt"]);
+      const changesContent = Object.keys(patch).some((k) => k !== "status" && !MANAGED.has(k));
+
+      if (changesStatus && !this.o.policy.allows("markup:status", before)) return undefined;
+      if (changesContent && !this.o.policy.allows("markup:edit", before)) return undefined;
+      // Neither: nothing to authorise, and nothing to do.
     }
     if (before.locked && !("locked" in patch)) return before;
     const after = this.derive({ ...before, ...patch, id: before.id });

@@ -135,9 +135,11 @@ export function comparePlugin(options: CompareOptions = {}) {
             ...(rev ? { revision: { rev, migration: "ok" as const } } : {}),
             ext: { diffWeight: r.weight },
           }));
-          v.store.addMany(drafts);
+          const added = v.store.addMany(drafts);
           v.redraw(page);
-          v.bus.emit("notice", { level: "success", message: `Clouded ${drafts.length} change${drafts.length === 1 ? "" : "s"}.` });
+          v.bus.emit("notice", added.length
+            ? { level: "success", message: `Clouded ${added.length} change${added.length === 1 ? "" : "s"}.` }
+            : { level: "warn", message: "No clouds were added — creating markups was refused." });
         },
       });
 

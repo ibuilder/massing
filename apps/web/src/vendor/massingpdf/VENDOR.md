@@ -1,6 +1,24 @@
 # Vendored: `@massingcloud/pdf-viewer`
 
-`MassingCloud/massing-pdf` at commit `65e9011457fcc464d1e5f58e13441dc05e0bf15e` (2026-07-27). **MIT.**
+`MassingCloud/massing-pdf` at commit `bcd636fad2212c509f3c5de907c4fe9892dcc687` (2026-08-01). **MIT.**
+
+Re-synced 2026-08-01 from `65e90114` (2026-07-27), 14 commits. **The reason to re-sync was a
+permission bypass**, not a version bump. Upstream `store.update` picked *one* capability per patch, so
+`{ status: "resolved", subject: "hijacked" }` was checked only against `markup:status` — letting a
+reviewer granted `markup:status` but deliberately not `markup:edit` reword or move a markup by
+bundling both fields into one object. Every capability a patch implies is now checked.
+
+It was **not reachable in this build** — `drawings/pdfTakeoff.ts` imports only `PdfDocument` and
+`configureWorker`, so no `Viewer`, no store and no policy is ever constructed here, and client-side
+policy is not our authorisation boundary in any case. It was worth taking anyway: this file records
+that markup and takeoff "move in later", and on that day the flaw becomes live while reading as new
+reviewed code rather than as something inherited. Re-syncing a verbatim copy costs one overwrite;
+carrying a known bypass into a planned migration costs a review that will not be looking for it.
+
+Also in this range: `addMany` reported the number of markups *attempted* rather than accepted, so a
+user without `import` permission saw "Imported 47 markups." over an empty store; three OCR defects
+(blank tiles were counted as engine failures and permanently retired the local engine); and
+`aria-label` overriding the row content it was meant to describe.
 
 ## Why vendored rather than depended on
 
