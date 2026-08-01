@@ -4,6 +4,49 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.812 — an explicit zero was read as "unset", and a check that only ever ran one way
+
+Four correctness items, and the two findings worth reading are both about a value that looked like an
+absence.
+
+### An explicit 0% retainage had 5% withheld anyway
+
+A schedule-of-values line can legitimately hold no retainage — stored materials, a line the owner has
+released, a fully-bonded subcontractor. The engine read that explicit **0%** as "not set" and applied
+the 5% default instead, withholding **$1,000 on a $20,000 line**. Nothing looked wrong: the pay
+application balanced, the arithmetic was self-consistent, and the contractor was simply underpaid by a
+number that reads as ordinary.
+
+It surfaced while closing a different gap. **G702 line 7 — the retainage held in prior periods — was
+asserted in no test anywhere**, which is why a 10%-retainage contract had previously been able to
+report a *negative* payment due while the suite stayed green. Lines 5 through 8 are now value-checked
+against a fixture built to **distinguish**: mixed per-line rates of 10%, 5% and 0%. At a single default
+rate the correct calculation and the broken one agree by coincidence, so every earlier fixture passed
+against both — which is what made the defect invisible rather than merely untested.
+
+### A field that was always empty, and the check that could not see it
+
+`GET /modules` had been serving a `relations` list to every client since the module system's first
+release. No module declared it, no schema defined it, nothing populated it and nothing read it: it was
+an empty array, always. Cross-module links have shipped all along as reference **fields**, which 85
+modules use. It has been removed rather than wired — a field that is permanently empty teaches every
+client to ignore it, which is how a real value later goes unnoticed.
+
+The completeness check that should have caught it only ever ran one way: it asked whether everything
+*declared* was *served*, and never the reverse. It now asks both, and found a second case on its first
+run — one that turned out to be legitimate, and is now recorded as such with its reason. Distinguishing
+"computed elsewhere" from "dead" is the whole job; from one side they look identical.
+
+### Fixed
+
+- **A module's evidence requirement is now stated in advance.** Some registers require a photo or
+  attachment before a record can be signed off, enforced on the server. The client was sent that rule
+  but never showed it, so the first a user knew of it was a rejected action. The status menu now marks
+  those transitions *(needs an attachment)*.
+- **A step-up authorisation is proved to survive exactly one concurrent use**, not merely one repeated
+  one. The single-use guarantee was previously demonstrated only against sequential replay — which the
+  design it replaced would also have passed.
+
 ## v0.3.811 — three finance answers learn to refuse, and the server starts answering spatial questions
 
 Three pull requests and a sibling-repository import. Two themes, and they are the same theme at
