@@ -54,6 +54,13 @@ def list_modules():
          # only render itself — a table, a form and a status chip, which is a paper form — while the
          # engine that makes it a tool sits one unlinked screen away.
          "tools": m.get("tools", []),
+         # MOD-COMPLETE: both of these were declared by modules and dropped by this projection.
+         # `close_requires_attachment` is ENFORCED server-side (`modules.py`, the transition guard),
+         # so a client that cannot see it cannot warn before the action — the user learns the rule by
+         # having their transition rejected. `help` is the module's own explanatory text and existed
+         # to be shown. `test_modules_response_complete` now fails on any declared key this drops.
+         "close_requires_attachment": m.get("close_requires_attachment", []),
+         "help": m.get("help"),
          # R26-MODULE-HOME: the ONE canonical room this module lives in. Derived from its section by
          # a single table so a module cannot end up in two rooms, and served here so the shell never
          # has to invent its own taxonomy — which is how four different rails came to exist.
