@@ -41,8 +41,40 @@ Confirm `origin/main` is where you branched (`git log origin/main --oneline -1`)
 - Add a `✅ … SHIPPED vX.Y.Z` note to the relevant `docs/roadmap.md` item.
 - Keep competitor names OUT of shipped docs; interop names (Revit, Bonsai, Procore) are fine.
 
-## 4. Commit, push, tag
-Commit with the trailer `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`. Then, guarding against a race:
+## 4. Commit, push, tag — but never onto a red main
+Commit with the trailer `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+
+**First check that main is green.** Step 1 verifies *your* commit; it says nothing about the state of
+main you are appending to. On 2026-07-31 main went red at 06:12 from an unindexed `docs/internal/`
+file, and over the next hour three further commits landed on top — including a **cut and tagged
+release** — because each session had verified its own work and none asked about the build. The gate
+fired correctly within three minutes. Nobody looked. There is a standing directive to query the CodeQL
+alerts API after every push and it was followed every time; there was no equivalent for CI, so the
+security scan got checked and the build did not.
+
+```
+gh run list --branch main --limit 3 --json headSha,status,conclusion   --jq '.[]|"[\(if .status != "completed" then "RUNNING" else .conclusion end)]  \(.headSha[0:8])"'
+```
+**Branch on `status`, never on whether `conclusion` looks empty.** A running job has `conclusion` as
+the empty **string** — truthy in jq — so the obvious `.conclusion // "pending"` never fires and the
+field prints blank. A blank reads as "nothing to worry about", so a pending gate becomes an invisible
+one. `status` is the field that actually states whether the run finished; read that.
+
+Two sessions wrote the `//` form independently the day this section was added, one of them into memory
+as the fix, and it had already printed blank rows that were read as "still running" from context
+rather than noticed as a filter failure.
+
+Related trap, same shape: **`gh --jq` does not accept `--arg`** — it exits with `unknown flag: --arg`
+on stderr and prints nothing on stdout. Under a habit of skimming stdout that reads as a clean result.
+Probe any filter before you loop on it, and prefer piping the JSON to a real interpreter that can be
+made to print "not a verdict" rather than falling through to a reassuring default.
+
+A red or pending main is not automatically a blocker — read it and decide. But **do not tag onto one**:
+a tag is the thing that gets published, downloaded and rolled back, and it is the one step here that is
+awkward to undo. If main is red, fix or wait; if it is pending, either wait for it or push without
+tagging and tag once it lands.
+
+Then, guarding against a race:
 ```
 if [ "$(git rev-parse origin/main)" = "$(git rev-parse HEAD~1)" ]; then
   git push origin HEAD:main && git tag vX.Y.Z && git push origin vX.Y.Z
