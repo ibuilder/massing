@@ -788,7 +788,7 @@ is recorded. Filed under Decisions below.
 | 03 | roles gate the UI invisibly | R24-ROLE-EXPLAIN | ✅ v0.3.685 |
 | 04 | long jobs, foreground UI | R24-JOB-TRAY | ❌ **and cheaper than logged** — see below |
 | 05 | analyses are modals → no history | R24-RUNS-INBOX | ❌ no runs concept in the web app |
-| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | 🟡 `viewer/lifecycleStrip.ts` + `inspectorTabs.ts` are built and good, rendered from **one** call site (`viewer/app.ts:321`) |
+| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | 🟡 `apps/web/src/ui/lifecycleStrip.ts` + `inspectorTabs.ts` are built and good, rendered from **one** call site (`viewer/app.ts:321`) |
 | 07 | onboarding teaches the chrome | FIRST-RUN | 🟡 improved v0.3.777; still not the lot → building → deal chain |
 | 08 | persona picker only relabels | *(none)* | ⚠️ reversed on purpose — see Decisions |
 | 09 | tools panel mixes verbs with analyses | *(none)* | ❌ dropped in transfer → `R24-TOOLS-SPLIT` |
@@ -1823,7 +1823,7 @@ this section and [[web-godfile-decomposition]] already target, ranked by *churn 
 | `apps/web/src/viewer/app.ts` | 99.8th | 16 |
 | `apps/web/src/api/client.ts` | 99.8th | 15 |
 | `apps/web/src/main.ts` | 99.7th | 18 |
-| `services/data/src/edit.py` | 99.6th | 6 |
+| `services/data/src/aec_data/edit.py` | 99.6th | 6 |
 
 Also: 168 of 1,426 files are hotspots, and **17 of the 20 lowest-health files were bug-fixed in the
 last 6 months at 5.01× the baseline rate.** That is the useful number — it says the decomposition

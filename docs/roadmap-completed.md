@@ -2934,7 +2934,7 @@ feature-flagged connector (never a runtime dep) · SKIP = conflicts with a const
   `.claude/skills`.
 
 **INTEGRATE (optional, feature-flagged, never a runtime dependency):**
-- **MARKET-DATA connector.** A flagged/paid `propdata.py` connector feeding the pro-forma /
+- **MARKET-DATA connector.** A flagged/paid "propdata.py" connector feeding the pro-forma /
   underwriting / valuation modules — parcel + rent-comps (ZORI/HUD FMR) + FHFA HPA + FEMA flood (ties into the
   shipped `resilience.py` DFE) + Opportunity-Zone flags + FRED macro. Same posture as the APS/RVT bridge:
   gate it, normalize to our inputs, never assume online. Also adopt two architecture-agnostic techniques from

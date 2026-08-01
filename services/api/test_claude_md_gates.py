@@ -96,6 +96,18 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 DOCS = (
     "CLAUDE.md",
     "docs/roadmap-directions.md",
+    # Added 2026-08-01 by the GATE-VACUITY-SWEEP. The roadmap cites more code files than either doc
+    # above (95 backticked paths vs ~13), every one of them offered as EVIDENCE for a claim about what
+    # is built — so a dead citation here is a roadmap asserting a gap or a capability against a file
+    # that does not exist. It was clean when added (0 dead of 95), which is precisely when to ratchet:
+    # adding a check that already passes costs nothing and pins the state.
+    "docs/roadmap.md",
+    # `docs/roadmap-completed.md` is deliberately NOT here. It is a historical record, and its 245
+    # citations include PROPOSED names for things never built (the market-data connector was one, in an
+    # "INTEGRATE (optional)" block, backticked as though it shipped — corrected to plain quotes). The
+    # right rule for the archive is the convention, not the gate: backticks are reserved for files that
+    # exist, and a proposal gets quotes. Gating it would force either a growing exemption list or the
+    # rewriting of history, and both are worse than the convention.
 )
 
 #: Only code files. These docs also name other docs (`docs/roadmap.md`) and commands (`node -v`);
