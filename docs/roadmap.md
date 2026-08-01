@@ -59,16 +59,38 @@ merely *built*. Sizes are the roadmap's own. ⭐ marks the highest-value item in
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
 
-## ✅ **BAND 1 IS EMPTY as of 2026-07-31.**
+- ⭐ **FIN-SUITE-BLIND** *(M)* — **ask what the finance suites are structurally UNABLE to see.** Opened
+  2026-08-01 on evidence, not suspicion. `test_cost.py` contained **no assertion on G702 line 7, line 8,
+  or retainage at all**, which is how a 10%-retainage contract shipped reporting a **negative payment
+  due** with `closeout.py` consuming line 8. That was not a weak test of the behaviour — it could not
+  reach it. Repo memory independently flags `proforma/` as the highest-yield bug area **because its
+  tests range-check rather than value-check** (`assert 0 <= p <= 1` on a probability cannot distinguish
+  a right answer from a wrong one).
+
+  The work is not "add tests". It is: for each finance suite, name the outputs it never asserts on, and
+  write the fixture that **distinguishes** the behaviours — the one where simple and compounding differ,
+  where the horizon exceeds the schedule, where retainage is not the default. Every money defect found
+  in the last three releases (the clawback proxy, the negative payment due, the silently-defaulted
+  money field, the uncoded walls) was invisible to a green suite for the same reason.
+
+- ⭐ **GATE-VACUITY-SWEEP** *(S)* — **audit every existence check for self-satisfying evidence.** Found
+  2026-08-01: the lane gate's "names no item that has left the roadmap" assertion searched the whole
+  roadmap **including the lane table**, so a lane row satisfied its own existence check. It stayed green
+  while six rows advertised shipped work. Fixed by searching the roadmap *minus* the lane rows, and
+  mutation-proved — but the **class** is what matters: any check of the form "X is referenced somewhere
+  in this document" is vacuous if X's own reference is inside the searched region.
+
+  Sweep the other doc gates for the same shape (`test_claude_md_gates`, `test_no_comparative_names`,
+  `docsPublished`, `test_manifest`). Cheap, and the failure mode is a permanently green check.
+
+## ✅ **BAND 1 WAS EMPTY as of 2026-07-31** — refilled 2026-08-01 by two findings, both about checks
+## rather than features. Kept as a band entry because a check that cannot fail is a live wrong answer.
 
 Three items left it in one day and **none of them left the same way**: two were real defects and shipped,
 and the third was closed *unbuilt by measurement*. That third outcome is the one worth protecting — an
 item can be finished by producing a number that says it should not be built, and that is a result, not
 a failure to deliver.
 
-- ✅ **R33-CLAWBACK-AMOUNT** — shipped (`856970c8`). Verified by reading the implementation, not the PR
-  title.
-- ✅ **R34-SHEET-SCALE** — shipped (`365976d8`). The engine was already right; nothing set the field.
 - ⛔️ **R23-PICKING — CLOSED UNBUILT, on a measurement.** See below.
 - ↘️ **SEC-PLUGIN-SANDBOX** — left the band (still open, moved to platform); the threat model was
   checked rather than assumed and no unprivileged path reaches it.
@@ -192,8 +214,8 @@ written) and **R22-PHOTO-CV**.
 
 ✅ **R34-TAKEOFF-COUNT — SHIPPED (#139, `29c26f27`); it was still listed here.** The platform had **no count measure at all**: every assembly was `area` or `length`, so a door, fixture, receptacle or sprinkler head — the thing an estimator counts most often — could not be taken off a drawing. Now a third measure, and **a count is never scaled**: area goes as scale², length as scale¹, and six doors are six doors at any sheet scale. Making it a third *measure* rather than a third *unit* is what makes that structural instead of remembered. Verified present: 13 count refs in `takeoff2d.py`, `test_takeoff_count` registered.
 
-⭐ **R22-ENTITLEMENT** (M/L) · **R31-PIPELINE-ALLOCATE** (L) · **R22-REPORT-BUILDER** (M) ·
-**R22-PIPELINE** (M) · **R21-DIM-COMPONENT** (M) · **R21-4D-CLASH** (phase 2)
+⭐ **R22-ENTITLEMENT** (M/L) · **R22-REPORT-BUILDER** (M, rescoped) · **R22-PIPELINE** (M) ·
+**R21-4D-CLASH** (phase 2)
 
 *Three items left this row on 2026-07-31, all already built:* **R22-PRODUCTION** (`c23c26dd`),
 **R21-SPACE-TAG-SECT** (rode inside `50f195cf`, no commit of its own), and **R22-CAD-IMPORT** (the DXF
@@ -248,10 +270,10 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · GATE-VACUITY-SWEEP |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-EMPTY-GUIDE ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R32-CURRENT-SET |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-PRODUCTION · R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R31-PIPELINE-ALLOCATE · R22-PHOTO-CV · R34-MEASURE-PROVENANCE · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R21-SPACE-TAG-SECT · R21-DIM-COMPONENT · R22-CAD-IMPORT · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R27-SOV-LOOP · R27-CLAIM-TYPE · R27-RISK-CALIBRATE · R27-FIRM-MEMORY · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · FIN-SUITE-BLIND |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
@@ -488,24 +510,9 @@ These are the gaps between what the platform draws today and what that package c
   GlobalId, so nothing knows *what a task installs*. Install-before-support cannot be computed
   without a real **task→element binding** — that binding is the actual next piece of work, and
   approximating it (by trade, by name match) would produce confident findings nobody can trust.
-- ✅ **R21-MULTISCALE — the capability was already there; the entry was stale.** Checked 2026-07-31: `compose_viewports` has taken a **per-viewport `scale`** since the viewport work — its docstring documents `"scale": 100  # 1:100 on paper; omit/None → fit-to-rect`, it reads `vp.get("scale")` per view, and emits a per-view `scale_denom`. Reached at `analysis.py:603`. The entry said "per-viewport scale is the missing parameter"; it was not missing.
-
-  **What WAS missing was the proof, and that is now a gate.** `test_sheet_layout` paired one fixed scale with one fit-to-rect view — which does not test the claim, because "fit" is not a scale anyone specified and a build applying ONE denominator to every viewport would still pass. It now composes **1:50 and 1:100 on one sheet** and asserts each keeps its own denominator *and* that the finer scale is never smaller on paper — a label is cosmetic, an extent is the drawing. Mutation-checked: forcing the first viewport's scale onto all views yields `('1:50','1:50')` and goes red. *(Original entry below.)*
 - ~~**R21-MULTISCALE**~~ *(S)* — several viewports at **different scales** on one sheet (1:100 overall +
   1:50 parts), each with its own title/scale block. `sheet_layout.py` composes viewports; per-viewport
   scale is the missing parameter.
-- ✅ **R21-SPACE-TAG-SECT** — **SHIPPED inside `50f195cf`**, which is why nobody noticed: it rode along
-  with the qto class-match fix rather than getting its own commit, so the band row went on advertising
-  it. `space_tags_section()` is at `drawings.py:677` and is genuinely called at `drawings.py:1468` —
-  checked for a *caller*, not merely a definition, because the log lines inside a function match a
-  grep for its own name and read exactly like use.
-- **R21-DIM-COMPONENT** *(M)* — component-level dimension strings beside the floor-to-floor chain
-  (cladding offsets, insulation thickness, canopy projections), which is what a fabricator measures.
-
-*Why this ring and not more content:* the family shelf now clears every typology (v0.3.670), so the
-binding constraint on "can a user take this to LOD 500" moved from **what can be modelled** to
-**what can be issued and then verified**. R21 is the issuable half; the LOD-500 verification half
-shipped in v0.3.673.
 
 ## 🎯 R22 — COMPETITIVE GAP RING *(13 platforms scanned 2026-07-25; acquisition→turnover mission)*
 
@@ -528,14 +535,6 @@ stakes we are missing.
 
 **Tier 1 — closes the mission's own gaps**
 
-- ✅ **R22-PRODUCTION** — **SHIPPED (`c23c26dd`, PR #142).** `GET /projects/{pid}/progress/reconciliation`
-  compares field-installed quantity against the model takeoff per cost code. Both halves had existed
-  for months without being joined, and the reason was structural rather than an oversight: the module
-  carrying `cost_code` — the join key — is read only by pricing and carbon, while the module the
-  production loop actually consumes has no `cost_code` field at all. The loop read the module that
-  cannot join. Built as four refusals (units never silently equated, over-install reports >100% rather
-  than clamping, an uncoded takeoff says so, unmatched field codes named not counted), and every
-  headline percentage carries `covered_pct` — 97% complete across 3% of the model is true and useless.
 - **R22-ENTITLEMENT** *(M/L)* — **permit & entitlement workflow**: jurisdiction submittal packages,
   review cycles, comment responses, and **conditions of approval carried into the model as
   constraints**. Today there is a hole between "acquisition" and "construction" in our own mission
@@ -557,50 +556,10 @@ stakes we are missing.
 
 **Tier 2 — evidence, provenance and procurement**
 
-- ✅ **R22-ITP-NCR** *(M)* — **CLOSED 2026-07-31, premise FAILED.** All four asks exist and are reached.
-  `itp.point_type` is a **required select** — Hold Point · Witness Point · Review Point · Surveillance ·
-  Monitor — alongside `method`, `acceptance_criteria`, `frequency`, `responsible_party`,
-  `verifying_party`, `record_form`. `ncr` runs a real lifecycle `open → dispositioned → closed` with
-  `disposition`, `corrective_action`, `root_cause`, `severity` and a link to `inspection`. Element
-  attachment is `element_guids`, which `quality_chain.py` reads per element (built by R22-QUALITY-CHAIN,
-  #110) and which `routers/construction.py:260,283` serves as the chain and turnover-readiness. Modules
-  are reachable in room `schedule` via `rooms.room_of`, and `test_module_rooms` fails the build on an
-  unmapped section, so this cannot rot silently.
 - **R22-PROVENANCE** *(L)* — **cite to file, page and revision.** Every proforma assumption, estimate
   line and agent answer traceable to a source page. Three of thirteen platforms *lead* with this; it
   is what makes AI output admissible in an IC memo or a claim.
-- ✅ **R22-PROCURE-DEPTH** *(M)* — **CLOSED 2026-07-31, premise FAILED.** Claimed "bid leveling covers
-  one step of five" and named three remainders; **all three were already built**, and all three are
-  reached: `prequalification` module (EMR, bonding capacity, annual revenue, references, rating,
-  expiry, workflow `invited → submitted → approved/rejected`) · `clause_playbook.py`, a per-contract-type
-  registry of accept/negotiate/refuse positions with severity and fallback plus a deviation register,
-  called from `routers/realestate.py:300,309,332` · `vendor_memory.py` cross-project scorecards, called
-  from `routers/benchmarking.py:83`. Module reach resolves to room `planning` via `rooms.room_of`, and
-  `test_module_rooms` fails the build on an unmapped section — so the reach claim is checked, not
-  asserted.
 
-**Tier 3 — on-ramps and reach**
-
-- ✅ **R22-CAD-IMPORT** — **the DXF path was already SHIPPED, and its stated premise was false.** The
-  entry read "today feasibility and test-fit only run on models we authored". They do not:
-  `POST /projects/{pid}/raise-plan` (`routers/authoring.py:1161`, `require_role("editor")`) raises an
-  uploaded DXF into a real IFC4 model registered as a *2D Raise* discipline model — which flows into
-  the viewer, QTO, the estimate and federated clash like any other. `preview=true` returns detected
-  wall/room counts without writing. Two readers exist, both on **ezdxf (MIT)**: `dxf_takeoff.py`
-  (measured quantities per layer) and `plan_to_bim.py` (walls extruded from line-work, `IfcSpace`s from
-  closed polygons).
-
-  **Measured, not read.** A metric DXF (`$INSUNITS=6`) with one 8×6 m closed room raised to 4 `IfcWall`
-  + 1 `IfcSpace`, area 48.0 m² (exact), schema IFC4, GUIDs present on every wall. Units are detected
-  from the header rather than assumed.
-
-  **What is genuinely NOT built, stated plainly rather than left to look shipped:** *DWG* natively —
-  it must be converted to DXF externally first, which is a deliberate licence choice (the available
-  converters are AGPL or proprietary) and should stay a documented external step, not a dependency.
-  And *PDF* → base plan: PDF **takeoff** exists (TAKEOFF-2D), but raising a PDF to geometry does not.
-  If the PDF half is still wanted it should be re-cut as its own item with its own sizing, because it
-  shares nothing with the DXF path — vector recovery from a PDF is a different problem, not a format
-  variation.
 - **R22-OPTION-OBJECT** *(S/M)* — make **option the primary object**: geometry + unit mix + cost +
   carbon + IRR as one comparable record, so no massing is ever evaluated without its returns.
 - **R22-REPORT-BUILDER** *(M)* — **RESCOPED 2026-07-31; the original premise was false.** The entry
@@ -675,7 +634,6 @@ a gate is a hypothesis until someone tests it.* See [[check-the-blocker-premise]
 **Tier 1 — measure, then take the cheap wins.** *Every item below is unverifiable until R23-PERF-TEST
 exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions.*
 
-- ✅ **R23-CONSTRAINTS — SHIPPED; the band row was stale.** Verified 2026-07-31 against the code, not the entry: `services/data/src/aec_data/dim_constraints.py` solves dimensional locks as a **linear least-squares system with priority tiers**, reached at `POST /projects/{pid}/constraints/solve` (`analysis.py:522,542`), with `test_dim_constraints` registered and passing. **No new dependency was added** — the module's own docstring records why: the roadmap had unblocked this by accepting `kiwisolver`, and that reasoning was right about the *shape* and wrong about the *need*, since `lstsq`'s **rank** is the degrees of freedom and its **residual** is whether a tier is satisfiable — the two numbers the UX actually needs. *(Original entry below.)*
 - ~~**R23-CONSTRAINTS**~~ *(L)* — W10-9 via **scipy's `least_squares`, which is already a dependency**
   (`services/api/requirements.in:27` and `services/data/requirements.txt:8`, both `scipy>=1.11`).
   This entry said "via kiwisolver + least_squares" until 2026-07-29. **`kiwisolver` is NOT a
@@ -868,15 +826,6 @@ refute one, so this goes first even though it is the least visible.
   **call sites**, not components: render it in RFI, estimate line, pay app and COBie row. Extract from
   `viewer/inspectorTabs.ts` into a viewer-independent module first, since those four surfaces must not
   pull in three/@thatopen.
-- ✅ **R24-TRACE-UI ② — SHIPPED 2026-07-31 (`b3a630ea`).** 19 headline figures report which assumptions
-  the caller **declared** and which the engine **defaulted**, derived from `model_dump(exclude_unset=True)`
-  — deriving from the validated dump would report everything as declared and answer the reviewer's
-  question with fiction (mutation-checked: it drops the sparse deal from 8 defaulted inputs to 2).
-  `element_link` is `None` on every figure with a stated reason, because the proforma holds no GlobalId
-  and an invented terminus is worse than none. `FIGURE_INPUTS` is completeness-checked **both ways**
-  against `solve()`'s own output. `POST /proforma/provenance`, plus inline on `/proforma/solve`.
-
-  *Original entry below — the premise correction is the reason this was built backend-first:*
 - ~~**R24-TRACE-UI ②**~~ *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
   **proforma emit its own derivation**: each headline figure carrying its inputs and a
   **model-derived / overridden / market-assumption** tag, terminating in a GlobalId where one exists.
@@ -1077,49 +1026,6 @@ viewport frames, table rules are **paths**, not inferred shapes. So the first im
 deterministic geometry over `pypdf`'s content stream, not detection. Detection is what you need when
 you have thrown the vectors away; we mostly have not. Rasters fall back to "unknown", stated.
 
-* ✅ **R27-LAYOUT ① — DONE; both halves shipped (v0.3.702 + v0.3.778).** *Was: the layout is written but
-  never read back.* *(Corrected after checking the code:
-  the first draft of this item said "add `sheet_layout.py`". That module already exists —
-  [sheet_layout.py](../services/data/src/aec_data/sheet_layout.py), and it is good — but it runs in
-  the **write** direction: it composes viewport rectangles, fixed 1:N paper scales, per-viewport class
-  freezes and titleblocks onto sheets we generate. Nothing reads that structure back out of a PDF.)*
-
-  So this is the **same asymmetry R25-TASK-BIND closed for the 4D binding**: a platform that can write
-  a structure but not read it has a one-way door, and the structure stops existing the moment the file
-  leaves. Two halves, and the first is nearly free:
-
-  ✅ **(a) Our own sheets** *(shipped v0.3.702)*. Detection was never required here, only persistence:
-  `compose_viewports` already computes the exact page←world affine in order to place the geometry, so
-  `sheet_regions()` now keeps it. Each region reports `basis: "authored"` — these *are* the numbers the
-  sheet was drawn with, not a recovery from the rendered output — and the **measurable** rect is the
-  inner one, not the cell, because the cell includes padding and the label band and scoping a takeoff
-  to it would accept a trace that is not on the drawing. `to_world()` inverts the affine; an
-  unmeasurable viewport reports **`to_page: null`, never identity**, since an identity would silently
-  report page points as metres. The transform is asserted by **inverting an actual rendered vertex**
-  rather than against a second implementation of the same arithmetic — the 4D binding round-tripped
-  perfectly through its own writer+reader pair while encoding the wrong IFC relation.
-
-  ✅ **(b) Received sheets** *(shipped v0.3.778)* — [sheet_recover.py](../services/api/src/aec_api/sheet_recover.py),
-  `POST /projects/{pid}/drawings/received-regions`. Rectangles come from the page's own content stream
-  and are classified with the ADIRO-style vocabulary; `basis` is `sidecar` | `vector` | `unknown`, and
-  a page with no vectors returns a **stated unknown, never an empty list** — an empty list is a claim
-  about the drawing, unknown is a claim about us. `to_page` is null for every region and never
-  identity: the page↔world mapping is not recoverable from a sheet we did not draw. A printed scale
-  comes back as `scale_denom_proposed` for calibration to accept, never applied — a takeoff
-  auto-calibrated wrong *looks finished*, which is worse than one nobody calibrated.
-
-  Two things the first cut got wrong, both caught by making the test disagree with the code:
-  **rectangles must be transformed through the CTM stack** (reading `re` operands raw is the obvious
-  version and is wrong on every sheet whose views are placed with `cm`), and **a region's kind must be
-  decided by the text it *owns*, not all text inside it** — a revision table nests in the titleblock,
-  so reading contained text made the titleblock a "revision table". The border check also passed
-  vacuously at first because it restated the implementation's own 0.98 threshold; it now asserts
-  against the rectangle the test actually drew, and the border it was supposed to catch was in fact
-  still in the output.
-
-  Evidence: arXiv:2607.18997 §layout-layer. Read-side gap confirmed in
-  [sheet_extract.py](../services/api/src/aec_api/sheet_extract.py), which walks pages via `pypdf` and
-  regexes the text layer with no notion of *where on the sheet* anything sits.
 
 ## 📦 R28 — ONE PROJECT, ONE FILE *(research 2026-07-26; the model/project split)*
 
@@ -1244,31 +1150,6 @@ those repos closes a capability gap. What the 221-skill corpus *is* good for is 
 construction teams actually automate**, at a granularity nobody publishes otherwise. Read as a
 coverage checklist against our 130 modules it is a gap-analysis input, not an import.
 
-* ✅ **R27-SKILL-GAP** *(S)* — **DONE 2026-07-31. Premise mostly FAILED; the diff is nearly empty.**
-
-  **The corpus is [`datadrivenconstruction/DDC_Skills_for_AI_Agents_in_Construction`](https://github.com/datadrivenconstruction/DDC_Skills_for_AI_Agents_in_Construction)** — recorded here because the
-  entry named it only as "a 221-file skills corpus (MIT)", and *a gap-check whose input nobody can find
-  is not repeatable*. Identity confirmed by count (exactly **221 `SKILL.md` files**) and the licence
-  read **from the LICENSE file, not the README**, per this ring's own rule: MIT.
-
-  **32 of the 221 (15%) are dead on arrival.** They are CWICR-based (`cwicr-*`,
-  `bim-cost-estimation-cwicr`, `semantic-search-cwicr`) and this ring already refused **CWICR data as
-  CC BY-NC 4.0**. The MIT skill files are usable; the data they operate on is not. Effective corpus
-  ~189 — and the single largest domain in it is one already ruled out on licence.
-
-  **Checked precisely rather than by keyword, and the plausible gaps were all already built:**
-  `ids-checker` → `ids_authoring.py:63` + `model_ci._ids_check:78` with real `.ids` files at
-  `{pid}/ids/project.ids` · `energy-simulation` → `energy.py`, `energy_star_bridge.py` ·
-  `schedule-compression` → `px.py:286-309`, crash **and** fast-track levers with `days_potential` ·
-  `weather-impact-scheduler` → `notice_clock.py:128`, weather-delay notice citing §15.1.6.2 · plus
-  procurement, contract-clause, prequal, payment-app, punchlist, lien-waiver, warranty, RFI, submittal,
-  look-ahead, resource-levelling, QTO, clash, 4D and carbon — all with modules or engines.
-
-  ❌ **Deliberate divergence — do NOT file this as a gap and do not "close" it.** The corpus has
-  `vector-search`, `rag-construction` and `semantic-search-cwicr`; we have **zero** embedding/vector
-  code and `doc_text.search()` is pure token overlap. That is a **stated design choice**, not an
-  omission — the module docstring says *"Deterministic retrieval … fully offline; no LLM required and
-  none silently invoked."* Adopting semantic search trades that away. Refused on purpose.
 
 * ⭐ **R22-PHOTO-CV** *(M — needs a mission-fit call before building)* — **the one real gap the corpus
   surfaced.** Three skills (`progress-monitoring-cv`, `progress-photo-analyzer`, `defect-detection-ai`)
@@ -1705,86 +1586,10 @@ scan, because it stops the exercise being re-run.
 
 **One genuinely new build item, one strong corroboration, three gap-checks.**
 
-- ✅ **R31-SCHEMA-DIAG** — **SHIPPED.** `services/data/src/aec_data/schema_diag.py` +
-  `test_schema_diag.py`, served at **`GET /projects/{pid}/models/schema-diag`** beside `/models/qa`
-  and `/models/norm-valid`.
-  **The route was in the OpenAPI schema and raised `NameError` on every call** — `source_ifc_path`
-  is imported into that module as `_source_ifc`. Presence in the schema proves *defined*; only the
-  request proves *callable*, and a schema-only assertion would have shipped it. `test_reachable.py`
-  could not have caught it either: it walks the import graph of `aec_api` and this engine is in
-  `aec_data`, reached by a lazy import inside the handler. The test now asserts over HTTP, and
-  compares the status against the SIBLING routes rather than a literal, so a hard-coded 404 cannot
-  keep passing if the whole family starts returning 500.
-  **It found a crash on the way in, which is worth more than the diagnostic.** `ifcopenshell` 0.8.5
-  **segfaults** — exit 139, reproduced 3/3 — on an IFC ending inside an unclosed `'` literal, the shape
-  a truncated upload or an interrupted write produces. A segfault is not an exception: `try/except`
-  cannot catch it, so the process handling the request dies. `ifc_loader.open_model` (the choke point,
-  **133 callers**) now screens for exactly that one input and refuses it as an ordinary error.
-  The screen is deliberately narrow: an unclosed parenthesis and a mid-instance truncation both fail
-  the structural checks and ifcopenshell opens them *without complaint*, so refusing everything that
-  fails to parse would break uploads that work today — a worse bug than the crash.
-  It also found a **real IFC2X3 violation in a shipped sample**: 27 `IfcFurnitureType` instances in
-  `basichouse.ifc` pass `$` for `AssemblyPlace`, which the schema declares mandatory. Written by a
-  mainstream exporter; the file loads, renders, and passes IDS. That is the argument for the whole item
-  in one example. Zero false positives across the other shipped samples.
-  Original scope below, kept because the reasoning is what justified the build:
 
-- ✅ **R31-SCHEMA-DIAG** *(shipped — original entry, kept for the reasoning)* — **validate the IFC against the SCHEMA, not just against a spec.**
-  Everything we have scores *completeness* or *hygiene*: `openbim_quality` is IDS rule-compliance % and
-  LOIN completeness over the `{guid: element}` properties index; `model_qa` is hygiene (duplicate
-  GlobalIds, overlaps, orphans, unenclosed spaces, blank names, wrong storey). **Nothing checks
-  structural validity**: an unknown entity type, a dangling `#12345` reference, an attribute of the wrong
-  type, an attribute violating its declared cardinality.
 
-  Why it matters now rather than before: **we WRITE IFC.** Since authoring became a first-class goal the
-  platform emits files, and a model can score **100% IDS-compliant and still be rejected on import by
-  another tool** — those are different failure classes, and only one of them is currently visible. This
-  is also the class of defect a viewer hides: geometry renders, the file is broken.
 
-  Reference implementation to study, not vendor: [`NepomukWolf/vscode-ifc`](https://github.com/NepomukWolf/vscode-ifc)
-  (**MIT**) runs exactly these diagnostics through an IFC language server — invalid references, type
-  mismatches, unknown entities, cardinality errors. `ifcopenshell` can express most of it server-side.
-  Premise-check first: confirm none of `model_qa` / `quality` / `norm_valid` already covers a given check
-  before adding it, because three of the four names above sound like they might and do not.
 
-- **R31-PIPELINE-ALLOCATE** *(L)* — **allocate constrained capital ACROSS the pipeline, not within one
-  project.** We score options *inside* a project (`GEN-SCORE`, `SHADOW-COST`, `schedule_options`) and we
-  *report* across projects (`FIN-PORTFOLIO`, `benchmarking`). The missing step is the decision itself:
-  given N candidate projects with cost, return, risk and timing, and a capital constraint, which subset
-  and what sizing. `scipy` is already a dependency (`requirements.in:27`), so the optimiser needs **no new
-  package** — this is deliberately not the "add a portfolio library" version of the idea.
-
-- ✅ **R31-SYNDICATION-TAIL** *(M)* — **CHECKED 2026-07-31; two of three asks already built. Rescoped to
-  `R31-K1-PACK` below.** The entry's own instruction — *"Do not build a cap table before confirming
-  `capital.py` lacks one"* — was the right one and it **does not lack one**: `capital.cap_table()`
-  returns ownership %, contributed / distributed / **unreturned**, per-class rollup and sorted rows, and
-  is reached from `distwaterfall.py:67`, `report_builders/finance.py:293,510` and `reports.py:103`
-  ("Investor Cap Table"). Soft/hard commitment tracking is built **under a different name**: `investor`
-  states are `prospect → committed → funded → exited`, so soft circle and hard commitment are workflow
-  states rather than an enum somebody was looking for.
-
-  ⚠️ **The name collision that probably produced this entry:** the **`commitment` module is
-  CONSTRUCTION commitments** — Purchase Order / Subcontract / Work Authorization, with `retainage_pct`
-  and `cost_code`. It has nothing to do with investor commitments. Reading it as the syndication side
-  badly misjudges the item.
-
-- ✅ **R31-K1-PACK** *(S/M)* — **SHIPPED 2026-07-31** (`aabad457`), and it deliberately does **not**
-  emit a K-1. A Schedule K-1 reports a partner's distributive share of *taxable income*, which needs a
-  §704(b)-allocated income statement; this platform has capital movements and **no income statement at
-  all**. So `capital.k1_pack()` returns the half we can evidence and **names what it cannot supply** —
-  `is_tax_document: false` plus a `not_included` list (704(b) allocation, depreciation and §754/§743(b)
-  basis, guaranteed payments, outside basis / at-risk, separately stated items, state apportionment).
-  An accountant told what is absent can supply it; one handed a plausible-looking pack cannot know to.
-  `GET /projects/{pid}/k1-pack`.
-
-  **Two money-math decisions worth not undoing:** there is *no beginning/ending capital balance*,
-  because that is a §704(b) rollforward needing the income allocation we lack — absent beats guessed
-  from contributions, which would be wrong in a way that looks right. And `ownership_pct` is an
-  **allocation ratio**, so `allocation_check` reports the exact rounding residual rather than hiding
-  it; ratios silently summing to 99.9997% would misallocate income for every partner every year and
-  survive inspection. Mutation-checked both ways.
-
-  *(Original entry, kept because the boundary sentence was the spec:)*
 - ~~**R31-K1-PACK**~~ *(was S/M)* — **the one genuine remainder of R31-SYNDICATION-TAIL.** `capital.py:90`
   already states the boundary in the statement PDF itself: *"…is informational and not a tax document;
   K-1s are issued separately."* That sentence is the spec. Everything a K-1 pack needs upstream — per

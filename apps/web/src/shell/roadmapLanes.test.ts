@@ -174,9 +174,28 @@ describe("the roadmap lane table", () => {
   it("names no item that has left the roadmap", () => {
     // The other direction, and the one that rots quietly: an item ships, its entry is archived, and
     // the lane row goes on advertising it. An agent then claims work that no longer exists.
-    const stale = LANES.flatMap((l) => l.items)
-      .filter((c) => !ROADMAP.includes(c.split(" ")[0] ?? c));
-    expect([...new Set(stale)], `lane rows advertise archived items: ${stale.join(", ")}`).toEqual([]);
+    //
+    // This asserted `ROADMAP.includes(code)` until 2026-07-31 and was VACUOUS for exactly the case it
+    // names. `ROADMAP` is the whole file *including the lane table*, so a lane entry satisfied its own
+    // existence check: archive an item's entry, leave it in a lane row, and the substring is still
+    // there. Found by archiving 18 shipped items — the check stayed green while six lane entries went
+    // on advertising work that had shipped. A check whose evidence is the thing under test cannot fail.
+    //
+    // The fix is to search the roadmap MINUS the lane table, so a row can no longer be its own evidence.
+    //
+    // Deliberately NOT `CODES` (the open-item set), which was the first attempt and was wrong in the
+    // expensive direction: it flagged two LIVE items as archived. `CODES` is built by the ITEM regex,
+    // which needs 2+ chars after the hyphen (so `REL-4` never matches) and captures only the FIRST code
+    // on a line (so `R24-MONO-DATA`, sitting second, never matches). Tightening a check by borrowing a
+    // narrower population inherits that population's blind spots — and a gate that reports live work as
+    // dead gets items deleted.
+    const laneRowRe = /^\|\s*\*\*[A-Z] · /;
+    const ROADMAP_MINUS_LANES = ROADMAP.split("\n").filter((l) => !laneRowRe.test(l)).join("\n");
+    const base = (c: string) => c.split(" ")[0] ?? c;
+    const stale = LANES.flatMap((l) => l.items).filter((c) => !ROADMAP_MINUS_LANES.includes(base(c)));
+    expect([...new Set(stale)],
+      `lane rows advertise items with no entry left in the roadmap: ${stale.join(", ")}`)
+      .toEqual([]);
   });
 
   it("claims no item in two lanes at once", () => {

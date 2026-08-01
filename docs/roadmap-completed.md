@@ -10,6 +10,270 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## Reconciliation 2026-07-31 (v0.3.808-810) — eighteen items closed, and how many premises failed
+
+Moved out of `roadmap.md` in one pass. **Eight of these closed because their PREMISE did not survive
+checking, not because they were built** — the entry described a gap that was already filled, or filled
+differently. That ratio is the finding: a band row is a cache of the detail entries and nothing ever
+invalidates it, so it drifts one way only, toward advertising work that is already done.
+
+- ✅ **R33-CLAWBACK-AMOUNT** — shipped (`856970c8`). Verified by reading the implementation, not the PR
+  title.
+
+- ✅ **R34-SHEET-SCALE** — shipped (`365976d8`). The engine was already right; nothing set the field.
+
+- ✅ **R21-MULTISCALE — the capability was already there; the entry was stale.** Checked 2026-07-31: `compose_viewports` has taken a **per-viewport `scale`** since the viewport work — its docstring documents `"scale": 100  # 1:100 on paper; omit/None → fit-to-rect`, it reads `vp.get("scale")` per view, and emits a per-view `scale_denom`. Reached at `analysis.py:603`. The entry said "per-viewport scale is the missing parameter"; it was not missing.
+
+  **What WAS missing was the proof, and that is now a gate.** `test_sheet_layout` paired one fixed scale with one fit-to-rect view — which does not test the claim, because "fit" is not a scale anyone specified and a build applying ONE denominator to every viewport would still pass. It now composes **1:50 and 1:100 on one sheet** and asserts each keeps its own denominator *and* that the finer scale is never smaller on paper — a label is cosmetic, an extent is the drawing. Mutation-checked: forcing the first viewport's scale onto all views yields `('1:50','1:50')` and goes red. *(Original entry below.)*
+
+- ✅ **R21-SPACE-TAG-SECT** — **SHIPPED inside `50f195cf`**, which is why nobody noticed: it rode along
+  with the qto class-match fix rather than getting its own commit, so the band row went on advertising
+  it. `space_tags_section()` is at `drawings.py:677` and is genuinely called at `drawings.py:1468` —
+  checked for a *caller*, not merely a definition, because the log lines inside a function match a
+  grep for its own name and read exactly like use.
+
+- ✅ **R21-DIM-COMPONENT** — **SHIPPED 2026-07-31 (`1880a508`, v0.3.810).** Every assembly the cut passes
+  through carries its `IfcMaterialLayerSet` breakdown, each band drawn in **proportion** so a 12 mm board
+  beside 150 mm of insulation reads as the sliver it is. The load-bearing part is the **disagreement**:
+  `declared_m` (what the layer set states) and `measured_m` (what the geometry is) are two claims, and a
+  set summing to 300 mm on a wall modelled at 250 mm prints `! modelled 250 (-50)` rather than being
+  reconciled — there is no basis for preferring either, and printing the declared total silently is how a
+  trade builds to a number nobody checked. An element with no layer set is **absent**, not fabricated
+  from its overall thickness; a layer with no stated thickness makes the total **unknown**, not a
+  confident under-count.
+
+*Why this ring and not more content:* the family shelf now clears every typology (v0.3.670), so the
+binding constraint on "can a user take this to LOD 500" moved from **what can be modelled** to
+**what can be issued and then verified**. R21 is the issuable half; the LOD-500 verification half
+shipped in v0.3.673.
+
+- ✅ **R22-PRODUCTION** — **SHIPPED (`c23c26dd`, PR #142).** `GET /projects/{pid}/progress/reconciliation`
+  compares field-installed quantity against the model takeoff per cost code. Both halves had existed
+  for months without being joined, and the reason was structural rather than an oversight: the module
+  carrying `cost_code` — the join key — is read only by pricing and carbon, while the module the
+  production loop actually consumes has no `cost_code` field at all. The loop read the module that
+  cannot join. Built as four refusals (units never silently equated, over-install reports >100% rather
+  than clamping, an uncoded takeoff says so, unmatched field codes named not counted), and every
+  headline percentage carries `covered_pct` — 97% complete across 3% of the model is true and useless.
+
+- ✅ **R22-ITP-NCR** *(M)* — **CLOSED 2026-07-31, premise FAILED.** All four asks exist and are reached.
+  `itp.point_type` is a **required select** — Hold Point · Witness Point · Review Point · Surveillance ·
+  Monitor — alongside `method`, `acceptance_criteria`, `frequency`, `responsible_party`,
+  `verifying_party`, `record_form`. `ncr` runs a real lifecycle `open → dispositioned → closed` with
+  `disposition`, `corrective_action`, `root_cause`, `severity` and a link to `inspection`. Element
+  attachment is `element_guids`, which `quality_chain.py` reads per element (built by R22-QUALITY-CHAIN,
+  #110) and which `routers/construction.py:260,283` serves as the chain and turnover-readiness. Modules
+  are reachable in room `schedule` via `rooms.room_of`, and `test_module_rooms` fails the build on an
+  unmapped section, so this cannot rot silently.
+
+- ✅ **R22-PROCURE-DEPTH** *(M)* — **CLOSED 2026-07-31, premise FAILED.** Claimed "bid leveling covers
+  one step of five" and named three remainders; **all three were already built**, and all three are
+  reached: `prequalification` module (EMR, bonding capacity, annual revenue, references, rating,
+  expiry, workflow `invited → submitted → approved/rejected`) · `clause_playbook.py`, a per-contract-type
+  registry of accept/negotiate/refuse positions with severity and fallback plus a deviation register,
+  called from `routers/realestate.py:300,309,332` · `vendor_memory.py` cross-project scorecards, called
+  from `routers/benchmarking.py:83`. Module reach resolves to room `planning` via `rooms.room_of`, and
+  `test_module_rooms` fails the build on an unmapped section — so the reach claim is checked, not
+  asserted.
+
+**Tier 3 — on-ramps and reach**
+
+- ✅ **R22-CAD-IMPORT** — **the DXF path was already SHIPPED, and its stated premise was false.** The
+  entry read "today feasibility and test-fit only run on models we authored". They do not:
+  `POST /projects/{pid}/raise-plan` (`routers/authoring.py:1161`, `require_role("editor")`) raises an
+  uploaded DXF into a real IFC4 model registered as a *2D Raise* discipline model — which flows into
+  the viewer, QTO, the estimate and federated clash like any other. `preview=true` returns detected
+  wall/room counts without writing. Two readers exist, both on **ezdxf (MIT)**: `dxf_takeoff.py`
+  (measured quantities per layer) and `plan_to_bim.py` (walls extruded from line-work, `IfcSpace`s from
+  closed polygons).
+
+  **Measured, not read.** A metric DXF (`$INSUNITS=6`) with one 8×6 m closed room raised to 4 `IfcWall`
+  + 1 `IfcSpace`, area 48.0 m² (exact), schema IFC4, GUIDs present on every wall. Units are detected
+  from the header rather than assumed.
+
+  **What is genuinely NOT built, stated plainly rather than left to look shipped:** *DWG* natively —
+  it must be converted to DXF externally first, which is a deliberate licence choice (the available
+  converters are AGPL or proprietary) and should stay a documented external step, not a dependency.
+  And *PDF* → base plan: PDF **takeoff** exists (TAKEOFF-2D), but raising a PDF to geometry does not.
+  If the PDF half is still wanted it should be re-cut as its own item with its own sizing, because it
+  shares nothing with the DXF path — vector recovery from a PDF is a different problem, not a format
+  variation.
+
+- ✅ **R23-CONSTRAINTS — SHIPPED; the band row was stale.** Verified 2026-07-31 against the code, not the entry: `services/data/src/aec_data/dim_constraints.py` solves dimensional locks as a **linear least-squares system with priority tiers**, reached at `POST /projects/{pid}/constraints/solve` (`analysis.py:522,542`), with `test_dim_constraints` registered and passing. **No new dependency was added** — the module's own docstring records why: the roadmap had unblocked this by accepting `kiwisolver`, and that reasoning was right about the *shape* and wrong about the *need*, since `lstsq`'s **rank** is the degrees of freedom and its **residual** is whether a tier is satisfiable — the two numbers the UX actually needs. *(Original entry below.)*
+
+- ✅ **R24-TRACE-UI ② — SHIPPED 2026-07-31 (`b3a630ea`).** 19 headline figures report which assumptions
+  the caller **declared** and which the engine **defaulted**, derived from `model_dump(exclude_unset=True)`
+  — deriving from the validated dump would report everything as declared and answer the reviewer's
+  question with fiction (mutation-checked: it drops the sparse deal from 8 defaulted inputs to 2).
+  `element_link` is `None` on every figure with a stated reason, because the proforma holds no GlobalId
+  and an invented terminus is worse than none. `FIGURE_INPUTS` is completeness-checked **both ways**
+  against `solve()`'s own output. `POST /proforma/provenance`, plus inline on `/proforma/solve`.
+
+  *Original entry below — the premise correction is the reason this was built backend-first:*
+
+* ✅ **R27-LAYOUT ① — DONE; both halves shipped (v0.3.702 + v0.3.778).** *Was: the layout is written but
+  never read back.* *(Corrected after checking the code:
+  the first draft of this item said "add `sheet_layout.py`". That module already exists —
+  [sheet_layout.py](../services/data/src/aec_data/sheet_layout.py), and it is good — but it runs in
+  the **write** direction: it composes viewport rectangles, fixed 1:N paper scales, per-viewport class
+  freezes and titleblocks onto sheets we generate. Nothing reads that structure back out of a PDF.)*
+
+  So this is the **same asymmetry R25-TASK-BIND closed for the 4D binding**: a platform that can write
+  a structure but not read it has a one-way door, and the structure stops existing the moment the file
+  leaves. Two halves, and the first is nearly free:
+
+  ✅ **(a) Our own sheets** *(shipped v0.3.702)*. Detection was never required here, only persistence:
+  `compose_viewports` already computes the exact page←world affine in order to place the geometry, so
+  `sheet_regions()` now keeps it. Each region reports `basis: "authored"` — these *are* the numbers the
+  sheet was drawn with, not a recovery from the rendered output — and the **measurable** rect is the
+  inner one, not the cell, because the cell includes padding and the label band and scoping a takeoff
+  to it would accept a trace that is not on the drawing. `to_world()` inverts the affine; an
+  unmeasurable viewport reports **`to_page: null`, never identity**, since an identity would silently
+  report page points as metres. The transform is asserted by **inverting an actual rendered vertex**
+  rather than against a second implementation of the same arithmetic — the 4D binding round-tripped
+  perfectly through its own writer+reader pair while encoding the wrong IFC relation.
+
+  ✅ **(b) Received sheets** *(shipped v0.3.778)* — [sheet_recover.py](../services/api/src/aec_api/sheet_recover.py),
+  `POST /projects/{pid}/drawings/received-regions`. Rectangles come from the page's own content stream
+  and are classified with the ADIRO-style vocabulary; `basis` is `sidecar` | `vector` | `unknown`, and
+  a page with no vectors returns a **stated unknown, never an empty list** — an empty list is a claim
+  about the drawing, unknown is a claim about us. `to_page` is null for every region and never
+  identity: the page↔world mapping is not recoverable from a sheet we did not draw. A printed scale
+  comes back as `scale_denom_proposed` for calibration to accept, never applied — a takeoff
+  auto-calibrated wrong *looks finished*, which is worse than one nobody calibrated.
+
+  Two things the first cut got wrong, both caught by making the test disagree with the code:
+  **rectangles must be transformed through the CTM stack** (reading `re` operands raw is the obvious
+  version and is wrong on every sheet whose views are placed with `cm`), and **a region's kind must be
+  decided by the text it *owns*, not all text inside it** — a revision table nests in the titleblock,
+  so reading contained text made the titleblock a "revision table". The border check also passed
+  vacuously at first because it restated the implementation's own 0.98 threshold; it now asserts
+  against the rectangle the test actually drew, and the border it was supposed to catch was in fact
+  still in the output.
+
+  Evidence: arXiv:2607.18997 §layout-layer. Read-side gap confirmed in
+  [sheet_extract.py](../services/api/src/aec_api/sheet_extract.py), which walks pages via `pypdf` and
+  regexes the text layer with no notion of *where on the sheet* anything sits.
+
+* ✅ **R27-SKILL-GAP** *(S)* — **DONE 2026-07-31. Premise mostly FAILED; the diff is nearly empty.**
+
+  **The corpus is [`datadrivenconstruction/DDC_Skills_for_AI_Agents_in_Construction`](https://github.com/datadrivenconstruction/DDC_Skills_for_AI_Agents_in_Construction)** — recorded here because the
+  entry named it only as "a 221-file skills corpus (MIT)", and *a gap-check whose input nobody can find
+  is not repeatable*. Identity confirmed by count (exactly **221 `SKILL.md` files**) and the licence
+  read **from the LICENSE file, not the README**, per this ring's own rule: MIT.
+
+  **32 of the 221 (15%) are dead on arrival.** They are CWICR-based (`cwicr-*`,
+  `bim-cost-estimation-cwicr`, `semantic-search-cwicr`) and this ring already refused **CWICR data as
+  CC BY-NC 4.0**. The MIT skill files are usable; the data they operate on is not. Effective corpus
+  ~189 — and the single largest domain in it is one already ruled out on licence.
+
+  **Checked precisely rather than by keyword, and the plausible gaps were all already built:**
+  `ids-checker` → `ids_authoring.py:63` + `model_ci._ids_check:78` with real `.ids` files at
+  `{pid}/ids/project.ids` · `energy-simulation` → `energy.py`, `energy_star_bridge.py` ·
+  `schedule-compression` → `px.py:286-309`, crash **and** fast-track levers with `days_potential` ·
+  `weather-impact-scheduler` → `notice_clock.py:128`, weather-delay notice citing §15.1.6.2 · plus
+  procurement, contract-clause, prequal, payment-app, punchlist, lien-waiver, warranty, RFI, submittal,
+  look-ahead, resource-levelling, QTO, clash, 4D and carbon — all with modules or engines.
+
+  ❌ **Deliberate divergence — do NOT file this as a gap and do not "close" it.** The corpus has
+  `vector-search`, `rag-construction` and `semantic-search-cwicr`; we have **zero** embedding/vector
+  code and `doc_text.search()` is pure token overlap. That is a **stated design choice**, not an
+  omission — the module docstring says *"Deterministic retrieval … fully offline; no LLM required and
+  none silently invoked."* Adopting semantic search trades that away. Refused on purpose.
+
+- ✅ **R31-SCHEMA-DIAG** — **SHIPPED.** `services/data/src/aec_data/schema_diag.py` +
+  `test_schema_diag.py`, served at **`GET /projects/{pid}/models/schema-diag`** beside `/models/qa`
+  and `/models/norm-valid`.
+  **The route was in the OpenAPI schema and raised `NameError` on every call** — `source_ifc_path`
+  is imported into that module as `_source_ifc`. Presence in the schema proves *defined*; only the
+  request proves *callable*, and a schema-only assertion would have shipped it. `test_reachable.py`
+  could not have caught it either: it walks the import graph of `aec_api` and this engine is in
+  `aec_data`, reached by a lazy import inside the handler. The test now asserts over HTTP, and
+  compares the status against the SIBLING routes rather than a literal, so a hard-coded 404 cannot
+  keep passing if the whole family starts returning 500.
+  **It found a crash on the way in, which is worth more than the diagnostic.** `ifcopenshell` 0.8.5
+  **segfaults** — exit 139, reproduced 3/3 — on an IFC ending inside an unclosed `'` literal, the shape
+  a truncated upload or an interrupted write produces. A segfault is not an exception: `try/except`
+  cannot catch it, so the process handling the request dies. `ifc_loader.open_model` (the choke point,
+  **133 callers**) now screens for exactly that one input and refuses it as an ordinary error.
+  The screen is deliberately narrow: an unclosed parenthesis and a mid-instance truncation both fail
+  the structural checks and ifcopenshell opens them *without complaint*, so refusing everything that
+  fails to parse would break uploads that work today — a worse bug than the crash.
+  It also found a **real IFC2X3 violation in a shipped sample**: 27 `IfcFurnitureType` instances in
+  `basichouse.ifc` pass `$` for `AssemblyPlace`, which the schema declares mandatory. Written by a
+  mainstream exporter; the file loads, renders, and passes IDS. That is the argument for the whole item
+  in one example. Zero false positives across the other shipped samples.
+  Original scope below, kept because the reasoning is what justified the build:
+
+- ✅ **R31-SCHEMA-DIAG** *(shipped — original entry, kept for the reasoning)* — **validate the IFC against the SCHEMA, not just against a spec.**
+  Everything we have scores *completeness* or *hygiene*: `openbim_quality` is IDS rule-compliance % and
+  LOIN completeness over the `{guid: element}` properties index; `model_qa` is hygiene (duplicate
+  GlobalIds, overlaps, orphans, unenclosed spaces, blank names, wrong storey). **Nothing checks
+  structural validity**: an unknown entity type, a dangling `#12345` reference, an attribute of the wrong
+  type, an attribute violating its declared cardinality.
+
+  Why it matters now rather than before: **we WRITE IFC.** Since authoring became a first-class goal the
+  platform emits files, and a model can score **100% IDS-compliant and still be rejected on import by
+  another tool** — those are different failure classes, and only one of them is currently visible. This
+  is also the class of defect a viewer hides: geometry renders, the file is broken.
+
+  Reference implementation to study, not vendor: [`NepomukWolf/vscode-ifc`](https://github.com/NepomukWolf/vscode-ifc)
+  (**MIT**) runs exactly these diagnostics through an IFC language server — invalid references, type
+  mismatches, unknown entities, cardinality errors. `ifcopenshell` can express most of it server-side.
+  Premise-check first: confirm none of `model_qa` / `quality` / `norm_valid` already covers a given check
+  before adding it, because three of the four names above sound like they might and do not.
+
+- ✅ **R31-PIPELINE-ALLOCATE** — **SHIPPED 2026-07-31 (`6ba0c466`, PR #147, v0.3.810).** The one entry all
+  day whose premise **held** on checking, out of eight. `POST /pipeline/allocate` returns the subset with
+  the highest total value under a capital constraint — an exact integer optimum, no LP relaxation, on the
+  `scipy` already present. **Ranking is not selection:** `fca.portfolio` orders worst-first and advises
+  funding those first, which loses whenever one high-return project crowds out two smaller ones that
+  together beat it.
+
+  Built as refusals, because a fractional answer here converges and looks buildable: a project that
+  cannot fit even with the whole budget is **named** with how far over; a candidate with **no stated
+  value is refused**, not treated as zero; and if no optimum computes it returns **no selection** rather
+  than substituting the ranking. It reports what greedy would have chosen beside the optimum — and a
+  difference of zero means *these candidates have no crowding-out*, not that ranking is safe. That
+  self-check caught an inverted fixture during development: the assertion said the **test** could not
+  distinguish, not that the solver was wrong.
+
+  A follow-on security fix landed with it (`6a2758d0`): the route shipped guarded by
+  `Depends(current_user)`, which identifies without authorising — the third sighting of the v0.3.807 seal
+  defect. Caught by the v0.3.808 prefix-coverage gate, one release after that gate shipped.
+
+- ✅ **R31-SYNDICATION-TAIL** *(M)* — **CHECKED 2026-07-31; two of three asks already built. Rescoped to
+  `R31-K1-PACK` below.** The entry's own instruction — *"Do not build a cap table before confirming
+  `capital.py` lacks one"* — was the right one and it **does not lack one**: `capital.cap_table()`
+  returns ownership %, contributed / distributed / **unreturned**, per-class rollup and sorted rows, and
+  is reached from `distwaterfall.py:67`, `report_builders/finance.py:293,510` and `reports.py:103`
+  ("Investor Cap Table"). Soft/hard commitment tracking is built **under a different name**: `investor`
+  states are `prospect → committed → funded → exited`, so soft circle and hard commitment are workflow
+  states rather than an enum somebody was looking for.
+
+  ⚠️ **The name collision that probably produced this entry:** the **`commitment` module is
+  CONSTRUCTION commitments** — Purchase Order / Subcontract / Work Authorization, with `retainage_pct`
+  and `cost_code`. It has nothing to do with investor commitments. Reading it as the syndication side
+  badly misjudges the item.
+
+- ✅ **R31-K1-PACK** *(S/M)* — **SHIPPED 2026-07-31** (`aabad457`), and it deliberately does **not**
+  emit a K-1. A Schedule K-1 reports a partner's distributive share of *taxable income*, which needs a
+  §704(b)-allocated income statement; this platform has capital movements and **no income statement at
+  all**. So `capital.k1_pack()` returns the half we can evidence and **names what it cannot supply** —
+  `is_tax_document: false` plus a `not_included` list (704(b) allocation, depreciation and §754/§743(b)
+  basis, guaranteed payments, outside basis / at-risk, separately stated items, state apportionment).
+  An accountant told what is absent can supply it; one handed a plausible-looking pack cannot know to.
+  `GET /projects/{pid}/k1-pack`.
+
+  **Two money-math decisions worth not undoing:** there is *no beginning/ending capital balance*,
+  because that is a §704(b) rollforward needing the income allocation we lack — absent beats guessed
+  from contributions, which would be wrong in a way that looks right. And `ownership_pct` is an
+  **allocation ratio**, so `allocation_check` reports the exact rounding residual rather than hiding
+  it; ratios silently summing to 99.9997% would misallocate income for every partner every year and
+  survive inspection. Mutation-checked both ways.
+
+  *(Original entry, kept because the boundary sentence was the spec:)*
+
 ## ✅ R34-SHEET-SCALE — a takeoff region is measured at the scale it was traced under *(2026-07-31)*
 
 **The engine was right and the defect was live anyway.** `takeoff2d.quantify()` has honoured a per-region
