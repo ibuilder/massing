@@ -620,6 +620,19 @@ stakes we are missing.
      with no migration path. Same family as `module.json` having no capability key.
   4. **Per-user, never shared** — `user` is part of the identity key, so a view cannot be a firm or
      project report. A builder whose output only its author can see is a personal filter.
+  5. **`reports.REPORTS` is a separate registry the saved-view layer knows nothing about.** Reports
+     already exist, with their own categories, rendered in their own panel — so a "report builder"
+     that only grows the module query surface would ship a *second* way to make a report, sitting
+     beside the one users already have. Unifying them, or deciding deliberately that they stay
+     separate, is part of this item.
+
+     **This fifth line was missing from the four-item list above for a day**, and how it was missed is
+     the point: the gap-check read the module and saved-view layer thoroughly and never opened the
+     report registry. The list was **accurate about what it examined and incomplete about the item** —
+     the same failure this entry exists to correct, committed while correcting it. `reports.REPORTS`
+     is invisible to a module-layer sweep because it renders in a different panel, which is also how
+     three of its categories came to name sections the product had retired (fixed separately).
+     **A completeness check has to ask what it did not look at, not only what it found.**
 
   Still (M), but a *different* (M): add aggregation and cross-module scope to the surface that exists,
   give `SavedView.config` a schema, and let a view be shared. **Building the entry as written would
