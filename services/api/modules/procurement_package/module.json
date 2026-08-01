@@ -1,7 +1,7 @@
 {
   "key": "procurement_package",
   "name": "Buyout Packages",
-  "section": "Preconstruction",
+  "section": "Bidding",
   "icon": "📦",
   "ref_prefix": "BP",
   "title_field": "name",

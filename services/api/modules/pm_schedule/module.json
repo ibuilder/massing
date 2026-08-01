@@ -1,7 +1,7 @@
 {
   "key": "pm_schedule",
   "name": "PM Schedules",
-  "section": "Facilities",
+  "section": "Maintenance",
   "icon": "🔁",
   "ref_prefix": "PM",
   "title_field": "subject",

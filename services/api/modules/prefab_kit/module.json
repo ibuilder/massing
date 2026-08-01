@@ -1,7 +1,7 @@
 {
   "key": "prefab_kit",
   "name": "Prefab Kits",
-  "section": "Schedule",
+  "section": "Logistics",
   "icon": "📦",
   "ref_prefix": "KIT",
   "title_field": "name",
@@ -100,44 +100,69 @@
         "from": "draft",
         "to": "scoped",
         "action": "scope",
-        "party": ["GC", "PM", "Subcontractor"]
+        "party": [
+          "GC",
+          "PM",
+          "Subcontractor"
+        ]
       },
       {
         "from": "scoped",
         "to": "draft",
         "action": "reopen",
-        "party": ["GC", "PM"]
+        "party": [
+          "GC",
+          "PM"
+        ]
       },
       {
         "from": "scoped",
         "to": "released",
         "action": "release",
-        "party": ["GC", "PM"],
-        "requires": ["frozen_guids", "released_on"]
+        "party": [
+          "GC",
+          "PM"
+        ],
+        "requires": [
+          "frozen_guids",
+          "released_on"
+        ]
       },
       {
         "from": "released",
         "to": "fabricating",
         "action": "start_fabrication",
-        "party": ["GC", "Subcontractor"]
+        "party": [
+          "GC",
+          "Subcontractor"
+        ]
       },
       {
         "from": "fabricating",
         "to": "delivered",
         "action": "deliver",
-        "party": ["GC", "Subcontractor"]
+        "party": [
+          "GC",
+          "Subcontractor"
+        ]
       },
       {
         "from": "delivered",
         "to": "installed",
         "action": "install",
-        "party": ["GC", "Subcontractor"]
+        "party": [
+          "GC",
+          "Subcontractor"
+        ]
       },
       {
         "from": "released",
         "to": "scoped",
         "action": "recall",
-        "party": ["GC", "PM"]
+        "party": [
+          "GC",
+          "PM"
+        ]
       }
     ]
   },

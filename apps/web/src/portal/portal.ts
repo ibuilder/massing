@@ -2107,6 +2107,7 @@ export class PortalUI {
     f: ModuleDef["fields"][number],
     value: unknown,
     store: Record<string, Record<string, unknown>[]>,
+    refOpts?: Record<string, { id: string; label: string }[]>,
   ): HTMLElement {
     const cols = f.columns ?? [];
     const wrap = document.createElement("div"); wrap.className = "tbl-field";
@@ -2156,7 +2157,42 @@ export class PortalUI {
       for (const c of cols) {
         const td = document.createElement("td");
         let inp: HTMLInputElement | HTMLSelectElement;
-        if (c.type === "select") {
+        if (c.type === "reference") {
+          // MOD-TABLEREF. The hazard `TABLE_COLUMN_TYPES` excluded this type over was "unresolvable
+          // ids in rows" — and inside a <select> that is worse than a bad label, it is SILENT DATA
+          // LOSS: a stored value absent from the options list leaves the control showing the blank
+          // option, and the next save writes the blank over a link somebody made. The row would come
+          // back empty with nothing having reported an error.
+          //
+          // So a stored value that no option matches gets an option of its own, marked, and stays
+          // selected. Same three-way shape as `refCell`: resolved reads as the record, an unresolved
+          // id is shown as an id and never as a working choice, and free text is kept in full
+          // because it is the only handle anyone has for re-linking it.
+          inp = document.createElement("select");
+          const blank = document.createElement("option"); blank.value = ""; blank.textContent = "—";
+          inp.appendChild(blank);
+          const opts = refOpts?.[c.name] ?? [];
+          for (const o of opts) {
+            const op = document.createElement("option"); op.value = o.id; op.textContent = o.label;
+            inp.appendChild(op);
+          }
+          const stored = row[c.name] == null ? "" : String(row[c.name]);
+          if (stored && !opts.some((o) => o.id === stored)) {
+            const keep = document.createElement("option");
+            keep.value = stored;
+            keep.textContent = UUID_RE.test(stored)
+              ? `${stored.slice(0, 8)}… (not found)`
+              : `${stored} (not linked)`;
+            keep.title = UUID_RE.test(stored)
+              ? `This ${String(c.module).replace(/_/g, " ")} could not be resolved — it may have been `
+                + `deleted, or lie beyond the first ${REF_RESOLVE_LIMIT} records. Kept so saving this `
+                + "row cannot erase it."
+              : "Free text from before this column became a reference. Kept verbatim — pick a record "
+                + "to link it, or leave it as it is.";
+            inp.insertBefore(keep, inp.firstChild!.nextSibling);
+          }
+          inp.value = stored;
+        } else if (c.type === "select") {
           inp = document.createElement("select");
           const blank = document.createElement("option"); blank.value = ""; blank.textContent = "—";
           inp.appendChild(blank);
@@ -2449,6 +2485,26 @@ export class PortalUI {
       const recs = await this.host.api.moduleRecords(pid, f.module!);
       refOpts.set(f.name, recs.map((r) => ({ id: r.id, label: `${r.ref} — ${r.title ?? ""}` })));
     }));
+    // MOD-TABLEREF: the same fetch for a `reference` COLUMN inside a table field. Keyed
+    // `<field>.<column>` so a picker in one grid cannot be fed another's options — and deduped by
+    // target module, because two columns pointing at the same register are one request, not two.
+    const colTargets = new Map<string, string>();          // "field.column" -> module
+    for (const f of m.fields) {
+      for (const c of f.columns ?? []) {
+        if (c.type === "reference" && c.module) colTargets.set(`${f.name}.${c.name}`, c.module);
+      }
+    }
+    const byTarget = new Map<string, { id: string; label: string }[]>();
+    await Promise.all([...new Set(colTargets.values())].map(async (mod) => {
+      const recs = await this.host.api.moduleRecords(pid, mod);
+      byTarget.set(mod, recs.map((r) => ({ id: r.id, label: `${r.ref} — ${r.title ?? ""}` })));
+    }));
+    const tableRefOpts: Record<string, Record<string, { id: string; label: string }[]>> = {};
+    for (const [k, mod] of colTargets) {
+      const dot = k.indexOf(".");
+      const fname = k.slice(0, dot), cname = k.slice(dot + 1);
+      (tableRefOpts[fname] ??= {})[cname] = byTarget.get(mod) ?? [];
+    }
     // E1 — project-level custom select options, merged into the module.json options below
     const custom = await this.host.api.enumOptions(pid).catch(() => ({} as Record<string, Record<string, string[]>>));
     const optsFor = (f: ModuleDef["fields"][number]) => [...(f.options ?? []), ...((custom[m.key]?.[f.name]) ?? [])];
@@ -2555,7 +2611,7 @@ export class PortalUI {
         // `el.value` string, so every consumer of `inputs` (the required check, the save loop, the
         // invalid-marker) would read it wrongly. `tableRows` holds the live rows; the save path reads
         // from there. Appending it here and `continue`-ing keeps `el` honestly typed as an input.
-        wrap.appendChild(this.tableEditor(f, cur(f.name), tableRows));
+        wrap.appendChild(this.tableEditor(f, cur(f.name), tableRows, tableRefOpts[f.name]));
         this.root.appendChild(wrap);
         continue;
             } else {

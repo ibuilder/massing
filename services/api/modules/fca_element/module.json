@@ -1,7 +1,7 @@
 {
   "key": "fca_element",
   "name": "Facility Condition",
-  "section": "Facilities",
+  "section": "Condition & Capital",
   "icon": "🏥",
   "ref_prefix": "FCA",
   "title_field": "element",

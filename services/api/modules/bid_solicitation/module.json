@@ -1,7 +1,7 @@
 {
   "key": "bid_solicitation",
   "name": "Bid Solicitations (ITB)",
-  "section": "Preconstruction",
+  "section": "Bidding",
   "icon": "✉",
   "ref_prefix": "ITB",
   "title_field": "name",

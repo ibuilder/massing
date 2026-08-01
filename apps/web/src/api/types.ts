@@ -253,8 +253,11 @@ export interface ModuleField {
  *  Allowed types mirror `module_schema.TABLE_COLUMN_TYPES`. */
 export interface ModuleColumn {
   name: string; label?: string; required?: boolean;
-  type: "text" | "number" | "currency" | "percent" | "date" | "select" | "checkbox";
+  type: "text" | "number" | "currency" | "percent" | "date" | "select" | "checkbox" | "reference";
   options?: string[]; unit?: string; width?: string;
+  /** MOD-TABLEREF — the register a `reference` column points at. Required for that type, and
+   *  `validate_module` rejects it on any other, so the two can never disagree about what a column is. */
+  module?: string;
 }
 
 export interface ModuleDef {

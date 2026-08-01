@@ -1,7 +1,7 @@
 {
   "key": "weekly_plan",
   "name": "Weekly Plan (Last Planner)",
-  "section": "Schedule",
+  "section": "Sequencing",
   "icon": "✓",
   "ref_prefix": "WP",
   "title_field": "task",

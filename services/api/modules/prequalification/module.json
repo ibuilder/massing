@@ -1,7 +1,7 @@
 {
   "key": "prequalification",
   "name": "Prequalification",
-  "section": "Preconstruction",
+  "section": "Bidding",
   "icon": "✓",
   "ref_prefix": "PQ",
   "title_field": "company",

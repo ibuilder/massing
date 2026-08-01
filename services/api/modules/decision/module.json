@@ -1,7 +1,7 @@
 {
   "key": "decision",
   "name": "Decision Log",
-  "section": "Preconstruction",
+  "section": "Project Governance",
   "icon": "✔",
   "ref_prefix": "DEC",
   "title_field": "subject",

@@ -1,7 +1,7 @@
 {
   "key": "bid_submission",
   "name": "Bid Submissions",
-  "section": "Preconstruction",
+  "section": "Bidding",
   "icon": "$",
   "ref_prefix": "BID",
   "title_field": "bidder",

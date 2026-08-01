@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 # Field types the config-driven CRUD UI knows how to render. Keep in sync with the web form renderer —
 # `fieldTypeCoverage.test.ts` asserts that every type here is one the form can actually handle, after
@@ -35,7 +35,17 @@ FIELD_TYPES = {"text", "number", "currency", "date", "textarea", "select", "mult
 #: one in a repeating row multiplies that flow by the row count). No `reference` yet — a picker per row
 #: is a real feature rather than a column type, and shipping it half-done would put unresolvable ids in
 #: rows, which is the exact defect `refCell` was written to stop.
-TABLE_COLUMN_TYPES = {"text", "number", "currency", "percent", "date", "select", "checkbox"}
+#:
+#: MOD-TABLEREF (2026-07-31): `reference` is now IN, and the exclusion note above is why it took a
+#: second pass rather than a one-line edit. The condition for admitting it was never "add the string"
+#: — it was that a row's reference must render through the SAME three-way path `refCell` uses for a
+#: reference field (resolved → link · an id nothing resolves → short id, NOT a link · not an id at
+#: all → the value in full), so a row cannot show a confident link to nothing. A reference column
+#: must name its `module`, and `validate_module` checks that module exists: a picker pointed at a
+#: register that is not installed offers an empty list, which reads as "there are none" rather than
+#: as a broken config.
+TABLE_COLUMN_TYPES = {"text", "number", "currency", "percent", "date", "select", "checkbox",
+                      "reference"}
 
 #: MOD-GUID — an IFC GlobalId is 22 characters over a fixed base64-ish alphabet (IfcOpenShell's
 #: compressed form of a 128-bit UUID). Anything else in a field labelled "GlobalId" is not one.
@@ -124,6 +134,10 @@ class ColumnDef(BaseModel):
     #: Render narrower/wider than the default. A hint, not a layout engine.
     width: str | None = None
 
+    #: MOD-TABLEREF — the register a `reference` column points at. Required for that type and
+    #: meaningless for the others.
+    module: str | None = None
+
     @field_validator("type")
     @classmethod
     def _known_column_type(cls, v: str) -> str:
@@ -131,6 +145,15 @@ class ColumnDef(BaseModel):
             raise ValueError(f"column type {v!r} not allowed in a table "
                              f"(allowed: {sorted(TABLE_COLUMN_TYPES)})")
         return v
+
+    @model_validator(mode="after")
+    def _reference_names_its_module(self):
+        if self.type == "reference" and not self.module:
+            raise ValueError(f"reference column {self.name!r} must name the `module` it points at")
+        if self.type != "reference" and self.module:
+            raise ValueError(f"column {self.name!r} declares `module` but is a {self.type}, "
+                             "not a reference")
+        return self
 
 
 class FieldDef(BaseModel):
@@ -300,6 +323,14 @@ def validate_module(mod: dict, *, known_modules: set[str] | None = None,
                 errors.append(f"{key}.{f.name}: reference field has no 'module' target")
             elif known_modules is not None and f.module not in known_modules:
                 errors.append(f"{key}.{f.name}: reference target module {f.module!r} does not exist")
+        # MOD-TABLEREF — a reference COLUMN's target is checked by exactly the rule above. It is
+        # written out rather than shared because a column is not a field, but the failure is the
+        # same one: a picker pointed at a register that is not installed shows an empty list, and an
+        # empty list reads as "there are none of those" rather than as a broken config.
+        for c in (f.columns or []):
+            if c.type == "reference" and known_modules is not None and c.module not in known_modules:
+                errors.append(f"{key}.{f.name}[{c.name}]: reference column target module "
+                              f"{c.module!r} does not exist")
         if f.type in ("select", "multiselect") and not f.options:
             errors.append(f"{key}.{f.name}: {f.type} field has no options")
         if f.unit and f.type not in _NUMERIC_TYPES:

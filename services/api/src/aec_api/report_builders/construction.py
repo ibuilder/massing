@@ -248,7 +248,7 @@ def _spec_submittal_log(db: Session, pid: str, name: str) -> Report:
             [[x.get("section_number", ""), x.get("title", ""), x.get("division", ""),
               x["required_count"], x["logged_count"],
               ("⚠ " + str(x["missing_count"])) if x["missing_count"] else "0", x.get("responsible") or ""]
-             for x in s["rows"]] or [["(no spec sections — add them under Preconstruction ▸ Specifications)"] + [""] * 6])
+             for x in s["rows"]] or [["(no spec sections — add them under Design ▸ Specifications)"] + [""] * 6])
     return r
 
 

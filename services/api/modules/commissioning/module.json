@@ -73,8 +73,21 @@
     {
       "name": "deficiencies",
       "label": "Deficiencies",
-      "type": "textarea",
-      "fieldset": "Result"
+      "type": "table",
+      "fieldset": "Result",
+      "columns": [
+        {
+          "name": "deficiency",
+          "label": "Deficiency",
+          "type": "reference",
+          "module": "deficiency"
+        },
+        {
+          "name": "note",
+          "label": "Note",
+          "type": "text"
+        }
+      ]
     }
   ],
   "workflow": {

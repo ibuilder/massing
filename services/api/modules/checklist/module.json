@@ -1,7 +1,7 @@
 {
   "key": "checklist",
   "name": "Checklists",
-  "section": "Field",
+  "section": "Quality",
   "icon": "☑",
   "ref_prefix": "CL",
   "title_field": "name",
