@@ -144,6 +144,32 @@ def project_income_basis(pid: str, declared_annual: float | None = None,
     return income_basis.resolve(declared_annual=declared_annual, rent_roll=rr, ner=ner)
 
 
+@router.post("/projects/{pid}/proforma/renovation")
+def project_renovation(pid: str, body: dict = Body(...), db: Session = Depends(get_db),
+                       _sec: str = Depends(rbac.require_role("viewer"))):
+    """PF-RENOVATION — a value-add renovation programme, unit by unit, over time.
+
+    Body: `{unit_types: [{type, count, current_rent_monthly, renovated_rent_monthly,
+    renovation_cost}], assumptions: {units_per_month, downtime_months_per_unit}, months?}`.
+
+    A unit earns its in-place rent until it starts, **nothing** while it is being renovated, and the
+    renovated rent only from the month it comes back online. Applying the premium from day one is the
+    standard way a value-add deal is overstated — it produces a smooth, plausible income curve that is
+    simply too high, too early, for the whole hold.
+
+    `units_per_month` and `downtime_months_per_unit` are required and NOT defaulted: without them the
+    model either renovates everything instantly or costs only its capex, and either result is
+    indistinguishable from a correct one. Stating zero downtime is allowed — it is then a choice.
+    """
+    from ..models import Project
+    from ..proforma import renovation
+
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return renovation.schedule(body.get("unit_types") or [], body.get("assumptions") or {},
+                               months=int(body.get("months") or 60))
+
+
 @router.get("/projects/{pid}/financials")
 def project_financials(pid: str, db: Session = Depends(get_db), _sec: str = Depends(rbac.require_role("viewer"))):
     """Financial statements for the project's latest saved scenario (income statement · balance sheet ·
