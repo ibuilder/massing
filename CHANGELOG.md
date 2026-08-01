@@ -4,6 +4,66 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.816 — the lockfile pinned versions its own requirements file forbade
+
+### Fixed — production installed packages the input file said were too old
+
+`requirements.in` is the input to pip-compile; `requirements.lock` is what CI installs
+(`--require-hashes`) and what the container image installs. Nothing installs the `.in` file, so
+nothing was checking that the two agreed — and they did not:
+
+| package | `requirements.in` required | the lock pinned |
+|---|---|---|
+| `fastapi` | `>=0.140.7` | **0.139.0** |
+| `anthropic` | `>=0.120.0` | **0.116.0** |
+
+Dependabot raised both floors and both PRs merged; neither regenerated the lock. So the lock pinned
+versions *below its own stated minimum*, and every test run and every container built from it used
+the older packages while the requirements file sat in the repo saying, truthfully but
+ineffectively, that they were too old. **A floor nobody enforces is a comment.** The lock is
+regenerated from the prod interpreter, which changes exactly six lines.
+
+### Fixed — the gate that would have caught it only ran where nobody was looking
+
+`lockfile.yml` does check this properly, by recompiling in the production image. But it triggers
+only on a manual dispatch or a push touching the requirements files — so it fired on the Dependabot
+PRs, failed, and was merged past; and afterwards no ordinary push re-ran it. It surfaced only
+because it *also* fires on tag pushes, where three consecutive releases failed a job that never
+appeared in the branch's checks.
+
+`test_lock_satisfies_requirements.py` is the always-on half. It cannot recompile — no network, no
+production interpreter — but it can compare what the lock **pins** against what the input
+**requires**, on every suite run, and it names the regeneration command when it fails. The
+recompiling workflow stays the authority on resolution; this is the tripwire.
+
+Parsing both sides identically turned out to be the whole difficulty: pip-compile writes extras into
+the lock too (`psycopg[binary]==3.3.4`, `uvicorn[standard]==0.51.0`, `sentry-sdk[fastapi]==2.66.1`),
+and a first pattern that stopped at the bracket reported all three as **missing from the lock** —
+three false alarms of the most alarming kind available, on packages that were pinned correctly the
+whole time.
+
+### Added — a citation can find its passage without editing vendored code
+
+R31-CITE-HIGHLIGHT's remaining half was recorded as blocked on a real decision: highlighting needed
+an entry point from `apps/web/src/vendor/massingpdf/`, which is carried verbatim from a sibling repo,
+so an edit there is lost on the next re-vendor or has to go upstream first.
+
+The decision is not needed. The vendor's public index already exports `splitWords` and `unionBox`,
+and its search plugin exports `findInWords` — a pure function from words to boxes. Only the visual
+flash is private, and drawing our own is a few lines. `drawings/citeLocate.ts` therefore composes the
+locator entirely from the vendor's **public** surface: no vendor edit, nothing to send upstream, and
+a re-vendor cannot silently drop it.
+
+The hard part is not the lookup. The citation's text came out of **pypdf**; the page's words come out
+of **pdf.js**, and the same paragraph does not survive both readers identically — whitespace differs,
+ligatures and soft hyphens survive one and not the other, and the stored snippet is wrapped in
+ellipses that appear nowhere in the document. An exact match therefore fails on ordinary input while
+looking exactly like "the passage isn't on this page". Matching degrades on purpose — full passage,
+then ends-trimmed, then the most distinctive middle phrase — and reports which rung matched, so a
+weak hit is not presented as a strong one. When nothing matches it returns **nothing**: boxing an
+arbitrary region because something had to be highlighted would be worse than a page number, since the
+reader would trust the box.
+
 ## v0.3.815 — three of seven rooms were named once and never explained
 
 ### Fixed — the product tour listed rooms it never visited

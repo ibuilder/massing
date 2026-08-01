@@ -72,7 +72,7 @@ TESTS = ["test_proforma", "test_renovation", "test_rollover", "test_income_basis
          # public docs are a shipped surface: competitor names for interop only, never comparison:
          "test_no_comparative_names",
          # this list is itself hand-maintained, so it gets a test of its own:
-         "test_manifest"]
+         "test_lock_satisfies_requirements", "test_manifest"]
 
 
 def manifest_problems(tests: list[str] | None = None,
