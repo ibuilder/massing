@@ -39,6 +39,7 @@ Pure arithmetic over the supplied unit types — no DB, deterministic, unit-test
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 STATUS_OK = "scheduled"
@@ -125,7 +126,14 @@ def schedule(unit_types: list[dict] | None, assumptions: dict | None = None,
 
     renovatable, excluded = _prepare(unit_types)
     pace = a["units_per_month"]
-    downtime = int(round(a["downtime_months_per_unit"]))
+    # Downtime rounds UP, and never silently to zero. `int(round(x))` was banker's rounding: 0.5 -> 0,
+    # 1.5 -> 2, 2.5 -> 2. The first of those is the damaging one — a stated half-month of downtime
+    # became NO downtime, deleting phase 2 entirely, which is the exact cost this module exists to
+    # surface. In a monthly model a unit that is offline at all is offline for the month; rounding a
+    # stated positive downtime down to nothing understates the programme's carrying cost while the
+    # output still reads as a complete schedule. An explicit 0 is preserved — that is a choice.
+    raw_downtime = a["downtime_months_per_unit"]
+    downtime = 0 if raw_downtime == 0 else max(1, math.ceil(raw_downtime))
     months = max(0, int(months))
 
     # Expand to a per-unit queue, in the order the caller supplied. Explicit rather than proportional:
@@ -150,8 +158,20 @@ def schedule(unit_types: list[dict] | None, assumptions: dict | None = None,
 
     m = 0
     budget = 0.0
+    # A FRACTIONAL pace accumulates rather than truncating. `int(min(pace, ...))` floored each month
+    # independently, so any pace below 1 took `int(0.5) == 0` units every single month and renovated
+    # NOTHING — for all 60 months, while still returning `status: "scheduled"` with a full by_month
+    # table of zeros. "One unit every two months" is an ordinary pace for a small property, and it
+    # produced a silently empty programme that reads exactly like a completed one.
+    #
+    # Carrying the remainder makes 0.5 mean what it says: 0, 1, 0, 1 ... The module's stated purpose is
+    # to stop a value-add deal being OVERstated; this failed in the other direction and was no less
+    # wrong for it.
+    allowance = 0.0
     while cursor < len(queue) and m < months:
-        take = int(min(pace, len(queue) - cursor))
+        allowance += pace
+        take = int(min(int(allowance), len(queue) - cursor))
+        allowance -= take
         for _ in range(take):
             idx, t = queue[cursor]
             cursor += 1
@@ -193,8 +213,16 @@ def schedule(unit_types: list[dict] | None, assumptions: dict | None = None,
         budget += capex
 
     total_units = sum(t["count"] for t in renovatable)
+    # A zero-unit programme is a legitimate answer only when the caller asked for one (pace 0, or no
+    # renovatable types). Reported explicitly so a silently-empty schedule cannot be mistaken for a
+    # completed one — the failure mode that a fractional pace used to produce.
+    nothing_done = total_units > 0 and not started
     return {
         "status": STATUS_OK,
+        "nothing_renovated": nothing_done,
+        "nothing_renovated_why": (
+            f"pace is {pace} unit(s)/month over {months} month(s) — no unit completed a start"
+            if nothing_done else None),
         "assumptions_used": {"units_per_month": pace, "downtime_months_per_unit": downtime},
         "months": months,
         "renovatable_units": total_units,
