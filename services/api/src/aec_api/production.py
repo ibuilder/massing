@@ -73,6 +73,31 @@ UNIT_FACTORS: dict[str, tuple[str, float]] = {
     "lb": ("weight", 0.45359237), "lbs": ("weight", 0.45359237), "ton": ("weight", 907.18474),
 }
 
+#: HOW a cost code was matched to the elements behind it — `qto.cost_code_for()` matches by IFC class
+#: *including inherited classes*, and reports the key it hit as `matched_class` on every takeoff row.
+#:
+#: This has to travel into the reconciliation because `reconcile()` aggregates by `cost_code`, and one
+#: cost code can be reached through more than one key: some elements matching their own class, others
+#: priced through an ancestor. Blended into a single line, "walls 40% complete" silently rests part of
+#: its denominator on a general key that may be pricing things the estimator never had in mind. A
+#: quantity matched by inheritance is a weaker claim than one matched exactly, and the difference is
+#: invisible once the quantities are summed — which is the same reason the takeoff surfaces the key at
+#: all, one layer up.
+MATCH_EXACT = "exact"          # every element matched a key naming its own class
+MATCH_INHERITED = "inherited"  # priced through an ancestor class key
+MATCH_MIXED = "mixed"          # BOTH — the modelled quantity blends two strengths of claim
+
+#: `None` for `match_basis` means the takeoff never stated how it matched — a producer older than
+#: `matched_class`. That is UNSTATED, and must not be reported as `exact`: assuming the strongest
+#: reading of silence is how a weak claim gets quoted as a strong one.
+MATCH_MEANING = {
+    MATCH_EXACT: "every element was priced by a cost-map key naming its own IFC class",
+    MATCH_INHERITED: "priced through an ANCESTOR class key — the map did not name these classes, so "
+                     "it may be pricing element types the estimator did not have in mind",
+    MATCH_MIXED: "some elements matched exactly and some by inheritance, so this one quantity blends "
+                 "two different strengths of claim",
+}
+
 STATUS_OK = "reconciled"
 STATUS_OVER = "over_installed"
 STATUS_NOT_STARTED = "not_started"
@@ -149,8 +174,17 @@ def model_by_code(takeoff_rows: list[dict]) -> tuple[dict[str, dict], dict[str, 
         qty = _model_quantity(r)
         slot = by.setdefault(code, {"cost_code": code, "dimension": str(r.get("unit") or "").lower(),
                                     "modeled": 0.0, "elements": 0,
-                                    "description": r.get("cost_description")})
+                                    "description": r.get("cost_description"),
+                                    "matched_keys": set(), "exact": 0, "inherited": 0, "unstated": 0})
         slot["elements"] += 1
+        # How this element was matched. A row carrying a cost_code but no `matched_class` came from a
+        # takeoff older than that field: counted as `unstated`, never folded into `exact`.
+        mk, ic = r.get("matched_class"), r.get("ifc_class")
+        if not mk:
+            slot["unstated"] += 1
+        else:
+            slot["matched_keys"].add(str(mk))
+            slot["exact" if str(mk) == str(ic) else "inherited"] += 1
         if qty is None:
             if len(unquantified) < 50:
                 unquantified.append(str(r.get("guid") or "?"))
@@ -158,6 +192,12 @@ def model_by_code(takeoff_rows: list[dict]) -> tuple[dict[str, dict], dict[str, 
         slot["modeled"] += qty
     for slot in by.values():
         slot["modeled"] = round(slot["modeled"], 4)
+        slot["matched_keys"] = sorted(slot.pop("matched_keys"))
+        e, i = slot.pop("exact"), slot.pop("inherited")
+        slot.pop("unstated")
+        slot["match_basis"] = (MATCH_MIXED if e and i else
+                               MATCH_EXACT if e else
+                               MATCH_INHERITED if i else None)
     return by, {"uncoded_elements": uncoded, "unquantified_elements": len(unquantified),
                 "unquantified_sample": unquantified[:10]}
 
@@ -208,7 +248,8 @@ def reconcile(takeoff_rows: list[dict], field_rows: list[dict]) -> dict[str, Any
 
         line = {"cost_code": code, "description": m["description"], "dimension": dim,
                 "modeled": m["modeled"], "elements": m["elements"],
-                "conversions": converted}
+                "conversions": converted,
+                "match_basis": m["match_basis"], "matched_keys": m["matched_keys"]}
 
         if mismatched:
             # A partial answer here would be worse than none: some rows counted, some silently
@@ -248,6 +289,10 @@ def reconcile(takeoff_rows: list[dict], field_rows: list[dict]) -> dict[str, Any
         "lines": lines,
         "by_status": counts,
         "status_meaning": STATUS_MEANING,
+        "match_meaning": MATCH_MEANING,
+        # Named, not counted — a reader chasing an over-general cost map needs to know WHICH codes.
+        "inherited_codes": sorted(ln["cost_code"] for ln in lines
+                                  if ln.get("match_basis") in (MATCH_INHERITED, MATCH_MIXED)),
         "overall": {
             "pct_complete": round(100.0 * total_installed / total_modeled, 2) if total_modeled else None,
             "modeled": round(total_modeled, 4),
