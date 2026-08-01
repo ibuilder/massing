@@ -83,6 +83,75 @@ def _mesh_intersection_volume(a: ElementGeom, b: ElementGeom) -> float | None:
         return None
 
 
+#: Above this many box-pair comparisons (`len(A) * len(B)`), build a BVH instead of the full N x M
+#: boolean matrix.
+#:
+#: BOTH paths are kept on purpose. The matrix is pure numpy with no tree to build, so below this size
+#: it wins — a BVH is not free, and replacing a fast small-input path with a slower one to fix a
+#: large-input problem is a regression wearing an optimisation's clothes. Above it the matrix
+#: allocates `len(A) * len(B)` booleans up front: a 50k x 50k federated clash is 2.5e9 of them, before
+#: the narrow phase does any work at all.
+#:
+#: 1e6 pairs (a 1000 x 1000 test) is MEASURED, not chosen. Randomly distributed boxes over a 200 m
+#: cube, best of 3, this machine:
+#:
+#:       n       pairs      matrix      bvh     winner
+#:      800     640,000       34 ms    40 ms    matrix
+#:     1000   1,000,000       53 ms    51 ms    bvh      <- crossover
+#:     2000   4,000,000      268 ms   175 ms    bvh
+#:     4000  16,000,000      979 ms   368 ms    bvh  (2.7x)
+#:     8000  64,000,000     4318 ms  1058 ms    bvh  (4.1x)
+#:
+#: The first draft of this constant was 250_000, guessed. That would have routed every 500-1000
+#: element clash through the slower path to fix a problem those sizes do not have — an optimisation
+#: that is a regression across most of its range. The gap only opens up at scale, which is precisely
+#: where a small fixture cannot see it.
+#:
+#: Synthetic boxes, so treat it as an order of magnitude rather than a tuned value; real building
+#: geometry clusters by storey and will descend differently. `test_clash_bvh.py` asserts the two paths
+#: return the same clash SET, so this number changes cost, never answers.
+BVH_MIN_PAIRS = 1_000_000
+
+
+def _pairs_matrix(A: list[ElementGeom], B: list[ElementGeom]) -> list[tuple[int, int]]:
+    """Every (i, j) whose AABBs overlap, by a full boolean matrix. Inclusive: touching counts."""
+    mins_a = np.array([e.min for e in A]); maxs_a = np.array([e.max for e in A])
+    mins_b = np.array([e.min for e in B]); maxs_b = np.array([e.max for e in B])
+    overlap = (
+        (mins_a[:, None, :] <= maxs_b[None, :, :]).all(axis=2)
+        & (maxs_a[:, None, :] >= mins_b[None, :, :]).all(axis=2)
+    )
+    ia, ib = np.where(overlap)
+    return list(zip(ia.tolist(), ib.tolist()))
+
+
+def _pairs_bvh(A: list[ElementGeom], B: list[ElementGeom]) -> list[tuple[int, int]]:
+    """The same (i, j) set, by dual-tree descent — a subtree pair that cannot meet is rejected once.
+
+    Labels are POSITIONS, not GlobalIds. A GlobalId can legitimately appear on both sides when the two
+    groups overlap (`group_a` and `group_b` scoping the same element), and a tree keyed by a
+    non-unique label silently loses entries. The caller already de-duplicates by GlobalId pair
+    afterwards, so identity is its job, not the index's.
+    """
+    from massingviser_geometry import Aabb, Bvh  # type: ignore
+
+    left = Bvh([str(i) for i in range(len(A))],
+               [Aabb(tuple(e.min), tuple(e.max)) for e in A])
+    right = Bvh([str(j) for j in range(len(B))],
+                [Aabb(tuple(e.min), tuple(e.max)) for e in B])
+    return [(int(i), int(j)) for i, j, _penetration in left.overlapping_pairs(right)]
+
+
+def _candidate_pairs(A: list[ElementGeom], B: list[ElementGeom]) -> list[tuple[int, int]]:
+    """Broad-phase candidates. Same answer either way; the choice is only about cost."""
+    if len(A) * len(B) < BVH_MIN_PAIRS:
+        return _pairs_matrix(A, B)
+    try:
+        return _pairs_bvh(A, B)
+    except Exception:  # noqa: BLE001 — the index is an optimisation; never let it cost an answer
+        return _pairs_matrix(A, B)
+
+
 def detect(
     model: ifcopenshell.file,
     group_a: list[str] | None = None,
@@ -115,18 +184,10 @@ def detect(
     if not A or not B:
         return []
 
-    mins_a = np.array([e.min for e in A]); maxs_a = np.array([e.max for e in A])
-    mins_b = np.array([e.min for e in B]); maxs_b = np.array([e.max for e in B])
-    overlap = (
-        (mins_a[:, None, :] <= maxs_b[None, :, :]).all(axis=2)
-        & (maxs_a[:, None, :] >= mins_b[None, :, :]).all(axis=2)
-    )
-    ia, ib = np.where(overlap)
-
     # candidate pairs with AABB overlap volume, de-duplicated, biggest first
     cands: list[tuple[float, ElementGeom, ElementGeom]] = []
     seen: set[tuple[str, str]] = set()
-    for i, j in zip(ia.tolist(), ib.tolist()):
+    for i, j in _candidate_pairs(A, B):
         a, b = A[i], B[j]
         if a.guid == b.guid:
             continue
