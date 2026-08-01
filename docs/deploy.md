@@ -141,7 +141,7 @@ and front the web service with their TLS.
 ## Free single-project desktop app (.exe)
 The whole platform runs in **one process** for a single operator — FastAPI serving both the API and
 the web SPA on `127.0.0.1:8765`, backed by **SQLite + local files** (no Docker / Postgres / MinIO),
-in **local mode** (no login — the operator owns the one site). This is the "free, Bluebeam-style"
+in **local mode** (no login — the operator owns the one site). This is the free, single-seat desktop
 build; projects are saved/opened as portable `.mmproj` bundles (Open/Save menu).
 
 - **Run from source:** `python -m aec_api.desktop` (from `services/api`, with the venv) — builds the

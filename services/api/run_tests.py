@@ -67,7 +67,9 @@ TESTS = ["test_proforma", "test_cost", "test_modules", "test_dashboard",
          # R23-DIGEST — the deterministic model digest and its two routes:
          "test_model_digest", "test_digest_route",
          # observability (error alerting + distributed tracing) — env-gated, no-op when unconfigured:
-         "test_sentry", "test_otel", "test_docs_module_schema", "test_schema_strictness"]
+         "test_sentry", "test_otel", "test_docs_module_schema", "test_schema_strictness",
+         # public docs are a shipped surface: competitor names for interop only, never comparison:
+         "test_no_comparative_names"]
 
 
 def _manifest_guard() -> list[str]:

@@ -834,18 +834,19 @@ is recorded. Filed under Decisions below.
 | 17 | three vocabularies collide | R24-TERMS | ❌ open |
 | 18 | site promises a lifecycle, app opens on a shell | *(none)* | 🟡 R26-VITALS (v0.3.773) is arguably a **better** answer than the audit's lifecycle strip — treat as closed |
 
-**External corroboration** (13-platform UI scan, 2026-07-29). Procore's design system evaluates
-office and field as **separate** UX, not one responsive layout — independent support for #12. Solibri
-beats Navisworks on IFC by making rulesets and checks **durable first-class objects**, and ACC's
-answer to breadth is **saved, re-runnable, shareable** searches — both are the same shape as
-`R24-RUNS-INBOX`, and it is the most externally validated item in the ring. LayOut 2026's tray
-redesign drew open backlash ("bulky, less legible and inefficient", broken shortcuts) — density is a
-**regression risk**, not a taste call, which is why `R24-DENSITY` ships as a user switch and why
-`R24-KEYS` is not optional. Bluebeam Revu 21 deliberately did **not** restyle and invested in
-customizable profiles instead. And two conclusions worth keeping: **no incumbent ships a command
-palette as a primary entry point** — a real opening, and a warning that ⌘K must be *taught*, not just
-bound — and **none of them can trace a number to a GlobalId**. That is the moat and it is still
-uncashed.
+**External corroboration** (13-platform UI scan, 2026-07-29). One major construction-management
+platform's design system evaluates office and field as **separate** UX, not one responsive layout —
+independent support for #12. Among model-checking tools, the ones that lead on IFC do so by making
+rulesets and checks **durable first-class objects**, and the leading common-data-environment answer
+to breadth is **saved, re-runnable, shareable** searches — both are the same shape as
+`R24-RUNS-INBOX`, and it is the most externally validated item in the ring. One 2026 drawing-layout
+tray redesign drew open backlash ("bulky, less legible and inefficient", broken shortcuts) — density
+is a **regression risk**, not a taste call, which is why `R24-DENSITY` ships as a user switch and why
+`R24-KEYS` is not optional. A major PDF review tool's most recent release deliberately did **not**
+restyle and invested in customizable profiles instead. And two conclusions worth keeping: **no
+incumbent ships a command palette as a primary entry point** — a real opening, and a warning that ⌘K
+must be *taught*, not just bound — and **none of them can trace a number to a GlobalId**. That is the
+moat and it is still uncashed.
 
 ---
 
