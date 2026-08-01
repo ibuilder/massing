@@ -74,6 +74,29 @@ a tag is the thing that gets published, downloaded and rolled back, and it is th
 awkward to undo. If main is red, fix or wait; if it is pending, either wait for it or push without
 tagging and tag once it lands.
 
+**And tag the commit you actually verified.** The green-main check above answers "is the trunk
+healthy"; this one answers "is the thing I am about to publish the thing I tested". They are different
+questions and a release can fail the second while passing the first.
+
+Concretely, v0.3.813: the release commit was prepared at 06:55 and three commits landed behind it over
+the next four minutes — two of them **money fixes** (a fractional renovation pace that renovated
+nothing; a half-month downtime rounded to zero). Tagging the release commit would have shipped a
+version missing them. Tagging `main` would have shipped a CHANGELOG that did not mention them; the
+entry was grepped for "fractional", "rounding" and "0.5" and returned zero hits. Neither option was
+correct without editing first — the entry was amended, then main was tagged.
+
+So immediately before `git tag`:
+
+```
+git fetch origin --quiet
+git rev-parse HEAD origin/main            # must match — if not, you are tagging a stale commit
+git log --oneline <release-commit>..origin/main   # must be EMPTY, or the CHANGELOG is already wrong
+```
+
+If commits have landed, do not tag either end. Amend the entry to cover them, commit that, and tag the
+result. A tag is the one artefact here that gets published and downloaded, so it is the one place
+where "close enough to what I verified" is not close enough.
+
 Then, guarding against a race:
 ```
 if [ "$(git rev-parse origin/main)" = "$(git rev-parse HEAD~1)" ]; then
