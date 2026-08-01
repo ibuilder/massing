@@ -4,6 +4,89 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.811 — three finance answers learn to refuse, and the server starts answering spatial questions
+
+Three pull requests and a sibling-repository import. Two themes, and they are the same theme at
+different layers: **an answer should say what it is, and decline when it cannot**.
+
+### Lease rollover is priced, and its two riskiest assumptions cannot be defaulted
+
+`GET /projects/{pid}/proforma/rollover` prices what a property's lease expiries actually cost over the
+hold — downtime, tenant improvements and leasing commission, split into the renewal and new-tenant
+futures and weighted by renewal probability.
+
+**`renewal_probability` and `downtime_months` are required and are not defaulted.** Assuming every
+tenant renews, or that a vacated suite re-lets instantly, deletes the exact risk being priced — and a
+deal with those defaults applied is indistinguishable in the output from one that genuinely carries
+neither. Omit either and the endpoint returns `assumptions_incomplete`, naming what is missing. A
+renewal probability outside 0–1 is treated as unstated rather than clamped, for the same reason: a
+clamp invents a number the caller never gave.
+
+Downtime is charged to the **new-tenant branch only** — a renewing tenant does not vacate. Charging the
+gap to both branches is the most common way a rollover total is overstated, and it overstates in the
+direction that reads as conservatism. Leases with no usable end date are listed by name rather than
+skipped, because a silently dropped lease shrinks the exposure and flatters the deal.
+
+### Operating income says where it came from
+
+`GET /projects/{pid}/proforma/income-basis` derives operating income from the property's own lease
+records — in-place base rent, expense recoveries and concession load kept as separate lines — instead
+of accepting one blended figure for the whole asset. Pass `declared_annual` and it reports both with the
+gap between them. That disagreement is the output, not an error.
+
+An empty rent roll returns `unavailable`, never an income of zero. A property with no lease records has
+**unknown** income, and zero is the one value that reads as a measurement.
+
+### The server can now answer spatial questions, and export a triangle budget
+
+Broad-phase clash used to build a full N×M boolean matrix over both sides: correct, and 2.5 × 10⁹
+booleans on a 50k × 50k federated test, allocated before the narrow phase does any work. It now builds a
+bounding-volume hierarchy above a measured size threshold and descends both trees together.
+
+Both paths are kept, because a BVH is not free. The crossover was **measured, not assumed** — at
+800 × 800 the matrix still wins; the tree pays off from roughly 1,000,000 box pairs, reaching 2.7× at
+4k × 4k and 4.1× at 8k × 8k. A first draft of the threshold was four times too low and would have made
+every mid-size clash slower. Both paths are asserted to return the same clash **set**, so the choice
+changes cost and never answers.
+
+glTF export gains an optional per-class triangle budget by vertex-clustering decimation, so a consumer
+can ask for a model that fits rather than the model that is. It is off by default — decimation is lossy,
+and coordination and takeoff want the real geometry — and it never empties a class, because losing a
+whole discipline from an export is worse than a coarse one and looks like success.
+
+### Added
+
+- **Scene packages** — `GET /projects/{pid}/scene/manifest` and `/scene/package`. A model's semantic
+  half as a portable document: GlobalId-keyed nodes, property sets, typed relationships and precomputed
+  by-class / by-level indexes, with geometry carried **by reference as Fragments** rather than
+  re-encoded. Deterministic: the manifest is derived from the source model's own timestamp, so an
+  unchanged model produces an identical document and its content hash means something.
+
+  This does not make the application load faster and is not offered as if it does — the web client
+  already receives class and storey per element. It is for consumers that are not the web client: an
+  engine importer, a Blender add-on, a CI check, a native viewer, whose only alternative today is
+  parsing the IFC themselves.
+
+### Fixed
+
+- **The drawing-review engine carried a permission bypass.** Its markup store checked one capability per
+  change, so a change bundling a status update with an edit was only ever checked against the status
+  permission — letting a reviewer allowed to close an issue, but deliberately not to reword it, do both
+  at once. Not reachable in this build (the application imports only the document reader, and
+  client-side policy is not the authorisation boundary here), but taken now rather than inherited later
+  into a planned migration. The same update fixes an import count that reported markups *attempted*
+  rather than accepted — so a user without permission saw "Imported 47 markups" over an empty store —
+  three OCR defects, and accessible labels that suppressed the row text they were meant to describe.
+- **`GET /modules` silently dropped two declared keys**, one of them enforced elsewhere: the response
+  was built from a hand-maintained allowlist, so any key added to the schema was omitted until someone
+  remembered. It now serves what the schema declares, and a completeness check fails when they disagree.
+- **The roadmap lane gate was searching the table it was validating**, so every lane item satisfied its
+  own existence check and the gate had never once been able to fail.
+- **The documentation-citation gate could not see its most precise citations** — references carrying a
+  line number, symbol or anchor did not match, leaving 21 files unchecked while the gate reported a
+  confident count. Its floor is now a per-document ratchet: one total let a single document's
+  contribution fall to zero while the others held the number up.
+
 ## v0.3.810 — four hand-maintained lists become checks that fail, and a third route learns that identity is not authority
 
 Twelve commits, five pull requests, three sessions. The theme is one the last two releases have been
