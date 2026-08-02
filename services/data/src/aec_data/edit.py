@@ -878,6 +878,16 @@ RECIPES = {
     "array_element": lambda m, p: _grp().array_element(m, p["guid"], int(p.get("nx", 2)),
                                                        int(p.get("ny", 1)), float(p.get("dx", 1.0)),
                                                        float(p.get("dy", 0.0)), float(p.get("dz", 0.0))),
+    # R38-ARRAY-LIVE — an array stays editable after placement: change count or pitch and the
+    # members are reconciled. Refuses to delete members somebody has moved unless forced.
+    "set_array_params": lambda m, p: _grp().set_array_params(
+        m, p["guid"],
+        None if p.get("nx") is None else int(p["nx"]),
+        None if p.get("ny") is None else int(p["ny"]),
+        None if p.get("dx") is None else float(p["dx"]),
+        None if p.get("dy") is None else float(p["dy"]),
+        None if p.get("dz") is None else float(p["dz"]),
+        bool(p.get("force", False))),
     "ungroup": lambda m, p: _grp().ungroup(m, p["guid"]),
     # W10-8 element phasing — tag new/existing/demolish/temporary status
     "set_phase": lambda m, p: set_phase(m, p["guids"], p.get("phase", "new")),

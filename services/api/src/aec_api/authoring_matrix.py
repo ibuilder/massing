@@ -59,6 +59,7 @@ _MAP: dict[str, tuple[str, str]] = {
     "create_type": ("type", "IfcTypeProduct"), "edit_type": ("type", "edit type params"),
     "place_type": ("type", "type occurrence"), "create_group": ("group", "IfcGroup"),
     "create_assembly": ("group", "IfcElementAssembly"), "array_element": ("group", "linear/grid array"),
+    "set_array_params": ("group", "re-edit a placed array's count/pitch"),
     "assign_material_set": ("data", "IfcMaterialLayerSet"),
     # --- data / classification / detailing ---
     "classify": ("data", "IfcClassificationReference"), "set_classification": ("data", "classification"),
