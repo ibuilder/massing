@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.831 — A29-PLACE-VALID: the draft says no before the round-trip
+
+### Added — client-side placement refusals, pure and beside the inference maths
+
+An invalid placement used to cost a full author-and-republish round-trip just to be told no — or
+worse, to succeed: a zero-length wall authors fine and then exists as an invisible sliver; a
+mis-click near the horizon falls back to the infinite ground plane and quietly authors a wall 400 m
+from the building; a bowtie slab outline produces garbage geometry downstream instead of an error.
+`placeValid.ts` refuses all three at commit time, from what the client already holds: degenerate
+runs (< 50 mm, refused with the measured length), points landing far outside the model's plan
+extent (refused with the distance; a **blank model refuses nothing** — the first wall must always
+be placeable), and self-intersecting outlines (refused naming the crossing edges; concave-but-simple
+shapes pass). A refusal keeps the draft armed — adjust and re-click, nothing is torn down. Every
+other rule stays the server's call: validating rules the client doesn't own is how it comes to
+refuse things the server would accept.
+
+Verified by 12 unit tests over the pure module plus a clean live boot; the interactive
+refusal path is exercised through `finishDraft`, whose wiring is three lines over the tested
+function.
+
 ## v0.3.830 — R38-NODE-SLIDERS: the node graph becomes an instrument
 
 ### Added — every numeric parameter across the node graph, as a named slider

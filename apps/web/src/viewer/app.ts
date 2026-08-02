@@ -41,6 +41,7 @@ import { populate4dPanel } from "./fourD";
 import { TransformGizmo } from "./draft/transformGizmo";
 import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
 import { PlanPane } from "./planPane";
+import { type PlanBounds, validatePlacement } from "./placeValid";
 import { DEFAULT_RISE_M, runReadout } from "./draft/stairLive";
 import { createTestHarness } from "@massingifc/plugin-sdk";
 
@@ -923,10 +924,25 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (armPts.length < spec.points) { notify(`${spec.label}: click the next point (Shift = ortho)`, "info"); return; }
     await finishDraft();
   }
+  /** A29-PLACE-VALID: the loaded model's plan extent, from the same mesh traversal fitToModels
+   *  uses. Null when nothing is loaded — a blank model must never refuse its first element. */
+  function modelPlanBounds(): PlanBounds | null {
+    const box = new THREE.Box3();
+    viewer.world.scene.three.traverse((o) => { if ((o as THREE.Mesh).isMesh) box.expandByObject(o); });
+    if (box.isEmpty()) return null;
+    // plan coords are E = world x, N = -world z, so the N range is the NEGATED world-z range.
+    return { minX: box.min.x, maxX: box.max.x, minZ: -box.max.z, maxZ: -box.min.z };
+  }
+
   async function finishDraft() {
     if (!armed || !projectId) { disarmDraft(); return; }
     const a = armed;
     const planPts = armPts.map((v): [number, number] => [v.x, -v.z]);   // plan coords: E=x, N=-z
+    // A29-PLACE-VALID — refuse before the round-trip. A refusal names the reason and KEEPS the
+    // draft armed: the user adjusts and re-clicks; nothing is torn down, nothing was authored.
+    const verdict = validatePlacement(a.points === "poly" ? "poly" : a.points === 2 ? "run" : "point",
+                                      planPts, modelPlanBounds());
+    if (!verdict.ok) { armPts.length = 0; notify(`${a.label}: ${verdict.reason}`, "error"); return; }
     const params = a.build(planPts);
     if (activeStorey && params.storey === undefined) params.storey = activeStorey;   // author onto the active level
     disarmDraft();
