@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.825 — width and length join the conversation
+
+### Added — R38-LIVE-PARAMS slice 3: dimension chips over the new profile recipes
+
+The Properties panel's geometry row gains W and L chips editing the selected element's rectangular
+profile through the `set_profile_dims` recipe that landed server-side this afternoon — deferred
+this morning precisely because chips over ONE editable parameter would have been theater; with
+depth, width and length there is now a real system. The server's design decisions surface directly
+as UI states: a non-rectangular profile (an I-section steel column) is *refused, not
+reinterpreted* — which dimension "width" means on a fabricated member is not this UI's judgement —
+and that refusal greys the chips with the reason. An empty chip edits nothing (an omitted dimension
+comes back unchanged, never zeroed), and a publish flake leaves the chips editable to retry rather
+than falsely unavailable. `authorAndReload` now reports its outcome (applied / refused / flake) so
+callers can react to a refusal distinctly — existing callers are unaffected.
+
 ## v0.3.824 — slide it, watch it, let go
 
 ### Added — R38-LIVE-PARAMS slice 2: the depth slider with a live ghost

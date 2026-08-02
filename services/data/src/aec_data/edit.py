@@ -80,7 +80,9 @@ from .edit_struct import (  # noqa: F401 — re-exported: routers/RECIPES/genera
     add_wall,
     extrude_profile,
     set_extrusion_depth,
+    set_profile_dims,
     set_wall_slope,
+    set_wall_thickness,
 )
 from .geomconf import bounded_iterator
 from .ifc_loader import open_model
@@ -819,6 +821,13 @@ RECIPES = {
         m, p["points"], float(p.get("height", 3.0)), p.get("ifc_class", "IfcBuildingElementProxy"),
         p.get("name"), p.get("storey"), float(p.get("z", 0.0))),
     "set_extrusion_depth": lambda m, p: set_extrusion_depth(m, p["guid"], float(p["depth"])),
+    # R38-LIVE-PARAMS prerequisite: the profile being swept, beside the depth it is swept to.
+    # A constraint solver needs more than one editable geometric parameter to have a SYSTEM.
+    "set_profile_dims": lambda m, p: set_profile_dims(
+        m, p["guid"],
+        None if p.get("width") is None else float(p["width"]),
+        None if p.get("length") is None else float(p["length"])),
+    "set_wall_thickness": lambda m, p: set_wall_thickness(m, p["guid"], float(p["thickness"])),
     # B4 — procedural-mesh escape hatch (IfcTriangulatedFaceSet)
     "add_mesh_representation": lambda m, p: add_mesh_representation(
         m, p["verts"], p["faces"], p.get("name", "Mesh"),
