@@ -12,6 +12,8 @@ import json
 import urllib.request
 from typing import Any
 
+from .net import safe_urlopen
+
 
 # --- Procore -------------------------------------------------------------------
 def _procore_get(path: str, token: str) -> Any:
@@ -108,7 +110,10 @@ def _qb_bills(token: str, realm: str) -> list[dict]:
 def _erp_get(base_url: str, path: str, token: str) -> Any:
     req = urllib.request.Request(f"{base_url.rstrip('/')}{path}",
                                  headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=8) as r:  # noqa: S310 — operator-supplied tenant host
+    # SEC: the ERP base_url is operator-settable, so this is exactly the "settable URL" case net.py
+    # exists for — an unguarded urlopen here accepts `file:///…` and turns a config field into an
+    # arbitrary local-file read (measured, not theorised), and follows redirects unchecked.
+    with safe_urlopen(req, timeout=8, label="ERP base_url") as r:
         return json.loads(r.read().decode())
 
 
