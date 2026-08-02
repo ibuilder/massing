@@ -757,6 +757,9 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       if (gs) p = new THREE.Vector3(gs[0], p.y, -gs[1]);
     }
     showCoords(p); armPts.push(p.clone());
+    // R38-DIM-INPUT — refresh the dyn HUD: a stale typed constraint must not survive the click that
+    // ignored it, and with >=1 point placed the box now shows its hint state (the grammar, visible).
+    setDynBuf("");
     if (spec.points === "poly") { notify(`${spec.label}: ${armPts.length} point(s) — double-click to close`, "info"); return; }
     if (armPts.length < spec.points) { notify(`${spec.label}: click the next point (Shift = ortho)`, "info"); return; }
     await finishDraft();
@@ -1605,7 +1608,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           const cat = await api.familyCatalog();
           return Object.values(cat.categories).flat() as FamilyDef[];
         },
-        arm: (a) => { armed = a; armPts.length = 0; },
+        arm: (a) => { armed = a; armPts.length = 0; setDynBuf(""); },  // re-arm resets the dyn HUD
         notify,
         canAuthor: () => !!projectId && hasIfc,
       });

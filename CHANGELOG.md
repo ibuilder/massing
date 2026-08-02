@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.820 — draw a stair where you mean it, type the length you think in
+
+### Added — R38 Wave 1: dimension-first input, and the room's first stair
+
+**R38-DIM-INPUT.** The typed-constraint box existed and nobody could find it: it appeared only
+after the first keystroke of a grammar no screen ever advertised. It is now visible as a dimmed
+hint the moment a run is in progress — *type a length — 6 · 12'6 · <30 · 6<30* — and the grammar
+accepts imperial: `12'6` parses as feet-inches and the HUD echoes **3.81 m** back before the click
+commits it, so the conversion is inspectable rather than trusted. Strict where it should be:
+13 inches, a bare `'6`, a mid-token inch mark all refuse to parse rather than guess.
+
+**R38-STAIR.** The room's premise-checked hole — no stair or ramp draw tool anywhere — is closed
+end to end, by two sessions working one interface: server recipes for a straight-run stair and ramp
+(flight and all, beside the railing recipe), and the two draw tools with SR / RP shortcuts. One
+design decision worth naming: **the run is authored exactly where it was drawn.** Riser, tread and
+slope compliance is *reported* (limits as arguable module constants, not buried literals), never
+enforced by silently lengthening a run to somewhere the user did not put it — a stair quietly moved
+to satisfy a limit no longer arrives where the drawing says it does.
+
+Also: the parked prod-config CI item was split — the half needing no operator decision (smoke the
+validator against a synthetic safe and unsafe posture) is unparked and claimed.
+
 ## v0.3.819 — a pending edit now looks pending, and a failed one says where
 
 ### Added — the Design Room ring (R38), and its first shipped slice

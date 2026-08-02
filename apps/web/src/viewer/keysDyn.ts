@@ -1,4 +1,4 @@
-import { dynKeystroke, isDynKey, parseDynConstraint } from "./dynInput";
+import { dynKeystroke, formatDynConstraint, isDynKey, parseDynConstraint } from "./dynInput";
 import { showKeyHelp } from "../ui/keys";
 import type { DraftPanelHandle } from "./draft/draftPanel";
 
@@ -34,7 +34,8 @@ export interface KeysDynHandle {
 // agree in both directions, so a new code with no published key fails the build.
 export const KEY_SHORTCUTS: [string, string, string][] = [
   ["WA", "wall", "Wall"], ["SL", "slab", "Slab / floor"], ["RF", "roof", "Roof"],
-  ["RA", "railing", "Railing"], ["CL", "column", "Column"], ["BM", "beam", "Beam"],
+  ["RA", "railing", "Railing"], ["SR", "stair", "Stair"], ["RP", "ramp", "Ramp"],
+  ["CL", "column", "Column"], ["BM", "beam", "Beam"],
   ["SC", "steel_column", "Steel column"], ["SB", "steel_beam", "Steel beam"],
   ["RB", "rebar", "Rebar"], ["FT", "footing", "Footing"],
   ["DU", "duct", "Duct"], ["PI", "pipe", "Pipe"], ["CT", "cable_tray", "Cable tray"],
@@ -52,7 +53,9 @@ const showKeysHelp = () => showKeyHelp(KEY_SHORTCUTS);
 export function installKeysDyn(d: KeysDynDeps): KeysDynHandle {
   const { container, notify } = d;
 
-  // SNAP-KIT phase 2 — dynamic input: type "6", "<30" or "6<30" mid-draw to constrain the next click.
+  // SNAP-KIT phase 2 + R38-DIM-INPUT — dynamic input: type "6", "12'6", "<30" or "6<30" mid-draw to
+  // constrain the next click. The box is VISIBLE (as a hint) the moment a run is in progress, not
+  // only after the first keystroke — a typed-input feature nobody can see is a secret, not a feature.
   let dynBuf = "";
   const dynHud = document.createElement("div");
   dynHud.className = "dyn-hud";
@@ -63,10 +66,18 @@ export function installKeysDyn(d: KeysDynDeps): KeysDynHandle {
   container.appendChild(dynHud);
   function setDynBuf(next: string) {
     dynBuf = next;
+    if (!dynBuf && d.isArmed() && d.armedPoints() >= 1) {
+      // hint state: a run is in progress and nothing is typed yet — advertise the grammar
+      dynHud.style.display = "block";
+      dynHud.style.opacity = "0.65";
+      dynHud.textContent = "⌨ type a length — 6 · 12'6 · <30 · 6<30";
+      return;
+    }
+    dynHud.style.opacity = "1";
     const c = parseDynConstraint(dynBuf);
     dynHud.style.display = dynBuf ? "block" : "none";
     dynHud.textContent = dynBuf
-      ? `⌨ ${dynBuf}${c ? `  →  ${c.distance !== undefined ? c.distance + " m" : ""}${c.angle !== undefined ? " @ " + c.angle + "°" : ""} — click to place` : "  (…)"}`
+      ? `⌨ ${dynBuf}${c ? `  →  ${formatDynConstraint(c)} — click to place` : "  (…)"}`
       : "";
   }
 

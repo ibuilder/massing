@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dynKeystroke, isDynKey, parseDynConstraint } from "./dynInput";
+import { dynKeystroke, formatDynConstraint, isDynKey, parseDynConstraint } from "./dynInput";
 
 describe("SNAP-KIT dynamic-input constraint parser", () => {
   it("parses distance-only, angle-only, and both", () => {
@@ -17,6 +17,29 @@ describe("SNAP-KIT dynamic-input constraint parser", () => {
     expect(parseDynConstraint("0")).toBeNull();        // zero-length
     expect(parseDynConstraint("-3")).toBeNull();       // negative distance
     expect(parseDynConstraint("abc")).toBeNull();
+  });
+
+  it("R38-DIM-INPUT — imperial input converts to metres (the model is metric; the keyboard isn't)", () => {
+    expect(parseDynConstraint("12'6")?.distance).toBeCloseTo(3.81, 3);      // 12 ft 6 in
+    expect(parseDynConstraint("12'")?.distance).toBeCloseTo(3.6576, 4);     // bare feet
+    expect(parseDynConstraint('30"')?.distance).toBeCloseTo(0.762, 4);      // inches only
+    expect(parseDynConstraint("12'6.5")?.distance).toBeCloseTo(3.8227, 3);  // decimal inches
+    expect(parseDynConstraint('12\'6"')?.distance).toBeCloseTo(3.81, 3);    // explicit inch mark
+    expect(parseDynConstraint("12'6<30")).toMatchObject({ angle: 30 });     // composes with angle
+    expect(parseDynConstraint("12'6<30")?.distance).toBeCloseTo(3.81, 3);
+  });
+
+  it("rejects malformed imperial instead of guessing", () => {
+    expect(parseDynConstraint("12'13")).toBeNull();   // 13 inches is not a thing
+    expect(parseDynConstraint("'6")).toBeNull();      // feet part missing
+    expect(parseDynConstraint("0'")).toBeNull();      // zero length
+    expect(parseDynConstraint('12"6')).toBeNull();    // inch mark mid-token
+  });
+
+  it("the HUD echo is always metres, so the conversion is visible before the click commits it", () => {
+    expect(formatDynConstraint({ distance: 3.81 })).toBe("3.81 m");
+    expect(formatDynConstraint({ angle: 30 })).toBe("@ 30°");
+    expect(formatDynConstraint({ distance: 6, angle: 30 })).toBe("6 m @ 30°");
   });
 
   it("keystroke buffer appends dyn keys, trims on Backspace, ignores the rest", () => {
