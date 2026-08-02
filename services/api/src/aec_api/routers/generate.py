@@ -477,3 +477,66 @@ def massing_option_recipes(body: MassingRecipesIn):
 def compute_massing_only(body: MassingIn) -> dict:
     from aec_data.massing import compute_massing  # type: ignore
     return compute_massing(body.model_dump())
+
+
+@router.post("/projects/{pid}/model/ensure")
+def ensure_model(pid: str, storeys: int = 3, storey_height: float = 3.5,
+                 db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
+    """R28-UNIFY — opening a project guarantees there is something to draw on.
+
+    Creating a blank model already existed as `POST /model/blank`, but only as an explicit user
+    action, so a project with no model still opened into an empty viewer with nothing to author
+    against. This is the same capability made **idempotent** so an open path can call it every time.
+
+    Three outcomes, and they are deliberately distinct because two of them look identical from the
+    outside and only one is safe to act on:
+
+    * `found` — a readable model is already there. **Nothing is written.** Idempotence is the whole
+      safety property: an ensure that could overwrite is a data-loss endpoint wearing a helpful name.
+    * `created` — the project had no model, and a blank authorable one now exists.
+    * `broken_reference` — `source_ifc` is SET but the file is not readable. **Refused.** This is the
+      dangerous case: it is not "no model", it is a model that has gone missing, and quietly replacing
+      it with an empty one would destroy the only pointer to something that may be recoverable — and
+      would report success while doing it. The caller is told what path is missing so somebody can go
+      and look for it.
+    """
+    import os.path
+
+    from aec_data.massing import generate_blank_ifc  # type: ignore
+
+    p = db.get(Project, pid)
+    if not p:
+        raise HTTPException(404, "project not found")
+
+    if p.source_ifc:
+        if os.path.exists(p.source_ifc):
+            return {"status": "found", "created": False, "source_ifc": p.source_ifc,
+                    "note": "the project already has a readable model; nothing was written"}
+        return {"status": "broken_reference", "created": False, "source_ifc": p.source_ifc,
+                "note": "this project points at a model that is not readable. Refusing to replace it "
+                        "with a blank one: that would destroy the only reference to a model which may "
+                        "still be recoverable, and would report success while doing it. Restore the "
+                        "file, or clear source_ifc first if the loss is accepted."}
+
+    # safe_seg already rejects traversal, but the resolved-containment check is the barrier the
+    # static analysers credit (same idiom as storage.LocalBackend) — and it holds even if a future
+    # edit builds the path from something safe_seg never saw.
+    base = _IFC_DIR.resolve()
+    target_dir = (base / storage.safe_seg(pid)).resolve()
+    if not str(target_dir).startswith(str(base) + os.sep):
+        raise HTTPException(400, "invalid project id")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    ifc_path = target_dir / "source.ifc"
+    generate_blank_ifc(str(ifc_path), name=p.name or "Model", storeys=storeys,
+                       storey_height=storey_height)
+    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())
+    p.source_ifc = str(ifc_path)
+    db.commit()
+    audit.record(db, action="ifc.ensure", actor=actor, method="POST",
+                 path=f"/projects/{pid}/model/ensure", detail={"storeys": storeys})
+    db.commit()
+    _publish_bg(pid)
+    return {"status": "created", "created": True, "source_ifc": p.source_ifc,
+            "storeys": storeys, "storey_height": storey_height,
+            "note": "the project had no model; a blank authorable one was created so drawing can "
+                    "start immediately"}
