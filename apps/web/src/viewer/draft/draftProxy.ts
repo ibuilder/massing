@@ -1,19 +1,32 @@
 /**
- * Draft proxy layer (P6) — the optimistic side of drafting. The moment an element is placed, a
- * lightweight amber proxy (box / line / polygon) is drawn where it will land, so the modeler gets
- * instant feedback instead of staring at the ~publish round-trip. When the server finishes authoring
- * the real IFC and the fragment is re-streamed, the proxies are cleared and replaced by real geometry.
+ * Draft proxy layer (P6 + A29-LOCAL-PREVIEW) — the optimistic AND the honest side of drafting.
+ *
+ * The moment an element is placed, a lightweight amber proxy (box / line / polygon) is drawn where
+ * it will land, so the modeler gets instant feedback instead of staring at the publish round-trip.
+ *
+ * A29's rule, now enforced here rather than stated in a ring: **a pending edit must look pending,
+ * and a failed edit must stay visible.**
+ *
+ *   * The amber outline is the PENDING marker. It stays up even after the incremental one-element
+ *     preview streams in — real-looking geometry with no marker would be indistinguishable from a
+ *     committed element, which becomes a lie the moment the recipe fails. Amber over accurate
+ *     geometry says exactly the truth: "this shape, not yet on the record."
+ *   * On failure the marker turns RED and stays. The old behaviour cleared every trace and raised a
+ *     toast, so the user knew something failed but not WHERE. A failed placement is information
+ *     with a location; the next draft action clears it.
  *
  * World coordinates follow the viewer convention: (E, elevation, -N).
  */
 import * as THREE from "three";
 
 const AMBER = 0xffb000;
+const RED = 0xe5484d;
 
 export class DraftProxyLayer {
   readonly group = new THREE.Group();
   private lineMat = new THREE.LineBasicMaterial({ color: AMBER, transparent: true, opacity: 0.9, depthTest: false });
   private faceMat = new THREE.MeshBasicMaterial({ color: AMBER, transparent: true, opacity: 0.25, depthTest: false, side: THREE.DoubleSide });
+  private _failed = false;
 
   constructor(scene: THREE.Scene) { this.group.name = "draft-proxies"; scene.add(this.group); }
 
@@ -41,8 +54,11 @@ export class DraftProxyLayer {
     this.group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(vs), this.lineMat));
   }
 
-  /** Build the right proxy from an authoring recipe's params (point / start+end / points). */
+  /** Build the right proxy from an authoring recipe's params (point / start+end / points).
+   *  A new draft action is also what retires a previous FAILED marker — the red outline answers
+   *  "where did it fail", and the user starting a fresh placement is the acknowledgement. */
   fromParams(p: Record<string, unknown>, z: number): void {
+    if (this._failed) this.clear();
     const num = (v: unknown, dflt: number) => (typeof v === "number" ? v : dflt);
     const pt = p.point as number[] | undefined;
     const start = p.start as number[] | undefined;
@@ -57,12 +73,31 @@ export class DraftProxyLayer {
     }
   }
 
+  /**
+   * Mark the current proxies as FAILED: red, still visible, still saying where.
+   *
+   * The pre-A29 behaviour on a failed recipe was `clear()` + a toast — every trace of the attempt
+   * erased, so the user knew something failed but not WHERE. The marker now stays until the next
+   * draft action (`fromParams` clears a failed layer first), which is the user acknowledging it.
+   */
+  markFailed(): void {
+    this._failed = true;
+    this.lineMat.color.setHex(RED);
+    this.faceMat.color.setHex(RED);
+  }
+
   clear(): void {
     for (const o of [...this.group.children]) {
       this.group.remove(o);
       (o as THREE.Mesh).geometry?.dispose?.();
     }
+    // reset to the pending palette — materials are shared across all proxies in the layer
+    this._failed = false;
+    this.lineMat.color.setHex(AMBER);
+    this.faceMat.color.setHex(AMBER);
   }
 
-  get pending(): boolean { return this.group.children.length > 0; }
+  get pending(): boolean { return this.group.children.length > 0 && !this._failed; }
+
+  get failed(): boolean { return this._failed && this.group.children.length > 0; }
 }
