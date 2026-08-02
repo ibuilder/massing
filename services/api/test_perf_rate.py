@@ -129,7 +129,38 @@ def test_a_correctly_configured_production_still_starts():
         main._production_guard()          # must not raise
 
 
-for _n, _f in sorted(list(globals().items())):
+# --- R35-PIDLOCK-XPROC: multi-worker needs a cross-process sidecar lock ------------------------------
+# The guard derives the dialect from DATABASE_URL, not from a live engine probe: at boot they name
+# the same database, but the env var cannot blip the way a connection can — and it makes this branch
+# checkable here without rebuilding the process-wide engine (which is SQLite under the test runner,
+# whatever the fixture's env claims; that mismatch shipped a guard no fixture could ever satisfy).
+
+def test_multiworker_on_a_DECLARED_sqlite_production_refuses_over_the_sidecar_lock():
+    with env(UVICORN_WORKERS=4, AEC_ENV="production", DATABASE_URL="sqlite:///./prod.db",
+             AEC_RBAC="1", AEC_AUTH_SECRET="x" * 40):
+        try:
+            main._production_guard()
+        except RuntimeError as e:
+            assert "sidecar write lock" in str(e) and "'sqlite'" in str(e), str(e)
+        else:
+            raise AssertionError("4 workers on sqlite started without a cross-process lock")
+
+
+def test_a_driver_qualified_postgres_url_counts_as_postgres():
+    # postgresql+psycopg:// is the same server capability as postgresql:// — the advisory lock works.
+    with env(UVICORN_WORKERS=4, DATABASE_URL="postgresql+psycopg://u@h/db",
+             AEC_RBAC="1", AEC_AUTH_SECRET="x" * 40):
+        main._production_guard()          # must not raise
+
+
+def test_a_single_worker_on_declared_sqlite_production_is_fine():
+    # One worker: in-process serialisation IS cross-request serialisation. Nothing to refuse.
+    with env(UVICORN_WORKERS=1, AEC_ENV="production", DATABASE_URL="sqlite:///./prod.db",
+             AEC_RBAC="1", AEC_AUTH_SECRET="x" * 40):
+        main._production_guard()          # must not raise
+
+
+for _n, _f in sorted(globals().items()):
     if _n.startswith("test_") and callable(_f):
         _f()
 

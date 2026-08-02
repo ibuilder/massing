@@ -13,6 +13,7 @@ nodes — those need the authoring geometry graph, not the tessellation. A singl
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 from typing import Any
 
@@ -70,8 +71,20 @@ def draco_accuracy(bbox_extent: float, quantization_bits: int = DEFAULT_QUANTIZA
 
 
 def _class_colour(cls: str) -> list[float]:
-    """A stable, readable RGBA per IFC class (deterministic hash → hue), so exports colour the same."""
-    h = (hash(cls) % 360) / 360.0
+    """A stable, readable RGBA per IFC class (deterministic digest → hue), so exports colour the same.
+
+    **`blake2b`, never `hash()`.** This used `hash(cls)`, and PEP 456 salts string hashing per process:
+    the docstring promised *stable*, *deterministic* and *"so exports colour the same"* and delivered
+    the exact opposite. Measured, `IfcWall` across three runs came out green, magenta and green-cyan.
+    The same model exported twice got different colours per class, so any visual diff between two
+    exports was meaningless — and the comment asserting the property it lacked is why nobody checked.
+
+    An in-process test cannot see this: within one interpreter `hash()` is perfectly consistent, which
+    is how it survived. The test asserts agreement across a real subprocess. Same fix and same reason
+    as `aec_api.pid_lock.advisory_key`, which carries the identical warning.
+    """
+    h = (int.from_bytes(hashlib.blake2b(cls.encode("utf-8"), digest_size=2).digest(), "big")
+         % 360) / 360.0
     # simple HSV(h, 0.45, 0.85) → RGB
     import colorsys
     r, g, b = colorsys.hsv_to_rgb(h, 0.45, 0.85)
