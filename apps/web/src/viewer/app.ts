@@ -40,6 +40,7 @@ import { DraftProxyLayer } from "./draft/draftProxy";
 import { populate4dPanel } from "./fourD";
 import { TransformGizmo } from "./draft/transformGizmo";
 import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
+import { PlanPane } from "./planPane";
 import { DEFAULT_RISE_M, runReadout } from "./draft/stairLive";
 import { createTestHarness } from "@massingifc/plugin-sdk";
 
@@ -712,6 +713,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const draftProxies = new DraftProxyLayer(viewer.world.scene.three);   // P6: optimistic placement feedback
   let activeStorey: string | null = null;       // name passed to Draft recipes; sets the work-plane Z
   let activeStoreyZ = 0;
+  // R38-SYNC-VIEW — the plan docked beside the model, following the active level. Selection sync is
+  // NOT here and cannot be: the drawing pipeline drops element identity at bake, so no polyline in
+  // the SVG names an element (R38-PLAN-IDENTITY is the prerequisite, R38-SYNC-SELECT the follow-on).
+  const planPane = new PlanPane({
+    url: (p) => api.url(p),
+    projectId: () => projectId,
+    activeStorey: () => activeStorey,
+    notify,
+  });
+  container.appendChild(planPane.el);
   // Authoring is done through the Draft panel (the parameter-driven, snapping, per-level surface) —
   // the old click-to-place toolbar buttons (wall/column/beam/family) were a redundant second way to do
   // the same thing and were removed. The buttons below act on the *selected* element.
@@ -1913,6 +1924,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         groundPlane.constant = -activeStoreyZ;                       // draft on the active level's plane
         if (gridOverlay.data) gridOverlay.set(gridOverlay.data, activeStoreyZ);
         setStatus(`active level: ${activeStorey ?? "—"} (Z ${activeStoreyZ.toFixed(2)} m)`);
+        void planPane.refresh();     // R38-SYNC-VIEW: the plan follows the level you work in
       };
       levelSel.onchange = applyLevel;
       const load = toolBtn2("⊞ Load grid + levels", async () => {
@@ -2475,6 +2487,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         + "IBC/ASTM flashing details + specs, rated walls get assembly keynotes. Same rules validate as IDS QA.";
 
       // W11 C1: generate a schematic plan drawing (SVG) from the model, at the active level if one is set.
+      const planPaneBtn = toolBtn2("◫ Plan beside model", () => {
+        const open = planPane.toggle();
+        planPaneBtn.classList.toggle("on", open);
+        if (open) notify("Plan pane open — it follows the active level", "info");
+      });
+      planPaneBtn.title = "Dock the generated plan beside the 3D view; it re-cuts when you change the "
+        + "active level. Selection is not synced yet — plan linework carries no element identity.";
       const planBtn = toolBtn2("🖨 Generate plan (SVG)", () => {
         const q = new URLSearchParams({ scale: "100" });
         if (activeStorey) q.set("storey", activeStorey);

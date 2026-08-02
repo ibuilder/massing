@@ -22,6 +22,7 @@ import urllib.request
 from typing import Any
 
 from . import settings_store
+from .net import safe_urlopen
 
 
 class OpendataError(RuntimeError):
@@ -189,7 +190,9 @@ def _fetch(domain: str, dataset: str, where: str | None, q: str | None, order: s
         headers["X-App-Token"] = token
     req = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=12) as r:   # noqa: S310 — Socrata host from the registry
+        # SEC: the host comes from `domain`, a parameter — constant per the city registry today, but
+        # the call site cannot see that, and the registry is the kind of table that grows.
+        with safe_urlopen(req, timeout=12, require_https=True, label="Socrata domain") as r:
             rows = json.loads(r.read().decode("utf-8"))
     except Exception as e:    # noqa: BLE001 — any network/parse failure is a clean upstream error
         raise OpendataError(f"{domain} feed unavailable: {e}") from e

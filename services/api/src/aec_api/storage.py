@@ -24,6 +24,53 @@ def safe_seg(seg: str) -> str:
     return seg
 
 
+def contained_path(base, *parts: str) -> Path:
+    """Join `parts` under `base` and refuse anything that RESOLVES outside it.
+
+    `safe_seg` validates one segment and is the right tool when every component is a segment you
+    control. It cannot help when a component is a whole client-supplied *name* — a filename read from
+    an uploaded container, say — because the traversal need not be its first segment. A prefix like
+    `f"{pid}_{name}"` makes the leading `..` part of a literal directory name, which reads as safe and
+    is not: the segments after it still walk up, so enough of them leave the base directory. Prefixing
+    changes the depth required and nothing else.
+
+    Resolving first and testing containment afterwards is therefore the barrier, not a second opinion
+    on it — it answers "where does this actually land", which is the only question that matters and
+    the one string inspection cannot answer. Same idiom as `LocalBackend._p` and the ensure-model path.
+
+    Raises ValueError; callers surface it as a 400. Returns the resolved path.
+    """
+    root = Path(base).resolve()
+    dest = root.joinpath(*parts).resolve()
+    if dest != root and not dest.is_relative_to(root):
+        raise ValueError(f"path escapes its base directory: {'/'.join(map(str, parts))!r}")
+    return dest
+
+
+def validate_key(key: str) -> str:
+    """Validate a whole storage key, for EVERY backend — not just the one that has a filesystem.
+
+    This lived inside `LocalBackend._p`, so the two shipped backends disagreed about the same key:
+    `../../etc/x` raised on local and was accepted by S3, which stores it as an object whose name
+    merely contains dots. Neither is a traversal on S3 — the point is the disagreement. A key written
+    under one profile could not be read back under the other, and a defence-in-depth control silently
+    applied to only half of the deployments, with nothing to say which half you were on.
+
+    So the guard belongs to the *interface*, not to an implementation, and `test_storage_key_parity`
+    asserts the two backends refuse the SAME SET of keys rather than merely each refusing something.
+    Set-equality is what stops the next backend from diverging quietly too; a per-backend checklist
+    would not have caught this one, since S3's entry would simply never have been written.
+
+    Rejects: empty, NUL, absolute (`/` or `\\`), and any `..` segment. Tenancy is NOT enforced here —
+    keys are server-composed as `{pid}/…` at the callers, and a key naming another project is a
+    routing/authz question, not a storage one. Raises ValueError.
+    """
+    if (not key or "\x00" in key or key.startswith(("/", "\\"))
+            or ".." in key.replace("\\", "/").split("/")):
+        raise ValueError(f"unsafe storage key: {key!r}")
+    return key
+
+
 class Backend(Protocol):
     def put(self, key: str, data: bytes) -> str: ...
     def get(self, key: str) -> bytes: ...
@@ -38,11 +85,11 @@ class LocalBackend:
         self.root = Path(root).resolve()
 
     def _p(self, key: str) -> Path:
-        # containment guard: a key like "../../etc/x" must never resolve outside the storage root
-        # (attachment keys include a user-supplied filename). Reject anything that escapes — reject
-        # NUL/absolute/backslash keys up front, then require the resolved path to stay under root.
-        if not key or "\x00" in key or key.startswith(("/", "\\")) or ".." in key.replace("\\", "/").split("/"):
-            raise ValueError(f"unsafe storage key: {key!r}")
+        # shared bar first — validate_key rejects empty/NUL/absolute/`..` — so local and S3 agree on
+        # which keys exist at all — attachment keys carry a user-supplied filename.
+        validate_key(key)
+        # local-only second bar: even a syntactically clean key must resolve inside the root (symlinks,
+        # drive-relative oddities). S3 has no filesystem to escape, which is why this half stays here.
         dest = (self.root / key).resolve()
         if dest != self.root and not dest.is_relative_to(self.root):
             raise ValueError(f"unsafe storage key: {key!r}")
@@ -110,13 +157,16 @@ class S3Backend:
             self.client.create_bucket(Bucket=self.bucket)
 
     def put(self, key: str, data: bytes) -> str:
+        validate_key(key)
         self.client.put_object(Bucket=self.bucket, Key=key, Body=data)
         return key
 
     def get(self, key: str) -> bytes:
+        validate_key(key)
         return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
 
     def exists(self, key: str) -> bool:
+        validate_key(key)
         try:
             self.client.head_object(Bucket=self.bucket, Key=key)
             return True
@@ -124,21 +174,26 @@ class S3Backend:
             return False
 
     def delete(self, key: str) -> None:
+        validate_key(key)
         self.client.delete_object(Bucket=self.bucket, Key=key)
 
     def size(self, key: str) -> int:
+        validate_key(key)
         return self.client.head_object(Bucket=self.bucket, Key=key)["ContentLength"]
 
     def version(self, key: str) -> str:
+        validate_key(key)
         h = self.client.head_object(Bucket=self.bucket, Key=key)
         return (h.get("ETag") or f'"{h["ContentLength"]:x}"').strip('"').join('""')
 
     def get_range(self, key: str, start: int, end: int) -> bytes:
+        validate_key(key)
         obj = self.client.get_object(Bucket=self.bucket, Key=key, Range=f"bytes={start}-{end}")
         return obj["Body"].read()
 
     def delete_prefix(self, prefix: str) -> int:
         """Delete every object under a prefix (project teardown). Paginates list_objects_v2."""
+        validate_key(prefix.rstrip("/"))
         n = 0
         token = None
         while True:
