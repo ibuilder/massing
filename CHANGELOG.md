@@ -4,6 +4,65 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.818 — the public demo never had the six numbers it promises
+
+### Planned — ring R36: each room must be a product (from three user directives)
+
+Audited first, planned second. **No tool is unassigned to a room** — the spine refuses to file a
+destination without one and a test gates it; the real defect is that the left rail renders *every*
+room's tool group with the current one merely opened, so scoping exists as disclosure rather than as
+scope. **The drawings/specs dead end is real** — no back affordance, no route into the viewer; the
+only way out is knowing the room tabs are the navigation. The ring: a back affordance ships first
+and alone (S); the rail scopes to the current room with ⌘K as the everything-escape (M); drawings +
+specs + model become one subapp with a mode switch and selection carried across modes by GlobalId
+(L, sliced); the Author menu splits into Draw · Modify · Levels & Grids · Families with the proven
+"More" tools promoted (M); and each room gains a per-role landing brief, one room per release, with
+the Work room as the template it already is (M).
+
+### Fixed — four endpoints the app requests on every page load were never captured
+
+The Pages demo has no server: `demoData.json` is a captured `{ "GET <path>": <body> }` map, and it is
+the entire backend a visitor talks to. When the shell asks for a path the capture lacks, nothing
+breaks — the client falls back, the panel draws its empty state, and the page looks fine. That is the
+failure, not an exception to it.
+
+Measured against a live browser session, **four endpoints requested before a visitor clicks anything
+had never been in the crawl**: `/vitals`, `/work-queue`, `/jobs` and `/presence`. The vitals strip is
+the walkthrough's own headline claim — *"the same six numbers follow you into every room"* — and on
+the public demo those six numbers were not there, and had not been for 25 releases. The work queue,
+which the product calls the daily home, opened empty for everyone.
+
+Why it went unseen is the interesting half: the dimension anybody would think to check was
+**perfect**. The demo's module registry matched the repo exactly, 133 to 133, zero drift. A capture
+can be exactly right about the thing you measure and blank on the thing the user sees first.
+
+`build_demo_data.py` already carried this lesson, in a comment explaining that `/rooms` had rotted
+the same way and for the same reason. A lesson written as a comment protects one endpoint;
+`demoData.test.ts` now protects the set — asserting presence *and* substance, because a fixture
+captured as `{}` renders exactly like a missing one. The vitals fixture must carry all six named
+numbers; the work queue must actually contain work.
+
+### Changed — the roadmap says what is left, not what was done
+
+341 lines of finished narrative moved to `roadmap-completed.md`: the R32 filing spine, R33's clawback
+fix, R34's takeoff research and the whole of Band 3, which closed five items without a single build.
+They are moved **whole, not summarised** — each records *why* something closed, and several closed
+because the capability already existed. That reasoning is the part worth keeping.
+
+The three priority bands are re-seated on what is true today rather than on what was true when they
+were written:
+
+- **Band 1** now holds the two seams the race sweep found — the cross-process sidecar lock and the
+  snippet sandbox — ranked first for a specific reason: **nothing in the suite fails if either
+  regresses.** FIN-SUITE-BLIND, which occupied this band, is closed.
+- **Band 2** ("built but unreachable") names R31-CITE-HIGHLIGHT, where both the data half and the
+  locator shipped and *nothing calls them* — the citation panel still drops the `doc_id` the server
+  sends. Listing our own unreachable code in the band about unreachable code is the point of having
+  the band.
+- **Band 3** proposes three fresh gap-checks, each phrased so the check itself is the deliverable —
+  two of them asking whether fields added last week (`suggestion_clears_horizon`, `nothing_renovated`)
+  are rendered anywhere, since a field nobody displays is a field nobody reads.
+
 ## v0.3.817 — a lock the backend ignores, and a job that could run twice at once
 
 ### Fixed — two concurrent creates could mint the same record number

@@ -479,6 +479,19 @@ with TestClient(app) as c:
     grab(c, "/ids/templates"); grab(c, "/energy/benchmark-status"); grab(c, "/reports")
     grab(c, "/estimate/conceptual/catalog"); grab(c, "/mcp/tools"); grab(c, "/market/snapshot")
     P = f"/projects/{pid}"
+    # THE SHELL'S OWN STARTUP CALLS. The four below were absent for 25 releases, and the same comment
+    # written above for `/rooms` applies to each: the client falls back to something plausible, so
+    # nothing looked broken. Measured against a live browser session — every one of these is
+    # requested on page load, before a visitor clicks anything:
+    #   /vitals      the strip along the bottom of EVERY room (LOD · area · $/ft² · float · IRR ·
+    #                health). The walkthrough's own headline claim is "the same six numbers follow
+    #                you into every room" — on the public demo they did not.
+    #   /work-queue  the ball-in-court queue: the NEXT BEST ACTION card and the Work room's content.
+    #   /jobs        the runs inbox (background conversions/exports).
+    #   /presence    who else is here — the collaboration signal.
+    # A demo that renders the product's daily home as empty is not a demo of this product.
+    grab(c, f"{P}/vitals"); grab(c, f"{P}/work-queue"); grab(c, f"{P}/jobs?limit=25")
+    grab(c, f"{P}/presence")
     singles = [f"{P}/dashboard", f"{P}/members", f"{P}/budget/gmp", f"{P}/budget/cashflow", f"{P}/budget/variance",
                f"{P}/cost/summary", f"{P}/wip", "/wip/portfolio", f"{P}/contractor-statements", "/contractor-statements/portfolio",
                f"{P}/accounting/chart-of-accounts", f"{P}/accounting/journal-entries", f"{P}/accounting/trial-balance",

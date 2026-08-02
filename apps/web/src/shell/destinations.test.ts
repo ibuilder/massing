@@ -16,7 +16,10 @@ describe("every destination is placed, exactly once", () => {
     expect(unroomedDests(ALL_KEYS)).toEqual([]);
   });
 
-  it("rooms only into the five that exist", () => {
+  // The label said "the five that exist" for two releases after the spine reached seven. The
+  // assertion was always `ROOM_IDS`, so nothing was wrong except the sentence — but a stale count in
+  // a test NAME is read as documentation, which is exactly how prose drifts (R36 audit, 2026-08-02).
+  it("rooms only into rooms that exist", () => {
     for (const [key, room] of Object.entries(DEST_ROOM)) {
       expect(ROOM_IDS, `${key} → ${room}`).toContain(room);
     }

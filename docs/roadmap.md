@@ -66,176 +66,72 @@ Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
 
-- ✅ ~~**FIN-SUITE-BLIND**~~ *(CLOSED 2026-08-01, v0.3.814)* — **the G702 slice is done; the sweep across the
-  other finance suites is not.** The named evidence was checked and acted on: `retainage_prev` (G702
-  line 7) was asserted in **zero tests, in any file**, which is why a 10%-retainage contract could
-  report a negative payment due while the suite stayed green. `test_g702_lines.py` now value-checks
-  lines 5–8 on a fixture that **distinguishes** — mixed per-line rates (10% / 5% / 0%), because with a
-  single default rate the broken and correct implementations agree by coincidence.
+**FIN-SUITE-BLIND closed here on 2026-08-01** (G702 retainage, the 0%-read-as-unset money bug, and
+the reserve/benchmarking/proforma sweep) — its full record is in
+[`roadmap-completed.md`](roadmap-completed.md). Two seams took its place, both found by the R35 race
+sweep rather than by a failing test, which is the reason they rank first: **nothing in the suite can
+currently fail if either regresses.**
 
-  Writing that fixture found a second, live money defect: `ret_pct = _n(...) or DEFAULT_RETAINAGE`
-  treated an **explicit 0%** as unset, so a line the owner had agreed to hold nothing on had the 5%
-  default withheld anyway — $1,000 wrongly held on a $20,000 line. Fixed and mutation-proved.
+- ⭐ **R35-PIDLOCK-XPROC** *(M — Lane C)* — `pid_lock.mutating(pid)` serialises the sidecar
+  read-modify-write (docmanager index, edit history) **within one process only**, and the module says
+  so plainly. Under `uvicorn --workers > 1` two workers can interleave load→save on the same project
+  and the first writer's entry is silently lost — no error, no duplicate, just an index that forgot
+  something. The v0.3.817 sweep fixed the two seams that had a *database* to arbitrate them (ref
+  counter, job claim); this one writes to object storage, so it needs either a DB advisory lock or a
+  storage CAS. **Keep the `mutating(pid)` interface** so no caller changes.
+  *Until it lands, single-writer-per-project is the supported deployment shape — that is a real
+  constraint on the product, not a note.*
 
-  ✅ **THE SWEEP IS DONE — 2026-08-01 (v0.3.814).** `reserve.py`, `benchmarking.py` and `proforma/`
-  were each asked what their suites cannot see.
+- **SEC-PLUGIN-SANDBOX** *(M — Lane C)* — the external audit's one legitimate High. `sandbox.py`
+  executes snippets in-process behind AST checks and a trace-hook timeout; the AST layer is genuinely
+  strong, but a native call reached through an allowed binding can block uninterruptibly, and
+  in-process means the snippet shares the API's file descriptors and environment. Execution is
+  already opt-in (`AEC_ALLOW_IFC_CODE`), which is why this is High and not Critical.
+  Process/container isolation is **Parked as R35-SANDBOX-ISOLATION** because it is a deployment-shape
+  decision; this item is the part that does not need one — tighten what the bound callables can
+  reach, and add `setrlimit` CPU/memory caps around the existing timeout.
 
-  * **`reserve.py` — two live defects.** The suggested annual contribution came from a binary search
-    that returned its upper bound after forty halvings **without ever testing that bound was
-    feasible**; against an opening deficit it is not, so a 500k shortfall produced a confident
-    80,001/yr that came back underfunded from year one when re-run at exactly that figure. There was
-    nothing to search for — solvency through year *k* means `c >= (cum_out(k) - opening) / k`, so the
-    answer is the largest of those, solved in one pass. It now re-runs its own schedule at its own
-    answer and reports `suggestion_clears_horizon`. Second: an asset with a cost and a life but **no
-    install date** was projected as installed *today* — the most optimistic reading available — so a
-    20-year component contributed nothing to a 25-year study while `components_missing_data` read 0.
-    Now named and counted, not dropped.
-    The test could not see either: `assert suggested > 10000` passed for ~10⁵ wrong answers, and no
-    fixture had a negative opening balance. It now pins the exact value (66667, binding year named)
-    and asserts **one dollar less does NOT clear** — otherwise any over-estimate satisfies it.
-  * **`benchmarking.py` — the tests were already sound** (p25/median/p75 interpolation, overdue
-    counts, a 14-day turnaround all value-checked). The defect found was a directive violation in the
-    module docstring, not a maths hole.
-  * **`proforma/` — covered.** `loan.py` exercises all three funding modes with value assertions and
-    names what it deliberately does *not* assert; `exit_cap` is schema-validated `gt=0` so the
-    defensive `or 0.0` in `operations.reversion` is unreachable from the route. Live invariants were
-    re-verified over HTTP across all three funding modes: sources == uses, LP+GP == equity, no
-    unscheduled cost lines, and a `min_dscr` covenant provably binding (19.00M → 18.74M).
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
 
-Seven of eleven engines once shipped with no route. These are the current instances.
+Seven of eleven engines once shipped with no route. The R32 filing-spine entries that occupied this
+band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
+instances:
 
-| item | size | the gap |
-|---|---|---|
-| ~~**R32-CURRENT-SET**~~ | S | ✅ **CLOSED 2026-07-31 by decision, no code change.** The gap-check found the register already picks the newest revision per sheet — the defect was never "superseded sheets are shown". The real question was *which* "current" a viewer sees, and the user's call is **latest authored**, which is what it already shows. The issued set remains separately authoritative (filed `Drawing Set`, issuance register, transmittal). |
-| ~~**R24-TRACE-UI ②**~~ | L | ✅ **SHIPPED 2026-07-31** (`b3a630ea`). 19 headline figures report which assumptions the caller **declared** vs the engine **defaulted**, derived from `model_dump(exclude_unset=True)` — deriving from the validated dump would report everything as declared and answer the reviewer's question with fiction. `element_link` is `None` everywhere with a stated reason: the proforma holds no GlobalId and an invented terminus is worse than none. `POST /proforma/provenance`. |
-| ~~**R27-LAYOUT ①**~~ | S | ✅ **STALE BAND ENTRY — closed 2026-07-31, both halves were already shipped.** (a) our own sheets: `sheet_layout.sheet_regions()` keeps the page←world affine with `basis: "authored"` (v0.3.702). (b) received sheets: `sheet_recover.py` + `POST /projects/{pid}/drawings/received-regions` (v0.3.778). Reached at `analysis.py:610`; covered by `test_sheet_layout` and `test_sheet_recover`. The detail entry recorded both as shipped and this table row was never updated — **the roadmap's own drift, not the code's.** |
+- ⭐ **R31-CITE-HIGHLIGHT** *(S — Lane B)* — **the data half and the locator are both done; nothing
+  calls them.** `doc_text.answer()` carries `doc_id` into every citation and `rfi_qa` passes the
+  passage as `span` (v0.3.810); `drawings/citeLocate.ts` finds that passage on the page and returns
+  its box, degrading through three match rungs and reporting ambiguity (v0.3.816). The remaining work
+  is one seam: `portal/panels/aiassist.ts` still renders `"Source: p.12"` as inert `textContent`, and
+  its local citation type declares only `{ page, snippet? }` — **it drops the `doc_id` and `span` the
+  server already sends.** Widen the type, make the citation a control, call the locator, draw the box.
+  *Recorded as unreachable in the module's own header so it cannot be mistaken for shipped
+  capability — the mistake this band exists to catch.*
 
-✅ **R32-MODEL-IN-TREE + R32-FILE-GENERATED — SHIPPED 2026-07-31** (`44a901bd`, `4f6a5c84`). Two thirds
-of the filing ask are done. `12_Model/IFC` holds the model, and **issuing a set now files it**: the
-transmittal lands in `02_Drawings` on issue, beside the hand-uploaded drawings rather than in a
-"generated" silo. The remaining third is `R32-CURRENT-SET` above, and it is now a *read-side* change.
-
-Four decisions, recorded because they are the constraints the next filing caller inherits:
-
-1. **File on publish, never on save.** `source.ifc` is rewritten by every edit recipe; filing on write
-   would mint a revision per keystroke and make the chain meaningless.
-2. **File by KIND, into the folder that kind already uses** — there is no `Generated Drawings` folder,
-   and a test asserts none exists. A silo would rebuild the two-parallel-stores problem and split "the
-   current set" across two places, which is exactly what `R32-CURRENT-SET` then has to reconcile.
-3. **Titles carry the semantics.** The set's title is *constant*, so re-issues supersede into one
-   current document (P01, P02, …) — that is what lets the tree answer "which set is current". A
-   transmittal is titled *per issuance*, because one that superseded its predecessor would destroy the
-   release history it exists to provide.
-4. **Filing at issue is non-fatal and reported.** The issuance is already committed when filing runs, so
-   raising would surface as "issuing failed" for a release that *did* happen. The response carries
-   `filed` or a `filed_error` reason — an explicit unavailable, never a silent success.
-
-✅ **DECIDED by the user, 2026-07-31: `12_Model/IFC` IS `required`.** Asked precisely because it moves
-every existing project's document-control health score at once — and that is the intended effect. A
-project whose model has never been filed is genuinely non-compliant, and the score should say so rather
-than stay comfortable. Existing projects will show `12_Model/IFC` under `required_missing` until someone
-files a model; **that is a true finding, not a regression.** Only the IFC leaf is required —
-`12_Model/Federated` is not, because a project with one authored model and no federated coordination
-model is complete, and requiring it would manufacture a permanent gap nobody can close.
-
-The gate is on *reach*, not on the flag: the test asserts an unfiled model **appears** in
-`documents/health` → `required_missing`, and that filing it **clears** the gap. A `required` flag that
-no health report surfaced would be the same defect this band exists to catch.
+- **R22-PUBLIC-VIEWER** *(M — Lane E)* — a share link that opens the model read-only for someone with
+  no account. The viewer, the offline `.frag` path and the demo harness all exist; what is missing is
+  the scoped, revocable token and a route that honours it.
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
-## ✅ **BAND 3 IS COMPLETE — all five checked 2026-07-31. Five closed, zero builds.**
+The previous five all closed without a build — the record is in
+[`roadmap-completed.md`](roadmap-completed.md), and the band's thesis held: **check the premise before
+you build, because most of them are already true.** Three fresh candidates, each phrased so the check
+itself is the deliverable:
 
-The band's own thesis held again, and harder than expected: **five of five premises failed.** What the
-whole exercise cost was a few hours of reading; what it saved was five builds.
+- **Does anything read `suggestion_clears_horizon`?** v0.3.814 added it to the reserve study so the
+  suggested contribution proves itself. If no panel surfaces it, an operator still cannot see the
+  difference between a verified suggestion and an unverified one — the number is honest and invisible.
+- **Is `nothing_renovated` shown anywhere?** Same shape, from v0.3.813: the renovation schedule now
+  says explicitly when a pace renovates nothing across the whole hold. A field nobody renders is a
+  field nobody reads.
+- **Do the seven rooms all have a non-empty demo?** v0.3.818 proved `/vitals`, `/work-queue`, `/jobs`
+  and `/presence` had never been captured. `demoData.test.ts` now gates those four; the check is
+  whether every ROOM (not just every endpoint) has enough seeded data to look like a product on the
+  public demo, `work` especially.
 
-*Corrected after a re-check.* This first read "four closed, one reframed": `R31-SYNDICATION-TAIL` was
-recorded as mostly-failing with one genuine remainder, the K-1 pack. That remainder was then **built and
-shipped the same day** (`aabad457`), so the band's real output is five closures.
 
-⚠️ **Recorded as *shipped today*, not as *never a gap*** — and the distinction is the point. On the
-re-check the sibling session found `capital.k1_pack()` present and concluded it had always been there.
-It had not; it existed because that session's own finding caused it to be built hours earlier. **All
-sessions share one git identity, so a sibling's fresh work is indistinguishable from history** unless
-you read the file's `git log`. Writing "we were always fine here" would have been false and would make
-every other closure in this band less trustworthy.
-
-**The closures were re-checked for REACH, not just capability** — a `module.json` on disk is not reach,
-and an engine nothing calls is the defect this file keeps finding. Every closure below names a live
-caller:
-
-| closed item | why | reached from |
-|---|---|---|
-| **R22-ITP-NCR** | all four asks exist — `itp.point_type` is a required select (Hold/Witness/Review/Surveillance/Monitor) with method, acceptance criteria, frequency and both parties; `ncr` runs `open → dispositioned → closed` with disposition, corrective action, root cause, severity; element attachment is `element_guids` | `quality_chain` ← `routers/construction.py:260,283` · modules reachable in room `schedule` (`rooms.room_of`) |
-| **R22-PROCURE-DEPTH** | all three named remainders are built — `prequalification` module (EMR, bonding capacity, revenue, references, workflow), `clause_playbook.py` (accept/negotiate/refuse per contract type, severity, fallback, deviation register), `vendor_memory.py` cross-project scorecards | `routers/realestate.py:300,309,332` · `routers/benchmarking.py:83` · modules reachable in room `planning` (`rooms.room_of`) |
-| **R27-SKILL-GAP** | the corpus diff is nearly empty — `ids-checker`, `energy-simulation`, `schedule-compression`, `weather-impact-scheduler` and ~15 more all already have engines or modules | see the entry for the file-level list |
-| **R31-SYNDICATION-TAIL** *(mostly)* | the entry's own instruction was *"do not build a cap table before confirming `capital.py` lacks one"* — **it does not lack one.** `capital.cap_table()` returns ownership %, contributed/distributed/unreturned and per-class rollup. Soft/hard commitments are built under a different name: `investor` states `prospect → committed → funded → exited` | `distwaterfall.py:67` · `report_builders/finance.py:293,510` · `reports.py:103` |
-
-**Three real remainders survived, all small**, and each is now its own entry rather than hiding inside a
-closed one: **R31-K1-PACK**, **R31-CITE-HIGHLIGHT** (reframed — see below, it is far cheaper than
-written) and **R22-PHOTO-CV**.
-
-⚠️ **Two traps recorded so the next reader does not re-fall into them:**
-
-1. **`commitment` is a CONSTRUCTION module, not an investor one** — Purchase Order / Subcontract / Work
-   Authorization, with `retainage_pct` and `cost_code`. Reading it as the syndication side is almost
-   certainly what produced the R31-SYNDICATION-TAIL entry in the first place. A name collision, not a
-   missing feature.
-2. **A loose `grep -i "ids"` matches "bids" and "considers"** and nearly produced a false gap. Same
-   substring-contamination shape as `EIR`/"their" and `MIDP`/"midpoint". Word-bound it.
-
-### Band 4 — capability the product is judged on
-
-✅ **R34-TAKEOFF-COUNT — SHIPPED (#139, `29c26f27`); it was still listed here.** The platform had **no count measure at all**: every assembly was `area` or `length`, so a door, fixture, receptacle or sprinkler head — the thing an estimator counts most often — could not be taken off a drawing. Now a third measure, and **a count is never scaled**: area goes as scale², length as scale¹, and six doors are six doors at any sheet scale. Making it a third *measure* rather than a third *unit* is what makes that structural instead of remembered. Verified present: 13 count refs in `takeoff2d.py`, `test_takeoff_count` registered.
-
-✅ **PF-RENOVATION — SHIPPED v0.3.813 (#159).** Scope item 4 of the CRE asset-class survey
-(`docs/internal/research/proforma-asset-class-scope.md`). A value-add unit now has the three phases it
-actually has — in-place rent until work starts, **nothing** during renovation, renovated rent only from
-the month it comes back online. Applying the premium from day one is the standard overstatement and is
-invisible in the output. Pace and per-unit downtime are **required, never defaulted**: without them the
-model either renovates everything instantly or costs only its capex, and either is indistinguishable
-from a correct answer. Items 1–3 (income basis, rent-roll wiring, rollover pricing) shipped in
-v0.3.811–812; **items 5 (hotel ADR/RevPAR + data-centre capacity) and 6 (mezzanine/refinance) remain**.
-
-⭐ **R22-ENTITLEMENT** (M/L) · **R22-REPORT-BUILDER** (M, rescoped) · **R22-PIPELINE** (M) ·
-**R21-4D-CLASH** (phase 2)
-
-*Three items left this row on 2026-07-31, all already built:* **R22-PRODUCTION** (`c23c26dd`),
-**R21-SPACE-TAG-SECT** (rode inside `50f195cf`, no commit of its own), and **R22-CAD-IMPORT** (the DXF
-path shipped long ago; its "we only run on models we authored" premise was false). That is three in
-one row, on top of five earlier the same day. **A band row is a cache of the detail entries and it is
-never invalidated** — nothing recomputes it when an item ships, so it drifts in one direction only:
-toward advertising work that is already done. Check the code before picking up a row, and note that
-`R22-ENTITLEMENT` below survives a grep for "entitlement" **only** because `entitlements.py` is
-subscription tiers — a pure name collision, and the reason this sweep verified semantics, not strings.
-
-### Band 5 — interface and feel
-
-⭐ **R24-PERF-BUDGET** (S) · ⭐ **R24-CMDK-VERBS** (M) · ⭐ **R24-ELEMENT-CARD ②** (M) ·
-**R24-RUNS-INBOX** (M) · **R24-DENSITY ②** (M) · **R24-FIELD-MODE** (L) · **R24-CHARTS-GRAMMAR** ·
-**R24-REPORTS-BY-MOMENT** · **R24-TOOLS-SPLIT** (S) · **R24-TERMS** (S) · **R24-MONO-DATA** (S) ·
-**UX-READINESS-EVERYWHERE** (M) · **UX-DUP-DESTINATIONS** (S) · **UX-GANTT** (M) · **UX-VIEWED** (S) ·
-**UX-AR** (S) · the five **A29** authoring-feel items · **R23-BATCH-OVERLAYS** (S)
-
-### Band 6 — platform and format
-
-**R28-UNIFY ①** · **R28-BUNDLE ②** · **R28-ICDD ③** · **R28-VIEWER ④** · **PERF-WORKERS ①** ·
-**PERF-RATE ②** · **PERF-THREADS ③** · **R23-STOREY-LOD** (L) · **SCALE-SEAM ⑥** ·
-**R34-MEASURE-PROVENANCE** (S) · **R22-AGENT-PACKS** (M) · **R22-ROUTINES** (S) ·
-**R22-OPTION-OBJECT** (S/M) · **R22-PM-CONTRACTS** (M) · **R22-PUBLIC-VIEWER** (S) ·
-**R23-SYMBOL-COUNT** (M) · **R22-PROVENANCE** (L)
-
-### Parked — needs a decision, not an engineer
-
-**R32-TAXONOMY-LIFECYCLE** (the user has since answered: derive the document taxonomy from the seven
-rooms) · **R24-PERSONA-SHAPE** · **R24-IDENTITY** · **R26-V-TIMING** · **QUALITY-ROOM** ·
-**PHOTO-PIN** and **CMMS-OPS** (BIG-TICKET: open **one**, slice it) · **REL-7** (gated on RT-KNIP).
-
----
-
-## ▶ NOW — parallel lanes *(rebuilt 2026-07-29 at v0.3.785)*
+## ▶ NOW — parallel lanes *(rebuilt 2026-07-29 at v0.3.785; bands re-seated 2026-08-01 at v0.3.818)*
 
 **How to work here lives in [roadmap-directions.md](roadmap-directions.md), not in this file.** Claim a
 lane rather than an item, premise-check before building, announce before a full suite, and land what
@@ -255,12 +151,12 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
-| **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU |
+| **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑥ |
@@ -1334,258 +1230,6 @@ The framing worth adopting even though it is not a feature: **reduce verificatio
 production cost.** Several items already do this without saying so; it is the sharper way to argue for
 them.
 
-## 📐 R34 — TAKEOFF ACCURACY: the platform cannot count *(2026-07-30)*
-
-Prompted by the user ("accurate counts are important") and researched against **OpenTakeoff**
-([Kentucky-ai/opentakeoff](https://github.com/Kentucky-ai/opentakeoff), **Apache-2.0**, browser-only,
-no paid dependencies — licence and offline constraints both satisfied, so it is usable as guidance and
-in principle as code). Three gaps, all verified in our source rather than assumed.
-
-### ⭐ R34-TAKEOFF-COUNT *(M)* — there is no count measure at all
-
-`takeoff2d.py` defines `_UNIT_LABEL = {"area": "m²", "length": "m"}` and every entry in
-`TAKEOFF_ASSEMBLIES` is `area` or `length`. **The platform cannot take a count off a drawing.** Not
-doors, not fixtures, not receptacles, not sprinkler heads — the operation an estimator performs most
-often on a plan set is absent, so a count today is done outside the platform and typed back in.
-
-That is also the item with an external measurement attached: models score **40–55% on object-counting
-from drawing sets**, symbols and linework the weakest part, which makes counting the measurable floor
-under every takeoff claim. Worth noting that OpenTakeoff — a dedicated takeoff tool — offers a Count
-*tool* but **no automated symbol-detection algorithm**, so the manual-count-with-good-ergonomics path
-is the proven one and automatic symbol recognition is genuinely unsolved rather than merely unbuilt.
-Build the honest version first: a count measure, priced per unit, that a human or an agent places.
-Pairs with **R23-SYMBOL-COUNT** (Lane B) which is the recognition half.
-
-### ✅ R34-SHEET-SCALE *(S)* — SHIPPED 2026-07-31 · see [`roadmap-completed.md`](roadmap-completed.md)
-
-### R34-MEASURE-PROVENANCE *(S)* — a measurement does not record how it was made
-
-OpenTakeoff's best idea, and the one most aligned with where this platform already went: **every
-measurement records its scale, whether it was one-click or hand-drawn, and whether a person or an agent
-made it.** We record the number.
-
-We already apply exactly this principle to money (`COST-DB` rate + vintage + source) and to options
-(`derived / declared / unlinked / unavailable`). A traced quantity is at least as contestable as a
-rate, and once an agent can place measurements the question "who measured this, how, at what scale"
-stops being bookkeeping and becomes the basis of the estimate. Same argument as **R24-TRACE-UI ②**.
-
-### Not adopted
-
-Its flood-fill room tracer, adaptive thresholding for scans, and angle-locking already have our
-equivalents (`takeoff2d` does shoelace area and polyline length server-side; the browser traces). Its
-measurement engine is **deterministic geometry, not ML**, which is the same choice we made — worth
-recording because "AI takeoff" invites the opposite assumption.
-
-## ✅ R33-CLAWBACK-AMOUNT — SHIPPED in PR #136 (`856970c8`), 2026-07-31
-
-*Kept below with its original text because the reasoning is the reusable part — it is the worked example
-of why a money check must compare a **value**, not a range. Fixed by `solve_clawback_for_pref()`, which
-solves for the cash at the final date that lifts the LP's XIRR to the pref.*
-
-### 💰 the GP giveback was computed with no time dimension *(diagnosed 2026-07-30)*
-
-**Lane C. Researched and specified here; deliberately NOT implemented in this session** — see the note
-at the end, which is part of the item.
-
-### The defect, measured on the repo's own fixture
-
-`proforma/waterfall.py` computes the clawback as:
-
-```python
-owed = (pref_rate - lp_irr) * lp_contrib   # rough restitution proxy
-```
-
-Its own comment calls it a proxy. It is **a rate multiplied by a principal with no time factor**, so it
-cannot express the money needed to move a multi-year return. On the clawback fixture already in
-`test_waterfall.py` — `lp_irr = -3.72%` against an 8% pref, `lp_contrib = 900`, three years — it yields
-`(0.08 - (-0.0372)) x 900 = 105.49`, and the GP returns that out of 151.13 of promote. An LP sitting
-11.7 percentage points under its pref for three years on 900 of capital is owed materially more than
-105.49; on a separate clean 5-year conventional case the same formula understated the exact shortfall
-**5.8x** ($41,485 against $240,466).
-
-Second, smaller defect, already documented in that test file's own comments: the guard
-`if lp_irr is not None` means the clawback **silently does nothing** whenever XIRR has no root —
-**26% of a 729-pattern sweep**.
-
-### What the market actually does (researched, two independent sources)
-
-- The pref is an **accruing balance on unreturned capital** (simple or compounding) — a capital-account
-  mechanic. **We already do this correctly** (`pref_accrual="compounding"`, `lp_unreturned`).
-- The clawback runs at the capital event when the GP has taken more promote than it was entitled to on
-  a whole-deal basis, and it returns **the excess, capped at the promote actually received**.
-  Our `min(owed, period_gp)` cap is therefore **already right**; only the `owed` figure is wrong.
-- The hurdle is *usually* stated as an IRR and *can* be stated as an NPV/accrual test — the user's own
-  framing, and the reason the implementation must not assume a root exists.
-
-### The fix, and the reason it is small
-
-**The correct solver is already in the same file, twenty lines above.**
-`solve_cash_for_irr_hurdle(...)` bisects on a distribution until the LP's XIRR reaches a target. The
-clawback needs exactly the inverse: *the cash added at the final date that lifts the LP to the pref*,
-capped at the promote paid. The file contained the right technique and the clawback path used the proxy.
-
-```
-owed = bisect(extra in [0, promote_paid]) until xirr(lp_cf with extra at final date) >= pref
-```
-
-Two edge cases, both decided in the LP's favour, because a lookback exists to protect the LP:
-`xirr` returning `None`, and a promote too small to close the gap — **return the full cap** in each.
-Report `clawback_owed` and `clawback_restored` separately: they differ when the promote cannot cover
-the shortfall, and reporting only the restored figure lets a partly-cured deal read as fully cured.
-Both must be `None` (not `0.0`) when clawback is off, so "not requested" never reads as "nothing owed".
-
-### Why this is specified rather than shipped
-
-Two implementation attempts were made and both reverted. The first changed the *test* (IRR to NPV) as
-well as the amount, which silently alters behaviour on non-conventional cash flows; the second was
-abandoned mid-patch. More usefully: during the first attempt the "verification" was run against
-**fabricated fixture constants** — `LP`/`GP`/`TIERS` invented rather than read from the test file, and
-the tier key guessed as `irr` when it is `hurdle` — so every number it produced described a deal that
-does not exist, and one of them was reported as a finding before being withdrawn.
-
-That is the [[confident-wrong-beats-missing]] shape on money code, and the reason the item carries this
-paragraph: **read the fixture, never reconstruct it**, and verify a waterfall change through
-`run_waterfall`'s returned dict rather than by rebuilding `lp_cf` outside the function, which is where
-both errors entered. Conservation, monotonicity, cap-respected and LP-reaches-hurdle are all assertable
-from the public output alone.
-
-## 🗄 R32 — THE FILING SPINE: model, drawings and specs as controlled documents (2026-07-30)
-
-From a user-supplied fileshare-standard study. **Most of the machinery already exists and the premise
-is a wiring problem, not a build** — the eighth premise this week that was mostly built. What follows
-separates what is already shipped, what is genuinely missing, and what in the source study does **not**
-apply to this product, so nobody re-derives any of it.
-
-### Already built — do NOT rebuild
-
-| capability | where |
-|---|---|
-| standard folder taxonomy as **data**, per-node owner role, discipline, default CDE state, `required` flag | `folder_template.py` (11 top-level folders, QS/contract-admin shaped) |
-| file store with **revision + supersession** — same name in same folder supersedes, prior kept for audit | `docmanager.py` |
-| **"current only" is already the DEFAULT** — `list_folder(..., include_superseded=False)` | `docmanager.py:115` |
-| filename + sheet-ID conventions with a validator and a register audit | `naming.py` (ISO 19650 container names · US NCS sheet IDs) |
-| CDE states `wip → shared → published → archived` | `modules/information_container/` |
-| tree, upload, move, folder listing routes | `routers/documents.py` |
-
-So "standardise the format" and "version it" are, at the file-store layer, **done**. The gaps are
-elsewhere and they are specific.
-
-### ✅ R32-FILE-GENERATED *(M)* — SHIPPED 2026-07-31 (`4f6a5c84`)
-
-**Was measured:** `sheetgen.py`, `drawingset.py`, `issuance.py` and `specs.py` contained **zero**
-references to `docmanager`. Generated drawings and specs were produced, returned and never entered the
-controlled tree — no revision, never superseding anything, absent from the file manager. Every
-governance property the document layer implements was unavailable to exactly the artefacts the platform
-itself produces. *(The original entry named `specmanual.py`, which does not exist.)*
-
-**Now:** issuing a set files it. `filing.file_transmittal()` runs on issue and lands the transmittal in
-`02_Drawings`; `filing.file_drawing_set()` compiles and files the set as the next revision of one
-document. The supersession logic finally has a caller — which was always the whole item.
-
-**Still open here, and it is the honest remainder:** only the **drawing** path is wired.
-`specs.py` produces a submittal log rather than a spec manual PDF, so there is no spec artefact to file
-yet; when one exists it belongs in `01_Contract Documents/Specifications`, by rule 2. Recorded rather
-than quietly counted as done.
-
-The four decisions this shipped with are listed in Band 2 above, and the `12_Model`-not-`required`
-question is still the user's to answer.
-
-### ✅ R32-MODEL-IN-TREE *(S)* — SHIPPED 2026-07-31 (`44a901bd`)
-
-Was: two parallel stores — the source model at `{pid}/source.ifc`, the document tree at
-`{pid}/docs/<folder>/`, with **no folder for the model**. The artefact everything else derives from was
-the only one with no revision, no supersession and no presence in the file manager.
-
-Now: `12_Model` / `12_Model/IFC` / `12_Model/Federated` are in the standard taxonomy, and
-`filing.file_model()` files the model through `docmanager` — so a model revision **is** a document
-revision, superseding the prior one and leaving the as-issued version recoverable. Reachable at
-`POST /projects/{pid}/documents/file-model` and `GET /projects/{pid}/documents/model-history`.
-
-**Three decisions recorded here because they constrain R32-FILE-GENERATED:**
-
-1. **File on publish, never on save.** `source.ifc` is rewritten by every edit recipe; filing on write
-   would mint a revision per keystroke and make the chain meaningless.
-2. **File by KIND, into the folder that kind already uses** — no `Generated Drawings` folder. A silo
-   for generated output would rebuild the same two-stores problem and split "the current drawing set"
-   across two places, which is exactly what R32-CURRENT-SET then has to reconcile. **A test asserts no
-   such folder exists**, so this cannot be quietly reversed.
-3. **`12_Model` is deliberately NOT `required`.** `required_paths()` feeds the document-control health
-   score, so marking it required would drop every existing project's compliance number for something
-   they have not had the chance to do. Whether an unfiled model *should* count against health is a real
-   question — but it is a policy change, and it needs the user's call rather than a side effect.
-
-*Bug found by its own test: history was ordered by `uploaded_at`, which is second-resolution, so two
-revisions filed in the same second tied and the order became whatever the sort did. Now ordered by the
-monotonic index sequence.*
-
-### R32-CURRENT-SET *(S)* — the drawing display is not the file manager
-
-`docmanager` defaults to current-only, but the drawings UI reads the drawing registers, not the
-document tree, so "show only the current set" is not enforced where field users actually look.
-Once generated sheets are filed, the display should read the **published, non-superseded** set — one
-source, not two.
-
-⚠️ **Gap-check done 2026-07-31, and the premise needs restating — the real gap is worse than "two
-sources", and it is a PRODUCT decision rather than a wiring job.**
-
-The register *does* already compute a current set, so "superseded sheets are shown" is **not** the
-defect. `drawingset.register()` groups revisions per sheet number and takes `revs[-1]` after sorting by
-`_rev_key` — the newest revision wins and older ones go to `superseded`. What it does **not** do is
-consult issuance at all: there is **no reference to `drawing_issuance` in that computation**, and
-`workflow_state` is carried onto the row but never filtered on.
-
-So the register's "current" means **the latest revision anyone authored**. The document tree's "current"
-now means **the latest revision actually issued** (`SET_TITLE` supersession, shipped with
-R32-FILE-GENERATED). Both are legitimate answers to different questions:
-
-| question | answered by |
-|---|---|
-| what is the newest revision of record? | the register — right for the design team |
-| what was released, and is therefore buildable? | the filed set — right for the field |
-
-✅ **DECIDED by the user, 2026-07-31: the display shows the LATEST AUTHORED revision.** The current
-behaviour is therefore correct and this item **closes without a code change** —
-`apps/web/src/reportCenter.ts:139` calls `api.drawingSet(pid)`, which is the register, which is
-latest-authored. Nothing to rewire.
-
-**The concern was raised and the decision stands, so it is recorded rather than re-argued:** a viewer of
-that panel can be looking at a revision that was never issued. The mitigation is that the issued set is
-*also* reachable and is now first-class — the filed `Drawing Set` document in `02_Drawings` supersedes
-per issue, the issuance register records every release, and a transmittal PDF names exactly which sheets
-and revisions went out. Anyone who needs "what was released" has an authoritative answer; the panel
-simply is not that answer.
-
-**Do not "fix" this later by redefining `current_set`.** If the two meanings ever need to appear
-together, add a labelled `issued` view beside `latest` — never change what the existing number means.
-Two things called "current" that silently swap meaning is worse than two clearly-named things.
-
-### R32-TAXONOMY-LIFECYCLE *(M — needs the user's call on scope)* — 11 folders is construction-only
-
-Our taxonomy is `01_Contract Documents … 11_Final Account`: contract administration for a job already
-under way. The study's is a 20-folder **development** lifecycle — land acquisition and due diligence,
-entitlements and permitting, finance and proformas, BIM/CAD/GIS, sales/leasing/marketing, ownership
-handover, plus an explicit `14_External-Partner-Exchange`.
-
-For a platform whose users are developers as well as builders, everything before contract award and
-after turnover currently has no home. **This is a decision, not a build**: extending the tree changes
-every existing project's structure, and the `required`-flag completeness score with it. Options are
-(a) extend the single tree, (b) ship a second template selected per project type, (c) leave it. Do not
-start without an answer.
-
-### From the study, deliberately NOT adopted
-
-| in the study | why not |
-|---|---|
-| MyWorkDrive as the access layer; **NTFS permissions as the source of truth** | A different architecture. Our store is object storage with application RBAC and per-project roles; there is no Windows ACL to preserve. Adopting it would mean giving up the permission model the whole platform already enforces. |
-| PowerShell deliverables (`New-ProjectStructure.ps1`, `Set-ProjectPermissions.ps1`, AD group scripts) | Those provision a Windows file server. We provision a project via the API; `docmanager` already materialises the tree. Nothing to port. |
-| elFinder hardening (upload RCE via `connector.minimal.php`, extension allowlists, disabling script execution in upload dirs) | **We do not run elFinder.** `docmanager.py` describes itself as "elFinder-style" and `portal/panels/documents.ts` is our own implementation — the name is a simile, not a dependency, so the CVE class does not apply. Recorded because the phrase in our own docstring will otherwise make someone think it does. |
-| `90_Superseded` as a *folder* | We supersede **in place** with an index flag and hide by default, which is strictly better: the file keeps its identity and its folder, and history is a filter rather than a move. Moving superseded files to a sibling folder would break the "same name, same folder" supersession rule `docmanager` is built on. |
-
-**Transferable and worth taking:** the naming pattern's explicit `Rev[XX]` fixed-width field and ISO
-date ordering (compare against `naming.py`, which may already satisfy it); the metadata dictionary as a
-checklist for what a filed document should carry; and the controlled-vs-working split as a *rule* —
-a document is one or the other, never both.
-
 ## 🔭 R31 — EXTERNAL SCAN (15 sources, 2026-07-30)
 
 Fifteen sources reviewed: five open-source repos, five commercial products, two engineering-practice
@@ -1594,9 +1238,6 @@ already have** — that is the honest headline, and the rejected list below is t
 scan, because it stops the exercise being re-run.
 
 **One genuinely new build item, one strong corroboration, three gap-checks.**
-
-
-
 
 
 - ~~**R31-K1-PACK**~~ *(was S/M)* — **the one genuine remainder of R31-SYNDICATION-TAIL.** `capital.py:90`
@@ -1753,6 +1394,48 @@ Also settled, no code change: **the Fragments converter stays Node, by constrain
 serializer exists only in the JS kernel libraries, so `services/converter/` is the one deliberate
 non-Python server component (an isolated, subprocess-shaped CLI; everything else server-side is
 Python). Revisit only when a Python Fragments writer exists upstream.
+
+## 🧭 R36 — ROOM COHESION RING *(three user directives, 2026-08-02: the rooms must each be a product)*
+
+The user's asks, verbatim in spirit: the left rail must show only the current room's tools; drawings
+and specs have **no way back to Design** and should integrate with the model viewer as one subapp;
+the Author menu needs its "More" tools promoted and its groups split; and every room must be analysed
+for what its role actually needs first. Audited before planning — the facts:
+
+* **No tool is unassigned** — `spine.ts` refuses to file a destination without a room and surfaces
+  the unrouted list in the rail (`destinations.test.ts` gates it). The defect is different: the rail
+  renders **every room's group with the current one merely opened**, so every room shows all tools.
+  Filtering exists as disclosure, not as scope.
+* **The drawings/specs dead end is real** — `drawings.ts` renders into its own workspace with no
+  back affordance and no route into the viewer; a user's only way out is knowing the room tabs are
+  the navigation. Specs behaves the same.
+* `destinations.test.ts:19` still says "the five that exist" over a seven-room assertion — label
+  drift only, the assertion reads `ROOM_IDS`.
+
+External reference points (2026-08 scan): browser CAD/BIM tools that feel coherent share three
+choices — **one canvas, many modes** (2D sheets and 3D model are views of one subapp, switched
+in-place, never separate pages); **tool scope follows context** (the palette shows the active mode's
+verbs, with a command bar as the escape hatch to everything); and **role-shaped landing content**
+(the first screen of a work area answers that role's first question, not a generic dashboard).
+
+- ⭐ **R36-DRAWINGS-RETURN** *(S — Lane A)* — a back affordance from drawings/specs to Design, and
+  the room tabs visibly present in those workspaces. The cheapest real defect in the ring; ship it
+  first and alone.
+- **R36-RAIL-SCOPE** *(M — Lane A)* — the rail shows ONLY the current room's group; other rooms are
+  reachable by the tabs, not by scrolling the rail. Keep the unrouted-destination report. The command
+  bar (⌘K) remains the everything-escape so scoping never hides capability.
+- **R36-VIEWER-SUBAPP** *(L — Lane E; slice before starting)* — drawings + specs + model as one
+  subapp with a mode switch (Model ▸ Sheets ▸ Specs), the takeoff/markup layer as a plugin of it, and
+  selection carried across modes by GlobalId (pick a door in 3D, see it on the sheet; pick a keynote,
+  see the spec section). This is the cohesion ask; it subsumes the back button but must not gate it.
+- **R36-AUTHOR-MENU** *(M — Lane E)* — split Author into Draw · Modify · Levels & Grids · Families,
+  promote the proven "More" tools into those groups, and demote the rest behind the command bar.
+  Depends on a usage read: promote what the demo walkthrough and samples actually exercise.
+- **R36-ROOM-BRIEFS** *(M — Lane B; one room per release)* — per-room, per-role landing priority:
+  each room opens with the three answers its primary role needs (superintendent in Schedule: today's
+  lookahead, blockers, yesterday's variance; developer in Deal: returns vs guardrails, open
+  diligence, next decision gate). Write each brief as a short spec in the room's panel file header,
+  then make the panel match it. The Work room already does this by construction; it is the template.
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
