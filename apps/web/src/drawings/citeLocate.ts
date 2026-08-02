@@ -21,14 +21,43 @@
  * words come from **pdf.js**. The same paragraph does not survive both readers identically:
  *
  *   * whitespace differs — pdf.js emits a visual line as several runs, pypdf as one string;
- *   * `doc_text.answer()` trims context and prepends/appends an ellipsis ("…as required by the
- *     Engineer of Record…"), so the stored text is not even a substring of the source;
- *   * ligatures, soft hyphens and non-breaking spaces survive one extractor and not the other.
+ *   * ligatures, soft hyphens, non-breaking spaces and curly quotes survive one extractor and not
+ *     the other;
+ *   * `doc_text` truncates with a plain prefix — `chunk["text"][:500]`, then `snippet[:200]` in the
+ *     citation — so a long passage is cut mid-word **at the tail only**. There is no ellipsis and
+ *     the head is intact.
  *
- * An exact `indexOf` therefore fails on ordinary input while looking like "the passage isn't on this
- * page" — a silent miss that is indistinguishable from a wrong page number. So matching degrades on
- * purpose, longest-first, and REPORTS which rung matched: an exact hit and a three-word fallback are
- * both "found", but they do not deserve equal confidence and the caller may want to say so.
+ * That last point is corrected from this file's first draft, which claimed the snippet was wrapped
+ * in ellipses at both ends and built the fallback ladder around it — trimming both ends and taking
+ * the fallback phrase from the *middle*. The premise was wrong (checked: `doc_text.py:148,175`),
+ * and it made the ladder actively worse, because the head is the one part guaranteed undamaged.
+ * The ladder now trims the **tail** and takes its phrase from the **head**.
+ *
+ * ## Normalisation applies to BOTH sides, or it only creates misses
+ *
+ * The same first draft normalised the needle and searched the raw page words. Since `findInWords`
+ * compares against `word.str` verbatim, folding a curly apostrophe in the query while the page
+ * still contained one guaranteed a miss on a passage that would otherwise have matched — the
+ * punctuation handling could subtract matches and never add one. Both sides are normalised now,
+ * and the words keep their original geometry so the returned box is still the real one.
+ *
+ * An exact match therefore fails on ordinary input while looking like "the passage isn't on this
+ * page" — a silent miss indistinguishable from a wrong page number. So matching degrades on
+ * purpose, longest-first, and REPORTS which rung matched: an exact hit and a short-phrase fallback
+ * are both "found" but do not deserve equal confidence, and a passage occurring more than once is
+ * flagged `ambiguous` rather than silently boxed at its first occurrence.
+ */
+/*
+ * ⚠️ NOT YET REACHED. Nothing outside this module's own test imports it. The panel that renders a
+ * citation (`portal/panels/aiassist.ts`) still writes `"Source: p.12"` as inert `textContent`, and
+ * its local citation type declares only `{ page, snippet? }` — it drops the `doc_id` and `span`
+ * the backend already sends (`rfi_qa.py` → `cite_doc`). Wiring is therefore a *second* seam fix,
+ * not a call.
+ *
+ * Recorded here rather than left implicit, because this repo's recurring defect is an engine
+ * nothing calls being counted as shipped capability. The locator is tested and correct; it is not
+ * yet a feature a user can see, and the vendor-surface assumptions above are exercised only against
+ * a hand-built fixture, never a real PDF.
  */
 import { findInWords } from "../vendor/massingpdf/plugins/search";
 import { splitWords, type Word } from "../vendor/massingpdf/index";
@@ -43,12 +72,35 @@ export interface PassageHit {
   rung: MatchRung;
   /** The text actually searched for, after normalisation/trimming. Useful in a failure report. */
   needle: string;
+  /**
+   * The passage occurs more than once on the page, and `box` is the FIRST occurrence.
+   *
+   * Reported rather than resolved: this module cannot know which one the citation meant, and a
+   * caller that highlights silently would be asserting a certainty it does not have. Boxing the
+   * first of several is a reasonable default; presenting it as *the* passage is not.
+   */
+  ambiguous: boolean;
 }
 
 /** The minimum a page source must provide. Structural, so a test needs no PDF and no viewer. */
 export interface PageWords {
   /** Words for a 1-based page number, already positioned. */
   words(page: number): Promise<readonly Word[]>;
+}
+
+/**
+ * Apply the same folding to the page's words that the needle gets.
+ *
+ * `findInWords` builds its haystack from `word.str` verbatim, so normalising only the query means
+ * a curly apostrophe in the PAGE can never match a folded one in the query. That is not a missed
+ * improvement, it is a regression: the punctuation handling could only ever subtract matches.
+ *
+ * Geometry is carried through untouched — same `x/y/w/h/item` — so `unionBox` over the returned
+ * slice still describes where the text really is. A word that folds to an empty string keeps its
+ * slot so the index mapping inside `findInWords` stays aligned.
+ */
+function normaliseWords(words: readonly Word[]): readonly Word[] {
+  return words.map((w) => ({ ...w, str: normalisePassage(w.str) }));
 }
 
 /**
@@ -78,12 +130,17 @@ export function normalisePassage(s: string): string {
 /**
  * The ladder of things to search for, longest (most specific) first.
  *
- * The middle rung drops the first and last word, because an ellipsis-trimmed snippet very often
- * starts or ends mid-word ("…quired by the Engineer…"). The last rung takes the longest run of
- * `PHRASE_WORDS` words — long enough to be distinctive, short enough to survive re-flowing.
+ * Damage is at the TAIL, because `doc_text` truncates with a plain prefix (`text[:500]`, then
+ * `snippet[:200]`) — the head of the passage is exactly what the document says. So the middle rung
+ * drops trailing words, and the short rung is taken from the HEAD.
+ *
+ * The first draft did the opposite on a false premise (it believed the snippet was ellipsis-wrapped
+ * at both ends) and so trimmed both ends and sampled the middle — throwing away the one region
+ * guaranteed to be intact.
  */
 const PHRASE_WORDS = 6;
 const MIN_CHARS = 12;                              // below this a "match" is noise, not a location
+const TAIL_TRIM_WORDS = 2;                         // enough to clear a mid-word cut and its neighbour
 
 export function candidates(passage: string): { needle: string; rung: MatchRung }[] {
   const norm = normalisePassage(passage);
@@ -91,17 +148,18 @@ export function candidates(passage: string): { needle: string; rung: MatchRung }
   const out: { needle: string; rung: MatchRung }[] = [{ needle: norm, rung: "exact" }];
 
   const words = norm.split(" ");
-  if (words.length > 2) {
-    const trimmed = words.slice(1, -1).join(" ");
+  if (words.length > TAIL_TRIM_WORDS) {
+    const trimmed = words.slice(0, -TAIL_TRIM_WORDS).join(" ");
     if (trimmed.length >= MIN_CHARS) out.push({ needle: trimmed, rung: "trimmed" });
   }
   if (words.length > PHRASE_WORDS) {
-    // Take from the MIDDLE: the ends are where trimming damage lives.
-    const start = Math.max(0, Math.floor((words.length - PHRASE_WORDS) / 2));
-    const phrase = words.slice(start, start + PHRASE_WORDS).join(" ");
+    // From the HEAD: it is the part truncation cannot have damaged.
+    const phrase = words.slice(0, PHRASE_WORDS).join(" ");
     if (phrase.length >= MIN_CHARS) out.push({ needle: phrase, rung: "phrase" });
   }
-  return out;
+  // Two rungs can coincide (a short passage trims to its own head); keep the strongest of each.
+  const seen = new Set<string>();
+  return out.filter((c) => (seen.has(c.needle) ? false : (seen.add(c.needle), true)));
 }
 
 /**
@@ -126,22 +184,50 @@ export async function locatePassage(
   }
   if (!words.length) return null;                  // scanned page, no text layer
 
+  // Normalise the page ONCE, not per rung.
+  const folded = normaliseWords(words);
+
   for (const { needle, rung } of tries) {
-    const hits = findInWords(words, needle, page, 1);
+    // limit 2, not 1: one hit is unambiguous, two is all we need to know it is not. Asking for
+    // more would cost a full scan to report a boolean.
+    const hits = findInWords(folded, needle, page, 2);
     const box = hits[0]?.box;
-    if (box) return { box, rung, needle };
+    if (box) return { box, rung, needle, ambiguous: hits.length > 1 };
   }
   return null;
+}
+
+/** A `PageWords` whose cache can be dropped when the underlying document changes. */
+export interface ViewerPageWords extends PageWords {
+  /** Forget every cached page. Call when the viewer loads a different document. */
+  clear(): void;
 }
 
 /**
  * Adapt a live viewer to `PageWords`. Kept separate so `locatePassage` stays testable without one —
  * and so the vendor import surface used here is exactly two public names.
+ *
+ * **The cache is per-DOCUMENT, and the caller owns that.** Page numbers are not identities: cache
+ * page 3, load another PDF into the same viewer, and page 3 would be served from the first
+ * document — a box drawn confidently over the wrong file, which is worse than no box at all. The
+ * vendor's own `TextIndex` clears on `doc:loaded` for exactly this reason.
+ *
+ * Two defences, because one of them is only a default:
+ *   * `docId` — when supplied, a change to it drops the cache automatically. Pass the citation's
+ *     `document_id` and the hazard cannot arise.
+ *   * `clear()` — for a caller that has no id but does know a document was swapped.
  */
-export function viewerWords(viewer: { pageText(page: number): Promise<Parameters<typeof splitWords>[0]> }): PageWords {
+export function viewerWords(
+  viewer: { pageText(page: number): Promise<Parameters<typeof splitWords>[0]> },
+  docId?: () => string | undefined,
+): ViewerPageWords {
   const cache = new Map<number, readonly Word[]>();
+  let cachedFor = docId?.();
   return {
+    clear() { cache.clear(); cachedFor = docId?.(); },
     async words(page: number) {
+      const now = docId?.();
+      if (now !== cachedFor) { cache.clear(); cachedFor = now; }
       const got = cache.get(page);
       if (got) return got;
       const w = splitWords(await viewer.pageText(page));

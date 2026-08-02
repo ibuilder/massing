@@ -57,12 +57,34 @@ def _norm(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).strip().lower()
 
 
+#: Pre-release ranks, lowest first. A release with NO pre-release segment sorts ABOVE all of them,
+#: which is why the sentinel is larger than every entry: 0.65b0 < 0.65rc1 < 0.65.
+_PRE_RANK = {"dev": 0, "a": 1, "alpha": 1, "b": 2, "beta": 2, "rc": 3, "c": 3}
+_NO_PRE = (9, 0)
+
+_VER = re.compile(r"^(\d+(?:\.\d+)*)(?:[._-]?(dev|a|alpha|b|beta|rc|c)[._-]?(\d+)?)?", re.I)
+
+
 def _version_key(v: str) -> tuple:
-    """Compare release segments numerically. Pre/post/dev suffixes are dropped deliberately:
-    a floor of `>=0.120.0` is about the release, and treating `0.120.0rc1` as satisfying it is a
-    judgement this check does not need to make (no requirement here uses one)."""
-    parts = re.split(r"[.]", re.split(r"[-+a-zA-Z]", v.strip(), maxsplit=1)[0])
-    return tuple(int(p) for p in parts if p.isdigit())
+    """Order two versions, pre-releases included.
+
+    The first version of this dropped every suffix and justified it in a comment: *"no requirement
+    here uses one"*. That was **false when it was written** — `requirements.in` carries
+    `opentelemetry-instrumentation-fastapi>=0.48b0` and `...-sqlalchemy>=0.65b0`, and with the
+    suffix discarded both floors collapsed to `(0, 48)` and `(0, 65)`. A bump to `>=0.65b1` against
+    a `0.65b0` pin would then have compared equal and passed — precisely the drift this file exists
+    to catch, in the only four requirements that could exhibit it.
+
+    Comparing a claim against the file it describes costs one grep. Asserting it in a comment costs
+    nothing and proves nothing.
+    """
+    m = _VER.match(v.strip())
+    if not m:
+        return ((0,), _NO_PRE)
+    release = tuple(int(p) for p in m.group(1).split("."))
+    if not m.group(2):
+        return (release, _NO_PRE)
+    return (release, (_PRE_RANK.get(m.group(2).lower(), 0), int(m.group(3) or 0)))
 
 
 for path in (IN_PATH, LOCK_PATH):
@@ -90,20 +112,44 @@ check("the lock parses and pins a realistic number of packages", len(pinned) > 5
       f"{len(pinned)} pinned")
 
 # --- what requirements.in REQUIRES --------------------------------------------------------------
-# Only direct `>=` floors, which is what Dependabot writes. Extras (`sentry-sdk[fastapi]`) and
-# trailing comments are stripped. `-r`, `-c`, markers and unpinned names are skipped.
-REQ = re.compile(r"^([A-Za-z0-9._-]+)\s*(?:\[[^\]]*\])?\s*>=\s*([0-9][^\s,;#]*)")
+# Extras (`sentry-sdk[fastapi]`) and trailing comments are stripped. `-r`, `-c` and blanks skipped.
+#
+# EVERY requirement line must be accounted for — matched as a floor, or matched as a form this
+# check deliberately cannot evaluate. A bare `len(floors) >= 5` could not tell "33 of 33 checked"
+# from "5 of 33 checked, 28 silently dropped", so a requirement that changed operator (`>=` to
+# `~=`) would leave the checked set without a word. The reconciliation below is the mutation check
+# on the parser itself.
+REQ = re.compile(r"^([A-Za-z0-9._-]+)\s*(?:\[[^\]]*\])?\s*(>=|==|~=|>)\s*([0-9][^\s,;#]*)")
+NAME_ONLY = re.compile(r"^([A-Za-z0-9._-]+)\s*(?:\[[^\]]*\])?\s*(?:[;#].*)?$")
+
 floors: list[tuple[str, str, int]] = []
+unversioned: list[str] = []
+unparsed: list[str] = []
+requirement_lines = 0
 for i, raw in enumerate(in_lines, 1):
-    line = raw.strip()
-    if not line or line.startswith(("#", "-")):
+    line = raw.split("#")[0].strip()
+    if not line or line.startswith("-"):
         continue
+    requirement_lines += 1
     m = REQ.match(line)
     if m:
-        floors.append((_norm(m.group(1)), m.group(2), i))
+        # `>=`, `==` and `~=` all state a minimum the lock must meet. `>` is treated as a floor too:
+        # a pin equal to it would be a violation, but that stricter reading is not asserted here
+        # because nothing in the file uses `>`, and inventing the rule now would be untested.
+        floors.append((_norm(m.group(1)), m.group(3), i))
+    elif NAME_ONLY.match(line):
+        unversioned.append(f"{line} (line {i})")     # legitimately unconstrained — nothing to check
+    else:
+        unparsed.append(f"{line} (line {i})")
+
+check("every requirement line is either checked or explicitly accounted for",
+      not unparsed,
+      "unparsed: " + "; ".join(unparsed[:5]) if unparsed else
+      f"{requirement_lines} requirement lines = {len(floors)} with a version floor "
+      f"+ {len(unversioned)} deliberately unconstrained")
 
 check("requirements.in declares floors this test can check", len(floors) >= 5,
-      f"{len(floors)} `>=` constraints found")
+      f"{len(floors)} version constraints found")
 
 # --- every floor must be satisfied by the pin ---------------------------------------------------
 violations = []

@@ -56,13 +56,37 @@ a re-vendor cannot silently drop it.
 
 The hard part is not the lookup. The citation's text came out of **pypdf**; the page's words come out
 of **pdf.js**, and the same paragraph does not survive both readers identically — whitespace differs,
-ligatures and soft hyphens survive one and not the other, and the stored snippet is wrapped in
-ellipses that appear nowhere in the document. An exact match therefore fails on ordinary input while
-looking exactly like "the passage isn't on this page". Matching degrades on purpose — full passage,
-then ends-trimmed, then the most distinctive middle phrase — and reports which rung matched, so a
-weak hit is not presented as a strong one. When nothing matches it returns **nothing**: boxing an
-arbitrary region because something had to be highlighted would be worse than a page number, since the
-reader would trust the box.
+and ligatures, soft hyphens, non-breaking spaces and curly quotes survive one reader and not the
+other. An exact match therefore fails on ordinary input while looking exactly like "the passage isn't
+on this page". Matching degrades on purpose and reports which rung matched, so a weak hit is not
+presented as a strong one; a passage occurring twice is flagged ambiguous rather than silently boxed
+at its first occurrence; and when nothing matches it returns **nothing**, because boxing an arbitrary
+region would be worse than a page number — the reader would trust the box.
+
+Three defects in the first draft of that module were found by review and are fixed here, each worth
+recording because each *looked* right:
+
+- **Normalisation was applied to the query only.** The page words were searched raw, so folding a
+  curly apostrophe in the query while the page still contained one guaranteed a miss on a passage
+  that would otherwise have matched. The punctuation handling could subtract matches and never add
+  one. Both sides are folded now, with the words keeping their original geometry so the box is real.
+- **The test fixture contained none of the punctuation its own header claimed to test**, so the
+  suite was structurally unable to see that. The fixture now carries curly quotes, an em dash, a
+  soft hyphen and a non-breaking space — and reverting the fix fails exactly four tests.
+- **The fallback ladder was built on a false premise.** The module asserted that `doc_text` wraps
+  snippets in ellipses, and trimmed both ends and sampled the middle accordingly. It does not: it
+  truncates with a plain prefix (`text[:500]`, then `snippet[:200]`), so damage is **tail-only** and
+  the head is exactly what the document says. The ladder now trims the tail and samples the head —
+  the one region truncation cannot have touched.
+
+Also fixed: the page-words cache was keyed by page number alone, so after a second document loaded,
+page N was served from the first — a box drawn confidently over the wrong file. It now keys on
+document identity and exposes `clear()`.
+
+**This module is not yet reachable.** The citation panel still renders its source as inert text and
+its local type drops the `doc_id` and `span` the backend already sends, so wiring is a second seam
+fix rather than a call. Stated plainly because counting an engine nothing calls as shipped capability
+is this repo's most repeated mistake.
 
 ## v0.3.815 — three of seven rooms were named once and never explained
 
