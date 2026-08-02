@@ -49,8 +49,10 @@ from .edit_enclosure import (  # noqa: F401 — re-exported: RECIPES/routers/gen
     add_covering,
     add_opening,
     add_railing,
+    add_ramp,
     add_roof,
     add_roof_window,
+    add_stair,
 )
 from .edit_mep import (  # noqa: F401 — re-exported: routers/RECIPES/nodegraph reach these via edit
     add_comms_device,
@@ -840,6 +842,13 @@ RECIPES = {
         m, p["category"], p["point"], p.get("verts"), p.get("faces"), p.get("name"), p.get("storey")),
     "add_covering": lambda m, p: add_covering(m, p["points"], p.get("predefined", "CEILING"),
                                               float(p.get("thickness", 0.02)), p.get("material"), p.get("storey")),
+    # R38-STAIR — a straight run placed exactly where it was drawn. Riser/tread and slope are
+    # REPORTED by stair_geometry()/ramp_geometry(), never enforced by moving the geometry: a run
+    # silently lengthened to satisfy a limit no longer arrives where the user put it.
+    "add_stair": lambda m, p: add_stair(m, p["start"], p["end"], float(p.get("width", 1.2)),
+                                       p.get("storey"), p.get("target_storey")),
+    "add_ramp": lambda m, p: add_ramp(m, p["start"], p["end"], float(p.get("width", 1.5)),
+                                     p.get("storey"), p.get("target_storey")),
     "add_railing": lambda m, p: add_railing(m, p["start"], p["end"], float(p.get("height", 1.1)),
                                             p.get("storey")),
     "set_classification": lambda m, p: set_classification(m, p["guid"], p["system"], p["code"],

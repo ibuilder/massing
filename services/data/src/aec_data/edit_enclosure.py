@@ -229,3 +229,140 @@ def add_opening(model: ifcopenshell.file, host_guid: str, width: float = 0.9, he
     if st:
         ifcopenshell.api.run("spatial.assign_container", model, products=[el], relating_structure=st)
     return el.GlobalId
+
+
+#: IBC-shaped straight-run limits, in metres. Maximum riser and minimum tread. They are DEFAULTS and
+#: a REPORT, not a code check: `stair_geometry` says whether a run lands inside them, and `add_stair`
+#: never silently reshapes a run to make the numbers fit.
+MAX_RISER_M = 0.19
+MIN_TREAD_M = 0.25
+#: Maximum ramp slope, 1:12 — the accessible-route limit jurisdictions converge on.
+MAX_RAMP_SLOPE = 1.0 / 12.0
+
+
+def _run_placement(model, start, end, storey, target_storey, default_rise: float = 3.0):
+    """Shared setup for a straight run: validated endpoints, midpoint matrix, base elevation and rise.
+
+    An absent `target_storey` yields a STATED default rise rather than an inferred one — guessing the
+    building's section from one drawn line would be a number nobody supplied."""
+    import math
+
+    import ifcopenshell.util.unit as uunit
+    import numpy as np
+
+    sx, sy, ex, ey = float(start[0]), float(start[1]), float(end[0]), float(end[1])
+    run = math.hypot(ex - sx, ey - sy)
+    if run < 1e-9:
+        raise ValueError("start and end points must differ")
+
+    scale = uunit.calculate_unit_scale(model)
+    st = _first_storey(model, storey)
+    elev = (float(getattr(st, "Elevation", 0) or 0) if st else 0.0) * scale
+    tgt = _first_storey(model, target_storey) if target_storey else None
+    if tgt is not None and tgt is not st:
+        rise = (float(getattr(tgt, "Elevation", 0) or 0) * scale) - elev
+    else:
+        rise = float(default_rise)
+
+    ang = math.atan2(ey - sy, ex - sx)
+    c, s = math.cos(ang), math.sin(ang)
+    matrix = np.array([[c, -s, 0, (sx + ex) / 2], [s, c, 0, (sy + ey) / 2],
+                       [0, 0, 1, elev], [0, 0, 0, 1]], dtype=float)
+    return st, matrix, run, rise
+
+
+def _straight_run(model, start, end, width, storey, target_storey, ifc_class, flight_class, name):
+    """Author an IfcStair/IfcRamp plus its aggregated flight. One body for both because the only
+    difference is the class pair — duplicating it would let the two drift apart."""
+    if float(width) <= 0:
+        raise ValueError("width must be positive")
+    st, matrix, run, rise = _run_placement(model, start, end, storey, target_storey)
+    body = _body_context(model)
+
+    parent = ifcopenshell.api.run("root.create_entity", model, ifc_class=ifc_class, name=name)
+    flight = ifcopenshell.api.run("root.create_entity", model, ifc_class=flight_class,
+                                  name=name + " Flight")
+    for prod in (parent, flight):
+        ifcopenshell.api.run("geometry.edit_object_placement", model, product=prod, matrix=matrix)
+    # The flight's envelope along the run, not modelled treads: for a straight run the treads are
+    # fully derivable from the reported riser/tread and add nothing a viewer or takeoff needs.
+    profile = _rect_profile(model, run, float(width))
+    rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
+                               profile=profile, depth=max(0.05, abs(rise)))
+    ifcopenshell.api.run("geometry.assign_representation", model, product=flight, representation=rep)
+    ifcopenshell.api.run("aggregate.assign_object", model, products=[flight], relating_object=parent)
+    if st:
+        ifcopenshell.api.run("spatial.assign_container", model, products=[parent],
+                             relating_structure=st)
+    return parent.GlobalId
+
+
+def add_stair(model: ifcopenshell.file, start, end, width: float = 1.2,
+              storey: str | None = None, target_storey: str | None = None) -> str:
+    """A straight-run IfcStair with its IfcStairFlight, from plan point `start` to `end`.
+
+    Rises from `storey`'s elevation to `target_storey`'s, or by a stated 3.0 m when no target is given.
+
+    **This does not certify a stair.** Riser and tread are derived from the rise and run actually
+    drawn, and `stair_geometry()` reports whether they land inside `MAX_RISER_M` / `MIN_TREAD_M`.
+    Silently lengthening a short run to satisfy the limits would move the top of the stair away from
+    where the user put it — a change they cannot see and did not ask for. The run is placed as drawn
+    and the consequence is reported."""
+    return _straight_run(model, start, end, width, storey, target_storey,
+                         "IfcStair", "IfcStairFlight", "Stair")
+
+
+def add_ramp(model: ifcopenshell.file, start, end, width: float = 1.5,
+             storey: str | None = None, target_storey: str | None = None) -> str:
+    """A straight IfcRamp with its IfcRampFlight, from `start` to `end`.
+
+    Same contract as `add_stair`: placed exactly where it was drawn, with `ramp_geometry()` reporting
+    whether the resulting slope is within 1:12. A ramp quietly shortened to reach 1:12 no longer
+    arrives where the user drew it, and nothing on screen would say so."""
+    return _straight_run(model, start, end, width, storey, target_storey,
+                         "IfcRamp", "IfcRampFlight", "Ramp")
+
+
+def stair_geometry(rise: float, run: float) -> dict:
+    """Riser/tread for a straight run, and whether it lands inside the shaped limits.
+
+    Separate from `add_stair` so a draw tool can show the consequence BEFORE committing geometry, and
+    so the arithmetic is testable without building a model. `within_limits` is a REPORT, never a gate."""
+    import math
+
+    if run <= 0 or rise <= 0:
+        return {"riser_count": 0, "riser": None, "tread": None, "within_limits": None,
+                "rise": None, "run": None, "max_riser": MAX_RISER_M, "min_tread": MIN_TREAD_M,
+                "reason": "a stair needs a positive rise and a positive run; nothing was derived"}
+    n = max(1, math.ceil(abs(rise) / MAX_RISER_M))
+    riser = abs(rise) / n
+    tread = abs(run) / n
+    ok = riser <= MAX_RISER_M + 1e-9 and tread >= MIN_TREAD_M - 1e-9
+    return {
+        "riser_count": n, "riser": round(riser, 4), "tread": round(tread, 4),
+        "rise": round(abs(rise), 4), "run": round(abs(run), 4),
+        "within_limits": ok, "max_riser": MAX_RISER_M, "min_tread": MIN_TREAD_M,
+        "reason": ("riser and tread are inside the shaped limits" if ok else
+                   "the run is too short for this rise, so the tread falls below the minimum. The "
+                   "stair is placed where it was drawn; lengthen the run rather than expecting it to "
+                   "be adjusted silently"),
+    }
+
+
+def ramp_geometry(rise: float, run: float) -> dict:
+    """Slope for a straight ramp and whether it is within the accessible limit. A report, not a gate."""
+    if run <= 0:
+        return {"slope": None, "slope_ratio": None, "within_limits": None,
+                "rise": None, "run": None, "max_slope": MAX_RAMP_SLOPE, "max_slope_ratio": "1:12",
+                "reason": "a ramp needs a positive run; nothing was derived"}
+    slope = abs(rise) / abs(run)
+    ok = slope <= MAX_RAMP_SLOPE + 1e-9
+    return {
+        "slope": round(slope, 5),
+        "slope_ratio": ("1:" + str(round(1 / slope))) if slope > 0 else "level",
+        "rise": round(abs(rise), 4), "run": round(abs(run), 4),
+        "within_limits": ok, "max_slope": MAX_RAMP_SLOPE, "max_slope_ratio": "1:12",
+        "reason": ("slope is within the 1:12 accessible limit" if ok else
+                   "slope is steeper than 1:12. The ramp is placed where it was drawn; lengthen the "
+                   "run rather than expecting it to be adjusted silently"),
+    }
