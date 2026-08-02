@@ -193,13 +193,18 @@ def _production_guard() -> None:
         # in-process only, and a second worker can interleave a load->save and silently drop the
         # first writer's entry. That is a real deployment constraint, so it fails at boot rather than
         # living in a docstring — the same reasoning as the per-worker rate limit above.
+        #
+        # The dialect comes from DATABASE_URL, not `pid_lock.cross_process_status()`: at boot they
+        # name the same database (db.py builds the engine from this exact var), but the status call
+        # opens a live session, so a transient connection blip would return "" and refuse to boot a
+        # perfectly configured Postgres deployment. The env var cannot blip. The live-truth surface
+        # stays `cross_process_status()` on /health, where a blip reads as degraded, not fatal.
         if _worker_count() > 1:
-            from . import pid_lock
-            st = pid_lock.cross_process_status()
-            if not st["cross_process"]:
+            dialect = db_url.split("://", 1)[0].split("+", 1)[0] if "://" in db_url else "sqlite"
+            if dialect != "postgresql":
                 problems.append(
                     f"{_worker_count()} workers are configured but the sidecar write lock cannot "
-                    f"serialise across them on a {st['dialect']!r} database — two workers can "
+                    f"serialise across them on a {dialect!r} database — two workers can "
                     "interleave a document-index write and silently lose one. Use Postgres, or run "
                     "a single worker.")
         if problems:

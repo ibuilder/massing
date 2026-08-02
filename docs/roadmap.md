@@ -152,10 +152,10 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-DIM-INPUT ① · R38-PUSHPULL ① · R38-STAIR ① · R38-LIVE-PARAMS ② · R38-SYNC-2D3D ③ · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -539,8 +539,13 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   standing delegation; flagged here so it can be objected to in one line.
 - **R23-STOREY-LOD** *(L)* — server-side coarse proxies per storey (extruded footprint / AABB) for
   small parts, MEP and furniture, swapping to real fragments on demand. Server-side keeps it
-  deterministic, offline and $0. *`docs/internal/archive/phase2-large-models.md` claims no custom LOD is needed and is
-  itself marked superseded — that claim is the thing to retire.*
+  deterministic, offline and $0. **Blocker retired by measurement 2026-08-02:** the recorded
+  "no Fragments writer" blocker blocks *direct encoding* of a `.frag` in Python, not *production* of
+  one — a proxy authored as IFC runs through the converter this repo already ships (measured end to
+  end: 3 storeys → proxy IFC in 5.6 s → 3,817-byte frag in 6.4 s, zero new dependencies). The same
+  sentence genuinely does still block **viewer-side** LOD; the two differ by one process boundary we
+  own. *`docs/internal/archive/phase2-large-models.md` claims no custom LOD is needed and is
+  itself marked superseded — that claim is the thing to retire (still unverified).*
 - ⛔️ **R23-PICKING** *(M)* — **CLOSED UNBUILT 2026-07-31, on a measurement. Do not reopen without a
   new one.** Raycast latency was measured directly on `loader.fragments.raycast()` against a generated
   **35,030-element** fixture (19× the densest sample), 300 samples after a discarded warm-up:
@@ -1084,6 +1089,100 @@ check that searches text. Marking it historical is the fix; the lesson is that p
 keeps that item looking alive.
 
 ---
+
+## 🏗 R38 — DESIGN ROOM RING *(user-approved plan 2026-08-02; tool research + measured room inventory)*
+
+**The thesis, from research and our own R29 finding: the room is not behind on features — it is
+behind on the first ten minutes.** The measured inventory is deep (14 draw tools, families with
+sized variants, groups/arrays, constraints, phasing, curtain walls, MEP, server-generated
+plans/sections/sheets, a full markup engine, node canvas + NL authoring). What the beginner-friendly
+tools prove is that a new user must see a shape respond **in the same frame** and must be able to
+learn the whole app from the cursor. What the parametric tools prove is that **parameters must stay
+alive after creation**. What the document-first tools prove is that the sheet is a working surface,
+not an export. Three waves, one per lesson. The server recipe stays writer of record throughout; no
+second renderer, no new dependency without sign-off (Manifold, Apache-2.0, is the one pre-cleared
+candidate if face-CSG is ever pursued — see the R29 licence table).
+
+### Wave 1 — the first ten minutes *(Lane E unless noted)*
+
+The keystone is **A29-LOCAL-PREVIEW ①** (already coded, Lane E) — and a premise-check found it
+HALF-BUILT: placement already draws an instant amber proxy and an incremental one-element server
+preview. The two real gaps are honesty gaps, not speed gaps: the preview renders **indistinguishable
+from committed geometry** (the exact "a pending edit must look pending" violation the ring's own
+rule names), and a failed recipe erases every trace of the attempt, leaving only a toast — the user
+loses *where* it failed. The fix keeps the amber outline as the pending marker until publish
+completes, and turns it into a visible failed marker (cleared by the next draft action) on error.
+
+- **R38-DIM-INPUT ①** *(S)* — dimension-first drawing made visible. The typed-input parser already
+  exists in the snap engine (`applyDynamicInput`); give it the floating input box so "draw, type
+  12'6, Enter" is discoverable rather than secret.
+- **R38-PUSHPULL ①** *(M)* — the hero gesture: select a face, drag to extrude. IFC-safely: the
+  gesture edits the element's RECIPE PARAMETERS (wall height, slab thickness), never arbitrary mesh,
+  so the one gesture every beginner knows feeds the same GUID-stable pipeline.
+- **R38-STAIR ①** *(S)* — premise-checked 2026-08-02: there is **no stair or ramp draw tool**
+  (`SC` is steel column; `ifcstair` appears only in a deletion allowlist). A user cannot build a
+  two-storey building from scratch without leaving the room. Stair + ramp recipes exist server-side
+  or are S-sized additions to the enclosure engine; the gap is the draw tool.
+- A29-PLACE-VALID ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ — as already coded in Lane E.
+
+### Wave 2 — parameters stay alive *(Lane E + C)*
+
+- **R38-LIVE-PARAMS ②** *(M)* — select an element, get sliders/fields for its recipe parameters
+  with local preview while dragging, commit on release. Covers: the live parameter panel, the R23
+  constraint locks rendered as editable dimension chips, arrays whose count/spacing stay editable
+  after placement, and node-canvas inputs exposed as named room-level sliders (design options).
+
+### Wave 3 — model and documents in one room *(Lane B + E)*
+
+- **R38-SYNC-2D3D ③** *(L, Lane E)* — plan view beside the 3D view, cursor and selection synced.
+  The plans are already server-generated; the work is the second viewport and the sync.
+- **R38-SHEET-MARKUP ③** *(M, Lane B)* — the vendored markup toolset (clouds, callouts, stamps,
+  tool sets) opened on the room's OWN generated sheets, markups tied to GUIDs through the existing
+  pin-to-drawing spine.
+- Consumes: R24-ELEMENT-CARD ② and R31-CITE-HIGHLIGHT (both already coded) as the "everything
+  about this thing" surface.
+
+**Sequence: Wave 1 before all; within a wave, listed order.** Quick wins to fold in when adjacent:
+a material paint tool, orbit-around-selection.
+
+## 🔧 R39 — DEPLOYMENT-TRUTH RING *(external engineering audit 2026-08-02, premise-checked item by item)*
+
+**Why this ring exists.** An external audit of the deployment surface found that several controls are
+weaker than they read: a throttle that counts per process behind four workers, an upload cap that only
+exists if requests happen to arrive through the bundled proxy. The shape is familiar — R35's theme of
+"a lock the backend ignores" applied to the ops layer. **Already landed from the same audit** (do not
+re-open): the converter build stage moved to the supported Node LTS with a pinned digest
+(`services/api/Dockerfile`), a Content-Security-Policy with a no-inline-script gate
+(`apps/web/nginx.conf` + `apps/web/src/deploy/nginx.test.ts`), the multi-worker sidecar-lock boot
+refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
+
+- **R39-THROTTLE-SHARED ①** *(M, Lane C)* — the per-endpoint throttles in
+  `services/api/src/aec_api/throttle.py` keep in-process counters, so behind N workers every limit is
+  silently N× its configured value — the exact defect the rate-limit boot guard refuses for
+  `AEC_RATE_LIMIT_RPM`, one file over. Back the counters with Redis when `AEC_REDIS_URL` is set (the
+  seam the rate limiter already uses), and fold "endpoint throttles are per-worker" into the same
+  production-guard warning so the operator is told instead of protected-in-name-only.
+- **R39-UPLOAD-CAP-APP ①** *(S, Lane C)* — the upload size cap lives only in nginx
+  (`client_max_body_size`); a deployment that fronts the API differently (or exposes it directly) has
+  **no cap at all**. Enforce a streamed byte limit at the app boundary — count as chunks arrive and
+  cut off at the limit, never buffer-then-measure — so the cap is a property of the API, not of one
+  particular proxy in front of it.
+- **R39-A11Y-JOURNEYS ②** *(M, Lane B)* — keyboard-only acceptance journeys for the seven rooms,
+  encoded as tests rather than an audit doc: for each room, tab-reach the primary action, operate it,
+  and land focus somewhere sane. The a11y sweeps so far checked *attributes*; nothing yet checks a
+  *journey*, and a journey is what a keyboard user actually has.
+- **R39-VIEWER-OBS ②** *(M, Lane E)* — the viewer has no timing record: "loads slowly" arrives as a
+  feeling, not a number. Instrument the load journey (fetch → parse → first frame, keyed by model
+  size) and POST the timings to the platform's own API — no third-party telemetry, nothing new to
+  approve — so p50/p95 by model-size bucket is a queryable fact before any perf work is prioritised.
+- **R39-DECOMP-VIEWER ③** *(L, Lane E)* — `apps/web/src/viewer/app.ts` is the last of the three
+  god-files still standing (client.ts was split by SCALE-SEAM, portal.ts is REL-4). Split by concern
+  behind the existing facade, same recipe as SCALE-SEAM: extraction first, no behaviour change, the
+  suite as the parity gate.
+
+**Parked from the same audit:** brotli — the build already emits `.br` siblings and the stock
+nginx image cannot serve them; switching base images is a dependency decision for the user.
+Web-vitals telemetry via a third-party package — same reason, new dependency.
 
 ## ✏️ R29 — AUTHORING-FEEL RING *(research 2026-07-29: pascalorg/editor + 4 comparators)*
 
