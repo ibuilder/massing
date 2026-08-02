@@ -31,12 +31,22 @@ m = open_model("../../samples/_test_spaces.ifc")
 assert len(m.by_type("IfcSpace")) == 8
 sch = spaces.space_schedule(m)
 assert len(sch) == 8 and all(s["net_area"] and s["storey"] for s in sch), sch[:2]
+# regression (2026-08-02): add_spaces authored a Position-LESS rectangle profile — the one recipe
+# that did. ifcopenshell tolerates it, but web-ifc silently skips such elements, so every authored
+# room was invisible in the viewer. Assert the profile carries a placement like every other recipe.
+for _sp in m.by_type("IfcSpace"):
+    for _rep in _sp.Representation.Representations:
+        for _it in (_rep.Items or []):
+            if _it.is_a("IfcExtrudedAreaSolid") and _it.SweptArea.is_a("IfcRectangleProfileDef"):
+                assert _it.SweptArea.Position is not None, "space profile lost its Position (web-ifc skips it)"
 
 import os  # noqa: E402
+
 os.remove("../../samples/_test_spaces.ifc")
 
 # --- Primavera P6 .xer schedule import (TASK table → dated activities) -------
 from aec_data import schedule  # noqa: E402
+
 _xer = "\n".join([
     "\t".join(["%T", "TASK"]),
     "\t".join(["%F", "task_id", "task_code", "task_name", "target_start_date", "target_end_date"]),
