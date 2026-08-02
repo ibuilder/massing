@@ -75,8 +75,18 @@ TESTS = ["test_proforma", "test_renovation", "test_rollover", "test_income_basis
          "test_no_secrets", "test_race_conditions", "test_lock_satisfies_requirements", "test_manifest"]
 
 
+#: Engine tests that live beside the data service (services/data/test_*.py) — the massing /
+#: family-shelf / analysis characterization suites. They were green but DARK: nothing in CI
+#: executed them until 2026-08-02 (ci.yml runs only this file, and the manifest below only
+#: mapped services/api). They need no DB/storage; they run with cwd=services/data.
+DATA_DIR = HERE.parent / "data"
+DATA_TESTS = ["test_analysis", "test_families", "test_massing"]
+
+
 def manifest_problems(tests: list[str] | None = None,
-                      on_disk: set[str] | None = None) -> list[str]:
+                      on_disk: set[str] | None = None,
+                      data_tests: list[str] | None = None,
+                      data_on_disk: set[str] | None = None) -> list[str]:
     """The TESTS manifest must be a faithful 1:1 map of the test_*.py files on disk.
 
     It is hand-maintained (so it can order/skip and set per-test env), and a hand-maintained list
@@ -98,33 +108,41 @@ def manifest_problems(tests: list[str] | None = None,
     tests = TESTS if tests is None else tests
     if on_disk is None:
         on_disk = {p.stem for p in HERE.glob("test_*.py")}
+    data_tests = DATA_TESTS if data_tests is None else data_tests
+    if data_on_disk is None:
+        data_on_disk = {p.stem for p in DATA_DIR.glob("test_*.py")}
     problems: list[str] = []
-    if dupes := sorted(n for n, c in Counter(tests).items() if c > 1):
-        problems.append("registered more than once — each suite must run exactly once: "
-                        + ", ".join(dupes))
-    if missing := sorted(set(tests) - on_disk):
-        problems.append("registered in TESTS but no such file on disk (typo, or the file was "
-                        "deleted without being de-registered): " + ", ".join(missing))
-    if unregistered := sorted(on_disk - set(tests)):
-        problems.append("test file(s) on disk not registered in TESTS (add to run_tests.py): "
-                        + ", ".join(unregistered))
+    # the same three rules apply to BOTH manifests — DATA_TESTS is how the services/data suites
+    # went dark in the first place (files on disk, no registry, nothing ran them)
+    for label, registered, disk in (("TESTS", tests, on_disk), ("DATA_TESTS", data_tests, data_on_disk)):
+        if dupes := sorted(n for n, c in Counter(registered).items() if c > 1):
+            problems.append(f"{label}: registered more than once — each suite must run exactly once: "
+                            + ", ".join(dupes))
+        if missing := sorted(set(registered) - disk):
+            problems.append(f"{label}: registered in {label} but no such file on disk (typo, or the "
+                            "file was deleted without being de-registered): " + ", ".join(missing))
+        if unregistered := sorted(disk - set(registered)):
+            problems.append(f"{label}: test file(s) on disk not registered in {label} "
+                            "(add to run_tests.py): " + ", ".join(unregistered))
     return problems
 
 
-def _run_one(t: str, base: dict) -> tuple[str, bool, float, str]:
+def _run_one(t: str, base: dict, cwd: Path = HERE) -> tuple[str, bool, float, str]:
     """Run a single test_*.py as an isolated subprocess (own SQLite db + storage dir) and return
-    (name, ok, seconds, captured-output). Safe to run concurrently — each test's db/storage is unique."""
+    (name, ok, seconds, captured-output). Safe to run concurrently — each test's db/storage is
+    unique. `cwd` selects the suite's home dir (services/api for TESTS, services/data for DATA_TESTS);
+    the relative db/storage paths resolve against it either way."""
     env = {**base,
            "DATABASE_URL": f"sqlite:///./_{t}.db",
            "STORAGE_DIR": f"./_storage_{t}",
            "AEC_RBAC": "1" if t in ("test_rbac", "test_modules") else os.environ.get("AEC_RBAC", "0")}
-    (HERE / f"_{t}.db").unlink(missing_ok=True)
+    (cwd / f"_{t}.db").unlink(missing_ok=True)
     # also clear the per-test object-storage dir so sidecar state (e.g. docmanager's
     # {pid}/docs/_index.json) can't leak across runs and break count assertions
-    shutil.rmtree(HERE / f"_storage_{t}", ignore_errors=True)
+    shutil.rmtree(cwd / f"_storage_{t}", ignore_errors=True)
     t0 = time.time()
     # -X utf8 + utf-8 capture so a test's unicode output (→, ², °) never crashes on a cp1252 console
-    proc = subprocess.run([sys.executable, "-X", "utf8", f"{t}.py"], cwd=HERE, env=env,
+    proc = subprocess.run([sys.executable, "-X", "utf8", f"{t}.py"], cwd=cwd, env=env,
                           capture_output=True, encoding="utf-8", errors="replace")
     return t, proc.returncode == 0, time.time() - t0, (proc.stdout or "") + (proc.stderr or "")
 
@@ -142,7 +160,7 @@ def main() -> int:
             "AEC_GEOM_WORKERS": os.environ.get("AEC_GEOM_WORKERS", "1")}
     # every entry, no filtering: manifest_problems() above has already proved each one exists, so a
     # missing file is now a loud failure rather than a silently shorter run.
-    tests = list(TESTS)
+    tests = [(t, HERE) for t in TESTS] + [(t, DATA_DIR) for t in DATA_TESTS]
     # each test is an isolated subprocess → embarrassingly parallel. TEST_JOBS overrides the worker count
     # (TEST_JOBS=1 forces the old sequential behaviour for debugging a flaky/order-sensitive test).
     jobs = int(os.environ.get("TEST_JOBS") or 0) or max(1, (os.cpu_count() or 2) - 1)
@@ -150,7 +168,7 @@ def main() -> int:
     results: list[tuple[str, bool, float]] = []
     t_start = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
-        for t, ok, dt, out in ex.map(lambda t: _run_one(t, base), tests):
+        for t, ok, dt, out in ex.map(lambda tc: _run_one(tc[0], base, tc[1]), tests):
             results.append((t, ok, dt))
             print(f"{'PASS' if ok else 'FAIL'}  {t}  ({dt:.1f}s)", flush=True)
             if not ok:

@@ -207,7 +207,12 @@ def _next_ref(db: Session, key: str, project_id: str, mod: dict) -> str:
 
 
 def create_record(db: Session, key: str, project_id: str, body: dict, actor: str,
-                  party: str | None) -> dict:
+                  party: str | None, *, commit: bool = True) -> dict:
+    """Validate + insert one module record (and its audit-log row). `commit=False` lets a seed loop
+    batch many creates into ONE transaction instead of a commit per record (the generate-massing
+    seeds were issuing ~20-40 commits per request) — the caller then owns the final ``db.commit()``,
+    and a mid-loop failure rolls the whole seed back atomically. Refs stay sequential either way:
+    ``_next_ref`` reads through the session, which sees the uncommitted rows."""
     mod = get_module(key)
     t = TABLES[key]
     data = body.get("data", {})
@@ -243,7 +248,8 @@ def create_record(db: Session, key: str, project_id: str, body: dict, actor: str
     }
     db.execute(insert(t).values(**row))
     _log(db, project_id, key, rid, actor, party, "create", {"ref": row["ref"]})
-    db.commit()
+    if commit:
+        db.commit()
     return get_record(db, key, project_id, rid)
 
 

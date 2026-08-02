@@ -59,6 +59,23 @@ check("a sound manifest reports nothing",
       run_tests.manifest_problems(["test_a", "test_b"], DISK) == [],
       "no false positives on a clean 1:1 map")
 
+# ---------------------------------------------------- the data-service manifest is guarded too
+# DATA_TESTS exists because the services/data suites were exactly defect (3): files on disk, no
+# registry, and nothing in CI ran them for weeks while they silently characterized generate_ifc.
+# Prove the three rules run against the SECOND manifest, not just the first.
+check("data-manifest rule fires on a registered entry with no file",
+      any("DATA_TESTS" in p and "test_dghost" in p
+          for p in run_tests.manifest_problems(["test_a"], {"test_a"}, ["test_dghost"], set())),
+      "a registered data test with no file must be reported, labelled DATA_TESTS")
+
+check("data-manifest rule fires on an unregistered data file on disk",
+      any("DATA_TESTS" in p and "test_dark" in p
+          for p in run_tests.manifest_problems(["test_a"], {"test_a"}, [], {"test_dark"})),
+      "a data test on disk that nothing runs is the defect this dimension exists to catch")
+
+check("the live DATA_TESTS manifest is non-empty",
+      len(run_tests.DATA_TESTS) >= 3, f"{len(run_tests.DATA_TESTS)} data suites registered")
+
 # All three at once: a real drifted manifest usually breaks more than one rule, and reporting only
 # the first would send somebody round the loop three times on a 22-minute gate.
 combined = run_tests.manifest_problems(["test_a", "test_a", "test_ghost"], DISK)

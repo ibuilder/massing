@@ -153,13 +153,13 @@ def _seed_spine_skeleton(db, pid: str, cc: dict, cc_budget: dict, actor: str) ->
         budget = sum(cc_budget.get(c, 0) for c in codes)
         bp = me.create_record(db, "bid_package", pid, {"data": {
             "name": f"{disc} package", "trade": disc, "discipline": disc,
-            "cost_code": cc[primary], "budget": budget}}, actor, "GC")
+            "cost_code": cc[primary], "budget": budget}}, actor, "GC", commit=False)
         packages += 1
         for num, title, div in sections:
             me.create_record(db, "spec_section", pid, {"data": {
                 "section_number": num, "title": title,
                 "division": f"{div} — {cls.MF_DIVISIONS.get(div, '')}".strip(" —"),
-                "discipline": disc, "bid_package": bp["id"]}}, actor, "GC")
+                "discipline": disc, "bid_package": bp["id"]}}, actor, "GC", commit=False)
             specs += 1
     return {"seeded": True, "bid_packages": packages, "spec_sections": specs}
 
@@ -183,15 +183,18 @@ def _seed_gc_portal(db, pid: str, body: MassingIn, m: dict, actor: str) -> dict:
                  ("26-0000", "Electrical", "26", 0.13), ("09-0000", "Finishes", "09", 0.19)]
     cc = {}
     cc_budget = {}
+    # the whole seed batches into ONE transaction (commit=False + the single commit below) — this
+    # path was a per-record commit storm (~20-40 commits per generate), and atomicity is better:
+    # a mid-seed failure leaves no half-seeded GC portal behind.
     for code, desc, div, frac in divisions:
-        r = me.create_record(db, "cost_code", pid, {"data": {"code": code, "description": desc, "division": div}}, actor, "GC")
+        r = me.create_record(db, "cost_code", pid, {"data": {"code": code, "description": desc, "division": div}}, actor, "GC", commit=False)
         cc[code] = r["id"]
         cc_budget[code] = round(hard * frac)
-        me.create_record(db, "budget", pid, {"data": {"cost_code": r["id"], "description": desc, "revised": cc_budget[code]}}, actor, "GC")
+        me.create_record(db, "budget", pid, {"data": {"cost_code": r["id"], "description": desc, "revised": cc_budget[code]}}, actor, "GC", commit=False)
     _seed_spine_skeleton(db, pid, cc, cc_budget, actor)
     me.create_record(db, "prime_contract", pid, {"data": {
         "name": "GMP w/ Owner", "type": "GMP", "value": hard,
-        "overhead_pct": 5, "fee_pct": 4, "contingency_pct": 3}}, actor, "GC")
+        "overhead_pct": 5, "fee_pct": 4, "contingency_pct": 3}}, actor, "GC", commit=False)
     # cost-loaded structure activities, one per floor, spread over the build
     floors = max(1, int(m.get("floors") or 1))
     struct_budget = hard * 0.46                         # concrete + steel
@@ -202,9 +205,29 @@ def _seed_gc_portal(db, pid: str, body: MassingIn, m: dict, actor: str) -> dict:
         me.create_record(db, "schedule_activity", pid, {"data": {
             "name": f"Structure L{f}", "trade": "Structure", "start": s.isoformat(),
             "finish": (s + timedelta(days=per + 7)).isoformat(),
-            "budget": round(struct_budget / floors), "cost_code": cc["03-3000"], "percent": 0}}, actor, "GC")
+            "budget": round(struct_budget / floors), "cost_code": cc["03-3000"], "percent": 0}}, actor, "GC", commit=False)
         acts += 1
+    db.commit()
     return {"seeded": True, "cost_codes": len(divisions), "activities": acts, "gmp": hard}
+
+
+def _finalize_generated(db, p, pid: str, body: MassingIn, metrics: dict, ifc_path, actor: str) -> dict:
+    """The shared tail of every massing generate (box AND dome): durable copy → source-of-truth
+    pointer → Finance/GC seeds → audit → off-thread publish → response. One implementation so the
+    two shape branches cannot drift apart (they were byte-for-byte clones)."""
+    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())   # durable copy
+    p.source_ifc = str(ifc_path)
+    if not p.dev_budget:                                       # seed Finance so it isn't $0 after generate
+        p.dev_budget = _seed_dev_budget(body, metrics)
+    db.commit()
+    audit.record(db, action="ifc.generate", actor=actor, method="POST",
+                 path=f"/projects/{pid}/generate/massing", detail=metrics)
+    db.commit()
+    gc_seed = _seed_gc_portal(db, pid, body, metrics, actor)    # complete the GC pillar too
+    design_phase.seed_phases(db, pid, actor)                   # lay the 8 RIBA/AIA design phases
+    _publish_bg(pid)                                            # convert→.frag + reindex off-thread
+    return {"metrics": metrics, "proforma": _proforma_seed(body, metrics), "gc_seed": gc_seed,
+            "source_ifc": str(ifc_path), "publish": "running"}
 
 
 class BlankModelIn(BaseModel):
@@ -261,19 +284,7 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
         metrics["framed"] = metrics["unitized"] = metrics["enclosed"] = metrics["cored"] = False
         metrics["structure"] = {"system": "Monolithic dome shell", "rationale":
                                 "A thin reinforced shell carries load in compression — no separate frame."}
-        storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())
-        p.source_ifc = str(ifc_path)
-        if not p.dev_budget:                                   # seed Finance so it isn't $0 after generate
-            p.dev_budget = _seed_dev_budget(body, metrics)
-        db.commit()
-        audit.record(db, action="ifc.generate", actor=actor, method="POST",
-                     path=f"/projects/{pid}/generate/massing", detail=metrics)
-        db.commit()
-        gc_seed = _seed_gc_portal(db, pid, body, metrics, actor)
-        design_phase.seed_phases(db, pid, actor)           # lay the 8 RIBA/AIA design phases
-        _publish_bg(pid)
-        return {"metrics": metrics, "proforma": _proforma_seed(body, metrics), "gc_seed": gc_seed,
-                "source_ifc": str(ifc_path), "publish": "running"}
+        return _finalize_generated(db, p, pid, body, metrics, ifc_path, actor)
 
     try:
         metrics = compute_massing(body.model_dump())
@@ -304,20 +315,7 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
     metrics["cored"] = body.core
     metrics["parking_stalls"] = body.parking
     metrics["structure"] = rec
-    storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())   # durable copy
-    p.source_ifc = str(ifc_path)
-    if not p.dev_budget:                                       # seed Finance so it isn't $0 after generate
-        p.dev_budget = _seed_dev_budget(body, metrics)
-    db.commit()
-    audit.record(db, action="ifc.generate", actor=actor, method="POST",
-                 path=f"/projects/{pid}/generate/massing", detail=metrics)
-    db.commit()
-    gc_seed = _seed_gc_portal(db, pid, body, metrics, actor)    # complete the GC pillar too
-    design_phase.seed_phases(db, pid, actor)                   # lay the 8 RIBA/AIA design phases
-
-    _publish_bg(pid)                                            # convert→.frag + reindex off-thread
-    return {"metrics": metrics, "proforma": _proforma_seed(body, metrics), "gc_seed": gc_seed,
-            "source_ifc": str(ifc_path), "publish": "running"}
+    return _finalize_generated(db, p, pid, body, metrics, ifc_path, actor)
 
 
 class StructureIn(BaseModel):
@@ -383,6 +381,13 @@ class OptimizeIn(BaseModel):
     depths: list[float] | None = None              # sweep these plate depths (m); or targets.sweep_depth
 
 
+def _is_hard_psf_line(ln: dict) -> bool:
+    """A budget line that keys hard cost per square foot: category 'hard', a priced unit cost, a
+    nonzero quantity, and 'sf' somewhere in the description (how the seed + importers label it)."""
+    return bool(ln.get("category") == "hard" and ln.get("unit_cost") and ln.get("quantity", 1)
+                and "sf" in (ln.get("description") or "").lower())
+
+
 @router.post("/test-fit/optimize")
 def test_fit_optimize(body: OptimizeIn, db: Session = Depends(get_db)):
     """Generative design — sweep unit-mix × parking presets, filter by targets, rank by yield-on-cost
@@ -399,7 +404,7 @@ def test_fit_optimize(body: OptimizeIn, db: Session = Depends(get_db)):
                 econ.setdefault("land", float(prop["purchase_price"]))
             # hard $/sf from the cost budget's hard line, if the user keyed one
             for ln in ((p.dev_budget or {}).get("lines") or []):
-                if ln.get("category") == "hard" and ln.get("unit_cost") and ln.get("quantity", 1) and "sf" in (ln.get("description") or "").lower():
+                if _is_hard_psf_line(ln):
                     econ.setdefault("hard_psf", float(ln["unit_cost"])); break
     depths = [d for d in (body.depths or []) if d and d > 0] or None
     return tf.optimize(body.plate_w, body.plate_d, body.floors, body.targets, econ, depths=depths)

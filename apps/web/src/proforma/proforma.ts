@@ -883,7 +883,7 @@ export class ProformaUI {
     estBtn.onclick = async () => {
       out.innerHTML = `<span class="meta">computing…</span>`;
       try { showResult(await this.api.previewMassing(params()), false); }
-      catch (e) { out.innerHTML = `<div class="meta" style="color:var(--status-crit)">${(e as Error).message}</div>`; }
+      catch (e) { out.innerHTML = `<div class="meta" style="color:var(--status-crit)">${escapeHtml((e as Error).message)}</div>`; }
     };
     const genBtn = document.createElement("button"); genBtn.className = "file-btn"; genBtn.textContent = "Generate IFC model + apply";
     genBtn.onclick = async () => {
@@ -897,7 +897,7 @@ export class ProformaUI {
         this.a = structuredClone(r.proforma.assumptions) as typeof this.a;
         this.render(); void this.solve();
         this.setStatus(`generated ${r.metrics.floors}-floor massing (${r.metrics.buildable_gfa_sf.toLocaleString()} sf) → proforma seeded`);
-      } catch (e) { out.innerHTML = `<div class="meta" style="color:var(--status-crit)">${(e as Error).message}</div>`; }
+      } catch (e) { out.innerHTML = `<div class="meta" style="color:var(--status-crit)">${escapeHtml((e as Error).message)}</div>`; }
     };
     btnRow.append(estBtn, genBtn); host.append(btnRow, out);
     this.root.appendChild(host);
@@ -1184,7 +1184,7 @@ export class ProformaUI {
               + `<th>Yr</th><th style="text-align:right">Ramp</th><th style="text-align:right">Rev+offset</th>`
               + `<th style="text-align:right">Net</th><th style="text-align:right">Cum.</th></tr></thead><tbody>${rows}</tbody></table>`
               + blendLine;
-          } catch (e) { pnlOut.innerHTML = `<div class="meta" style="color:var(--status-crit)">${(e as Error).message}</div>`; }
+          } catch (e) { pnlOut.innerHTML = `<div class="meta" style="color:var(--status-crit)">${escapeHtml((e as Error).message)}</div>`; }
         };
         bodyEl.appendChild(pnl); bodyEl.appendChild(pnlOut);
 
@@ -1212,7 +1212,7 @@ export class ProformaUI {
               + `<div style="margin-top:2px">P5 <b>${pct(b.p5)}</b> · P50 <b>${pct(b.p50)}</b> · P95 <b>${pct(b.p95)}</b>`
               + ` · P[≥15%] <b>${prob}</b></div>`
               + `<div class="meta" style="margin-top:2px">specialty-only IRR: P5 ${pct(s.p5)} · P50 ${pct(s.p50)} · P95 ${pct(s.p95)}</div>`;
-          } catch (e) { pnlOut.innerHTML = `<div class="meta" style="color:var(--status-crit)">${(e as Error).message}</div>`; }
+          } catch (e) { pnlOut.innerHTML = `<div class="meta" style="color:var(--status-crit)">${escapeHtml((e as Error).message)}</div>`; }
         };
         bodyEl.appendChild(risk);
       };

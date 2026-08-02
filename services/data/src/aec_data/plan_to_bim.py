@@ -15,6 +15,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from .ifc_scaffold import new_project, rect_profile
+
 # DXF $INSUNITS header code -> metres-per-unit (shared convention with dxf_takeoff).
 _INSUNITS_M = {0: 1.0, 1: 0.0254, 2: 0.3048, 4: 0.001, 5: 0.01, 6: 1.0, 8: 2.54e-5, 9: 0.001, 10: 0.9144}
 _INSUNITS_LABEL = {0: "unitless (assumed m)", 1: "in", 2: "ft", 4: "mm", 5: "cm", 6: "m",
@@ -145,7 +147,6 @@ def raise_plan(path: str, out_path: str, wall_height: float = 3.0, wall_thicknes
     """Build an IFC4 model from a DXF plan: one IfcBuildingStorey with an IfcWall per detected
     segment and an IfcSpace per detected room. Writes to `out_path` and returns the parse stats plus
     {ifc_path, wall_count, space_count}. Geometry is in metres; every element gets a stable GUID."""
-    import ifcopenshell
     import ifcopenshell.api
     import numpy as np
 
@@ -153,27 +154,12 @@ def raise_plan(path: str, out_path: str, wall_height: float = 3.0, wall_thicknes
     if not plan["segments"] and not plan["rooms"]:
         raise RuntimeError("no wall segments or room polygons found in the DXF")
 
-    model = ifcopenshell.api.run("project.create_file", version="IFC4")
-    project = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcProject", name=name)
-    ifcopenshell.api.run("unit.assign_unit", model, length={"is_metric": True, "raw": "METERS"})
-    ctx = ifcopenshell.api.run("context.add_context", model, context_type="Model")
-    body = ifcopenshell.api.run("context.add_context", model, context_type="Model",
-                                context_identifier="Body", target_view="MODEL_VIEW", parent=ctx)
-    site = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcSite", name="Site")
-    building = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcBuilding", name="Building")
+    # project/site/building bootstrap + the Position-carrying rect_profile are shared with the
+    # massing generators (ifc_scaffold) — one place carries the web-ifc/unit-scale lessons.
+    model, body, _, building = new_project(name)
     storey = ifcopenshell.api.run("root.create_entity", model, ifc_class="IfcBuildingStorey", name="Level 1")
     storey.Elevation = float(storey_elevation)
-    ifcopenshell.api.run("aggregate.assign_object", model, products=[site], relating_object=project)
-    ifcopenshell.api.run("aggregate.assign_object", model, products=[building], relating_object=site)
     ifcopenshell.api.run("aggregate.assign_object", model, products=[storey], relating_object=building)
-
-    def rect_profile(w, d):
-        # web-ifc requires IfcProfileDef.Position — always set an origin placement (per massing.py).
-        pos = model.create_entity("IfcAxis2Placement2D",
-                                  Location=model.create_entity("IfcCartesianPoint", (0.0, 0.0)),
-                                  RefDirection=model.create_entity("IfcDirection", (1.0, 0.0)))
-        return model.create_entity("IfcRectangleProfileDef", ProfileType="AREA", Position=pos,
-                                   XDim=max(w, 1e-3), YDim=max(d, 1e-3))
 
     wall_n = 0
     for x1, y1, x2, y2, layer in plan["segments"]:
@@ -185,7 +171,7 @@ def raise_plan(path: str, out_path: str, wall_height: float = 3.0, wall_thicknes
         m = np.array([[c, -s, 0, mx], [s, c, 0, my], [0, 0, 1, storey_elevation], [0, 0, 0, 1]], dtype=float)
         ifcopenshell.api.run("geometry.edit_object_placement", model, product=wall, matrix=m)
         rep = ifcopenshell.api.run("geometry.add_profile_representation", model, context=body,
-                                   profile=rect_profile(length, wall_thickness), depth=wall_height)
+                                   profile=rect_profile(model, length, wall_thickness), depth=wall_height)
         ifcopenshell.api.run("geometry.assign_representation", model, product=wall, representation=rep)
         ifcopenshell.api.run("spatial.assign_container", model, products=[wall], relating_structure=storey)
         ps = ifcopenshell.api.run("pset.add_pset", model, product=wall, name="Pset_WallCommon")
