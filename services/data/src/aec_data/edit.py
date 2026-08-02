@@ -210,9 +210,7 @@ def add_spaces(model: ifcopenshell.file, rooms_per_storey: int = 4,
         return 0
 
     # body context for the representations
-    body = next((c for c in model.by_type("IfcGeometricRepresentationSubContext")
-                 if c.ContextIdentifier == "Body"), None) or \
-        (model.by_type("IfcGeometricRepresentationContext") or [None])[0]
+    body = _body_context(model)
 
     storeys = sorted(model.by_type("IfcBuildingStorey"),
                      key=lambda s: float(getattr(s, "Elevation", 0) or 0))
@@ -238,9 +236,9 @@ def add_spaces(model: ifcopenshell.file, rooms_per_storey: int = 4,
                 matrix = np.eye(4)
                 matrix[0, 3] = mn[0] + c * w; matrix[1, 3] = mn[1] + r * d; matrix[2, 3] = elev_m
                 ifcopenshell.api.run("geometry.edit_object_placement", model, product=space, matrix=matrix)
-                # profile dims must be file units (metres ÷ scale) — the API converts only the depth
-                profile = model.create_entity("IfcRectangleProfileDef", ProfileType="AREA",
-                                              XDim=w / scale, YDim=d / scale)
+                # _rect_profile: file-unit dims (÷ scale) AND a Position — this was the ONE recipe
+                # authoring a Position-less profile, which web-ifc silently skips (invisible rooms).
+                profile = _rect_profile(model, w, d)
                 rep = ifcopenshell.api.run("geometry.add_profile_representation", model,
                                            context=body, profile=profile, depth=ceiling_height)
                 ifcopenshell.api.run("geometry.assign_representation", model, product=space, representation=rep)

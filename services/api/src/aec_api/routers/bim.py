@@ -543,6 +543,27 @@ def scene_package_zip(pid: str, db: Session = Depends(get_db),
     })
 
 
+@router.post("/projects/preview-bundle")
+async def preview_bundle(file: UploadFile = File(...), _sec: str = Depends(rbac.current_user)):
+    """R28-BUNDLE — what a container holds, WITHOUT importing it.
+
+    Export has always stated what it leaves behind; import had no counterpart, so the only way to
+    learn a bundle's contents was to import it — which creates a project. "Open it to find out what
+    is in it" is not a choice a user can decline.
+
+    Reads the manifest only: no extraction, no writes, no project. It reuses the importer's own
+    validation, so a container that previews cleanly is one that will import, and one written by a
+    newer build is refused HERE — before the user commits — rather than at import.
+
+    The response repeats what will NOT arrive (accounts, audit log, settings, connections), because
+    that is the part a user is most likely to assume travelled, and the moment to say so is before
+    the import rather than in a manifest they may never open.
+    """
+    from .. import bundle as bundle_io
+    data = await file.read()
+    return await run_in_threadpool(bundle_io.preview_bundle, data)
+
+
 @router.post("/projects/import-bundle", response_model=ProjectOut, status_code=201)
 async def import_bundle(file: UploadFile = File(...), name: str | None = Form(None),
                         db: Session = Depends(get_db)):
@@ -978,3 +999,79 @@ def _topic(db: Session, pid: str, tid: str) -> Topic:
     if not t or t.project_id != pid:
         raise HTTPException(404, "topic not found")
     return t
+
+
+@router.get("/projects/{pid}/model/lod/census")
+def model_lod_census(pid: str, max_elements: int = 5000, db: Session = Depends(get_db),
+                     _sec: str = Depends(require_role("viewer"))):
+    """R23-STOREY-LOD — where this model's triangle budget actually goes, and what a proxy would save.
+
+    The archived Phase-2 audit says frustum culling means no custom LOD is needed. That is accurate
+    about geometry which is OFF-SCREEN and says nothing about density that is on-screen — a whole
+    building in view, every element in frustum. This answers the question with a measurement instead:
+    on `school_str.ifc`, `IfcReinforcingBar` alone is **55.2%** of the triangles from a class nobody
+    can resolve at building scale.
+
+    `max_elements` caps the mesh pass and the cap is REPORTED — a saving measured under a cap is a
+    LOWER BOUND, because the classes that dominate a model may sort late in iteration order. A small
+    number here is not evidence that a proxy is not worth building.
+    """
+    from aec_data import lod  # type: ignore
+
+    from ..deps import open_source_ifc
+
+    # The shared resolve-then-open path (A3): 409 when unset/missing, 4xx when unreadable rather than
+    # a 500, and it routes through the (path, mtime, size) LRU so a census does not re-parse a model
+    # the authoring endpoints already have in memory.
+    model = open_source_ifc(db, pid)
+    result = lod.census(model, max_elements=max_elements)
+    return {**result, "plan": lod.proxy_plan(result)}
+
+
+@router.post("/projects/{pid}/model/lod/proxy")
+def model_lod_proxy(pid: str, classes: list[str] | None = Body(default=None, embed=True),
+                    db: Session = Depends(get_db),
+                    actor: str = Depends(require_role("editor"))):
+    """Generate the coarse per-storey proxy and store it beside the model as `model.lod.ifc`.
+
+    An ordinary IFC, so it reaches the viewer through the converter we already ship — which is why the
+    recorded "no Fragments writer" blocker does not apply to a server-side proxy.
+
+    **Every box declares itself** by name prefix and by an `AEC_LOD` pset saying it is not authored
+    geometry and must not be measured, scheduled or priced: a stand-in mistaken for real geometry is
+    worse than no stand-in. **Nothing to proxy stores nothing** — an empty artefact would read as a
+    successful export of nothing — and the response says so rather than returning a 200 over silence.
+    """
+    import os
+    import tempfile
+
+    from aec_data import lod  # type: ignore
+
+    from ..deps import open_source_ifc
+
+    model = open_source_ifc(db, pid)
+    workdir = tempfile.mkdtemp(prefix="lod_proxy_")    # mkdtemp: mktemp leaves a create-after-name race
+    out = os.path.join(workdir, "model.lod.ifc")
+    try:
+        report = lod.build_storey_proxy(model, out, classes=tuple(classes) if classes else None)
+        if not report.get("written"):
+            # A refusal, reported as one. Returning 200 with no artefact and no explanation is how a
+            # "successful" export of nothing gets believed.
+            return {**report, "stored": False}
+        key = f"{pid}/model.lod.ifc"
+        with open(out, "rb") as fh:
+            storage.put(key, fh.read())
+        audit.record(db, action="model.lod.proxy", actor=actor, method="POST",
+                     path=f"/projects/{pid}/model/lod/proxy",
+                     detail={"elements_replaced": report.get("elements_replaced"),
+                             "storeys": report.get("storeys_proxied")})
+        db.commit()
+        return {**report, "stored": True, "key": key,
+                "next": "convert this IFC to fragments with services/converter to serve it as a "
+                        "coarse tier; it is an ordinary IFC and needs no new writer"}
+    finally:
+        for f in (out,):
+            if os.path.exists(f):
+                os.unlink(f)
+        if os.path.isdir(workdir):
+            os.rmdir(workdir)

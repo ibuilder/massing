@@ -194,6 +194,97 @@ def export_bundle(db: Session, pid: str) -> bytes:
     return buf.getvalue()
 
 
+def preview_bundle(data: bytes) -> dict:
+    """R28-BUNDLE — what a container holds, WITHOUT importing it.
+
+    Export has always stated what it left behind (`manifest.excluded`). Import had no counterpart: the
+    only way to discover a bundle's contents was to import it, which creates a project. "Open it to
+    find out what is in it" is not a choice a user can decline.
+
+    This reads the manifest and nothing else — no extraction, no writes, no project. It reuses
+    `import_bundle`'s validation deliberately, so **a bundle that previews cleanly is one that will
+    import**; a preview with looser rules than the importer would be a promise the importer breaks.
+
+    Two refusals:
+
+    * **an unreadable container is an ERROR, never an empty preview.** "Contains nothing" and "could
+      not be read" render identically to a user about to click Import, and only one of them is safe
+      to proceed from;
+    * **it repeats what will NOT arrive.** The excluded tables are the part a user is most likely to
+      assume travelled — accounts, audit log, settings, connections — and the moment to say so is
+      before the import, not in a manifest they will read afterwards if ever.
+    """
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        raise HTTPException(400, f"not a valid project container ({EXTENSION} is a ZIP archive)") from None
+    names = set(z.namelist())
+    if "manifest.json" not in names:
+        raise HTTPException(400, "not a project container — manifest.json is missing")
+    try:
+        man = json.loads(z.read("manifest.json"))
+    except (ValueError, KeyError):
+        raise HTTPException(400, "the container's manifest.json is not readable JSON") from None
+
+    fmt = man.get("format")
+    if fmt not in (FORMAT, LEGACY_FORMAT):
+        raise HTTPException(400, f"unsupported container format {fmt!r} — expected {FORMAT!r} "
+                                 f"or {LEGACY_FORMAT!r}")
+    try:
+        ver = int(man.get("version") or 1)
+    except (TypeError, ValueError):
+        raise HTTPException(400, f"container version is not a number: {man.get('version')!r}") from None
+
+    # A future container is reported as unimportable HERE rather than at import. The whole point of a
+    # preview is that the refusal arrives before the user commits, not after.
+    too_new = fmt == FORMAT and ver > VERSION
+    project = {}
+    if "project.json" in names:
+        try:
+            project = json.loads(z.read("project.json")) or {}
+        except (ValueError, KeyError):
+            project = {}
+
+    # Read the manifest the EXPORTER actually writes: `tables` is a {name: row_count} map and
+    # `project` sits on the manifest. My first version filtered `entries` on a `role` key and summed
+    # a `rows` key — neither exists. It reported "0 tables" for a real export that had them, because
+    # the fixture I wrote and the reader I wrote agreed on a shape the producer never emitted. Caught
+    # only by previewing a genuinely exported bundle; the synthetic one agreed with the bug.
+    entries = man.get("entries") or []
+    table_rows = man.get("tables") or {}
+    if not isinstance(table_rows, dict):
+        table_rows = {}
+    rows = sum(int(v or 0) for v in table_rows.values())
+
+    return {
+        "readable": True,
+        "importable": not too_new,
+        "format": fmt,
+        "version": ver,
+        "reads_up_to": VERSION,
+        "legacy": fmt == LEGACY_FORMAT,
+        "project_name": (man.get("project") or {}).get("name") or project.get("name"),
+        "has_geometry": bool(man.get("has_frag")) or any(
+            n.startswith("geometry/") for n in names),
+        "entry_count": len(entries),
+        "table_count": len(table_rows),
+        "row_count": rows,
+        "tables": dict(sorted(table_rows.items())),
+        # The part a user is most likely to assume travelled. Repeated from the manifest so the fact
+        # arrives BEFORE the decision rather than in a file they may never open.
+        "excluded": man.get("excluded") or {
+            "tables": sorted(_SKIP_TABLES),
+            "why": "machine- or account-specific; they belong to an installation, not to a project",
+        },
+        "reason": (
+            f"written by a newer build (format version {ver}; this build reads up to {VERSION}) — "
+            "importing it could misinterpret structures this code does not know about, so it is "
+            "refused rather than half-read"
+            if too_new else
+            "this container can be imported by this build"),
+    }
+
+
 # --- import -------------------------------------------------------------------
 def _coerce_datetimes(t, row: dict) -> dict:
     """Parse ISO strings back into datetimes for DateTime columns (Postgres core insert needs it)."""
