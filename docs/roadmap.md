@@ -257,7 +257,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items |
@@ -268,7 +268,7 @@ two rows share a path, so two agents in different rows cannot collide.
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
 R24-IDENTITY · R32-TAXONOMY-LIFECYCLE (all five need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
-it) · REL-7 (gated on RT-KNIP).
+it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the deploy overlay in CI — needs a decision on where the deploy env template lives).
 
 **Two lane boundaries were wrong until 2026-07-30 and are worth naming.** Lane A used to own
 `apps/web/src/portal/` *wholesale* while B owned `portal/panels/` — a nested overlap, so the two lanes
@@ -1704,6 +1704,55 @@ today, each by someone other than the author. And **"prove to me this works" bea
 implementation** — the mutation-check habit. The failure modes the other article names (cascading
 instability, security blindness, unmeasured debt) are what CodeQL-after-every-push, the ratchets and the
 full-suite-on-merged-tree runs exist to prevent.
+
+## 🛡 R35 — CONCURRENCY & SUPPLY-CHAIN HARDENING *(race sweep + external security audit, 2026-08-01)*
+
+An external security audit and a directed race-condition sweep ran the same day; three defects were
+fixed and gated immediately (v0.3.817), and the remainders below are coded items. The sweep's method
+is the reusable part: **list every read-then-write seam, then ask what holds the world still between
+the read and the write — and on WHICH backend.** A lock the backend ignores is worse than no lock,
+because the code reads as protected. `with_for_update()` is a no-op on SQLite, which is a supported
+deployment backend — that single fact produced duplicate human refs under four concurrent creates,
+measured by the new `test_race_conditions.py` the first time it ran.
+
+Shipped 2026-08-01:
+
+* ✅ **job claim is now compare-and-swap** — two workers sharing one database could both mark the
+  oldest queued job `running` and execute it concurrently ("handlers are idempotent" covers a
+  crash-recovery re-run, not two copies interleaving live). `UPDATE … WHERE state = 'queued'` has
+  exactly one winner across all workers; losers advance to the next job rather than sleeping.
+* ✅ **ref allocation is a single atomic increment** — `UPDATE … SET n = n + 1 … RETURNING n`
+  replaces read-modify-write under a row lock that only Postgres honoured. Counter seeding survives
+  losing the first-create race via a savepoint (the `consume_stepup` pattern) instead of surfacing
+  the PK refusal as a 500.
+* ✅ **secret scanning is a suite gate** (`test_no_secrets.py`), not a paths-filtered workflow —
+  a paths filter is how the lockfile gate sat red and unseen for three releases. Seven credential
+  patterns at zero tolerance over every tracked file; the sanctioned dev constants
+  (the guard's own subject matter) pinned to an allowlist whose every entry is asserted live.
+* ✅ **the audit's Critical #1 was already closed** — `_production_guard()` refuses to boot on any
+  non-SQLite DSN or `AEC_ENV=production` with a default secret / RBAC off / trusted X-User /
+  default object-store creds, tested in `test_prod_hardening.py`. Recorded because the audit read
+  only the `AEC_REQUIRE_SECRET` branch and called the fallback unguarded — **an audit that misses
+  an existing control still tells you the control is hard to find.**
+
+Open:
+
+- **R35-PIDLOCK-XPROC** *(M)* — `pid_lock` serialises sidecar read-modify-write **in-process only**
+  and says so honestly; `uvicorn --workers > 1` needs a shared lock (DB advisory lock or storage
+  CAS). Until then single-writer-per-project is the supported shape. The item is the DB advisory
+  lock, behind the same `mutating(pid)` interface so callers do not change.
+- **R35-DEAL-MEMORY** *(M)* — the platform's own closed deals as a comp database: when underwriting
+  a new deal, surface this portfolio's realised outcomes (exit cap achieved vs assumed, actual
+  lease-up months, cost/SF by vintage) beside the assumption being entered. External research
+  (2026-08) puts this "institutional knowledge" layer as the least-commoditised part of the
+  AI-underwriting stack — and it is the one layer that cannot be bought, because it is made of the
+  operator's own history. Builds on `benchmarking.py`'s cross-project aggregation and the
+  provenance spine; no new dependency.
+
+Also settled, no code change: **the Fragments converter stays Node, by constraint** — the Fragments
+serializer exists only in the JS kernel libraries, so `services/converter/` is the one deliberate
+non-Python server component (an isolated, subprocess-shaped CLI; everything else server-side is
+Python). Revisit only when a Python Fragments writer exists upstream.
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 

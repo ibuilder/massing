@@ -25,6 +25,7 @@ from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
 
 from .models import Job
@@ -78,13 +79,35 @@ def job_dict(j: Job) -> dict[str, Any]:
 
 
 def _claim_next(db: Session) -> Job | None:
-    j = db.scalars(select(Job).where(Job.state == "queued").order_by(Job.created_at).limit(1)).first()
-    if j is None:
-        return None
-    j.state = "running"
-    j.started_at = utc_now()
-    db.commit()
-    return j
+    """Claim the oldest queued job — by COMPARE-AND-SWAP, not by read-then-write.
+
+    The original read the oldest queued row, set `state = "running"` on the ORM object and
+    committed. Correct with one worker; with two processes sharing the database (uvicorn
+    `--workers`, or two dev servers on one preview.db) both could SELECT the same row and both
+    commit `running`, and the job body then executed **twice concurrently**. "Handlers are
+    idempotent" is the contract for a crash-recovery RE-RUN — it says nothing about two copies
+    interleaving at the same time, which for a mutating job means two writers inside the same
+    project serialised only by `pid_lock`, which is in-process and cannot see the other worker.
+
+    The CAS closes it portably: `UPDATE … WHERE id = :id AND state = 'queued'` matches exactly one
+    row across all workers combined — whoever matched rowcount 1 owns the job; a loser saw
+    rowcount 0, and LOOPS to try the next queued job rather than going to sleep, because "I lost
+    the race for job A" does not mean "the queue is empty".
+    """
+    while True:
+        j = db.scalars(select(Job).where(Job.state == "queued")
+                       .order_by(Job.created_at).limit(1)).first()
+        if j is None:
+            return None
+        won = db.execute(
+            sa_update(Job).where(Job.id == j.id, Job.state == "queued")
+            .values(state="running", started_at=utc_now())
+        ).rowcount
+        db.commit()
+        if won:
+            db.refresh(j)
+            return j
+        db.expire_all()          # the loser's snapshot of j is stale; drop it before re-selecting
 
 
 def _run_one(SessionLocal) -> bool:

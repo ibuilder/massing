@@ -167,19 +167,43 @@ def _next_ref(db: Session, key: str, project_id: str, mod: dict) -> str:
     """Atomically allocate the next ref number from a per-(project, module) counter row, taking a row
     lock (Postgres) so concurrent creates can't read the same value and mint duplicate refs. On first
     use the counter seeds from the current row count so existing data keeps its sequence."""
+    from sqlalchemy import update as sa_update
+    from sqlalchemy.exc import IntegrityError
+
     from .models import RefCounter
-    row = (db.query(RefCounter)
-             .filter(RefCounter.project_id == project_id, RefCounter.module == key)
-             .with_for_update().first())
-    if row is None:
+
+    # The increment is a single atomic `UPDATE … SET n = n + 1 … RETURNING n`. This replaced a
+    # read-modify-write under `with_for_update()`, which was correct on exactly one backend:
+    # Postgres honours the row lock, but **SQLite treats FOR UPDATE as a no-op**, so two threads
+    # both read n=1, both wrote n=2, and both minted "RFI-002" — measured, not theorised;
+    # test_race_conditions caught it with four concurrent creates the first time it ran. A lock the
+    # backend ignores is worse than no lock, because the code reads as protected. The atomic UPDATE
+    # is serialised by the write path itself on both backends, so there is nothing left to ignore.
+    for _ in range(2):
+        n = db.execute(
+            sa_update(RefCounter)
+            .where(RefCounter.project_id == project_id, RefCounter.module == key)
+            .values(n=RefCounter.n + 1)
+            .returning(RefCounter.n)
+        ).scalar()
+        if n is not None:
+            return f"{mod.get('ref_prefix', key.upper())}-{n:03d}"
+
+        # No counter row yet — seed it. SEEDING is the one moment no row-level mechanism can
+        # protect (there is no row), so two concurrent FIRST creates can both get here; the
+        # composite PK refuses the second, which used to surface as a 500 on an ordinary create.
+        # The refusal is the database working — the bug was treating it as a crash. It runs in a
+        # SAVEPOINT so the loser's refusal stays local (the same pattern, for the same reason, as
+        # `rbac.consume_stepup`), and the loser simply loops back into the atomic increment against
+        # the winner's row.
         seed = db.execute(select(func.count()).select_from(TABLES[key])
                           .where(TABLES[key].c.project_id == project_id)).scalar() or 0
-        row = RefCounter(project_id=project_id, module=key, n=seed)
-        db.add(row)
-        db.flush()
-    row.n += 1
-    db.flush()
-    return f"{mod.get('ref_prefix', key.upper())}-{row.n:03d}"
+        try:
+            with db.begin_nested():
+                db.add(RefCounter(project_id=project_id, module=key, n=seed))
+        except IntegrityError:
+            pass                                    # another writer seeded first — use their row
+    raise RuntimeError("ref counter neither existed nor could be seeded")   # unreachable
 
 
 def create_record(db: Session, key: str, project_id: str, body: dict, actor: str,

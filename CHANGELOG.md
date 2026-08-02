@@ -4,6 +4,63 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.817 — a lock the backend ignores, and a job that could run twice at once
+
+### Fixed — two concurrent creates could mint the same record number
+
+Human refs (RFI-001, PCO-014…) were allocated by reading a counter row under `FOR UPDATE`, adding
+one, and writing it back. Correct on Postgres. **SQLite treats `FOR UPDATE` as a no-op**, and SQLite
+is a supported deployment backend — so two concurrent creates both read n=1, both wrote n=2, and two
+different records went out into the world as RFI-002. Not theorised: the new race suite produced the
+duplicate with four concurrent creates the first time it ran. A lock the backend ignores is worse
+than no lock, because the code reads as protected.
+
+The increment is now a single atomic `UPDATE … SET n = n + 1 … RETURNING n`, which both backends
+serialise natively. And the one moment no row mechanism can cover — two writers seeding the counter
+for a project's first-ever record — now loses gracefully: the primary key refuses the second seeder
+inside a savepoint and it retries against the winner's row, where before the refusal escaped as a
+500 on an ordinary "create a record" call.
+
+### Fixed — two workers sharing a database could both run the same job
+
+The queue claimed work by reading the oldest queued row and committing `state = "running"` — so two
+processes on one database (multi-worker serving, or two dev servers on one file) could both claim
+one job and execute its handler **concurrently**. The handlers-are-idempotent contract covers a
+crash-recovery re-run; it says nothing about two copies interleaving live, which for a mutating job
+means two writers in the same project separated only by an in-process lock that cannot see the
+other worker. Claiming is now compare-and-swap — `UPDATE … WHERE state = 'queued'` has exactly one
+winner across every worker combined — and a loser advances to the next queued job rather than
+concluding the queue is empty.
+
+`test_race_conditions.py` proves both properties deterministically (the losing interleavings are
+constructed by hand, not hoped for from thread timing) and adds barrier-released thread rounds on
+top; reverting either fix fails it. The honest limit is stated in the file: the suite's backend
+serialises writers, so what is proven is the invariant and the recovery path, not a Postgres
+collision.
+
+### Added — secret scanning as a suite gate, where checks actually get seen
+
+From the external security audit: seven credential patterns (key blocks, cloud keys, token shapes)
+at zero tolerance over every tracked file — as a test in the ordinary suite, **not** a
+paths-filtered workflow, because a paths filter is exactly how the lockfile gate sat red and unseen
+for three releases. The two documented dev constants the production guard exists to refuse are
+pinned to an allowlist of the files where they are the *subject*; every allowlist entry is asserted
+individually live, and the patterns themselves are proven against synthetic positives so a
+regressed regex cannot pass as a clean repo.
+
+The audit's remaining findings are triaged in the roadmap's new R35 ring. Its top "critical" —
+that the dev auth secret boots unguarded in production — was already false: the production guard
+refuses any server-database or declared-production boot with a default secret, RBAC off, a trusted
+identity header, or default object-store credentials, and has a test. An audit that misses an
+existing control still says something useful: the control was hard to find.
+
+### Settled — the one non-Python server component, on purpose
+
+Everything server-side is Python except the Fragments converter, and that is a constraint, not a
+preference: the Fragments serializer exists only in the JS kernel libraries, so the converter stays
+an isolated Node CLI invoked as a subprocess. Recorded in the roadmap so nobody rewrites it into a
+worse Python one, and revisited only when a Python Fragments writer exists upstream.
+
 ## v0.3.816 — the lockfile pinned versions its own requirements file forbade
 
 ### Fixed — production installed packages the input file said were too old
