@@ -155,7 +155,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-PUSHPULL ① · R38-LIVE-PARAMS ② · R38-SYNC-2D3D ③ · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-LIVE-PARAMS ② · R38-SYNC-2D3D ③ · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -1112,13 +1112,15 @@ R38-DIM-INPUT (the typed-constraint box is visible as a hint the moment a run is
 the grammar accepts imperial — 12'6 echoes back 3.81 m before the click commits), and R38-STAIR
 (server recipes add_stair/add_ramp in `services/data/src/aec_data/edit_enclosure.py` — placed
 exactly where drawn, riser/tread/slope compliance REPORTED by stair_geometry/ramp_geometry, never
-enforced by moving the run — plus the stair and ramp draw tools, SR/RP shortcuts). Remaining:
+enforced by moving the run — plus the stair and ramp draw tools, SR/RP shortcuts). **R38-PUSHPULL
+shipped v0.3.821** — a single top handle on the selected element, base-anchored ghost, committed
+through the pre-existing set_extrusion_depth recipe (never mesh; non-extrusions refused
+server-side). **Wave 1 is complete.** Carried forward:
 
-- **R38-PUSHPULL ①** *(M)* — the hero gesture: select a face, drag to extrude. IFC-safely: the
-  gesture edits the element's RECIPE PARAMETERS (wall height, slab thickness), never arbitrary mesh,
-  so the one gesture every beginner knows feeds the same GUID-stable pipeline. Fold in the stair
-  follow-on: surface the stair_geometry/ramp_geometry compliance report LIVE in the draw tool —
-  riser count and tread shown while dragging, preview red past the limits, before anything authors.
+**R38-STAIR-LIVE shipped v0.3.822** — live riser/tread (and ramp slope) readout while dragging the
+run, constants pinned by test to the server's (`apps/web/src/viewer/draft/stairLive.ts`); the
+server's report stays authoritative on the authored element. Wave 1 and its follow-on are done.
+
 - A29-PLACE-VALID ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ — as already coded in Lane E.
 
 ### Wave 2 — parameters stay alive *(Lane E + C)*
