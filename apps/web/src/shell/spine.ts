@@ -188,6 +188,50 @@ export const ROOM_HOME: Record<string, string | null> = {
   work: "__workqueue__",
 };
 
+/**
+ * Which workspace hosts each room — the inverse of `WORKSPACE_ROOM`, and NOT a bijection: `cost`,
+ * `planning` and `work` have no workspace of their own, they route at the construction portal.
+ * Lived in main.ts until ROOM-NAV (2026-08-02); moved here beside the tables it inverts, because a
+ * mapping split across two files is two mappings.
+ */
+export const ROOM_HOST: Record<string, string> = {
+  design: "model", planning: "construction", cost: "construction",
+  schedule: "construction", operate: "developer", deal: "developer",
+  work: "construction",
+};
+
+/**
+ * The rooms a portal instance can be ACTIVE in, by its workspace filter.
+ *
+ * `design` is special-cased: the design *room* is hosted by the viewer workspace (`model`), but the
+ * design *portal* — the architect's register workspace — still renders that room's rail.
+ */
+export function portalRooms(wsFilter: string): string[] {
+  if (wsFilter === "design") return ["design"];
+  return (ROOM_IDS as readonly string[]).filter((r) => ROOM_HOST[r] === wsFilter);
+}
+
+/**
+ * ROOM-NAV — which room groups the rail actually renders.
+ *
+ * The rail used to render all seven rooms in every workspace, collapsed. That reads as "every module
+ * on every screen" (the user said exactly this), and it forced room *switching* to be a DOM
+ * click-simulation against a rail that was about to be rebuilt — the poll visibly lost, leaving
+ * Planning empty and Cost showing Schedule's content. Scoped to the active room, the rail IS the
+ * room's menu, and switching rooms is the tab bar's job, where it always was.
+ *
+ * An unknown `active` falls back to every room rather than none: a rail that renders nothing because
+ * a state string drifted is the worst version of this bug, and it would look exactly like a slow
+ * network.
+ */
+export function visibleRooms(rooms: RoomDef[], workspace: string | null | undefined,
+                             active: string, showAll: boolean): RoomDef[] {
+  const ordered = orderRooms(rooms, workspace);
+  const head = ordered.filter((r) => r.id === active);
+  if (!head.length) return ordered;
+  return showAll ? [...head, ...ordered.filter((r) => r.id !== active)] : head;
+}
+
 /** The room a destination belongs to, or null when it is unmapped — which is a defect, not a default. */
 export function destRoom(key: string): string | null {
   const room = DEST_ROOM[key];

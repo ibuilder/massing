@@ -6,7 +6,7 @@ import { showResult } from "./ui/result";
 import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTabs";
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
 import { pinnedItems, renderPinnedRail } from "./shell/pinnedRail";
-import { ROOM_HOME, destRoom } from "./shell/spine";
+import { ROOM_HOST, destRoom } from "./shell/spine";
 import { renderVitals } from "./shell/vitalsBar";
 import { setRoomOpen } from "./portal/prefs";
 import { autoCheck, checkForUpdates, currentVersion } from "./ui/update";
@@ -591,69 +591,23 @@ window.addEventListener("aec:workspace", (e) => {
 const wsEl = $("workspaces");
 
 /**
- * Which workspace hosts each room.
+ * Switch to a room: go to the workspace that hosts it, then TELL the portal which room is active.
  *
- * The inverse of `WORKSPACE_ROOM`, and it is NOT a bijection — `cost` and `work` have no workspace
- * of their own, because they were only ever destinations inside the construction portal. That
- * asymmetry is the honest reason the rooms were never the top-level navigation: two of them had
- * nowhere to live. Routing them at the construction portal is what makes the promotion possible
- * without restructuring every panel first.
- */
-const ROOM_HOST: Record<string, string> = {
-  design: "model", planning: "construction", cost: "construction",
-  schedule: "construction", operate: "developer", deal: "developer",
-  work: "construction",
-};
-
-/**
- * Switch to a room: go to the workspace that hosts it, open its group in the rail, and land on the
- * room's home destination.
- *
- * That last step is the one that was missing. Three rooms share the `construction` host, so
- * switching the workspace alone left Cost, Schedule and Work rendering the identical screen — the
- * tab lit up and nothing moved.
- *
- * The rail-open write was also going nowhere: the rail reads `readRoomOpen("<workspace>:<room>")`
- * and this wrote the bare room id, so the two never met. Same class of defect as the format tables
- * that drift — a writer and a reader that disagree about a key fail silently, because a write to a
- * slot nobody reads looks exactly like a write that worked.
+ * ROOM-NAV (2026-08-02): this used to simulate the landing — a 4s poll clicking `[data-dest]` nodes
+ * in a rail the workspace switch was concurrently rebuilding. The poll raced the rebuild and lost
+ * visibly: Planning and Schedule rendered empty, Cost and Work showed the previous room's content.
+ * Three prior comment blocks here each documented a subtler failure of the same approach (waiting
+ * for the node, clicking the outgoing rail, abandoning on room change) — the approach was the bug.
+ * The portal now owns an explicit active-room state, scopes its rail to it, and invokes the room's
+ * home destination directly; `aec:room` is the entire handoff. `ROOM_HOST` moved to spine.ts beside
+ * the tables it inverts.
  */
 function goToRoom(roomId: string) {
   const host = ROOM_HOST[roomId] ?? "construction";
   setRoomOpen(`${host}:${roomId}`, true);   // composite key — the shape `buildNav` actually reads
   setWorkspace(host);
   paintRoomTabs(roomId);
-  // The rail is rebuilt by the workspace switch, so act afterwards rather than against a node that
-  // is about to be replaced — clicking rebuilds the nav and detaches it.
-  //
-  // Retry until the navigation STICKS, rather than until the button exists.
-  //
-  // Waiting for the node was the obvious fix and it was still wrong. The rail renders all five room
-  // groups in every workspace, so the home button is present in the *outgoing* rail too: the click
-  // landed at 120ms on a node the pending workspace rebuild then discarded, and the room displayed
-  // whatever the previous room had — lagging by exactly one, which looks like a caching bug and is
-  // not one. Existence was never the condition worth waiting for; the condition is arrival.
-  const home = ROOM_HOME[roomId];
-  // Scoped to `.portal-nav`: the pinned rail carries `data-dest` too, and an unscoped query matches
-  // whichever comes first in the document — which is how the pinned rail came to click itself.
-  const sel = home ? `.portal-nav [data-dest="${CSS.escape(home)}"]` : "";
-  const arrived = () =>
-    document.querySelector<HTMLElement>(".portal-nav .pnav-item.active")?.dataset.dest === home;
-  let tries = 0;
-  const land = () => {
-    // Abandon if the user has moved on. Without this, a poll left over from a slow room fights the
-    // room they actually want and drags them back — the retry has to lose that race, not win it.
-    if (roomTabsActive !== roomId) return;
-    if (home && !arrived()) {
-      document.querySelector<HTMLElement>(sel)?.click();
-      // 4s. Deal changes workspace and its rebuild outlasted a 1.6s window, so the tab fell back to
-      // showing the previous room. The poll costs nothing once it lands — it stops on arrival.
-      if (!arrived() && ++tries < 40) { setTimeout(land, 100); return; }
-    }
-    document.querySelector<HTMLElement>(`.portal-nav [data-room="${roomId}"]`)
-      ?.scrollIntoView({ block: "nearest" });
-  };
-  setTimeout(land, 120);
+  window.dispatchEvent(new CustomEvent("aec:room", { detail: roomId }));
 }
 
 /**

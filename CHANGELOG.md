@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.828 — each room gets its own rail, and switching rooms stops being a race
+
+### Fixed — Planning and Schedule rendered the same (or nothing) because room switching was a DOM click-simulation
+
+Clicking the room tabs, measured live: Planning and Schedule rendered **empty** content panes, and
+Cost and Work both displayed the *Schedule* room's rail. The tabs switched the host workspace and
+then tried to land by clicking `[data-dest]` buttons under a 4-second retry poll — against a rail
+the workspace switch was concurrently rebuilding. Three generations of comments in `goToRoom`
+each documented a subtler failure of the same approach; the approach was the bug.
+
+The portal now owns an explicit **active room** state. The tab bar dispatches one `aec:room` event;
+the portal that hosts the room scopes its rail and invokes the room's home panel **directly** —
+no clicks, no poll, no race. Rapid-fire clicking four tabs now deterministically lands on the last.
+
+### Changed — the left rail is the active room's menu, not a directory of everything
+
+The rail rendered all seven room groups in every workspace, collapsed — which reads as "every
+module on every screen". It now renders **only the active room**: its panels first, then its
+registers grouped by section (Planning: Bidding · Contracts · Estimating · Approvals…). The other
+rooms live where they always did — the tab bar — plus an "All rooms" escape hatch at the foot of
+the rail for browsing. Nothing became unreachable: tabs, ⌘K, favorites, recents and the hatch all
+still reach the full catalog, and `parity.test.ts` still proves it.
+
+`ROOM_HOST` moved from `main.ts` into `shell/spine.ts` beside the tables it inverts;
+`shell/roomScope.test.ts` pins the scoping logic, including that exactly one portal claims each
+room and that an unknown active room falls back to the full rail rather than an empty one.
+
 ## v0.3.827 — the geometry loader was never stalling; the canvas had no width
 
 ### Fixed — a zero-width canvas, mistaken for a loader stall for weeks

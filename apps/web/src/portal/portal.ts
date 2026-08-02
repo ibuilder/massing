@@ -11,7 +11,7 @@ import type { PanelContext } from "./panelContext";
 import { SECTIONS_BY_PERSONA, pushRecent, readDensity, readFavs, readRecents, readRoomOpen, setDensity, setRoomOpen, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
 import { ALL_DESTS, type Dest, stagesFor } from "../shell/destinations";
-import { FALLBACK_ROOMS, type SpineState, destRoom, loadSpine, orderRooms, preselectedRoom, unroomedDests } from "../shell/spine";
+import { FALLBACK_ROOMS, ROOM_HOME, type SpineState, destRoom, loadSpine, portalRooms, preselectedRoom, unroomedDests, visibleRooms } from "../shell/spine";
 import type { ModuleFilterOp, RoomDef } from "../api/types";
 // PANEL-LAZY (PERF): the ~30 secondary portal panels are DYNAMICALLY imported at first render
 // (see the wrapper methods below), not eagerly bundled into the app shell — each panel file (and
@@ -139,6 +139,16 @@ export class PortalUI {
   // few more clicks").
   private wsFilter: "construction" | "developer" | "design" = "construction";
   private showAll = false;
+  /**
+   * ROOM-NAV — the room this portal is IN, set by the tab bar's `aec:room` event. Null until the
+   * user picks one; the workspace's preselected room until then. This is the state the old shell
+   * never had: room switching was a DOM click-simulation precisely because nothing owned "which
+   * room", so the tab bar had to reach in and poke the rail it was racing.
+   */
+  private activeRoom: string | null = null;
+  /** Escape hatch: render the other rooms' groups below the active one. Session-scoped, like showAll. */
+  private showAllRooms = false;
+  private room(): string { return this.activeRoom ?? preselectedRoom(this.wsFilter); }
   /** Which workspace this portal renders. Call before init(). */
   setWorkspace(ws: "construction" | "developer" | "design") { this.wsFilter = ws; }
   /** A module's workspace membership as a list — supports "|"-separated multi-membership. */
@@ -186,7 +196,26 @@ export class PortalUI {
     ],
   };
 
-  constructor(private root: HTMLElement, private host: PortalHost) {}
+  constructor(private root: HTMLElement, private host: PortalHost) {
+    // The tab bar announces the room; the portal that hosts it responds. Registered in the
+    // constructor rather than init() because the first room click usually PRECEDES init — the
+    // workspace switch that triggers lazy init and the room event arrive in the same tick, and a
+    // listener added in init would miss the event that caused it. Pre-init the handler only records
+    // the room; init() reads it and lands there instead of the dashboard.
+    window.addEventListener("aec:room", (e) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (!portalRooms(this.wsFilter).includes(id)) return;   // another portal's room
+      this.activeRoom = id;
+      this.showAllRooms = false;                              // a deliberate switch re-scopes the rail
+      if (!this.nav) return;                                  // not initialised yet — init() lands
+      const home = ROOM_HOME[id];
+      // Invoke the destination DIRECTLY — this is the whole fix. The previous shell clicked
+      // `[data-dest]` buttons under a 4s retry poll, raced the workspace rebuild, and visibly lost:
+      // Planning/Schedule rendered empty, Cost/Work showed the previous room (measured 2026-08-02).
+      if (home && this.destDispatch()[home]) this.goToDest(home);
+      else this.buildNav();
+    });
+  }
 
   /** Build the PanelContext handed to extracted feature panels (portal/panels/*). */
   /** The `__key__` → render map for first-class portal destinations. Hoisted out of buildNav so a panel
@@ -274,7 +303,11 @@ export class PortalUI {
     window.addEventListener("aec:persona", () => { this.refreshCatalog(); this.buildNav(); });
     // drain any uploads queued offline in a previous session, and keep watching for reconnect
     this.hookOnline(); void this.flushUploads();
-    await this.renderHome();
+    // Land on the active room's home when a room was picked before init finished (the common path:
+    // the tab click both triggers this init and names the room). Dashboard otherwise.
+    const landing = this.activeRoom ? ROOM_HOME[this.activeRoom] : null;
+    if (landing && this.destDispatch()[landing]) this.goToDest(landing);
+    else await this.renderHome();
     return true;
   }
 
@@ -434,18 +467,22 @@ export class PortalUI {
       if (!room) continue;                                            // reported below, not filed
       (byRoom.get(room) ?? byRoom.set(room, []).get(room)!).push(d);
     }
-    const home = preselectedRoom(this.wsFilter);
-    for (const room of orderRooms(rooms, this.wsFilter)) {
+    // ROOM-NAV (2026-08-02): render the ACTIVE room only, not all seven collapsed. The all-rooms
+    // rail read as "every module on every screen" — the user said exactly this — and it forced the
+    // tab bar to switch rooms by clicking rail nodes it was racing. Each room now has its own menu;
+    // the other rooms are the tab bar's job, plus the escape hatch below.
+    const active = this.room();
+    for (const room of visibleRooms(rooms, this.wsFilter, active, this.showAllRooms)) {
       const det = document.createElement("details"); det.className = "pnav-stage-group pnav-room";
       det.dataset.room = room.id;
       const skey = `${this.wsFilter}:${room.id}`;
       const items = byRoom.get(room.id) ?? [];
-      // Only the workspace's own room opens by default. Five rooms expanded is 45 destinations on
-      // screen at once — the same wall the spine exists to replace. The other four are one click
-      // away and stay wherever the user last put them.
+      // The active room is the rail's whole content, so it is always open — collapse memory only
+      // governs the OTHER rooms, which render solely under the escape hatch.
       const said = readRoomOpen(skey);
-      det.open = items.some((d) => d.key === this.activeKey) || (said ?? room.id === home);
+      det.open = room.id === active || items.some((d) => d.key === this.activeKey) || (said ?? false);
       det.ontoggle = () => setRoomOpen(skey, det.open);
+      det.classList.toggle("pnav-room-active", room.id === active);
       // The room's MODULES, not only its first-class destinations.
       //
       // Until v0.3.767 `byRoom` was built from `ALL_DESTS` alone, so a room group showed only its
@@ -522,6 +559,19 @@ export class PortalUI {
         }
       }
       nav.appendChild(det);
+    }
+    // The escape hatch: reveal the other rooms' groups, collapsed, below the active one. Everything
+    // stays reachable from every screen (the spine's promise) — the tabs are the fast path, this is
+    // the browse path. Only rendered when there IS more than one room to show.
+    if (rooms.length > 1) {
+      const t = document.createElement("button");
+      t.className = "pnav-item pnav-showall" + (this.showAllRooms ? " active" : "");
+      t.innerHTML = this.showAllRooms
+        ? `<span class="ic">▾</span> This room only`
+        : `<span class="ic">▸</span> All rooms (+${rooms.length - 1})`;
+      t.title = this.showAllRooms ? "Scope the rail back to this room" : "Also list the other rooms' panels and registers";
+      t.onclick = () => { this.showAllRooms = !this.showAllRooms; this.buildNav(); };
+      nav.appendChild(t);
     }
     const orphans = unroomedDests([...seen]);
     if (orphans.length || this.spine?.unplaced.length) {
