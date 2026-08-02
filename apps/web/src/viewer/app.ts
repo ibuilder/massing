@@ -379,6 +379,44 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       apply.className = "tool-btn"; apply.textContent = "Apply";
       apply.onclick = () => void commit(Number(inp.value));
       geoRow.append(lbl, inp, slider, apply);
+      // R38-LIVE-PARAMS slice 3 (chips) — the profile's two plan dimensions, editable through
+      // set_profile_dims. The server REFUSES non-rectangular profiles by design (which dimension
+      // "width" means on an I-section is not this UI's judgement to make on a fabricator's behalf),
+      // and that refusal IS the chip's unavailable state: the first refused edit greys both chips
+      // for this selection, labelled with the reason, rather than pretending the edit didn't land.
+      // Prefill is deliberately absent — the world bbox lies about a rotated element's profile, and
+      // a wrong prefill invites committing it. An empty chip edits nothing (server: omitted
+      // dimension comes back unchanged, never zeroed).
+      const dimChip = (label: string, param: "width" | "length") => {
+        const chip = document.createElement("span");
+        chip.style.cssText = "display:inline-flex;align-items:center;gap:3px;border:1px solid "
+          + "var(--line);border-radius:12px;padding:1px 8px;font-size:11px";
+        const t = document.createElement("span"); t.textContent = label; t.style.color = "var(--muted,#94a3b8)";
+        const v = document.createElement("input");
+        v.type = "number"; v.step = "0.05"; v.min = "0.02"; v.placeholder = "m";
+        v.style.cssText = "width:52px;border:none;background:transparent;font-size:11px";
+        v.onkeydown = (e) => { if (e.key === "Enter") v.blur(); };
+        v.onblur = async () => {
+          const val = Number(v.value);
+          if (!v.value || !Number.isFinite(val) || val <= 0) return;   // empty chip edits nothing
+          const r = await authorAndReload("set_profile_dims", { guid: el.guid, [param]: val }, `${label} edit`);
+          if (r.applied) {
+            try { renderProps(await api.element(projectId!, el.guid)); } catch { /* index rebuilding */ }
+          } else if (r.refused) {
+            // the recipe refused (non-rectangular profile) — grey both chips for this selection.
+            // A publish flake (neither applied nor refused) leaves the chips editable to retry.
+            for (const c of geoRow!.querySelectorAll<HTMLElement>("[data-dim-chip]")) {
+              c.style.opacity = "0.45";
+              c.title = "profile is not rectangular — section dimensions are the fabricator's, not editable here";
+              c.querySelector("input")?.setAttribute("disabled", "true");
+            }
+          }
+        };
+        chip.append(t, v);
+        chip.dataset.dimChip = param;
+        return chip;
+      };
+      geoRow.append(dimChip("W", "width"), dimChip("L", "length"));
     }
     // R26-INSPECTOR ② — the strip is the SPINE of this panel, so it sits above the tabs rather than
     // inside one of them: it summarises all four, and burying it in Properties would make the summary
@@ -890,26 +928,32 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     await authorAndReload(a.recipe, params, a.label, previewId);
   }
 
+  /** Author a recipe and republish. Returns the outcome so a caller can react to a REFUSAL
+   *  (`refused` — the recipe itself said no, e.g. a non-rectangular profile) distinctly from a
+   *  publish flake (`applied: false, refused: false`). Existing callers ignore the return. */
   async function authorAndReload(recipe: string, params: Record<string, unknown>, label: string,
-                                 previewId: string | null = null) {
+                                 previewId: string | null = null): Promise<{ applied: boolean; refused: boolean }> {
     // the preview model is normally reclaimed by loadProjectModel()'s disposeAll; on any non-done
     // outcome it would otherwise orphan GPU geometry (unique id per attempt) — dispose it explicitly.
     const dropPreview = async () => { if (previewId) { await loader.disposeOne(previewId).catch(() => {}); } };
+    const outcome = { applied: false, refused: false };
     await withLoading(container, `authoring ${label} + republishing`, async () => {
       try {
         await api.editIfc(projectId!, recipe, params, true);
         notify(`${label} authored — converting…`, "info");
         const state = await waitForPublish(projectId!);
-        if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); notify(`${label} applied${shown ? " — shown" : ""}`, "success"); }
+        if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); notify(`${label} applied${shown ? " — shown" : ""}`, "success"); outcome.applied = true; }
         else { await dropPreview(); draftProxies.markFailed(); notify(`${label} authored — publish ${state}`, state === "error" ? "error" : "info"); }
         await reloadModelPins();
       } catch (err) {
         // A29: a failed placement keeps its marker, turned red — a toast says something failed,
         // the marker says WHERE. The next draft action clears it (fromParams handles that).
         draftProxies.markFailed(); await dropPreview();
+        outcome.refused = true;
         notify(`${label} failed: ${(err as Error).message}`, "error");
       }
     });
+    return outcome;
   }
 
   async function waitForPublish(pid: string, onTick?: (s: string) => void): Promise<string> {
