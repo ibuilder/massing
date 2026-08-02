@@ -84,6 +84,15 @@ export const TOOLS: ToolSpec[] = [
   // ── author ─────────────────────────────────────────────────────────────────────────────────────
   { title: "Edit in place — drag the gizmo to move the selected element", label: "Edit in place",
     group: "author", primary: onEditableSelection },
+  // R38-PUSHPULL — shipped v0.3.821 and NOT registered here, so the bar logged
+  // "not described by toolbarLayout" on every load. R26-TOOLBAR's gate is about nothing
+  // disappearing; an unregistered tool is exactly that failure arriving from the other side.
+  // NOT primary: the bar has a hard cap, and promoting this pushed "Move" into More — the exact
+  // silent-demotion the pinned-positions test below exists to catch. It caught it. Push/pull stays
+  // in More and on the rail, where it was already reachable.
+  { title: "Push/pull — drag the top handle to make the selected element taller or thicker",
+    label: "Push/pull", group: "author" },
+  { title: "Plan beside model", label: "Plan pane", group: "look" },
   { title: "Move selected element (E,N,Z metres)", label: "Move", group: "author", primary: onEditableSelection },
   { title: "Copy selected element (offset E,N,Z metres)", label: "Copy", group: "author", primary: onEditableSelection },
   { title: "Rotate selected element (degrees about Z)", label: "Rotate", group: "author" },
@@ -174,6 +183,8 @@ export const TOOL_ICON: Record<string, string> = {
   "Area": "scan",
   "Clear": "eraser",
   "Edit in place": "pencil",
+  "Push/pull": "box",
+  "Plan pane": "layers",
   "Move": "move-3d",
   "Copy": "copy",
   "Rotate": "rotate-cw",

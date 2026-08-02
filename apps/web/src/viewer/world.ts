@@ -18,6 +18,9 @@ export interface Viewer {
    *  exactly the un-stoppable-loop mistake R23-RAF-LEAK was about, and it does not stop being one
    *  because the loop happens to be ours. */
   stopPixelGovernor: () => void;
+  /** Disconnects the container ResizeObserver that keeps the canvas matched to its box. Same
+   *  reasoning as `stopPixelGovernor`: an observer nobody can stop is a leak. */
+  stopResizeObserver: () => void;
 }
 
 /**
@@ -84,7 +87,33 @@ export function createViewer(container: HTMLElement): Viewer {
   const grids = components.get(OBC.Grids);
   const grid = grids.create(world);
 
-  return { components, world, container, grid, stopPixelGovernor };
+  // CANVAS-RESIZE — the renderer sizes itself once, from whatever the container measured at
+  // construction. If the container is not at its final width yet — a rail still expanding, a
+  // workspace not yet shown, a font or CSS pass still to land — the canvas keeps that first size
+  // for ever. Measured 2026-08-02 on a real project: container 830x572, canvas 0x493, four visible
+  // meshes and 230 triangles built and drawn into a zero-width canvas.
+  //
+  // **That is what "the geometry loader stalls" has actually been all along.** The .frag fetch
+  // returns 200, the worker parses, the meshes exist and are visible — and nothing appears, which
+  // from outside is indistinguishable from a loader that never finished. It was recorded as an
+  // environment quirk and repeated as a verification limitation for weeks; it is a resize bug, and
+  // it reaches any user whose viewer mounts before layout settles.
+  //
+  // `onModelShown` already re-resizes, but only on a workspace transition — nothing watched the
+  // container itself. A ResizeObserver does, and covers every cause at once. Zero sizes are skipped
+  // deliberately: resizing at 0x0 sets a NaN camera aspect, which is the failure this repo has
+  // already been bitten by (see fitToModels' deferral).
+  let lastW = 0, lastH = 0;
+  const ro = new ResizeObserver(() => {
+    const w = container.clientWidth, h = container.clientHeight;
+    if (!w || !h) return;                       // hidden/collapsed — resizing now bakes a NaN aspect
+    if (w === lastW && h === lastH) return;     // observers fire on no-op layout passes too
+    lastW = w; lastH = h;
+    world.renderer?.resize();
+  });
+  ro.observe(container);
+
+  return { components, world, container, grid, stopPixelGovernor, stopResizeObserver: () => ro.disconnect() };
 }
 
 const SUN = "aec-sun", HEMI = "aec-hemi", FILL = "aec-fill", GROUND = "aec-shadow-ground";

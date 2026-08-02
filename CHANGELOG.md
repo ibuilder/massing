@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.827 — the geometry loader was never stalling; the canvas had no width
+
+### Fixed — a zero-width canvas, mistaken for a loader stall for weeks
+
+Asked directly, for the first time, why the dev preview "stalls at preparing geometry". It doesn't.
+The `.frag` fetch returns 200, the worker parses, four meshes and 230 triangles get built and marked
+visible — into a canvas measuring **0 × 493** inside a container measuring **830 × 572**. Nothing
+renders, and from the outside that is indistinguishable from a loader that never finished.
+
+The renderer sizes itself once, from whatever the container measured at construction. Anything that
+gives the container its real width *later* — a rail expanding, a workspace becoming visible, a font
+or CSS pass landing — leaves that first size in place permanently. One re-resize existed but fired
+only on workspace transitions; nothing watched the container itself. A `ResizeObserver` now does,
+skipping zero sizes deliberately (resizing at 0×0 bakes a NaN camera aspect — a failure this code
+has already been bitten by). Verified live: canvas went from 0×493 to 1037×717, exactly the
+container at this display's 1.25 device-pixel ratio.
+
+This reaches real users, not just the dev preview: any viewer mounted before its container settles.
+
+### Fixed — two toolbar registrations, and what the gate caught
+
+The push/pull tool shipped in v0.3.821 was never added to `toolbarLayout`, so the bar logged
+"not described by toolbarLayout" on every load; the plan pane had the same gap. Registering them
+made the layout gate fail twice more, correctly: the icons I chose were not vendored, and promoting
+push/pull to the primary bar pushed **Move** past the cap into More — the exact silent-demotion the
+pinned-position test was written to catch. Both fixed; push/pull stays in More and on the rail.
+
+### Changed — the verification skill contradicted itself
+
+`verify-frontend` asserted the geometry stall in its frontmatter while its own body recorded the
+stall as fixed in v0.3.703. The stale half is what got read, and it propagated into eight changelog
+entries as a verification limitation. Corrected, with the diagnostic to run before anyone writes
+that sentence a third time. **A caveat nobody re-tests becomes folklore.**
+
 ## v0.3.826 — the plan stops being a browser tab
 
 ### Added — R38-SYNC-VIEW: the drawing docked beside the model
