@@ -24,6 +24,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # gitleaks scans HISTORY - the default depth-1 clone would hand it exactly one
+          # commit, and it would report "clean over the full history" having seen the tip:
+          # the scanner-that-never-ran failure this step's own comment warns about.
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with: { python-version: "3.12" }   # match ci.yml — audit the interpreter that actually ships
       - run: pip install pip-audit bandit
