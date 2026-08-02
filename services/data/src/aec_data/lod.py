@@ -75,6 +75,26 @@ STATUS_MEANING = {
 }
 
 
+def _is_a_any(el, classes) -> bool:
+    """Does `el` match any of `classes`, INCLUDING by inheritance?
+
+    `el.is_a() in classes` is an exact concrete-class test and silently misses every subtype: an
+    authored duct is an `IfcDuctSegment`, so it never matched `IfcFlowSegment` and the proxy reported
+    "nothing to proxy" on a model full of ducts. Identical to the cost-map defect where a map keyed
+    `IfcWall` priced none of a model's `IfcWallStandardCase` walls — a filter that looks right, finds
+    nothing, and reports the emptiness as a result.
+
+    `el.is_a("IfcFlowSegment")` is ifcopenshell's own inheritance test; a class absent from the
+    schema raises rather than matching, so it is guarded."""
+    for c in classes:
+        try:
+            if el.is_a(c):
+                return True
+        except Exception:                              # noqa: BLE001 — class not in this schema
+            continue
+    return False
+
+
 def _is_small_part(ifc_class: str) -> bool:
     return ifc_class in SMALL_PART_CLASSES
 
@@ -93,6 +113,7 @@ def census(model, max_elements: int | None = None) -> dict[str, Any]:
     tris: dict[str, int] = collections.Counter()
     counts: dict[str, int] = collections.Counter()
     unmeshable: list[dict] = []
+    small_part_seen: set[str] = set()
     seen = 0
     capped = False
 
@@ -103,6 +124,9 @@ def census(model, max_elements: int | None = None) -> dict[str, Any]:
         seen += 1
         cls = el.is_a()
         counts[cls] += 1
+        # Inheritance, not string equality — see `_is_a_any`. An IfcDuctSegment IS an IfcFlowSegment.
+        if _is_a_any(el, SMALL_PART_CLASSES):
+            small_part_seen.add(cls)
         try:
             shape = geom.create_shape(settings, el)
             tris[cls] += len(shape.geometry.faces) // 3
@@ -114,7 +138,7 @@ def census(model, max_elements: int | None = None) -> dict[str, Any]:
     total = sum(tris.values())
     rows = [{"ifc_class": k, "elements": counts[k], "triangles": v,
              "pct_triangles": round(100.0 * v / total, 2) if total else 0.0,
-             "small_part": _is_small_part(k)}
+             "small_part": k in small_part_seen}
             for k, v in sorted(tris.items(), key=lambda kv: -kv[1])]
 
     return {
@@ -147,7 +171,13 @@ def proxy_plan(census_result: dict, classes: tuple[str, ...] | None = None) -> d
 
     rows = census_result["by_class"]
     total = census_result["total_triangles"]
-    hit = [r for r in rows if r["ifc_class"] in target]
+    # `classes` may name a supertype (IfcFlowSegment) while the census rows carry concrete classes
+    # (IfcDuctSegment). Match on the census's own `small_part` verdict when the caller asked for the
+    # default set, and fall back to name equality for an explicit list.
+    if classes is None:
+        hit = [r for r in rows if r.get("small_part")]
+    else:
+        hit = [r for r in rows if r["ifc_class"] in target]
     saved = sum(r["triangles"] for r in hit)
 
     # THE CAP MUST TRAVEL. A census capped at 400 elements of `school_str.ifc` contains no rebar at
@@ -251,7 +281,7 @@ def build_storey_proxy(model, out_path: str, classes: tuple[str, ...] | None = N
     by_storey: dict[str, list] = collections.defaultdict(list)
     considered = 0
     for el in physical_elements(model):
-        if el.is_a() in target:
+        if _is_a_any(el, target):
             considered += 1
             by_storey[storey_name(el) or ""].append(el)
 

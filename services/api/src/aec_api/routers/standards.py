@@ -579,28 +579,53 @@ def roundtrip_export(pid: str, props: str, db: Session = Depends(get_db),
                     headers={"Content-Disposition": 'attachment; filename="properties.csv"'})
 
 
+def _sheet_rows(raw: bytes, filename: str) -> list[list[str]]:
+    """An uploaded property sheet as rows of strings — .xlsx via openpyxl, else CSV (BOM-tolerant)."""
+    import csv
+    import io
+    if filename.endswith(".xlsx"):
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+        return [["" if c is None else str(c) for c in r] for r in wb.active.iter_rows(values_only=True)]
+    return list(csv.reader(io.StringIO(raw.decode("utf-8-sig", "replace"))))
+
+
+def _diff_row(guid: str, e: dict, row: list, prop_cols: list[tuple[int, str]]) -> tuple[list[dict], int]:
+    """Diff ONE sheet row against its live index entry → (cell changes, unchanged-cell count).
+    A blank cell means "no edit intended"; a leading "'" is the export's formula-injection guard
+    being shed; `dtype` comes from the OLD value's type so numerics don't flip to strings."""
+    from .. import model_query
+    changes: list[dict] = []
+    unchanged = 0
+    for i, h in prop_cols:
+        new = str(row[i]).strip() if i < len(row) else ""
+        if new.startswith("'"):
+            new = new[1:]
+        if new == "":
+            continue
+        old = model_query._val(e, h.replace(".", "::", 1))
+        old_s = "" if old is None else str(old)
+        if new == old_s:
+            unchanged += 1
+            continue
+        pset, prop = h.split(".", 1)
+        dtype = ("bool" if isinstance(old, bool) else "int" if isinstance(old, int)
+                 else "float" if isinstance(old, float) else "str")
+        changes.append({"guid": guid, "pset": pset, "prop": prop,
+                        "old": old_s or None, "new": new, "dtype": dtype})
+    return changes, unchanged
+
+
 @router.post("/projects/{pid}/model/roundtrip/diff")
 async def roundtrip_diff(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
                          _: str = Depends(require_role("viewer"))):
     """XLSX-ROUNDTRIP — DRY-RUN diff of an edited CSV/XLSX against the live property index: which
     cells would change (`{guid, pset, prop, old, new, dtype}`), which GUIDs are unknown. Nothing is
     written — apply the returned `changes` via the `set_props_by_guid` edit recipe (which republishes).
-    `dtype` is inferred from the OLD value's type so numeric properties don't flip to strings."""
-    import csv
-    import io
-
-    from .. import model_query
+    Sheet parsing lives in `_sheet_rows`, the per-row cell diff in `_diff_row`."""
     _project(db, pid)
     idx = _idx_for(pid) or {}
-    raw = await file.read()
-    name = (file.filename or "").lower()
-    if name.endswith(".xlsx"):
-        from openpyxl import load_workbook
-        wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
-        ws = wb.active
-        rows = [["" if c is None else str(c) for c in r] for r in ws.iter_rows(values_only=True)]
-    else:
-        rows = list(csv.reader(io.StringIO(raw.decode("utf-8-sig", "replace"))))
+    rows = _sheet_rows(await file.read(), (file.filename or "").lower())
     if not rows or "guid" not in [h.strip().lower() for h in rows[0]]:
         raise HTTPException(422, "first row must be a header containing a 'guid' column")
     header = [h.strip() for h in rows[0]]
@@ -620,22 +645,9 @@ async def roundtrip_diff(pid: str, file: UploadFile = File(...), db: Session = D
         if e is None:
             unknown.append(guid)
             continue
-        for i, h in prop_cols:
-            new = str(row[i]).strip() if i < len(row) else ""
-            if new.startswith("'"):                   # shed the export's formula-injection guard
-                new = new[1:]
-            if new == "":
-                continue                              # blank cell = no edit intended
-            old = model_query._val(e, h.replace(".", "::", 1))
-            old_s = "" if old is None else str(old)
-            if new == old_s:
-                unchanged += 1
-                continue
-            pset, prop = h.split(".", 1)
-            dtype = ("bool" if isinstance(old, bool) else "int" if isinstance(old, int)
-                     else "float" if isinstance(old, float) else "str")
-            changes.append({"guid": guid, "pset": pset, "prop": prop,
-                            "old": old_s or None, "new": new, "dtype": dtype})
+        row_changes, row_unchanged = _diff_row(guid, e, row, prop_cols)
+        changes += row_changes
+        unchanged += row_unchanged
     return {"checked": checked, "changes": changes[:1000], "truncated": len(changes) > 1000,
             "unknown_guids": unknown[:100], "unchanged": unchanged}
 
