@@ -34,7 +34,7 @@ class Mesh:
 
 
 def meshes(n):
-    return [("e", Mesh(n))]
+    return [("g", "e", Mesh(n))]
 
 
 def reset():
@@ -51,7 +51,7 @@ def put(key, n):
 check("a bigger mesh measures bigger", d._mesh_bytes(meshes(1000)) > d._mesh_bytes(meshes(10)))
 check("an empty set measures zero", d._mesh_bytes([]) == 0)
 check("a mesh with no arrays does not crash the budget",
-      d._mesh_bytes([("x", object())]) == 0, "an unmeasurable entry counts as 0, never as an error")
+      d._mesh_bytes([("g", "x", object())]) == 0, "an unmeasurable entry counts as 0, never as an error")
 
 # --- the byte budget actually evicts ----------------------------------------------------------------
 reset()
