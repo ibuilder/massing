@@ -1,0 +1,37 @@
+# gitleaks baseline — SEC-G1.
+#
+# Each line is a FINGERPRINT (commit:path:rule:line) that the scan is allowed to ignore. Every entry
+# needs a reason, because an unexplained line here is indistinguishable from a real secret somebody
+# silenced. Verified 2026-08-02: all five are false positives, nothing to rotate.
+#
+# These are pinned to COMMITS, not to the current file. gitleaks scans history, so a value that was
+# committed and later edited out is still in the objects and still found — the working tree is the
+# one place it is guaranteed not to be. That is the point of scanning history, and it is why fixing
+# the file does not clear the finding: the storage.py entry below was reworded in #169 and its
+# historical commit still matches. Deleting a line here therefore does NOT re-arm a check; it
+# re-opens a finding about the past that no edit to the present can close.
+#
+# Adding an entry is a claim that a human looked. Adding one to make CI green is the failure mode
+# this file exists to make visible.
+
+# storage.py — a source COMMENT that named the validate_key helper followed by a colon and a list
+# of rejected inputs. An identifier ending in "key", a colon, then a token is what generic-api-key
+# matches. No credential; reworded on main in #169, but the pre-reword commit remains in history
+# and still matches.
+#
+# NB: quoting the offending text here reproduced the finding — this very file failed the first
+# gated run, at this line. A baseline that explains a pattern by example becomes an instance of it,
+# which is a small joke and a real rule: describe the shape, never paste it.
+14a9390d4a37d2c80f25f29d3c2ce83f0ffb6262:services/api/src/aec_api/storage.py:generic-api-key:65
+
+# test_license_cloud.py — a fabricated licence key in the shape the parser expects (a MASS- prefix
+# and four hyphenated groups). Not issued, not valid, never accepted by the licence service.
+96c40988891d21aaa238bb44f6f7fbb718110613:services/api/test_license_cloud.py:generic-api-key:24
+
+# test_mfa.py — the RFC 6238 published TOTP test vector, the base32 seed printed in the standard
+# itself. The TOTP tests would be untestable without it.
+2957b990a7d4bbb8922fe3b931ae178018bdeee0:services/api/test_mfa.py:generic-api-key:23
+
+# test_licensing.py — fabricated MASSING_LICENSE_KEY fixtures driving the tier/expiry paths.
+1528d60ec54371809ed896170b30d5defa478fed:services/api/test_licensing.py:generic-api-key:85
+fc0d7767f57653f3ea235db5abaeb646db79c4a1:services/api/test_licensing.py:generic-api-key:49
