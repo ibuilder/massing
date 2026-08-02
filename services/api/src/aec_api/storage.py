@@ -62,7 +62,7 @@ class LocalBackend:
         self.root = Path(root).resolve()
 
     def _p(self, key: str) -> Path:
-        # shared bar first (see validate_key: empty/NUL/absolute/`..`), so local and S3 agree on
+        # shared bar first — validate_key rejects empty/NUL/absolute/`..` — so local and S3 agree on
         # which keys exist at all — attachment keys carry a user-supplied filename.
         validate_key(key)
         # local-only second bar: even a syntactically clean key must resolve inside the root (symlinks,
