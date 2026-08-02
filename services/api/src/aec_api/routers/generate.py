@@ -523,7 +523,7 @@ def ensure_model(pid: str, storeys: int = 3, storey_height: float = 3.5,
     # edit builds the path from something safe_seg never saw.
     base = _IFC_DIR.resolve()
     target_dir = (base / storage.safe_seg(pid)).resolve()
-    if target_dir != base and not target_dir.is_relative_to(base):
+    if not str(target_dir).startswith(str(base) + os.sep):
         raise HTTPException(400, "invalid project id")
     target_dir.mkdir(parents=True, exist_ok=True)
     ifc_path = target_dir / "source.ifc"
