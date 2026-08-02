@@ -31,6 +31,9 @@ from ..serving import range_response
 
 router = APIRouter()
 
+# IFC defines a few hundred entity classes; this bounds a client-supplied filter list.
+MAX_LOD_CLASSES = 500
+
 
 # --- projects ----------------------------------------------------------------
 @router.post("/projects", response_model=ProjectOut, status_code=201)
@@ -1060,6 +1063,11 @@ def model_lod_proxy(pid: str, classes: list[str] | None = Body(default=None, emb
 
     from ..deps import open_source_ifc
 
+    # `classes` is a FILTER, not a stored collection — unlike the amendment overlay it is spent on this
+    # one call. Bounded anyway because it is a client-supplied list: IFC defines a few hundred entity
+    # classes, so this refuses only input that could never be a real selection.
+    if classes is not None and len(classes) > MAX_LOD_CLASSES:
+        raise HTTPException(422, f"at most {MAX_LOD_CLASSES} classes (got {len(classes)})")
     model = open_source_ifc(db, pid)
     workdir = tempfile.mkdtemp(prefix="lod_proxy_")    # mkdtemp: mktemp leaves a create-after-name race
     out = os.path.join(workdir, "model.lod.ifc")
