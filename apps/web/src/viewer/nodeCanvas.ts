@@ -7,6 +7,8 @@
  *  plain DOM + one SVG layer for the edges, themed with the app's CSS variables.
  */
 
+import { applySlider, sliderSpecs } from "./nodeSliders";
+
 type Graph = { nodes: { id: string; recipe: string; params: Record<string, unknown> }[];
                edges: { from: string; to: string }[] };
 type RunResult = { node_count: number; order: string[]; outputs: Record<string, unknown> };
@@ -56,11 +58,15 @@ export function openNodeCanvas(opts: NodeCanvasOpts): void {
   head.innerHTML = "<strong>🕸 Visual node authoring</strong>"
     + "<span style='font-size:11px;opacity:.7'>Drop recipes · drag to move · click an output ● then an input ○ to wire · Run</span>";
   const spacer = document.createElement("div"); spacer.style.flex = "1";
+  // R38-NODE-SLIDERS — the graph's numeric inputs as named sliders in a side rail
+  const slidersBtn = document.createElement("button"); slidersBtn.className = "tool-btn";
+  slidersBtn.textContent = "🎚 Sliders"; slidersBtn.style.cssText = "font-size:12px;padding:4px 10px";
+  slidersBtn.title = "Every numeric parameter across the graph as a named slider — scrub to explore";
   const runBtn = document.createElement("button"); runBtn.className = "tool-btn"; runBtn.textContent = "▶ Run graph";
   runBtn.style.cssText = "font-size:12px;padding:4px 12px";
   const closeBtn = document.createElement("button"); closeBtn.className = "tool-btn"; closeBtn.textContent = "✕";
   closeBtn.setAttribute("aria-label", "Close"); closeBtn.style.cssText = "font-size:12px;padding:4px 8px";
-  head.append(spacer, runBtn, closeBtn);
+  head.append(spacer, slidersBtn, runBtn, closeBtn);
 
   // palette
   const palette = document.createElement("div");
@@ -86,7 +92,81 @@ export function openNodeCanvas(opts: NodeCanvasOpts): void {
   status.style.cssText = "padding:6px 12px;border-top:1px solid var(--border,#334155);font-size:11px;min-height:18px;opacity:.85";
   status.textContent = "Empty graph — add a recipe node from the palette to begin.";
 
-  card.append(head, palette, canvas, status);
+  // R38-NODE-SLIDERS — a side rail beside the canvas. The textareas stay the single source of
+  // truth: a slider reads them on open and writes them on scrub, so hand-edits and scrubs
+  // interleave without a second copy of the params existing anywhere.
+  const sliderRail = document.createElement("div");
+  sliderRail.className = "nc-sliders";
+  sliderRail.style.cssText = "display:none;width:240px;overflow-y:auto;border-left:1px solid "
+    + "var(--border,#334155);padding:8px 10px;font-size:11px";
+  const mid = document.createElement("div");
+  mid.style.cssText = "display:flex;flex:1;min-height:0";
+  mid.append(canvas, sliderRail);
+
+  let runOnRelease = false;
+  function buildSliderRail() {
+    sliderRail.innerHTML = "";
+    const head2 = document.createElement("div");
+    head2.style.cssText = "display:flex;align-items:center;gap:6px;margin-bottom:6px";
+    head2.innerHTML = "<strong>Sliders</strong>";
+    const auto = document.createElement("label");
+    auto.style.cssText = "margin-left:auto;display:flex;align-items:center;gap:4px;font-size:10.5px;opacity:.85";
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = runOnRelease;
+    cb.onchange = () => { runOnRelease = cb.checked; };
+    auto.append(cb, document.createTextNode("run on release"));
+    auto.title = "Re-run the whole graph when a slider is released — live parametric feedback";
+    head2.appendChild(auto);
+    sliderRail.appendChild(head2);
+    let any = false;
+    for (const n of nodes) {
+      let params: Record<string, unknown>;
+      try { params = JSON.parse(n.paramsInput.value || "{}") as Record<string, unknown>; }
+      catch { continue; }                        // a mid-edit node just contributes no sliders
+      const specs = sliderSpecs(params);
+      if (!specs.length) continue;
+      any = true;
+      const g = document.createElement("div");
+      g.style.cssText = "margin-bottom:8px";
+      g.innerHTML = `<div style="opacity:.7;margin-bottom:2px">${n.id} · ${n.recipe}</div>`;
+      for (const s of specs) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:6px;margin:2px 0";
+        const lbl = document.createElement("span");
+        lbl.textContent = s.key; lbl.style.cssText = "width:70px;overflow:hidden;text-overflow:ellipsis";
+        const val = document.createElement("span");
+        val.textContent = String(s.value); val.style.cssText = "width:38px;text-align:right;font-family:var(--mono)";
+        const input = document.createElement("input");
+        input.type = "range";
+        input.min = String(s.min); input.max = String(s.max); input.step = String(s.step);
+        input.value = String(s.value); input.style.flex = "1";
+        input.setAttribute("aria-label", `${n.id} ${s.key}`);
+        input.oninput = () => {
+          const next = applySlider(n.paramsInput.value, s.key, Number(input.value), s.step);
+          if (next === null) return;             // textarea mid-edit — never destroy it
+          n.paramsInput.value = next;
+          val.textContent = input.value;
+        };
+        input.onchange = () => { if (runOnRelease) runBtn.click(); };
+        row.append(lbl, input, val);
+        g.appendChild(row);
+      }
+      sliderRail.appendChild(g);
+    }
+    if (!any) {
+      const p = document.createElement("div");
+      p.style.cssText = "opacity:.65";
+      p.textContent = "No numeric parameters yet — add a node, or type a number into its params.";
+      sliderRail.appendChild(p);
+    }
+  }
+  slidersBtn.onclick = () => {
+    const open = sliderRail.style.display === "none";
+    sliderRail.style.display = open ? "block" : "none";
+    slidersBtn.classList.toggle("on", open);
+    if (open) buildSliderRail();                 // re-read the textareas — they are the truth
+  };
+
+  card.append(head, palette, mid, status);
   overlay.appendChild(card);
 
   function close() { overlay.remove(); document.removeEventListener("keydown", onKey); }

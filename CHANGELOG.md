@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.830 — R38-NODE-SLIDERS: the node graph becomes an instrument
+
+### Added — every numeric parameter across the node graph, as a named slider
+
+The visual node canvas stored each node's params as a JSON textarea — honest, but typing, not
+designing. A "🎚 Sliders" rail now lists every top-level numeric parameter across the graph as a
+named slider (`n1 · height`), with a scrub range and step derived from the value, and an optional
+**run on release** that re-runs the whole graph when a slider is let go — live parametric feedback.
+The textarea stays the single source of truth: sliders read it on open and write it on scrub (with
+step-precision rounding, no float noise), so hand-edits and scrubs interleave without a second copy
+of the params existing anywhere. Coordinates (`start: [0,0]`) deliberately do not slide — they are
+positions, not magnitudes — and a scrub against a mid-edit, invalid textarea is a no-op rather than
+a "fix" that destroys the edit. `nodeSliders.test.ts` pins all of it.
+
+### Fixed — the roadmap lanes gate red on v0.3.829's own annotation
+
+Marking R38-SYNC-SELECT shipped moved its code out of the Lane E row while its coded body entry
+remained, which `roadmapLanes.test.ts` correctly rejects — an item that exists must be assigned or
+parked. It now follows Lane D's shipped-pending-archive convention, staying coded in its lane row.
+
 ## v0.3.829 — the plan knows what it draws: 2D↔3D selection sync
 
 ### Added — R38-SYNC-SELECT: click a wall in the plan, it selects in 3D; select in 3D, its loops light in the plan
