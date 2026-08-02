@@ -51,7 +51,7 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 | Endpoint flooding | Per-endpoint throttles (`throttle.py`); heavy analysis endpoints bounded (model-count caps, e.g. the 12-model benchmark cap; result `truncated` flags). |
 | Stored-data amplification (editor stores → viewer GETs evaluate) | Count/size caps at save (`rule_library.MAX_*`, `schedule_baselines._MAX`, view-template caps, calc-field length/node caps). |
 | Expression/DSL injection | `calc_fields.py` is an AST whitelist (no attributes/subscripts/lambdas/`**`/imports; node + length caps); QUERY-DSL is a hand-rolled quote-aware parser with no eval; regexes bounded per the ReDoS discipline (quantifier bounds + input caps). |
-| SSRF via connectors/webhooks | The SSRF guard (private-range/scheme validation) on outbound fetch paths (`perf-sec-p0` pattern); connectors are feature-flagged and offline-degrading. |
+| SSRF / local-file read via a settable outbound URL | `net.safe_urlopen` validates scheme, host and — because `urlopen` follows 3xx — **every redirect hop**, not just the URL it was handed. Adoption is no longer a matter of remembering: `test_outbound_fetch_guard` enumerates every raw `urlopen` in the package and fails unless the fetch is either routed through the guard or has its scheme+host pinned as a literal, so exemption is a property of the code rather than a name on a list. Connectors stay feature-flagged and offline-degrading. |
 
 ### 5. Secrets & data protection
 | Threat | Control |
@@ -98,6 +98,7 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 | Migration drift | `db-migrations.yml` green on real Postgres |
 | Backups/DR | `scripts/backup.sh` + [ops-dr.md](../ops-dr.md) drill checklist |
 | Audit trail | `audit.py` + timeline tests |
+| Outbound-fetch guard adoption | `test_outbound_fetch_guard` (derived from the package, not a list) |
 
 ## Gap backlog (prioritized; honest)
 
@@ -141,7 +142,16 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
    never "this is safe", because a stale justification reads exactly like a live one. All three modes
    mutation-verified. Complements `test_global_authz` (individual unguarded global mutating routes,
    29) — that measures routes, this measures the middleware's blast radius.
-8. **G-6 (M) Pen test** — no third-party penetration test on record; recommended before the first
+8. ✅ **G-9 Outbound-fetch guard adoption made derived, not listed** — *closed in-sprint.* The shared
+   guard existed and five modules used it; five did not, and two of those were live defects — an ERP
+   connector whose operator-set `base_url` reached `urlopen` unvalidated (so a `file://` value was
+   read as the ERP payload), and a bridge that validated its URL and then let `urlopen` follow
+   redirects, clearing hop zero and nothing after it. **A scheme/host check is a property of a hop,
+   not of a URL.** The prior check asserted the five *adopters* still used the guard, so a module
+   that never adopted was outside what it could see; `test_outbound_fetch_guard` derives the set
+   instead — every raw `urlopen` must be guarded or literal-hosted. Reported six call sites against
+   the pre-fix tree, so it is known to fail on the real bugs and not only on synthetic ones.
+9. **G-6 (M) Pen test** — no third-party penetration test on record; recommended before the first
    enterprise deployment. Operator action.
 
 *Exclusions per the review doctrine: DoS/resource-exhaustion beyond the shipped caps, rate-limit

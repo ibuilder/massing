@@ -62,6 +62,10 @@ SANCTIONED: dict[str, set[str]] = {
         "services/api/src/aec_api/main.py",          # _production_guard names it to refuse it
         "services/api/src/aec_api/storage.py",       # the dev fallback the guard polices
         "CHANGELOG.md",                              # release notes describing the guard
+        # the preflight smoke drives the validator off a known-good posture and flips one
+        # setting at a time; the UNSAFE posture necessarily contains this constant, because
+        # refusing it is the behaviour under test. Synthetic fixture value, never a default.
+        "services/api/test_preflight_smoke.py",
     },
 }
 

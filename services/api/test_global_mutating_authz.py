@@ -53,6 +53,7 @@ for _f in ("./test_glob_mut_authz.db",):
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+import aec_api.main as main  # noqa: E402
 from aec_api.main import app  # noqa: E402
 
 FAILED: list[str] = []
@@ -214,6 +215,31 @@ with TestClient(app) as c3:
         headers=_H)
     check("a project-admin cannot replace the FIRM's standards by naming their own project",
           _r.status_code == 403, f"{_r.status_code} {str(_r.json())[:90]}")
+
+# ---- a route whose only gate is the PREFIX LIST -------------------------------------------
+# `/projects/import-bundle` unpacks an uploaded archive and creates a project, and carried no
+# authorisation of its own: it sits under `/projects`, so `_PROTECTED_PREFIXES` refused anonymous
+# callers and that was the entire control. The middleware was doing its job — the problem is where
+# the decision LIVED. Protection depended on a tuple the route never mentions, so removing
+# `/projects` from it would silently open an archive-unpacking endpoint, and nothing here would have
+# noticed: with the middleware armed, a route with a dependency and a route without one look
+# identical from outside.
+#
+# So the middleware is disarmed for this check. That is the only way to ask whether the ROUTE
+# refuses. Measured before the fix, with the list emptied: 400 — the anonymous request reached the
+# handler and had its archive parsed. After: 403, refused before the body is read.
+_saved_prefixes = main._PROTECTED_PREFIXES
+try:
+    main._PROTECTED_PREFIXES = ()
+    c4 = TestClient(app)
+    with c4:
+        r4 = c4.post("/projects/import-bundle", files={"file": ("x.mass", b"not-a-zip")})
+    check("import-bundle refuses anonymously on its OWN gate, not the prefix list",
+          r4.status_code == 403, f"{r4.status_code} {str(r4.json())[:80]}")
+    check("...and refuses BEFORE parsing the upload — a 400 would mean it reached the handler",
+          r4.status_code != 400, r4.status_code)
+finally:
+    main._PROTECTED_PREFIXES = _saved_prefixes
 
 print()
 if FAILED:

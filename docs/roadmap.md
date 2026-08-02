@@ -151,11 +151,11 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ *(only OPEN item — rdflib add cleared, start after the 2026-08-02 merge train)* · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② *(these four SHIPPED 2026-08-02, pending archive to roadmap-completed)* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-LIVE-PARAMS ② · R38-SYNC-2D3D ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ *(only OPEN item — rdflib add cleared, start after the 2026-08-02 merge train)* · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② *(these four SHIPPED 2026-08-02, pending archive to roadmap-completed)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SYNC-SELECT ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -1129,19 +1129,43 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
 
 ### Wave 2 — parameters stay alive *(Lane E + C)*
 
-- **R38-LIVE-PARAMS ②** *(M)* — select an element, get sliders/fields for its recipe parameters
-  with local preview while dragging, commit on release. **Slices 1+2 shipped v0.3.823–824** (the
-  depth field, then the slider with a live base-anchored ghost, both over set_extrusion_depth).
-  **Slice 3 premise-checked 2026-08-02 and deliberately DEFERRED:** the constraint-chip UI needs a
-  *system* of editable parameters for `dim_constraints.solve` to reconcile, and depth is today the
-  only server-editable geometric parameter — chips over one variable would be UI theater. The real
-  prerequisite is more parameter-edit recipes (wall thickness, profile width/length — Lane C/D
-  server halves). Remaining after that: constraint chips, editable arrays, node-canvas room sliders.
+- ✅ **DONE for the parameters that exist** — R38-LIVE-PARAMS. Slices 1–3 shipped v0.3.823–825:
+  the depth field, the slider with a live base-anchored ghost, and W/L dimension chips over
+  `set_profile_dims`. Slice 3 was deferred in the morning (chips over one variable are theater),
+  the prerequisite was named, Core shipped the recipes, and the chips landed the same afternoon —
+  the pattern worth repeating for everything below. Three items were carved out of it by
+  premise-check on 2026-08-02, each blocked on a **named server-side prerequisite**:
+
+- **R38-ARRAY-LIVE ③** *(M, prerequisite in Lane C/D)* — "arrays whose count/spacing stay editable
+  after placement". Premise-checked: `groups.array_element(guid, nx, ny, dx, dy, dz)` produces
+  **independent GUID-stable copies and stores nothing** — no group, no pset, no definition. There is
+  therefore nothing to re-edit; changing a count today means deleting copies by hand. **Prerequisite:
+  persist the array definition** (an IfcGroup or pset carrying nx/ny/dx/dy/dz plus its member GUIDs)
+  and a `set_array_params` recipe that adds/removes members to match. Viewer half is then small.
+- **R38-SOLVER-LOCKS ③** *(M, needs a decision first)* — the R23 dimensional locks as UI. The solver
+  (`services/data/src/aec_data/dim_constraints.py`) reconciles a *system*; with three parameters on
+  a single element there is nothing to reconcile unless the user can state a relationship. **Open
+  question for the user, not a build:** are locks meant to be *within* an element (hold depth, drive
+  width, keep area) or *across* elements (align these walls, hold this offset)? Across-elements is
+  the CAD-familiar meaning and needs multi-element parameter edits, which do not exist yet.
+- **R38-NODE-SLIDERS ③** *(S, Lane E)* — node-canvas inputs exposed as named room-level sliders.
+  Unblocked and small; the node graph already stores its inputs. Lowest risk of the three.
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
-- **R38-SYNC-2D3D ③** *(L, Lane E)* — plan view beside the 3D view, cursor and selection synced.
-  The plans are already server-generated; the work is the second viewport and the sync.
+- ✅ **split by premise-check 2026-08-02** — R38-SYNC-2D3D. The plans are server-generated, but
+  the pipeline **discards element identity at bake time**: `drawings._bake_uncached` has
+  `shape.guid` in hand and keeps only `(cls, mesh)`, so `cut_baked` emits anonymous polylines and
+  `cut_baked_classed` adds back the class but never the GUID. Nothing in a plan can name what it
+  draws. Hence:
+  - **R38-SYNC-VIEW ③** *(M, Lane E)* — the second viewport with **cursor, pan/zoom and storey
+    sync**. Buildable today; needs no identity.
+  - **R38-PLAN-IDENTITY ③** *(S, Lane D — prerequisite)* — carry the GUID through the bake:
+    `(guid, cls, mesh)` and a `cut_baked_guided` variant, so each polyline names its source element.
+    **This is one discarded value, not new machinery** — and it unlocks selection sync, click-a-wall-
+    in-plan-selects-in-3D, precise pin-to-drawing anchoring, and R27's "the drawing is data" thesis
+    more broadly. Highest leverage-per-line item left in the ring.
+  - **R38-SYNC-SELECT ③** *(S, Lane E)* — selection sync in both directions, once identity lands.
 - **R38-SHEET-MARKUP ③** *(M, Lane B)* — the vendored markup toolset (clouds, callouts, stamps,
   tool sets) opened on the room's OWN generated sheets, markups tied to GUIDs through the existing
   pin-to-drawing spine.
@@ -1150,6 +1174,40 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
 
 **Sequence: Wave 1 before all; within a wave, listed order.** Quick wins to fold in when adjacent:
 a material paint tool, orbit-around-selection.
+
+## 🎀 R40 — OPERATOR RESEARCH RING *(7-image requirements survey, 2026-08-02; premise-checked, split across lanes)*
+
+Source images used as a **requirements survey only** — nothing copied, no vendor names in repo docs
+(standing directive). Two proposals from the same drop were **recommended against and declined**,
+recorded so nobody re-proposes them: an ML training-data pipeline built from bid history (cuts
+against deterministic/offline/no-silent-LLM — a strategy decision, not a task), and a BIM-interop
+expansion (IFC already covers the named authoring tools; the image is a landscape, not a gap).
+
+- **R40-RIBBON ②** *(M, Lane A/E)* — the flat glyph bar presented as tabs. Measured before accepting:
+  `apps/web/src/viewer/toolbarLayout.ts` defines **27 tools in 5 groups** (look · measure · author ·
+  analyse · collaborate) with `MAX_PRIMARY = 8`, so **19 live in overflow**. The five groups already
+  map nearly one-to-one onto the surveyed tabs (look→View, author→Author, analyse→Analyze,
+  collaborate→Share, measure folding into Analyze) — this is a **presentation of a taxonomy we
+  already have**, not a re-taxonomy, which is what makes it cheap. **The constraint that outranks the
+  arrangement:** `toolbarLayout.test.ts` exists because R26-TOOLBAR's audit found 25 unlabeled
+  glyphs, and its tests are mostly about *nothing disappearing* and only then about the bar being
+  short. A ribbon inherits that gate — `unlaidTitles()` staying empty matters more than any tab
+  layout. Design question before build.
+- **R40-EOT ②** *(M–L, Lane C)* — extension-of-time entitlement, with its method stated. Every input
+  exists (`schedule_cpm.compute` gives ES/EF/LS/LF and free float, with total float derivable as
+  LS−ES; `schedule_baselines` gives named baselines and per-activity variance; `notice_clock`
+  already types weather/constructive-change/suspension delay events). What is missing is the step
+  from baseline + as-built + events to a defensible entitlement: EOT days, excusable /
+  non-excusable / compensable, per-event time impact. **The refusal IS the feature:** forensic delay
+  analysis has a published method taxonomy (AACE 29R-03, SCL Protocol 2nd ed) and **the same facts
+  give different answers under different methods** — as-planned-vs-as-built, windows and time-impact
+  are not interchangeable, and concurrent-delay apportionment is openly contested. The engine states
+  its method and **refuses to emit an EOT number without one**, reporting concurrency *as*
+  concurrency rather than silently apportioning it. An unmethodded EOT figure is the
+  confident-wrong shape at its most expensive: this number ends up in arbitration.
+- **R22-PIPELINE** — no rewrite needed; a **spec reference now exists** from the same drop (portfolio
+  dashboard: multi-project KPI strip, cross-project Gantt, EVM PV/EV/AC + SPI/CPI, risk heat map,
+  milestone tracking, resource allocation by department, cost-by-project).
 
 ## 🔧 R39 — DEPLOYMENT-TRUTH RING *(external engineering audit 2026-08-02, premise-checked item by item)*
 

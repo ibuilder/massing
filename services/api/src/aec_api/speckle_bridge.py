@@ -19,6 +19,7 @@ import urllib.parse
 import urllib.request
 
 from . import settings_store
+from .net import safe_urlopen
 
 
 def _server() -> str:
@@ -78,7 +79,13 @@ def _graphql(query: str, timeout: int = 15) -> dict:
         f"{server}/graphql", data=json.dumps({"query": query}).encode(),
         method="POST", headers={"Content-Type": "application/json",
                                 "Authorization": f"Bearer {_token()}"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    # SEC: `_validate_server_url` above clears hop ZERO only. `urlopen` follows 3xx by default, so a
+    # cleared https://speckle.example answering `302 -> http://169.254.169.254/…` walked the guard
+    # past its own check. Measured as a differential: plain urlopen reached the redirect target,
+    # safe_urlopen refused it. The stricter Speckle policy (https-only, private unless opted in) is
+    # carried through so every hop clears the same bar as hop zero.
+    with safe_urlopen(req, timeout=timeout, require_https=True, allow_private=_allow_private(),
+                      label="SPECKLE_SERVER") as r:
         return json.loads(r.read())
 
 
