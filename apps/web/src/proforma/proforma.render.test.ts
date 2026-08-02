@@ -103,6 +103,38 @@ describe("renderMassing (characterization)", () => {
     expect(host.textContent).toContain("<img src=x");        // …but the message still shown verbatim
     expect((window as unknown as Record<string, unknown>).__pwned).toBeUndefined();
   });
+
+  it("the generate error path escapes too (sink 2 of 4 from the same fix)", async () => {
+    const generateMassing = vi.fn().mockRejectedValue(new Error("<b>422</b> detail quoting caller input"));
+    const { root, ui } = mount({ generateMassing }, "p1");
+    ui.renderMassing();
+    btn(root, "Generate IFC model + apply").click();
+    await flush();
+    const host = root.querySelector("#pf-massing") as HTMLElement;
+    expect(host.querySelector("b")).toBeNull();
+    expect(host.textContent).toContain("<b>422</b>");
+  });
+
+  it("SOURCE PIN: every error-message innerHTML sink in proforma/ stays on the escaped path", async () => {
+    // The four sinks fixed on 2026-08-02 took `(e as Error).message` into innerHTML unescaped.
+    // Two are exercised above; the other two live in panels that need a deep api mock to drive,
+    // so pin ALL of them at the source level, DERIVED not enumerated: an interpolation of an
+    // error message into innerHTML must go through escapeHtml (textContent/setStatus are exempt —
+    // they don't parse markup). Down-to-zero is the required state; any new unescaped sink fails.
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const offenders: string[] = [];
+    for (const f of readdirSync(__dirname).filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts"))) {
+      const src = readFileSync(join(__dirname, f), "utf-8");
+      for (const [i, line] of src.split("\n").entries()) {
+        if (/innerHTML\s*[+]?=/.test(line) && /\((e|err) as Error\)\.message/.test(line)
+            && !/escapeHtml\(\((e|err) as Error\)\.message\)/.test(line)) {
+          offenders.push(`${f}:${i + 1}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
 });
 
 describe("renderTestFit (characterization)", () => {
