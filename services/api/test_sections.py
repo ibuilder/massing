@@ -66,7 +66,7 @@ edit.add_spaces(mt, rooms_per_storey=4, ceiling_height=3.0)
 wt = edit.add_wall(mt, [8, 6], [14, 6], 3.0, 0.2, stt)
 edit.add_opening(mt, wt, width=0.9, height=2.1, kind="door")
 mesh_bounds = drawings.bake(mt)
-xs = [b for _, mh in mesh_bounds if getattr(mh, "bounds", None) is not None
+xs = [b for _, _, mh in mesh_bounds if getattr(mh, "bounds", None) is not None
       for b in (mh.bounds[0][0], mh.bounds[1][0])]
 lo_x, hi_x = min(xs), max(xs)
 tags = drawings.space_tags(mt)

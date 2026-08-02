@@ -70,7 +70,7 @@ def _world_settings(geom_mod):
 # A model opened directly (`ifcopenshell.open`, bypassing `open_model`) carries no key; those fall
 # back to identity, which is the previous behaviour and correct — an UNKNOWN identity must not
 # collide with a known one, so it is never given a shared key.
-_BAKE_CACHE: dict[Any, tuple[Any, list[tuple[str, trimesh.Trimesh]], int]] = {}
+_BAKE_CACHE: dict[Any, tuple[Any, list[tuple[str, str, trimesh.Trimesh]], int]] = {}
 _BAKE_CACHE_MAX = 4
 
 #: Byte budget for baked geometry, over the whole cache rather than per entry.
@@ -95,7 +95,7 @@ def _mesh_bytes(meshes) -> int:
     insert; precision here would cost more than the eviction it informs.
     """
     total = 0
-    for _, m in meshes:
+    for _, _, m in meshes:
         for attr in ("vertices", "faces"):
             arr = getattr(m, attr, None)
             nbytes = getattr(arr, "nbytes", None)
@@ -132,7 +132,7 @@ def _bake_key(model: ifcopenshell.file) -> tuple[str, Any]:
     return ("content", key) if key else ("id", id(model))
 
 
-def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
+def bake(model: ifcopenshell.file) -> list[tuple[str, str, trimesh.Trimesh]]:
     """Bake every element's world-space mesh ONCE so many views can section the same set. Cached by
     the model's content identity (see CACHE-KEY) — repeated views of one file tessellate only once,
     and a re-published file is a different key rather than a stale hit."""
@@ -145,14 +145,20 @@ def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
     # Cross-process: another worker may already have tessellated this exact file. Only content keys
     # are shared — an `id()` key names an address in ONE process's heap and would be a collision
     # waiting to happen if it were ever written somewhere other processes read.
-    shared_key = key[1] if key[0] == "content" else None
+    # The "g1:" prefix is a FORMAT version, not decoration. R38-PLAN-IDENTITY widened the payload
+    # from (cls, verts, faces) to (guid, cls, verts, faces); a persisted cache written by an older
+    # build holds the narrow shape under the same content hash. Unpacking it would raise, and while
+    # the except below would catch that and re-bake, relying on an exception to detect a format is
+    # how a cache quietly serves the wrong thing the day the shapes happen to be compatible. A
+    # versioned key means the two formats never meet.
+    shared_key = ("g1:" + key[1]) if key[0] == "content" else None
     if shared_key:
         from . import bake_shared
         payload = bake_shared.get(shared_key)
         if payload:
             try:
-                meshes = [(cls, trimesh.Trimesh(vertices=v, faces=f, process=False))
-                          for cls, v, f in payload]
+                meshes = [(guid, cls, trimesh.Trimesh(vertices=v, faces=f, process=False))
+                          for guid, cls, v, f in payload]
                 _BAKE_CACHE[key] = (model, meshes, _mesh_bytes(meshes))
                 _evict_to_budget()
                 return meshes
@@ -167,7 +173,8 @@ def bake(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
         # Arrays, not trimesh objects: a pickled third-party object is a format that moves when that
         # library upgrades, and an entry that deserialises into something subtly different is worse
         # than a miss.
-        bake_shared.put(shared_key, [(cls, m.vertices, m.faces) for cls, m in meshes])
+        bake_shared.put(shared_key,
+                        [(guid, cls, m.vertices, m.faces) for guid, cls, m in meshes])
     return meshes
 
 
@@ -177,7 +184,7 @@ def world_bounds(model: ifcopenshell.file) -> tuple[list[float], list[float]] | 
     for a drawing (free), else runs a lean vert-only pass. None when the model has no geometry."""
     hit = _BAKE_CACHE.get(_bake_key(model))   # keyed by content since v0.3.722; id() never hit
     if hit is not None and hit[0] is model and hit[1]:
-        pts = np.vstack([m.bounds for _, m in hit[1] if getattr(m, "bounds", None) is not None])
+        pts = np.vstack([m.bounds for _, _, m in hit[1] if getattr(m, "bounds", None) is not None])
         return list(pts.min(axis=0)), list(pts.max(axis=0))
     it = bounded_iterator(geom, _world_settings(geom), model)
     if not it.initialize():
@@ -194,9 +201,17 @@ def world_bounds(model: ifcopenshell.file) -> tuple[list[float], list[float]] | 
     return (list(mn), list(mx)) if np.isfinite(mn).all() else None
 
 
-def _bake_uncached(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]]:
+def _bake_uncached(model: ifcopenshell.file) -> list[tuple[str, str, trimesh.Trimesh]]:
+    """R38-PLAN-IDENTITY: `(guid, ifc_class, mesh)`.
+
+    The GlobalId was always in hand here — `shape.guid` is what `by_guid` is called with two lines
+    down — and it used to be dropped on the floor, so every polyline downstream was anonymous and no
+    drawing could name what it drew. Carrying it costs one string per element and is the difference
+    between a drawing and a picture of one: 2D↔3D selection sync, click-a-wall-in-plan and precise
+    pin anchoring all need the element behind the line, not just its class.
+    """
     it = bounded_iterator(geom, _world_settings(geom), model)
-    meshes: list[tuple[str, trimesh.Trimesh]] = []
+    meshes: list[tuple[str, str, trimesh.Trimesh]] = []
     if not it.initialize():
         return meshes
     skipped = 0                              # parse-robustness: count + log, never silently thin the set
@@ -208,7 +223,8 @@ def _bake_uncached(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]
             el = model.by_guid(shape.guid)
             cls = el.is_a() if el else shape.type
             try:
-                meshes.append((cls, trimesh.Trimesh(vertices=verts, faces=faces, process=False)))
+                meshes.append((shape.guid, cls,
+                               trimesh.Trimesh(vertices=verts, faces=faces, process=False)))
             except Exception as exc:         # noqa: BLE001 — one bad mesh must not kill the whole bake
                 skipped += 1
                 log.debug("drawings.bake: unbuildable mesh %s (%s): %s", shape.guid, cls, exc)
@@ -220,7 +236,7 @@ def _bake_uncached(model: ifcopenshell.file) -> list[tuple[str, trimesh.Trimesh]
     return meshes
 
 
-def cut_baked(meshes: list[tuple[str, trimesh.Trimesh]], view: str, offset: float,
+def cut_baked(meshes: list[tuple[str, str, trimesh.Trimesh]], view: str, offset: float,
               classes: list[str] | None = None) -> list[np.ndarray]:
     """Section pre-baked meshes; returns (n,2) polylines in the view's drawing plane."""
     normal, axes = _VIEWS[view]
@@ -228,7 +244,7 @@ def cut_baked(meshes: list[tuple[str, trimesh.Trimesh]], view: str, offset: floa
     want = {c.lower() for c in classes} if classes else None
     polylines: list[np.ndarray] = []
     skipped = 0
-    for cls, mesh in meshes:
+    for _guid, cls, mesh in meshes:
         if want and cls.lower() not in want:
             continue
         try:
@@ -245,14 +261,44 @@ def cut_baked(meshes: list[tuple[str, trimesh.Trimesh]], view: str, offset: floa
     return polylines
 
 
-def cut_baked_classed(meshes: list[tuple[str, trimesh.Trimesh]], view: str,
+def cut_baked_guided(meshes: list[tuple[str, str, trimesh.Trimesh]], view: str,
+                     offset: float) -> list[tuple[str, str, np.ndarray]]:
+    """R38-PLAN-IDENTITY: like `cut_baked_classed`, but each polyline keeps the **GlobalId** of the
+    element it came from — `(guid, ifc_class, polyline)`.
+
+    This is the whole point of the ring: a plan whose linework carries identity is data, and one
+    whose linework carries only a class is a picture. With the guid attached, a click in plan
+    resolves to the same element the 3D view selects, and a pin dropped on a wall in a drawing
+    anchors to that wall rather than to a coordinate that stops meaning anything the moment the
+    model moves.
+
+    **One element yields several polylines** — a wall cut at a doorway sections into two or more
+    loops — so guids repeat down the list. That is the honest shape: the caller groups by guid. The
+    alternative (one entry per element) would have to merge disjoint loops into a single polyline
+    and would misdraw exactly the openings that make a plan worth reading.
+    """
+    normal, axes = _VIEWS[view]
+    origin = normal * offset
+    out: list[tuple[str, str, np.ndarray]] = []
+    for guid, cls, mesh in meshes:
+        try:
+            sec = mesh.section(plane_origin=origin, plane_normal=normal)
+            if sec is not None:
+                for poly in sec.discrete:
+                    out.append((guid, cls, np.asarray(poly)[:, axes]))
+        except Exception:                    # noqa: BLE001 — mirror cut_baked's per-mesh tolerance
+            continue
+    return out
+
+
+def cut_baked_classed(meshes: list[tuple[str, str, trimesh.Trimesh]], view: str,
                       offset: float) -> list[tuple[str, np.ndarray]]:
     """DISC-poché variant of `cut_baked`: each polyline keeps its element's IFC class, so the plan can
     stroke by discipline."""
     normal, axes = _VIEWS[view]
     origin = normal * offset
     out: list[tuple[str, np.ndarray]] = []
-    for cls, mesh in meshes:
+    for _guid, cls, mesh in meshes:
         try:
             sec = mesh.section(plane_origin=origin, plane_normal=normal)
             if sec is not None:
@@ -269,7 +315,7 @@ def cut(model: ifcopenshell.file, view: str, offset: float,
     return cut_baked(bake(model), view, offset, classes)
 
 
-def below_footprint_baked(meshes: list[tuple[str, trimesh.Trimesh]], cut_z: float, depth_z: float,
+def below_footprint_baked(meshes: list[tuple[str, str, trimesh.Trimesh]], cut_z: float, depth_z: float,
                           classes: list[str] | None = None) -> list[np.ndarray]:
     """VIEW-RANGE 'below' linework: the plan footprint of elements whose body lies **below** the cut plane
     but no deeper than the view-depth plane (`depth_z`) — e.g. footings/foundations under the slab that a
@@ -280,7 +326,7 @@ def below_footprint_baked(meshes: list[tuple[str, trimesh.Trimesh]], cut_z: floa
     normal, axes = _VIEWS["plan"]
     want = {c.lower() for c in classes} if classes else None
     out: list[np.ndarray] = []
-    for cls, mesh in meshes:
+    for _guid, cls, mesh in meshes:
         if want and cls.lower() not in want:
             continue
         try:
@@ -357,7 +403,7 @@ def grid_from_meshes(meshes, tol: float = 0.4) -> dict[str, list[tuple[float, st
     """Derive a structural grid from IfcColumn centres (no IfcGrid in many IFC exports).
     Vertical lines (constant X) are numbered 1,2,3…; horizontal lines (constant Y) A,B,C…"""
     cxs, cys = [], []
-    for cls, mesh in meshes:
+    for _guid, cls, mesh in meshes:
         if cls.lower() != "ifccolumn":
             continue
         c = mesh.bounds.mean(axis=0) if mesh.bounds is not None else None
@@ -894,7 +940,7 @@ def elevation_outlines(meshes, direction: str, with_depth: bool = False):
     axes, flip, depth_axis, near = _DIRS.get(direction, _DIRS["north"])
     outs = []
     skipped = 0
-    for _cls, mesh in meshes:
+    for _guid, _cls, mesh in meshes:
         pts = mesh.vertices[:, axes]
         if len(pts) < 3:
             continue
@@ -994,11 +1040,11 @@ def elevation(model: ifcopenshell.file, direction: str = "north", title: str | N
     return elevation_svg(meshes, direction, levels, title or f"{direction.upper()} ELEVATION", grid=grid)
 
 
-def _axis_center(meshes: list[tuple[str, trimesh.Trimesh]], ax: int) -> float:
+def _axis_center(meshes: list[tuple[str, str, trimesh.Trimesh]], ax: int) -> float:
     """Midpoint of the model's extent along world axis `ax` (0=x, 1=y) from the baked meshes —
     so an auto-placed section cuts through the building, not the world origin."""
     lo = hi = None
-    for _, m in meshes:
+    for _, _, m in meshes:
         b = getattr(m, "bounds", None)
         if b is None:
             continue
@@ -1804,7 +1850,7 @@ def default_sheet(model: ifcopenshell.file, meta: dict, page: str = "A3", fmt: s
     evenly across the building (a tall tower has one sheet per level in the full set — cramming 30 plans on
     one page is neither fast nor legible). Returns SVG string or PDF bytes."""
     meshes = bake(model)
-    xs = [m.bounds for _, m in meshes if m.bounds is not None]
+    xs = [m.bounds for _, _, m in meshes if m.bounds is not None]
     mid_x = float(np.mean([b[:, 0].mean() for b in xs])) if xs else 0.0
 
     storeys = storey_elevations(model)
