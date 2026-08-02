@@ -1399,7 +1399,7 @@ Python). Revisit only when a Python Fragments writer exists upstream.
 
 A full task list from a repowise health scan: 2 import cycles, 11 oversized files, 139 dead-code
 findings (~1,075 lines), 349 single-owner hotspot files, 636 small local refactors. It is real work
-— and **its index is dated 2026-07-17 (`f3b171f0`), which is ~150 releases behind main.** Every
+— and **its index is dated 2026-07-17 (commit f3b171f0 = v0.3.363), which is 455 releases behind main at v0.3.818.** The first draft of this sentence said "~150", an unverified guess that understated the staleness threefold — in the one section whose whole thesis is that unverified numbers get people hurt. Counted from the tag list, not estimated. Every
 claim must be premise-checked against TODAY's tree before acting; several are already known-wrong:
 
 * Its §4 ("9 high security findings, detail paywalled") is **already covered and mostly closed** —
@@ -1420,11 +1420,22 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   against the REL-3/REL-4 decompositions already landed. Output: this section rewritten with each
   item marked VERIFIED-OPEN or ALREADY-CLOSED, so the execution order below runs on facts.
 
-Execution order after triage (the backlog's own, amended): break the two cycles → split
-`modules.py` / `main.py` / `codecheck.py` along their measured seams (coordinate with REL-3's
-existing leaf pattern) → delete only VERIFIED dead exports → refactor `vite.config.ts` and
-`main.ts` (overlaps R36-RAIL-SCOPE; do them together, not twice) → hotspot tests → small-effort
-batch work when already in a file.
+Execution order after triage (the backlog's own, amended). **Paths are directory-qualified because
+both basenames the backlog cites are ambiguous** — `modules.py` and `codecheck.py` each match two
+tracked files, and the wrong-directory misroute is exactly how lanes collide:
+
+1. Break the two cycles (`services/api/src/aec_api/db.py` ring; `apps/web/src/portal/panelContext.ts` ring).
+2. Split `services/api/src/aec_api/modules.py` (982 lines — Lane C) and
+   `services/api/src/aec_api/main.py` (Lane G convention applies: announce first, it is a shared
+   file). The backlog's "codecheck.py" split almost certainly means
+   `services/api/src/aec_api/routers/codecheck.py` (614 lines) — that is the **routers carve-out
+   Lane C does not own**; whoever takes it claims it as a routers change, not under this item. The
+   non-router `services/api/src/aec_api/codecheck.py` is 184 lines and needs no split.
+3. Delete only VERIFIED dead exports.
+4. The web-side refactors (`apps/web/vite.config.ts`, `apps/web/src/main.ts`) are **Lane A work and
+   belong to R36-RAIL-SCOPE's owner** — they are listed here for sequence only, not routed by this
+   Lane C item; a C session must not pick them up off this list.
+5. Hotspot tests, then small-effort batch work when already in a file.
 
 ## 🧭 R36 — ROOM COHESION RING *(three user directives, 2026-08-02: the rooms must each be a product)*
 
