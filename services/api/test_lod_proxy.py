@@ -118,6 +118,55 @@ check("structure is not in the default proxy set",
 check("the proxy marker constants are exported so a reader can find them",
       lod.PROXY_PSET == "AEC_LOD" and lod.PROXY_NAME_PREFIX.startswith("LOD Proxy"))
 
+# --- 4. THE ROUTES — because an engine nothing can call is the defect this repo keeps finding -------
+# `test_reachable` scans `aec_api` only, so it is structurally unable to see an orphan in `aec_data`.
+# lod.py was imported by nothing but its own tests until these landed. Asserted over HTTP, because a
+# route in a file is not a route.
+import os as _os  # noqa: E402
+
+_os.environ["DATABASE_URL"] = "sqlite:///./test_lod_proxy_route.db"
+_os.environ["STORAGE_DIR"] = "./test_storage_lod_proxy_route"
+_os.environ.pop("AEC_RBAC", None)
+for _f in ("./test_lod_proxy_route.db",):
+    if _os.path.exists(_f):
+        _os.remove(_f)
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.db import SessionLocal  # noqa: E402
+from aec_api.main import app  # noqa: E402
+from aec_api.models import Project  # noqa: E402
+
+with TestClient(app) as client:
+    client.headers.update({"X-User": "lod@test"})
+    pid = client.post("/projects", json={"name": "LOD"}).json()["id"]
+
+    r = client.get(f"/projects/{pid}/model/lod/census")
+    check("the census route 409s without a source model, rather than 500ing",
+          r.status_code == 409, r.status_code)
+    r = client.post(f"/projects/{pid}/model/lod/proxy", json={})
+    check("  and so does the proxy route", r.status_code == 409, r.status_code)
+
+    if have_src:
+        with SessionLocal() as db:
+            proj = db.get(Project, pid)
+            proj.source_ifc = _os.path.abspath(SRC)
+            db.commit()
+
+        c = client.get(f"/projects/{pid}/model/lod/census?max_elements=800").json()
+        check("the census route answers over HTTP", c["elements_examined"] == 800,
+              c.get("elements_examined"))
+        check("  it reports the cap it hit", c["capped"] is True, c)
+        check("  and the PLAN marks its saving a lower bound, so a capped 0% is not read as a verdict",
+              c["plan"]["saving_is_lower_bound"] is True, c["plan"])
+
+        pr = client.post(f"/projects/{pid}/model/lod/proxy", json={}).json()
+        check("the proxy route stores an artefact", pr.get("stored") is True, pr.get("reason"))
+        check("  replacing every reinforcing bar", pr["elements_replaced"] == 619,
+              pr["elements_replaced"])
+        check("  and keys it beside the model", str(pr.get("key", "")).endswith("model.lod.ifc"),
+              pr.get("key"))
+
 print()
 if FAILED:
     print(f"lod_proxy: {len(FAILED)} FAILED — {FAILED}")
