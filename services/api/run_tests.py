@@ -72,7 +72,15 @@ TESTS = ["test_proforma", "test_renovation", "test_rollover", "test_income_basis
          # public docs are a shipped surface: competitor names for interop only, never comparison:
          "test_no_comparative_names",
          # this list is itself hand-maintained, so it gets a test of its own:
-         "test_no_secrets", "test_race_conditions", "test_lock_satisfies_requirements", "test_manifest"]
+         "test_no_secrets", "test_race_conditions", "test_lock_satisfies_requirements", "test_manifest",
+         # 2026-08-02 merge-train repair: the eleven-PR merge dropped these six registrations while
+         # landing their files — the packed-line hazard, fifth direction. Registered from a disk diff
+         # (manifest_problems named them), each run locally first: four green; preflight_covers_settings
+         # and stored_collection_caps red because their companion CODE hunks (preflight guards for
+         # AEC_ALLOW_IFC_CODE/AEC_SEAL_ALLOW_PROFILE; codes.MAX_AMENDMENTS) were ALSO dropped —
+         # Security restores those from their branches; an unregistered test hides that honest red.
+         "test_dispatcher_privilege_coverage", "test_ifc_path_containment", "test_outbound_fetch_guard",
+         "test_preflight_covers_settings", "test_storage_key_parity", "test_stored_collection_caps"]
 
 
 #: Engine tests that live beside the data service (services/data/test_*.py) — the massing /
