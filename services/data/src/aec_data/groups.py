@@ -80,6 +80,7 @@ def array_element(model: ifcopenshell.file, guid: str, nx: int = 2, ny: int = 1,
     nx = max(1, int(nx))
     ny = max(1, int(ny))
     made: list[str] = []
+    cells: list[tuple[str, int, int]] = [(guid, 0, 0)]
     for i in range(nx):
         for j in range(ny):
             if i == 0 and j == 0:
@@ -87,7 +88,217 @@ def array_element(model: ifcopenshell.file, guid: str, nx: int = 2, ny: int = 1,
             g = copy_element(model, guid, dx * i, dy * j, dz * i)
             _detach_inherited(model, model.by_guid(g))     # arrayed copies are independent occurrences
             made.append(g)
-    return {"source": guid, "guids": made, "count": len(made)}
+            cells.append((g, i, j))
+
+    # R38-ARRAY-LIVE: persist the DEFINITION, not just the copies. Until this existed the array was a
+    # one-shot — it produced independent elements and stored nothing, so there was nothing to re-edit
+    # and changing a count meant deleting copies by hand. The group carries nx/ny/pitch, each member
+    # carries its cell, and `set_array_params` reconciles the two.
+    #
+    # Note the ORDER: `_detach_inherited` above strips the copies' inherited group assignments so that
+    # arraying a grouped element does not swell the SOURCE's group. The array group is assigned after
+    # that, deliberately — it is a new membership, not a survival of the old one.
+    grp = ifcopenshell.api.run("group.add_group", model,
+                               name=f"{ARRAY_GROUP_PREFIX} {model.by_guid(guid).is_a()} {guid[:6]}")
+    for g, i, j in cells:
+        el = model.by_guid(g)
+        _write_pset(model, el, ARRAY_MEMBER_PSET, {"i": i, "j": j})
+        ifcopenshell.api.run("group.assign_group", model, group=grp, products=[el])
+    _write_pset(model, grp, ARRAY_PSET,
+                {"source": guid, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "dz": dz})
+    return {"source": guid, "guids": made, "count": len(made),
+            "group": grp.GlobalId, "nx": nx, "ny": ny}
+
+
+#: The array definition lives on the IfcGroup; each member carries its own cell index. Both are
+#: ordinary property sets, so the array survives a round-trip through any IFC tool rather than
+#: living in a sidecar this application would be the only reader of.
+ARRAY_PSET = "Pset_MassingArray"
+ARRAY_MEMBER_PSET = "Pset_MassingArrayMember"
+ARRAY_GROUP_PREFIX = "Array"
+
+#: How far (metres) a member may sit from its cell before it counts as MOVED. Generous on purpose:
+#: the question is "did a person put this somewhere else", not "is the float exact".
+ARRAY_MOVED_TOL = 1e-3
+
+
+def _pset_of(el, name: str) -> dict:
+    import ifcopenshell.util.element as ue
+    return (ue.get_psets(el) or {}).get(name, {}) or {}
+
+
+def _write_pset(model, el, name: str, props: dict) -> None:
+    import ifcopenshell.util.element as ue
+    existing = (ue.get_psets(el, psets_only=True) or {}).get(name)
+    ps = (model.by_id(existing["id"]) if existing and existing.get("id")
+          else ifcopenshell.api.run("pset.add_pset", model, product=el, name=name))
+    ifcopenshell.api.run("pset.edit_pset", model, pset=ps, properties=props)
+
+
+def _origin_of(el) -> tuple[float, float, float]:
+    """World translation of an element's placement, as (x, y, z)."""
+    import ifcopenshell.util.placement as up
+    mtx = up.get_local_placement(el.ObjectPlacement)
+    return (float(mtx[0][3]), float(mtx[1][3]), float(mtx[2][3]))
+
+
+def _array_group(model: ifcopenshell.file, guid: str):
+    """The array group a GUID belongs to (as source or member), or None."""
+    try:
+        el = model.by_guid(guid)
+    except Exception:  # noqa: BLE001
+        return None
+    for rel in list(getattr(el, "HasAssignments", None) or []):
+        if rel.is_a("IfcRelAssignsToGroup"):
+            grp = rel.RelatingGroup
+            if _pset_of(grp, ARRAY_PSET):
+                return grp
+    return None
+
+
+def array_params(model: ifcopenshell.file, guid: str) -> dict[str, Any]:
+    """The live array definition covering `guid`, or `{"array": None}` when it is not in one.
+
+    Reported rather than inferred: an element that merely *looks* arrayed (three walls in a row
+    somebody drew by hand) has no definition, and guessing one would let a later count change
+    delete elements nobody arrayed.
+    """
+    grp = _array_group(model, guid)
+    if grp is None:
+        return {"array": None,
+                "note": "this element is not part of a stored array; "
+                        "arrays created before R38-ARRAY-LIVE stored no definition"}
+    p = _pset_of(grp, ARRAY_PSET)
+    members = []
+    for rel in (grp.IsGroupedBy or []):
+        for m in (rel.RelatedObjects or []):
+            mp = _pset_of(m, ARRAY_MEMBER_PSET)
+            members.append({"guid": m.GlobalId, "i": int(mp.get("i", 0)), "j": int(mp.get("j", 0)),
+                            "is_source": m.GlobalId == p.get("source")})
+    members.sort(key=lambda r: (r["i"], r["j"]))
+    return {"array": {"group": grp.GlobalId, "name": grp.Name, "source": p.get("source"),
+                      "nx": int(p.get("nx", 1)), "ny": int(p.get("ny", 1)),
+                      "dx": float(p.get("dx", 0.0)), "dy": float(p.get("dy", 0.0)),
+                      "dz": float(p.get("dz", 0.0)), "members": members,
+                      "member_count": len(members)}}
+
+
+def _expected_origin(base: tuple[float, float, float], i: int, j: int,
+                     dx: float, dy: float, dz: float) -> tuple[float, float, float]:
+    return (base[0] + dx * i, base[1] + dy * j, base[2] + dz * i)
+
+
+def _moved(el, base, i, j, dx, dy, dz) -> float:
+    """Distance between where a member IS and where its cell says it should be."""
+    ex, ey, ez = _expected_origin(base, i, j, dx, dy, dz)
+    ax, ay, az = _origin_of(el)
+    return max(abs(ax - ex), abs(ay - ey), abs(az - ez))
+
+
+def set_array_params(model: ifcopenshell.file, guid: str, nx: int | None = None,
+                     ny: int | None = None, dx: float | None = None, dy: float | None = None,
+                     dz: float | None = None, force: bool = False) -> dict[str, Any]:
+    """R38-ARRAY-LIVE — change a placed array's count or pitch, adding and removing members to match.
+
+    Omitted parameters keep their stored value, so a caller can change only the count.
+
+    **Shrinking an array DELETES elements, and that is the whole risk of this recipe.** A member that
+    has been moved away from its cell is no longer a generated copy — somebody authored it — and
+    deleting it destroys work that cannot be recovered from the definition. So a member whose actual
+    placement differs from its cell by more than `ARRAY_MOVED_TOL` is **refused**: nothing is deleted,
+    the offending members are named with their offsets, and the caller can pass `force=True` to say
+    "yes, delete them anyway". The default is the safe one because the dangerous default here is the
+    plausible one — an array editor that silently drops edited members looks like it is working.
+
+    Re-pitching has the same hazard in a quieter form: moving a member that a person repositioned
+    would silently discard their placement. Moved members are therefore left where they are and
+    reported in `kept_moved`, rather than being snapped back to the grid.
+    """
+    info = array_params(model, guid)
+    if not info["array"]:
+        return {"status": "not_an_array", "changed": False, **info}
+    a = info["array"]
+    grp = model.by_guid(a["group"])
+    src_guid = a["source"]
+    try:
+        src = model.by_guid(src_guid)
+    except Exception:  # noqa: BLE001
+        return {"status": "source_missing", "changed": False, "source": src_guid,
+                "note": "the array's source element is gone; the definition cannot be re-evaluated "
+                        "without it. Nothing was changed."}
+
+    nx = max(1, int(a["nx"] if nx is None else nx))
+    ny = max(1, int(a["ny"] if ny is None else ny))
+    dx = float(a["dx"] if dx is None else dx)
+    dy = float(a["dy"] if dy is None else dy)
+    dz = float(a["dz"] if dz is None else dz)
+
+    base = _origin_of(src)
+    by_cell = {(m["i"], m["j"]): m for m in a["members"]}
+    wanted = {(i, j) for i in range(nx) for j in range(ny)}
+
+    # --- members that fall outside the new extent are deletion candidates ---------------------------
+    doomed = [m for (i, j), m in by_cell.items() if (i, j) not in wanted and not m["is_source"]]
+    authored = []
+    for m in doomed:
+        try:
+            el = model.by_guid(m["guid"])
+        except Exception:  # noqa: BLE001 — already gone; nothing to protect
+            continue
+        off = _moved(el, base, m["i"], m["j"], a["dx"], a["dy"], a["dz"])
+        if off > ARRAY_MOVED_TOL:
+            authored.append({**m, "offset_m": round(off, 4)})
+    if authored and not force:
+        return {"status": "would_delete_authored", "changed": False,
+                "authored_members": authored, "would_delete": len(doomed),
+                "note": (f"{len(authored)} of {len(doomed)} member(s) due for deletion have been MOVED "
+                         "from their cell, so they are authored elements rather than generated copies. "
+                         "Nothing was deleted. Re-send with force=true to delete them anyway — this is "
+                         "refused by default because an array editor that silently drops edited "
+                         "members looks exactly like one that is working.")}
+
+    from .edit import copy_element, delete_element
+
+    removed = [m["guid"] for m in doomed]
+    for g in removed:
+        delete_element(model, g)
+
+    # --- fill the cells the new extent adds ---------------------------------------------------------
+    added: list[dict] = []
+    for i in range(nx):
+        for j in range(ny):
+            if (i, j) in by_cell or (i == 0 and j == 0):
+                continue
+            ox, oy, oz = _expected_origin(base, i, j, dx, dy, dz)
+            g = copy_element(model, src_guid, ox - base[0], oy - base[1], oz - base[2])
+            el = model.by_guid(g)
+            _detach_inherited(model, el)
+            _write_pset(model, el, ARRAY_MEMBER_PSET, {"i": i, "j": j})
+            ifcopenshell.api.run("group.assign_group", model, group=grp, products=[el])
+            added.append({"guid": g, "i": i, "j": j})
+
+    # --- members a person repositioned stay put, and are reported ------------------------------------
+    kept_moved = []
+    if (dx, dy, dz) != (a["dx"], a["dy"], a["dz"]):
+        for (i, j), m in by_cell.items():
+            if (i, j) not in wanted or m["is_source"]:
+                continue
+            try:
+                el = model.by_guid(m["guid"])
+            except Exception:  # noqa: BLE001
+                continue
+            if _moved(el, base, i, j, a["dx"], a["dy"], a["dz"]) > ARRAY_MOVED_TOL:
+                kept_moved.append({**m, "note": "repositioned by hand; left where it is"})
+
+    _write_pset(model, grp, ARRAY_PSET,
+                {"source": src_guid, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "dz": dz})
+    return {"status": "ok", "changed": bool(added or removed),
+            "group": a["group"], "source": src_guid,
+            "nx": nx, "ny": ny, "dx": dx, "dy": dy, "dz": dz,
+            "added": added, "removed": removed, "kept_moved": kept_moved,
+            "forced": bool(force and authored),
+            "note": ("members repositioned by hand were left in place, not snapped back to the grid"
+                     if kept_moved else "")}
 
 
 def _detach_inherited(model: ifcopenshell.file, el) -> None:
