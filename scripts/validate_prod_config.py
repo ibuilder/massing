@@ -75,6 +75,37 @@ pg_pass_default = "postgres" in db and ":postgres@" in db
 if is_postgres and pg_pass_default:
     FAIL.append("DATABASE_URL uses the default postgres password - set a real one.")
 
+# --- controls added v0.3.807-v0.3.814 ------------------------------------------------------------
+# Each of these is documented in SECURITY.md and, until now, validated by nothing. A setting that is
+# written down but never checked is the operator equivalent of a gate that never runs.
+
+if env("AEC_ALLOW_IFC_CODE") == "1":
+    FAIL.append("AEC_ALLOW_IFC_CODE=1 executes caller-supplied Python against the model. It is a "
+                "development affordance; on an exposed deployment it is arbitrary code execution "
+                "inside the API process.")
+if env("AEC_SEAL_ALLOW_PROFILE") == "1":
+    FAIL.append("AEC_SEAL_ALLOW_PROFILE=1 restores the caller-supplied seal identity, so an "
+                "authenticated user can apply a PE/RA seal under another person's name and licence "
+                "number. Leave it unset unless a legacy integration genuinely requires it.")
+if not env("AEC_ADMIN_EMAILS"):
+    WARN.append("AEC_ADMIN_EMAILS is unset - with RBAC on, NO account can reach platform-admin "
+                "operations: firm standards, the audit feed, user management, cost-vintage imports, "
+                "or recording the professional licences that sealing requires. Sealing refuses until "
+                "a licence row exists, and only a platform admin can create one.")
+if env("AEC_WEBHOOK_ALLOW_PRIVATE") != "0":
+    WARN.append("AEC_WEBHOOK_ALLOW_PRIVATE is not '0' - webhook targets resolving to private or "
+                "loopback addresses are permitted. That is a legitimate on-prem choice (a LAN "
+                "automation host); on hosted/multi-tenant it is the standard cloud-metadata and "
+                "intranet-probing surface. Decide explicitly rather than inheriting the default.")
+if not env("AEC_ESIGN_WEBHOOK_SECRET"):
+    WARN.append("AEC_ESIGN_WEBHOOK_SECRET is unset - the e-signature provider webhook is the one "
+                "anonymous surface that writes audit rows. Unset it stays open (throttled, capped, "
+                "each row stamped signature_verified: false); set it to verify an HMAC over the raw "
+                "body. Only relevant when the e-signature bridge is configured.")
+if not env("AEC_CORS_ORIGINS"):
+    WARN.append("AEC_CORS_ORIGINS is unset - CORS falls back to the dev origin. Pin it to the real "
+                "web origin so a hostile page cannot make credentialed calls from a browser.")
+
 # --- report --------------------------------------------------------------------------------------
 print("Production preflight")
 print("=" * 60)
