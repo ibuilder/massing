@@ -55,3 +55,8 @@ opentelemetry-sdk>=1.27
 opentelemetry-exporter-otlp-proto-http>=1.27
 opentelemetry-instrumentation-fastapi>=0.48b0
 opentelemetry-instrumentation-sqlalchemy>=0.65b0
+
+# --- R28-ICDD: ISO 21597 Information Container (icdd.py) ---
+# BSD-3, approved 2026-07-26 and recorded in ATTRIBUTIONS.md. Pinned in the change that FIRST USES
+# it, per the roadmap: a dependency carried ahead of its code is supply-chain surface for no benefit.
+rdflib>=7.1
