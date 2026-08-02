@@ -314,6 +314,22 @@ def export_records_bcfzip(records: list[dict], topic_type: str = "Issue",
     return buf.getvalue()
 
 
+def _folder_viewpoints(z: zipfile.ZipFile, names: list[str], folder: str) -> tuple[list[str], dict | None, list]:
+    """Everything the .bcfv files in one topic folder contribute: selected component GUIDs
+    (accumulated across viewpoints), the camera (last viewpoint that has one wins), and the
+    per-element coloring (last non-empty wins). Shared by both import paths — this loop used to be
+    cloned in `import_bcfzip` and `parse_records_bcfzip`, nesting each of them four levels deep."""
+    comps: list[str] = []
+    cam: dict | None = None
+    coloring: list = []
+    for vp in [n for n in names if n.endswith(".bcfv") and (not folder or n.startswith(folder + "/"))]:
+        vroot = _safe_fromstring(z.read(vp))
+        comps += [g for comp in vroot.findall(".//Selection/Component") if (g := comp.get("IfcGuid"))]
+        cam = _parse_camera(vroot) or cam
+        coloring = _parse_coloring(vroot) or coloring
+    return comps, cam, coloring
+
+
 def parse_records_bcfzip(data: bytes) -> list[dict]:
     """Parse a .bcfzip into record dicts {data:{subject,description,priority}, anchor, element_guids}
     suitable for creating module records. Pulls selected components + camera from any viewpoint."""
@@ -329,19 +345,10 @@ def parse_records_bcfzip(data: bytes) -> list[dict]:
                                    "description": te.findtext("Description"),
                                    "priority": te.findtext("Priority")}
             folder = name.rsplit("/", 1)[0] if "/" in name else ""
-            comps: list[str] = []
-            anchor = None
-            for vp in [n for n in names if n.endswith(".bcfv") and (not folder or n.startswith(folder + "/"))]:
-                vroot = _safe_fromstring(z.read(vp))
-                for comp in vroot.findall(".//Selection/Component"):
-                    g = comp.get("IfcGuid")
-                    if g:
-                        comps.append(g)
-                cam = _parse_camera(vroot)
-                if cam is not None:
-                    anchor = cam.get("position")
+            comps, cam, _ = _folder_viewpoints(z, names, folder)
             out.append({"data": {k: v for k, v in rec.items() if v is not None},
-                        "anchor": anchor, "element_guids": comps,
+                        "anchor": cam.get("position") if cam is not None else None,
+                        "element_guids": comps,
                         "status": te.get("TopicStatus")})
     return out
 
@@ -359,20 +366,8 @@ def import_bcfzip(db: Session, project_id: str, data: bytes) -> int:
                 continue
             # restore the pin (selected components by IFC GUID + camera) from any viewpoint in the folder
             folder = name.rsplit("/", 1)[0] if "/" in name else ""
-            comps: list[str] = []
-            anchor = None
-            cam = None
-            coloring: list = []
-            for vp in [n for n in names if n.endswith(".bcfv") and (not folder or n.startswith(folder + "/"))]:
-                vroot = _safe_fromstring(z.read(vp))
-                for comp in vroot.findall(".//Selection/Component"):
-                    g = comp.get("IfcGuid")
-                    if g:
-                        comps.append(g)
-                cam = _parse_camera(vroot) or cam
-                coloring = _parse_coloring(vroot) or coloring
-                if cam is not None:
-                    anchor = cam.get("position")
+            comps, cam, coloring = _folder_viewpoints(z, names, folder)
+            anchor = cam.get("position") if cam is not None else None
             topic = Topic(
                 project_id=project_id,
                 guid=te.get("Guid"),

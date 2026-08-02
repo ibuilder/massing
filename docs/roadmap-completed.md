@@ -35,7 +35,17 @@ item landed without either touching the other's files.
   adds the two draw tools (width param; rise = active storey → next) and SR / RP shortcuts.
   Follow-on (folded into R38-PUSHPULL): show the compliance report live while dragging.
 
-Remaining from Wave 1: R38-PUSHPULL (the face-drag extrude gesture, recipe-parameter-safe).
+- **R38-PUSHPULL** *(v0.3.821)* — the hero gesture, closed the same day: a single vertical handle
+  at the selected element's top face, a base-anchored amber ghost (the bottom face never moves —
+  the preview agrees with what the recipe will do), committed through the pre-existing
+  "set_extrusion_depth" recipe (IfcExtrudedAreaSolid.Depth edited in place, GUID-stable; the server
+  refuses non-extrusions, so no client allowlist to drift). Premise-check found the server half
+  already existed — the E3 registry comment literally reads "pull an existing extrusion's depth" —
+  so the M-sized item was in fact the gesture alone. Safety rails pure and tested: sub-5 mm drags
+  commit nothing, downward drags clamp above zero, base-anchor invariant pinned for every delta.
+
+**Wave 1 complete** (v0.3.819–821). Carried forward as R38-STAIR-LIVE: the live riser/tread
+readout while dragging a stair run.
 
 ## Reconciliation 2026-07-31 (v0.3.808-810) — eighteen items closed, and how many premises failed
 

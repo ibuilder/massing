@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.822 — the stair tells you while you draw it
+
+### Added — R38-STAIR-LIVE: the consequence, shown before the commit
+
+While a stair or ramp run is being dragged out, the status line now says what *this* length means —
+"stair 16 risers @ 0.188 · tread 0.300 ✓", or "✗ tread < 0.25 — lengthen the run" — live, against
+the same limits the server reports, before any geometry is authored. The client mirror's constants
+are pinned by test to the server's values and its sample cases reproduce the server test's own
+numbers, because a drifted mirror showing green for a run the server calls out-of-limits would be
+worse than no readout. Still a report, never a gate: the run authors exactly where it is drawn.
+
+## v0.3.821 — the hero gesture: grab the top, pull
+
+### Added — R38-PUSHPULL: drag a handle, the extrusion deepens
+
+Select a wall, a column, a slab, a sketch mass — a single vertical handle appears at its top face,
+and dragging it makes the element taller or thicker with a base-anchored amber ghost for feedback:
+the bottom face stays exactly where the element stands and only the top follows the hand, because
+that is what the commit will actually do. On release the gesture writes through
+`set_extrusion_depth` — a recipe-parameter edit on IfcExtrudedAreaSolid.Depth, GUID-stable, psets
+and references intact — never arbitrary mesh. Elements that are not simple extrusions are refused
+by the server through the normal recipe error path, so there is no client-side allowlist to drift.
+
+The safety rails are pure functions with their own tests: a fumbled click (sub-5 mm drag) commits
+nothing, a hard downward drag clamps above zero instead of inverting the solid, and the ghost's
+base-anchor invariant is pinned for every delta. Push/pull and move are mutually exclusive modes —
+two gizmos on one bounding box read as noise.
+
+Wave 1 of the Design Room ring is now fully shipped; what remains folded forward is the live
+riser/tread readout while dragging a stair run.
+
 ## v0.3.820 — draw a stair where you mean it, type the length you think in
 
 ### Added — R38 Wave 1: dimension-first input, and the room's first stair

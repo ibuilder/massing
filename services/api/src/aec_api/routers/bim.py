@@ -543,6 +543,27 @@ def scene_package_zip(pid: str, db: Session = Depends(get_db),
     })
 
 
+@router.post("/projects/preview-bundle")
+async def preview_bundle(file: UploadFile = File(...), _sec: str = Depends(rbac.current_user)):
+    """R28-BUNDLE — what a container holds, WITHOUT importing it.
+
+    Export has always stated what it leaves behind; import had no counterpart, so the only way to
+    learn a bundle's contents was to import it — which creates a project. "Open it to find out what
+    is in it" is not a choice a user can decline.
+
+    Reads the manifest only: no extraction, no writes, no project. It reuses the importer's own
+    validation, so a container that previews cleanly is one that will import, and one written by a
+    newer build is refused HERE — before the user commits — rather than at import.
+
+    The response repeats what will NOT arrive (accounts, audit log, settings, connections), because
+    that is the part a user is most likely to assume travelled, and the moment to say so is before
+    the import rather than in a manifest they may never open.
+    """
+    from .. import bundle as bundle_io
+    data = await file.read()
+    return await run_in_threadpool(bundle_io.preview_bundle, data)
+
+
 @router.post("/projects/import-bundle", response_model=ProjectOut, status_code=201)
 async def import_bundle(file: UploadFile = File(...), name: str | None = Form(None),
                         db: Session = Depends(get_db)):

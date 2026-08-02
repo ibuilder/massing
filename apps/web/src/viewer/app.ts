@@ -39,6 +39,8 @@ import { type LogisticsResource } from "../api/client";
 import { DraftProxyLayer } from "./draft/draftProxy";
 import { populate4dPanel } from "./fourD";
 import { TransformGizmo } from "./draft/transformGizmo";
+import { PushPullGizmo } from "./draft/pushPull";
+import { DEFAULT_RISE_M, runReadout } from "./draft/stairLive";
 import { createTestHarness } from "@massingifc/plugin-sdk";
 
 import { modelIdMapFromRefs } from "../kernel/elementRef";
@@ -144,6 +146,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let selectedGuid: string | null = null;
   let editInPlace = false;            // P5: show the move gizmo on the selected element
   let gizmo: TransformGizmo | null = null;
+  let pushPullOn = false;             // R38-PUSHPULL: drag the top handle to deepen the extrusion
+  let ppGizmo: PushPullGizmo | null = null;
   let modelCount = 0;
   // track a human label per loaded model so the federation panel can list disciplines
   const modelLabels = new Map<string, string>();
@@ -169,12 +173,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (selection) await loader.fragments.resetHighlight(selection);
     selection = map;
     relayoutTools();          // what you can do depends on what you have selected
-    if (!map) { gizmo?.hide(); propsHint(); updateInfoBox(null); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); return; }
+    if (!map) { gizmo?.hide(); ppGizmo?.hide(); propsHint(); updateInfoBox(null); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); return; }
     await loader.fragments.highlight(SELECT_MAT(), map);
     await loader.fragments.core.update(true);
     if (opts.fit) await fitToItems(map);
     await showProps(map, opts.guid);
     if (editInPlace) await attachGizmo(map);
+    else if (pushPullOn) await attachPushPull(map);
   }
 
   // 5D inspector — appended under the property panel; populated on selection
@@ -569,6 +574,20 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let armed: ArmedDraft | null = null;          // active Draft-panel element, or null
   const armPts: THREE.Vector3[] = [];
   let draftHandle: DraftPanelHandle | null = null;
+  // R38-STAIR-LIVE — while a stair/ramp run is being dragged out, say what THIS length means
+  // (riser count / tread, or slope) against the server's limits, before anything is authored.
+  // One listener, installed once; every other armed tool falls through runReadout() as null.
+  container.addEventListener("pointermove", (e) => {
+    if (!armed || armPts.length < 1) return;
+    const readout = armed.key === "stair" || armed.key === "ramp" ? (() => {
+      const p = screenToGround(e);
+      if (!p) return null;
+      const a = armPts[armPts.length - 1]!;
+      const run = Math.hypot(p.x - a.x, p.z - a.z);
+      return runReadout(armed.key, DEFAULT_RISE_M, run);
+    })() : null;
+    if (readout) setStatus(readout.text);
+  });
   // REL-4 leaf: the KEYS 2-letter shortcuts, the typed distance/angle constraint (dynamic input),
   // and the snap-glyph feedback live in keysDyn.ts; the handle exposes the dyn buffer for the draft
   // flow and Escape routes back through disarmDraft.
@@ -640,11 +659,24 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     editInPlace = !editInPlace;
     b.classList.toggle("on", editInPlace);
     if (editInPlace) {
+      pushPullOn = false; ppGizmo?.hide();   // one gesture at a time — two gizmos on one box read as noise
       if (selection) { void attachGizmo(selection); }
       notify("Edit-in-place on — select an element and drag the gizmo to move it", "info");
     } else {
       gizmo?.hide();
       setStatus("edit-in-place off");
+    }
+  }, "edit");
+  toolBtn("⇕", "Push/pull — drag the top handle to make the selected element taller or thicker", (b) => {
+    pushPullOn = !pushPullOn;
+    b.classList.toggle("on", pushPullOn);
+    if (pushPullOn) {
+      editInPlace = false; gizmo?.hide();
+      if (selection) { void attachPushPull(selection); }
+      notify("Push/pull on — select an element and drag its top handle; the base stays put", "info");
+    } else {
+      ppGizmo?.hide();
+      setStatus("push/pull off");
     }
   }, "edit");
 
@@ -976,6 +1008,36 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const g = ensureGizmo();
     g.setSnap(ctx.getSettings().snap);
     g.attach(box);
+  }
+
+  // ---- R38-PUSHPULL: drag the top handle, the extrusion deepens ------------
+  // The gesture commits through `set_extrusion_depth` — a recipe-parameter edit, GUID-stable, which
+  // the server refuses for non-extrusions. No client-side allowlist: the refusal arrives through the
+  // normal recipe error path and the A29 failure marker rules apply.
+  function ensurePushPull(): PushPullGizmo {
+    if (ppGizmo) return ppGizmo;
+    const g = new PushPullGizmo(
+      viewer.world.camera.three,
+      viewer.world.renderer!.three.domElement,
+      viewer.world.scene.three,
+      (enabled) => { viewer.world.camera.controls.enabled = enabled; },
+    );
+    g.onDrag = (depth) => setStatus(`push/pull  depth ${depth.toFixed(2)} m`);
+    g.onCommit = async (depth) => {
+      const guid = selectedGuid;
+      if (!guid || !projectId) return;
+      await authorAndReload("set_extrusion_depth", { guid, depth }, "push/pull");
+      if (pushPullOn && selectedGuid === guid) await selectByGuid(guid);   // re-attach at the new height
+    };
+    ppGizmo = g;
+    return g;
+  }
+  async function attachPushPull(map: ModelIdMap) {
+    const boxes = await loader.fragments.getBBoxes(map);
+    const box = new THREE.Box3();
+    for (const b of boxes) box.union(b);
+    if (box.isEmpty()) return;
+    ensurePushPull().attach(box);
   }
 
   // ---- rail panels ---------------------------------------------------------
