@@ -1130,9 +1130,13 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
 ### Wave 2 — parameters stay alive *(Lane E + C)*
 
 - **R38-LIVE-PARAMS ②** *(M)* — select an element, get sliders/fields for its recipe parameters
-  with local preview while dragging, commit on release. Covers: the live parameter panel, the R23
-  constraint locks rendered as editable dimension chips, arrays whose count/spacing stay editable
-  after placement, and node-canvas inputs exposed as named room-level sliders (design options).
+  with local preview while dragging, commit on release. **Slices 1+2 shipped v0.3.823–824** (the
+  depth field, then the slider with a live base-anchored ghost, both over set_extrusion_depth).
+  **Slice 3 premise-checked 2026-08-02 and deliberately DEFERRED:** the constraint-chip UI needs a
+  *system* of editable parameters for `dim_constraints.solve` to reconcile, and depth is today the
+  only server-editable geometric parameter — chips over one variable would be UI theater. The real
+  prerequisite is more parameter-edit recipes (wall thickness, profile width/length — Lane C/D
+  server halves). Remaining after that: constraint chips, editable arrays, node-canvas room sliders.
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
