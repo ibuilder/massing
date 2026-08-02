@@ -96,7 +96,7 @@ def _filtered(meshes, classes):
     if not classes:
         return meshes
     want = {c.lower() for c in classes}
-    return [(cls, m) for cls, m in meshes if cls.lower() in want]
+    return [(guid, cls, m) for guid, cls, m in meshes if cls.lower() in want]
 
 
 def _view_polys(meshes, vp: dict) -> tuple[list[np.ndarray], str, str]:
