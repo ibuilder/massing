@@ -25,6 +25,7 @@ here**. Do not cite an archived file as current.
 
 | File | What it was | Superseded by |
 | --- | --- | --- |
+| `security-roadmap.md` | **LIVE, not superseded** — the standing security work queue: what is closed and the gate that proves it, what is open and who decides. Controls live in the [threat model](../security/threat-model.md); this is priority and ownership. | not superseded — active |
 | `audit-2026-06.md` | Full-stack program audit (architecture, background work, relationships) | roadmap + changelog |
 | `status.md` | Build-status snapshot at v0.3.86 — "verified vs pending" per milestone | roadmap + changelog. It also carried three numbers that had rotted: Node 20.3.1 (actually 24), 306 backend tests (441), and "since passed v0.3.614" (v0.3.796) |
 | `phase2-large-models.md` | Build-order Phase 2 plan for large/federated models | Shipped: Fragments streaming + LayerManager |

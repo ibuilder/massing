@@ -124,7 +124,11 @@ describe("internal notes live under docs/internal/", () => {
     const real = new Set(
       DOC_PATHS.filter(isInternal).map((p) => p.split("/").pop()!),
     );
-    const cited = [...index.matchAll(/`([^`]+\.md)`/g)].map((m) => m[1]!);
+    // Compare BASENAMES on both sides. `real` is basenames, so a legitimate path-qualified
+    // cross-reference — `docs/security/threat-model.md` — was flagged as dangling purely for being
+    // written with its directory. Found by writing exactly such a reference and watching this fail:
+    // a gate whose first real-world encounter is a false positive is one people learn to work around.
+    const cited = [...index.matchAll(/`([^`]+\.md)`/g)].map((m) => m[1]!.split("/").pop()!);
     const dangling = [...new Set(cited)].filter((name) => !real.has(name));
     expect(
       dangling,
