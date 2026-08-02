@@ -1,8 +1,11 @@
-import type { ApiClient, MassingParams, MassingResult, ProformaResult, FinancialStatements, StatementLine, Appraisal } from "../api/client";
+import type { ApiClient, ProformaResult, FinancialStatements, StatementLine, Appraisal } from "../api/client";
 import { escapeHtml } from "../ui/feedback";
 import { askText } from "../ui/prompt";
 import { signedBars, donut, lineChart, stackedBar, tornado, groupedBar, money as cmoney } from "../ui/charts";
 import { showQrModal } from "../ui/qr";
+import { money, pct } from "./format";
+import { renderMassingTab } from "./massingTab";
+import { renderTestFitTab } from "./testfitTab";
 
 /**
  * Real-estate development finance (Proforma) view — edit the key deal drivers, solve live,
@@ -53,8 +56,6 @@ function set(obj: any, path: string, val: any): void {
   const ks = path.split("."); const last = ks.pop()!;
   ks.reduce((o, k) => o[k], obj)[last] = val;
 }
-const money = (n: number) => "$" + Math.round(n).toLocaleString();
-const pct = (n: number | null) => (n == null ? "n/a" : (n * 100).toFixed(1) + "%");
 
 export class ProformaUI {
   private a = structuredClone(DEFAULT);
@@ -768,260 +769,19 @@ export class ProformaUI {
    *  massing model + a starter acquisition proforma in one click. The IFC-native answer to TestFit/
    *  Forma feasibility — the generated model flows into the viewer, drawings, QTO and this proforma. */
   private renderMassing() {
-    const host = document.createElement("div"); host.id = "pf-massing";
-    host.style.cssText = "margin:8px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:8px";
-    host.innerHTML = `<div class="section-title" style="margin:0 0 6px">🏗️ Generate from zoning</div>` +
-      `<div class="meta" style="margin-bottom:6px">Lot + zoning envelope → buildable program, an IFC massing model, and an acquisition proforma.</div>`;
-    // [label, key, default, step]
-    const fields: [string, keyof MassingParams, number, string][] = [
-      ["Lot width (m)", "lot_width", 50, "any"], ["Lot depth (m)", "lot_depth", 40, "any"],
-      ["FAR", "far", 3.0, "0.1"], ["Coverage max", "coverage_max", 0.6, "0.05"],
-      ["Front setback (m)", "front_setback", 6, "any"], ["Rear setback (m)", "rear_setback", 6, "any"],
-      ["Side setback (m)", "side_setback", 3, "any"], ["Height limit (m)", "height_limit", 0, "any"],
-      ["Floor-to-floor (m)", "floor_to_floor", 3.5, "0.1"], ["Avg unit (m²)", "avg_unit_m2", 75, "any"],
-      ["Land cost $", "land_cost", 2_500_000, "any"], ["Hard $/sf", "hard_cost_psf", 225, "any"],
-      ["Rent $/unit·mo", "rent_per_unit_month", 3000, "any"], ["Exit cap", "exit_cap", 0.05, "0.005"],
-    ];
-    const grid = document.createElement("div"); grid.className = "pf-form";
-    // use type selector
-    const useWrap = document.createElement("label"); useWrap.className = "pf-field";
-    useWrap.innerHTML = `<span>Use type</span>`;
-    const useSel = document.createElement("select");
-    useSel.innerHTML = `<option value="residential">Residential</option><option value="commercial">Commercial</option>`;
-    useWrap.appendChild(useSel); grid.appendChild(useWrap);
-    const inputs: Record<string, HTMLInputElement> = {};
-    for (const [label, key, def, step] of fields) {
-      const wrap = document.createElement("label"); wrap.className = "pf-field";
-      wrap.innerHTML = `<span>${label}</span>`;
-      const inp = document.createElement("input"); inp.type = "number"; inp.step = step; inp.value = String(def);
-      if (key === "height_limit") inp.placeholder = "none";
-      inputs[key] = inp; wrap.appendChild(inp); grid.appendChild(wrap);
-    }
-    host.appendChild(grid);
-
-    // shape: box (zoning massing) or a monolithic / earth dome (hemisphere by radius)
-    const domeWrap = document.createElement("label");
-    domeWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
-    const domeChk = document.createElement("input"); domeChk.type = "checkbox";
-    const domeR = document.createElement("input"); domeR.type = "number"; domeR.step = "0.5"; domeR.value = "8";
-    domeR.style.cssText = "width:60px"; domeR.title = "Dome radius (m)";
-    domeWrap.append(domeChk, document.createTextNode("Earth / monolithic dome (hemisphere, radius m:"), domeR, document.createTextNode(")"));
-    host.appendChild(domeWrap);
-
-    // structural frame option — turns the massing into a real concrete frame (columns + beams)
-    const frameWrap = document.createElement("label");
-    frameWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
-    const frameChk = document.createElement("input"); frameChk.type = "checkbox";
-    frameWrap.append(frameChk, document.createTextNode("Generate concrete structural frame (columns + beams on a 7.5 m grid)"));
-    host.appendChild(frameWrap);
-    const unitWrap = document.createElement("label");
-    unitWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
-    const unitChk = document.createElement("input"); unitChk.type = "checkbox";
-    unitWrap.append(unitChk, document.createTextNode("Subdivide floors into units (per-apartment spaces)"));
-    host.appendChild(unitWrap);
-    const envWrap = document.createElement("label");
-    envWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
-    const envChk = document.createElement("input"); envChk.type = "checkbox";
-    envWrap.append(envChk, document.createTextNode("Wrap in facade + windows (envelope @ 40% WWR)"));
-    host.appendChild(envWrap);
-    const coreWrap = document.createElement("label");
-    coreWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
-    const coreChk = document.createElement("input"); coreChk.type = "checkbox";
-    coreWrap.append(coreChk, document.createTextNode("Add service core (elevator + stair + MEP risers)"));
-    host.appendChild(coreWrap);
-    const corrWrap = document.createElement("label");
-    corrWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
-    const corrChk = document.createElement("input"); corrChk.type = "checkbox";
-    corrWrap.append(corrChk, document.createTextNode("Double-loaded corridor unit layout (test-fit)"));
-    host.appendChild(corrWrap);
-    const pkWrap = document.createElement("label");
-    pkWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px";
-    const pkInput = document.createElement("input");
-    pkInput.type = "number"; pkInput.min = "0"; pkInput.max = "2000"; pkInput.value = "0"; pkInput.style.width = "70px";
-    pkWrap.append(document.createTextNode("Surface parking stalls (real IfcSpaces)"), pkInput);
-    host.appendChild(pkWrap);
-
-    const params = (): MassingParams => {
-      const p: MassingParams = { use_type: useSel.value as "residential" | "commercial", name: "Massing Study" };
-      for (const [, key] of fields) {
-        const inp = inputs[key]; if (!inp) continue;
-        const v = parseFloat(inp.value);
-        if (key === "height_limit") { p.height_limit = isNaN(v) || v <= 0 ? null : v; }
-        else if (!isNaN(v)) (p as Record<string, unknown>)[key] = v;
-      }
-      p.frame = frameChk.checked;
-      p.units = unitChk.checked;
-      p.envelope = envChk.checked;
-      p.core = coreChk.checked;
-      if (corrChk.checked) { p.units = true; p.unit_layout = "corridor"; }
-      const pk = parseInt(pkInput.value, 10); if (pk > 0) p.parking = pk;
-      if (domeChk.checked) { p.shape = "dome"; p.dome_radius = parseFloat(domeR.value) || 8; }
-      return p;
-    };
-    const out = document.createElement("div"); out.style.marginTop = "6px";
-    const showResult = (r: MassingResult, generated: boolean) => {
-      const m = r.metrics, ret = r.proforma.returns, su = r.proforma.sources_uses;
-      out.innerHTML =
-        `<div class="meta" style="margin-bottom:4px"><b>${m.floors} floors</b> · ${Math.round(m.building_height_m)} m · ` +
-        `<b>${m.buildable_gfa_sf.toLocaleString()} sf</b> GFA · ${m.units} units · ${m.footprint_m2.toLocaleString()} m² plate ` +
-        `<span class="meta">(bound by ${m.binding_constraint}, ${m.far_achieved} FAR)</span></div>` +
-        (su ? `<div class="meta">Total cost ${money(su.total_uses ?? 0)} · equity ${money(su.equity ?? 0)} · ` +
-              `IRR <b>${pct(ret?.equity_irr ?? null)}</b> · ${ret?.equity_multiple ?? "—"}× EM</div>` : "") +
-        (r.proforma.solve_error ? `<div class="meta" style="color:var(--status-crit)">proforma: ${r.proforma.solve_error}</div>` : "") +
-        (m.structure ? `<div class="meta">🏛 Structure: <b>${m.structure.system}</b> · ${m.structure.lateral_system}` +
-              ((m.structure.base_column_mm && m.structure.top_column_mm && m.structure.top_column_mm < m.structure.base_column_mm)
-                ? ` · cols taper ${m.structure.base_column_mm}→${m.structure.top_column_mm} mm (base→top)`
-                : ` · cols ${m.structure.members_mm.column} mm`) +
-              (m.structure.lateral_core?.provided
-                ? ` · ${m.structure.lateral_core.plan_w_m}×${m.structure.lateral_core.plan_d_m} m core, ${m.structure.lateral_core.wall_mm} mm walls` : "") +
-              `</div>` : "") +
-        (generated ? `<div class="meta" style="color:var(--accent)">✓ IFC model generated & publishing — open the Model workspace to view.</div>` : "");
-    };
-
-    const btnRow = document.createElement("div"); btnRow.style.cssText = "display:flex;gap:6px;margin-top:6px";
-    const estBtn = document.createElement("button"); estBtn.className = "tool-btn"; estBtn.textContent = "Estimate yield";
-    estBtn.onclick = async () => {
-      out.innerHTML = `<span class="meta">computing…</span>`;
-      try { showResult(await this.api.previewMassing(params()), false); }
-      catch (e) { out.innerHTML = `<div class="meta" style="color:var(--status-crit)">${escapeHtml((e as Error).message)}</div>`; }
-    };
-    const genBtn = document.createElement("button"); genBtn.className = "file-btn"; genBtn.textContent = "Generate IFC model + apply";
-    genBtn.onclick = async () => {
-      const pid = this.projectId();
-      if (!pid) { out.innerHTML = `<div class="meta">Open or create a project first (＋ New), then generate its model.</div>`; return; }
-      out.innerHTML = `<span class="meta">generating model + proforma…</span>`;
-      try {
-        const r = await this.api.generateMassing(pid, params());
-        showResult(r, true);
-        // adopt the generated acquisition assumptions as the live proforma
-        this.a = structuredClone(r.proforma.assumptions) as typeof this.a;
-        this.render(); void this.solve();
-        this.setStatus(`generated ${r.metrics.floors}-floor massing (${r.metrics.buildable_gfa_sf.toLocaleString()} sf) → proforma seeded`);
-      } catch (e) { out.innerHTML = `<div class="meta" style="color:var(--status-crit)">${escapeHtml((e as Error).message)}</div>`; }
-    };
-    btnRow.append(estBtn, genBtn); host.append(btnRow, out);
-    this.root.appendChild(host);
+    // extracted to massingTab.ts along the LCOM4 seam; this stays as the coordinator's seam
+    // (the into() root-swap and the characterization tests both call it here)
+    renderMassingTab(this.root, {
+      api: this.api, projectId: this.projectId, setStatus: this.setStatus,
+      adoptAssumptions: (a) => { this.a = structuredClone(a) as typeof this.a; this.render(); void this.solve(); },
+    });
   }
 
   /** Test Fit: compare unit-mix schemes on a floor plate — yield (units, efficiency, NSF) + parking,
    *  ranked. The TestFit-style "explore scenarios, find the deal that pencils" surface. */
   private renderTestFit() {
-    const host = document.createElement("div"); host.id = "pf-testfit";
-    host.style.cssText = "margin:8px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:8px";
-    host.innerHTML = `<div class="section-title" style="margin:0 0 6px">📐 Test Fit — compare unit-mix schemes</div>`
-      + `<div class="meta" style="margin-bottom:6px">Fit a unit mix to a floor plate; compare yield + parking across schemes.</div>`;
-    const grid = document.createElement("div"); grid.className = "pf-form";
-    const inp = (label: string, val: number) => {
-      const w = document.createElement("label"); w.className = "pf-field"; w.innerHTML = `<span>${label}</span>`;
-      const i = document.createElement("input"); i.type = "number"; i.step = "any"; i.value = String(val); w.appendChild(i); grid.appendChild(w); return i;
-    };
-    const wi = inp("Plate width (m)", 40), di = inp("Plate depth (m)", 18), fi = inp("Floors", 6);
-    host.appendChild(grid);
-
-    // --- A1b: custom unit-type mix editor (define + save your own studio/1BR/2BR… mix) ----------
-    const MIX_KEY = "testfit-mix";
-    type UType = { name: string; target_sf: number; mix_pct: number };
-    const loadMix = (): UType[] => {
-      try { const m = JSON.parse(localStorage.getItem(MIX_KEY) || ""); if (Array.isArray(m) && m.length) return m; } catch { /* default */ }
-      return [{ name: "Studio", target_sf: 500, mix_pct: 0.2 }, { name: "1BR", target_sf: 750, mix_pct: 0.5 }, { name: "2BR", target_sf: 1050, mix_pct: 0.3 }];
-    };
-    const mix: UType[] = loadMix();
-    const mixBox = document.createElement("div");
-    mixBox.style.cssText = "margin:6px 0;padding:6px 8px;border:1px solid var(--line);border-radius:6px";
-    const renderMix = () => {
-      const total = mix.reduce((s, u) => s + (+u.mix_pct || 0), 0);
-      mixBox.innerHTML = `<div class="meta" style="display:flex;justify-content:space-between"><span>Your unit mix</span>`
-        + `<span${Math.abs(total - 1) > 0.011 ? ' style="color:var(--status-crit)"' : ""}>mix Σ ${(total * 100).toFixed(0)}%</span></div>`;
-      mix.forEach((u, idx) => {
-        const row = document.createElement("div"); row.style.cssText = "display:flex;gap:4px;align-items:center;margin-top:4px";
-        const nm = document.createElement("input"); nm.value = u.name; nm.className = "portal-filter"; nm.style.flex = "1"; nm.placeholder = "type";
-        const sf = document.createElement("input"); sf.type = "number"; sf.value = String(u.target_sf); sf.className = "portal-filter"; sf.style.width = "72px"; sf.title = "target SF";
-        const pc = document.createElement("input"); pc.type = "number"; pc.value = String(Math.round(u.mix_pct * 100)); pc.className = "portal-filter"; pc.style.width = "56px"; pc.title = "mix %";
-        nm.onchange = () => { u.name = nm.value; }; sf.onchange = () => { u.target_sf = +sf.value; };
-        pc.onchange = () => { u.mix_pct = (+pc.value || 0) / 100; renderMix(); };
-        const rm = document.createElement("button"); rm.className = "tool-btn"; rm.textContent = "✕"; rm.title = "remove";
-        rm.onclick = () => { mix.splice(idx, 1); renderMix(); };
-        const pct = document.createElement("span"); pct.className = "meta"; pct.textContent = "%";
-        row.append(nm, sf, pc, pct, rm); mixBox.appendChild(row);
-      });
-      const bar = document.createElement("div"); bar.style.cssText = "display:flex;gap:6px;margin-top:6px";
-      const add = document.createElement("button"); add.className = "tool-btn"; add.textContent = "+ unit type";
-      add.onclick = () => { mix.push({ name: "Unit", target_sf: 800, mix_pct: 0.1 }); renderMix(); };
-      const save = document.createElement("button"); save.className = "tool-btn"; save.textContent = "Save mix";
-      save.onclick = () => { localStorage.setItem(MIX_KEY, JSON.stringify(mix)); this.setStatus("unit mix saved"); };
-      bar.append(add, save); mixBox.appendChild(bar);
-    };
-    renderMix(); host.appendChild(mixBox);
-
-    const out = document.createElement("div"); out.style.marginTop = "6px";
-    // Sweep plate depth: makes daylight-limited leasable depth an optimize dimension (form follows finance)
-    const sweepLbl = document.createElement("label"); sweepLbl.className = "meta";
-    sweepLbl.style.cssText = "margin-left:8px;cursor:pointer;user-select:none";
-    const sweepCb = document.createElement("input"); sweepCb.type = "checkbox"; sweepCb.style.verticalAlign = "middle";
-    sweepLbl.append(sweepCb, document.createTextNode(" sweep plate depth"));
-    sweepLbl.title = "Also sweep plate depth (×0.6–1.4) — find the depth where daylight-limited yield peaks before a dark core eats rentable area";
-    const opt = document.createElement("button"); opt.className = "tool-btn"; opt.style.marginLeft = "6px";
-    opt.textContent = "⚡ Optimize (find the deal that pencils)";
-    opt.onclick = async () => {
-      out.innerHTML = `<span class="meta">sweeping schemes…</span>`;
-      try {
-        const targets: Record<string, number | string | boolean> = { min_units: 1 };
-        if (sweepCb.checked) targets.sweep_depth = true;
-        const r = await this.api.testFitOptimize({ plate_w: +wi.value, plate_d: +di.value, floors: +fi.value, targets });
-        if (!r.best) { out.innerHTML = `<div class="meta">no feasible scheme for these targets</div>`; return; }
-        const dcol = r.swept_depths.length > 1 ? `<th>Depth</th>` : "";
-        const rows = r.ranked.map((s, n) => `<tr${n === 0 ? ' style="font-weight:700"' : ""}>`
-          + `<th style="text-align:left">${s.name}${n === 0 ? " ★" : ""}</th>`
-          + (r.swept_depths.length > 1 ? `<td style="text-align:right">${s.plate_d ?? ""}m</td>` : "")
-          + `<td style="text-align:right">${s.total_units}</td><td style="text-align:right">${(s.efficiency * 100).toFixed(0)}%</td>`
-          + `<td style="text-align:right">${s.parking_stalls}</td><td style="text-align:right">${(s.yield_on_cost * 100).toFixed(1)}%</td></tr>`).join("");
-        // form-follows-finance curve: best yield + daylight/core efficiency per swept depth
-        let curveHtml = "";
-        if (r.depth_curve.length > 1 && r.best_depth_m != null) {
-          const crows = r.depth_curve.map((p) => `<tr${p.plate_d === r.best_depth_m ? ' style="font-weight:700"' : ""}>`
-            + `<th style="text-align:left">${p.plate_d}m${p.plate_d === r.best_depth_m ? " ★" : ""}</th>`
-            + `<td style="text-align:right">${(p.yield_on_cost * 100).toFixed(1)}%</td>`
-            + `<td style="text-align:right">${(p.daylight_efficiency * 100).toFixed(0)}%</td>`
-            + `<td style="text-align:right">${(p.core_efficiency * 100).toFixed(0)}%</td>`
-            + `<td style="text-align:right">${p.total_units}</td></tr>`).join("");
-          curveHtml = `<div class="meta" style="margin:6px 0 2px">Plate-depth sweep — best at <b>${r.best_depth_m}m</b> `
-            + `(daylight-limited yield peaks before the dark core eats rentable area):</div>`
-            + `<table class="sens-table" style="font-size:12px"><tr><th style="text-align:left">Depth</th><th>YoC</th>`
-            + `<th>Daylight</th><th>Core</th><th>Units</th></tr>${crows}</table>`;
-        }
-        out.innerHTML = `<div class="meta" style="margin-bottom:2px">Swept ${r.considered} schemes · ${r.feasible} feasible · ranked by ${r.objective.replace(/_/g, " ")}</div>`
-          + `<table class="sens-table" style="font-size:12px"><tr><th style="text-align:left">Scheme</th>${dcol}<th>Units</th><th>Eff.</th><th>Stalls</th><th>YoC</th></tr>${rows}</table>`
-          + curveHtml;
-      } catch { out.innerHTML = `<div class="meta">optimize unavailable (API offline)</div>`; }
-    };
-    const run = document.createElement("button"); run.className = "file-btn"; run.textContent = "Compare schemes";
-    run.onclick = async () => {
-      out.innerHTML = `<span class="meta">fitting…</span>`;
-      try {
-        const schemes = mix.length ? [{ name: "My mix", unit_types: mix }] : undefined;
-        const r = await this.api.testFitCompare({ plate_w: +wi.value, plate_d: +di.value, floors: +fi.value, schemes, with_defaults: !!schemes });
-        const rows = r.schemes.map((s) => `<tr${s.name === r.best ? ' style="font-weight:700"' : ""}>`
-          + `<th style="text-align:left">${s.name}${s.name === r.best ? " ★" : ""}</th>`
-          + `<td style="text-align:right">${s.total_units}</td>`
-          + `<td style="text-align:right"${s.daylight_limited ? ' title="deep plate — dark interior earns no rent"' : ""}>${(s.daylight_efficiency * 100).toFixed(0)}%${s.daylight_limited ? " ⚠" : ""}</td>`
-          + `<td style="text-align:right">${s.avg_unit_sf.toLocaleString()}</td><td style="text-align:right">${s.total_nsf.toLocaleString()}</td>`
-          + `<td style="text-align:right">${s.parking_stalls}</td></tr>`).join("");
-        const eg = r.egress;
-        const egLine = eg
-          ? `<div class="meta" style="margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--panel2);border:1px solid var(--line)">`
-            + `<b>${eg.compliant ? "✅" : "⚠️"} Egress / life-safety (A2)</b> — `
-            + `${eg.occupant_load_per_floor} occ/floor · max travel ${eg.max_travel_m} m (limit ${eg.limit_m}) · `
-            + `${eg.min_exits_required} exits req'd · separation ${eg.exit_separation_m}/${eg.required_separation_m} m`
-            + (eg.flags.length ? `<br><span style="color:var(--status-crit)">${eg.flags.map((f) => "• " + f).join("<br>")}</span>` : "")
-            + `</div>`
-          : "";
-        out.innerHTML = `<table class="sens-table" style="font-size:12px"><tr><th style="text-align:left">Scheme</th>`
-          + `<th>Units</th><th title="rentable ÷ gross, daylight-limited">Daylight</th><th>Avg SF</th><th>Rent. SF</th><th>Stalls</th></tr>${rows}</table>`
-          + `<div class="meta" style="margin-top:4px">Best by units: <b>${r.best}</b> · daylight efficiency = rentable area within ~9 m of a window ÷ gross</div>`
-          + egLine;
-      } catch { out.innerHTML = `<div class="meta">test-fit unavailable (API offline)</div>`; }
-    };
-    host.append(run, opt, sweepLbl, out); this.root.appendChild(host);
+    // extracted to testfitTab.ts along the LCOM4 seam; delegation keeps the into() root-swap
+    renderTestFitTab(this.root, { api: this.api, setStatus: this.setStatus });
   }
 
   /** Property & tax assumptions: parcel/areas/purchase/taxes; taxes → OPEX, price → acquisition. */
