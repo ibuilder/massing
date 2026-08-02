@@ -40,6 +40,7 @@ import { DraftProxyLayer } from "./draft/draftProxy";
 import { populate4dPanel } from "./fourD";
 import { TransformGizmo } from "./draft/transformGizmo";
 import { PushPullGizmo } from "./draft/pushPull";
+import { DEFAULT_RISE_M, runReadout } from "./draft/stairLive";
 import { createTestHarness } from "@massingifc/plugin-sdk";
 
 import { modelIdMapFromRefs } from "../kernel/elementRef";
@@ -573,6 +574,20 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let armed: ArmedDraft | null = null;          // active Draft-panel element, or null
   const armPts: THREE.Vector3[] = [];
   let draftHandle: DraftPanelHandle | null = null;
+  // R38-STAIR-LIVE — while a stair/ramp run is being dragged out, say what THIS length means
+  // (riser count / tread, or slope) against the server's limits, before anything is authored.
+  // One listener, installed once; every other armed tool falls through runReadout() as null.
+  container.addEventListener("pointermove", (e) => {
+    if (!armed || armPts.length < 1) return;
+    const readout = armed.key === "stair" || armed.key === "ramp" ? (() => {
+      const p = screenToGround(e);
+      if (!p) return null;
+      const a = armPts[armPts.length - 1]!;
+      const run = Math.hypot(p.x - a.x, p.z - a.z);
+      return runReadout(armed.key, DEFAULT_RISE_M, run);
+    })() : null;
+    if (readout) setStatus(readout.text);
+  });
   // REL-4 leaf: the KEYS 2-letter shortcuts, the typed distance/angle constraint (dynamic input),
   // and the snap-glyph feedback live in keysDyn.ts; the handle exposes the dyn buffer for the draft
   // flow and Escape routes back through disarmDraft.

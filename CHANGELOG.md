@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.822 — the stair tells you while you draw it
+
+### Added — R38-STAIR-LIVE: the consequence, shown before the commit
+
+While a stair or ramp run is being dragged out, the status line now says what *this* length means —
+"stair 16 risers @ 0.188 · tread 0.300 ✓", or "✗ tread < 0.25 — lengthen the run" — live, against
+the same limits the server reports, before any geometry is authored. The client mirror's constants
+are pinned by test to the server's values and its sample cases reproduce the server test's own
+numbers, because a drifted mirror showing green for a run the server calls out-of-limits would be
+worse than no readout. Still a report, never a gate: the run authors exactly where it is drawn.
+
 ## v0.3.821 — the hero gesture: grab the top, pull
 
 ### Added — R38-PUSHPULL: drag a handle, the extrusion deepens
