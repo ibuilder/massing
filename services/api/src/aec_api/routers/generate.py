@@ -518,8 +518,15 @@ def ensure_model(pid: str, storeys: int = 3, storey_height: float = 3.5,
                         "still be recoverable, and would report success while doing it. Restore the "
                         "file, or clear source_ifc first if the loss is accepted."}
 
-    _IFC_DIR.joinpath(storage.safe_seg(pid)).mkdir(parents=True, exist_ok=True)
-    ifc_path = _IFC_DIR / storage.safe_seg(pid) / "source.ifc"
+    # safe_seg already rejects traversal, but the resolved-containment check is the barrier the
+    # static analysers credit (same idiom as storage.LocalBackend) — and it holds even if a future
+    # edit builds the path from something safe_seg never saw.
+    base = _IFC_DIR.resolve()
+    target_dir = (base / storage.safe_seg(pid)).resolve()
+    if not str(target_dir).startswith(str(base) + os.sep):
+        raise HTTPException(400, "invalid project id")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    ifc_path = target_dir / "source.ifc"
     generate_blank_ifc(str(ifc_path), name=p.name or "Model", storeys=storeys,
                        storey_height=storey_height)
     storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())

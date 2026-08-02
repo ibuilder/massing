@@ -154,8 +154,8 @@ two rows share a path, so two agents in different rows cannot collide.
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-LIVE-PARAMS ② · R38-SYNC-2D3D ③ · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ *(only OPEN item — rdflib add cleared, start after the 2026-08-02 merge train)* · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② *(these four SHIPPED 2026-08-02, pending archive to roadmap-completed)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-LIVE-PARAMS ② · R38-SYNC-2D3D ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -398,10 +398,14 @@ These are the gaps between what the platform draws today and what that package c
   window, or an install ordered before its support. The 4D timeline and CPM both exist; this reads
   them together.
 
-  **Phase 2 needs a prerequisite that does not exist**: `schedule_activity` carries no element
-  GlobalId, so nothing knows *what a task installs*. Install-before-support cannot be computed
-  without a real **task→element binding** — that binding is the actual next piece of work, and
-  approximating it (by trade, by name match) would produce confident findings nobody can trust.
+  **Blocker retired (2026-08-02):** the "no task→element binding" prerequisite was FIXED by
+  R25-TASK-BIND (element_guids reaches analyze(); bound_activities counts it in
+  `services/api/src/aec_api/sequence_clash.py`) — this prose outlived the code. Phase 2 SHIPPED
+  same day: `services/data/src/aec_data/support_graph.py` reports what the IFC *states*, graded by
+  what it licenses (connected/assembly/structural; direction only from an analysis model), and
+  deliberately refuses to infer support from geometry — a column and beam that touch but are
+  unrelated produce zero edges. No relations returns stated:false — absent data, not absent
+  conflicts.
 - ~~**R21-MULTISCALE**~~ *(S)* — several viewports at **different scales** on one sheet (1:100 overall +
   1:50 parts), each with its own title/scale block. `sheet_layout.py` composes viewports; per-viewport
   scale is the missing parameter.
@@ -1126,9 +1130,13 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
 ### Wave 2 — parameters stay alive *(Lane E + C)*
 
 - **R38-LIVE-PARAMS ②** *(M)* — select an element, get sliders/fields for its recipe parameters
-  with local preview while dragging, commit on release. Covers: the live parameter panel, the R23
-  constraint locks rendered as editable dimension chips, arrays whose count/spacing stay editable
-  after placement, and node-canvas inputs exposed as named room-level sliders (design options).
+  with local preview while dragging, commit on release. **Slices 1+2 shipped v0.3.823–824** (the
+  depth field, then the slider with a live base-anchored ghost, both over set_extrusion_depth).
+  **Slice 3 premise-checked 2026-08-02 and deliberately DEFERRED:** the constraint-chip UI needs a
+  *system* of editable parameters for `dim_constraints.solve` to reconcile, and depth is today the
+  only server-editable geometric parameter — chips over one variable would be UI theater. The real
+  prerequisite is more parameter-edit recipes (wall thickness, profile width/length — Lane C/D
+  server halves). Remaining after that: constraint chips, editable arrays, node-canvas room sliders.
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
