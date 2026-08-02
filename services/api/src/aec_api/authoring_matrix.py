@@ -25,6 +25,7 @@ _MAP: dict[str, tuple[str, str]] = {
     "add_roof": ("create-enclosure", "IfcRoof"), "add_covering": ("create-enclosure", "IfcCovering"),
     "add_roof_window": ("create-enclosure", "IfcWindow (SKYLIGHT) voiding a roof"),
     "add_railing": ("create-enclosure", "IfcRailing"), "add_curtain_wall": ("create-enclosure", "IfcCurtainWall"),
+    "add_stair": ("create-enclosure", "IfcStair"), "add_ramp": ("create-enclosure", "IfcRamp"),
     "add_door": ("create-opening", "IfcDoor + IfcOpeningElement"),
     "add_window": ("create-opening", "IfcWindow + IfcOpeningElement"),
     "add_spaces": ("create-space", "IfcSpace (per storey)"), "add_storey": ("create-space", "IfcBuildingStorey"),

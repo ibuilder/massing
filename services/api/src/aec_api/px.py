@@ -17,13 +17,10 @@ def _n(v: Any) -> float:
     return pb._n(v)
 
 
-def summary(db: Session, pid: str, proforma_hard: float | None = None) -> dict:
-    budget = pb.gmp_budget(db, pid, proforma_hard=proforma_hard)
-    cash = pb.cashflow(db, pid)
-    acts = pb._records(db, "schedule_activity", pid)
-    today = date.today()
-
-    # --- cost-loaded schedule performance (SPI = earned / planned value to date) ----
+def _schedule_stats(acts: list[dict], today: date) -> dict[str, Any]:
+    """One pass over the cost-loaded activities: planned/earned value to date (SPI), mean %
+    complete, the 3-week lookahead count, and milestone buckets (late / due ≤14 d / upcoming).
+    Pure — the schedule half of ``summary()``, separated so it reads (and tests) on its own."""
     pv = ev = 0.0
     pct_vals: list[float] = []
     late_ms = due_ms = upcoming_ms = 0
@@ -43,7 +40,7 @@ def summary(db: Session, pid: str, proforma_hard: float | None = None) -> dict:
         # near-term activity count (lookahead)
         if s and f and s < horizon and f >= today:
             lookahead += 1
-        # milestone status
+        # milestone status — a completed milestone drops out of the buckets entirely
         if d.get("activity_type") == "Milestone" or (s and f and s == f):
             when = f or s
             if pct >= 100:
@@ -54,9 +51,22 @@ def summary(db: Session, pid: str, proforma_hard: float | None = None) -> dict:
                 due_ms += 1
             else:
                 upcoming_ms += 1
+    return {"ev": ev,
+            "spi": round(ev / pv, 2) if pv else None,
+            "pct_complete": round(sum(pct_vals) / len(pct_vals), 1) if pct_vals else 0.0,
+            "lookahead": lookahead,
+            "milestones": {"late": late_ms, "due_soon": due_ms, "upcoming": upcoming_ms}}
 
-    spi = round(ev / pv, 2) if pv else None
-    pct_complete = round(sum(pct_vals) / len(pct_vals), 1) if pct_vals else 0.0
+
+def summary(db: Session, pid: str, proforma_hard: float | None = None) -> dict:
+    budget = pb.gmp_budget(db, pid, proforma_hard=proforma_hard)
+    cash = pb.cashflow(db, pid)
+    acts = pb._records(db, "schedule_activity", pid)
+    today = date.today()
+
+    # cost-loaded schedule performance (SPI = earned / planned value to date)
+    stats = _schedule_stats(acts, today)
+    spi, ev = stats["spi"], stats["ev"]
     cpm = schedule_cpm.compute(acts)
 
     tot = budget["totals"]
@@ -76,12 +86,12 @@ def summary(db: Session, pid: str, proforma_hard: float | None = None) -> dict:
         "status": status,
         "schedule": {
             "spi": spi,
-            "pct_complete": pct_complete,
+            "pct_complete": stats["pct_complete"],
             "activities": len(acts),
             "critical_path_days": cpm.get("project_duration", 0),
             "critical_activities": cpm.get("critical_count", 0),
-            "lookahead_3wk": lookahead,
-            "milestones": {"late": late_ms, "due_soon": due_ms, "upcoming": upcoming_ms},
+            "lookahead_3wk": stats["lookahead"],
+            "milestones": stats["milestones"],
         },
         "budget": {
             "gmp": gmp["computed"],
