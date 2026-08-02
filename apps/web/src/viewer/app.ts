@@ -42,6 +42,7 @@ import { TransformGizmo } from "./draft/transformGizmo";
 import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
 import { PlanPane } from "./planPane";
 import { type PlanBounds, validatePlacement } from "./placeValid";
+import { type SpatialElement, type SpatialScope, nextScope, scopeSelection } from "./spatialSelect";
 import { DEFAULT_RISE_M, runReadout } from "./draft/stairLive";
 import { createTestHarness } from "@massingifc/plugin-sdk";
 
@@ -150,6 +151,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // the plan pane exists — so the pane subscribes through this hook rather than selectMap reaching
   // forward to a const that has not been initialised yet.
   let onSelectionChanged: (guid: string | null) => void = () => {};
+  // A29-SPATIAL-SELECT — re-clicking a selected element widens the scope (item → level → model).
+  // The anchor is the CLICKED element, tracked separately from selectedGuid because a widened
+  // selection sets selectedGuid to the set's first element, which may not be the one under the mouse.
+  let spatialAnchor: string | null = null;
+  let spatialScope: SpatialScope = "item";
+  let spatialElements: SpatialElement[] = [];
   let editInPlace = false;            // P5: show the move gizmo on the selected element
   let gizmo: TransformGizmo | null = null;
   let pushPullOn = false;             // R38-PUSHPULL: drag the top handle to deepen the extrusion
@@ -179,7 +186,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (selection) await loader.fragments.resetHighlight(selection);
     selection = map;
     relayoutTools();          // what you can do depends on what you have selected
-    if (!map) { gizmo?.hide(); ppGizmo?.hide(); propsHint(); updateInfoBox(null); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); onSelectionChanged(null); return; }
+    if (!map) { gizmo?.hide(); ppGizmo?.hide(); propsHint(); updateInfoBox(null); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); onSelectionChanged(null); spatialAnchor = null; spatialScope = "item"; return; }
     await loader.fragments.highlight(SELECT_MAT(), map);
     await loader.fragments.core.update(true);
     if (opts.fit) await fitToItems(map);
@@ -522,9 +529,27 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (snapped) flashSnapGlyph(e, "◻ snap");
     showCoords(lastPoint);
     const [guid] = await hit.fragments.getGuidsByLocalIds([hit.localId]);
+    // A29-SPATIAL-SELECT — re-clicking the anchored element widens: item → its level → the whole
+    // model → back to the item. Built on the storey the MODEL states per element, so an element
+    // with no level skips the level step rather than selecting an invented "(no level)" grab-bag.
+    if (guid && guid === spatialAnchor) {
+      const me = spatialElements.find((e) => e.guid === guid);
+      spatialScope = nextScope(spatialScope, !!me?.storey);
+      const sel = scopeSelection(guid, spatialScope, spatialElements);
+      if (spatialScope === "item") {
+        selectedGuid = guid;
+        await selectMap({ [hit.fragments.modelId]: new Set([hit.localId]) }, { guid });
+      } else {
+        await selectByGuids(sel.guids, false);
+      }
+      setStatus(`selected ${sel.label} — click again to widen`);
+      return;
+    }
+    spatialAnchor = guid ?? null;
+    spatialScope = "item";
     selectedGuid = guid ?? null;
     await selectMap({ [hit.fragments.modelId]: new Set([hit.localId]) }, { guid: guid ?? undefined });
-    setStatus(`selected ${guid ?? hit.localId}`);
+    setStatus(guid ? `selected ${guid} — click again to select its level` : `selected ${hit.localId}`);
   });
   container.addEventListener("dblclick", () => {
     if (armed && armed.points === "poly") {
@@ -1211,6 +1236,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     let noModel = false;
     try {
       elements = await api.elements(projectId, { limit: 5000 });
+      // A29-SPATIAL-SELECT reads containment from this same list — one fetch, one truth.
+      spatialElements = elements.map((e) => ({ guid: e.guid, storey: e.storey }));
     } catch {
       noModel = true;
     }

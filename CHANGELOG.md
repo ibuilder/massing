@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.832 — A29-SPATIAL-SELECT: click depth, not just objects
+
+### Added — re-clicking a selected element widens the selection one spatial level
+
+Click an element: it selects. Click it again: its whole **level** selects (every element the model
+contains in that storey, with the honest count in the status line — "Level 1 — 11 elements"). Again:
+the **whole model**. Again: back to the element. This is the Site→Building→Level→Item walk other
+tools build from a convention tree — ours reads the containment the IFC model states per element
+(`ElementProps.storey`, the same single fetch the model browser uses), which is why an element the
+model assigns no level **skips the level step** rather than selecting an invented "(no level)"
+grab-bag that looks like a spatial fact. The cycle anchors on the *clicked* element (a widened
+selection's first guid may not be the one under the mouse), and resets on any new element, deselect,
+or Escape. `spatialSelect.test.ts` pins the cycle, the no-storey rule, and the count grammar.
+
 ## v0.3.831 — A29-PLACE-VALID: the draft says no before the round-trip
 
 ### Added — client-side placement refusals, pure and beside the inference maths
