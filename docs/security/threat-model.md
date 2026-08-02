@@ -32,7 +32,7 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 | Threat | Control |
 |---|---|
 | Cross-project data access (tenant breakout) | Every `/projects/{pid}` route requires `require_role`; **enforced by a test gate** (`test_route_authz` walks the route table). Portfolio/cross-project rollups scope to `member_project_ids`. SEC-TENANT hardening pass (v0.3.413). |
-| Privilege escalation via side doors | The audited lesson (HARDEN-2): stricter endpoints must not be reachable through generic gates — job queue kinds carry `_KIND_MIN_ROLE`, bulk/MCP dispatch gate per-operation. Checked in hand-audit passes (see the `security-monitoring` skill checklist). |
+| Privilege escalation via side doors | The audited lesson (HARDEN-2): stricter endpoints must not be reachable through generic gates — job queue kinds carry `_KIND_MIN_ROLE`, MCP dispatch gates writes per-operation. **No longer hand-audited:** `test_dispatcher_privilege_coverage` enumerates both registries and fails on an operation classified nowhere, on a frozen entry with no referent, and — read from `_MUTATING_KINDS`, which is derived from the code — on a kind that *starts* mutating behind an unchanged name. Both tables were correct when it was written; what was missing was a reason the next entry has to be. |
 | Public share token abuse | ShareTokens are revocable, read-only, serve a **curated** digest only (no financials unless per-token `show_payments` opt-in at mint); the public decision/comment endpoints are hardened (type/action whitelists, 120/500/1000-char caps, 200-decision and 200-comment hard caps, revoked → 404). |
 | Privilege escalation on **global** (non-project) routes | A project-scoped gate is not valid on a route with no project in its path: it leaves the project identity to be supplied by the request. Firm-wide writes take `rbac.require_platform_admin`, global reads `rbac.require_identified`. **Enforced by a test gate** (`test_global_mutating_authz`), which asserts as a schema property that no global route accepts a caller-supplied project id — so a new one fails the build rather than joining a list. Two firm-standards routes were corrected under this pass (v0.3.800). |
 | Client-side authz bypass | All checks server-side; the web app's role gating is presentation only. |
@@ -102,8 +102,17 @@ tenancy) · (3) public token-holder → curated share surfaces · (4) API → ou
 
 ## Gap backlog (prioritized; honest)
 
-1. **G-1 (M) Secret scanning in CI** — no gitleaks/trufflehog step (REL-6 tail); audits use ad-hoc
-   grep. Add when tooling is approved.
+1. ✅ **G-1 Secret scanning in CI** — *closed.* `security.yml` runs gitleaks over the **full git
+   history** (`fetch-depth: 0` — a shallow clone would scan one commit and report "clean over the
+   full history"), redacted so a public Actions log cannot itself leak the finding, and **findings
+   now fail the build**. The baseline it waited for is `.gitleaksignore`: five fingerprints, each
+   carrying its reason, all triaged as false positives with nothing to rotate — a fabricated licence
+   key, the published RFC 6238 TOTP test vector, two fixtures, and a source *comment* whose `key:`
+   prefix matched. Fingerprints pin **commits, not files**, which is the property worth knowing: the
+   comment was reworded and its historical commit still matches, because history is exactly what
+   this scans. The documented fix for a real finding is therefore **rotate first, then purge from
+   history** — never a new line in the ignore file, which silences the report and leaves the
+   credential in the objects.
 2. ✅ **G-2 SBOM artifact** — *closed in-sprint:* the Dependency-scan workflow now publishes an
    SPDX SBOM artifact per run (`security.yml` sbom job).
 3. **G-3 (S) Formal access-review cadence** — SCIM handles deprovisioning; a quarterly operator

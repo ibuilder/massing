@@ -72,22 +72,31 @@ jobs:
         # into a world-readable Actions log, so the scanner would CREATE the exposure it exists to
         # report. Do not remove it.
         #
-        # FINDINGS are report-only for now; a TOOL FAILURE is not. `set -euo pipefail` and the
-        # explicit binary check mean a bad URL, a renamed release asset or a failed extract fail this
-        # step loudly. Putting `continue-on-error` on the whole step would make all three
-        # indistinguishable from "no secrets found" — a scanner that never ran, reporting clean.
-        # Gating on findings follows once CI has published one baseline; that is the order bandit
-        # went through, and the reason its HIGH gate could start green.
+        # FINDINGS NOW GATE. A tool failure always did: `set -euo pipefail` and the explicit binary
+        # check mean a bad URL, a renamed release asset or a failed extract fail this step loudly.
+        # `continue-on-error` on the whole step would make all three indistinguishable from "no
+        # secrets found" — a scanner that never ran, reporting clean.
+        #
+        # The baseline this waited for is `.gitleaksignore`: five fingerprints, each with a reason,
+        # all triaged 2026-08-02 as false positives with nothing to rotate. Same order bandit went
+        # through, and the reason its HIGH gate could start green.
+        #
+        # An UNKNOWN finding now fails the build. That is the whole point, and it is also the one
+        # way this step can hurt: the fix for a real secret is to ROTATE IT FIRST and then purge it
+        # from history — never to add a line to .gitleaksignore, which silences the report while
+        # leaving the credential published in the objects for anyone who clones.
         env:
           GITLEAKS_VERSION: "8.30.1"
         run: |
           set -euo pipefail
+          GITLEAKS_RC=0          # set -u: must exist before the || below can assign it
           curl -sSfL -o gitleaks.tar.gz             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           tar -xzf gitleaks.tar.gz gitleaks
           test -x ./gitleaks
           ./gitleaks version
-          # --exit-code=0 means FINDINGS do not fail the step. Everything else here still can.
-          ./gitleaks detect --source=. --redact --no-banner --exit-code=0             --report-format=json --report-path=gitleaks-report.json
+          # --exit-code=1: an UNKNOWN finding fails the step. Known ones live in .gitleaksignore
+          # with a reason each. Report is still written either way, so a red run is diagnosable.
+          ./gitleaks detect --source=. --redact --no-banner --exit-code=1             --report-format=json --report-path=gitleaks-report.json || GITLEAKS_RC=$?
           COUNT=$(python -c "import json;print(len(json.load(open('gitleaks-report.json'))))")
           echo "## gitleaks — $COUNT finding(s) over the full history" >> "$GITHUB_STEP_SUMMARY"
           if [ "$COUNT" -gt 0 ]; then
@@ -97,7 +106,14 @@ jobs:
             python -c "import json;[print('- \`%s\` in \`%s\`:%s (commit %s)' % (f.get('RuleID','?'), f.get('File','?'), f.get('StartLine','?'), str(f.get('Commit',''))[:8])) for f in json.load(open('gitleaks-report.json'))]" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Clean. After one clean run, drop --exit-code=0 to make findings blocking." >> "$GITHUB_STEP_SUMMARY"
+            echo "Clean — no finding outside .gitleaksignore." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          # Fail LAST, so the summary above is written first: a red step that explains
+          # itself costs one read; a red step that does not costs a re-run.
+          if [ "$GITLEAKS_RC" -ne 0 ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**FAILED** — a finding is not in .gitleaksignore. If it is a real secret, ROTATE IT FIRST, then purge it from history; adding it here only silences the report." >> "$GITHUB_STEP_SUMMARY"
+            exit "$GITLEAKS_RC"
           fi
 
       - name: Upload gitleaks report
