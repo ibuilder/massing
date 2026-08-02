@@ -1,0 +1,14 @@
+# Coverage config for the test gate's opt-in COVERAGE=1 mode (see run_tests.py _run_one).
+# parallel: each per-test subprocess writes its own .coverage.* shard; run_tests.py combines
+# them after the pool and emits coverage.xml for upload (Repowise / CI artifact).
+[run]
+branch = True
+parallel = True
+source = src/aec_api
+    ../data/src/aec_data
+
+[report]
+skip_empty = True
+
+[xml]
+output = coverage.xml

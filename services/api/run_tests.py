@@ -150,7 +150,15 @@ def _run_one(t: str, base: dict, cwd: Path = HERE) -> tuple[str, bool, float, st
     shutil.rmtree(cwd / f"_storage_{t}", ignore_errors=True)
     t0 = time.time()
     # -X utf8 + utf-8 capture so a test's unicode output (→, ², °) never crashes on a cp1252 console
-    proc = subprocess.run([sys.executable, "-X", "utf8", f"{t}.py"], cwd=cwd, env=env,
+    argv = [sys.executable, "-X", "utf8", f"{t}.py"]
+    if os.environ.get("COVERAGE") == "1":
+        # COVERAGE=1: opt-in coverage mode (~2x wall time — never the default gate). One .coverage.*
+        # shard per subprocess via --parallel-mode; main() combines + emits coverage.xml after the
+        # pool. rcfile/data-file are api-anchored so DATA_TESTS (cwd=services/data) share them.
+        argv = [sys.executable, "-X", "utf8", "-m", "coverage", "run",
+                f"--rcfile={HERE / '.coveragerc'}", f"--data-file={HERE / '.coverage'}",
+                "--parallel-mode", f"{t}.py"]
+    proc = subprocess.run(argv, cwd=cwd, env=env,
                           capture_output=True, encoding="utf-8", errors="replace")
     return t, proc.returncode == 0, time.time() - t0, (proc.stdout or "") + (proc.stderr or "")
 
@@ -184,6 +192,12 @@ def main() -> int:
 
     passed = sum(1 for _, ok, _ in results if ok)
     print(f"\n{passed}/{len(results)} suites passed  ({jobs} parallel, {time.time() - t_start:.0f}s wall)")
+    if os.environ.get("COVERAGE") == "1":
+        # merge the per-subprocess shards and emit coverage.xml (Repowise / CI-artifact upload).
+        # Runs even on a red suite: partial coverage of a failing run is still real data.
+        subprocess.run([sys.executable, "-m", "coverage", "combine"], cwd=HERE)
+        subprocess.run([sys.executable, "-m", "coverage", "xml", f"--rcfile={HERE / '.coveragerc'}"], cwd=HERE)
+        print(f"coverage.xml written to {HERE} — upload to Repowise / attach as a CI artifact")
     return 0 if passed == len(results) else 1
 
 

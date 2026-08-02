@@ -157,3 +157,8 @@ _prototypes/
 AGENTS.md
 .codex/
 .agents/
+
+# coverage artifacts (services/api COVERAGE=1 gate mode)
+.coverage
+.coverage.*
+coverage.xml
