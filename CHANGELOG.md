@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.833 — A29-UNDO-LOCAL: undo the stroke, not the commit
+
+### Added — Ctrl+Z pops the last clicked point of an in-progress draft
+
+Undoing one mis-clicked point of a polyline used to cost the whole draft — Escape was the only
+eraser — while undoing a committed element costs a republish (correctly: the server's versioned
+history is the record). Now, while a draft tool is armed, **Ctrl+Z removes the last placed point**
+and **Ctrl+Shift+Z restores it**, with the status line counting what remains. A new click
+invalidates the redo branch — restoring a point from an abandoned timeline would splice it into the
+middle of the current polyline and draw a wall nobody clicked. The history is strictly draft-scoped:
+it clears on commit and on disarm, and the keystroke is consumed **only while armed**, so the rail's
+committed-element undo and the browser's own Ctrl+Z keep their meanings everywhere else. The history
+mutates the live `armPts` array rather than holding a copy — one array, one truth.
+
 ## v0.3.832 — A29-SPATIAL-SELECT: click depth, not just objects
 
 ### Added — re-clicking a selected element widens the selection one spatial level

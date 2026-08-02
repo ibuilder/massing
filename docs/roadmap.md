@@ -155,7 +155,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ *(only OPEN item — rdflib add cleared, start after the 2026-08-02 merge train)* · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② *(these four SHIPPED 2026-08-02, pending archive to roadmap-completed)* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② *(SHIPPED v0.3.831, pending archive)* · A29-SPATIAL-SELECT ② *(SHIPPED v0.3.832, pending archive)* · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② *(SHIPPED v0.3.831, pending archive)* · A29-SPATIAL-SELECT ② *(SHIPPED v0.3.832, pending archive)* · A29-UNDO-LOCAL ③ *(SHIPPED v0.3.833, pending archive)* · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -1315,7 +1315,7 @@ the screen stops waiting for it.
   IFC-native makes the feature *better* for us than for them, because their tree is a convention and
   ours is the model.
 
-* **A29-UNDO-LOCAL ③** — *undo the stroke, not the commit.* We version on the server; they keep a
+* **A29-UNDO-LOCAL ③** — **SHIPPED v0.3.833** — *undo the stroke, not the commit.* We version on the server; they keep a
   50-step in-browser history. Both are right for different questions — "undo my last three drags"
   should not require three republishes. Scope: the in-progress draft only, discarded on commit, with
   the server history unchanged as the record.

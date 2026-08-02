@@ -43,6 +43,7 @@ import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
 import { PlanPane } from "./planPane";
 import { type PlanBounds, validatePlacement } from "./placeValid";
 import { type SpatialElement, type SpatialScope, nextScope, scopeSelection } from "./spatialSelect";
+import { DraftPointHistory } from "./draftHistory";
 import { DEFAULT_RISE_M, runReadout } from "./draft/stairLive";
 import { createTestHarness } from "@massingifc/plugin-sdk";
 
@@ -737,7 +738,24 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   });
   const setDynBuf = keysDyn.setDynBuf;
   const flashSnapGlyph = keysDyn.flashSnapGlyph;
-  function disarmDraft() { armed = null; armPts.length = 0; setDynBuf(""); draftHandle?.onArmCleared(); }
+  function disarmDraft() { armed = null; armPts.length = 0; draftHistory.clear(); setDynBuf(""); draftHandle?.onArmCleared(); }
+  // A29-UNDO-LOCAL — Ctrl+Z pops the last clicked point of the IN-PROGRESS draft (Ctrl+Shift+Z
+  // restores it); the server's versioned history stays the record for committed work. Registered on
+  // window because the canvas never holds focus; consumed ONLY while a draft is armed, so committed-
+  // element undo (the rail's ↶, a republish) and the browser's own undo keep the key elsewhere.
+  const draftHistory = new DraftPointHistory<THREE.Vector3>();
+  window.addEventListener("keydown", (e) => {
+    if (!armed || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return;
+    e.preventDefault();
+    if (e.shiftKey) {
+      const back = draftHistory.redo(armPts);
+      setStatus(back ? `point restored — ${armPts.length} placed` : "nothing to restore");
+      return;
+    }
+    const undone = draftHistory.undo(armPts);
+    if (!undone) { setStatus(`${armed.label}: no points yet — Esc cancels the tool`); return; }
+    setStatus(`point removed — ${armPts.length} remain (Ctrl+Shift+Z restores, Esc cancels)`);
+  });
   // P1 grid/level drafting refs: the grid overlay + snap, and the active storey/work-plane.
   const gridOverlay = new GridOverlay(viewer.world.scene.three);
   const logisticsOverlay = new LogisticsOverlay(viewer.world.scene.three);
@@ -941,7 +959,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       const gs = gridOverlay.nearestSnap(p.x, -p.z, 0.6);
       if (gs) p = new THREE.Vector3(gs[0], p.y, -gs[1]);
     }
-    showCoords(p); armPts.push(p.clone());
+    showCoords(p); armPts.push(p.clone()); draftHistory.noteAdded();
     // R38-DIM-INPUT — refresh the dyn HUD: a stale typed constraint must not survive the click that
     // ignored it, and with >=1 point placed the box now shows its hint state (the grammar, visible).
     setDynBuf("");
