@@ -333,7 +333,16 @@ def import_bundle(db: Session, data: bytes, *, new_name: str | None = None) -> s
     ifc_name = proj.get("source_ifc")
     if ifc_name and f"geometry/{ifc_name}" in names:
         _IFC_DIR.mkdir(parents=True, exist_ok=True)
-        dest = _IFC_DIR / f"{new_pid}_{ifc_name}"
+        # `ifc_name` comes from the CONTAINER's project.json — attacker-controlled on an uploaded
+        # .mass, as is the zip entry name that has to match it. The `{new_pid}_` prefix is not a
+        # guard: it only makes the first `..` part of a literal directory name, so a name carrying
+        # enough of them still resolves outside IFC_DIR, and the write below lands there with
+        # attacker-chosen bytes. Verified end to end before fixing.
+        try:
+            dest = storage.contained_path(_IFC_DIR, f"{new_pid}_{ifc_name}")
+        except ValueError:
+            raise HTTPException(400, "container names a source IFC outside its own storage") from None
+        dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(z.read(f"geometry/{ifc_name}"))
         src_path = str(dest)
     db.add(Project(id=new_pid, name=new_name or proj.get("name") or "Imported project",

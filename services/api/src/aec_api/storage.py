@@ -24,6 +24,29 @@ def safe_seg(seg: str) -> str:
     return seg
 
 
+def contained_path(base, *parts: str) -> Path:
+    """Join `parts` under `base` and refuse anything that RESOLVES outside it.
+
+    `safe_seg` validates one segment and is the right tool when every component is a segment you
+    control. It cannot help when a component is a whole client-supplied *name* — a filename read from
+    an uploaded container, say — because the traversal need not be its first segment. A prefix like
+    `f"{pid}_{name}"` makes the leading `..` part of a literal directory name, which reads as safe and
+    is not: the segments after it still walk up, so enough of them leave the base directory. Prefixing
+    changes the depth required and nothing else.
+
+    Resolving first and testing containment afterwards is therefore the barrier, not a second opinion
+    on it — it answers "where does this actually land", which is the only question that matters and
+    the one string inspection cannot answer. Same idiom as `LocalBackend._p` and the ensure-model path.
+
+    Raises ValueError; callers surface it as a 400. Returns the resolved path.
+    """
+    root = Path(base).resolve()
+    dest = root.joinpath(*parts).resolve()
+    if dest != root and not dest.is_relative_to(root):
+        raise ValueError(f"path escapes its base directory: {'/'.join(map(str, parts))!r}")
+    return dest
+
+
 def validate_key(key: str) -> str:
     """Validate a whole storage key, for EVERY backend — not just the one that has a filesystem.
 

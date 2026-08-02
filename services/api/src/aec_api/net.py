@@ -5,8 +5,15 @@ mis-set (or maliciously set) config value of `file:///etc/passwd`, `gopher://…
 local-file-read / SSRF primitive. Every outbound fetch of a settable URL should pass through
 `validate_outbound_url` first.
 
-`speckle_bridge._validate_server_url` predates this and keeps its own (stricter, https-only) guard;
-this is the reusable baseline for the rest.
+`speckle_bridge._validate_server_url` predates this and keeps its own (stricter, https-only) policy
+for the *message* it raises — but it validates hop zero only, so the fetch itself now goes through
+`safe_urlopen`. This paragraph used to say that guard stood on its own, and that was the more
+dangerous half of the bug: a module documented as already-guarded is one nobody re-reads. A
+scheme/host check is a property of a **hop**, not of a URL, and only the opener sees every hop.
+
+Which call sites are exempt is not left to a comment either — `test_outbound_fetch_guard` enumerates
+every raw `urlopen` in the package and fails on any that is neither routed through here nor frozen as
+a compile-time-constant host. A `noqa: S310` reads as a decision whether or not one was made.
 """
 from __future__ import annotations
 
