@@ -44,6 +44,18 @@ def storey_elevations(model: ifcopenshell.file) -> list[dict[str, Any]]:
     return sorted(out, key=lambda x: x["elevation"])
 
 
+def resolve_storey(model: ifcopenshell.file, storey: str) -> float | None:
+    """R38-SYNC-SELECT: a storey NAME → its elevation in metres, or None when no storey has that
+    name. Matching is case-insensitive and whitespace-trimmed because the name travels through a
+    query string typed by nobody — it comes from the viewer's level list, but a client and server
+    disagreeing on case must degrade to 'not found', never to a silent cut at the wrong height."""
+    want = storey.strip().lower()
+    for lvl in storey_elevations(model):
+        if str(lvl.get("name") or "").strip().lower() == want:
+            return float(lvl["elevation"])
+    return None
+
+
 def _world_settings(geom_mod):
     """Geometry settings that apply each element's ObjectPlacement, so verts come back in WORLD space.
     Without this every element collapses to its own local origin — off-origin geometry stacks at (0,0)
@@ -439,9 +451,12 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
                      tags: list[dict] | None = None, callouts: list[dict] | None = None,
                      below: list[np.ndarray] | None = None, by_discipline: bool = False,
                      pins: list[dict] | None = None) -> str:
-    classed = cut_baked_classed(meshes, "plan", elevation + cut_height) if by_discipline else None
-    polys = [p for _, p in classed] if classed is not None \
-        else cut_baked(meshes, "plan", elevation + cut_height)
+    # R38-SYNC-SELECT: the cut is always the GUIDED one now, so every polyline can carry the
+    # GlobalId of the element it draws. `by_discipline` only decides colour + legend, not identity —
+    # a plan whose linework forgets its elements in one rendering mode would make selection sync a
+    # mode-dependent feature, which is worse than not having it.
+    guided = cut_baked_guided(meshes, "plan", elevation + cut_height)
+    polys = [p for _g, _c, p in guided]
     below = below or []
     grid = grid or {"x": [], "y": []}
     if not polys and not below and not (grid["x"] or grid["y"]):
@@ -496,17 +511,22 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
         out.append(f'<polyline points="{pp}" fill="none" stroke="#999" stroke-width="0.5" '
                    f'stroke-dasharray="5 3"/>')
 
-    # cut geometry — DISC-poché strokes each element's linework with its discipline color + a legend
-    if classed is not None:
+    # cut geometry — every polyline carries `data-guid` + `data-class` (R38-SYNC-SELECT), so a click
+    # in the served plan resolves to the element the 3D view selects. An IFC GlobalId is 22 chars of
+    # [0-9A-Za-z_$] and the class is an IFC schema identifier, so neither needs XML escaping.
+    # DISC-poché (`by_discipline`) strokes with the discipline color + a legend; identity is carried
+    # either way.
+    if by_discipline:
         from . import disciplines as _disc
 
         used: dict[str, str] = {}
-        for cls, poly in classed:
+        for guid, cls, poly in guided:
             code = _disc.discipline_of_class(cls)
             col = _disc.discipline_color(code)
             used[code] = col
             pp = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
-            out.append(f'<polyline points="{pp}" fill="none" stroke="{col}" stroke-width="1.1"/>')
+            out.append(f'<polyline data-guid="{guid}" data-class="{cls}" points="{pp}" '
+                       f'fill="none" stroke="{col}" stroke-width="1.1"/>')
         for i, (code, col) in enumerate(sorted(used.items())):
             ly = 20 + i * 16
             out.append(f'<rect x="{width - 150}" y="{ly}" width="12" height="10" fill="{col}"/>'
@@ -516,9 +536,10 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
             out.append(f'<text x="{width - 150}" y="12" font-size="11" font-weight="bold" '
                        f'font-family="sans-serif">DISCIPLINES</text>')
     else:
-        for poly in polys:
+        for guid, cls, poly in guided:
             pp = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
-            out.append(f'<polyline points="{pp}" fill="none" stroke="#111" stroke-width="0.8"/>')
+            out.append(f'<polyline data-guid="{guid}" data-class="{cls}" points="{pp}" '
+                       f'fill="none" stroke="#111" stroke-width="0.8"/>')
 
     # room tags (IfcSpace): name + net floor area at the space centroid
     for tag in (tags or []):

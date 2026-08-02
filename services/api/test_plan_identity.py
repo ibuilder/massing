@@ -22,6 +22,7 @@ The assertions are about the ways a change like this passes while being useless 
 Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_plan_identity.py
 """
 import os
+import re
 import sys
 
 _DATA_SRC = os.path.join(os.path.dirname(__file__), "..", "data", "src")
@@ -115,6 +116,33 @@ check("  and on the classes",
 
 # the cache identity contract test_sections.py depends on
 check("bake is still cached by model identity", drawings.bake(model) is meshes)
+
+# --- 5. R38-SYNC-SELECT: the SERVED SVG carries the identity ---------------------------------------
+# Carrying the guid to the cut and then dropping it at render would leave sync-select asserting
+# against a pipeline whose last hop is anonymous — the exact defect PLAN-IDENTITY fixed, one stage
+# later. Assert on the emitted markup, which is what the browser actually receives.
+svg_plain = drawings.plan_svg(model, 0.0, cut_height=1.5)
+svg_disc = drawings.plan_svg(model, 0.0, cut_height=1.5, by_discipline=True)
+for label, svg in (("plain", svg_plain), ("by_discipline", svg_disc)):
+    check(f"{label} plan SVG emits data-guid on cut linework", 'data-guid="' in svg)
+    check(f"  {label}: BOTH walls are named in the markup",
+          all(f'data-guid="{g}"' in svg for g in wall_guids),
+          [g for g in wall_guids if f'data-guid="{g}"' not in svg])
+    check(f"  {label}: every emitted guid resolves in the model — no invented identity",
+          all(_resolve(g) is not None
+              for g in re.findall(r'data-guid="([^"]+)"', svg)))
+check("identity is NOT mode-dependent — both rendering modes name the same elements",
+      set(re.findall(r'data-guid="([^"]+)"', svg_plain))
+      == set(re.findall(r'data-guid="([^"]+)"', svg_disc)))
+
+# --- 6. storey NAME -> elevation (the plan pane sends a name; the route now resolves it) -----------
+lvl = model.by_type("IfcBuildingStorey")[0]
+check("resolve_storey finds the level by exact name",
+      drawings.resolve_storey(model, str(lvl.Name)) is not None)
+check("  case/whitespace-insensitively — the name travels through a query string",
+      drawings.resolve_storey(model, f"  {str(lvl.Name).upper()}  ") is not None)
+check("  and an unknown name is None, never a silent elevation",
+      drawings.resolve_storey(model, "No Such Level") is None)
 
 # --- the shared cross-process payload round-trips WITH the guid -------------------------------------
 # The payload widened from (cls, verts, faces) to (guid, cls, verts, faces); the shared key is

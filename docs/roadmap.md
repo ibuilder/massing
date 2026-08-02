@@ -155,7 +155,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ *(only OPEN item — rdflib add cleared, start after the 2026-08-02 merge train)* · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② *(these four SHIPPED 2026-08-02, pending archive to roadmap-completed)* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SYNC-SELECT ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(R38-SYNC-SELECT shipped v0.3.829)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -1165,7 +1165,12 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
     **This is one discarded value, not new machinery** — and it unlocks selection sync, click-a-wall-
     in-plan-selects-in-3D, precise pin-to-drawing anchoring, and R27's "the drawing is data" thesis
     more broadly. Highest leverage-per-line item left in the ring.
-  - **R38-SYNC-SELECT ③** *(S, Lane E)* — selection sync in both directions, once identity lands.
+  - **R38-SYNC-SELECT ③** *(S, Lane E)* — **SHIPPED v0.3.829** — selection sync in both directions.
+    The SVG emits `data-guid` per cut polyline (both rendering modes), the pane adds invisible fat
+    hit-twins to ~1px linework, and one element lights as MANY loops. Shipping it also surfaced that
+    the pane had been unreachable (toggle button never appended), its fetch had failed cross-origin
+    since v0.3.826 (`credentials:"include"` without a credentials CORS grant), and the live route
+    dropped the `storey` param entirely — three defects only a live drive could see.
 - **R38-SHEET-MARKUP ③** *(M, Lane B)* — the vendored markup toolset (clouds, callouts, stamps,
   tool sets) opened on the room's OWN generated sheets, markups tied to GUIDs through the existing
   pin-to-drawing spine.

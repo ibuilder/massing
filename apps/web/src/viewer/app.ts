@@ -145,6 +145,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let selection: ModelIdMap | null = null;
   let lastPoint: THREE.Vector3 | null = null;
   let selectedGuid: string | null = null;
+  // R38-SYNC-SELECT: every selection change flows through selectMap, which is defined long before
+  // the plan pane exists — so the pane subscribes through this hook rather than selectMap reaching
+  // forward to a const that has not been initialised yet.
+  let onSelectionChanged: (guid: string | null) => void = () => {};
   let editInPlace = false;            // P5: show the move gizmo on the selected element
   let gizmo: TransformGizmo | null = null;
   let pushPullOn = false;             // R38-PUSHPULL: drag the top handle to deepen the extrusion
@@ -174,13 +178,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (selection) await loader.fragments.resetHighlight(selection);
     selection = map;
     relayoutTools();          // what you can do depends on what you have selected
-    if (!map) { gizmo?.hide(); ppGizmo?.hide(); propsHint(); updateInfoBox(null); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); return; }
+    if (!map) { gizmo?.hide(); ppGizmo?.hide(); propsHint(); updateInfoBox(null); props5d.innerHTML = ""; propsVerify.innerHTML = ""; propsLinks.replaceChildren(); onSelectionChanged(null); return; }
     await loader.fragments.highlight(SELECT_MAT(), map);
     await loader.fragments.core.update(true);
     if (opts.fit) await fitToItems(map);
     await showProps(map, opts.guid);
     if (editInPlace) await attachGizmo(map);
     else if (pushPullOn) await attachPushPull(map);
+    onSelectionChanged(opts.guid ?? selectedGuid);
   }
 
   // 5D inspector — appended under the property panel; populated on selection
@@ -713,16 +718,20 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const draftProxies = new DraftProxyLayer(viewer.world.scene.three);   // P6: optimistic placement feedback
   let activeStorey: string | null = null;       // name passed to Draft recipes; sets the work-plane Z
   let activeStoreyZ = 0;
-  // R38-SYNC-VIEW — the plan docked beside the model, following the active level. Selection sync is
-  // NOT here and cannot be: the drawing pipeline drops element identity at bake, so no polyline in
-  // the SVG names an element (R38-PLAN-IDENTITY is the prerequisite, R38-SYNC-SELECT the follow-on).
+  // R38-SYNC-VIEW + R38-SYNC-SELECT — the plan docked beside the model, following the active level,
+  // and now selection-synced both ways: PLAN-IDENTITY carried the GlobalId through the bake, the
+  // SVG carries it as data-guid, so a click on plan linework is a real selection and a 3D pick
+  // lights its loops in the plan.
   const planPane = new PlanPane({
     url: (p) => api.url(p),
     projectId: () => projectId,
     activeStorey: () => activeStorey,
     notify,
+    onPick: (guid) => { void selectByGuid(guid, true); },
+    headers: () => api.authHeaders(),
   });
   container.appendChild(planPane.el);
+  onSelectionChanged = (guid) => planPane.highlight(guid);
   // Authoring is done through the Draft panel (the parameter-driven, snapping, per-level surface) —
   // the old click-to-place toolbar buttons (wall/column/beam/family) were a redundant second way to do
   // the same thing and were removed. The buttons below act on the *selected* element.
@@ -2493,7 +2502,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         if (open) notify("Plan pane open — it follows the active level", "info");
       });
       planPaneBtn.title = "Dock the generated plan beside the 3D view; it re-cuts when you change the "
-        + "active level. Selection is not synced yet — plan linework carries no element identity.";
+        + "active level, and selection syncs both ways — click linework in the plan to select in 3D.";
       const planBtn = toolBtn2("🖨 Generate plan (SVG)", () => {
         const q = new URLSearchParams({ scale: "100" });
         if (activeStorey) q.set("storey", activeStorey);
@@ -3278,8 +3287,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       redoBtn.onclick = () => void doUndoRedo(true);
       void refreshUndo();
 
+      // `planPaneBtn` before `planBtn`: the docked pane is the daily surface, the SVG export the
+      // occasional one. (It was CREATED and never appended from v0.3.826 until 2026-08-02 — the pane
+      // shipped wired, tested and unreachable, which no test caught because tests exercised the
+      // class, not the rail. The [[what-did-we-build-that-nothing-calls]] shape, one button wide.)
       glBody.append(status, levelSel, undoRow, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, asBuiltBtn, planBtn, sheetBtn, pdfBtn, schedBtn, schedPdfBtn, manualBtn, sectBtn,
+        phaseBtn, queryBtn, lodBtn, asBuiltBtn, planPaneBtn, planBtn, sheetBtn, pdfBtn, schedBtn, schedPdfBtn, manualBtn, sectBtn,
         annotateHead, annotateWrap, libHead, libWrap,
         advToggle, advWrap, manage, levelsMgr);
     }

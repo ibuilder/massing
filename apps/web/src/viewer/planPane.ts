@@ -1,22 +1,26 @@
 /**
- * R38-SYNC-VIEW — the plan, in the room.
+ * R38-SYNC-VIEW + R38-SYNC-SELECT — the plan, in the room, and talking to it.
  *
  * The plan drawing has always been one click away and one WINDOW away: "Generate plan (SVG)" opened
  * a browser tab, so reading a plan meant leaving the model. This docks it beside the 3D view and
- * keeps it on the storey you are working in — the first half of "model and documents in one room".
+ * keeps it on the storey you are working in — "model and documents in one room".
  *
- * **What this slice deliberately does NOT do: selection sync.** The drawing pipeline discards
- * element identity at bake time (`drawings._bake_uncached` has `shape.guid` and keeps only
- * `(cls, mesh)`), so no polyline in the returned SVG can name the element it draws. Clicking a wall
- * in the plan therefore cannot select it in 3D, and pretending otherwise — highlighting a nearby
- * element by coordinate guess — would be the confident-wrong shape. Selection sync is
- * R38-SYNC-SELECT and waits on R38-PLAN-IDENTITY carrying the GUID through the bake.
+ * SYNC-SELECT (2026-08-02): the served plan's polylines now carry `data-guid` (R38-PLAN-IDENTITY
+ * carried the GlobalId through the bake; the SVG generator emits it), so selection syncs BOTH ways:
+ * clicking linework in the plan selects that element in 3D, and selecting in 3D lights the
+ * element's loops in the plan. **One element is many polylines** — a wall cut at a doorway sections
+ * into several loops — so highlight and click both operate on "every node with this guid", never
+ * "the node".
  *
- * Storey sync IS honest today: the plan is a cut at a level, and the level is something the viewer
- * knows exactly.
+ * Two deliberate shapes:
+ *  - Drawn linework is ~1px and unclickable at plan scale, so every identified polyline gets an
+ *    invisible fat twin (`data-hit`) that exists only to be clicked. The twin is a clone, so it can
+ *    never drift from the geometry it fronts.
+ *  - A selection change never refetches (`needsRefetch` ignores it) — highlighting is a style pass
+ *    over nodes already on screen, which is what makes the pane cheap enough to leave open.
  */
 
-/** The query for a plan cut. Pure so the storey/scale contract is testable without a network. */
+/** The query for a plan cut. Pure so the storey contract is testable without a network. */
 export function planParams(storey: string | null, scale = 100): URLSearchParams {
   const q = new URLSearchParams({ scale: String(scale) });
   if (storey) q.set("storey", storey);
@@ -31,6 +35,57 @@ export function needsRefetch(prev: { storey: string | null; scale: number } | nu
   return prev.storey !== next.storey || prev.scale !== next.scale;
 }
 
+/**
+ * Give every identified polyline an invisible, fat, clickable twin. Returns how many were added.
+ * Idempotent: a node already twinned is skipped, so calling after every refresh cannot stack twins.
+ */
+export function addHitTargets(root: ParentNode): number {
+  let added = 0;
+  root.querySelectorAll<SVGElement>("polyline[data-guid]").forEach((el) => {
+    if (el.hasAttribute("data-hit")) return;                        // this IS a twin
+    const next = el.nextElementSibling;
+    if (next?.hasAttribute("data-hit")) return;                     // already twinned
+    const hit = el.cloneNode(false) as SVGElement;
+    hit.setAttribute("data-hit", "1");
+    hit.setAttribute("stroke", "transparent");   // painted (≠ none), so it hit-tests; invisible
+    hit.setAttribute("stroke-width", "8");
+    hit.setAttribute("fill", "none");
+    hit.setAttribute("pointer-events", "stroke");
+    hit.setAttribute("cursor", "pointer");
+    el.after(hit);
+    added++;
+  });
+  return added;
+}
+
+/**
+ * Light every loop of `guid`; restore everything else. Returns how many loops lit — an element cut
+ * at an opening sections into several, and a return of 0 for a non-null guid means the element is
+ * not on this storey's plan (a fact worth surfacing, not an error).
+ */
+export function syncPlanHighlight(root: ParentNode, guid: string | null): number {
+  let lit = 0;
+  root.querySelectorAll<SVGElement>("polyline[data-guid]").forEach((el) => {
+    if (el.hasAttribute("data-hit")) return;                        // twins stay invisible
+    const on = guid !== null && el.getAttribute("data-guid") === guid;
+    if (on) {
+      if (!el.hasAttribute("data-orig-stroke")) {
+        el.setAttribute("data-orig-stroke", el.getAttribute("stroke") ?? "");
+        el.setAttribute("data-orig-width", el.getAttribute("stroke-width") ?? "");
+      }
+      el.setAttribute("stroke", "#2563eb");
+      el.setAttribute("stroke-width", "2.4");
+      lit++;
+    } else if (el.hasAttribute("data-orig-stroke")) {
+      el.setAttribute("stroke", el.getAttribute("data-orig-stroke") ?? "");
+      el.setAttribute("stroke-width", el.getAttribute("data-orig-width") ?? "");
+      el.removeAttribute("data-orig-stroke");
+      el.removeAttribute("data-orig-width");
+    }
+  });
+  return lit;
+}
+
 export interface PlanPaneDeps {
   /** Absolute URL for an API path (the client's `api.url`). */
   url: (path: string) => string;
@@ -38,14 +93,22 @@ export interface PlanPaneDeps {
   /** The storey the modeler is working in, or null for the whole model. */
   activeStorey: () => string | null;
   notify: (msg: string, kind: "info" | "success" | "error") => void;
+  /** SYNC-SELECT: a click on identified linework names an element; the viewer selects it. */
+  onPick?: (guid: string) => void;
+  /** The api client's auth headers — the pane fetches like every other client call. */
+  headers?: () => Record<string, string>;
 }
 
 export class PlanPane {
   readonly el = document.createElement("div");
   private body = document.createElement("div");
   private last: { storey: string | null; scale: number } | null = null;
-  private scale = 100;
   private open = false;
+  /** Client-side zoom (CSS width %). The server `scale` param stays fixed: zoom is presentation,
+   *  and a zoom that refetched the drawing would cost a bake round-trip per click. */
+  private zoomPct = 100;
+  /** The selected element, re-lit after every refetch so a storey change keeps the selection. */
+  private sel: string | null = null;
 
   constructor(private d: PlanPaneDeps) {
     this.el.className = "plan-pane";
@@ -62,11 +125,11 @@ export class PlanPane {
     lvl.className = "plan-pane-level";
     lvl.style.cssText = "color:var(--muted,#94a3b8);flex:1";
     const zoomOut = document.createElement("button");
-    zoomOut.className = "tool-btn"; zoomOut.textContent = "−"; zoomOut.title = "Coarser scale (1:200)";
-    zoomOut.onclick = () => { this.scale = Math.min(500, this.scale * 2); void this.refresh(true); };
+    zoomOut.className = "tool-btn"; zoomOut.textContent = "−"; zoomOut.title = "Zoom out";
+    zoomOut.onclick = () => { this.zoomPct = Math.max(50, this.zoomPct / 2); this.applyZoom(); };
     const zoomIn = document.createElement("button");
-    zoomIn.className = "tool-btn"; zoomIn.textContent = "+"; zoomIn.title = "Finer scale (1:50)";
-    zoomIn.onclick = () => { this.scale = Math.max(20, Math.round(this.scale / 2)); void this.refresh(true); };
+    zoomIn.className = "tool-btn"; zoomIn.textContent = "+"; zoomIn.title = "Zoom in";
+    zoomIn.onclick = () => { this.zoomPct = Math.min(800, this.zoomPct * 2); this.applyZoom(); };
     const pop = document.createElement("button");
     pop.className = "tool-btn"; pop.textContent = "↗"; pop.title = "Open this plan in a new tab";
     pop.onclick = () => {
@@ -75,14 +138,39 @@ export class PlanPane {
     };
     bar.append(title, lvl, zoomOut, zoomIn, pop);
     this.body.style.cssText = "flex:1;overflow:auto;background:#fff";
+    // Delegated ONCE on the persistent body, not per refresh — a listener per refetch is how a
+    // single click comes to select the same element N times.
+    this.body.addEventListener("click", (e) => {
+      const guid = (e.target as Element | null)?.closest?.("[data-guid]")?.getAttribute("data-guid");
+      if (guid) { this.highlight(guid); this.d.onPick?.(guid); }
+    });
     this.el.append(bar, this.body);
   }
 
-  private params(): string { return planParams(this.d.activeStorey(), this.scale).toString(); }
+  private params(): string { return planParams(this.d.activeStorey()).toString(); }
 
   private levelLabel(): string {
     const s = this.d.activeStorey();
-    return `${s ?? "whole model"} · 1:${this.scale}`;
+    return `${s ?? "whole model"} · ${this.zoomPct}%`;
+  }
+
+  private applyZoom(): void {
+    const svg = this.body.querySelector("svg");
+    if (svg) svg.setAttribute("width", `${this.zoomPct}%`);
+    const lbl = this.el.querySelector<HTMLElement>(".plan-pane-level");
+    if (lbl) lbl.textContent = this.levelLabel();
+  }
+
+  /** SYNC-SELECT, 3D → plan: light every loop of `guid` (null clears). Keeps the choice across
+   *  refetches, and scrolls the first lit loop into view so the pane answers "where is it?". */
+  highlight(guid: string | null): void {
+    this.sel = guid;
+    if (!this.open) return;
+    const lit = syncPlanHighlight(this.body, guid);
+    if (lit > 0) {
+      this.body.querySelector<SVGElement>(`polyline[data-guid="${CSS.escape(guid!)}"]`)
+        ?.scrollIntoView({ block: "center", inline: "center" });
+    }
   }
 
   /** Fetch the cut if it changed (or `force`). Never throws — a failed drawing must not break the
@@ -93,12 +181,17 @@ export class PlanPane {
     const lbl = this.el.querySelector<HTMLElement>(".plan-pane-level");
     if (lbl) lbl.textContent = this.levelLabel();
     if (!pid) { this.body.innerHTML = ""; return; }
-    const next = { storey: this.d.activeStorey(), scale: this.scale };
+    const next = { storey: this.d.activeStorey(), scale: 100 };
     if (!force && !needsRefetch(this.last, next)) return;
     this.last = next;
     try {
+      // Bearer headers, NO `credentials: "include"` — matching every other GET the client makes.
+      // The credentialed form silently required `Access-Control-Allow-Credentials` from the API,
+      // which it never sends, so this exact fetch hard-failed cross-origin (ERR_FAILED, caught and
+      // rendered as "No plan for this level yet") from the day the pane shipped — unobserved,
+      // because the pane's toggle button was never appended to the rail either.
       const res = await fetch(this.d.url(`/projects/${pid}/drawings/plan.svg?${this.params()}`),
-                              { credentials: "include" });
+                              { headers: this.d.headers?.() ?? {} });
       if (!res.ok) throw new Error(`plan ${res.status}`);
       const svg = await res.text();
       // The SVG is server-generated from our own geometry, not user content; it is inserted as
@@ -106,7 +199,9 @@ export class PlanPane {
       // and style only.
       this.body.innerHTML = svg;
       const el = this.body.querySelector("svg");
-      if (el) { el.setAttribute("width", "100%"); el.removeAttribute("height"); }
+      if (el) { el.setAttribute("width", `${this.zoomPct}%`); el.removeAttribute("height"); }
+      addHitTargets(this.body);
+      syncPlanHighlight(this.body, this.sel);      // a storey change must not lose the selection
     } catch (err) {
       this.body.innerHTML = "";
       const p = document.createElement("div");

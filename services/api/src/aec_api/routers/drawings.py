@@ -633,17 +633,30 @@ def model_grid(pid: str, db: Session = Depends(get_db), _sec: str = Depends(requ
 
 @router.get("/projects/{pid}/drawings/plan.svg")
 def plan(pid: str, elevation: float = 0.0, cut_height: float = 1.2, title: str = "PLAN",
+         storey: str | None = None,
          rooms: bool = True, callouts: bool = False, view_depth: float | None = None,
          by_discipline: bool = False, pins: bool = False,
          db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Schematic plan (SVG) cut at `elevation + cut_height`. VIEW-RANGE: pass `view_depth` (metres below
     the cut) to also draw the footprint of anything under the cut but within that depth — foundations/
     footings show as dashed hidden lines, the Revit Top/Cut/Bottom/View-Depth model rather than one cut_z.
-    DISC-poché: `by_discipline=true` strokes each element's linework with its discipline color + legend."""
+    DISC-poché: `by_discipline=true` strokes each element's linework with its discipline color + legend.
+
+    `storey` names a level and overrides `elevation` (R38-SYNC-SELECT). This route had no such
+    parameter, and the plan pane was SENDING one the whole time — FastAPI drops unknown query params,
+    so every "storey-synced" plan was silently cut at elevation 0. An unknown name is a 404 carrying
+    the real names, not a silent default: cutting the wrong level while echoing the requested label
+    is the confident-wrong shape."""
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
     _m = open_model(_source_ifc(db, pid))
+    if storey is not None:
+        resolved = drawings.resolve_storey(_m, storey)
+        if resolved is None:
+            have = [str(lvl.get("name") or "") for lvl in drawings.storey_elevations(_m)]
+            raise HTTPException(404, f"no storey named {storey!r}; levels: {have}")
+        elevation = resolved
     svg = drawings.plan_svg(_m, elevation, cut_height, title,
                             rooms=rooms, callouts=callouts, view_depth=view_depth,
                             by_discipline=by_discipline,

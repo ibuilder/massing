@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.829 — the plan knows what it draws: 2D↔3D selection sync
+
+### Added — R38-SYNC-SELECT: click a wall in the plan, it selects in 3D; select in 3D, its loops light in the plan
+
+R38-PLAN-IDENTITY carried the GlobalId through the geometry bake; this release carries it the last
+two hops. The plan SVG generator now emits `data-guid` + `data-class` on every cut polyline (in both
+rendering modes — identity is not mode-dependent), and the docked plan pane wires it up: every drawn
+line gets an invisible fat twin so ~1px linework is actually clickable, a click resolves to the same
+element the 3D view selects, and a 3D selection lights **every loop** of that element in the plan —
+one wall cut at a doorway is several loops, and the sync treats that as the honest shape. A selection
+change never refetches the drawing; highlighting is a style pass over nodes already on screen.
+
+### Fixed — three defects found by driving the feature live, each invisible from the code alone
+
+- **The plan pane was unreachable since v0.3.826.** Its toggle button was created, titled, wired —
+  and never appended to the rail. Tests exercised the class; nothing exercised the rail.
+- **The pane's fetch failed cross-origin from day one.** It used `credentials: "include"`, which
+  requires an `Access-Control-Allow-Credentials` header the API never sends; the browser hard-failed
+  the request and the pane rendered "No plan for this level yet". It now sends bearer headers like
+  every other client call.
+- **The `storey` parameter was silently dropped by the live route.** The serving `plan.svg` route
+  took `elevation` only; FastAPI discards unknown query params, so every "storey-synced" plan was
+  cut at elevation 0 while the label claimed the level. The route now resolves the storey name
+  (case/whitespace-insensitive) to its elevation, and an unknown name is a 404 carrying the real
+  level names — never a silent cut at the wrong height. Verified live: Level 1 cuts 11 elements,
+  Level 2 cuts 4.
+
+Pane zoom is now client-side (CSS width) instead of a `scale` refetch the server ignored.
+`test_plan_identity.py` grew SVG-emission and storey-resolution checks; `planPane.test.ts` pins the
+hit-twin idempotence and the many-loops highlight contract.
+
 ## v0.3.828 — each room gets its own rail, and switching rooms stops being a race
 
 ### Fixed — Planning and Schedule rendered the same (or nothing) because room switching was a DOM click-simulation
