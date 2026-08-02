@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.826 — the plan stops being a browser tab
+
+### Added — R38-SYNC-VIEW: the drawing docked beside the model
+
+"Generate plan (SVG)" has always opened a *browser tab*, so reading a plan meant leaving the model.
+The plan now docks beside the 3D view and follows the level you are working in: change the active
+level and it re-cuts, with scale controls and a pop-out for when a full window is genuinely wanted.
+
+**What it deliberately does not do, and why that is stated in the tool's own tooltip: selection is
+not synced.** The drawing pipeline discards element identity at bake time — it has the GlobalId in
+hand and keeps only the class — so no polyline in the returned drawing can name the element it
+draws. Clicking a wall in the plan therefore cannot select it in 3D, and highlighting a nearby
+element by coordinate guess would be a confident lie about which wall you picked. Carrying that one
+discarded value through the bake is now the roadmap's highest leverage-per-line item; selection sync
+follows it.
+
+The refetch rule is the tested part: only a change of CUT (level or scale) costs a drawing
+round-trip, never a selection change — which is what makes the pane cheap enough to leave open while
+modelling.
+
 ## v0.3.825 — width and length join the conversation
 
 ### Added — R38-LIVE-PARAMS slice 3: dimension chips over the new profile recipes
