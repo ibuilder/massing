@@ -769,14 +769,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (activeStorey && params.storey === undefined) params.storey = activeStorey;   // author onto the active level
     disarmDraft();
     draftProxies.fromParams(params, activeStoreyZ);                                   // instant optimistic proxy
-    // incremental preview: real one-element geometry immediately (fail-open — keep the proxy on error)
+    // Incremental preview: real one-element geometry immediately (fail-open — the proxy stands on
+    // error). A29-LOCAL-PREVIEW: the amber proxy is deliberately NOT cleared when the preview
+    // loads. The preview is real-looking geometry, and real-looking geometry with no marker is
+    // indistinguishable from a committed element — which becomes a lie the moment the recipe
+    // fails. Amber outline over accurate preview geometry states exactly the truth: this shape,
+    // not yet on the record. The outline drops only when publish completes (authorAndReload).
     let previewId: string | null = null;
     try {
       const pv = await api.editPreview(projectId, a.recipe, params);
       if (pv?.frag) {
         previewId = `preview-${pv.guid || Date.now()}`;
         await loader.loadFragments(pv.frag, previewId);
-        draftProxies.clear();
       }
     } catch { /* preview unavailable — the optimistic proxy stands until the full reload */ }
     await authorAndReload(a.recipe, params, a.label, previewId);
@@ -793,9 +797,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         notify(`${label} authored — converting…`, "info");
         const state = await waitForPublish(projectId!);
         if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); notify(`${label} applied${shown ? " — shown" : ""}`, "success"); }
-        else { await dropPreview(); notify(`${label} authored — publish ${state}`, state === "error" ? "error" : "info"); }
+        else { await dropPreview(); draftProxies.markFailed(); notify(`${label} authored — publish ${state}`, state === "error" ? "error" : "info"); }
         await reloadModelPins();
-      } catch (err) { draftProxies.clear(); await dropPreview(); notify(`${label} failed: ${(err as Error).message}`, "error"); }
+      } catch (err) {
+        // A29: a failed placement keeps its marker, turned red — a toast says something failed,
+        // the marker says WHERE. The next draft action clears it (fromParams handles that).
+        draftProxies.markFailed(); await dropPreview();
+        notify(`${label} failed: ${(err as Error).message}`, "error");
+      }
     });
   }
 

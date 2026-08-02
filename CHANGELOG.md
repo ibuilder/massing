@@ -4,6 +4,65 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.819 — a pending edit now looks pending, and a failed one says where
+
+### Added — the Design Room ring (R38), and its first shipped slice
+
+The Design room was inventoried tool by tool and set against what the research says makes authoring
+tools feel learnable: a shape must respond in the same frame, everything must be learnable from the
+cursor, parameters must stay alive after creation, and the sheet must be a working surface rather
+than an export. The room is not behind on features — 14 draw tools, families with sized variants,
+constraints, phasing, MEP, generated sheets, a full markup engine — it is behind on the first ten
+minutes. The new roadmap ring sequences three waves against exactly that, and a premise-check en
+route found a real hole: **there is no stair or ramp draw tool.** A user cannot author a two-storey
+building without leaving the room; that is now a coded Wave 1 item.
+
+### Fixed — the optimistic preview could not be told apart from the real thing
+
+Placement drafting was already optimistic — an amber proxy the instant of placement, then an
+incremental one-element preview of real geometry. But the moment that preview streamed in, the amber
+marker was cleared: **real-looking geometry, indistinguishable from a committed element, for work
+the server had not yet accepted.** The one rule the authoring-feel ring wrote down — *a pending edit
+must look pending* — was being violated by the code built to satisfy it. The amber outline now
+stays over the preview until publish completes: accurate shape, honest status.
+
+And failure kept no trace: a failed recipe cleared every proxy and raised a toast, so the user knew
+something failed but not **where**. A failed placement is information with a location. The marker
+now turns red and stays until the next draft action — drawing again is the acknowledgement.
+
+The proxy layer's state machine (pending and failed are mutually exclusive; shared materials reset
+so a stale red cannot paint the next placement as pre-failed) is unit-tested headless and
+mutation-checked in both directions. Honest limit, per the frontend-verification discipline: the
+live draft path cannot be exercised in the dev preview (the geometry loader stall), so verification
+is the state-machine tests plus typecheck and a production build — not a hand-driven placement.
+
+### Fixed — a boot guard nobody could ever satisfy, from two correct changes colliding
+
+The new multi-worker sidecar-lock refusal (right in itself: N workers on SQLite cannot serialise a
+document-index write) asked a **live engine** for its dialect, while every sibling check in the
+production guard reads the environment. Under the test runner the live engine is always SQLite, so
+the "correctly configured production" fixture — Postgres URL, Redis, RBAC, real secret — was refused
+anyway: a guard whose passing configuration was unreachable in-process. Worse, a transient DB blip at
+boot would have read as dialect "unknown" and refused to start a perfectly configured Postgres
+deployment. The guard now derives the dialect from `DATABASE_URL` — at boot the env var and the
+engine name the same database, and the env var cannot blip. The live-truth surface stays on /health.
+Three new cases pin the branch: declared-SQLite production with 4 workers refuses, a
+driver-qualified `postgresql+psycopg://` URL counts as Postgres, one worker is always fine.
+
+### Security — the deployment surface now says what it enforces
+
+- **Content-Security-Policy** on the web image (`apps/web/nginx.conf`): scripts from self plus WASM
+  compilation only — no inline, no eval — workers from blobs, frames from nobody else. A new gate
+  (`apps/web/src/deploy/nginx.test.ts`, 12 tests) holds the two nginx header scopes identical (a
+  location-level `add_header` silently drops the server-level set) and asserts the entry point has
+  no inline script, so our own policy can never blank our own app.
+- **Converter build stage off an EOL Node** (`services/api/Dockerfile`): node:25-slim (no security
+  patches) → the same digest-pinned node:24 LTS the web image uses — one Node runtime across the
+  product, matching the `engines` field both manifests already declare.
+- **R39 DEPLOYMENT-TRUTH ring** added to the roadmap from an external engineering audit,
+  premise-checked item by item: shared-store endpoint throttles, an app-boundary upload cap,
+  keyboard journeys per room, viewer load-time observability, and the last god-file decomposition.
+
 ## v0.3.818 — the public demo never had the six numbers it promises
 
 ### Planned — ring R36: each room must be a product (from three user directives)
