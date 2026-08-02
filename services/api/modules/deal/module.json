@@ -1,0 +1,255 @@
+{
+  "key": "deal",
+  "name": "Deal Pipeline",
+  "section": "Acquisition",
+  "icon": "🎯",
+  "ref_prefix": "DEAL",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Site / Deal",
+      "type": "text",
+      "required": true,
+      "fieldset": "Site"
+    },
+    {
+      "name": "address",
+      "label": "Address",
+      "type": "text",
+      "fieldset": "Site"
+    },
+    {
+      "name": "market",
+      "label": "Market / submarket",
+      "type": "text",
+      "fieldset": "Site"
+    },
+    {
+      "name": "asset_type",
+      "label": "Asset type",
+      "type": "select",
+      "options": [
+        "Multifamily",
+        "Office",
+        "Industrial",
+        "Retail",
+        "Hospitality",
+        "Senior Living",
+        "Student Housing",
+        "Self Storage",
+        "Data Centre",
+        "Mixed Use",
+        "Land"
+      ],
+      "fieldset": "Site"
+    },
+    {
+      "name": "land_area_ac",
+      "label": "Land area",
+      "type": "number",
+      "unit": "ac",
+      "fieldset": "Site"
+    },
+    {
+      "name": "zoning_study",
+      "label": "Zoning & site study",
+      "type": "reference",
+      "module": "zoning",
+      "fieldset": "Site"
+    },
+    {
+      "name": "purchase_price",
+      "label": "Purchase price",
+      "type": "currency",
+      "fieldset": "Deal terms"
+    },
+    {
+      "name": "units",
+      "label": "Units / keys",
+      "type": "number",
+      "fieldset": "Deal terms"
+    },
+    {
+      "name": "gsf",
+      "label": "Gross floor area",
+      "type": "number",
+      "unit": "sf",
+      "fieldset": "Deal terms"
+    },
+    {
+      "name": "equity_required",
+      "label": "Equity required",
+      "type": "currency",
+      "fieldset": "Deal terms"
+    },
+    {
+      "name": "source",
+      "label": "Source",
+      "type": "select",
+      "options": [
+        "Broker",
+        "Off-market",
+        "Auction",
+        "Seller direct",
+        "Existing relationship",
+        "Unsolicited"
+      ],
+      "fieldset": "Deal terms"
+    },
+    {
+      "name": "broker",
+      "label": "Broker / counterparty",
+      "type": "text",
+      "fieldset": "Deal terms"
+    },
+    {
+      "name": "broker_contact",
+      "label": "Broker (linked)",
+      "type": "reference",
+      "module": "contact",
+      "fieldset": "Deal terms"
+    },
+    {
+      "name": "sourced_on",
+      "label": "Sourced on",
+      "type": "date",
+      "fieldset": "Dates & outcome"
+    },
+    {
+      "name": "target_close",
+      "label": "Target close",
+      "type": "date",
+      "fieldset": "Dates & outcome"
+    },
+    {
+      "name": "closed_on",
+      "label": "Closed on",
+      "type": "date",
+      "fieldset": "Dates & outcome"
+    },
+    {
+      "name": "outcome_reason",
+      "label": "Outcome / why it ended",
+      "type": "textarea",
+      "fieldset": "Dates & outcome"
+    }
+  ],
+  "workflow": {
+    "initial": "sourced",
+    "states": [
+      "sourced",
+      "screening",
+      "underwriting",
+      "loi",
+      "due_diligence",
+      "closing",
+      "won",
+      "lost",
+      "dead"
+    ],
+    "transitions": [
+      {
+        "from": "sourced",
+        "to": "screening",
+        "action": "screen",
+        "party": ["Owner", "Developer"]
+      },
+      {
+        "from": "screening",
+        "to": "underwriting",
+        "action": "underwrite",
+        "party": ["Owner", "Developer"]
+      },
+      {
+        "from": "underwriting",
+        "to": "loi",
+        "action": "submit_loi",
+        "party": ["Owner", "Developer"]
+      },
+      {
+        "from": "loi",
+        "to": "due_diligence",
+        "action": "open_dd",
+        "party": ["Owner", "Developer"]
+      },
+      {
+        "from": "due_diligence",
+        "to": "closing",
+        "action": "clear_dd",
+        "party": ["Owner", "Developer"]
+      },
+      {
+        "from": "closing",
+        "to": "won",
+        "action": "close",
+        "party": ["Owner", "Developer"],
+        "requires": ["closed_on"]
+      },
+      {
+        "from": "sourced",
+        "to": "dead",
+        "action": "pass",
+        "party": ["Owner", "Developer"],
+        "requires": ["outcome_reason"]
+      },
+      {
+        "from": "screening",
+        "to": "dead",
+        "action": "pass",
+        "party": ["Owner", "Developer"],
+        "requires": ["outcome_reason"]
+      },
+      {
+        "from": "underwriting",
+        "to": "dead",
+        "action": "pass",
+        "party": ["Owner", "Developer"],
+        "requires": ["outcome_reason"]
+      },
+      {
+        "from": "loi",
+        "to": "lost",
+        "action": "lose",
+        "party": ["Owner", "Developer"],
+        "requires": ["outcome_reason"]
+      },
+      {
+        "from": "due_diligence",
+        "to": "lost",
+        "action": "lose",
+        "party": ["Owner", "Developer"],
+        "requires": ["outcome_reason"]
+      },
+      {
+        "from": "due_diligence",
+        "to": "dead",
+        "action": "pass",
+        "party": ["Owner", "Developer"],
+        "requires": ["outcome_reason"]
+      },
+      {
+        "from": "closing",
+        "to": "lost",
+        "action": "lose",
+        "party": ["Owner", "Developer"],
+        "requires": ["outcome_reason"]
+      },
+      {
+        "from": "dead",
+        "to": "screening",
+        "action": "revive",
+        "party": ["Owner", "Developer"]
+      },
+      {
+        "from": "lost",
+        "to": "screening",
+        "action": "revive",
+        "party": ["Owner", "Developer"]
+      }
+    ]
+  },
+  "list_columns": ["market", "asset_type", "purchase_price", "target_close"],
+  "workspace": "developer"
+}

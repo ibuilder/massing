@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
-from .. import audit, cam, cmms, energy, energy_star_bridge, esg, fca, reserve, twin
+from .. import audit, cam, cmms, deal_funnel, energy, energy_star_bridge, esg, fca, reserve, twin
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, member_project_ids, require_identified, require_role
@@ -103,6 +103,29 @@ def fca_portfolio(db: Session = Depends(get_db), user: str = Depends(current_use
     """Facility Condition Index per project across the portfolio, worst-first — the capital-
     prioritization view (fund the highest-FCI buildings first). Scoped to the caller's projects."""
     return fca.portfolio(db, project_ids=member_project_ids(db, user))
+
+
+@router.get("/pipeline/funnel")
+def pipeline_funnel(db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """R22-PIPELINE: the acquisition funnel across the caller's projects — stage counts and value,
+    conversion, probability-weighted value, cycle time and the data-quality tells.
+
+    Acquisition is a funnel, not a project. `/portfolio/executive` answers "how are the deals we
+    *won* doing?"; this answers the question upstream of it — what is in the book, how much of it
+    historically closes, and how long it takes.
+
+    **The weighted value is derived from this firm's own closed deals, never from a textbook
+    ladder.** A stage without enough closed history reports `insufficient_history` and its deals are
+    excluded from the headline **and counted**, with `coverage` stating what fraction of the book the
+    number actually covers. That is the whole point: a weighted pipeline figure is a guess about
+    conversion multiplied by real money and read as a forecast, so a partial number that says it is
+    partial beats a complete one that quietly used somebody else's conversion rates.
+
+    Cycle time is reported as closed-deal duration *beside* open-deal age and never blended — the
+    deals still open are the slow ones, so a closed-only mean understates exactly when it is being
+    used to promise a closing date.
+    """
+    return deal_funnel.from_projects(db, project_ids=member_project_ids(db, user))
 
 
 @router.post("/pipeline/allocate")
