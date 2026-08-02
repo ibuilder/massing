@@ -91,6 +91,14 @@ def seeded_jurisdictions() -> list[str]:
 # (family + section + note) that ride along on the context so citations can flag "locally amended —
 # read the ordinance". Only the edition override changes computation; section text stays with the AHJ.
 
+# Bounds on the stored local-amendment overlay. Scaled to the sibling stores (200), and the
+# text caps sized against jurisdiction_packs.MAX_TEXT_LEN=200 / MAX_SOURCE_LEN=500 — a section
+# reference is short, a note is prose but not a document.
+MAX_AMENDMENTS = 200
+MAX_SECTION_LEN = 200
+MAX_NOTE_LEN = 2000
+
+
 def validate_amendments(amendments: list[dict]) -> list[str]:
     """Validation errors for a local-amendment list (empty = valid). Each amendment carries `family`
     (required, a known code family), optionally `edition` (must be a published edition of that
@@ -98,6 +106,14 @@ def validate_amendments(amendments: list[dict]) -> list[str]:
     errors: list[str] = []
     if not isinstance(amendments, list):
         return ["amendments must be a list"]
+    # Count and text caps, matching every sibling store (rule_library.MAX_RULES,
+    # jurisdiction_packs.MAX_REQUIREMENTS, clause_playbook.MAX_CLAUSES — all 200). This validator
+    # bounded each ENTRY and not the LIST, which is the stored-data amplification threat rather than
+    # a input-validation nicety: the overlay is re-read and evaluated by every code check, so an
+    # unbounded list is paid on each read forever, not once at write. Returning early keeps a huge
+    # list from being walked to build a huge error report.
+    if len(amendments) > MAX_AMENDMENTS:
+        return [f"at most {MAX_AMENDMENTS} amendments (got {len(amendments)})"]
     for i, a in enumerate(amendments):
         if not isinstance(a, dict):
             errors.append(f"[{i}] each amendment must be an object")
@@ -118,6 +134,10 @@ def validate_amendments(amendments: list[dict]) -> list[str]:
                               f"{CODE_FAMILIES[fam]['editions']}")
         if ed is None and not (a.get("section") or a.get("note")):
             errors.append(f"[{i}] an amendment needs an edition override or a section/note")
+        for field, cap in (("section", MAX_SECTION_LEN), ("note", MAX_NOTE_LEN)):
+            v = a.get(field)
+            if isinstance(v, str) and len(v) > cap:
+                errors.append(f"[{i}] {field} is too long ({len(v)} chars, max {cap})")
     return errors
 
 
