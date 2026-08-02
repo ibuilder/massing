@@ -21,6 +21,10 @@ sys.path.insert(0, "src")
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_model_ensure.db"
 os.environ["STORAGE_DIR"] = "./test_storage_model_ensure"
+# IFC_DIR must be set BEFORE the app imports: _IFC_DIR defaults to /app/ifc, which is writable on a
+# Windows dev box (C:\app) and PermissionError on a CI runner — the test passed everywhere except
+# where it mattered. Same reason DATABASE_URL/STORAGE_DIR are pinned above.
+os.environ["IFC_DIR"] = "./test_ifc_model_ensure"
 os.environ.pop("AEC_RBAC", None)
 for _f in ("./test_model_ensure.db",):
     if os.path.exists(_f):
