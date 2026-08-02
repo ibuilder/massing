@@ -27,6 +27,21 @@ from ..throttle import rate_limited
 from . import properties as props_router
 
 _IFC_DIR = Path(os.environ.get("IFC_DIR", "/app/ifc"))   # local IFC copies the converter can read
+
+def _ifc_path(pid: str, *parts: str) -> Path:
+    """A path under `_IFC_DIR` for a project, refused if it resolves outside.
+
+    `safe_seg(pid)` already rejects a traversing project id, so this is not a second opinion on the
+    id — it is the barrier that holds when a component ISN'T an id. `parts` here carries model ids
+    and filenames, and the static analysers credit the resolved-containment check rather than the
+    segment whitelist. Cheap enough that there is no reason for a caller to build the path by hand,
+    which is the actual point: `test_ifc_path_containment` fails the build if one does.
+    """
+    try:
+        return storage.contained_path(_IFC_DIR, storage.safe_seg(pid), *parts)
+    except ValueError:
+        raise HTTPException(400, "invalid project id") from None
+
 _REPO = Path(__file__).resolve().parents[5]
 _DATA_SRC = _REPO / "services" / "data" / "src"
 _CONVERTER = _REPO / "services" / "converter" / "src" / "cli.mjs"
@@ -1102,8 +1117,8 @@ async def upload_source_ifc(pid: str, file: UploadFile = File(...), publish: boo
         licensing.require("api_access", "Programmatic publish (REST API)")
     from starlette.concurrency import run_in_threadpool
     data = await file.read()
-    _IFC_DIR.joinpath(storage.safe_seg(pid)).mkdir(parents=True, exist_ok=True)
-    ifc_path = _IFC_DIR / storage.safe_seg(pid) / "source.ifc"
+    _ifc_path(pid).mkdir(parents=True, exist_ok=True)
+    ifc_path = _ifc_path(pid, "source.ifc")
 
     # PERF-1: the local write + MinIO network put of a multi-hundred-MB IFC runs off the event loop
     def _persist() -> None:
@@ -1140,8 +1155,8 @@ async def add_project_model(pid: str, file: UploadFile = File(...), discipline: 
         raise HTTPException(404, "project not found")
     data = await file.read()
     mid = uuid.uuid4().hex
-    (_IFC_DIR / storage.safe_seg(pid) / "models").mkdir(parents=True, exist_ok=True)
-    ifc_path = _IFC_DIR / storage.safe_seg(pid) / "models" / f"{mid}.ifc"
+    _ifc_path(pid, "models").mkdir(parents=True, exist_ok=True)
+    ifc_path = _ifc_path(pid, "models", f"{mid}.ifc")
 
     # PERF-1: local write + MinIO put off the event loop
     def _persist() -> None:
@@ -1186,8 +1201,8 @@ async def raise_plan_to_bim(pid: str, file: UploadFile = File(...),
         except RuntimeError as e:
             raise HTTPException(400, str(e)) from e
         ifc_bytes = ifc_tmp.read_bytes()
-        (_IFC_DIR / storage.safe_seg(pid) / "models").mkdir(parents=True, exist_ok=True)
-        ifc_path = _IFC_DIR / storage.safe_seg(pid) / "models" / f"{mid}.ifc"
+        _ifc_path(pid, "models").mkdir(parents=True, exist_ok=True)
+        ifc_path = _ifc_path(pid, "models", f"{mid}.ifc")
         ifc_path.write_bytes(ifc_bytes)
         storage.put(f"{storage.safe_seg(pid)}/models/{mid}.ifc", ifc_bytes)
         m = ProjectModel(id=mid, project_id=pid, discipline="2D Raise", ifc_path=str(ifc_path))
@@ -1273,8 +1288,8 @@ async def import_rvt(pid: str, file: UploadFile = File(...), confirm_cost: bool 
         ifc = aps.translate_rvt_to_ifc(data, file.filename or "model.rvt")
     except RuntimeError as e:  # NotImplementedError is a RuntimeError subclass — both mean "bridge unavailable"
         raise HTTPException(502, f"RVT→IFC bridge: {e}") from e    # clear, actionable provisioning error
-    _IFC_DIR.joinpath(storage.safe_seg(pid)).mkdir(parents=True, exist_ok=True)
-    ifc_path = _IFC_DIR / storage.safe_seg(pid) / "source.ifc"
+    _ifc_path(pid).mkdir(parents=True, exist_ok=True)
+    ifc_path = _ifc_path(pid, "source.ifc")
     ifc_path.write_bytes(ifc)
     storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc)
     p.source_ifc = str(ifc_path)
