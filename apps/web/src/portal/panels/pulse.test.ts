@@ -207,11 +207,13 @@ describe("rendering honours the rules the logic sets", () => {
  * and imported by nobody.
  */
 describe("the portal actually calls it", () => {
+  // 15s: the ?raw import of ~3,300-line portal.ts loses the transform-queue race under a full
+  // suite run (~5.1s observed vs the 5s default) while passing solo in ~200ms.
   it("portal.ts imports and invokes the pulse", async () => {
     const src = (await import("../portal.ts?raw") as { default: string }).default;
     expect(typeof src, "?raw did not resolve — the assertions below would be vacuous").toBe("string");
     expect(src.length).toBeGreaterThan(1000);
     expect(src).toMatch(/from "\.\/panels\/pulse"/);
     expect(src, "defined but never called is the orphan case").toMatch(/this\.renderPulse\(/);
-  });
+  }, 15_000);
 });
