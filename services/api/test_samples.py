@@ -25,6 +25,14 @@ import zipfile
 sys.path.insert(0, "src")
 sys.path.insert(0, "../data/src")
 
+# This file reaches `bundle.import_bundle`, whose destination is built from _IFC_DIR — default
+# /app/ifc, which is writable on a Windows dev box and PermissionError on a CI runner. Today the
+# synthetic fixtures below carry no `source_ifc`, so that branch is never taken; both SHIPPED .mass
+# files DO carry one, so the moment a fixture here gains a source IFC this goes red on runners and
+# nowhere else. Pinned now rather than left as a landmine — the same class that cost the whole
+# merge train an hour via test_model_ensure.
+os.environ.setdefault("IFC_DIR", "./test_ifc_samples")
+
 FAILED = []
 
 
