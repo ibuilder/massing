@@ -19,6 +19,7 @@ import urllib.parse
 import urllib.request
 
 from . import settings_store
+from .net import safe_urlopen
 
 APS_BASE = "https://developer.api.autodesk.com"
 
@@ -50,7 +51,10 @@ def _req(method: str, url: str, *, headers: dict, data: bytes | None = None, tim
     req = urllib.request.Request(url, data=data, method=method)
     for k, v in headers.items():
         req.add_header(k, v)
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    # SEC: `url` is a parameter, so the host is not visible at this call site even though every
+    # caller passes an APS_BASE-rooted constant today. Routed through the shared guard so that stays
+    # true by construction, and so redirect hops are validated too.
+    with safe_urlopen(req, timeout=timeout, require_https=True, label="APS endpoint") as r:
         return r.read()
 
 
