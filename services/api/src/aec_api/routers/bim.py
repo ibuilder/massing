@@ -1075,3 +1075,26 @@ def model_lod_proxy(pid: str, classes: list[str] | None = Body(default=None, emb
                 os.unlink(f)
         if os.path.isdir(workdir):
             os.rmdir(workdir)
+
+@router.get("/projects/{pid}/model/connections")
+def model_connections(pid: str, include_assemblies: bool = True, db: Session = Depends(get_db),
+                      _sec: str = Depends(require_role("viewer"))):
+    """R21-4D-CLASH phase 2 — what the model STATES about which elements are joined.
+
+    Install-before-support needs to know that B holds up A. This reports only what the IFC actually
+    encodes, graded by what it licenses you to conclude, and **refuses to infer support from
+    geometry**: two elements touching says nothing about load path — a ceiling touches a wall it does
+    not rest on. Proximity would produce confident findings a structural engineer would reject, on
+    the question where being wrong is dearest.
+
+    `connected` edges carry `direction: "unstated"`, because IFC's Relating/Related pair is an
+    authoring order and not a load direction. Only `structural` edges, which come from an analysis
+    model, claim a direction. A model with no connection relations returns `stated: false` rather
+    than an empty graph — an absence of DATA, not an absence of conflicts.
+    """
+    from aec_data import support_graph  # type: ignore
+
+    from ..deps import open_source_ifc
+
+    return support_graph.connection_graph(open_source_ifc(db, pid),
+                                          include_assemblies=include_assemblies)

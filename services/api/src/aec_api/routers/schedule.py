@@ -124,34 +124,63 @@ def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = De
     trades, per-floor takt = each trade's total duration ÷ floors), falling back to the residential takt
     train; absent `floors` are derived from the model's storey count (else 1). The response's
     `trade_source` reports which of body / schedule / default was used."""
+    from .. import schedule_options
+
+    floors = _optioneer_floors(db, pid, body.get("floors"))
+    trades, source = _optioneer_trades(db, pid, body, floors)
+    kw = _optioneer_kwargs(body)
+    cp, cp_source = _optioneer_critical_path(db, pid, body)
+    if cp:
+        kw["critical_path"] = cp
+
+    base = {"floors": floors, "trades": trades, "crew_day_rate": body.get("crew_day_rate")}
+    out = schedule_options.optimize(base, **kw)
+    out["trade_source"] = source
+    if cp_source:
+        out["crew_selection"]["source"] = cp_source
+        if cp_source == "cpm" and not cp:
+            out["crew_selection"]["note"] = (
+                "critical_path='auto' but the project's schedule yielded no critical activity with a "
+                "trade — the crew lever fell back to the slowest-trade heuristic")
+    return out
+
+
+def _optioneer_floors(db: Session, pid: str, raw) -> int:
+    """The floor count: from the body, else the model's storey count (best-effort), else 1."""
     from fastapi import HTTPException
 
-    from .. import schedule_options, takt
     from ..models import Project
-
-    floors = body.get("floors")
-    if not floors:                                       # derive from the model's storeys, best-effort
+    if not raw:                                          # derive from the model's storeys, best-effort
         p = db.get(Project, pid)
         if p and p.source_ifc:
             try:
                 from ..deps import open_source_ifc
-                floors = len(open_source_ifc(db, pid).by_type("IfcBuildingStorey")) or 1
+                raw = len(open_source_ifc(db, pid).by_type("IfcBuildingStorey")) or 1
             except Exception:                            # noqa: BLE001 — no/opaque model: fall back to 1
-                floors = 1
+                raw = 1
     try:
-        floors = int(floors or 1)
+        return int(raw or 1)
     except (TypeError, ValueError):
         raise HTTPException(422, "floors must be numeric") from None
 
+
+def _optioneer_trades(db: Session, pid: str, body: dict, floors: int) -> tuple[list, str]:
+    """The takt train + which source supplied it: the body's, the project's own schedule, or the
+    default residential train — the `trade_source` the response reports."""
+    from fastapi import HTTPException
+
+    from .. import takt
     if body.get("trades") is not None:
         if not isinstance(body["trades"], list):
             raise HTTPException(422, "trades must be a list of {name, takt_days} objects")
-        trades, source = body["trades"], "body"          # content is normalised in schedule_options.optimize
-    else:
-        derived = _derive_takt_train(db, pid, floors)    # the project's own schedule → a takt train
-        trades, source = (derived, "schedule") if derived else (takt.DEFAULT_TRADES, "default")
+        return body["trades"], "body"                    # content is normalised in schedule_options.optimize
+    derived = _derive_takt_train(db, pid, floors)        # the project's own schedule → a takt train
+    return (derived, "schedule") if derived else (takt.DEFAULT_TRADES, "default")
 
-    base = {"floors": floors, "trades": trades, "crew_day_rate": body.get("crew_day_rate")}
+
+def _optioneer_kwargs(body: dict) -> dict:
+    """The pass-through sweep options, with the numeric grids coerced (422 on junk)."""
+    from fastapi import HTTPException
     kw = {}
     for k in ("max_crew_trades", "weight_time", "weight_cost", "permute_sequence"):
         if body.get(k) is not None:
@@ -163,29 +192,22 @@ def schedule_optioneer(pid: str, body: dict = Body(default={}), db: Session = De
             kw["overlap_options"] = tuple(float(o) for o in body["overlap_options"])
     except (TypeError, ValueError):
         raise HTTPException(422, "zone_options / overlap_options must be numeric") from None
+    return kw
 
-    # phase-4b — crew shifts follow the CPM. `critical_path` is either an explicit list of trade names
-    # or "auto", which runs CPM over the project's own activities and keeps the critical ones' trades.
+
+def _optioneer_critical_path(db: Session, pid: str, body: dict) -> tuple[list | None, str | None]:
+    """Phase-4b — crew shifts follow the CPM. `critical_path` is either an explicit list of trade
+    names or "auto", which runs CPM over the project's own activities and keeps the critical ones'
+    trades. Returns (trades, source) with source None when the lever wasn't requested."""
+    from fastapi import HTTPException
     cp = body.get("critical_path")
-    cp_source = None
     if isinstance(cp, str) and cp.strip().lower() == "auto":
-        cp, cp_source = _critical_trades(db, pid), "cpm"
-    elif isinstance(cp, list):
-        cp_source = "body"
-    elif cp is not None:
+        return _critical_trades(db, pid), "cpm"
+    if isinstance(cp, list):
+        return cp, "body"
+    if cp is not None:
         raise HTTPException(422, 'critical_path must be a list of trade names or "auto"')
-    if cp:
-        kw["critical_path"] = cp
-
-    out = schedule_options.optimize(base, **kw)
-    out["trade_source"] = source
-    if cp_source:
-        out["crew_selection"]["source"] = cp_source
-        if cp_source == "cpm" and not cp:
-            out["crew_selection"]["note"] = (
-                "critical_path='auto' but the project's schedule yielded no critical activity with a "
-                "trade — the crew lever fell back to the slowest-trade heuristic")
-    return out
+    return None, None
 
 
 def _critical_trades(db: Session, pid: str) -> list[str]:
