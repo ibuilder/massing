@@ -569,7 +569,18 @@ async def preview_bundle(file: UploadFile = File(...), _sec: str = Depends(rbac.
 
 @router.post("/projects/import-bundle", response_model=ProjectOut, status_code=201)
 async def import_bundle(file: UploadFile = File(...), name: str | None = Form(None),
-                        db: Session = Depends(get_db)):
+                        db: Session = Depends(get_db),
+                        # This route carried NO authorisation of its own: being under `/projects` put
+                        # it inside `_PROTECTED_PREFIXES`, and the middleware refusing anonymous
+                        # callers was the whole control. That is the middleware doing its job, but it
+                        # is the wrong place for this to be decided — the protection then depends on a
+                        # prefix list this route never mentions, and removing `/projects` from that
+                        # tuple would silently open an endpoint that unpacks an uploaded archive.
+                        # `/samples/{id}/open` runs the SAME import through the same code and states
+                        # its bar explicitly; the two now agree. Identity, not a project role: this
+                        # creates a new project, so there is no project to hold a role on — matching
+                        # `create_project`.
+                        _: str = Depends(require_identified)):
     """Open a **`.mass`** container as a new project (fresh id) — geometry, data and blobs
     restored. Legacy `.mmproj` files (format v1) are still accepted; a container written by a
     NEWER build is refused rather than imported partially."""

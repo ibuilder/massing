@@ -19,6 +19,7 @@ from collections.abc import Callable
 from typing import Any
 
 from . import settings_store
+from .net import safe_urlopen
 
 
 def _ms_tenant() -> str:
@@ -128,13 +129,16 @@ def _post_json(url: str, data: dict, headers: dict | None = None) -> dict:
     req = urllib.request.Request(url, data=body, headers={
         "Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded",
         **(headers or {})})
-    with urllib.request.urlopen(req, timeout=15) as r:  # noqa: S310 — known provider endpoints
+    # SEC: this POST carries the client_secret. The endpoints are constants today, but `url` is a
+    # parameter here, and `urlopen` would follow a 3xx to anywhere — so the token exchange is pinned
+    # to https and every hop is re-validated.
+    with safe_urlopen(req, timeout=15, require_https=True, label="OAuth token endpoint") as r:
         return json.loads(r.read().decode())
 
 
 def _get_json(url: str, token: str) -> dict:
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=15) as r:  # noqa: S310
+    with safe_urlopen(req, timeout=15, require_https=True, label="OAuth userinfo endpoint") as r:
         return json.loads(r.read().decode())
 
 
