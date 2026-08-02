@@ -39,7 +39,7 @@ import { type LogisticsResource } from "../api/client";
 import { DraftProxyLayer } from "./draft/draftProxy";
 import { populate4dPanel } from "./fourD";
 import { TransformGizmo } from "./draft/transformGizmo";
-import { PushPullGizmo } from "./draft/pushPull";
+import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
 import { DEFAULT_RISE_M, runReadout } from "./draft/stairLive";
 import { createTestHarness } from "@massingifc/plugin-sdk";
 
@@ -312,36 +312,111 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       + `<div class="meta" style="font-size:11px">Class: ${escapeHtml(cls)}${el.storey ? ` · Level: ${escapeHtml(el.storey)}` : ""}</div>`;
     const wrap = document.createElement("div");
     const propsView = buildElementProps(el, hooks);
-    // R38-LIVE-PARAMS (first slice) — the element's one server-editable GEOMETRIC parameter today:
+    // R38-LIVE-PARAMS (slices 1+2) — the element's one server-editable GEOMETRIC parameter today:
     // extrusion depth (wall height / slab thickness / mass rise), the same commit path as the
-    // push/pull gesture. A field for the hand that prefers numbers to handles. Prefilled from the
-    // selection's bounding box; the server refuses non-extrusions through the recipe error path.
+    // push/pull gesture. Slice 1 is the number field; slice 2 is the SLIDER with a live
+    // base-anchored ghost while dragging (the tested stretchTransform from push/pull — the bottom
+    // face never moves, so the preview agrees with what the recipe commits) and commit on release.
+    // Prefilled from the selection's bounding box; non-extrusions refused via the recipe error path.
     let geoRow: HTMLElement | null = null;
     if (connected && projectId) {
       geoRow = document.createElement("div");
       geoRow.style.cssText = "display:flex;align-items:center;gap:6px;margin:0 0 8px;padding:6px 10px;"
-        + "border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:12px";
+        + "border:1px solid var(--line);border-radius:8px;background:var(--panel2);font-size:12px;flex-wrap:wrap";
       const lbl = document.createElement("span");
       lbl.textContent = "Depth / height (m)";
       lbl.style.cssText = "color:var(--muted,#94a3b8)";
       const inp = document.createElement("input");
-      inp.type = "number"; inp.step = "0.05"; inp.min = "0.02"; inp.style.cssText = "width:80px";
+      inp.type = "number"; inp.step = "0.05"; inp.min = "0.02"; inp.style.cssText = "width:70px";
+      const slider = document.createElement("input");
+      slider.type = "range"; slider.min = "0.02"; slider.step = "0.05";
+      slider.style.cssText = "flex:1;min-width:90px";
+      slider.disabled = true;                       // until the current depth is known
+      const elBox = new THREE.Box3();               // the selection's bbox, once resolved
+      let ghost: THREE.LineSegments | null = null;  // live preview outline while sliding
+      const dropGhost = () => {
+        if (ghost) { viewer.world.scene.three.remove(ghost); ghost.geometry.dispose(); ghost = null; }
+      };
       if (selection) {
         void loader.fragments.getBBoxes(selection).then((boxes) => {
-          const box = new THREE.Box3();
-          for (const b of boxes) box.union(b);
-          if (!box.isEmpty()) inp.value = (box.max.y - box.min.y).toFixed(2);
+          for (const b of boxes) elBox.union(b);
+          if (elBox.isEmpty()) return;
+          const h0 = elBox.max.y - elBox.min.y;
+          inp.value = h0.toFixed(2);
+          // range spans collapse→triple the current depth: enough travel to feel, no silly extremes
+          slider.max = Math.max(1, 3 * h0).toFixed(2);
+          slider.value = h0.toFixed(2);
+          slider.disabled = false;
         }).catch(() => { /* leave blank — the field still accepts a typed value */ });
       }
-      const apply = document.createElement("button");
-      apply.className = "tool-btn"; apply.textContent = "Apply";
-      apply.onclick = async () => {
-        const depth = Number(inp.value);
+      const previewDepth = (depth: number) => {
+        // live ghost: the element's outline stretched from ITS BASE to the new depth
+        if (elBox.isEmpty() || !(depth > 0)) return;
+        const h0 = elBox.max.y - elBox.min.y;
+        if (!(h0 > 0)) return;
+        if (!ghost) {
+          const size = elBox.getSize(new THREE.Vector3());
+          const g = new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, size.y, size.z));
+          ghost = new THREE.LineSegments(g, new THREE.LineBasicMaterial(
+            { color: 0xffb000, transparent: true, opacity: 0.95, depthTest: false }));
+          viewer.world.scene.three.add(ghost);
+        }
+        const t = stretchTransform(h0, depth - h0, elBox.min.y);
+        const c = elBox.getCenter(new THREE.Vector3());
+        ghost.position.set(c.x, t.centerY, c.z);
+        ghost.scale.y = t.scaleY;
+        setStatus(`depth ${depth.toFixed(2)} m — release to apply`);
+      };
+      const commit = async (depth: number) => {
+        dropGhost();
         if (!Number.isFinite(depth) || depth <= 0) { notify("enter a positive depth in metres", "error"); return; }
         await authorAndReload("set_extrusion_depth", { guid: el.guid, depth }, "depth edit");
         try { renderProps(await api.element(projectId!, el.guid)); } catch { /* index rebuilding */ }
       };
-      geoRow.append(lbl, inp, apply);
+      slider.oninput = () => { inp.value = slider.value; previewDepth(Number(slider.value)); };
+      slider.onchange = () => { void commit(Number(slider.value)); };   // release = the decision
+      const apply = document.createElement("button");
+      apply.className = "tool-btn"; apply.textContent = "Apply";
+      apply.onclick = () => void commit(Number(inp.value));
+      geoRow.append(lbl, inp, slider, apply);
+      // R38-LIVE-PARAMS slice 3 (chips) — the profile's two plan dimensions, editable through
+      // set_profile_dims. The server REFUSES non-rectangular profiles by design (which dimension
+      // "width" means on an I-section is not this UI's judgement to make on a fabricator's behalf),
+      // and that refusal IS the chip's unavailable state: the first refused edit greys both chips
+      // for this selection, labelled with the reason, rather than pretending the edit didn't land.
+      // Prefill is deliberately absent — the world bbox lies about a rotated element's profile, and
+      // a wrong prefill invites committing it. An empty chip edits nothing (server: omitted
+      // dimension comes back unchanged, never zeroed).
+      const dimChip = (label: string, param: "width" | "length") => {
+        const chip = document.createElement("span");
+        chip.style.cssText = "display:inline-flex;align-items:center;gap:3px;border:1px solid "
+          + "var(--line);border-radius:12px;padding:1px 8px;font-size:11px";
+        const t = document.createElement("span"); t.textContent = label; t.style.color = "var(--muted,#94a3b8)";
+        const v = document.createElement("input");
+        v.type = "number"; v.step = "0.05"; v.min = "0.02"; v.placeholder = "m";
+        v.style.cssText = "width:52px;border:none;background:transparent;font-size:11px";
+        v.onkeydown = (e) => { if (e.key === "Enter") v.blur(); };
+        v.onblur = async () => {
+          const val = Number(v.value);
+          if (!v.value || !Number.isFinite(val) || val <= 0) return;   // empty chip edits nothing
+          const r = await authorAndReload("set_profile_dims", { guid: el.guid, [param]: val }, `${label} edit`);
+          if (r.applied) {
+            try { renderProps(await api.element(projectId!, el.guid)); } catch { /* index rebuilding */ }
+          } else if (r.refused) {
+            // the recipe refused (non-rectangular profile) — grey both chips for this selection.
+            // A publish flake (neither applied nor refused) leaves the chips editable to retry.
+            for (const c of geoRow!.querySelectorAll<HTMLElement>("[data-dim-chip]")) {
+              c.style.opacity = "0.45";
+              c.title = "profile is not rectangular — section dimensions are the fabricator's, not editable here";
+              c.querySelector("input")?.setAttribute("disabled", "true");
+            }
+          }
+        };
+        chip.append(t, v);
+        chip.dataset.dimChip = param;
+        return chip;
+      };
+      geoRow.append(dimChip("W", "width"), dimChip("L", "length"));
     }
     // R26-INSPECTOR ② — the strip is the SPINE of this panel, so it sits above the tabs rather than
     // inside one of them: it summarises all four, and burying it in Properties would make the summary
@@ -853,26 +928,32 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     await authorAndReload(a.recipe, params, a.label, previewId);
   }
 
+  /** Author a recipe and republish. Returns the outcome so a caller can react to a REFUSAL
+   *  (`refused` — the recipe itself said no, e.g. a non-rectangular profile) distinctly from a
+   *  publish flake (`applied: false, refused: false`). Existing callers ignore the return. */
   async function authorAndReload(recipe: string, params: Record<string, unknown>, label: string,
-                                 previewId: string | null = null) {
+                                 previewId: string | null = null): Promise<{ applied: boolean; refused: boolean }> {
     // the preview model is normally reclaimed by loadProjectModel()'s disposeAll; on any non-done
     // outcome it would otherwise orphan GPU geometry (unique id per attempt) — dispose it explicitly.
     const dropPreview = async () => { if (previewId) { await loader.disposeOne(previewId).catch(() => {}); } };
+    const outcome = { applied: false, refused: false };
     await withLoading(container, `authoring ${label} + republishing`, async () => {
       try {
         await api.editIfc(projectId!, recipe, params, true);
         notify(`${label} authored — converting…`, "info");
         const state = await waitForPublish(projectId!);
-        if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); notify(`${label} applied${shown ? " — shown" : ""}`, "success"); }
+        if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); notify(`${label} applied${shown ? " — shown" : ""}`, "success"); outcome.applied = true; }
         else { await dropPreview(); draftProxies.markFailed(); notify(`${label} authored — publish ${state}`, state === "error" ? "error" : "info"); }
         await reloadModelPins();
       } catch (err) {
         // A29: a failed placement keeps its marker, turned red — a toast says something failed,
         // the marker says WHERE. The next draft action clears it (fromParams handles that).
         draftProxies.markFailed(); await dropPreview();
+        outcome.refused = true;
         notify(`${label} failed: ${(err as Error).message}`, "error");
       }
     });
+    return outcome;
   }
 
   async function waitForPublish(pid: string, onTick?: (s: string) => void): Promise<string> {

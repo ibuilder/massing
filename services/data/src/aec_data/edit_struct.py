@@ -204,6 +204,92 @@ def set_extrusion_depth(model: ifcopenshell.file, guid: str, depth: float) -> di
                      "are pullable")
 
 
+def set_profile_dims(model: ifcopenshell.file, guid: str, width: float | None = None,
+                     length: float | None = None) -> dict:
+    """R38-LIVE-PARAMS prerequisite — change an extruded element's **profile** in place.
+
+    The sibling of `set_extrusion_depth` one function up: that edits how far a profile is swept, this
+    edits the profile being swept. Together they are the two geometric parameters a constraint solver
+    can actually reconcile, which is why LIVE-PARAMS needs more than one of them to have a *system*
+    rather than a single slider.
+
+    Edits `IfcRectangleProfileDef.XDim` / `.YDim` — so it covers a column or beam section, and a
+    wall's thickness through the profile the wall was authored from. GUID-stable: the element, its
+    psets and every reference survive; only the swept shape changes.
+
+    Both dimensions are optional and **at least one must be given** — a call that names neither is a
+    no-op dressed as an edit, and returning success for it would let a UI report a change nobody made.
+
+    Refuses, through the recipe error path rather than by guessing:
+
+    * a **non-rectangular** profile (I-shape, circle, arbitrary polyline). Rewriting those means
+      choosing which of several dimensions "width" refers to, and a wrong guess silently reshapes a
+      steel section that a fabricator will build;
+    * a **non-positive** dimension, which is not a thinner element but an inside-out one;
+    * an element with **no profile to edit** — a mesh or a boolean result is not parametric, and
+      saying so is more useful than editing nothing and reporting success.
+    """
+    import ifcopenshell.util.unit as uunit
+
+    if width is None and length is None:
+        raise ValueError("give width and/or length — a call that changes neither is not an edit")
+    for name, v in (("width", width), ("length", length)):
+        if v is not None and float(v) <= 0:
+            raise ValueError(f"{name} must be greater than 0")
+
+    try:
+        el = model.by_guid(guid)
+    except Exception as e:                             # noqa: BLE001 — a stale GUID is a clean reject
+        raise ValueError(f"element {guid} not found") from e
+    if el is None:
+        raise ValueError(f"element {guid} not found")
+
+    scale = uunit.calculate_unit_scale(model)
+    rep = getattr(el, "Representation", None)
+    seen_profile = None
+    for r in (rep.Representations if rep else []):
+        for item in r.Items or []:
+            if not item.is_a("IfcExtrudedAreaSolid"):
+                continue
+            prof = getattr(item, "SweptArea", None)
+            if prof is None:
+                continue
+            seen_profile = prof.is_a()
+            if not prof.is_a("IfcRectangleProfileDef"):
+                # Named, not silently skipped: which dimension "width" means on an I-section is a
+                # judgement this function is not entitled to make on a fabricated member's behalf.
+                continue
+            old_x = float(prof.XDim) * scale
+            old_y = float(prof.YDim) * scale
+            if width is not None:
+                prof.XDim = float(width) / scale
+            if length is not None:
+                prof.YDim = float(length) / scale
+            return {"guid": guid, "class": el.is_a(), "profile": prof.is_a(),
+                    "old_width_m": round(old_x, 4), "old_length_m": round(old_y, 4),
+                    "new_width_m": float(width) if width is not None else round(old_x, 4),
+                    "new_length_m": float(length) if length is not None else round(old_y, 4),
+                    "changed": [n for n, v in (("width", width), ("length", length)) if v is not None]}
+
+    if seen_profile:
+        raise ValueError(f"{el.is_a()} {guid} is swept from a {seen_profile}, not a rectangular "
+                         "profile — which dimension 'width' refers to on that shape is a judgement "
+                         "this recipe will not make for you")
+    raise ValueError(f"{el.is_a()} {guid} has no extruded profile to edit — a mesh or boolean result "
+                     "is not parametric")
+
+
+def set_wall_thickness(model: ifcopenshell.file, guid: str, thickness: float) -> dict:
+    """Sugar over `set_profile_dims`: a wall's thickness is its profile's XDim.
+
+    Separate because "thickness" is the word a user and a constraint both reach for, and a UI chip
+    labelled *Thickness* should not have to know that it maps to a rectangle's X dimension. The
+    refusals are inherited rather than re-implemented — one place decides what is editable."""
+    out = set_profile_dims(model, guid, width=float(thickness))
+    return {**out, "thickness_m": out["new_width_m"],
+            "note": "wall thickness is the swept rectangle's XDim; see set_profile_dims"}
+
+
 def add_column(model: ifcopenshell.file, point, height: float = 3.0, width: float = 0.4,
                depth: float = 0.4, storey: str | None = None, profile=None) -> str:
     """Author an IfcColumn at an XY point (meters): a rectangular profile (or a supplied parametric
