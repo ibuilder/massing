@@ -413,9 +413,15 @@ def compiled_set_pdf(source_ifc: str, project_name: str, scale: int = 200, max_s
         except Exception:  # noqa: BLE001 — a model with no doors/windows/rooms simply omits schedules
             pass
     merged = pdfops.merge(parts)
+    return _bind_goto_links(merged, parts, specs, include_schedules, cover_links, sheet_links)
 
-    # SHEET-LINK: bind the cover-index rows (and any callout bubble whose target sheet is in this set)
-    # to real PDF GoTo links, so the compiled set navigates like a hyperlinked document.
+
+def _bind_goto_links(merged: bytes, parts: list[bytes], specs: list[dict], include_schedules: bool,
+                     cover_links: list[dict], sheet_links: list[tuple[int, list[dict]]]) -> bytes:
+    """SHEET-LINK: bind the cover-index rows (and any callout bubble whose target sheet is in this
+    set) to real PDF GoTo links, so the compiled set navigates like a hyperlinked document. Returns
+    the linked PDF — or `merged` untouched when anything fails, because links are an enhancement and
+    the un-linked set is still a correct deliverable."""
     try:
         import io as _io
 

@@ -190,6 +190,80 @@ _shipped = [n for n in (os.listdir(_s._DEFAULT_DIR) if _p.isdir(_s._DEFAULT_DIR)
 check("...and it ships at least one .mass container", len(_shipped) >= 1,
       f"the library serves .mass only; found {_shipped!r}")
 
+# --- the untracked-fixture class gate (derived, not enumerated) --------------------------------
+#
+# 2026-08-02: services/data/test_analysis.py read samples/basichouse.ifc — 52 MB, never tracked —
+# and turned main red the day the DATA_TESTS dimension first ran it in CI. Ten suites reference
+# samples/; the sweep found the legitimate patterns (tracked file; existence-guarded read, with a
+# committed fallback or an honest red/skip; generate-in-test scratch; API-route probe; prose that
+# merely names a sample) and ONE pattern that breaks CI: an UNGUARDED read of an untracked path.
+# This gate derives the referencing set from the test sources themselves, so the class cannot
+# grow back one suite at a time.
+#
+# SCOPE, stated (an audit must state its configuration): only string literals that ARE a path
+# (the whole literal matches ...samples/<name>). Comments and docstrings are excluded via AST;
+# prose that mentions a sample mid-sentence doesn't match; paths composed at runtime
+# (os.path.join(SAMPLES, name), as test_schema_diag does — opportunistically and honestly) are
+# beyond a static gate and are NOT covered here.
+import ast  # noqa: E402
+import re  # noqa: E402
+import subprocess  # noqa: E402
+
+_PATHLIKE = re.compile(r"^[.\w/\\-]*samples/([\w.\-]+)$")
+
+
+def _sample_path_offenders(src: str, tracked: set[str]) -> list[str]:
+    """The untracked, unguarded, non-scratch samples/ paths a test source reads — [] when clean.
+    Pure over source text so the gate itself can be driven with synthetic violations below."""
+    tree = ast.parse(src)
+    doc_ids = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            first = node.body[0] if node.body else None
+            if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                    and isinstance(first.value.value, str)):
+                doc_ids.add(id(first.value))
+    guarded = ("os.path.exists" in src) or (".exists()" in src)
+    out = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in doc_ids):
+            continue
+        m = _PATHLIKE.match(node.value.strip())
+        if not m:
+            continue
+        name = m.group(1)
+        if name in tracked or name.startswith("_") or guarded:
+            continue          # committed / the test's own scratch output / an existence-guarded read
+        out.append(name)
+    return sorted(set(out))
+
+
+# the gate can fire — every arm driven with a synthetic case (a gate asserted only against the
+# passing case is indistinguishable from `return []`)
+check("fixture-gate flags an unguarded untracked read",
+      _sample_path_offenders('p = "../../samples/ghost.ifc"\n', set()) == ["ghost.ifc"])
+check("fixture-gate accepts a tracked file",
+      _sample_path_offenders('p = "samples/ghost.ifc"\n', {"ghost.ifc"}) == [])
+check("fixture-gate accepts a guarded read",
+      _sample_path_offenders('import os\np = "samples/ghost.ifc"\nif os.path.exists(p): pass\n', set()) == [])
+check("fixture-gate accepts test-generated scratch",
+      _sample_path_offenders('p = "samples/_scratch.ifc"\n', set()) == [])
+check("fixture-gate ignores prose, docstrings and API routes",
+      _sample_path_offenders('"""samples/doc.ifc"""\nr = c.post("/samples/nope.mass/open")\n'
+                             's = "as measured on samples/prose.ifc, 13 walls"\n', set()) == [])
+
+_TRACKED = {os.path.basename(t) for t in subprocess.run(
+    ["git", "ls-files", "samples"], cwd=_root, capture_output=True, text=True).stdout.split()}
+check("git sees the samples library (a gate that examined nothing must not report clean)",
+      len(_TRACKED) >= 1, "git ls-files samples returned nothing — wrong cwd or repo?")
+_bad: list[str] = []
+for _tdir in (_p.dirname(_p.abspath(__file__)), _p.join(_root, "services", "data")):
+    for _tf in sorted(os.listdir(_tdir)):
+        if _tf.startswith("test_") and _tf.endswith(".py"):
+            with open(_p.join(_tdir, _tf), encoding="utf-8") as _fh:
+                _bad += [f"{_tf}: samples/{n}" for n in _sample_path_offenders(_fh.read(), _TRACKED)]
+check("no test reads an untracked samples/ path unguarded", not _bad, "; ".join(_bad))
+
 # --- the routes are actually reachable ---------------------------------------------------------
 #
 # Not optional. Seven engines once shipped here with no route to them, because every gate measured

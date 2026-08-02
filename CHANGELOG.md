@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.824 — slide it, watch it, let go
+
+### Added — R38-LIVE-PARAMS slice 2: the depth slider with a live ghost
+
+The Properties panel's depth field gains a slider: while dragging, an amber outline of the element
+stretches from its own base to the candidate depth — the bottom face never moves, using the same
+tested base-anchored transform as the push/pull ghost, so the preview agrees with what the recipe
+will commit — and releasing the slider is the decision: commit through `set_extrusion_depth` on
+release, no separate Apply step (the Apply button remains for the typed-number path). The range
+spans collapse to triple the current depth; the slider stays disabled until the element's real
+depth is known, so it can never commit a guess.
+
+## v0.3.823 — a number for the hand that prefers numbers to handles
+
+### Added — R38-LIVE-PARAMS, first slice: the depth field in the Properties panel
+
+Select an element and its one server-editable geometric parameter — extrusion depth: a wall's
+height, a slab's thickness, a mass's rise — appears as a field at the top of the Properties panel,
+prefilled from the selection's bounding box, committing through the same `set_extrusion_depth`
+recipe as the push/pull gesture. Two hands, one commit path: drag the handle or type the number,
+the same GUID-stable edit lands either way. Non-extrusions are refused by the server through the
+normal recipe error path. The rest of the LIVE-PARAMS item (sliders with local preview, constraint
+locks as dimension chips, editable arrays, node-canvas room sliders) stays open on the roadmap.
+
 ## v0.3.822 — the stair tells you while you draw it
 
 ### Added — R38-STAIR-LIVE: the consequence, shown before the commit
