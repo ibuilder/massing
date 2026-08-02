@@ -18,10 +18,28 @@ _SAFE_SEG = re.compile(r"^[A-Za-z0-9._-]+$")
 def safe_seg(seg: str) -> str:
     """Validate a single path segment (e.g. a project id / model id) before it's used to build a
     filesystem path — rejects traversal, separators, and NUL. Project/model ids are opaque
-    hex/UUID keys, so the [A-Za-z0-9._-] whitelist never rejects a legitimate one. Raises ValueError."""
-    if not seg or seg in (".", "..") or not _SAFE_SEG.match(seg):
+    hex/UUID keys, so the [A-Za-z0-9._-] whitelist never rejects a legitimate one. Raises ValueError.
+
+    **Returns the MATCH, not the argument.** The two are equal strings, so no caller behaviour
+    changes — but the returned value is derived from the whitelist match rather than being the
+    caller's object passed straight through. That difference is the whole point: until 2026-08-02
+    this returned `seg`, so the untrusted value flowed onward untouched and every downstream
+    `mkdir`/`read_bytes` stayed tainted no matter how many checks sat in between. Static analysis
+    kept reporting `py/path-injection` at those sinks and it was *right about the dataflow* — the
+    sanitisation was real but invisible, expressed as a guard clause rather than as a value.
+
+    The repo's answer to that had been to dismiss the alerts (29 of them). Six of those dismissed
+    sites then needed containment barriers added anyway, and a genuine arbitrary-file-write turned
+    up in the same family that the scanner never flagged — so "false positive, dismiss" was the
+    wrong instinct twice over. Expressing the sanitiser in the data, not just in control flow, is
+    the fix that makes the claim checkable instead of asserted.
+    """
+    if not seg or seg in (".", ".."):
         raise ValueError(f"unsafe path segment: {seg!r}")
-    return seg
+    m = _SAFE_SEG.match(seg)
+    if not m:
+        raise ValueError(f"unsafe path segment: {seg!r}")
+    return m.group(0)
 
 
 def contained_path(base, *parts: str) -> Path:
