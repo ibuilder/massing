@@ -19,7 +19,7 @@ from ..db import get_db
 from ..models import Project
 from ..proforma.solve import solve
 from ..rbac import require_role
-from .authoring import _DATA_SRC, _IFC_DIR, _publish_bg
+from .authoring import _DATA_SRC, _IFC_DIR, _ifc_path, _publish_bg
 
 if str(_DATA_SRC) not in sys.path:
     sys.path.insert(0, str(_DATA_SRC))
@@ -249,8 +249,8 @@ def create_blank_model(pid: str, body: BlankModelIn, db: Session = Depends(get_d
     p = db.get(Project, pid)
     if not p:
         raise HTTPException(404, "project not found")
-    _IFC_DIR.joinpath(storage.safe_seg(pid)).mkdir(parents=True, exist_ok=True)
-    ifc_path = _IFC_DIR / storage.safe_seg(pid) / "source.ifc"
+    _ifc_path(pid).mkdir(parents=True, exist_ok=True)
+    ifc_path = _ifc_path(pid, "source.ifc")
     generate_blank_ifc(str(ifc_path), name=body.name, storeys=body.storeys, storey_height=body.storey_height)
     storage.put(f"{storage.safe_seg(pid)}/source.ifc", ifc_path.read_bytes())
     p.source_ifc = str(ifc_path)
@@ -274,8 +274,8 @@ def generate_massing(pid: str, body: MassingIn, db: Session = Depends(get_db),
     if not p:
         raise HTTPException(404, "project not found")
 
-    _IFC_DIR.joinpath(storage.safe_seg(pid)).mkdir(parents=True, exist_ok=True)
-    ifc_path = _IFC_DIR / storage.safe_seg(pid) / "source.ifc"
+    _ifc_path(pid).mkdir(parents=True, exist_ok=True)
+    ifc_path = _ifc_path(pid, "source.ifc")
 
     if body.shape == "dome":
         # monolithic / earth dome — hemispherical shell (no zoning math; sized by radius)
