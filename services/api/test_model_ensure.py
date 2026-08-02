@@ -21,6 +21,7 @@ sys.path.insert(0, "src")
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_model_ensure.db"
 os.environ["STORAGE_DIR"] = "./test_storage_model_ensure"
+os.environ["IFC_DIR"] = "./test_ifc_model_ensure"   # default /app/ifc is unwritable on CI runners
 os.environ.pop("AEC_RBAC", None)
 for _f in ("./test_model_ensure.db",):
     if os.path.exists(_f):
