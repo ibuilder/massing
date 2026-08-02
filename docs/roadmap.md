@@ -153,7 +153,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -1394,6 +1394,37 @@ Also settled, no code change: **the Fragments converter stays Node, by constrain
 serializer exists only in the JS kernel libraries, so `services/converter/` is the one deliberate
 non-Python server component (an isolated, subprocess-shaped CLI; everything else server-side is
 Python). Revisit only when a Python Fragments writer exists upstream.
+
+## 🩺 R37 — REPOWISE HEALTH BACKLOG *(external static-analysis pass, received 2026-08-02)*
+
+A full task list from a repowise health scan: 2 import cycles, 11 oversized files, 139 dead-code
+findings (~1,075 lines), 349 single-owner hotspot files, 636 small local refactors. It is real work
+— and **its index is dated 2026-07-17 (`f3b171f0`), which is ~150 releases behind main.** Every
+claim must be premise-checked against TODAY's tree before acting; several are already known-wrong:
+
+* Its §4 ("9 high security findings, detail paywalled") is **already covered and mostly closed** —
+  CodeQL runs on every push with 0 open alerts, `pip_audit`/`npm audit` ran 2026-08-01 (pypdf floor
+  raised; diskcache advisory has no fix and is monitored), and `test_no_secrets.py` scans every
+  tracked file in the suite. Do not re-open this as if unknown.
+* Its dead-code list predates the reachability sweeps (R31/R32/Band 3) that deliberately WIRED
+  several of the named symbols. Example class: `validate.py` and `docgraph.py` symbols were
+  "unused" in mid-July and have callers now. The check per symbol is the usual one —
+  `git grep` the name including string/registry references, then delete or wire, never assume.
+* Its hotspot list (§3) is corroborated independently: `main.ts`, `portal.ts`, `client.ts` are the
+  repo's own known god-files, and SCALE-SEAM already split `client.ts` by domain after this index
+  was taken. Credit what shipped; keep the rest.
+
+- **R37-TRIAGE** *(M — Lane C; do FIRST, before any deletion or split)* — re-run the backlog's
+  claims against main: for each §2 symbol, grep for callers today and mark delete/wire/keep with
+  the evidence; for §1's cycles, confirm the edges still exist; for §1b's split candidates, compare
+  against the REL-3/REL-4 decompositions already landed. Output: this section rewritten with each
+  item marked VERIFIED-OPEN or ALREADY-CLOSED, so the execution order below runs on facts.
+
+Execution order after triage (the backlog's own, amended): break the two cycles → split
+`modules.py` / `main.py` / `codecheck.py` along their measured seams (coordinate with REL-3's
+existing leaf pattern) → delete only VERIFIED dead exports → refactor `vite.config.ts` and
+`main.ts` (overlaps R36-RAIL-SCOPE; do them together, not twice) → hotspot tests → small-effort
+batch work when already in a file.
 
 ## 🧭 R36 — ROOM COHESION RING *(three user directives, 2026-08-02: the rooms must each be a product)*
 
