@@ -764,3 +764,37 @@ def milestones(pid: str, db: Session = Depends(get_db), _: str = Depends(require
     out.sort(key=lambda m: (m["date"] or "9999"))
     summary = {k: sum(1 for m in out if m["status"] == k) for k in ("met", "late", "due_soon", "upcoming")}
     return {"count": len(out), "summary": summary, "milestones": out}
+
+@router.post("/projects/{pid}/schedule/eot")
+def schedule_eot(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """R40-EOT — an extension of time, with the method it was computed by attached to it.
+
+    Body: `{method, baseline_finish, actual_finish?, events:[{id, kind, days, activity_id?, start?,
+    entitlement?}]}`. Activities come from the project's own `schedule_activity` records, so the float
+    that decides whether a delay reaches completion is this schedule's float, not a supplied number.
+
+    **`method` is required and is a closed set** — `as_planned_vs_as_built`, `impacted_as_planned`,
+    `time_impact`, `windows`. The published taxonomies (AACE 29R-03, SCL Delay & Disruption Protocol)
+    exist because the same facts give different answers under different methods; an EOT figure without
+    its method cannot be weighed by whoever reads it, and this one ends up in a claim. Omitting it
+    returns `method_required` **listing the methods** rather than picking one.
+
+    Two further refusals, both of which a claim reviewer depends on:
+
+    * **concurrency is named, never apportioned.** Overlapping employer-risk and contractor-risk delay
+      is the most contested question in the discipline and the protocols disagree; splitting it
+      silently would present a fabrication as arithmetic.
+    * **float absorbs, and "absorbed" is reported as absorbed** — not as zero delay. Those are
+      different findings and only the second reads as though nothing happened.
+    """
+    from .. import eot as eot_engine
+
+    acts = schedule_cpm.compute(me.list_records(db, "schedule_activity", pid,
+                                                limit=1_000_000))["activities"]
+    return eot_engine.analyse(
+        body.get("events") or [], acts,
+        method=body.get("method"),
+        baseline_finish=body.get("baseline_finish"),
+        actual_finish=body.get("actual_finish"),
+    )
