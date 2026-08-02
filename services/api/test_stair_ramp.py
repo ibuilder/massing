@@ -79,9 +79,12 @@ check("the limit itself is exposed, so the rule can be argued with",
 check("a zero-length ramp derives nothing", ramp_geometry(1.0, 0)["within_limits"] is None)
 
 # --- 3. the recipes actually author IFC ----------------------------------------------------------------
+import os  # noqa: E402
 import tempfile  # noqa: E402
 
-path = tempfile.mktemp(suffix=".ifc")
+# mkdtemp, not mktemp: mktemp hands back a name without creating it, and CodeQL rightly flags the
+# create-after-name race (py/insecure-temporary-file). A private directory has no such window.
+path = os.path.join(tempfile.mkdtemp(prefix="stair_test_"), "stair_test.ifc")
 massing.generate_blank_ifc(path, name="StairTest", storeys=2, storey_height=3.5)
 m = ifcopenshell.open(path)
 storeys = [s.Name for s in m.by_type("IfcBuildingStorey")]

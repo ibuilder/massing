@@ -80,6 +80,23 @@ export const DRAFT_ELEMENTS: DraftElement[] = [
     hint: "Click the railing start and end.",
     build: (pts, v) => ({ start: pts[0], end: pts[1], height: v.height }),
   },
+  // R38-STAIR — the run is authored exactly where it was drawn; riser/tread (stair) and slope (ramp)
+  // are derived from that geometry and REPORTED server-side, never enforced by moving the run. The
+  // rise comes from the active storey to the one above (server default +3.0 m when no target is set).
+  {
+    key: "stair", label: "Stair (straight run)", discipline: "Architectural", ifcClass: "IfcStair",
+    recipe: "add_stair", points: 2,
+    params: [{ key: "width", label: "Width", type: "length", default: 1.2, unit: "m", min: 0.6, step: 0.1 }],
+    hint: "Click the bottom and top of the run in plan — riser count and tread follow from the length you draw.",
+    build: (pts, v) => ({ start: pts[0], end: pts[1], width: v.width }),
+  },
+  {
+    key: "ramp", label: "Ramp (straight)", discipline: "Architectural", ifcClass: "IfcRamp",
+    recipe: "add_ramp", points: 2,
+    params: [{ key: "width", label: "Width", type: "length", default: 1.5, unit: "m", min: 0.9, step: 0.1 }],
+    hint: "Click the bottom and top of the ramp in plan — the slope follows from the length you draw.",
+    build: (pts, v) => ({ start: pts[0], end: pts[1], width: v.width }),
+  },
   // --- Structural ---
   {
     key: "column", label: "Column", discipline: "Structural", ifcClass: "IfcColumn",

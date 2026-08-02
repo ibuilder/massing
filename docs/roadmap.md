@@ -155,7 +155,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R21-4D-CLASH · R23-STOREY-LOD · R23-BATCH-OVERLAYS · R28-UNIFY ① · R28-BUNDLE ② · R28-ICDD ③ |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-LOCAL-PREVIEW ① · A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-DIM-INPUT ① · R38-PUSHPULL ① · R38-STAIR ① · R38-LIVE-PARAMS ② · R38-SYNC-2D3D ③ · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-PUSHPULL ① · R38-LIVE-PARAMS ② · R38-SYNC-2D3D ③ · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -164,7 +164,7 @@ two rows share a path, so two agents in different rows cannot collide.
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
 R24-IDENTITY · R32-TAXONOMY-LIFECYCLE (all five need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
-it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the deploy overlay in CI — needs a decision on where the deploy env template lives).
+it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the **actual deploy overlay** in CI — still needs a decision on where the deploy env template lives. **Split 2026-08-02:** the half that needs NO decision — smoke the validator against a *synthetic* safe posture → exit 0 and an unsafe one → exit 1, catching a validator crash, a check regressed to a no-op, or a FAIL demoted — is unparked as a ~10-line CI step; the security session has claimed it).
 
 **Two lane boundaries were wrong until 2026-07-30 and are worth naming.** Lane A used to own
 `apps/web/src/portal/` *wholesale* while B owned `portal/panels/` — a nested overlap, so the two lanes
@@ -1105,24 +1105,20 @@ candidate if face-CSG is ever pursued — see the R29 licence table).
 
 ### Wave 1 — the first ten minutes *(Lane E unless noted)*
 
-The keystone is **A29-LOCAL-PREVIEW ①** (already coded, Lane E) — and a premise-check found it
-HALF-BUILT: placement already draws an instant amber proxy and an incremental one-element server
-preview. The two real gaps are honesty gaps, not speed gaps: the preview renders **indistinguishable
-from committed geometry** (the exact "a pending edit must look pending" violation the ring's own
-rule names), and a failed recipe erases every trace of the attempt, leaving only a toast — the user
-loses *where* it failed. The fix keeps the amber outline as the pending marker until publish
-completes, and turns it into a visible failed marker (cleared by the next draft action) on error.
+**Three of Wave 1's four items shipped 2026-08-02** (v0.3.819–820; details in
+[roadmap-completed.md](roadmap-completed.md)): A29-LOCAL-PREVIEW (a pending edit looks pending — the
+amber marker stays over the incremental preview; failure turns it red and keeps its location),
+R38-DIM-INPUT (the typed-constraint box is visible as a hint the moment a run is in progress, and
+the grammar accepts imperial — 12'6 echoes back 3.81 m before the click commits), and R38-STAIR
+(server recipes add_stair/add_ramp in `services/data/src/aec_data/edit_enclosure.py` — placed
+exactly where drawn, riser/tread/slope compliance REPORTED by stair_geometry/ramp_geometry, never
+enforced by moving the run — plus the stair and ramp draw tools, SR/RP shortcuts). Remaining:
 
-- **R38-DIM-INPUT ①** *(S)* — dimension-first drawing made visible. The typed-input parser already
-  exists in the snap engine (`applyDynamicInput`); give it the floating input box so "draw, type
-  12'6, Enter" is discoverable rather than secret.
 - **R38-PUSHPULL ①** *(M)* — the hero gesture: select a face, drag to extrude. IFC-safely: the
   gesture edits the element's RECIPE PARAMETERS (wall height, slab thickness), never arbitrary mesh,
-  so the one gesture every beginner knows feeds the same GUID-stable pipeline.
-- **R38-STAIR ①** *(S)* — premise-checked 2026-08-02: there is **no stair or ramp draw tool**
-  (`SC` is steel column; `ifcstair` appears only in a deletion allowlist). A user cannot build a
-  two-storey building from scratch without leaving the room. Stair + ramp recipes exist server-side
-  or are S-sized additions to the enclosure engine; the gap is the draw tool.
+  so the one gesture every beginner knows feeds the same GUID-stable pipeline. Fold in the stair
+  follow-on: surface the stair_geometry/ramp_geometry compliance report LIVE in the draw tool —
+  riser count and tread shown while dragging, preview red past the limits, before anything authors.
 - A29-PLACE-VALID ② · A29-UNDO-LOCAL ③ · A29-GUIDE-UNDERLAY ③ — as already coded in Lane E.
 
 ### Wave 2 — parameters stay alive *(Lane E + C)*
@@ -1229,12 +1225,11 @@ Each item is independently shippable and none blocks the NOW list. **The commit 
 the server recipe stays the writer of record and IFC stays the source of truth.** What changes is that
 the screen stops waiting for it.
 
-* **A29-LOCAL-PREVIEW ①** — *the edit shows before the server agrees.* Adopt the dirty-node idea:
-  mark the touched element, regenerate its mesh locally, render it as a **pending** overlay, then
-  reconcile against the published fragments when the recipe returns. The rule that keeps this honest
-  is the one this codebase already lives by: **a pending edit must look pending.** A local preview
-  drawn identically to committed geometry is a lie the moment the recipe fails, and a silent divergence
-  between what the screen shows and what the IFC holds is worse than a slow edit.
+* ✅ **shipped v0.3.819** — A29-LOCAL-PREVIEW — *the edit shows before the server agrees.* The rule
+  that kept it honest is the one this codebase already lives by: **a pending edit must look
+  pending.** As built: the amber draft marker stays over the incremental one-element preview until
+  publish completes, and a failed recipe turns it red in place instead of erasing the evidence. See
+  [roadmap-completed.md](roadmap-completed.md).
 
 * **A29-PLACE-VALID ②** — *say no before the round-trip, not after.* Pascal's spatial grid answers
   `canPlaceOnFloor` / `canPlaceOnWall` / `getSlabElevationAt` before a placement commits. We validate

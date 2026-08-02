@@ -31,6 +31,21 @@ describe("draft catalog build() → recipe params", () => {
     expect(p).toEqual({ start: [0, 0], end: [6, 0], width: 0.3, depth: 0.6 });
   });
 
+  it("R38-STAIR — stair and ramp map two plan points + width to their recipes", () => {
+    // The build sends NO storey/target_storey/rise: the run is placed where it was drawn and the
+    // server derives the rise (active storey → next, or +3.0 m). Compliance is reported, not
+    // enforced — a run silently lengthened to satisfy a limit no longer arrives where it was drawn.
+    const stair = byKey("stair");
+    expect(stair.recipe).toBe("add_stair");
+    expect(stair.points).toBe(2);
+    expect(stair.build([[0, 0], [4, 0]], { width: 1.2 }))
+      .toEqual({ start: [0, 0], end: [4, 0], width: 1.2 });
+    const ramp = byKey("ramp");
+    expect(ramp.recipe).toBe("add_ramp");
+    expect(ramp.build([[0, 0], [12, 0]], { width: 1.5 }))
+      .toEqual({ start: [0, 0], end: [12, 0], width: 1.5 });
+  });
+
   it("every built-in element declares params and a recipe", () => {
     for (const e of DRAFT_ELEMENTS) {
       expect(e.recipe).toBeTruthy();

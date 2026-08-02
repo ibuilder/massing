@@ -10,6 +10,33 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## ✅ R38 Wave 1 — the first ten minutes, three of four shipped *(2026-08-02, v0.3.819–820)*
+
+Two sessions, two lanes, one interface message — the server half and the draw-tool half of the same
+item landed without either touching the other's files.
+
+- **A29-LOCAL-PREVIEW** *(v0.3.819)* — a pending edit looks pending: the amber draft marker stays
+  over the incremental one-element preview until publish completes (real-looking geometry with no
+  marker was indistinguishable from a committed element), and a failed recipe turns the marker RED
+  and leaves it where the failure happened — the next draft action is the acknowledgement that
+  clears it. State machine unit-tested headless, mutation-checked in both directions.
+- **R38-DIM-INPUT** *(v0.3.820)* — the typed-constraint box is VISIBLE as a dimmed hint the moment a
+  run is in progress ("type a length — 6 · 12'6 · <30 · 6<30") rather than appearing only after the
+  first keystroke of a grammar nobody knew existed. The grammar accepts imperial: 12'6 parses to
+  feet-inches, echoes back "3.81 m" in the HUD before the click commits it, and composes with the
+  angle form (12'6<30). Strict on nonsense: 13 inches, "'6", mid-token inch marks all refuse.
+- **R38-STAIR** *(v0.3.820; server half on main same day)* — "add_stair" / "add_ramp" recipes
+  (straight-run IfcStair+IfcStairFlight / IfcRamp+IfcRampFlight, beside the railing recipe in the
+  enclosure engine), with the deliberate design call that the run is authored EXACTLY where it was
+  drawn: riser/tread and slope compliance is *reported* by "stair_geometry"/"ramp_geometry"
+  (module-constant limits, IBC-shaped: riser ≤ 0.19 m, tread ≥ 0.25 m, ramp ≤ 1:12), never enforced
+  by silently lengthening a run to somewhere the user did not put it. Verified past unit tests: the
+  authored IFC meshes on a write/read round trip and converts cleanly to fragments. The web half
+  adds the two draw tools (width param; rise = active storey → next) and SR / RP shortcuts.
+  Follow-on (folded into R38-PUSHPULL): show the compliance report live while dragging.
+
+Remaining from Wave 1: R38-PUSHPULL (the face-drag extrude gesture, recipe-parameter-safe).
+
 ## Reconciliation 2026-07-31 (v0.3.808-810) — eighteen items closed, and how many premises failed
 
 Moved out of `roadmap.md` in one pass. **Eight of these closed because their PREMISE did not survive
