@@ -21,7 +21,9 @@ mr.load_registry()
 from aec_api import rooms  # noqa: E402
 
 assert "itp" in mr.REGISTRY, list(mr.REGISTRY)[:5]
-assert rooms.room_of(mr.REGISTRY["itp"]) == "schedule"
+# R41-WORK-FIELD (2026-08-02): an ITP hold point is released by a field engineer standing at the
+# pour, so the inspection-and-test plan lives in the superintendent's room, not the planner's.
+assert rooms.room_of(mr.REGISTRY["itp"]) == "work"
 
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "ITP Project"}).json()["id"]

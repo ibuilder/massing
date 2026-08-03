@@ -53,6 +53,12 @@ which is where they are *produced* — while every system that reads them sits i
 the COBie chain (assets, warranties, spares, PM schedules moving into the CMMS on day one) cut in half
 by a room boundary. They move to a `Handover` section in **operate**; what genuinely belongs to the
 end of construction — `completion_certificate`, `as_built`, `lessons_learned` — stays in `Closeout`.
+
+**R41 (2026-08-02) reversed that last clause**, and the reversal is instructive because R30 made the
+right argument and then stopped one step short of it. R30 saw that filing the handover package by
+*when it is produced* severed it from *who consumes it* — and left `Closeout` filed by exactly that
+rule. `Closeout` is now **operate** too; see the note on the section itself. The same change gave
+**work** its contents: it had none at all.
 """
 from __future__ import annotations
 
@@ -74,11 +80,11 @@ ROOMS: list[dict[str, str]] = [
     {"id": "planning", "label": "Planning",
      "job": "Take it off, estimate it, bid it, buy it out, contract it and get it approved"},
     {"id": "schedule", "label": "Schedule",
-     "job": "Sequence it, run the field, and track what got built"},
+     "job": "Sequence it, resource it and control it — the plan for time"},
     {"id": "cost", "label": "Cost",
      "job": "Budget it, change it, bill it and account for it"},
     {"id": "work", "label": "Work",
-     "job": "Whatever is in your court right now"},
+     "job": "Run the field — your court today, the log, safety, progress and the punch"},
     {"id": "operate", "label": "Operate",
      "job": "Hand it over, maintain it, meter it and plan its renewal"},
 ]
@@ -158,28 +164,49 @@ ROOM_OF_SECTION: dict[str, str] = {
     # by different people on different cadences.
     "Sequencing": "schedule",
     "Resourcing": "schedule",
-    # R32: "Field" held FOURTEEN, and unlike Design's `Engineering` the name was not wrong — it was
-    # just the *place* rather than the *job*. A timesheet, a production quantity and a delivery all
-    # happen in the field and are otherwise nothing alike: one is a daily record, one is a
-    # measurement of what got built, one is material arriving. Filing by where something happens
-    # groups everything a superintendent touches into a single heading, which is the same as no
-    # heading. Split by what the record IS.
-    "Daily Log": "schedule",         # what happened today — reports, manpower, equipment, hours, photos
-    "Progress": "schedule",          # what got BUILT, and whether it is verifiably where it should be
-    "Logistics": "schedule",         # material and fabrication arriving on site
-    "Safety": "schedule",            # safety is a field-operations concern, logged where work happens
     "Project Controls": "schedule",
-    # Quality moved out of Design (R30). The old reasoning — "inspections/ITP describe the built thing
-    # against the design" — is true of the reference standard and false of the *user*: an ITP hold
-    # point is released by a field engineer standing at the pour, and an NCR is written by a
-    # superintendent. `deficiency` and `ncr` are near-twins of `punchlist`, which was already here.
-    # R32 moved `punchlist` and `checklist` in from Field. rooms.py had ALREADY argued for this — the
-    # note below calls deficiency and ncr "near-twins of punchlist" — and then left punchlist where it
-    # was. A stated reason that nothing acts on is how the twins came to live in different sections.
-    "Quality": "schedule",
-    "Closeout": "schedule",          # the end of the sequence — what construction *finishes*
+    # ── Work: running the field ─────────────────────────────────────────────────────────────────
+    # R41-WORK-FIELD (2026-08-02). **Work held NOTHING.** No section mapped to it: it was a room
+    # containing one cross-cutting panel (the ball-in-your-court queue) and zero registers, so a user
+    # who opened it saw an empty room and reasonably concluded the product was broken.
+    #
+    # The cause was that "Work" is ambiguous and the code took the narrower reading — *"my work"*, a
+    # personal inbox ("Whatever is in your court right now") — while every user reads the tab as
+    # *"the work"*: the field, the jobsite, what the crews are doing. The second reading is the one
+    # worth having, because it also answers a defect this file had already recorded about itself:
+    # Schedule held **38 modules**, the most of any room, and the R31 note below says in as many
+    # words that "the sections there are the next thing to fix".
+    #
+    # The seam is who maintains the record, and it is the sharpest one in the product: **Schedule is
+    # the planner's room** (the CPM, the crews, the controls, the closeout), **Work is the
+    # superintendent's** (today's log, the safety programme, what got built, what arrived, the
+    # punch). A scheduler and a superintendent are different people on different cadences, and until
+    # now they shared one 38-item rail.
+    #
+    # The queue is not lost — it stays as Work's HOME panel (`ROOM_HOME.work = "__workqueue__"`),
+    # which is exactly right: open the field room and see your plate before the registers.
+    "Daily Log": "work",             # what happened today — reports, manpower, equipment, hours, photos
+    "Progress": "work",              # what got BUILT, and whether it is verifiably where it should be
+    "Logistics": "work",             # material and fabrication arriving on site
+    "Safety": "work",                # the field safety programme — JHAs, toolbox talks, incidents
+    # Quality follows the argument this file ALREADY made when it moved Quality out of Design: "an
+    # ITP hold point is released by a field engineer standing at the pour, and an NCR is written by a
+    # superintendent". That is an argument about the FIELD, and it was half-applied — the modules
+    # landed in Schedule, one room short of the people the reasoning names.
+    "Quality": "work",
     # ── Operate: the asset in service, which is most of its life ────────────────────────────────
     "Handover": "operate",           # what operations *receives*; see the R30 note above
+    # R41-CLOSEOUT-OPERATE (2026-08-02) — **this reverses the R30 note above, deliberately.** That
+    # note kept `completion_certificate`, `as_built` and `lessons_learned` in Closeout under
+    # Schedule, reasoning that they are what construction *finishes*. True of who PRODUCES them and
+    # false of who USES them, which is the same half-applied argument R30 itself caught with the
+    # handover package: an as-built is the drawing an operator works from for thirty years, and a
+    # completion certificate is the legal artifact the building is handed over WITH. Filing them by
+    # the moment they are produced put the whole turnover set one room away from everyone who reads
+    # it — and left the COBie chain cut in the same place R30 had just repaired it.
+    #
+    # Schedule keeps sequencing, resourcing and controls: the plan for time, not its end artifacts.
+    "Closeout": "operate",
     # R32: "Facilities" is an honest name for eight modules doing three jobs — fixing things,
     # tracking their condition and the capital to renew them, and measuring how the building
     # performs. `work_order` is the highest-volume register in the product over an asset's life, and

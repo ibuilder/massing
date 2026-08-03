@@ -4,6 +4,50 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.834 — the Work room had nothing in it; now it runs the field
+
+### Fixed — Work was an empty room, by construction
+
+Opening **Work** showed a tab with one panel and **zero registers**, because no section in the
+`section → room` table mapped to it. Not a rendering bug — a room with no contents, which reads to a
+user as a broken product.
+
+The cause was that "Work" is ambiguous, and the code took the narrower reading: *"my work"*, a
+personal inbox ("Whatever is in your court right now"), while users read the tab as *"the work"* —
+the field, the jobsite. Settling it the users' way also answers a defect `rooms.py` had recorded
+about itself: **Schedule held 38 modules**, the most of any room, and its own note said "the
+sections there are the next thing to fix".
+
+**Safety · Daily Log · Progress · Logistics · Quality → Work** (28 registers). Schedule keeps
+Sequencing, Resourcing and Project Controls. The seam is who maintains the record, and it is the
+sharpest one in the product: **Schedule is the planner's room** — the CPM, the crews, the controls;
+**Work is the superintendent's** — today's log, the safety programme, what got built, what arrived,
+the punch. Two different people on two different cadences who had been sharing one 38-item rail.
+The ball-in-your-court queue survives as Work's *home* panel, which is right: open the field room
+and see your plate before the registers.
+
+### Changed — Closeout moves to Operate, finishing an argument R30 started
+
+`completion_certificate`, `as_built` and `lessons_learned` were filed under Schedule because that is
+when construction *produces* them. R30 had already caught that exact reasoning for the handover
+package — filing by producer rather than consumer is what severed the COBie chain — and then left
+Closeout filed by it. An as-built is the drawing an operator works from for thirty years. Closeout
+and the Turnover panel now sit in **Operate** (15 registers). Room counts: Deal 9 · Design 32 ·
+Planning 25 · Schedule 7 · Cost 18 · Work 28 · Operate 15, zero unplaced.
+
+**Budget and financials needed no change** — all 18 job-cost registers were already in Cost. Cost
+(the contractor's money) and Deal (the investor's) stay separate deliberately, and the Finance
+workspace is reachable from Deal's rail via Underwriting.
+
+### Added — a gate proving every left-rail button goes somewhere
+
+`railWiring.test.ts` asserts every destination the rail renders has a handler in the portal's
+dispatch map, or is a deliberate workspace hand-off. A destination added without a handler renders a
+button that silently does nothing when clicked — invisible until a user tries it. The test also
+records the trap that produced a **false positive** during the hand-audit: matching a catalog record
+with `[^}]*` stops at the `}` inside an emoji escape like `\u{1F4D0}`, which falsely reported
+`__drawings__` as dead. Mutation-checked: injecting a handler-less destination fails it.
+
 ## v0.3.833 — A29-UNDO-LOCAL: undo the stroke, not the commit
 
 ### Added — Ctrl+Z pops the last clicked point of an in-progress draft

@@ -65,9 +65,16 @@ const PROFESSIONAL: Room[] = [
   ["deal", "Deal", "Underwrite it, fund it, lease it and dispose of it"],
   ["design", "Design", "Model it, draw it, specify it — the architect's and engineer's room"],
   ["planning", "Planning", "Take it off, estimate it, bid it, buy it out, contract it and get it approved"],
-  ["schedule", "Schedule", "Sequence it, run the field, and track what got built"],
+  // R41-WORK-FIELD, 2026-08-02. Schedule's job said "run the field", and Work's said "whatever is in
+  // your court right now" — which is precisely why Work held ZERO registers while Schedule held 38.
+  // "Work" was read by the code as *my* work (an inbox) and by every user as *the* work (the
+  // jobsite). Settling it the users' way splits the two jobs onto the two people who actually do
+  // them: the planner keeps the CPM, the crews and the controls; the superintendent gets the day,
+  // the safety programme, the progress, the deliveries and the punch. Closeout went to Operate in
+  // the same change — an as-built is read by whoever runs the building, not by whoever filed it.
+  ["schedule", "Schedule", "Sequence it, resource it and control it — the plan for time"],
   ["cost", "Cost", "Budget it, change it, bill it and account for it"],
-  ["work", "Work", "Whatever is in your court right now"],
+  ["work", "Work", "Run the field — your court today, the log, safety, progress and the punch"],
   // R30, 2026-07-29. Facilities management had no room: it was sectioned "Operations" and therefore
   // filed under Deal, so a technician logging a work order opened a tab labelled "underwrite it, fund
   // it, lease it and dispose of it". "Operate" is the professional term for the phase.

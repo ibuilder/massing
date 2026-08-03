@@ -26,8 +26,10 @@ from aec_api import rooms  # noqa: E402
 
 assert rooms.room_of(mr.REGISTRY["project_charter"]) == "planning", (
     "a project charter is planning work — reachable from the Planning room")
-assert rooms.room_of(mr.REGISTRY["lessons_learned"]) == "schedule", (
-    "lessons learned close out the construction sequence")
+# R41-CLOSEOUT-OPERATE (2026-08-02): closeout artifacts are filed by who USES them, not by who
+# produces them — the same correction R30 made for the handover package and then left half-applied.
+assert rooms.room_of(mr.REGISTRY["lessons_learned"]) == "operate", (
+    "lessons learned are handed over with the building, and read by whoever operates it")
 
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "PM Close"}).json()["id"]

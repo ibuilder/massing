@@ -23,7 +23,9 @@ mr.load_registry()
 from aec_api import rooms  # noqa: E402
 
 assert "compliance_evidence" in mr.REGISTRY, list(mr.REGISTRY)[:5]
-assert rooms.room_of(mr.REGISTRY["compliance_evidence"]) == "schedule"
+# R41-WORK-FIELD (2026-08-02): compliance evidence is captured in the field with the rest of
+# Quality — the golden thread runs through the superintendent's room.
+assert rooms.room_of(mr.REGISTRY["compliance_evidence"]) == "work"
 
 
 def _mk(c, pid, data):

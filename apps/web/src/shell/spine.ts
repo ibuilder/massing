@@ -98,9 +98,9 @@ export const FALLBACK_ROOMS: readonly RoomDef[] = [
   { id: "deal", label: "Deal", job: "Underwrite it, fund it, lease it and dispose of it", count: 0, modules: [] },
   { id: "design", label: "Design", job: "Model it, draw it, specify it — the architect's and engineer's room", count: 0, modules: [] },
   { id: "planning", label: "Planning", job: "Take it off, estimate it, bid it, buy it out, contract it and get it approved", count: 0, modules: [] },
-  { id: "schedule", label: "Schedule", job: "Sequence it, run the field, and track what got built", count: 0, modules: [] },
+  { id: "schedule", label: "Schedule", job: "Sequence it, resource it and control it — the plan for time", count: 0, modules: [] },
   { id: "cost", label: "Cost", job: "Budget it, change it, bill it and account for it", count: 0, modules: [] },
-  { id: "work", label: "Work", job: "Whatever is in your court right now", count: 0, modules: [] },
+  { id: "work", label: "Work", job: "Run the field — your court today, the log, safety, progress and the punch", count: 0, modules: [] },
   { id: "operate", label: "Operate", job: "Hand it over, maintain it, meter it and plan its renewal", count: 0, modules: [] },
 ];
 
@@ -137,9 +137,16 @@ export const DEST_ROOM: Record<string, string> = {
   // read an incoming contract for risky clauses, find scope gaps, level bids. Work is a queue, and a
   // queue with tools in it stops reading as a list of things you owe someone.
   __review__: "planning", __aiassist__: "planning",
-  // ── Schedule: time, and the field that consumes it ────────────────────────────────────────────
-  __schedule__: "schedule", __resload__: "schedule", __equipment__: "schedule",
-   __turnover__: "schedule",
+  // ── Schedule: the plan for time — the CPM, the crews, the controls, the closeout ──────────────
+  __schedule__: "schedule", __resload__: "schedule",
+  // Turnover follows Closeout into Operate (R41): a turnover panel over registers that live in
+  // Operate would report on another room's records — the split surface the spine exists to prevent.
+  __turnover__: "operate",
+  // ── Work: running the field (R41-WORK-FIELD) ──────────────────────────────────────────────────
+  // Equipment follows the records it summarises: `equipment_log` is a Daily Log register, and Daily
+  // Log is now Work. A panel that reports on registers in another room is the split-surface shape
+  // the spine exists to prevent.
+  __equipment__: "work",
   // ── Operate: the asset in service (R30) ───────────────────────────────────────────────────────
   // These three were filed under Deal because facilities management was sectioned as "Operations"
   // and Operations meant the landlord. A technician opening a work order was landing in a room whose

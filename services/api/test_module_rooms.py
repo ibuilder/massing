@@ -91,11 +91,32 @@ ROOM_OF_MODULE = {
     # Operate exists for these. If one drifts back to Deal or Schedule, say so loudly.
     "operate": ["asset_register", "building_system", "capital_plan", "commissioning", "fca_element",
                 "meter", "meter_reading", "om_manual", "pm_schedule", "poe", "warranty",
-                "work_order"],
-    # Quality is executed in the field, not drawn in the design room.
-    "schedule": ["compliance_evidence", "deficiency", "inspection", "itp", "ncr", "test_record",
-                 # the schedule lives in the Schedule room *and* the Schedule section (it did not)
-                 "schedule_activity", "resource_assignment", "staffing", "risk"],
+                "work_order",
+                # R41-CLOSEOUT-OPERATE, 2026-08-02 — these three were the one clause R30 left filed
+                # by who PRODUCES a record instead of who USES it. An as-built is the drawing an
+                # operator works from for the life of the building; a completion certificate is what
+                # the building is handed over with. Reversing it deliberately, with the reasoning in
+                # rooms.py next to the table.
+                "completion_certificate", "as_built", "lessons_learned"],
+    # Schedule is the PLANNER's room: the CPM, the crews, the controls, the closeout. R41-WORK-FIELD
+    # took the field registers out of it — it held 38 modules, the most of any room, and this file's
+    # own R31 note had already called that "the next thing to fix".
+    # the schedule lives in the Schedule room *and* the Schedule section (it did not)
+    "schedule": ["schedule_activity", "resource_assignment", "staffing", "risk"],
+    # R41-WORK-FIELD, 2026-08-02 — the superintendent's room. Work held ZERO registers before this:
+    # no section mapped to it, so it was a tab containing one cross-cutting queue panel and nothing
+    # else, which reads to a user as a broken product rather than as a design.
+    #
+    # Quality moves here on the argument rooms.py ALREADY made when it took Quality out of Design —
+    # "an ITP hold point is released by a field engineer standing at the pour, and an NCR is written
+    # by a superintendent". That is an argument about the field, and it had been half-applied: the
+    # modules landed in Schedule, one room short of the people the reasoning names.
+    "work": ["compliance_evidence", "deficiency", "inspection", "itp", "ncr", "test_record",
+             "punchlist", "checklist",
+             # the safety programme — a field concern, and the user's own call
+             "incident", "jha", "toolbox_talk", "safety_violation", "pretask_plan",
+             # the day, what got built, and what arrived
+             "daily_report", "manpower_log", "timesheet", "progress_actual", "delivery"],
     # One approvals spine; rate libraries and the vendor book feed estimating, not sequencing.
     "planning": ["permit", "entitlement", "cost_code", "labor_rate", "material_rate",
                  "equipment_rate", "price_observation", "company", "contact"],
