@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.839 — Detail opens expanded; one stroke weight in the rail
+
+### Changed — a disclosure whose parent already discloses is just a second click
+
+Detail was three levels of chrome deep: rail item **Detail** → group heading *Fabrication detail* →
+toggle *🔧 Advanced fabrication tools ▾* → the tools. The toggle earned its place when these lived
+inside a crowded Build section; the rail item replaced that job. It now shows its 17 tools bare and
+expanded, with no inner heading — the item you clicked already named them. `railGroup` takes an empty
+heading to mean exactly that: render the contents, not a wrapper repeating the label above.
+
+### Fixed — the rail carried two stroke weights
+
+Public icon-system guidance is unanimous that one grid, one stroke weight and one style are what make
+a set read as a set, and that mixing weights "destroys cohesion instantly". RAIL-SPLIT had added
+seven icons at **two** weights (1.3 and 1.4). Normalised to one.
+
+### Recorded — the rail runs a second icon language, and that is the real standardisation debt
+
+`ui/icons.ts` holds a vendored **Lucide** set (ISC, in `docs/ATTRIBUTIONS.md`) at Lucide's 24×24 grid,
+`currentColor`, no fill — added precisely because emoji were "several visual languages at once". The
+rail's own `RAIL_ICONS` are hand-drawn at 16×16, so the app runs two systems side by side. Worse, the
+icons file states the rule the rail was breaking: *"Path data is copied verbatim from the upstream
+SVGs — never redrawn by hand, because an icon redrawn from memory is a different icon wearing the
+same name."*
+
+Several rail items map one-to-one onto icons **already vendored** — `layers`, `eye` (View), `pencil`
+(Annotate), `flag` (Issues), `palette`/`box` (Library), `scan` (Review) — and the rest need their
+Lucide source copied in rather than approximated. That migration is deliberately **not** bundled
+here: swapping every rail glyph in the same release that restructured the rail would make any visual
+regression impossible to attribute to either change. Tracked as RAIL-ICON-UNIFY.
+
 ## v0.3.838 — the rail reads: icons first, Detail and Annotate earn their place
 
 ### Fixed — every new rail item printed the literal word "undefined"

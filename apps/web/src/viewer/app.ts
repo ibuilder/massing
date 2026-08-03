@@ -3382,7 +3382,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         schedPdfBtn, manualBtn, sectBtn]);
       railGroup("annotate", "Annotate", [annotateHead, annotateWrap]);
       railGroup("library", "Families & content", [libHead, libWrap]);
-      railGroup("detail", "Fabrication detail", [advToggle, advWrap]);
+      // Detail IS the advanced tools — so no toggle and no heading inside it. Keeping either would
+      // be three levels of chrome (rail item "Detail" -> group "Fabrication detail" -> toggle
+      // "Advanced fabrication tools ▾") to reach a list you already asked for by clicking Detail.
+      // The toggle earned its place when these lived inside a crowded Build section; the rail item
+      // replaced that job, and a disclosure whose parent already discloses is just a second click.
+      advWrap.hidden = false;
+      advToggle.remove();
+      railGroup("detail", "", [advWrap]);
     }
 
     // --- persona-ordered tool sections ---------------------------------------
@@ -4652,13 +4659,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     const sec = document.createElement("section");
     sec.className = "tool-group open";
     sec.dataset.tool = `${railKey}-group`;
-    const head = document.createElement("button");
-    head.type = "button"; head.className = "tool-group-head";
-    head.innerHTML = `<span class="chev">▾</span><span class="t">${heading}</span>`;
     const body = document.createElement("div"); body.className = "tool-group-body";
-    head.onclick = () => sec.classList.toggle("open");
     body.append(...present);
-    sec.append(head, body);
+    // An empty heading means the rail item already names this — render the contents bare rather
+    // than wrapping them in a collapsible whose label repeats the item you just clicked.
+    if (heading) {
+      const head = document.createElement("button");
+      head.type = "button"; head.className = "tool-group-head";
+      head.innerHTML = `<span class="chev">▾</span><span class="t">${heading}</span>`;
+      head.onclick = () => sec.classList.toggle("open");
+      sec.append(head, body);
+    } else {
+      sec.appendChild(body);
+    }
     target.appendChild(sec);
   }
 
