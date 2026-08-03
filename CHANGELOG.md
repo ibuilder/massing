@@ -4,6 +4,68 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.847 — the naming collision closed, and nine PRs drained
+
+A release that mostly *lands* work rather than adding it: the queue went from nine open PRs to zero,
+main went red twice and recovered twice, and one long-standing collision was resolved down to a
+single correct name.
+
+### The rename — one `entitlement`, meaning what the industry means
+
+Three things were called "entitlement" and only one of them meant land-use approval. `entitlements.py`
+was subscription tiers; `proforma/entitlement_risk.py` scored risk. Both were squatting on a domain
+term, so a reader hitting the word had to work out which of three things it was.
+
+    entitlements.py            ->  tiers.py         (subscription tiers)
+    proforma/entitlement_risk  ->  approval_risk    (approval-process risk)
+    modules/entitlement        UNCHANGED            (land use — already correct)
+
+**The register stays put on purpose.** `mod_entitlement` appears in two migrations, so its key is a
+*table name*: renaming it is a data migration rewriting every stored record's module key, not a
+rename. And it was the one usage that was already right.
+
+**The new name came from the file, not from the author.** Two rounds were spent weighing `plan_tiers`
+against `subscription_tiers` before reading the source: its docstring says *"the single place that
+decides what a tier unlocks"*, it says "tier" fourteen times against "plan" once, and its constants
+are `TIERS` and `DEFAULT_TIER`. The answer was in line one.
+
+### Merged this cycle
+
+`R22-AGENT-PACKS` (#187) · `R22-ENTITLEMENT ②` (#188) · `R24-PERF-BUDGET` (#189) — plus #180–#186
+earlier in the arc. Three refusals worth naming, all from the same instinct:
+
+- **#189** states three budgets and can measure one. Click-echo and panel-load are client-side, so
+  they report `unmeasured` **with the reason** rather than being omitted — a budget file listing
+  three and quietly checking one is how a green suite comes to imply more than it tested.
+- **#188** found that slice ① was broken: strict adjacency meant "20 parking spaces" and "45 dwelling
+  units" extracted nothing, so every parking condition was unreadable. Found by ②'s checks exercising
+  ① against realistic text rather than the text ① was designed for.
+- **#186** treats an uninterpretable condition as `unparsed`, and an `unparsed` condition **cannot be
+  discharged even when a caller names it**. Signing off text nobody read is the same failure wearing
+  a signature.
+
+### Two red mains, both mine, both from the same half-finished change
+
+The rename renamed the files and their references and shipped — leaving `docs/roadmap.md` citing
+three paths that no longer existed. `test_claude_md_gates` resolves every backticked path against
+`git ls-files`, so main went red.
+
+**Then the first fix failed the same gate.** Explaining the change reintroduced a live citation of the
+deleted file — ``it was `entitlements.py` until…``. CLAUDE.md reserves backticks for files that
+*exist*; a dead or historical name takes plain quotes, because a backticked name reads as a live
+citation whether or not anything backs it. **Writing about a removed file is exactly when that fires**,
+and it fires hardest on whoever just learned it, because they have the most to say about the file.
+
+The rule that comes out of it is worth more than the fix: **a rename is not one change, it is three —
+the files, the references, and the documentation that cites them.** Only the third is invisible to
+every compiler, linter and import checker.
+
+### Verified
+
+Backend suites green over the renamed tree; `test_claude_md_gates` passing against a **pinned** commit
+tree rather than a moving ref; manifest consistent in both directions on a clean extract of
+`origin/main`; 0 open CodeQL alerts throughout.
+
 ## v0.3.846 — R36-DRAWINGS-RETURN: the way out of a room with no rail
 
 ### Fixed — Drawings was a dead end
