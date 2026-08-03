@@ -1224,3 +1224,9 @@ button.vit:hover { background: var(--hover, rgba(255,255,255,.06)); }
 .rail-toolbox-unlaid .rail-tool::after {
   content: "ungrouped"; margin-left: auto; font-size: 9.5px; color: var(--status-warn, #d08b28);
 }
+
+/* R36-DRAWINGS-RETURN — the way out of a workspace that owns no rail.
+   Sticky, because a drawing set scrolls and a way out that scrolls away is not a way out. */
+.ws-return { position: sticky; top: 0; z-index: 5; padding: 6px 8px;
+  background: var(--panel2); border-bottom: 1px solid var(--line); }
+.ws-return-btn { font-size: 12px; }

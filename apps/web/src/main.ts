@@ -643,8 +643,76 @@ async function openStudioTab() {
   }
   await studioUI.mount();
 }
+/**
+ * Human label for a workspace key, read from the tab that already names it — never a second list.
+ *
+ * **Ask the DOM the app actually renders.** The first version queried `.ws-btn[data-ws]`, a class
+ * that does not exist anywhere in the running shell: the tab strip is `[data-room]` since the room
+ * spine landed. Every lookup missed and every label silently fell back to the raw key, so the button
+ * read "← Back to design" — lowercase, live, while the unit test passed. The test had mounted a
+ * fixture containing `.ws-btn` elements, so it was asserting against a shell I invented rather than
+ * the one that ships. Caught by driving the real app, not by the suite.
+ *
+ * Rooms name themselves, so they are the source. Workspaces with no room tab (`model`, `drawings`)
+ * have no rendered name to borrow, and a capitalised key is an honest rendering of the key rather
+ * than a second table that can drift away from the first.
+ */
+function wsLabel(key: string): string {
+  const tab = document.querySelector<HTMLElement>(`[data-room="${key}"]`)
+    ?? document.querySelector<HTMLElement>(`.ws-btn[data-ws="${key}"]`);
+  const named = (tab?.textContent || "").trim();
+  return named || key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+/**
+ * Render the return affordance at the top of a dead-end workspace.
+ *
+ * It names its destination — "← Back to Design", not a bare arrow — because a control that does not
+ * say where it goes is only marginally better than no control: the user still has to try it to find
+ * out, and the cost of guessing wrong is landing somewhere else they have to escape from.
+ *
+ * Idempotent, and it re-renders on every entry because the destination changes with the route taken.
+ */
+function renderReturnBar(wsKey: string): void {
+  const host = document.getElementById(`ws-${wsKey}`);
+  if (!host) return;
+  const dest = previousWs && previousWs !== wsKey ? previousWs : "model";
+  let bar = host.querySelector<HTMLElement>(".ws-return");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.className = "ws-return";
+    host.prepend(bar);
+  }
+  bar.textContent = "";
+  const back = document.createElement("button");
+  back.type = "button";
+  back.className = "tool-btn ws-return-btn";
+  back.textContent = `← Back to ${wsLabel(dest)}`;
+  back.title = `Return to ${wsLabel(dest)} — where you opened ${wsLabel(wsKey)} from`;
+  back.onclick = () => setWorkspace(dest);
+  bar.appendChild(back);
+}
+
 let currentWs = "model";
+/**
+ * R36-DRAWINGS-RETURN — the workspace you were in before this one.
+ *
+ * Drawings and Specs are **dead ends**: `drawings.ts` renders into its own workspace with no back
+ * control and no route into the viewer, and Specs behaves the same. The only way out is knowing that
+ * the tabs along the top are navigation — which is a thing you know only if someone told you, and it
+ * is not what a person does when a screen has trapped them. They look for a way *back*.
+ *
+ * "Back" has to mean something true, so it is the workspace actually left, not a guessed home. A user
+ * who reached Drawings from Design should land in Design; one who came from the model should land in
+ * the model. Sending everyone to one hard-coded destination is the kind of wrong-but-plausible
+ * behaviour that teaches people not to trust the control.
+ */
+let previousWs: string | null = null;
+/** Workspaces that own no rail and no tabs of their own, so a return affordance is load-bearing. */
+const DEAD_END_WS = new Set(["drawings"]);
+
 function setWorkspace(key: string) {
+  if (key !== currentWs) previousWs = currentWs;
   currentWs = key;
   document.querySelectorAll(".ws-btn").forEach((b) => {
     const on = (b as HTMLElement).dataset.ws === key;
@@ -654,6 +722,7 @@ function setWorkspace(key: string) {
   document.querySelectorAll(".workspace").forEach((w) => w.classList.toggle("active", w.id === `ws-${key}`));
   showProjectHomeSignpost(key);
   if (key === "drawings") openDrawingsTab();
+  if (DEAD_END_WS.has(key)) renderReturnBar(key);
   if (key === "studio") void openStudioTab();
   if (key === "design") openDesignTab();
   if (key === "construction") openPortalTab();

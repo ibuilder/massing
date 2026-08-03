@@ -4,6 +4,44 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.846 — R36-DRAWINGS-RETURN: the way out of a room with no rail
+
+### Fixed — Drawings was a dead end
+
+`drawings.ts` renders into its own workspace with **no back control and no route into the viewer**;
+Specs behaves the same. The only exit was knowing the tabs along the top are navigation — which is
+knowledge somebody has to give you, and not what a person reaches for when a screen has trapped them.
+They look for a way *back*.
+
+There is one now, and it names where it goes: **"← Back to Design"**, not a bare arrow. A control that
+does not state its destination still makes you try it to find out, and the cost of guessing wrong is
+landing somewhere else you have to escape from.
+
+**It returns where you came from, not to a hard-coded home.** Arriving from Design and being sent to
+the model is wrong-but-plausible — the class of behaviour that teaches people not to trust a control.
+It is sticky, because a drawing set scrolls and a way out that scrolls away is not a way out.
+
+### Added — `wsReturn.test.ts`
+
+Four claims, all mutation-checked: the control exists, it names its destination, it goes where you
+came from, and clicking it actually lands there (*existence is not arrival* — a tab that highlights
+without navigating is a defect this repo has shipped before). Plus: re-entering from a different
+origin updates the label, and it never offers to return to itself.
+
+### Fixed during verification — a fixture that described a DOM I invented
+
+The unit test passed while the live button read **"← Back to design"**, lowercase. `wsLabel` queried
+`.ws-btn[data-ws=…]` — **a class that exists nowhere in the running shell**, because the tab strip has
+been `[data-room]` since the room spine landed. Every lookup missed and every label fell back to the
+raw key. The test did not catch it because its fixture contained `.ws-btn` elements: it was asserting
+against a shell that only existed inside the test.
+
+Both are fixed — the lookup reads `[data-room]`, and the fixture is now copied from what the app
+renders, with `model` and `drawings` deliberately given no tab because they have none in the app.
+**A fixture is a claim about the DOM.** This one was a claim about a DOM that did not exist, which is
+the fifth way this week a passing check turned out to be about something other than what it named —
+after its shape, its age, its address and its tree.
+
 ## v0.3.845 — red main: one unsorted import, and the lint I ran on the wrong revision
 
 `import math` was added to `drawings.py` as part of making the isometric angle exact. It went in
