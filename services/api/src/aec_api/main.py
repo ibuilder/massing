@@ -647,6 +647,30 @@ def _guard_metrics(request: Request) -> None:
         raise HTTPException(status_code=401, detail="metrics authentication required")
 
 
+@app.get("/metrics/budget")
+def perf_budget_report(_: None = Depends(_guard_metrics)) -> dict:
+    """R24-PERF-BUDGET — the stated performance budgets, and which of them anything measures.
+
+    Three budgets are stated: request p95 < 100 ms, click echo < 100 ms, panel load < 1 s. **Only
+    the first is server-measurable**, read from the live histogram — the other two are client-side
+    (nothing here can see the interval between a click and the paint answering it, and server time
+    is only one term in a panel becoming usable).
+
+    The unmeasurable two are returned as `unmeasured` **with the reason**, never omitted. A report
+    that lists three budgets and quietly evaluates one is how a green result comes to imply more
+    than was tested.
+
+    The p95 is a histogram bucket UPPER bound, not an interpolated point — and `quantile` returning
+    None has two opposite causes: no observations, or a tail beyond the largest bucket. The second
+    is a FAILURE, because reading None as "no problem" would make this pass hardest exactly when
+    latency is worst.
+
+    Same gate as /metrics: open by default, behind the bearer with AEC_METRICS_AUTH=1.
+    """
+    from . import perf_budget
+    return perf_budget.report(metrics.quantile(0.95), metrics._hist_inf)
+
+
 @app.get("/metrics")
 def prometheus_metrics(_: None = Depends(_guard_metrics)) -> Response:
     """Prometheus text exposition (request counts, latencies, in-flight, uptime). Open by default;
