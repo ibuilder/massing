@@ -50,7 +50,7 @@ TESTS = ["test_proforma", "test_renovation", "test_rollover", "test_income_basis
          "test_prequal", "test_vendor_memory", "test_payapp", "test_accounting", "test_carbon", "test_codecheck", "test_code_analysis", "test_codes", "test_approvability", "test_rfi_readiness", "test_readiness_bcf", "test_productivity", "test_ebc", "test_element_connections", "test_scene", "test_pricing", "test_cost_db",
          "test_ids_authoring", "test_procurement", "test_conceptual", "test_parcels", "test_net",
          "test_design_phase", "test_family_library", "test_change_instruments", "test_turnover",
-         "test_prod_hardening", "test_diligence", "test_deal_funnel", "test_operations", "test_reserves_cam", "test_esg",
+         "test_prod_hardening", "test_diligence", "test_deal_funnel", "test_deal_memory", "test_operations", "test_reserves_cam", "test_esg",
          "test_cde", "test_openbim_quality", "test_bim_kpi", "test_mcp_standards", "test_twin",
          "test_procurement_gate", "test_sheet_extract", "test_program", "test_pull_plan",
          "test_workspaces", "test_fca", "test_aps", "test_resilience", "test_pull_realtime", "test_disciplines",
