@@ -22,6 +22,7 @@ import { buildMenu, closeMenus } from "./ui/menus";
 if (import.meta.env.DEV) void import("./dev/liveAudit").then((m) => m.installLiveAudit());
 import { initCommandPalette, type Command } from "./ui/palette";
 import { buildAuthControl } from "./account/accountUI";
+import { icon } from "./ui/icons";
 import { jobLabel, mountJobTray } from "./ui/jobTray";
 import { showKeyHelp } from "./ui/keys";
 import { installErrorReporting } from "./errorReporting";
@@ -445,49 +446,53 @@ async function openSampleLibrary() {
 const appEl = document.getElementById("app")!;
 // crisp inline SVG icons (currentColor) — replace the old cryptic ⌗/≣ glyphs
 /**
- * RAIL-ICONS — **standardise on the vendored set; hand-draw nothing new.**
+ * RAIL-ICONS — the rail draws from the **vendored set**, and hand-draws nothing.
  *
- * Two icon languages had grown up side by side: these hand-drawn 16×16 glyphs, and the vendored
- * Lucide set in `ui/icons.ts` at Lucide's own 24×24 grid. Public icon-system guidance is blunt about
- * why that hurts — one grid, one stroke weight, one style, and mixing weights "destroys cohesion
- * instantly" (Material 3; Telerik; Morningstar all say the same). RAIL-SPLIT made it worse before it
- * made it better: seven icons added here at *two different* stroke weights (1.3 and 1.4). Normalised
- * to one weight, and the remaining drift is recorded rather than hidden.
+ * Two icon languages had grown up side by side: hand-drawn 16×16 glyphs here, and the vendored Lucide
+ * set in `ui/icons.ts` on Lucide's own 24×24 grid. Public icon-system guidance is blunt about why that
+ * hurts — one grid, one stroke weight, one style — and mixing weights is described as destroying
+ * cohesion instantly. RAIL-SPLIT made it worse before it made it better, adding seven icons here at
+ * *two* different stroke weights.
  *
- * `ui/icons.ts` already states the rule this file should follow: *"Path data is copied verbatim from
+ * `ui/icons.ts` already stated the rule this file was breaking: *"Path data is copied verbatim from
  * the upstream SVGs — never redrawn by hand, because an icon redrawn from memory is a different icon
- * wearing the same name."* Several rail items map one-to-one onto icons ALREADY vendored — `layers`,
- * `eye` (View), `pencil` (Annotate), `flag` (Issues), `palette`/`box` (Library), `scan` (Review) —
- * and the rest need their Lucide source copied in, not approximated here.
+ * wearing the same name."* So this is now a **name map, not artwork**. Every rail item names an icon
+ * in the vendored set; four the rail needed (`list-tree`, `pencil-ruler`, `download`, `file-text`)
+ * were copied verbatim into that file rather than approximated here.
  *
- * That migration is deliberately NOT bundled into the release that found the problem: swapping every
- * rail glyph at the same time as restructuring the rail would make a visual regression impossible to
- * attribute to either change. Tracked as RAIL-ICON-UNIFY.
+ * The payoff is not only consistency. Those icons are `stroke="currentColor"` with no fill, so they
+ * inherit the rail's text colour and are *structurally incapable* of introducing a second meaning for
+ * blue — which is what the colour contract enforces everywhere else.
+ *
+ * A key with no mapping renders its first letter (see `railIcon`), because the previous shape
+ * interpolated `undefined` straight into innerHTML and printed the literal word in the rail.
  */
-const RAIL_ICONS: Record<string, string> = {
-  tree: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="1.5" width="5" height="3.4" rx=".8"/><rect x="1.5" y="11.1" width="4.4" height="3.4" rx=".8"/><rect x="10.1" y="11.1" width="4.4" height="3.4" rx=".8"/><path d="M8 4.9v3.2M3.7 11.1V8.1h8.6v3"/></svg>`,
-  layers: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M8 1.6 14.6 5 8 8.4 1.4 5 8 1.6Z"/><path d="m1.4 8 6.6 3.4L14.6 8"/><path d="m1.4 11 6.6 3.4L14.6 11" opacity=".55"/></svg>`,
-  issues: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 14.6V1.8"/><path d="M3.6 2.6h8.4l-2 3 2 3H3.6"/></svg>`,
-  tools: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.4v2.1M8 12.5v2.1M1.4 8h2.1M12.5 8h2.1M3.3 3.3l1.5 1.5M11.2 11.2l1.5 1.5M3.3 12.7l1.5-1.5M11.2 4.8l1.5-1.5"/></svg>`,
-  clash: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.6v3M8 11.4v3M1.6 8h3M11.4 8h3M3.4 3.4 5.5 5.5M10.5 10.5l2.1 2.1M12.6 3.4 10.5 5.5M5.5 10.5l-2.1 2.1"/><circle cx="8" cy="8" r="1.7" fill="currentColor" stroke="none"/></svg>`,
-  props: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="1.6"/><path d="M5 5.6h6M5 8h6M5 10.4h3.5"/></svg>`,
-  // Document cluster. A sheet with a title block, and a stack of written sections — drawn to read
-  // as siblings, because they are the two halves of one submission.
-  sheets: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.4" width="12.4" height="11.2" rx="1.1"/><path d="M1.8 10.6h12.4M9.7 10.6v3"/></svg>`,
-  specs: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 2.2h9.6v11.6H3.2z"/><path d="M5.4 5.2h5.2M5.4 8h5.2M5.4 10.8h3"/></svg>`,
-  // RAIL-SPLIT items. **A missing entry here renders the string "undefined" in front of the label** —
-  // `RAIL_ICONS[key]` is interpolated straight into innerHTML, so an unmapped key does not fall back
-  // to a blank, it prints. That is exactly what shipped for a moment: "undefinedView",
-  // "undefinedBuild". The rail is a VS Code-style icon bar whose labels expand on demand, so the
-  // icon is the primary identity of an item and cannot be optional.
-  view: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.3 8S3.7 3.4 8 3.4 14.7 8 14.7 8 12.3 12.6 8 12.6 1.3 8 1.3 8Z"/><circle cx="8" cy="8" r="2"/></svg>`,
-  build: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.8 6.2 9.6"/><path d="M8.4 7.4 6.2 9.6l-1.4-1.4 2.2-2.2"/><path d="M9.1 2.6a3.3 3.3 0 0 0 4.3 4.3l-4.3-4.3Z"/><path d="m10.4 8.2 3.4 3.4-2.2 2.2-3.4-3.4"/></svg>`,
-  library: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2" width="3.4" height="12" rx=".7"/><rect x="6.4" y="2" width="3.4" height="12" rx=".7"/><path d="m11.2 3.2 2.9.8-2.5 9.2-2.1-.6"/></svg>`,
-  detail: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.4"/><path d="m10.3 10.3 4 4"/><path d="M5.2 7h3.6M7 5.2v3.6"/></svg>`,
-  annotate: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11.2 1.9 14.1 4.8 5.6 13.3 2 14.2l.9-3.6 8.3-8.7Z"/><path d="m9.6 3.5 2.9 2.9"/></svg>`,
-  export: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.9v8.4"/><path d="m4.9 7.2 3.1 3.1 3.1-3.1"/><path d="M2.4 11.6v1.4a1.2 1.2 0 0 0 1.2 1.2h8.8a1.2 1.2 0 0 0 1.2-1.2v-1.4"/></svg>`,
-  review: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.6 13.6 4v4.2c0 3.3-2.3 5.5-5.6 6.3-3.3-.8-5.6-3-5.6-6.3V4L8 1.6Z"/><path d="m5.8 8 1.6 1.6 3-3.2"/></svg>`,
+const RAIL_ICON_NAME: Record<string, string> = {
+  tree: "list-tree",        // the project browser IS a tree
+  layers: "layers",
+  view: "eye",              // how you look at the model
+  build: "pencil-ruler",    // draw + dimension: the authoring verbs
+  library: "palette",       // the Library palette, by its own name
+  detail: "focus",          // zoom in on one connection
+  props: "info",
+  sheets: "panel-top",      // a sheet with its titleblock
+  annotate: "pencil",
+  export: "download",
+  specs: "file-text",
+  review: "scan",           // sweep the model for problems
+  issues: "flag",
+  // the rail's own chrome, keyed like a destination so it cannot drift off the set
+  __collapse__: "chevron-left",
+  __expand__: "chevron-right",
 };
+
+/** Inline SVG for a rail key, or the first letter when nothing is mapped. */
+function railIcon(key: string, label: string): string {
+  const name = RAIL_ICON_NAME[key];
+  const el = name ? icon(name, 16) : null;
+  return el ? el.outerHTML : `<span class="rail-ic-fallback">${label.slice(0, 1)}</span>`;
+}
+
 // Rail toggles grouped into three workflow clusters (Navigate / Author / Coordinate) — the taxonomy
 // every mature authoring/coordination tool converges on. A subtle group label separates them.
 /**
@@ -570,7 +575,7 @@ for (const it of RAIL_ITEMS) {
   // An unmapped key must not print the literal string "undefined" beside the label — which is what
   // it did, visibly, the moment RAIL-SPLIT added items ahead of their icons. Fall back to the
   // label's first letter so a new item is legible and obviously unfinished rather than broken.
-  const ic = RAIL_ICONS[it.key] ?? `<span class="rail-ic-fallback">${it.label.slice(0, 1)}</span>`;
+  const ic = railIcon(it.key, it.label);
   b.innerHTML = `<span class="rail-ic">${ic}</span><span class="rail-lbl">${it.label}</span>`;
   b.title = `${it.cluster} · ${it.title}`; b.setAttribute("aria-label", `${it.cluster}: ${it.title}`);
   b.onclick = () => {
@@ -589,7 +594,10 @@ const railExpand = document.createElement("button");
 railExpand.className = "rail-btn rail-expand";
 const syncExpand = () => {
   const on = appEl.classList.contains("rail-labeled");
-  railExpand.innerHTML = `<span class="rail-ic">${on ? "‹" : "›"}</span><span class="rail-lbl">Collapse</span>`;
+  // The chevron comes from the same vendored set as every other rail glyph. It was the last
+  // text character in a column of SVGs — a different weight, a different metric, and the one
+  // place the "one icon language" claim was still false.
+  railExpand.innerHTML = `<span class="rail-ic">${railIcon(on ? "__collapse__" : "__expand__", "")}</span><span class="rail-lbl">Collapse</span>`;
   railExpand.title = on ? "Collapse the rail" : "Expand the rail (show labels)";
   railExpand.setAttribute("aria-label", railExpand.title);
   railExpand.setAttribute("aria-expanded", String(on));

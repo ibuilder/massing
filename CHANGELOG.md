@@ -4,6 +4,45 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.840 — RAIL-ICON-UNIFY: one icon set, and a gate that says so
+
+### Changed — the rail ran two icon languages; now it runs one
+
+Public icon-system guidance converges on the same short list: **one grid, one stroke weight, one
+style**, and mixing weights is described as destroying cohesion instantly. Measured against that, the
+rail failed on all three counts — it drew hand-made 16×16 glyphs while `ui/icons.ts` held a vendored
+**Lucide** set on Lucide's own 24×24 grid, so the app ran two icon languages side by side.
+
+The icons file had already written down the rule the rail was breaking: *"Path data is copied verbatim
+from the upstream SVGs — never redrawn by hand, because an icon redrawn from memory is a different
+icon wearing the same name."* So `RAIL_ICONS` is now `RAIL_ICON_NAME`: a **name map, not artwork**.
+Six icons the rail needed (`list-tree`, `pencil-ruler`, `download`, `file-text`, `chevron-left`,
+`chevron-right`) were copied verbatim into the vendored set rather than approximated.
+
+All **14** rail buttons now render from that set — one viewBox, one stroke weight, `currentColor`
+throughout. The last text character went too: the Collapse chevron was `‹`, a different weight and a
+different metric sitting in a column of SVGs, and the one place the "one icon language" claim was
+still false. Because these icons carry no colour of their own, the colour contract governs them
+automatically; an icon is structurally incapable of introducing a second meaning for blue.
+
+### Added — `railIcons.test.ts`, and the assertion in it that could not fail
+
+The gate holds four things: every rail item has an icon (the defect that shipped `undefinedView` into
+the rail — the old map interpolated a missing key straight into `innerHTML`, so it printed the literal
+word); every name resolves in the vendored set; the map contains **no inline SVG**, because pasting
+artwork back in is the easy fix that silently restores the two-language problem; and no vendored path
+carries its own stroke.
+
+That last one was **rewritten because the first version could not fail.** It read
+`icon(n).getAttribute("stroke-width")` across the set and asserted a single distinct value — but
+`icon()` stamps that attribute on the wrapper itself, identically, every time. It was reading back its
+own constant, and mutating the source did not turn it red. The real, breakable property is a path
+*inside* a vendored body declaring its own stroke, which wins over the inherited value; that is what
+is asserted now, and it fails when mutated. Consistency has no error state — nothing throws when a set
+stops reading as a set — which is exactly why it needs a check that can go red.
+
+All four claims were mutation-checked.
+
 ## v0.3.839 — Detail opens expanded; one stroke weight in the rail
 
 ### Changed — a disclosure whose parent already discloses is just a second click
