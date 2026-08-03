@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.835 — a pipeline gate that survives an empty model and keeps identity at scale
+
+### Added — `test_pipeline_scales.py`: the drawing chain, walked at four sizes
+
+Most drawing tests build one small fixture and assert one engine against it. Two failure classes
+slip through that shape and this repo has been bitten by both: **the zero case** (an empty model
+reaches every engine eventually — a fresh project, a failed import — and `bake` returning nothing
+raises where a user expects an empty drawing), and **a fixture too small to be wrong** (a check once
+produced a confident 6.44% that became 0.92% at real scale).
+
+So this walks one model per scale — empty · 1 storey · 3 storeys · 8 storeys — through bake → cut →
+guided cut → plan/section/elevation SVG, and asserts at every size that **every emitted polyline's
+GlobalId resolves in the model**. That last assertion is what the runtime buys: `cut_baked_guided`
+returning the right *shape* with a shifted field passes a length check and fails this one.
+Mutation-proven — corrupting the guid fails 3 of 4 scales, and `empty` correctly stays green because
+it has no polylines to corrupt.
+
+Two behaviours found while writing it, both recorded at the point someone would trip on them rather
+than silenced: the **empty model renders through a different path** (`to_svg([], "no geometry")`,
+which emits a bare `<svg>` while the populated path emits `<?xml …?><svg>` — both valid, built by
+two independent writers), and **`elevation_svg` takes baked meshes** plus a required levels + title
+while its siblings `plan_svg` and `section_svg` take a model. That asymmetry made a sweep script
+report a false break on its first run.
+
 ## v0.3.834 — the Work room had nothing in it; now it runs the field
 
 ### Fixed — Work was an empty room, by construction
