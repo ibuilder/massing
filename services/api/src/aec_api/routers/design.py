@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from .. import adjacency, design_phase, resilience, soft_costs, spine
+from .. import adjacency, approval_conditions, design_phase, resilience, soft_costs, spine
 from .. import modules as me
 from ..db import get_db
 from ..models import Project
@@ -516,3 +516,28 @@ def diligence_readiness(pid: str, db: Session = Depends(get_db), _: str = Depend
         "go": bool(dd_total and dd_cleared == dd_total and not high_risk
                    and not ents_pending and not ent_counts.get("denied")),
     }
+
+
+@router.get("/projects/{pid}/entitlements/conditions")
+def entitlement_conditions(pid: str, db: Session = Depends(get_db),
+                           _: str = Depends(require_role("viewer"))):
+    """R22-ENTITLEMENT — an approval's conditions as tracked items rather than one paragraph.
+
+    `entitlement.conditions` is a single textarea, so an approval carrying fourteen conditions is one
+    blob and nobody can say which have been discharged. This splits it, tags each condition by topic,
+    and extracts quantities **beside the sentence they came from** — parsing an agency's prose is
+    extraction, not authority, and a reading a human cannot check is a constraint nobody chose.
+
+    **Nothing here is ever marked satisfied.** A condition whose topic and quantity cannot be read is
+    `unparsed`, and an approval condition silently treated as met is a building put up out of
+    compliance while the report said it was fine. Discharge is a human act, recorded — and an
+    `unparsed` condition cannot be discharged at all, because signing off text nobody read is the
+    same failure wearing a signature.
+
+    An **approved** entitlement with an empty conditions field reports `unrecorded`, not
+    unconditioned: approvals almost always carry conditions, so a blank field far more often means
+    nobody typed them than that the agency imposed none.
+    """
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return approval_conditions.for_project(db, pid)
