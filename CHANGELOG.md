@@ -4,6 +4,42 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.837 — RAIL-SPLIT: "Tools" was never a category
+
+### Changed — one rail item, one job. Tools drops from 182 controls to 9
+
+Measured live right after RAIL-TOOLBOX shipped: `panel-tools` held **182 buttons and 11 inputs under
+7 headings**. The toolbox contributed 28 of those — **154 were already there**, doing about ten
+unrelated jobs: an element palette (~40), analysis and QA (~30), fabrication detail (~15), exports
+(~12), drawings and sheets (~10), grids and levels (~10), annotation, federation, working origin, and
+a row of deep-links the room tabs already provide.
+
+So "Tools" was not a category. It was where a control went when nobody decided — the same failure
+`rooms.py` records about the retired `Engineering` section, arriving in the rail instead of the
+module list. A junk drawer is invisible until something has to read it as a list of jobs.
+
+The rail is now **13 items in 4 clusters**: Navigate (Tree · Layers · **View**) · Author (**Build** ·
+**Library** · Props) · Document (Drawings · **Export** · Specs) · Coordinate (**Review** · Issues).
+Measured after: Tools **9**, View 17, Build 70, Library 40, Review 33, Export 12.
+
+Three of the new items are load-bearing for what comes next rather than merely tidier. **Library** is
+the element palette, and it has to be its own item to become the drag source for placing elements.
+**View** is exactly the set of tools that needs a canvas, so the 2D/3D switch belongs there.
+**Export** is where "print 2D or 3D" lands once the two canvases are peers.
+
+Both moves are re-parenting passes keyed off structure that already existed — `data-tool` on each
+section, `ToolGroup` on each tool — not a rewrite of 154 call sites. **A pass that only moves nodes
+cannot lose one.** A group with no destination stays visible in `panel-tools` rather than vanishing.
+
+### Not shipped, deliberately — three items that would have been empty or thin
+
+**Detail** and **Annotate** are absent: their content is still inside the mixed `authoring` section
+(annotation + content library + fabrication under one heading), and splitting a section by guessing
+which button belongs where is how a tool ends up somewhere nobody looks. **Analyse** is folded into
+Review because "Ask the model" was its only tool — a one-button rail item is the thin version of the
+empty-room failure fixed in Work this morning. All three arrive when `authoring` and `qa` are
+separated at the source. Shipping an empty rail item to look complete is the thing being avoided.
+
 ## v0.3.836 — RAIL-TOOLBOX: the rail becomes the instrument, the window becomes a canvas
 
 ### Changed — all 28 viewer tools move from a bar floating over the model into the rail

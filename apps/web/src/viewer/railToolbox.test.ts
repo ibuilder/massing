@@ -33,6 +33,16 @@ function fullToolbox() {
   return tb;
 }
 
+/**
+ * Every host the toolbox owns, mounted. RAIL-SPLIT sends the five groups to THREE different rail
+ * panels, so "nothing was forgotten" now has to be counted across all of them — a per-panel count
+ * would pass while a whole group went missing.
+ */
+function mountAll(tb: ReturnType<typeof createRailToolbox>, host: HTMLElement): HTMLElement {
+  for (const k of tb.hostKeys()) host.appendChild(tb.hostFor(k)!);
+  return host;
+}
+
 describe("every tool reaches the rail", () => {
   let host: HTMLElement;
   beforeEach(() => {
@@ -47,15 +57,15 @@ describe("every tool reaches the rail", () => {
 
   it("places EVERY tool — the count out equals the count in", () => {
     const tb = fullToolbox();
-    host.appendChild(tb.el);
-    const placed = tb.el.querySelectorAll("button").length;
+    mountAll(tb, host);
+    const placed = host.querySelectorAll("button").length;
     expect(placed, "a tool went in and did not come out").toBe(TOOLS.length);
   });
 
   it("none lands in the unlaid spill — every tool has a real group", () => {
     const tb = fullToolbox();
-    host.appendChild(tb.el);
-    const spilled = [...tb.el.querySelectorAll(".rail-toolbox-unlaid button")]
+    mountAll(tb, host);
+    const spilled = [...host.querySelectorAll(".rail-toolbox-unlaid button")]
       .map((b) => b.getAttribute("title"));
     expect(spilled, "tools with no group in the layout table").toEqual([]);
     expect(tb.unlaid(), "titles the layout table does not describe").toEqual([]);
@@ -63,16 +73,16 @@ describe("every tool reaches the rail", () => {
 
   it("every group named in the table gets a container — a new group cannot be forgotten", () => {
     const tb = fullToolbox();
-    host.appendChild(tb.el);
+    mountAll(tb, host);
     const used = new Set(TOOLS.map((t) => t.group));
     for (const g of used) {
-      expect(tb.el.querySelector(`[data-group="${g}"]`), `no container rendered for group "${g}"`)
+      expect(host.querySelector(`[data-group="${g}"]`), `no container rendered for group "${g}"`)
         .not.toBeNull();
     }
     // and the containers carry the human heading, not the raw id
     for (const [id, label] of GROUP_LABELS) {
       if (!used.has(id)) continue;
-      const head = tb.el.querySelector(`[data-group="${id}"] .rail-toolgroup-head`);
+      const head = host.querySelector(`[data-group="${id}"] .rail-toolgroup-head`);
       expect(head?.textContent, `group "${id}" heading`).toBe(label);
     }
   });
@@ -86,7 +96,7 @@ describe("every tool reaches the rail", () => {
     let clicked = 0;
     b.onclick = () => { clicked += 1; };
     tb.place(b, TOOLS[0]!.title);
-    host.appendChild(tb.el);
+    mountAll(tb, host);
     expect(b.getAttribute("title")).toBe(TOOLS[0]!.title);
     expect(b.dataset.cap).toBe("edit");
     b.click();
@@ -98,7 +108,7 @@ describe("every tool reaches the rail", () => {
     const spec = TOOLS.find((t) => t.label === "Measure")!;
     const b = btn(spec.title);
     tb.place(b, spec.title);
-    host.appendChild(tb.el);
+    mountAll(tb, host);
     expect(b.dataset.label).toBe("Measure");
   });
 
@@ -112,7 +122,7 @@ describe("every tool reaches the rail", () => {
     const spec = TOOLS.find((t) => t.label === "Presence")!;
     const b = btn(spec.title);
     tb.place(b, spec.title);
-    host.appendChild(tb.el);
+    mountAll(tb, host);
 
     b.innerHTML = "👥 3";                                  // the owner re-renders, as it really does
     b.title = `${spec.title} — 3 people viewing`;
@@ -125,9 +135,9 @@ describe("every tool reaches the rail", () => {
     // the failure this whole file exists to prevent.
     const tb = createRailToolbox();
     tb.place(btn("Some brand new tool nobody described"), "Some brand new tool nobody described");
-    host.appendChild(tb.el);
-    expect(tb.el.querySelectorAll("button").length).toBe(1);
-    expect(tb.el.querySelector("button")?.dataset.unlaid).toBe("1");
+    mountAll(tb, host);
+    expect(host.querySelectorAll("button").length).toBe(1);
+    expect(host.querySelector("button")?.dataset.unlaid).toBe("1");
     expect(tb.unlaid().length).toBe(1);
   });
 });
@@ -135,8 +145,8 @@ describe("every tool reaches the rail", () => {
 describe("context dims, it never hides or moves", () => {
   it("selection verbs go quiet with nothing selected, and stay in place", () => {
     const tb = fullToolbox();
-    document.body.appendChild(tb.el);
-    const move = [...tb.el.querySelectorAll("button")]
+    const host = mountAll(tb, document.createElement("div"));
+    const move = [...host.querySelectorAll("button")]
       .find((b) => (b.getAttribute("title") || "").startsWith("Move selected"))!;
     const parentBefore = move.parentElement;
 
@@ -154,9 +164,9 @@ describe("context dims, it never hides or moves", () => {
 
   it("tools that never needed a selection are never dimmed", () => {
     const tb = fullToolbox();
-    document.body.appendChild(tb.el);
+    const host = mountAll(tb, document.createElement("div"));
     tb.update({ selection: false, canEdit: true });
-    const measure = [...tb.el.querySelectorAll("button")]
+    const measure = [...host.querySelectorAll("button")]
       .find((b) => (b.getAttribute("title") || "").startsWith("Measure distance"))!;
     expect(measure.classList.contains("rail-tool-off")).toBe(false);
   });

@@ -1630,15 +1630,23 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // setup by the modules that own them. `innerHTML = ""` would destroy them and they would never
     // be rebuilt, so detach it first and re-insert below. (This is the trap: buildToolsPanel re-runs
     // on every persona switch.)
-    railToolbox.el.remove();
+    // RAIL-TOOLBOX hosts are PERSISTENT — their buttons are created once at viewer setup by the
+    // modules that own them. `innerHTML = ""` would destroy them and nothing rebuilds them, so
+    // detach first. (buildToolsPanel re-runs on every persona switch.)
+    for (const key of railToolbox.hostKeys()) railToolbox.hostFor(key)?.remove();
     panel.innerHTML = "";
     const intro = document.createElement("div");
     intro.className = "meta"; intro.style.cssText = "margin:2px 2px 6px;font-size:11px;line-height:1.4";
     intro.textContent = "Tools grouped by the modeling lifecycle — Build · Analyze & Coordinate · Document · Data.";
     panel.appendChild(intro);
-    // The viewer's own verbs first: they act on what is on screen right now, so they are what a
-    // modeller reaches for most. The lifecycle groups below are the long tail.
-    panel.appendChild(railToolbox.el);
+    // RAIL-SPLIT: each toolbox group renders into the rail panel that owns its job (View / Build /
+    // Analyse), not into one blob. Persistent hosts — detach before the wipe above already happened,
+    // so re-insert here.
+    for (const key of railToolbox.hostKeys()) {
+      const host = railToolbox.hostFor(key);
+      const target = document.getElementById(`panel-${key}`);
+      if (host && target && host.parentElement !== target) target.appendChild(host);
+    }
     const goWorkspace = (key: string) => window.dispatchEvent(new CustomEvent("aec:workspace", { detail: key }));
     // Cost / schedule / drawings / energy moved OUT of the model rail — they own their workspaces.
     // Leave one row of deep-links so they're a click away without cluttering the modeling surface.
@@ -4605,6 +4613,42 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     for (const key of order) builders[key]?.();
     regroupByPhase();                                        // UX-1: physical phase clusters + headers
     applyPhase(localStorage.getItem(RIBBON_KEY) || "All");   // UX-1: restore the active lifecycle tab
+    distributeToolGroups(panel);                             // RAIL-SPLIT: one job per rail item
+  }
+
+  /**
+   * RAIL-SPLIT — move each `tool-group` to the rail panel that owns its job.
+   *
+   * Measured live: this one panel held **182 buttons and 11 inputs under 7 headings**, doing about
+   * ten unrelated jobs. "Tools" was not a category — it was where a control went when nobody
+   * decided. Each `section()` already declares what it is via `data-tool`, so the split is a
+   * re-parenting pass keyed off that, not a rewrite of 154 call sites. **A pass that only moves
+   * nodes cannot lose one**, which is the same property that made RAIL-TOOLBOX safe.
+   *
+   * A group with no destination stays in `panel-tools` on purpose. Unrouted must mean *visible in
+   * the old place*, never *gone*: a control that silently disappears looks exactly like one that was
+   * deliberately removed, and the next person to notice is a user who needed it.
+   */
+  function distributeToolGroups(panel: HTMLElement) {
+    // `authoring` is deliberately NOT split here. It genuinely mixes annotation, the content
+    // library and fabrication detail under one heading, and splitting a section by guessing which
+    // button belongs where is how a tool ends up somewhere nobody looks. It stays in Build until
+    // its buttons are separated at the source — which is what unblocks the Detail and Annotate rail
+    // items (both intentionally absent until they would have contents).
+    const HOME: Record<string, string> = {
+      draft: "library",        // the element/content palette — and the future drag source
+      gridlevels: "build",
+      authoring: "build",      // mixed; see above
+      models: "build",         // federation lives with the model you are building
+      origin: "build",
+      qa: "review",            // "is the model right"
+      exports: "export",
+    };
+    for (const [tool, railKey] of Object.entries(HOME)) {
+      const group = panel.querySelector<HTMLElement>(`.tool-group[data-tool="${CSS.escape(tool)}"]`);
+      const target = document.getElementById(`panel-${railKey}`);
+      if (group && target) target.appendChild(group);
+    }
   }
 
   /** Hashed hue for an IFC class — the stable per-class fallback color. */

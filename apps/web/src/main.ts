@@ -470,16 +470,45 @@ const RAIL_ICONS: Record<string, string> = {
  * drawings it generates, or the specs that describe them, without leaving the room. Model, drawings
  * and specifications are one person's work; the rail is where that becomes true on screen.
  */
+/**
+ * RAIL-SPLIT — twelve items, four clusters. One item, one job.
+ *
+ * Measured live on 2026-08-03: `panel-tools` held **182 buttons and 11 inputs under 7 headings**.
+ * RAIL-TOOLBOX contributed 28 of those; the other 154 were already there, doing about ten unrelated
+ * jobs — an element palette (~40), analysis and QA (~30), fabrication detail (~15), exports (~12),
+ * drawings and sheets (~10), grids and levels (~10), annotation, federation, and a row of
+ * deep-links the room tabs already provide.
+ *
+ * "Tools" was therefore not a category. It was the place a control went when nobody decided — the
+ * same failure `rooms.py` records about the retired `Engineering` section, arriving in the rail
+ * instead of the module list. A junk-drawer is invisible until something groups by it; the moment
+ * this rail item had to be readable as a list of jobs, it stopped being one.
+ *
+ * Three of the new items are load-bearing for the rest of the arc rather than merely tidier:
+ *   · **Library** must be its own item to become the drag SOURCE for placing elements.
+ *   · **View** is exactly the set of tools that needs a canvas, so the 2D/3D switch belongs there.
+ *   · **Export** is where "print 2D or 3D" lands once the two canvases are genuine peers.
+ */
 const RAIL_ITEMS: { key: string; label: string; title: string; cluster: string; launch?: () => void }[] = [
   { key: "tree", label: "Tree", title: "Model tree", cluster: "Navigate" },
   { key: "layers", label: "Layers", title: "Layers & visibility", cluster: "Navigate" },
-  { key: "tools", label: "Tools", title: "Model tools & authoring", cluster: "Author" },
+  { key: "view", label: "View", title: "How you look at the model — section, measure, isolate, render, walk", cluster: "Navigate" },
+  { key: "build", label: "Build", title: "Draw and change the model — grids, levels, modify, advanced authoring", cluster: "Author" },
+  { key: "library", label: "Library", title: "Element & content palette — walls, doors, furniture, families", cluster: "Author" },
+  // Detail and Annotate are NOT here yet, deliberately. Their content is still inside the mixed
+  // `authoring` tool-group (annotation + library + fabrication under one heading), and shipping a
+  // rail item whose panel is empty is the precise failure the Work room had this morning: an empty
+  // room reads as a broken product, not as a room waiting for content. They arrive with the split.
   { key: "props", label: "Props", title: "Properties — selected element", cluster: "Author" },
   { key: "sheets", label: "Drawings", title: "Drawing set & sheets", cluster: "Document",
     launch: () => setWorkspace("drawings") },
+  { key: "export", label: "Export", title: "Take it out — IFC, COBie, quantities, schedules, closeout", cluster: "Document" },
   { key: "specs", label: "Specs", title: "Specification sections", cluster: "Document",
     launch: () => openSpecs() },
-  { key: "clash", label: "Clash", title: "Clash & coordination", cluster: "Coordinate" },
+  // Review currently holds BOTH "is the model right" (clash, QA, health, rules) and "what does it
+  // tell you" (code, egress, cost, 4D) — they arrive together inside one `qa` tool-group. Analyse
+  // splits out as its own item when that group is separated at the source.
+  { key: "review", label: "Review", title: "Check the model — clash, QA, health, rules, code & cost analysis", cluster: "Coordinate" },
   { key: "issues", label: "Issues", title: "Issues / RFIs", cluster: "Coordinate" },
 ];
 const railEl = $("rail");

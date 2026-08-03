@@ -67,7 +67,17 @@
               </div>
               <div id="props-body"></div>
             </div>
+            <!-- RAIL-SPLIT: "Tools" held 182 controls doing ten jobs. These are those jobs, one
+                 rail item each. `panel-tools` stays as the BUILD SURFACE the viewer renders into;
+                 a distribution pass then moves each tool-group to the panel that owns its job, and
+                 anything unrouted stays visible here rather than vanishing. -->
             <div id="panel-tools" class="rpanel"></div>
+            <div id="panel-view" class="rpanel"></div>
+            <div id="panel-build" class="rpanel"></div>
+            <div id="panel-library" class="rpanel"></div>
+            <div id="panel-export" class="rpanel"></div>
+            <div id="panel-review" class="rpanel"></div>
+            <div id="panel-analyse" class="rpanel"></div>
             <div id="panel-clash" class="rpanel"></div>
           </aside>
           <div id="container">

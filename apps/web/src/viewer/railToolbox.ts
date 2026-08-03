@@ -32,9 +32,37 @@
  */
 import { GROUP_LABELS, type ToolContext, type ToolGroup, specFor, unlaidTitles } from "./toolbarLayout";
 
+/**
+ * RAIL-SPLIT — which rail PANEL each tool group belongs to.
+ *
+ * v0.3.836 put all five groups in one container inside `panel-tools`. Measured live straight after,
+ * that panel held **182 buttons under 7 headings** — 154 of them already there before the toolbox
+ * arrived, doing about ten unrelated jobs. "Tools" was not a category; it was where a control went
+ * when nobody decided, which is the same failure `rooms.py` records about the retired "Engineering"
+ * section, arriving in the rail instead of the module list.
+ *
+ * So the groups distribute by the job they serve, not by the fact that they happen to be viewer
+ * buttons: looking at the model is navigation, changing it is authoring, asking it questions is
+ * coordination. Each lands in the rail item a user would open for that job.
+ */
+export const GROUP_PANEL: Record<ToolGroup, string> = {
+  look: "view",          // NAVIGATE ▸ View — how you look at the model
+  measure: "view",       // measuring is looking with a number attached
+  author: "build",       // AUTHOR ▸ Build — the verbs that change the model
+  // COORDINATE ▸ Review, for now. "Ask the model" is the ONLY tool in this group, and the analysis
+  // it belongs beside (code, egress, cost, 4D) is still inside the `qa` tool-group that Review
+  // hosts. A one-button rail item is the thin version of the empty-room failure, so Analyse becomes
+  // its own item when `qa` splits — not before.
+  analyse: "review",
+  collaborate: "view",   // sharing what is ON SCREEN: it belongs with the view it captures
+};
+
 export interface RailToolbox {
-  /** The persistent element to insert into the rail. Built once; survives panel rebuilds. */
-  readonly el: HTMLElement;
+  /** The panel element for a rail key, or null when that key hosts no tool group. Persistent —
+   *  built once, survives panel rebuilds, must be re-inserted rather than recreated. */
+  hostFor(railKey: string): HTMLElement | null;
+  /** Every rail key this toolbox owns a panel for. */
+  hostKeys(): string[];
   /** Adopt a freshly created tool button into its group. Called by `toolBtn`. */
   place(button: HTMLButtonElement, title: string): void;
   /** Re-evaluate which tools are usable right now. Dims, never hides, never moves. */
@@ -53,11 +81,21 @@ const NEEDS_SELECTION = new Set([
 const ORDER: ToolGroup[] = ["look", "measure", "author", "analyse", "collaborate"];
 
 export function createRailToolbox(): RailToolbox {
-  const el = document.createElement("div");
-  el.className = "rail-toolbox";
-  el.dataset.toolbox = "1";
-
+  /** One persistent container per rail panel that hosts at least one group. */
+  const hosts = new Map<string, HTMLElement>();
   const bodies = new Map<ToolGroup, HTMLElement>();
+
+  function hostEl(railKey: string): HTMLElement {
+    let h = hosts.get(railKey);
+    if (!h) {
+      h = document.createElement("div");
+      h.className = "rail-toolbox";
+      h.dataset.toolbox = railKey;
+      hosts.set(railKey, h);
+    }
+    return h;
+  }
+
   for (const g of ORDER) {
     const label = GROUP_LABELS.find(([id]) => id === g)?.[1] ?? g;
     const det = document.createElement("details");
@@ -70,15 +108,17 @@ export function createRailToolbox(): RailToolbox {
     const body = document.createElement("div");
     body.className = "rail-toolgroup-body";
     det.append(sum, body);
-    el.appendChild(det);
+    hostEl(GROUP_PANEL[g]).appendChild(det);
     bodies.set(g, body);
   }
 
   // Anything the layout table does not describe still appears — visibly tagged — because a tool that
-  // quietly vanishes looks exactly like one that was deliberately removed.
+  // quietly vanishes looks exactly like one that was deliberately removed. It lands in the Build
+  // panel: an undescribed tool is most likely a new authoring verb, and it must be somewhere a
+  // person actually opens.
   const spill = document.createElement("div");
   spill.className = "rail-toolgroup-body rail-toolbox-unlaid";
-  el.appendChild(spill);
+  hostEl("build").appendChild(spill);
 
   const registered: string[] = [];
   const buttons: { btn: HTMLButtonElement; label: string }[] = [];
@@ -129,5 +169,11 @@ export function createRailToolbox(): RailToolbox {
     spill.style.display = spill.children.length ? "" : "none";
   }
 
-  return { el, place, update, unlaid: () => unlaidTitles(registered) };
+  return {
+    hostFor: (railKey: string) => hosts.get(railKey) ?? null,
+    hostKeys: () => [...hosts.keys()],
+    place,
+    update,
+    unlaid: () => unlaidTitles(registered),
+  };
 }
