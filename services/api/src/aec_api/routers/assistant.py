@@ -5,8 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import assistant, routines
+from .. import agent_packs, assistant, routines
 from ..db import get_db
+from ..models import Project
 from ..rbac import require_identified, require_role
 
 router = APIRouter()
@@ -80,3 +81,28 @@ def project_routines_due(pid: str, db: Session = Depends(get_db),
     refused rather than defaulted, and skips come back with their reasons.
     """
     return routines.from_project(db, pid)
+
+
+@router.get("/projects/{pid}/agent-packs")
+def project_agent_packs(pid: str, db: Session = Depends(get_db),
+                        _: str = Depends(require_role("viewer"))):
+    """R22-AGENT-PACKS — the governance console: which named agents exist, what each runs, which can
+    write, and what has actually been run against this project.
+
+    A pack is a **named view over tools that already exist** — "Submittal Review Agent" rather than
+    `standards_check`. It grants nothing: every tool in every pack is already in `mcp_tools.TOOLS`,
+    and `dispatch` applies its own membership and role checks regardless of which pack a caller came
+    through. A pack that could widen access would be a privilege-escalation surface wearing the name
+    of a governance feature.
+
+    **Packs that can modify the project say so**, naming the write tools — a console that lists
+    agents without distinguishing read from write is not one anybody can govern with.
+
+    `runs` is the per-run history the ring entry calls the gating factor for enterprise adoption.
+    Until R22-AGENT-PACKS only `run_recipe` wrote an audit row, so 16 of 18 tools ran with no trail.
+    Every dispatch now records one — **including failures**, because a history of successes cannot
+    answer what an agent *attempted*, which is the question asked after an incident.
+    """
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return {**agent_packs.catalog(), **agent_packs.run_log(db, project_id=pid)}

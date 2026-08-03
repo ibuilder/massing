@@ -116,14 +116,47 @@ _WRITE_TOOLS = frozenset({"create_rfi", "run_recipe"})
 
 
 def dispatch(db: Session, name: str, args: dict[str, Any], actor: str = "mcp",
-             user: str | None = None) -> Any:
+             user: str | None = None, pack: str | None = None) -> Any:
     """Execute a tool by name against the DB session. Raises ValueError on an unknown tool.
 
     Defense-in-depth authorization: the MCP server is local/stdio today, but dispatch must not be the
     layer that trusts everyone if that ever changes. The effective identity is `user`, else the
     `AEC_MCP_USER` env var, else the admin api-key (the historical stdio behaviour). Under RBAC a
     non-admin identity is membership-scoped: `list_projects` returns only member projects, and any tool
-    addressing a `project_id` outside the membership raises PermissionError."""
+    addressing a `project_id` outside the membership raises PermissionError.
+
+    R22-AGENT-PACKS: **every dispatch is audited, success or failure.** Until this existed only
+    `run_recipe` wrote an audit row (for the IFC edit it performed), so 16 of 18 tools ran with no
+    trail and "which tools did this agent run against my project?" had no answer. A log of successes
+    alone cannot answer what an agent *attempted*, which is the question asked after an incident, so
+    the failure path records too and then re-raises. `pack` is recorded when the caller came in
+    through a named pack — it is provenance, never permission."""
+    from . import audit as _audit
+
+    _t0_detail = {"tool": name, "pack": pack,
+                  "project_id": args.get("project_id") or args.get("pid")}
+    try:
+        _out = _dispatch_inner(db, name, args, actor=actor, user=user)
+    except Exception as exc:
+        try:
+            _audit.record(db, action=f"mcp.{name}", actor=user or actor, method="MCP",
+                          detail={**_t0_detail, "ok": False, "error": type(exc).__name__})
+            db.commit()
+        except Exception:                        # noqa: BLE001 — auditing must never mask the error
+            db.rollback()
+        raise
+    try:
+        _audit.record(db, action=f"mcp.{name}", actor=user or actor, method="MCP",
+                      detail={**_t0_detail, "ok": True})
+        db.commit()
+    except Exception:                            # noqa: BLE001 — a tool result is not lost to an audit write
+        db.rollback()
+    return _out
+
+
+def _dispatch_inner(db: Session, name: str, args: dict[str, Any], actor: str = "mcp",
+                    user: str | None = None) -> Any:
+    """The tool body. Split out so `dispatch` can audit every run without touching any decision."""
     import os as _os
 
     from . import bim_kpi, cde, standards_expert
