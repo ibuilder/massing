@@ -149,6 +149,18 @@ def board_pdf(project_name: str, scored: dict[str, Any]) -> bytes:
     return buf.getvalue()
 
 
+def _num(v: Any) -> float | None:
+    """A real number, or None. Deliberately NOT `float(v or 0)`: on a lower-is-better axis 0 is the
+    minimum, so coercing a missing value to zero awards the best possible score for having no data."""
+    if v is None or isinstance(v, bool) or v == "":
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return None if f != f or f in (float("inf"), float("-inf")) else f
+
+
 def _norm(vals: list[float], value: float, higher_better: bool) -> float:
     """Min-max normalize `value` against the option set → 0–100. A flat set (all equal) scores 100 —
     the criterion doesn't differentiate, so it shouldn't penalize anyone."""
@@ -240,26 +252,48 @@ def score_options(options: list[dict], weights: dict[str, float] | None = None) 
     if not options:
         raise OptionError(EMPTY_OPTIONS)
     w = {**DEFAULT_WEIGHTS, **(weights or {})}
-    total_w = sum(w.values()) or 1.0
     rows = [_evaluate(o) for o in options]
 
-    psf = [float(r["cost_per_sf"] or 0.0) for r in rows]
-    cint = [r["carbon_intensity_kgco2e_m2"] for r in rows]
-    sell = [r["yield_net_sellable_m2"] for r in rows]
+    # R22-OPTION-OBJECT: a MISSING criterion is not a good score. `cost_per_sf` is
+    # `(est.get("metrics") or {}).get("cost_per_sf")` — it can be None — and the previous
+    # `float(x or 0.0)` turned that into 0.0. On a lower-is-better axis 0 is the minimum, so an
+    # option with NO cost data normalized to 100: the best possible cost score, awarded FOR LACKING
+    # DATA, ranking it above every option that had a real number. Same shape as the mixed-carbon-
+    # basis problem below, and handled the same way: exclude it, then say so.
+    def _vals(key: str) -> list[float]:
+        return [float(r[key]) for r in rows if _num(r.get(key)) is not None]
+
+    psf, cint, sell = _vals("cost_per_sf"), _vals("carbon_intensity_kgco2e_m2"), \
+        _vals("yield_net_sellable_m2")
+    CRIT = (("cost", "cost_per_sf", psf, False), ("carbon", "carbon_intensity_kgco2e_m2", cint, False),
+            ("yield", "yield_net_sellable_m2", sell, True))
     for r in rows:
-        scores = {
-            "cost": _norm(psf, float(r["cost_per_sf"] or 0.0), higher_better=False),
-            "carbon": _norm(cint, r["carbon_intensity_kgco2e_m2"], higher_better=False),
-            "yield": _norm(sell, r["yield_net_sellable_m2"], higher_better=True),
-            "compliance": 100.0 if r["compliant"] else 0.0,
-        }
-        composite = round(sum(w[k] * v for k, v in scores.items()) / total_w, 1)
+        scores: dict[str, float | None] = {"compliance": 100.0 if r["compliant"] else 0.0}
+        missing: list[str] = []
+        for name, key, pool, higher in CRIT:
+            v = _num(r.get(key))
+            if v is None or not pool:
+                scores[name] = None                    # scored on fewer dimensions — never on 100
+                missing.append(name)
+            else:
+                scores[name] = _norm(pool, v, higher_better=higher)
+        # Composite over the criteria this option ACTUALLY has, with the weights renormalized over
+        # them. Averaging a missing criterion in as any number — 0 or 100 — states something about
+        # the option that nobody measured.
+        present_w = sum(w[k] for k in scores if scores[k] is not None) or 1.0
+        composite = round(sum(w[k] * v for k, v in scores.items() if v is not None) / present_w, 1)
         if not r["compliant"]:
             composite = min(composite, 49.0)           # a violating option never outranks a compliant one
         r["scores"] = scores
         r["composite"] = composite
+        r["missing_criteria"] = missing
+        r["fully_scored"] = not missing
     rows.sort(key=lambda r: -r["composite"])
-    compliant = [r for r in rows if r["compliant"]]
+    # Recommending an option that was scored on FEWER dimensions than its rivals is exactly the
+    # failure this ring is named for — a massing evaluated without its returns. It stays in the
+    # ranking (a reader may still want to see it) but it cannot be the recommendation.
+    compliant = [r for r in rows if r["compliant"] and r["fully_scored"]]
+    partial = [r["label"] for r in rows if not r["fully_scored"]]
 
     # A quantity-derived carbon figure and a typology benchmark are different claims about the world.
     # Ranking options whose carbon came from different bases is comparing unlike things, and the
@@ -280,6 +314,13 @@ def score_options(options: list[dict], weights: dict[str, float] | None = None) 
         "options": rows, "weights": w,
         "recommended": (compliant[0]["label"] if compliant else None),
         "carbon_basis": sorted(b for b in bases if b),
+        "partially_scored": partial,
+        "partially_scored_note": (
+            f"{len(partial)} option(s) are missing at least one criterion and were scored on the "
+            "criteria they have, with the weights renormalized over those. They are RANKED but "
+            "cannot be recommended: a missing criterion is not a good score, and recommending an "
+            "option measured on fewer dimensions than its rivals is the failure this guards."
+            if partial else ""),
         "carbon_basis_mixed": mixed,
         "note": ("Deterministic scoring through the platform's own engines: conceptual $/SF (cost), "
                  "embodied carbon (carbon), net sellable area (yield), and zoning FAR/height checks "
