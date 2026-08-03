@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import cost as cost_engine
 from .. import modules as me
-from .. import rbac
+from .. import provenance_report, rbac
 from ..db import get_db
 from ..models import Scenario
 from ..proforma import entitlement_risk
@@ -21,7 +21,7 @@ from ..proforma.draws import reforecast
 from ..proforma.monte_carlo import monte_carlo
 from ..proforma.sensitivity import sensitivity
 from ..proforma.solve import solve
-from ..rbac import current_user
+from ..rbac import current_user, require_identified
 
 router = APIRouter()
 
@@ -42,6 +42,33 @@ def solve_stateless(a: Assumptions):
     result = solve(a.model_dump())
     return {**result, "guardrails": underwrite.guardrails(result),
             "provenance": _provenance.derive(_provenance.declared_from(a), result)}
+
+
+@router.post("/proforma/provenance/admissibility")
+def proforma_admissibility(body: dict = Body(default={}), _: str = Depends(require_identified)):
+    """R22-PROVENANCE — one admissibility verdict across all three provenance legs.
+
+    Body: `{assumptions_provenance, estimate_ledger, agent_answers}` — each the OUTPUT of the engine
+    that owns it (`/proforma/provenance` or `assumption_provenance.provenance`, `boe_ledger.ledger`,
+    a list of `cited_answer.claim` results). Nothing is re-derived here, so this cannot disagree with
+    the engine it summarises.
+
+    Each leg already answers for itself; nothing answered the question the ring is actually for —
+    **is this deal's output admissible in an IC memo or a claim?**
+
+    **There is deliberately no blended provenance score.** A single 0–100 lets a well-cited proforma
+    hide an uncited estimate, and a memo is not admissible because it scored 82. The verdict is
+    per-leg and the blockers are NAMED — a count gets quoted in a memo, a list gets fixed.
+
+    **An empty leg reports `no_data`, never coverage.** The two engines disagree about zero in
+    opposite directions — an empty `boe_ledger` reports `pct_documented` 1.0 ("perfectly documented")
+    while empty assumptions report `coverage_pct` 0.0 — and both describe the same absence. A project
+    with no estimate lines is not a project with a perfectly documented estimate, so an absent leg is
+    excluded from the verdict and the deal reads `incomplete` rather than `admissible`.
+    """
+    return provenance_report.report(body.get("assumptions_provenance"),
+                                    body.get("estimate_ledger"),
+                                    body.get("agent_answers"))
 
 
 @router.post("/proforma/provenance")
