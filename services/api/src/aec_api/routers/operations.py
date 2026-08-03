@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
-from .. import audit, cam, cmms, deal_funnel, energy, energy_star_bridge, esg, fca, reserve, twin
+from .. import audit, cam, cmms, deal_funnel, deal_memory, energy, energy_star_bridge, esg, fca, reserve, twin
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, member_project_ids, require_identified, require_role
@@ -103,6 +103,28 @@ def fca_portfolio(db: Session = Depends(get_db), user: str = Depends(current_use
     """Facility Condition Index per project across the portfolio, worst-first — the capital-
     prioritization view (fund the highest-FCI buildings first). Scoped to the caller's projects."""
     return fca.portfolio(db, project_ids=member_project_ids(db, user))
+
+
+@router.get("/portfolio/deal-memory")
+def portfolio_deal_memory(db: Session = Depends(get_db), user: str = Depends(current_user)):
+    """R35-DEAL-MEMORY: this operator's own closed projects as a comp set, scoped to their projects.
+
+    The least commoditised layer in an underwriting stack, because it is made of the firm's own
+    history and cannot be bought. It is also the easiest place here to manufacture a flattering
+    number, so the engine reports only measurements that sit in a **different record** from the plan
+    they are compared against — cost budget vs actual, planned finish vs actual finish.
+
+    **`exit_cap_achieved` and `lease_up_months` are returned as `no_recorded_source`, not computed.**
+    Nothing in this system records a realised exit cap or a lease-up actual; the only exit cap
+    present is the ASSUMED one on a scenario. Reading that back as the realised value would compare
+    a number to itself and report perfect underwriting accuracy forever — and that figure would then
+    be used to justify the next deal. The refusal names what would have to be captured instead.
+
+    Under the sample floor a metric reports `insufficient_history` rather than a distribution, and a
+    project with no actual spend is excluded and counted rather than averaged in as zero variance,
+    which would drag every distribution toward "we were exactly right".
+    """
+    return deal_memory.comps(db, project_ids=member_project_ids(db, user))
 
 
 @router.get("/pipeline/funnel")
