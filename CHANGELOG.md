@@ -4,6 +4,24 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.845 — red main: one unsorted import, and the lint I ran on the wrong revision
+
+`import math` was added to `drawings.py` as part of making the isometric angle exact. It went in
+above the existing block in the wrong position, and **main went red on `ruff I001`.**
+
+The failure is not the import; it is the order I checked in. `drawings.py` *was* linted — and passed —
+**before** that edit, while adding `axon_outlines`. The `import math` came later, in the follow-up
+that introduced `ISO_ELEVATION_DEG`, and only `sheet_layout.py` was re-linted after it. A clean lint
+from three edits ago was carried forward as though it still described the file.
+
+CI runs `ruff check src/ ../data/src/` over the whole tree. Every local check here ran against a
+single named file, which is narrower than the gate in exactly the way that lets a defect through:
+**a check that passed is a statement about the revision it ran on, not about the file.** The habit
+that fixes it is to run the gate's own command — the full-tree form is now what gets run before a
+push, not a per-file one.
+
+Nothing else changed: the axonometric suite is unaffected and still green.
+
 ## v0.3.844 — CANVAS-PEER: a 3D view becomes a drawing, not a screenshot of one
 
 ### The asymmetry this closes
