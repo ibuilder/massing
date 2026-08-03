@@ -7,6 +7,7 @@ plain SVG so it embeds in the viewer, prints, or drops onto a sheet with a title
 from __future__ import annotations
 
 import logging
+import math
 import os
 import warnings
 from typing import Any
@@ -15,8 +16,6 @@ from xml.sax.saxutils import escape as _xesc
 import ifcopenshell
 import ifcopenshell.geom as geom
 import ifcopenshell.util.unit as uunit
-import math
-
 import numpy as np
 import trimesh
 
