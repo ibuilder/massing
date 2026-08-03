@@ -155,7 +155,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · AUTH-SNAP-OVERRIDE · RAIL-DRAG · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -1603,6 +1603,50 @@ tracked files, and the wrong-directory misroute is exactly how lanes collide:
    belong to R36-RAIL-SCOPE's owner** — they are listed here for sequence only, not routed by this
    Lane C item; a C session must not pick them up off this list.
 5. Hotspot tests, then small-effort batch work when already in a file.
+
+## 🧲 AUTHORING-GESTURE — the Open CAD Studio re-scan *(2026-08-03, premise-checked against the tree)*
+
+Asked whether their drag-and-drop authoring is worth copying. **Three premises failed the check, two
+of them mine**, so the answer is recorded with the corrections rather than the conclusion alone.
+
+**1. Open CAD Studio does not author by drag-and-drop.** At v0.9.2 (2026-08-03, six releases past the
+July study) every drag feature they ship is file-handling or chrome: *drag drawing files onto the
+window* (v0.8.7) and *drag to reorder document tabs* (v0.8.9). Block and symbol placement is the
+`INSERT` **command** — their own notes say there is no palette-insertion workflow. Their authoring
+model is CAD-classic: type a command, pick points against snaps. **Building drag-to-author for parity
+would be copying something that is not there.**
+
+**2. Our precision suite is already at rough parity — I twice recommended building what exists.**
+Verified in `apps/web/src/viewer/snapEngine.ts` and its call sites: `resolveSnap` + `segmentSnaps`
+(endpoint / edge / midpoint / centre, then grid), `polarConstrain` (45° increments, 4° tolerance),
+`applyDynamicInput` with a typed distance/angle constraint that **beats every automatic snap** because
+the drafter said exactly what they want, shift-held ortho lock from the previous point, and a snap
+glyph on hit. Plus `CADCMD` for the command grammar. SNAP-KIT shipped; the roadmap said so in
+`docs/roadmap-completed.md` and two successive recommendations here ignored it.
+
+*The instrument that failed both times was a memory file read instead of the code.* Same family as the
+five already recorded — a claim that was true when written and had since been overtaken.
+
+**3. Nothing in that GitHub account is usable as code — a licence wall, not a technical one.**
+OpenCADStudio is **GPL-3.0**. Of twelve Python repos, `Road` / `freecad.trails` / `freecad.turns` /
+`PyTrails` / `Delaunator-Python` are **LGPL-2.1**, and `NodeCAD` / `Modern-UI` are **GPL-3.0**. All
+excluded by the MIT/BSD/Apache-only rule. `iced_aw` is MIT but Rust GUI widgets; the PythonOCC fork is
+MIT over an LGPL base. **Nothing may be vendored, ported or read-and-reimplemented.** Behaviours
+described in public release notes are interface descriptions rather than code, which is the same
+footing the July study stood on when CADCMD was written.
+
+### What is actually left, and it is small
+
+- **AUTH-SNAP-OVERRIDE** *(S — Lane E)* — a one-shot snap override for a single pick (theirs is
+  Shift+right-click; Shift is already ortho lock here, so pick a free chord). The genuine gap: today a
+  snap preference is modal, and needing *this one pick* to take a perpendicular means changing a mode
+  and changing it back.
+- **RAIL-DRAG** *(M — Lane E)* — drag from the Library palette into the canvas. Justification is
+  **discovery, not parity**: dragging a door onto a wall is a better first-run mental model than
+  arm-then-click. It must resolve through the existing `captureDraftPoint` + `placeValid` path so
+  there is one authoring pipeline with two gestures, never two pipelines. Safe to build *because* the
+  snap suite already exists underneath — drag without snapping places a wall at 4.03 m and calls it
+  4.00 m, which for a GlobalId-bearing element that feeds schedules is worse than not placing it.
 
 ## 🔪 R24-TOOLS-SPLIT — measured, not yet cut *(premise-check 2026-08-03)*
 
