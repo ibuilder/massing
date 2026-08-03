@@ -437,11 +437,14 @@ stakes we are missing.
   statement — we underwrite the deal and we build it, and nothing spans approval.
 
   ⚠️ **Two name collisions sit on this item; gap-check on SEMANTICS before touching it.**
-  `entitlements.py` is **subscription tiers** (free/pro/enterprise), nothing to do with land use.
-  `proforma/entitlement_risk.py` is genuinely adjacent — but it *scores risk*, it does not run a
+  `tiers.py` is **subscription tiers** (free/pro/enterprise), nothing to do with land use — it was
+  "entitlements.py" until v0.3.847 renamed the two squatters so only the land-use register keeps the
+  word. The warning below is kept because it is what made the collision findable, not because it is
+  still live.
+  `proforma/approval_risk.py` is genuinely adjacent — but it *scores risk*, it does not run a
   submittal workflow, so it neither closes this nor is irrelevant to it. A name-based sweep gets this
-  item wrong in **both** directions: `entitlements.py` makes it look shipped, and stopping there means
-  never noticing `entitlement_risk.py`, which the eventual build should probably feed. Third
+  item wrong in **both** directions: `tiers.py` makes it look shipped, and stopping there means
+  never noticing `approval_risk.py`, which the eventual build should probably feed. Third
   collision found on 2026-07-31, after `report_builders/` (five hardcoded builders, not the no-code
   builder R22-REPORT-BUILDER describes).
 - ⭐ **R22-AGENT-PACKS** *(M)* — **named agent packs + org "Skills" + a governance console** over the
@@ -744,7 +747,7 @@ refute one, so this goes first even though it is the least visible.
   Measured on `e653473b`: `traceability.py` is cost-only (its docstring scopes it to `element_costs`
   / `summary`; **0** mentions of proforma/IRR/NOI/rent), and `proforma/*.py` contains **zero**
   `GlobalId` / `guid` references, so no figure links to a model element at any layer. The lone
-  `"basis"` string in `entitlement_risk.py` names which population was averaged — not a chain.
+  `"basis"` string in `approval_risk.py` names which population was averaged — not a chain.
 
   Building the UI first would have meant **inventing provenance in the client**: a trace that looks
   like it walks to a GlobalId while actually asserting one. That is the fabrication shape this repo
