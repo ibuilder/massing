@@ -684,7 +684,7 @@ is recorded. Filed under Decisions below.
 | 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | 🟡 `apps/web/src/ui/lifecycleStrip.ts` + `inspectorTabs.ts` built; now **two** call sites — the viewer inspector and `apps/web/src/ui/elementCard.ts`, mounted from `apps/web/src/portal/panels/traceability.ts:75`. Four surfaces still unwired |
 | 07 | onboarding teaches the chrome | FIRST-RUN | 🟡 improved v0.3.777; still not the lot → building → deal chain |
 | 08 | persona picker only relabels | *(none)* | ⚠️ reversed on purpose — see Decisions |
-| 09 | tools panel mixes verbs with analyses | *(none)* | ❌ dropped in transfer → `R24-TOOLS-SPLIT` |
+| 09 | tools panel mixes verbs with analyses | *(none)* | ❌ dropped in transfer → `R24-TOOLS-SPLIT` — **measured 2026-08-03, seams below** |
 | 10 | finance numbers have no provenance | R24-TRACE-UI | 🟡 v0.3.775 shipped trace for *cost coverage*; the proforma chain (IRR ← NOI ← rent roll ← area ← GUID) — the audit's actual demo — is not built |
 | 11 | density | R24-DENSITY | 🟡 two steps not three (`portal/prefs.ts:71`), dashboards only, **not registers** — which is where the 8-hour user lives |
 | 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | 🟡 `field/field.ts` is a real offline queue with GPS, still inside the desktop IA |
@@ -1603,6 +1603,45 @@ tracked files, and the wrong-directory misroute is exactly how lanes collide:
    belong to R36-RAIL-SCOPE's owner** — they are listed here for sequence only, not routed by this
    Lane C item; a C session must not pick them up off this list.
 5. Hotspot tests, then small-effort batch work when already in a file.
+
+## 🔪 R24-TOOLS-SPLIT — measured, not yet cut *(premise-check 2026-08-03)*
+
+RAIL-SPLIT routed tool-groups to rail panels by their `data-tool` key, which worked for every group
+except one: `qa` went whole to **Review**, and `GROUP_PANEL` recorded why Analyse could not become its
+own rail item — *"the analysis it belongs beside (code, egress, cost, 4D) is still inside the `qa`
+tool-group"*. A one-button rail item is the thin version of the empty-room failure, so Analyse waits
+for this split rather than shipping hollow.
+
+**The measurement, so the next session starts from facts rather than the estimate.** The `qa` section
+is `apps/web/src/viewer/app.ts` **lines 3453–4539 — 1087 lines, 39 labelled controls, and no internal
+structure at all**: zero sub-headings, zero group markers, one divider. That is why this is not a
+re-parenting pass like RAIL-SPLIT was: **there is nothing to re-parent.** The sub-groups have to be
+created before anything can be routed, which is a different and larger job than moving nodes.
+
+The seams are legible from the controls themselves, and they fall exactly where the deferral note
+predicted — *"is the model right"* against *"what does it tell you"*:
+
+| lines | controls | belongs to |
+|---|---|---|
+| 3546–3634 | element query, save view | **Review** — interrogating the model |
+| 3668–3724 | purge, CSV export/upload, set-props | **Review** — data hygiene |
+| 3755–3845 | isolate failures, clash by severity/discipline, burn-down | **Review** — coordination |
+| 3892–3924 | resources, timeline, show-at-date | **Analyse** — 4D |
+| 3984–4011 | layers, overrides, bake | **Review** — visual state |
+| 4085–4122 | jurisdiction, code re-check (×2 blocks) | **Analyse** — compliance |
+| 4203 | Ask | **Analyse** |
+| 4398–4470 | rule editor, preview, apply + republish | **Review** — rules |
+
+**Cut it as two `section()` calls inside the existing builder, not as a file move.** The block is one
+closure over shared state (`api`, selection, the fragments cache); splitting it into two functions
+first is how a re-parenting pass turns into a rewrite. Add `section("analyse", …)` beside
+`section("qa", …)`, move the four Analyse ranges into it, and `distributeToolGroups` routes it with
+the one-line `HOME` entry it already supports. Then give Analyse its rail item and drop the fold in
+`GROUP_PANEL`.
+
+**Verify by counting.** RAIL-SPLIT's property holds here too: the control count before and after must
+match, because a control that silently vanishes looks exactly like one deliberately removed.
+`railToolbox.test.ts` already asserts that shape for the toolbox and is the model to copy.
 
 ## 🧭 R36 — ROOM COHESION RING *(three user directives, 2026-08-02: the rooms must each be a product)*
 
