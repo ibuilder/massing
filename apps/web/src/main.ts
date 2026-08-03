@@ -480,6 +480,7 @@ const RAIL_ICON_NAME: Record<string, string> = {
   export: "download",
   specs: "file-text",
   review: "scan",           // sweep the model for problems
+  analyse: "search",        // look INTO it for an answer, rather than sweep it for faults
   issues: "flag",
   clash: "triangle-alert",
   // the rail's own chrome, keyed like a destination so it cannot drift off the set
@@ -545,10 +546,12 @@ const RAIL_ITEMS: { key: string; label: string; title: string; cluster: string; 
   { key: "export", label: "Export", title: "Drawings, sheets, schedules and exports — IFC, COBie, quantities, closeout", cluster: "Document" },
   { key: "specs", label: "Specs", title: "Specification sections", cluster: "Document",
     launch: () => openSpecs() },
-  // Review currently holds BOTH "is the model right" (clash, QA, health, rules) and "what does it
-  // tell you" (code, egress, cost, 4D) — they arrive together inside one `qa` tool-group. Analyse
-  // splits out as its own item when that group is separated at the source.
-  { key: "review", label: "Review", title: "Check the model — clash, QA, health, rules, code & cost analysis", cluster: "Coordinate" },
+  // R24-TOOLS-SPLIT: Review held BOTH "is the model right" (clash, QA, health, rules) and "what does
+  // it tell you" (code, egress, cost, 4D), because both arrived inside one 1087-line `qa` tool-group
+  // with no internal structure. The group is now cut in two at the source, so Analyse is a real item
+  // with real contents rather than the one-button shell it would have been before the cut.
+  { key: "review", label: "Review", title: "Check the model — clash, QA, health, rules, hygiene", cluster: "Coordinate" },
+  { key: "analyse", label: "Analyse", title: "What the model tells you — code, egress, cost, 4D sequence, ask", cluster: "Coordinate" },
   { key: "issues", label: "Issues", title: "Issues / RFIs", cluster: "Coordinate" },
   // RAIL-SPLIT dropped this item and orphaned a whole surface: `buildClashPanel` still renders into
   // `panel-clash` on every persona change, but nothing activated it, so clash detection became
@@ -868,7 +871,7 @@ interface PersonaCfg { ws: string[] | null; rail: string[] | null; home: string;
 // export/review, every persona except `all` lost the lot — it hid exactly the panels the tool groups
 // had just been moved into, and `all` (the only persona with `rail: null`) is what testing used.
 // A key list beside a key definition is a second source of truth: when one grows, the other must.
-const SPLIT_RAIL = ["view", "build", "library", "detail", "annotate", "export", "review", "props", "clash"];
+const SPLIT_RAIL = ["view", "build", "library", "detail", "annotate", "export", "review", "analyse", "props", "clash"];
 // `props` and `clash` join the shared list rather than each persona list: Properties is how you
 // inspect ANY element and Clash is coordination every role consumes. Both were defined and listed
 // by nobody, so both were hidden for every persona except `all` — found by the gate, not by the

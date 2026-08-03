@@ -151,7 +151,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE · R40-RIBBON ② |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT *(SHIPPED v0.3.848)* · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
@@ -687,7 +687,7 @@ is recorded. Filed under Decisions below.
 | 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | 🟡 `apps/web/src/ui/lifecycleStrip.ts` + `inspectorTabs.ts` built; now **two** call sites — the viewer inspector and `apps/web/src/ui/elementCard.ts`, mounted from `apps/web/src/portal/panels/traceability.ts:75`. Four surfaces still unwired |
 | 07 | onboarding teaches the chrome | FIRST-RUN | 🟡 improved v0.3.777; still not the lot → building → deal chain |
 | 08 | persona picker only relabels | *(none)* | ⚠️ reversed on purpose — see Decisions |
-| 09 | tools panel mixes verbs with analyses | *(none)* | ❌ dropped in transfer → `R24-TOOLS-SPLIT` — **measured 2026-08-03, seams below** |
+| 09 | tools panel mixes verbs with analyses | *(none)* | ✅ **v0.3.848** — `R24-TOOLS-SPLIT` cut the 1087-line `qa` section in two; Analyse is its own rail item |
 | 10 | finance numbers have no provenance | R24-TRACE-UI | 🟡 v0.3.775 shipped trace for *cost coverage*; the proforma chain (IRR ← NOI ← rent roll ← area ← GUID) — the audit's actual demo — is not built |
 | 11 | density | R24-DENSITY | 🟡 two steps not three (`portal/prefs.ts:71`), dashboards only, **not registers** — which is where the 8-hour user lives |
 | 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | 🟡 `field/field.ts` is a real offline queue with GPS, still inside the desktop IA |
@@ -796,10 +796,11 @@ refute one, so this goes first even though it is the least visible.
   open and click through. Making it a *scheduled deliverable* — assembled on a date, sent to a
   recipient, with a record that it went — is the larger half and wants `routers/jobs.py` (now wired
   to the UI by R24-JOB-TRAY) plus a delivery surface. That is a real feature, not a grouping change.
-- **R24-TOOLS-SPLIT** *(S, reinstated)* — authoring verbs act instantly; analyses produce an artifact
-  after a wait. Split them; the analyses half lands in `R24-RUNS-INBOX` and the job tray.
-- **R24-TERMS** *(S)* · **R24-MONO-DATA** *(S)* · **R24-TOOLS-SPLIT** *(S)* · **R24-DENSITY ②** *(M)*
-  — the remaining long tail.
+- ✅ **R24-TOOLS-SPLIT** *(SHIPPED v0.3.848)* — authoring verbs act instantly; analyses produce an
+  artifact after a wait. The `qa` section is cut in two and Analyse is a rail item of its own; see the
+  record below. The item's second half — giving those analyses a *history* rather than a modal — is
+  `R24-RUNS-INBOX` and stays open.
+- **R24-TERMS** *(S)* · **R24-MONO-DATA** *(S)* · **R24-DENSITY ②** *(M)* — the remaining long tail.
 
 **Explicitly NOT in scope: the audit's visual identity** (ink canvas `#080C12`, IBM Plex Sans/Mono,
 the 24 px/192 px brand grid at 5–7%). It is the most seductive item in the document and the least
@@ -1651,44 +1652,43 @@ footing the July study stood on when CADCMD was written.
   snap suite already exists underneath — drag without snapping places a wall at 4.03 m and calls it
   4.00 m, which for a GlobalId-bearing element that feeds schedules is worse than not placing it.
 
-## 🔪 R24-TOOLS-SPLIT — measured, not yet cut *(premise-check 2026-08-03)*
+## 🔪 R24-TOOLS-SPLIT — cut *(measured 2026-08-03, shipped v0.3.848)*
 
 RAIL-SPLIT routed tool-groups to rail panels by their `data-tool` key, which worked for every group
 except one: `qa` went whole to **Review**, and `GROUP_PANEL` recorded why Analyse could not become its
 own rail item — *"the analysis it belongs beside (code, egress, cost, 4D) is still inside the `qa`
-tool-group"*. A one-button rail item is the thin version of the empty-room failure, so Analyse waits
-for this split rather than shipping hollow.
+tool-group"*. A one-button rail item is the thin version of the empty-room failure, so Analyse waited
+for this split rather than shipping hollow. **That condition is now met**, and the fold is gone.
 
-**The measurement, so the next session starts from facts rather than the estimate.** The `qa` section
-is `apps/web/src/viewer/app.ts` **lines 3453–4539 — 1087 lines, 39 labelled controls, and no internal
-structure at all**: zero sub-headings, zero group markers, one divider. That is why this is not a
-re-parenting pass like RAIL-SPLIT was: **there is nothing to re-parent.** The sub-groups have to be
-created before anything can be routed, which is a different and larger job than moving nodes.
+**The measurement was the whole job.** The `qa` section was `apps/web/src/viewer/app.ts` **lines
+3453–4539 — 1087 lines and 42 labelled controls with no internal structure at all**: zero
+sub-headings, zero group markers, one divider. That is why this was *not* a re-parenting pass like
+RAIL-SPLIT: **there was nothing to re-parent**, so the sub-group had to be created before anything
+could be routed.
 
-The seams are legible from the controls themselves, and they fall exactly where the deferral note
-predicted — *"is the model right"* against *"what does it tell you"*:
+The seam fell exactly where the deferral note predicted — *"is the model right"* against *"what does
+it tell you"*. **Three contiguous ranges, 234 lines, moved verbatim** into a second `section()` call
+in the same builder:
 
-| lines | controls | belongs to |
+| moved | controls | why |
 |---|---|---|
-| 3546–3634 | element query, save view | **Review** — interrogating the model |
-| 3668–3724 | purge, CSV export/upload, set-props | **Review** — data hygiene |
-| 3755–3845 | isolate failures, clash by severity/discipline, burn-down | **Review** — coordination |
-| 3892–3924 | resources, timeline, show-at-date | **Analyse** — 4D |
-| 3984–4011 | layers, overrides, bake | **Review** — visual state |
-| 4085–4122 | jurisdiction, code re-check (×2 blocks) | **Analyse** — compliance |
-| 4203 | Ask | **Analyse** |
-| 4398–4470 | rule editor, preview, apply + republish | **Review** — rules |
+| 3872–3936 | site logistics, 4D construction sequence | 4D — a reading over time |
+| 4023–4158 | occupancy & egress, IBC code analysis, IEBC scope, cost estimate | code, egress, cost |
+| 4194–4226 | the natural-language Ask | the one tool the `analyse` toolbox group already had |
 
-**Cut it as two `section()` calls inside the existing builder, not as a file move.** The block is one
-closure over shared state (`api`, selection, the fragments cache); splitting it into two functions
-first is how a re-parenting pass turns into a rewrite. Add `section("analyse", …)` beside
-`section("qa", …)`, move the four Analyse ranges into it, and `distributeToolGroups` routes it with
-the one-line `HOME` entry it already supports. Then give Analyse its rail item and drop the fold in
-`GROUP_PANEL`.
+**Cut as two `section()` calls, not as a file move — and that is what made it safe.** The block is one
+closure over shared state (`api`, `pid`, `container`, the layer manager); extracting functions first is
+how a re-parenting pass turns into a rewrite. Because each builder declares its own local `b` and
+`out`, every moved range is the original text at the original indent, **not one identifier renamed**.
+The status line was the trap worth naming: `out` is written by nearly every handler, so a single
+shared one would have printed an Analyse result into the Review panel. Two locals, same name, one each.
 
-**Verify by counting.** RAIL-SPLIT's property holds here too: the control count before and after must
-match, because a control that silently vanishes looks exactly like one deliberately removed.
-`railToolbox.test.ts` already asserts that shape for the toolbox and is the model to copy.
+**Verified by counting, in both directions.** `apps/web/src/viewer/toolsSplit.test.ts` freezes the
+42-control inventory and asserts each is on the side the split intended, that none is in both, and
+that neither half was hollowed out — a suite that only proves *Analyse has contents* passes just as
+happily if `qa` had been emptied wholesale. Live at v0.3.848: Review 25 tools, Analyse 6 + Ask, the
+moved handlers run (code analysis returned `IBC 2021 · CA adoption` after a jurisdiction re-check) and
+each panel's status line stayed in its own panel.
 
 ## 🧭 R36 — ROOM COHESION RING *(three user directives, 2026-08-02: the rooms must each be a product)*
 

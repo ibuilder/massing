@@ -72,8 +72,10 @@
                  no longer an `.rpanel`: no rail item opens it, so anything left behind there would be
                  unreachable — the exact opposite of the "unrouted must stay VISIBLE, never gone"
                  rule the split was built on. The distribution now sweeps its leftovers into Build,
-                 and a gate asserts no `.rpanel` is orphaned. `panel-analyse` was removed outright:
-                 it was created for a rail item that never shipped (Analyse folded into Review). -->
+                 and a gate asserts no `.rpanel` is orphaned. `panel-analyse` was removed once, for
+                 exactly that reason — it was built for a rail item that never shipped, because the
+                 analyses Analyse needed were locked inside the `qa` tool-group. R24-TOOLS-SPLIT cut
+                 that group in two, so the item and its panel now arrive together. -->
             <div id="panel-tools" hidden></div>
             <div id="panel-view" class="rpanel"></div>
             <div id="panel-build" class="rpanel"></div>
@@ -82,6 +84,7 @@
             <div id="panel-annotate" class="rpanel"></div>
             <div id="panel-detail" class="rpanel"></div>
             <div id="panel-review" class="rpanel"></div>
+            <div id="panel-analyse" class="rpanel"></div>
             <div id="panel-clash" class="rpanel"></div>
           </aside>
           <div id="container">

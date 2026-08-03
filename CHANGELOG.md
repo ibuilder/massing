@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.848 — Analyse leaves Review, because a 1087-line section was never one job
+
+The viewer rail had a **Review** item that meant two different things at once: *is the model right*
+(clash, health, rules, data hygiene, queries) and *what does the model tell you* (code compliance,
+egress, cost, the 4D sequence, and asking it a question in English). They arrived together because
+they were built together — one `qa` tool section, 1087 lines, 42 labelled controls, **zero
+sub-headings and one divider**. Nobody chose that grouping; it is where a control went when the
+section was the only place to put one.
+
+This matters beyond tidiness. RAIL-SPLIT had already routed every other tool group to the rail item
+that owns its job, and it recorded, in code, why it could not do the same here: Analyse's only tool
+was *Ask the model*, and the analyses it belongs beside were locked inside `qa`. **A one-button rail
+item is the thin version of the empty-room failure**, so Analyse was deliberately not shipped rather
+than shipped hollow. Cutting the section is what removes that reason.
+
+- **`qa` is now `qa` + `analyse`.** Three contiguous ranges — 234 lines covering 4D, occupancy &
+  egress, IBC code analysis, IEBC existing-building scope, cost estimate and Ask — moved into a
+  second `section()` call in the same builder. Deliberately **not** a file move or a function
+  extraction: the block is one closure over shared state, and pulling it into functions first is how
+  a re-parenting pass becomes a rewrite. Because each builder declares its own local `b` and `out`,
+  every moved range is the original text at the original indent, with **no identifier renamed**.
+- **Analyse is a rail item with contents**, using an icon already in the vendored set — you look
+  *into* the model for an answer rather than sweeping it for faults. It is listed for every persona,
+  because clicking a new rail item and finding its one group folded shut under a "more" badge reads
+  as an empty room.
+- **The count is asserted, not assumed.** A control that silently vanishes in a cut looks exactly
+  like one deliberately removed, and the next person to notice is a user who needed it. So the
+  42-control inventory is frozen in a test that checks each is on the side the split intended, that
+  none is in both, **and that neither half was hollowed out** — a suite proving only "Analyse has
+  contents" passes just as happily if Review had been emptied wholesale.
+- The status line was the one real trap: `out` is written by nearly every handler in the section, so
+  a single shared one would have printed an Analyse result into the Review panel. Two locals of the
+  same name, one per section — verified live, each panel's reading stays in its own panel.
+
 ## v0.3.847 — the naming collision closed, and nine PRs drained
 
 A release that mostly *lands* work rather than adding it: the queue went from nine open PRs to zero,

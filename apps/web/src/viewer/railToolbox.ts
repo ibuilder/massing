@@ -49,11 +49,12 @@ export const GROUP_PANEL: Record<ToolGroup, string> = {
   look: "view",          // NAVIGATE ▸ View — how you look at the model
   measure: "view",       // measuring is looking with a number attached
   author: "build",       // AUTHOR ▸ Build — the verbs that change the model
-  // COORDINATE ▸ Review, for now. "Ask the model" is the ONLY tool in this group, and the analysis
-  // it belongs beside (code, egress, cost, 4D) is still inside the `qa` tool-group that Review
-  // hosts. A one-button rail item is the thin version of the empty-room failure, so Analyse becomes
-  // its own item when `qa` splits — not before.
-  analyse: "review",
+  // COORDINATE ▸ Analyse. This fold into Review was conditional and the condition has been met:
+  // "Ask the model" was the only tool in this group, and the analysis it belongs beside (code,
+  // egress, cost, 4D) sat inside the 1087-line `qa` tool-group Review hosts — a one-button rail
+  // item is the thin version of the empty-room failure. R24-TOOLS-SPLIT cut `qa` in two at the
+  // source, so this group now lands beside those analyses instead of away from them.
+  analyse: "analyse",
   collaborate: "view",   // sharing what is ON SCREEN: it belongs with the view it captures
 };
 
