@@ -4,6 +4,53 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.841 — the residential tower builds clean; Specs asks the portal instead of the DOM
+
+### Fixed — the end-to-end tower drive was accusing the product of its own bugs
+
+`e2e_tower.py` builds a concrete-superstructure residential tower from acquisition to turnover over
+HTTP. Run against a live API it reported **56 pass / 4 fail**, and the failures read as product
+defects. All four were the driver's:
+
+- **bid leveling** crashed with `unsupported format string passed to NoneType.__format__`. Two
+  mistakes in one line: it read `packages[0]` — not necessarily the package it had just bid on — and
+  formatted `low` with `:,.0f` when a package with no submissions has `low: None` **by design**. The
+  endpoint was right on both counts. It now picks the package by bid count and says "no priced bids"
+  rather than dying.
+- **RFI respond** sent a bare action. The rfi workflow declares `respond` requires `answer`, and the
+  gate is checked against the STORED record — the transition endpoint takes only `action` and `note`.
+  So the field is PATCHed on first, then the action fires. The driver had no way to express that
+  ordering at all, which turned a correctly enforced contract into a standing failure.
+- **submittal** and **inspection** omitted required selects (`type`, `inspection_type`) added to those
+  modules after the driver was written.
+
+Fixing those revealed a fifth — **NCR** requires `disposition` — which had been **invisible**, because
+the inspection step failed first and the NCR step never ran. A resilient driver reports the first
+fault in a chain, not the set; a clean run is the only evidence that there is nothing behind the
+first failure.
+
+Now **63 pass / 0 fail** across all five phases.
+
+### Fixed — Specs poll-clicked the DOM to do what one method call does
+
+`openSpecs()` retried up to forty times at 100ms, clicking `.portal-nav [data-mod="spec_section"]` and
+re-reading the node's class to learn whether the click had landed. Measured live, that selector is
+**ambiguous** — a register appears in its room's list *and* in `🕘 Recent` once opened — so it matched
+two nodes and **fetched the register twice** on every open. Clicking also triggers `buildNav()`, which
+replaces the node mid-flight; that is what made the retry loop look necessary, and it cost two wrong
+fixes in v0.3.766 and a reverted release in v0.3.770.
+
+The portal has always exposed `openModuleByKey` for exactly this. One call, awaiting the portal's own
+`init()` instead of guessing at it with a timer. **One fetch, lands in ~0.6s.**
+
+### Noted — an empty register is indistinguishable from a broken one
+
+The report that "something is wrong with specs" was accurate about the symptom and not about the
+cause: the module renders in full — toolbar, filters, saved views, templates — but every design
+register in that project (`spec_section`, `design_standard`, `space_program`, `drawing`, `document`)
+returns zero records. A register with no rows and no empty state reads exactly like a failure. Worth
+an explicit "nothing here yet" pass; recorded rather than bundled here.
+
 ## v0.3.840 — RAIL-ICON-UNIFY: one icon set, and a gate that says so
 
 ### Changed — the rail ran two icon languages; now it runs one

@@ -1001,10 +1001,27 @@ function openDeveloperTab() {
 const designPortal = new PortalUI($("panel-portal-design"), portalHost);
 designPortal.setWorkspace("design");
 let designReady = false;
+/** The in-flight init, so callers can AWAIT readiness instead of polling the DOM for it. */
+let designInit: Promise<boolean> | null = null;
 function openDesignTab() {
   // Same latch-only-on-success rule as openDeveloperTab.
   if (designReady) return;
-  void designPortal.init().then((ok) => { designReady = ok; });
+  designInit ??= designPortal.init().then((ok) => { designReady = ok; return ok; });
+  void designInit;
+}
+/**
+ * Resolve once the Design portal has its modules — the one real asynchrony behind `openSpecs`.
+ *
+ * A failed init does not latch (same rule as above), so the promise is cleared on failure and the
+ * next caller retries rather than waiting forever on a portal that never loaded.
+ */
+function whenDesignReady(): Promise<boolean> {
+  if (designReady) return Promise.resolve(true);
+  openDesignTab();
+  return (designInit ?? Promise.resolve(false)).then((ok) => {
+    if (!ok) designInit = null;
+    return ok;
+  });
 }
 
 // Developer portal's "Underwriting" shortcut → the proforma workspace
@@ -1026,30 +1043,33 @@ let drawings: import("./drawings/drawings").DrawingsUI | null = null;
  * Open the specification sections — the written half of the documents.
  *
  * Specs are a register, so they live in the portal rather than beside the viewport, and `design` is
- * one of the three portal workspaces. Reaching them from the model therefore means switching to the
- * Design room's portal and activating the `spec_section` register, which is addressable because
- * v0.3.767 gave every rail button a `data-mod`.
+ * one of the three portal workspaces. Reaching them from the model means switching to the Design
+ * room's portal and opening the `spec_section` register.
  *
- * Retries until the register is ACTIVE rather than until its button exists — the rail is rebuilt by
- * the workspace switch, so a button found immediately belongs to the outgoing rail and the click is
- * discarded. That distinction cost two wrong fixes in v0.3.766 and a reverted release in v0.3.770.
+ * **This used to poll-click the DOM, and the DOM was the wrong thing to talk to.** It retried up to
+ * forty times at 100ms, clicking `.portal-nav [data-mod="spec_section"]` and re-reading the node's
+ * class to find out whether the click had worked. Three things were wrong with that:
+ *
+ *   - **The selector is ambiguous.** A register appears in its room's list *and* in `🕘 Recent` once
+ *     you have opened it, so `querySelector` returns whichever the nav happens to render first.
+ *     Measured live: two matching nodes, both marked active, and the register **fetched twice** —
+ *     two round-trips for `?limit=101` and two for `/views`, on every open.
+ *   - **Clicking rebuilds the thing you clicked.** The handler calls `buildNav()`, which replaces the
+ *     nav — so the node under the cursor is detached mid-flight. That is what made the retry loop
+ *     look necessary, and it cost two wrong fixes in v0.3.766 and a reverted release in v0.3.770.
+ *   - **It asks the view what the model did.** A class name is a rendering artefact; reading it back
+ *     to infer state is the same mistake as trusting a screenshot over the data.
+ *
+ * The portal has always exposed `openModuleByKey` for exactly this (command palette, deep links). It
+ * sets `activeKey`, opens the module and rebuilds the nav — the operation the loop was trying to
+ * reconstruct through the UI. One call, no retries, no ambiguity, one fetch.
+ *
+ * The only genuine asynchrony left is the portal's own `init()`, so this awaits readiness rather
+ * than guessing at it with a timer.
  */
 function openSpecs() {
   setWorkspace("design");
-  let tries = 0;
-  const land = () => {
-    const sel = '.portal-nav [data-mod="spec_section"]';
-    const el = document.querySelector<HTMLElement>(sel);
-    const active = el?.classList.contains("active");
-    if (!active) {
-      el?.click();
-      if (!document.querySelector(sel)?.classList.contains("active") && ++tries < 40) {
-        setTimeout(land, 100); return;
-      }
-    }
-    document.querySelector<HTMLElement>(sel)?.scrollIntoView({ block: "nearest" });
-  };
-  setTimeout(land, 120);
+  void whenDesignReady().then(() => designPortal.openModuleByKey("spec_section"));
 }
 
 function openDrawingsTab() {

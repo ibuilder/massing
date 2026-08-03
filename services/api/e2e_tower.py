@@ -65,7 +65,18 @@ def new(mod, data, assignee=None):
     return call("POST", f"/projects/{pid}/modules/{mod}", body)["id"]
 
 
-def act(mod, rid, action):
+def act(mod, rid, action, data=None):
+    """Fire a workflow transition, first filling any fields the transition REQUIRES.
+
+    Some transitions are gated on content, not just on state: the rfi workflow declares that
+    `respond` requires `answer`, so a bare action is rejected with a 400 naming the missing field.
+    The gate is checked against the STORED record — the transition endpoint takes only `action` and
+    `note` — so the answer is PATCHed on first and the action fires second. That ordering is the
+    actual contract, and the driver had no way to express it at all, which turned a correctly
+    enforced rule into a standing "failure" in every run.
+    """
+    if data:
+        call("PATCH", f"/projects/{pid}/modules/{mod}/{rid}", data)
     call("POST", f"/projects/{pid}/modules/{mod}/{rid}/transition", {"action": action})
 
 
@@ -188,8 +199,27 @@ bp = run("bid package", lambda: new("bid_package", {"name": "Concrete package", 
 if bp:
     for bidder, amt in [("ACME Concrete", 11_180_000), ("Bedrock", 11_650_000), ("PourPro", 12_010_000)]:
         run(f"  bid: {bidder}", lambda bidder=bidder, amt=amt: new("bid_submission", {"bidder": bidder, "package": bp, "amount": amt}))
-    run("bid leveling", lambda: f"low ${call('GET', f'/projects/{pid}/bids/leveling')['packages'][0]['low']:,.0f}"
-        if call("GET", f"/projects/{pid}/bids/leveling").get("packages") else "no packages")
+    def _leveling():
+        """Report the low bid for the package THIS run created — not `packages[0]`.
+
+        The old line was `packages[0]['low']:,.0f`, which crashed with
+        `unsupported format string passed to NoneType.__format__` and read as a product failure for
+        as long as it has been there. Two separate mistakes, and the endpoint was right about both:
+
+          - it read the FIRST package in the project, which need not be the one we just bid on; and
+          - a package with no submissions has `low: None` by design, which `:,.0f` cannot format.
+
+        A driver that indexes blindly and formats unconditionally will always eventually accuse the
+        thing it is testing. Pick the package by ref and say plainly when there is no low bid.
+        """
+        lv = call("GET", f"/projects/{pid}/bids/leveling")
+        pkgs = lv.get("packages") or []
+        if not pkgs:
+            return "no packages"
+        mine = next((p for p in pkgs if p.get("bid_count")), pkgs[0])
+        low = mine.get("low")
+        return f"low ${low:,.0f} of {mine['bid_count']} bids" if low is not None else "no priced bids"
+    run("bid leveling", _leveling)
     run("award bid package", lambda: act("bid_package", bp, "close") or "closed")
 
 acts = []
@@ -209,9 +239,14 @@ rfi = run("RFI (submit -> respond)", lambda: new("rfi", {"subject": "Rebar conge
                                                         "discipline": "Structural"}, "consultant"))
 if rfi:
     run("  RFI submit", lambda: act("rfi", rfi, "submit") or "open")
-    run("  RFI respond", lambda: act("rfi", rfi, "respond") or "answered")
+    # `respond` is a GATED transition: the rfi workflow declares requires:["answer"], so the
+    # action carries the answer rather than being a bare state flip. The driver omitted it and
+    # read the 400 as a product fault — the API was enforcing its own contract correctly.
+    run("  RFI respond", lambda: act("rfi", rfi, "respond",
+        {"answer": "Use 5000 psi mix; see revised S-201."}) or "answered")
+# `type` is required by the submittal module (select) — the driver predated the field.
 sub = run("submittal (concrete mix design)", lambda: new("submittal", {"title": "Concrete mix design",
-          "spec_section": "03 30 00"}, "sub"))
+          "spec_section": "03 30 00", "type": "Product Data"}, "sub"))
 if sub:
     run("  submittal submit", lambda: act("submittal", sub, "submit") or "submitted")
 ce = run("change event", lambda: new("change_event", {"subject": "Added shear wall at L2"}, "pm"))
@@ -227,12 +262,18 @@ dr = run("daily report", lambda: new("daily_report", {"report_date": "2026-07-15
 if dr:
     run("  manpower log", lambda: new("manpower_log", {"company": "Concrete sub", "date": "2026-07-15", "count": 18,
                                                        **({"daily_report": dr} if dr else {})}))
+# `inspection_type` is required (select) — same drift as the submittal above.
 insp = run("inspection (fail -> NCR)", lambda: new("inspection", {"subject": "L2 deck pre-pour", "date": "2026-07-15",
+                                                                 "inspection_type": "Pre-Installation",
                                                                  "result": "Fail"}, "qa"))
 if insp:
     run("  inspection fail", lambda: act("inspection", insp, "fail") or "failed")
+    # `disposition` is required — and this failure was INVISIBLE until the inspection above was
+    # fixed, because a failed inspection meant the NCR step never ran at all. Fixing one required
+    # field uncovered the next: a resilient driver reports the first fault in a chain, not the set.
     run("  NCR off inspection", lambda: new("ncr", {"subject": "Cover deficiency", "description": "Low rebar cover",
-        "severity": "Major", **({"inspection": insp} if insp else {})}, "sub"))
+        "severity": "Major", "disposition": "Rework",
+        **({"inspection": insp} if insp else {})}, "sub"))
 run("safety incident", lambda: new("incident", {"subject": "Near miss - formwork", "date": "2026-07-16",
                                                 "classification": "Near Miss", "severity": "Near Miss"}, "safety"))
 run("safety metrics (TRIR/DART)", lambda: f"TRIR {call('GET', f'/projects/{pid}/safety/metrics').get('trir')}")
