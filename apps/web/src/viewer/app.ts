@@ -3370,10 +3370,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       // occasional one. (It was CREATED and never appended from v0.3.826 until 2026-08-02 — the pane
       // shipped wired, tested and unreachable, which no test caught because tests exercised the
       // class, not the rail. The [[what-did-we-build-that-nothing-calls]] shape, one button wide.)
+      // RAIL-SPLIT ②: this one section had grown to hold five jobs — levels, the document set,
+      // annotation, the content library and fabrication detail. The seams were already here as
+      // named variables; they just all ended up in one `append`. Each group now goes to the rail
+      // item that owns it, which is what finally gives **Annotate** and **Detail** real contents
+      // instead of shipping them empty.
       glBody.append(status, levelSel, undoRow, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
-        phaseBtn, queryBtn, lodBtn, asBuiltBtn, planPaneBtn, planBtn, sheetBtn, pdfBtn, schedBtn, schedPdfBtn, manualBtn, sectBtn,
-        annotateHead, annotateWrap, libHead, libWrap,
-        advToggle, advWrap, manage, levelsMgr);
+        phaseBtn, queryBtn, lodBtn, asBuiltBtn, manage, levelsMgr);
+      // The drawing set: produced from the model, read as documents.
+      railGroup("export", "Drawings & sheets", [planPaneBtn, planBtn, sheetBtn, pdfBtn, schedBtn,
+        schedPdfBtn, manualBtn, sectBtn]);
+      railGroup("annotate", "Annotate", [annotateHead, annotateWrap]);
+      railGroup("library", "Families & content", [libHead, libWrap]);
+      railGroup("detail", "Fabrication detail", [advToggle, advWrap]);
     }
 
     // --- persona-ordered tool sections ---------------------------------------
@@ -4629,6 +4638,30 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
    * the old place*, never *gone*: a control that silently disappears looks exactly like one that was
    * deliberately removed, and the next person to notice is a user who needed it.
    */
+  /**
+   * RAIL-SPLIT ② — put a named group of already-built controls into a rail panel.
+   *
+   * The controls are created by the code that owns their behaviour, exactly as before; this only
+   * decides which rail item they live under. Re-parenting again, for the same reason: a pass that
+   * moves nodes cannot lose one, whereas re-creating them somewhere else can.
+   */
+  function railGroup(railKey: string, heading: string, nodes: (HTMLElement | null | undefined)[]) {
+    const target = document.getElementById(`panel-${railKey}`);
+    const present = nodes.filter((n): n is HTMLElement => !!n);
+    if (!target || !present.length) return;
+    const sec = document.createElement("section");
+    sec.className = "tool-group open";
+    sec.dataset.tool = `${railKey}-group`;
+    const head = document.createElement("button");
+    head.type = "button"; head.className = "tool-group-head";
+    head.innerHTML = `<span class="chev">▾</span><span class="t">${heading}</span>`;
+    const body = document.createElement("div"); body.className = "tool-group-body";
+    head.onclick = () => sec.classList.toggle("open");
+    body.append(...present);
+    sec.append(head, body);
+    target.appendChild(sec);
+  }
+
   function distributeToolGroups(panel: HTMLElement) {
     // `authoring` is deliberately NOT split here. It genuinely mixes annotation, the content
     // library and fabrication detail under one heading, and splitting a section by guessing which

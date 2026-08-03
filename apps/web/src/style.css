@@ -1189,18 +1189,23 @@ button.vit:hover { background: var(--hover, rgba(255,255,255,.06)); }
 /* The glyph is whatever the OWNING module put in the button — we never rewrite it. The label is
    rendered from data-label so it survives a module re-rendering its own button (the presence tool
    rewrites its content to show who is viewing; injected spans did not survive that). */
+/* ICON FIRST, WORDS EXPAND. The glyph is the fixed anchor — it never shrinks, so a column of tools
+   stays scannable at any rail width — and the label takes whatever room is left, truncating rather
+   than wrapping. Below ~132px of panel the label hides entirely and the rail becomes an icon strip;
+   widen the rail (the drag handle) and the words come back. */
 .rail-tool::before {
-  content: attr(data-label); order: 2; flex: 1 1 auto;
+  content: attr(data-label); order: 2; flex: 1 1 auto; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.rail-tool { justify-content: flex-start; }
-/* Dimmed, not hidden, and not moved — it keeps its place so it can be learned. */
-.rail-tool-off { opacity: .4; cursor: default; }
+.rail-tool { justify-content: flex-start; min-width: 0; }
+@container (max-width: 132px) { .rail-tool::before { display: none; } }
+.rpanel { container-type: inline-size; }
+/* Dimmed, not hidden, and not moved — it keeps its place so it can be learned.
+   The REASON is a tooltip, not inline text. It was rendered inline at first and the rail is 150px:
+   glyph + label + "select an element first" is three strings in one narrow row, which reads as
+   jumble rather than as information. The dimming already says "not now"; the tooltip says why. */
+.rail-tool-off { opacity: .45; cursor: default; }
 .rail-tool-off:hover { background: none; border-color: transparent; }
-.rail-tool-off::after {
-  content: attr(data-why); margin-left: auto; padding-left: 6px;
-  font-size: 9.5px; color: var(--muted); white-space: nowrap;
-}
 /* The honesty valve: a tool the layout table does not describe still shows, visibly tagged. */
 .rail-toolbox-unlaid { border-top: 1px dashed var(--line); margin-top: 4px; padding-top: 4px; }
 .rail-toolbox-unlaid .rail-tool::after {

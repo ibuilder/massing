@@ -455,6 +455,18 @@ const RAIL_ICONS: Record<string, string> = {
   // as siblings, because they are the two halves of one submission.
   sheets: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.4" width="12.4" height="11.2" rx="1.1"/><path d="M1.8 10.6h12.4M9.7 10.6v3"/></svg>`,
   specs: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 2.2h9.6v11.6H3.2z"/><path d="M5.4 5.2h5.2M5.4 8h5.2M5.4 10.8h3"/></svg>`,
+  // RAIL-SPLIT items. **A missing entry here renders the string "undefined" in front of the label** —
+  // `RAIL_ICONS[key]` is interpolated straight into innerHTML, so an unmapped key does not fall back
+  // to a blank, it prints. That is exactly what shipped for a moment: "undefinedView",
+  // "undefinedBuild". The rail is a VS Code-style icon bar whose labels expand on demand, so the
+  // icon is the primary identity of an item and cannot be optional.
+  view: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.3 8S3.7 3.4 8 3.4 14.7 8 14.7 8 12.3 12.6 8 12.6 1.3 8 1.3 8Z"/><circle cx="8" cy="8" r="2"/></svg>`,
+  build: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.8 6.2 9.6"/><path d="M8.4 7.4 6.2 9.6l-1.4-1.4 2.2-2.2"/><path d="M9.1 2.6a3.3 3.3 0 0 0 4.3 4.3l-4.3-4.3Z"/><path d="m10.4 8.2 3.4 3.4-2.2 2.2-3.4-3.4"/></svg>`,
+  library: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2" width="3.4" height="12" rx=".7"/><rect x="6.4" y="2" width="3.4" height="12" rx=".7"/><path d="m11.2 3.2 2.9.8-2.5 9.2-2.1-.6"/></svg>`,
+  detail: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.4"/><path d="m10.3 10.3 4 4"/><path d="M5.2 7h3.6M7 5.2v3.6"/></svg>`,
+  annotate: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M11.2 1.9 14.1 4.8 5.6 13.3 2 14.2l.9-3.6 8.3-8.7Z"/><path d="m9.6 3.5 2.9 2.9"/></svg>`,
+  export: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.9v8.4"/><path d="m4.9 7.2 3.1 3.1 3.1-3.1"/><path d="M2.4 11.6v1.4a1.2 1.2 0 0 0 1.2 1.2h8.8a1.2 1.2 0 0 0 1.2-1.2v-1.4"/></svg>`,
+  review: `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.6 13.6 4v4.2c0 3.3-2.3 5.5-5.6 6.3-3.3-.8-5.6-3-5.6-6.3V4L8 1.6Z"/><path d="m5.8 8 1.6 1.6 3-3.2"/></svg>`,
 };
 // Rail toggles grouped into three workflow clusters (Navigate / Author / Coordinate) — the taxonomy
 // every mature authoring/coordination tool converges on. A subtle group label separates them.
@@ -495,14 +507,16 @@ const RAIL_ITEMS: { key: string; label: string; title: string; cluster: string; 
   { key: "view", label: "View", title: "How you look at the model — section, measure, isolate, render, walk", cluster: "Navigate" },
   { key: "build", label: "Build", title: "Draw and change the model — grids, levels, modify, advanced authoring", cluster: "Author" },
   { key: "library", label: "Library", title: "Element & content palette — walls, doors, furniture, families", cluster: "Author" },
-  // Detail and Annotate are NOT here yet, deliberately. Their content is still inside the mixed
-  // `authoring` tool-group (annotation + library + fabrication under one heading), and shipping a
-  // rail item whose panel is empty is the precise failure the Work room had this morning: an empty
-  // room reads as a broken product, not as a room waiting for content. They arrive with the split.
+  // Detail and Annotate earn their items now that RAIL-SPLIT ② separated the `gridlevels` section
+  // at the source — it had grown to hold five jobs (levels, the document set, annotation, the
+  // content library, fabrication detail) behind one heading. They were deliberately withheld until
+  // they would have contents: shipping an empty rail item is the precise failure the Work room had.
+  { key: "detail", label: "Detail", title: "Fabrication detail — connections, rebar, MEP fittings", cluster: "Author" },
   { key: "props", label: "Props", title: "Properties — selected element", cluster: "Author" },
   { key: "sheets", label: "Drawings", title: "Drawing set & sheets", cluster: "Document",
     launch: () => setWorkspace("drawings") },
-  { key: "export", label: "Export", title: "Take it out — IFC, COBie, quantities, schedules, closeout", cluster: "Document" },
+  { key: "annotate", label: "Annotate", title: "Notes, dimensions, tags, revision clouds", cluster: "Document" },
+  { key: "export", label: "Export", title: "Drawings, sheets, schedules and exports — IFC, COBie, quantities, closeout", cluster: "Document" },
   { key: "specs", label: "Specs", title: "Specification sections", cluster: "Document",
     launch: () => openSpecs() },
   // Review currently holds BOTH "is the model right" (clash, QA, health, rules) and "what does it
@@ -533,7 +547,11 @@ for (const it of RAIL_ITEMS) {
   }
   const b = document.createElement("button");
   b.className = "rail-btn"; b.dataset.rail = it.key;
-  b.innerHTML = `<span class="rail-ic">${RAIL_ICONS[it.key]}</span><span class="rail-lbl">${it.label}</span>`;
+  // An unmapped key must not print the literal string "undefined" beside the label — which is what
+  // it did, visibly, the moment RAIL-SPLIT added items ahead of their icons. Fall back to the
+  // label's first letter so a new item is legible and obviously unfinished rather than broken.
+  const ic = RAIL_ICONS[it.key] ?? `<span class="rail-ic-fallback">${it.label.slice(0, 1)}</span>`;
+  b.innerHTML = `<span class="rail-ic">${ic}</span><span class="rail-lbl">${it.label}</span>`;
   b.title = `${it.cluster} · ${it.title}`; b.setAttribute("aria-label", `${it.cluster}: ${it.title}`);
   b.onclick = () => {
     // A launcher opens a full surface and never becomes the rail's active *panel* — marking it

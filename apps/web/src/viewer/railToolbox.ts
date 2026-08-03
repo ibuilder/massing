@@ -156,8 +156,18 @@ export function createRailToolbox(): RailToolbox {
       const off = needsSel && !ctx.selection;
       btn.classList.toggle("rail-tool-off", off);
       btn.setAttribute("aria-disabled", String(off));
-      if (off) btn.dataset.why = "select an element first";
-      else delete btn.dataset.why;
+      // The reason is a TOOLTIP, not inline text. Rendered inline it was a third string competing
+      // with the glyph and the label inside a 150px rail — the dimming already says "not now", and
+      // three strings in that width read as jumble rather than as an explanation. Appended to the
+      // owner's own title rather than replacing it, so the tool's real description survives.
+      if (off) {
+        btn.dataset.why = "select an element first";
+        if (!btn.dataset.titleBase) btn.dataset.titleBase = btn.getAttribute("title") ?? "";
+        btn.title = `${btn.dataset.titleBase} — select an element first`;
+      } else {
+        delete btn.dataset.why;
+        if (btn.dataset.titleBase !== undefined) btn.title = btn.dataset.titleBase;
+      }
     }
     // Groups that are entirely unusable collapse their body but keep their heading — the user can
     // still see the capability exists.

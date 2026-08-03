@@ -4,6 +4,36 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.838 — the rail reads: icons first, Detail and Annotate earn their place
+
+### Fixed — every new rail item printed the literal word "undefined"
+
+The rail renders `<span class="rail-ic">${RAIL_ICONS[key]}</span>` straight into innerHTML, so a key
+with no icon does not fall back to a blank — **it prints**. Every item RAIL-SPLIT added rendered as
+`undefinedView`, `undefinedBuild`, `undefinedLibrary`, `undefinedDetail`, `undefinedExport`,
+`undefinedReview`. That is the "jumbled words". Seven icons drawn to match the existing set, plus a
+first-letter fallback so an unmapped key is legible-and-obviously-unfinished rather than broken.
+
+### Fixed — three strings competing inside a 150px rail
+
+The dimmed-tool reason was rendered as inline text, so a disabled tool showed glyph + label +
+"select an element first" across a rail 150px wide. The dimming already says *not now*; the reason
+is now a tooltip appended to the tool's own title. The label truncates rather than wraps, the glyph
+never shrinks, and below ~132px the labels hide entirely so the rail degrades to a clean icon strip
+— which is what the rail's existing expand/collapse control was already built for.
+
+### Changed — `gridlevels` split at the source; Detail and Annotate ship with contents
+
+One section had grown to hold five jobs behind a single heading: levels, the document set,
+annotation, the content library and fabrication detail. The seams already existed as named variables
+(`annotateHead/annotateWrap`, `libHead/libWrap`, `advToggle/advWrap`) — they had simply all ended up
+in one `append`. Each group now goes to the rail item that owns it.
+
+Per-panel counts after: Tools **9** · View 17 · Build **39** (was 70) · Library 42 · Detail 19 ·
+Annotate 5 · Export 21 · Review 34. **Detail and Annotate were deliberately withheld one release**
+until this split gave them real contents — shipping an empty rail item to look complete is the
+failure the Work room had, and withholding them was the same rule applied twice.
+
 ## v0.3.837 — RAIL-SPLIT: "Tools" was never a category
 
 ### Changed — one rail item, one job. Tools drops from 182 controls to 9
