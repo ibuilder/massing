@@ -61,3 +61,22 @@ def routines_due(body: dict = Body(default={}), _: str = Depends(require_identif
     return routines.due(body.get("routines") or [], when or routines.utc_now(),
                         last_runs=body.get("last_runs") or {},
                         in_flight=set(body.get("in_flight") or []))
+
+
+@router.get("/projects/{pid}/routines/due")
+def project_routines_due(pid: str, db: Session = Depends(get_db),
+                         _: str = Depends(require_role("viewer"))):
+    """R22-ROUTINES — which of THIS project's stored routines should be enqueued now.
+
+    The persisted half of `/routines/due`: routines live in the `routine` register, and each carries
+    its own `last_run`, so recurrence survives a restart — which is the point of storing them at all.
+
+    **Only `active` routines are evaluated.** A `draft` was never switched on and a `retired` one was
+    switched off deliberately; firing either would be the scheduler inventing intent. The ones it
+    skipped for that reason are counted in `stored` vs `evaluated` rather than vanishing.
+
+    Every refusal from the stateless endpoint still applies: catch-up is reported and never replayed
+    (a routine three windows behind fires ONCE with `missed_windows: 3`), an unknown cadence is
+    refused rather than defaulted, and skips come back with their reasons.
+    """
+    return routines.from_project(db, pid)

@@ -1,0 +1,136 @@
+{
+  "key": "routine",
+  "name": "Routines",
+  "section": "Project Governance",
+  "icon": "🔁",
+  "ref_prefix": "RTN",
+  "title_field": "name",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "name",
+      "label": "Routine",
+      "type": "text",
+      "required": true,
+      "fieldset": "Routine"
+    },
+    {
+      "name": "kind",
+      "label": "What it runs",
+      "type": "select",
+      "options": [
+        "progress_report",
+        "schedule_risk_scan",
+        "cost_variance_scan",
+        "provenance_check",
+        "custom"
+      ],
+      "fieldset": "Routine"
+    },
+    {
+      "name": "cadence",
+      "label": "Cadence",
+      "type": "select",
+      "options": [
+        "daily",
+        "weekly",
+        "monthly",
+        "quarterly"
+      ],
+      "fieldset": "Routine"
+    },
+    {
+      "name": "owner",
+      "label": "Owner",
+      "type": "text",
+      "fieldset": "Routine"
+    },
+    {
+      "name": "owner_contact",
+      "label": "Owner (linked)",
+      "type": "reference",
+      "module": "contact",
+      "fieldset": "Routine"
+    },
+    {
+      "name": "last_run",
+      "label": "Last run",
+      "type": "date",
+      "fieldset": "History"
+    },
+    {
+      "name": "last_result",
+      "label": "Last result",
+      "type": "select",
+      "options": [
+        "ok",
+        "failed",
+        "skipped"
+      ],
+      "fieldset": "History"
+    },
+    {
+      "name": "missed_windows",
+      "label": "Windows missed at last evaluation",
+      "type": "number",
+      "min": 0,
+      "fieldset": "History"
+    },
+    {
+      "name": "notes",
+      "label": "Notes",
+      "type": "textarea",
+      "fieldset": "History"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "active",
+      "paused",
+      "retired"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "active",
+        "action": "activate",
+        "party": ["GC", "PM", "Owner"],
+        "requires": ["cadence", "kind"]
+      },
+      {
+        "from": "active",
+        "to": "paused",
+        "action": "pause",
+        "party": ["GC", "PM", "Owner"]
+      },
+      {
+        "from": "paused",
+        "to": "active",
+        "action": "resume",
+        "party": ["GC", "PM", "Owner"]
+      },
+      {
+        "from": "active",
+        "to": "retired",
+        "action": "retire",
+        "party": ["GC", "PM", "Owner"]
+      },
+      {
+        "from": "paused",
+        "to": "retired",
+        "action": "retire",
+        "party": ["GC", "PM", "Owner"]
+      },
+      {
+        "from": "retired",
+        "to": "draft",
+        "action": "reopen",
+        "party": ["GC", "PM", "Owner"]
+      }
+    ]
+  },
+  "list_columns": ["kind", "cadence", "last_run", "last_result"],
+  "workspace": "construction|developer"
+}
