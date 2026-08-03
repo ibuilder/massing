@@ -358,11 +358,11 @@ def oauth_callback(provider: str, request: Request, code: str | None = None,
 
 @router.get("/auth/me")
 def me(db: Session = Depends(get_db), user: str = Depends(current_user)):
-    from .. import entitlements
+    from .. import tiers
     u = db.get(User, user)
-    tier = entitlements.normalize(u.tier if u else None)
+    tier = tiers.normalize(u.tier if u else None)
     return {"username": user, "role": (u.role if u else None), "authenticated": u is not None,
-            "tier": tier, "features": entitlements.features_for(tier),
+            "tier": tier, "features": tiers.features_for(tier),
             "platform_admin": _is_platform_admin(u)}
 
 

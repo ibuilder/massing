@@ -15,7 +15,7 @@ from .. import modules as me
 from .. import provenance_report, rbac
 from ..db import get_db
 from ..models import Project, Scenario
-from ..proforma import entitlement_risk
+from ..proforma import approval_risk
 from ..proforma import provenance as _provenance
 from ..proforma.draws import reforecast
 from ..proforma.monte_carlo import monte_carlo
@@ -777,7 +777,7 @@ class EntitlementRiskIn(BaseModel):
 
 
 @router.post("/proforma/entitlement-risk")
-def run_entitlement_risk(body: EntitlementRiskIn):
+def run_approval_risk(body: EntitlementRiskIn):
     """R22-ENTITLE-RISK — Monte Carlo over the approval coin, the entitlement duration, and any
     other drivers.
 
@@ -795,13 +795,13 @@ def run_entitlement_risk(body: EntitlementRiskIn):
     if body.entitlement.duration_months is not None:
         ent["duration_months"] = body.entitlement.duration_months.model_dump(exclude_none=True)
     try:
-        return entitlement_risk.simulate(
+        return approval_risk.simulate(
             body.assumptions.model_dump(), ent,
             variables=[{"path": v.path, "dist": v.dist.model_dump(exclude_none=True)}
                        for v in body.variables],
             iterations=body.iterations, seed=body.seed,
             metrics=body.metrics, targets=body.targets)
-    except entitlement_risk.EntitlementError as e:
+    except approval_risk.EntitlementError as e:
         raise HTTPException(422, str(e)) from e
 
 

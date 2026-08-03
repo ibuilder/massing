@@ -1,6 +1,6 @@
 """R22-ENTITLE-RISK over HTTP — the endpoint answers, and it refuses what the engine refuses.
 
-The arithmetic is pinned in `test_entitlement_risk.py`. This asserts the route exists, that the
+The arithmetic is pinned in `test_approval_risk.py`. This asserts the route exists, that the
 pydantic layer does not quietly accept what the engine would reject (a schema that validates a
 duration with no carry cost would let the "looks modelled but changes nothing" case through before
 the engine ever sees it), and that the conditional labelling survives serialization — the labels are

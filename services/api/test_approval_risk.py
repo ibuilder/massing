@@ -13,7 +13,7 @@ The two that matter most:
 Both have a tempting wrong version that produces a plausible, friendlier number, which is exactly
 why they are pinned rather than eyeballed.
 
-Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_entitlement_risk.py
+Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_approval_risk.py
 """
 import sys
 
@@ -21,7 +21,7 @@ sys.path.insert(0, "src")
 
 import numpy as np  # noqa: E402
 
-from aec_api.proforma import entitlement_risk as er  # noqa: E402
+from aec_api.proforma import approval_risk as er  # noqa: E402
 
 FAILED: list[str] = []
 
@@ -258,6 +258,6 @@ check("  and the denominator is published so the reader can check it",
 
 print()
 if FAILED:
-    print(f"entitlement_risk: {len(FAILED)} FAILED — {FAILED}")
+    print(f"approval_risk: {len(FAILED)} FAILED — {FAILED}")
     sys.exit(1)
-print("entitlement_risk: all checks passed")
+print("approval_risk: all checks passed")
