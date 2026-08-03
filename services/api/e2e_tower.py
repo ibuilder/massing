@@ -187,6 +187,75 @@ def _verify_render():
 run("verify model published", _verify_render)
 
 # ============================================================================
+# PHASE 1b - the DESIGN ROOM itself.
+#
+# Added after an audit that swept all 29 design-room registers against a completed tower run: zero
+# errored, and **25 of 29 were empty**. The room was structurally sound and functionally untested,
+# because phases 0-4 drive acquisition through turnover and barely touch design authoring at all.
+#
+# An empty register is the worst thing to hand a reviewer. It renders in full — toolbar, filters,
+# saved views — and looks exactly like a broken screen, which is precisely how it was reported. Data
+# is what makes the difference visible, so the drive now authors the room it was skipping.
+#
+# These are the registers a real residential tower would carry at the end of DD: a drawing set with
+# sheets and an issuance, two studied options with the review that picked one, the space program the
+# massing implies, envelope and MEP, the permit, the standards and selections, the responsibility
+# matrix, the BIM information requirements, and the site's climate exposure.
+phase("1b", "Design room - drawings, options, program, standards, requirements")
+
+dset = run("drawing set (DD)", lambda: new("drawing_set", {"name": "DD Set - Maple Street Tower",
+           "discipline": "Architectural"}, "arch"))
+for num, title in [("A-101", "Level 1 Plan"), ("A-102", "Typical Unit Plan"),
+                   ("A-201", "North Elevation"), ("S-201", "Framing Plan - Level 2")]:
+    run(f"  drawing {num}", lambda num=num, title=title: new("drawing", {"number": num, "title": title,
+        **({"drawing_set": dset} if dset else {})}, "arch"))
+run("drawing issuance", lambda: new("drawing_issuance", {"number": "ISS-001",
+    "purpose": "Design Development", **({"drawing_set": dset} if dset else {})}, "arch"))
+run("transmittal", lambda: new("transmittal", {"subject": "DD set to owner + consultants"}, "arch"))
+
+opt_a = run("design option A (concrete flat plate)", lambda: new("design_option",
+            {"name": "Option A - flat plate", "description": "Two-way flat plate, 200mm"}, "arch"))
+run("design option B (band beam)", lambda: new("design_option",
+    {"name": "Option B - band beam", "description": "Band beams on 8.4m grid"}, "arch"))
+run("design review (option selected)", lambda: new("design_review",
+    {"subject": "DD review - structural scheme", "description": "Option A selected on cycle time"}, "arch"))
+run("concept render", lambda: new("concept_render", {"title": "Street-level view from Maple"}, "arch"))
+
+for nm, st, area in [("Typical 2BR unit", "Residential Unit", 860), ("Lobby", "Lobby", 1200),
+                     ("Corridor - typical", "Circulation", 640), ("Plant room", "Back of House", 450)]:
+    run(f"  space program: {nm}", lambda nm=nm, st=st, area=area: new("space_program",
+        {"name": nm, "space_type": st, "target_area_sf": area}, "arch"))
+
+run("envelope assembly", lambda: new("envelope_assembly",
+    {"name": "EW-01 precast + rainscreen", "description": "R-20 c.i., 50mm cavity"}, "arch"))
+run("MEP equipment", lambda: new("mep_equipment", {"tag": "AHU-01", "description": "Rooftop AHU"}, "mep"))
+run("permit (building)", lambda: new("permit", {"name": "Building permit - superstructure",
+    "expires": "2027-06-30"}, "pm"))
+
+run("design standard", lambda: new("design_standard",
+    {"name": "Corridor width - 1.5m clear", "description": "Per accessibility route"}, "arch"))
+run("selection (finish)", lambda: new("selection", {"item": "Unit flooring - engineered oak"}, "arch"))
+run("responsibility (RACI)", lambda: new("responsibility",
+    {"activity": "Structural design", "description": "SE accountable; Arch consulted"}, "pm"))
+run("stakeholder", lambda: new("stakeholder", {"name": "City planning department"}, "pm"))
+
+run("LOD target", lambda: new("lod_target", {"element_category": "Structural framing"}, "bim"))
+run("information requirement", lambda: new("info_requirement", {"title": "Asset data for handover",
+    "req_type": "AIR - Asset Information Requirements"}, "bim"))
+run("information container", lambda: new("information_container",
+    {"title": "ARC-MAPLE-ZZ-M3-Model"}, "bim"))
+
+run("document (design brief)", lambda: new("document", {"title": "Owner design brief rev C"}, "arch"))
+run("design meeting", lambda: new("meeting", {"subject": "DD coordination #4"}, "arch"))
+run("coordination issue", lambda: new("coordination_issue",
+    {"subject": "AHU-01 clashes with S-201 transfer beam"}, "bim"))
+run("clash run", lambda: new("clash_run", {"label": "DD clash - ARC vs STR"}, "bim"))
+
+run("climate site risk", lambda: new("climate_site_risk", {"name": "Heat - cooling degree days"}, "pm"))
+run("flood risk", lambda: new("flood_risk", {"name": "FEMA Zone X - shaded"}, "pm"))
+run("drainage area", lambda: new("drainage_area", {"name": "Roof drainage - east half"}, "civil"))
+
+# ============================================================================
 phase("2", "Preconstruction - estimate, budget, bids, schedule")
 run("model takeoff -> estimate", lambda: f"${call('GET', f'/projects/{pid}/estimate/from-model')['total']:,.0f}")
 
@@ -223,7 +292,7 @@ if bp:
     run("award bid package", lambda: act("bid_package", bp, "close") or "closed")
 
 acts = []
-for i, (nm, dur, pre) in enumerate([("Mobilize", 10, ""), ("Foundations", 30, "Mobilize"),
+for _i, (nm, dur, pre) in enumerate([("Mobilize", 10, ""), ("Foundations", 30, "Mobilize"),
                                     ("Superstructure", 90, "Foundations"), ("Envelope", 60, "Superstructure"),
                                     ("Fit-out", 80, "Envelope"), ("Commissioning", 20, "Fit-out")]):
     rid = run(f"schedule: {nm}", lambda nm=nm, dur=dur, pre=pre: new("schedule_activity",

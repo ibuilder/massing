@@ -4,6 +4,48 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.842 — the tower drive now builds the Design room it was skipping
+
+### Added — phase 1b, because 25 of 29 design registers were empty after a full run
+
+An audit swept every design-room register against a completed tower: **zero errored, and 25 of 29
+held no records.** The room was structurally sound and functionally untested. Phases 0–4 drive
+acquisition through turnover and barely author anything in design, so the registers a reviewer opens
+first were the ones nothing had ever put data in.
+
+That matters more than a coverage number. An empty register is the worst thing to hand someone: it
+renders in full — toolbar, filters, saved views, templates — and looks exactly like a broken screen.
+That is precisely how it was reported, and the report was right about the symptom and wrong about the
+cause. **Data is what makes the difference visible.**
+
+Phase 1b now authors what a residential tower actually carries at the end of DD: a DD drawing set with
+four sheets, an issuance and a transmittal; two studied structural options and the review that picked
+one; a concept render; the four-line space program the massing implies; envelope assembly and MEP
+equipment; the building permit; a design standard and a finish selection; the responsibility matrix
+and a stakeholder; LOD target, information requirement and information container; the design brief,
+a coordination meeting, a coordination issue and a clash run; and the site's climate, flood and
+drainage exposure. **32 steps, all passing.**
+
+The drive is now **95 pass / 0 fail across six phases**, and the design room reports **29 of 29
+registers populated, 0 empty, 0 erroring** — up from 4 of 29.
+
+### Verified — the room renders, not just responds
+
+Driving all 33 nav entries in the live Design portal: **zero errors, 26 rendering rows.** Everything
+still showing zero is a register phase 1b deliberately does not author (cross-room queues and the
+sustainability set), not a failure.
+
+One reading needed correcting rather than reporting: `flood_risk` measured 24 characters and looked
+broken. It is not — it renders its full FEMA-zone / base-flood-elevation / ASCE 24 flood-design-class
+filter set with its record present. The 300ms settle in the sweep was simply too short for a module
+with that many filters, so it was measured mid-render. **Third time this session that an alarming
+number came from the instrument rather than the product**; the rule holds — raise the bar on the
+instrument before believing the alarm.
+
+### Fixed — a pre-existing lint error in the drive
+
+`B007` (unused loop variable) in the schedule loop, present on `origin/main` before this change.
+
 ## v0.3.841 — the residential tower builds clean; Specs asks the portal instead of the DOM
 
 ### Fixed — the end-to-end tower drive was accusing the product of its own bugs
