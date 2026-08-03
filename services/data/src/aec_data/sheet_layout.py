@@ -21,7 +21,16 @@ from __future__ import annotations
 
 import numpy as np
 
-from .drawings import PAGES, _view_for_spec, bake, cut_baked, elevation_outlines, storey_elevations
+from .drawings import (
+    ISO_ELEVATION_DEG,
+    PAGES,
+    _view_for_spec,
+    axon_outlines,
+    bake,
+    cut_baked,
+    elevation_outlines,
+    storey_elevations,
+)
 from .drawings_render import render_sheet_pdf, render_sheet_svg
 from .ifc_loader import open_model
 
@@ -117,6 +126,16 @@ def _view_polys(meshes, vp: dict) -> tuple[list[np.ndarray], str, str]:
         items = elevation_outlines(_filtered(meshes, classes), d, with_depth=True)
         items.sort(key=lambda it: it[1])
         return [c for c, _ in items], vp.get("title", f"{d.upper()} ELEVATION"), f"{d} elev"
+    if kind == "axon":
+        # CANVAS-PEER: 3D as a real viewport rather than a captured screenshot. It composes here
+        # exactly like a plan or an elevation — same meshes, same sheet, same PDF — which is what
+        # lets the canvas offer 2D and 3D as interchangeable modes without the sheet layer knowing
+        # or caring which one is on screen.
+        az = float(vp.get("azimuth", 45.0))
+        el = float(vp.get("elevation_angle", ISO_ELEVATION_DEG))
+        items = axon_outlines(_filtered(meshes, classes) if classes else meshes, az, el)
+        note = "isometric" if (az, el) == (45.0, ISO_ELEVATION_DEG) else f"az {az:.0f}° / el {el:.0f}°"
+        return [c for _g, _c, c, _d in items], vp.get("title", "AXONOMETRIC"), f"{note} · NTS"
     return _view_for_spec(meshes, vp)
 
 

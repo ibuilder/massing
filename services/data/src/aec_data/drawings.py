@@ -7,6 +7,7 @@ plain SVG so it embeds in the viewer, prints, or drops onto a sheet with a title
 from __future__ import annotations
 
 import logging
+import math
 import os
 import warnings
 from typing import Any
@@ -963,6 +964,88 @@ _DIRS = {
     "north": ((0, 2), False, 1, +1), "south": ((0, 2), True, 1, -1),   # look along Y, draw X/Z
     "east": ((1, 2), True, 0, +1), "west": ((1, 2), False, 0, -1),     # look along X, draw Y/Z
 }
+
+
+#: The exact isometric elevation, `atan(1/√2)` ≈ 35.26439°, as a value rather than a typed-out
+#: decimal. The rounded 35.264 that stood here first was caught by `test_axon_view.py`: it skewed the
+#: three axis foreshortenings apart by 6e-6, which is invisible on a page and still wrong — an
+#: "isometric" whose axes do not foreshorten equally is by definition not one. Cheap to be exact.
+ISO_ELEVATION_DEG = math.degrees(math.atan(1.0 / math.sqrt(2.0)))
+
+
+def axon_basis(azimuth_deg: float = 45.0, elevation_deg: float = ISO_ELEVATION_DEG) -> np.ndarray:
+    """Orthonormal 3×3 basis for an axonometric view: rows are (right, up, toward-viewer).
+
+    The default is a true **isometric** — 45° around Z and `atan(1/√2)` above horizontal, the angle
+    at which the three principal axes foreshorten equally. That is what an architectural axonometric
+    means by "isometric", so it is the default rather than a rounded 30/45 that only looks right —
+    and it is computed rather than typed, because the rounded decimal was measurably not isometric.
+    """
+    az, el = np.radians(azimuth_deg), np.radians(elevation_deg)
+    # direction FROM the model TOWARD the viewer
+    view = np.array([np.cos(el) * np.cos(az), np.cos(el) * np.sin(az), np.sin(el)])
+    view /= np.linalg.norm(view)
+    world_up = np.array([0.0, 0.0, 1.0])
+    if abs(float(view @ world_up)) > 0.999:          # looking straight down: pick any stable right
+        world_up = np.array([0.0, 1.0, 0.0])
+    right = np.cross(world_up, view); right /= np.linalg.norm(right)
+    up = np.cross(view, right)
+    return np.vstack([right, up, view])
+
+
+def axon_outlines(meshes: list[tuple[str, str, trimesh.Trimesh]],
+                  azimuth_deg: float = 45.0, elevation_deg: float = ISO_ELEVATION_DEG,
+                  ) -> list[tuple[str, str, np.ndarray, float]]:
+    """CANVAS-PEER: element silhouettes under an **axonometric** projection, each keeping its GUID.
+
+    Why this exists: 2D and 3D were not peers on paper. A plan goes model → `plan_svg` → sheet → PDF
+    as vector linework derived from the geometry; "3D" went canvas → `toDataURL` → a raster hero
+    image. One is a drawing, the other is a screenshot of a screen — different resolution, no scale,
+    no identity, and nothing a sheet can compose. Calling them interchangeable modes while only one
+    could be placed on a sheet would have been a UI promise the data could not keep.
+    So an axonometric becomes a viewport like any other: same meshes, same silhouette-and-depth
+    approach as `elevation_outlines`, same sheet composition, same PDF.
+
+    Two things it does that `elevation_outlines` cannot:
+
+    - **Arbitrary view direction.** That function reads `_DIRS`, which selects two of the three world
+      axes — fine for north/south/east/west, structurally unable to express a view down a diagonal.
+      Here the vertices are rotated into a view basis first, so any azimuth/elevation works and the
+      axis-aligned cases fall out as the special case they are.
+    - **It carries the GlobalId.** `elevation_outlines` drops it (`_guid`), which is why an elevation
+      is a picture. R38-PLAN-IDENTITY established that linework carrying identity is data; an
+      axonometric a user can click and resolve to the same element the 3D view selects is the whole
+      reason the mode switch is worth building.
+
+    Returns `(guid, ifc_class, hull_2d, depth)` sorted **far → near**, so a painter's-algorithm draw
+    hides what is behind. Depth is the mean projected distance along the view axis, matching the
+    approximation `elevation_outlines` already uses — cheap, and correct for the non-interpenetrating
+    building elements this draws.
+    """
+    from shapely.geometry import MultiPoint
+
+    basis = axon_basis(azimuth_deg, elevation_deg)
+    out: list[tuple[str, str, np.ndarray, float]] = []
+    skipped: list[str] = []
+    for guid, cls, mesh in meshes:
+        v = np.asarray(mesh.vertices)
+        if len(v) < 3:
+            continue
+        proj = v @ basis.T                      # columns: right, up, toward-viewer
+        try:
+            hull = MultiPoint(proj[:, :2]).convex_hull
+            if hull.geom_type != "Polygon":
+                continue
+            out.append((guid, cls, np.asarray(hull.exterior.coords), float(proj[:, 2].mean())))
+        except Exception as exc:                # noqa: BLE001 — one degenerate hull, one lost silhouette
+            skipped.append(guid)
+            log.debug("drawings.axon_outlines: hull failed on a %s mesh (%s)", cls, exc)
+    if skipped:
+        log.warning("drawings.axon_outlines(az=%.1f, el=%.1f): %d of %d silhouette(s) skipped — the "
+                    "axonometric is INCOMPLETE for those elements (first: %s)",
+                    azimuth_deg, elevation_deg, len(skipped), len(meshes), skipped[0])
+    out.sort(key=lambda r: r[3])                # far -> near
+    return out
 
 
 def elevation_outlines(meshes, direction: str, with_depth: bool = False):

@@ -4,6 +4,71 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.845 — red main: one unsorted import, and the lint I ran on the wrong revision
+
+`import math` was added to `drawings.py` as part of making the isometric angle exact. It went in
+above the existing block in the wrong position, and **main went red on `ruff I001`.**
+
+The failure is not the import; it is the order I checked in. `drawings.py` *was* linted — and passed —
+**before** that edit, while adding `axon_outlines`. The `import math` came later, in the follow-up
+that introduced `ISO_ELEVATION_DEG`, and only `sheet_layout.py` was re-linted after it. A clean lint
+from three edits ago was carried forward as though it still described the file.
+
+CI runs `ruff check src/ ../data/src/` over the whole tree. Every local check here ran against a
+single named file, which is narrower than the gate in exactly the way that lets a defect through:
+**a check that passed is a statement about the revision it ran on, not about the file.** The habit
+that fixes it is to run the gate's own command — the full-tree form is now what gets run before a
+push, not a per-file one.
+
+Nothing else changed: the axonometric suite is unaffected and still green.
+
+## v0.3.844 — CANVAS-PEER: a 3D view becomes a drawing, not a screenshot of one
+
+### The asymmetry this closes
+
+R36-VIEWER-SUBAPP wants the canvas to switch between 2D and 3D in place, and the user's framing added
+the requirement the roadmap item had missed: *"they need to be interchangeable and may need some
+refactoring so that we can print 2d or 3d."* **Print was the part that could not be promised.**
+
+A plan went model → `plan_svg` → sheet → PDF: vector linework derived from the geometry, placed at a
+stated scale, composable beside other views. "3D" went canvas → `toDataURL` → a raster hero image.
+One is a drawing; the other is a screenshot of a screen — screen resolution, no scale, no identity,
+and nothing a sheet can compose. Offering the two as interchangeable modes would have been a UI
+promise the data could not keep, so the data goes first.
+
+### Added — `axon_outlines`, and 3D as a sheet viewport
+
+An axonometric is now a viewport kind like `plan`, `section` and `elevation`: same meshes, same
+`compose_viewports`, same sheet, same PDF. Two things it does that `elevation_outlines` is
+structurally unable to:
+
+- **Any view direction.** That function reads `_DIRS`, which selects two of the three world axes —
+  correct for north/south/east/west, and incapable of looking down a diagonal. Vertices are rotated
+  into a view basis first here, so the axis-aligned cases fall out as the special case they are.
+- **It carries the GlobalId.** `elevation_outlines` drops it, which is precisely why an elevation is
+  a picture rather than data. R38-PLAN-IDENTITY established that linework carrying identity is what
+  lets a click in a drawing resolve to the same element the 3D view selects — the reason the mode
+  switch is worth building at all, and a project non-negotiable besides.
+
+Silhouettes sort far → near so a painter's draw hides what is behind, and an axonometric reports
+**NTS** with no scale denominator, because it has no true paper scale and must not claim one.
+
+### Fixed — the default was not actually isometric
+
+`test_axon_view.py` asserts the thing "isometric" *means*: all three principal axes foreshorten
+equally. The first implementation hard-coded `35.264°`, a truncation of `atan(1/√2)`, and the check
+caught the three axes disagreeing at 6e-6. Invisible on a page, and still not an isometric. Now
+computed as `ISO_ELEVATION_DEG` rather than typed.
+
+21 checks; four mutations verified to break it — a skewed basis, a dropped GUID, a reversed depth
+sort, and the rounded angle restored.
+
+**Two of the three failures in development were the test's fault, not the code's**, and both are
+recorded in it: it asserted `viewports`/`title`/`note` against a function that returns
+`views`/`label`/`sub` — a shape invented rather than read, which reported "the sheet accepted 0
+viewports" and looked exactly like a broken feature — and its plan fixture cut at the default 1.2 m
+through 1 m test cubes, drawing nothing. Assert against the reader you did not write.
+
 ## v0.3.843 — the rail split left nine loose ends; a gate now holds the knot
 
 A code review over the working tree found nine defects, six of them regressions from RAIL-SPLIT
