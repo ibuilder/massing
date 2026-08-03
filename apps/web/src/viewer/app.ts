@@ -24,7 +24,7 @@ import { MeasureTool } from "../tools/measure";
 import { SectionTool } from "../tools/section";
 import { installMeasureTools, installSectionBox } from "./measureSection";
 import { installWalkMode } from "./walkMode";
-import { installToolbarView } from "./toolbarView";
+import { createRailToolbox } from "./railToolbox";
 import { VisibilityTool } from "../tools/visibility";
 import { ColorizeTool } from "../tools/colorize";
 import { LayerManager } from "../tools/layers";
@@ -570,23 +570,25 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   });
   const { openFile, addReferenceObject, exportFrag, exportIfc, triggerOpen } = fileIO;
 
-  // ---- floating toolbar ----------------------------------------------------
+  // ---- the toolbox lives in the RAIL, not over the model (RAIL-TOOLBOX) -----
+  // The window is a canvas; the rail is the instrument. `toolBtn` is the one seam every tool passes
+  // through, so re-parenting here moves all 28 without touching a single call site — and a pass
+  // that only moves nodes cannot lose one.
   const viewerTools = $("viewer-tools");
+  viewerTools.style.display = "none";   // the floating bar is gone; kept in the DOM as the old anchor
+  const railToolbox = createRailToolbox();
   function toolBtn(icon: string, title: string, onClick: (b: HTMLButtonElement) => void, cap?: "edit" | "review") {
     const b = document.createElement("button");
     b.textContent = icon; b.className = "tool-btn icon-btn"; b.title = title;
     b.setAttribute("aria-label", title);
     if (cap) b.dataset.cap = cap;   // hidden by CSS when the caller lacks the project capability
     b.onclick = () => onClick(b);
-    viewerTools.appendChild(b);
+    railToolbox.place(b, title);
     return b;
   }
-  /** Visual separator between functional groups of toolbar buttons (legibility for the icon row). */
-  function toolDivider(cap?: "edit" | "review") {
-    const d = document.createElement("span"); d.className = "tool-sep";
-    if (cap) d.dataset.cap = cap;   // hide the divider too when its group is capability-hidden
-    viewerTools.appendChild(d);
-  }
+  /** Was a separator in the icon row. The rail groups by heading, so this is now a no-op kept for
+   *  the call sites that still mark where a group ended — deleting them is a separate tidy. */
+  function toolDivider(_cap?: "edit" | "review") { /* groups are headings in the rail now */ }
   // REL-4 leaf: the measure / visibility button group lives in measureSection.ts
   const msDeps = {
     viewer, loader, toolBtn, setStatus, notify, measure, section,
@@ -854,7 +856,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // R26-TOOLBAR — every tool is installed by now, so lay the bar out: a handful of LABELED verbs for
   // the current context, the rest under More. Runs last on purpose; a layout pass that only moves
   // nodes between two containers cannot lose a tool, which is the risk in a toolbar change.
-  const toolbarView = installToolbarView(viewerTools);
+  const toolbarView = railToolbox;
   // Author verbs are promoted only when they are *usable*. Below Editor they stay in More, where the
   // existing capability styling still shows them dimmed with a padlock — the house rule is "a dimmed
   // button that says 'needs Editor' is onboarding, a missing one is a support ticket", and neither is
@@ -1624,11 +1626,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
   async function buildToolsPanel() {
     const panel = $("panel-tools");
+    // RAIL-TOOLBOX: the toolbox element is PERSISTENT — its buttons are created once at viewer
+    // setup by the modules that own them. `innerHTML = ""` would destroy them and they would never
+    // be rebuilt, so detach it first and re-insert below. (This is the trap: buildToolsPanel re-runs
+    // on every persona switch.)
+    railToolbox.el.remove();
     panel.innerHTML = "";
     const intro = document.createElement("div");
     intro.className = "meta"; intro.style.cssText = "margin:2px 2px 6px;font-size:11px;line-height:1.4";
     intro.textContent = "Tools grouped by the modeling lifecycle — Build · Analyze & Coordinate · Document · Data.";
     panel.appendChild(intro);
+    // The viewer's own verbs first: they act on what is on screen right now, so they are what a
+    // modeller reaches for most. The lifecycle groups below are the long tail.
+    panel.appendChild(railToolbox.el);
     const goWorkspace = (key: string) => window.dispatchEvent(new CustomEvent("aec:workspace", { detail: key }));
     // Cost / schedule / drawings / energy moved OUT of the model rail — they own their workspaces.
     // Leave one row of deep-links so they're a click away without cluttering the modeling surface.

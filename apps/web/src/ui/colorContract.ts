@@ -45,6 +45,12 @@ export const ACCENT_ALLOWED: string[] = [
   ".sb-toggle.on",
   ".tool-btn.on",
   "#viewer-tools .tool-btn.on",
+  // RAIL-TOOLBOX — an ARMED tool in the rail. Identical meaning to `.tool-btn.on` above, which it
+  // replaces as the tools move off the floating bar and into the rail: "this is the one you picked,
+  // and it is waiting for your next click in the canvas". The DIMMED state deliberately carries no
+  // colour at all — unusable-right-now is a second axis, and putting it on the same channel is what
+  // made the accent meaningless in the first place.
+  ".rail-tool.on",
   // primary actions — the button that does the thing
   ".file-btn",
   ".pv-edit-btn",

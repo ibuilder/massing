@@ -1160,3 +1160,49 @@ button.vit:hover { background: var(--hover, rgba(255,255,255,.06)); }
 .vit-good .vit-v { color: var(--status-good, #33d17a); }
 .vit-warn .vit-v { color: var(--status-warn, #e5a50a); }
 .vit-poor .vit-v { color: var(--status-crit, #e01b24); }
+
+/* ── RAIL-TOOLBOX — the viewer's tools, in the rail rather than over the model ──────────────────
+   The window is a canvas; the rail is the instrument. Tools are grouped under headings that read
+   like the questions people ask of a model (View · Measure · Modify · Analyse · Share), each tool
+   labelled rather than a bare glyph, and a full-width row so the word is scannable down the column.
+   Nothing collapses away and nothing relocates: a tool that is not usable right now dims in place
+   and says why, because a button that moves under the cursor is worse than one that never moved. */
+.rail-toolbox { display: flex; flex-direction: column; gap: 2px; margin: 0 0 8px; }
+.rail-toolgroup > summary.rail-toolgroup-head {
+  cursor: pointer; list-style: none; display: flex; align-items: center; gap: 4px;
+  font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted); padding: 6px 2px 3px;
+}
+.rail-toolgroup > summary.rail-toolgroup-head::-webkit-details-marker { display: none; }
+.rail-toolgroup > summary.rail-toolgroup-head::before { content: "▾"; font-size: 8px; opacity: .55; }
+.rail-toolgroup:not([open]) > summary.rail-toolgroup-head::before { content: "▸"; }
+.rail-toolgroup > summary.rail-toolgroup-head:hover { color: var(--text); }
+.rail-toolgroup-body { display: flex; flex-direction: column; gap: 1px; }
+/* A tool row: glyph in a fixed gutter so the labels line up as a scannable column. */
+.rail-tool {
+  display: flex; align-items: center; gap: 7px; width: 100%; text-align: left;
+  padding: 4px 7px; border: 1px solid transparent; border-radius: 4px;
+  background: none; color: var(--text); font-size: 12px; cursor: pointer;
+}
+.rail-tool:hover { background: var(--control-hover); border-color: var(--line); }
+.rail-tool.on { background: var(--accent); }
+/* The glyph is whatever the OWNING module put in the button — we never rewrite it. The label is
+   rendered from data-label so it survives a module re-rendering its own button (the presence tool
+   rewrites its content to show who is viewing; injected spans did not survive that). */
+.rail-tool::before {
+  content: attr(data-label); order: 2; flex: 1 1 auto;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rail-tool { justify-content: flex-start; }
+/* Dimmed, not hidden, and not moved — it keeps its place so it can be learned. */
+.rail-tool-off { opacity: .4; cursor: default; }
+.rail-tool-off:hover { background: none; border-color: transparent; }
+.rail-tool-off::after {
+  content: attr(data-why); margin-left: auto; padding-left: 6px;
+  font-size: 9.5px; color: var(--muted); white-space: nowrap;
+}
+/* The honesty valve: a tool the layout table does not describe still shows, visibly tagged. */
+.rail-toolbox-unlaid { border-top: 1px dashed var(--line); margin-top: 4px; padding-top: 4px; }
+.rail-toolbox-unlaid .rail-tool::after {
+  content: "ungrouped"; margin-left: auto; font-size: 9.5px; color: var(--status-warn, #d08b28);
+}

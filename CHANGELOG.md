@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.836 — RAIL-TOOLBOX: the rail becomes the instrument, the window becomes a canvas
+
+### Changed — all 28 viewer tools move from a bar floating over the model into the rail
+
+The floating toolbar showed ~5 labelled verbs and hid **23 under More**, sitting on top of the
+geometry it acts on. That was defensible while the rail was navigation and the bar was the tools. It
+stops being defensible once the rail is meant to *be* the design tool: a tool you cannot see is one
+you do not know you have, the bar covered the model, and it makes drag-to-place impossible — half
+the palette would float over the drop target.
+
+So the window is now a pure canvas and the rail is the instrument, grouped by the questions people
+actually ask of a model: **View (10) · Measure (3) · Modify (10) · Analyse (1) · Share (4)**.
+
+Two rules the bar had to break and the rail does not. **Nothing is demoted** — the bar had a hard
+cap, so promoting one verb silently pushed another into More (a defect this repo hit twice). A rail
+scrolls; every tool sits in the same place, always. **Context dims rather than hides** — the 12
+selection-dependent verbs stay put and go quiet with "select an element first", instead of appearing
+and disappearing under the cursor.
+
+This is a re-parenting pass, not a rewrite: every tool is still created by the module that owns its
+behaviour, through the same `toolBtn` seam. A pass that only moves nodes cannot lose one.
+
+### Fixed — a label that did not survive its owner re-rendering
+
+Found by driving the real app, not by the tests. The first implementation injected label spans *into*
+each button. The presence tool re-renders its own button to show who is viewing — which wiped the
+spans and left a bare unlabelled glyph. Any module updating its button would have done the same.
+These buttons belong to the modules that made them: the toolbox may re-parent and decorate them, it
+may not own their contents. The label now lives in `data-label`, rendered by CSS, and survives any
+`innerHTML` the owner writes. `railToolbox.test.ts` pins that case by re-rendering a button the way
+presence really does.
+
+`railWiring`-style guarantee for the toolbox: **the count out equals the count in** — 28 placed, 0
+ungrouped, verified live and in the suite. `.rail-tool.on` was added to the reviewed accent list
+(R26-COLOUR-DISCIPLINE) with its reasoning; the dimmed state deliberately carries no colour, because
+unusable-right-now is a second axis and sharing the channel is what made the accent meaningless.
+
 ## v0.3.835 — a pipeline gate that survives an empty model and keeps identity at scale
 
 ### Added — `test_pipeline_scales.py`: the drawing chain, walked at four sizes
