@@ -481,6 +481,7 @@ const RAIL_ICON_NAME: Record<string, string> = {
   specs: "file-text",
   review: "scan",           // sweep the model for problems
   issues: "flag",
+  clash: "triangle-alert",
   // the rail's own chrome, keyed like a destination so it cannot drift off the set
   __collapse__: "chevron-left",
   __expand__: "chevron-right",
@@ -549,8 +550,20 @@ const RAIL_ITEMS: { key: string; label: string; title: string; cluster: string; 
   // splits out as its own item when that group is separated at the source.
   { key: "review", label: "Review", title: "Check the model — clash, QA, health, rules, code & cost analysis", cluster: "Coordinate" },
   { key: "issues", label: "Issues", title: "Issues / RFIs", cluster: "Coordinate" },
+  // RAIL-SPLIT dropped this item and orphaned a whole surface: `buildClashPanel` still renders into
+  // `panel-clash` on every persona change, but nothing activated it, so clash detection became
+  // unreachable while looking perfectly healthy in the code. Clash keeps its OWN item rather than
+  // folding into Review — it is a distinct job with its own run/inspect/raise-an-issue loop, and
+  // burying a distinct job inside a broader one is precisely how "Tools" grew to 182 controls.
+  { key: "clash", label: "Clash", title: "Clash detection & coordination", cluster: "Coordinate" },
 ];
 const railEl = $("rail");
+// The 14 items scroll; the Collapse toggle is pinned outside that scroller so it stays reachable at
+// any window height. Before this the rail was one flex column and the toggle's `margin-top:auto`
+// pushed it past the viewport into the status bar once RAIL-SPLIT grew the list.
+const railItemsEl = document.createElement("div");
+railItemsEl.id = "rail-items";
+railEl.appendChild(railItemsEl);
 function showRail(key: string) {
   appEl.classList.remove("rail-collapsed");
   document.querySelectorAll(".rail-btn").forEach((b) => b.classList.toggle("active", (b as HTMLElement).dataset.rail === key));
@@ -568,7 +581,7 @@ for (const it of RAIL_ITEMS) {
     // v0.3.772 shipped a DOCUMENT label with nothing beneath it, which reads as a broken menu rather
     // than an absent one.
     lbl.dataset.cluster = it.cluster;
-    railEl.appendChild(lbl);
+    railItemsEl.appendChild(lbl);
   }
   const b = document.createElement("button");
   b.className = "rail-btn"; b.dataset.rail = it.key;
@@ -587,7 +600,7 @@ for (const it of RAIL_ITEMS) {
     if (isActive) appEl.classList.add("rail-collapsed");
     else showRail(it.key);
   };
-  railEl.appendChild(b);
+  railItemsEl.appendChild(b);
 }
 // expand / collapse the rail to show labels (VS Code activity-bar style), persisted
 const railExpand = document.createElement("button");
@@ -651,7 +664,9 @@ function setWorkspace(key: string) {
     // just started a model from scratch → open the authoring rail so the Draft tools are front-and-centre
     if (sessionStorage.getItem("author-open") === "1") {
       sessionStorage.removeItem("author-open");
-      if (RAIL_ITEMS.some((r) => r.key === "tools")) showRail("tools");
+      // Draw tools live in Build since RAIL-SPLIT; this named the deleted "tools" key, so the
+      // guard was permanently false and starting a model from scratch opened nothing.
+      if (RAIL_ITEMS.some((r) => r.key === "build")) showRail("build");
       setTimeout(() => v.openAuthoring?.(), 300);
     }
   });
@@ -776,19 +791,32 @@ document.querySelectorAll<HTMLButtonElement>(".fintab").forEach((t) => {
 
 // ---- role-based navigation --------------------------------------------------
 interface PersonaCfg { ws: string[] | null; rail: string[] | null; home: string; }
+// RAIL-SPLIT — these allowlists name RAIL ITEMS, so splitting one item into seven silently
+// removed all seven from every persona.
+//
+// `applyPersona` hides any rail button whose key is not listed. "tools" used to carry the whole
+// authoring surface, so listing it was enough; when it became view/build/library/detail/annotate/
+// export/review, every persona except `all` lost the lot — it hid exactly the panels the tool groups
+// had just been moved into, and `all` (the only persona with `rail: null`) is what testing used.
+// A key list beside a key definition is a second source of truth: when one grows, the other must.
+const SPLIT_RAIL = ["view", "build", "library", "detail", "annotate", "export", "review", "props", "clash"];
+// `props` and `clash` join the shared list rather than each persona list: Properties is how you
+// inspect ANY element and Clash is coordination every role consumes. Both were defined and listed
+// by nobody, so both were hidden for every persona except `all` — found by the gate, not by the
+// review, because "defined but unreferenced" reads as fine in a diff.
 const PERSONAS: Record<string, PersonaCfg> = {
   all:           { ws: null, rail: null, home: "model" },
-  developer:     { ws: ["developer", "finance", "model", "studio", "drawings", "design", "construction"], rail: ["issues", "tools", "tree", "sheets", "specs"], home: "developer" },
-  gc:            { ws: ["construction", "model", "drawings", "design", "finance"], rail: ["tree", "layers", "issues", "tools", "sheets", "specs"], home: "construction" },
+  developer:     { ws: ["developer", "finance", "model", "studio", "drawings", "design", "construction"], rail: ["issues", ...SPLIT_RAIL, "tree", "sheets", "specs"], home: "developer" },
+  gc:            { ws: ["construction", "model", "drawings", "design", "finance"], rail: ["tree", "layers", "issues", ...SPLIT_RAIL, "sheets", "specs"], home: "construction" },
   // R1 — two GC flavors: the super lives in the field (model + construction), the PM in the office
   // (construction + finance). Same construction home; the portal nav opens each role's sections first.
-  superintendent:  { ws: ["construction", "model", "drawings"], rail: ["issues", "tree", "layers", "tools", "sheets", "specs"], home: "construction" },
-  project_manager: { ws: ["construction", "design", "finance", "drawings", "model"], rail: ["tree", "issues", "layers", "tools", "sheets", "specs"], home: "construction" },
+  superintendent:  { ws: ["construction", "model", "drawings"], rail: ["issues", "tree", "layers", ...SPLIT_RAIL, "sheets", "specs"], home: "construction" },
+  project_manager: { ws: ["construction", "design", "finance", "drawings", "model"], rail: ["tree", "issues", "layers", ...SPLIT_RAIL, "sheets", "specs"], home: "construction" },
   // architect/engineer home into the Design workspace (their design-phase seat); model + studio stay
   // one click away for authoring and the coordination/model-health tools.
-  architect:     { ws: ["design", "model", "studio", "drawings", "construction"], rail: ["tree", "layers", "issues", "tools", "sheets", "specs"], home: "design" },
-  engineer:      { ws: ["design", "model", "studio", "drawings"], rail: ["tree", "layers", "tools", "issues", "sheets", "specs"], home: "design" },
-  subcontractor: { ws: ["construction", "model", "drawings"], rail: ["issues", "tools", "sheets", "specs"], home: "construction" },
+  architect:     { ws: ["design", "model", "studio", "drawings", "construction"], rail: ["tree", "layers", "issues", ...SPLIT_RAIL, "sheets", "specs"], home: "design" },
+  engineer:      { ws: ["design", "model", "studio", "drawings"], rail: ["tree", "layers", ...SPLIT_RAIL, "issues", "sheets", "specs"], home: "design" },
+  subcontractor: { ws: ["construction", "model", "drawings"], rail: ["issues", ...SPLIT_RAIL, "sheets", "specs"], home: "construction" },
 };
 const personaSel = document.getElementById("persona") as HTMLSelectElement;
 function applyPersona(p: string, goHome = false) {

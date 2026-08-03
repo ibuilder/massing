@@ -4,6 +4,80 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.843 — the rail split left nine loose ends; a gate now holds the knot
+
+A code review over the working tree found nine defects, six of them regressions from RAIL-SPLIT
+itself. They share one shape: **a rail key is a shared identifier that was defined in one place and
+spelled in five**, and nothing related the spellings to the definition. Renaming `tools` into seven
+items could not break them, because nothing connected them to break.
+
+### Fixed — the rail
+
+- **Every persona lost the new rail items.** The allowlists still named the deleted `tools` key and
+  none listed its seven replacements, so `applyPersona` hid View/Build/Library/Detail/Annotate/
+  Export/Review for every role except `all` — exactly the panels the tool groups had just moved into.
+  `all` is the one persona with no allowlist, which is why this survived testing.
+- **`props` and `clash` were listed by nobody** — found by the new gate, not the review. Properties is
+  how you inspect any element; both were hidden for every persona but `all`.
+- **Persona switches stacked duplicate tool groups.** `buildToolsPanel` cleared only `panel-tools`;
+  the panels the distribution writes into were never cleared, so each rebuild appended another full
+  copy. The copies are detached from the rebuilt handlers — identical to look at, dead to click.
+- **A saved ribbon tab could empty a panel permanently.** `applyPhase` inline-hid groups outside the
+  active lifecycle tab, and the distribution then moved some of those hidden groups into rail panels
+  that have **no ribbon at all** — nothing could ever un-hide them. Distribution now runs first, and
+  anything that moves out from under the ribbon has its inline hide cleared.
+- **Clash was orphaned.** Its panel was still rebuilt on every persona change with no rail item
+  pointing at it — a whole coordination surface unreachable while looking healthy in the code. It is
+  a rail item again, with its own Lucide glyph; burying a distinct job inside a broader one is how
+  "Tools" reached 182 controls in the first place.
+- **Two dead references**: the start-from-scratch flow guarded on the deleted key (permanently false,
+  opened nothing), and a portal card clicked `.rail-btn[data-rail="tools"]`, matching nothing.
+- **`panel-tools` and `panel-analyse` were unreachable.** The rule was "unrouted must stay VISIBLE in
+  the old place, never gone" — but once no rail item opened `panel-tools`, "stays put" silently became
+  "is invisible", the exact failure the rule existed to prevent. Leftovers now sweep into Build;
+  `panel-analyse` (built for a rail item that never shipped) is removed.
+- **The rail overflowed its own window.** Fourteen items across four clusters pushed the Collapse
+  toggle over the status bar. The item list scrolls on its own now, with Collapse pinned outside it.
+
+### Added — `railKeys.test.ts`, five claims, all mutation-checked
+
+Persona lists name only real items; every item is listed by at least one persona; no `data-rail`
+selector or `showRail()` call names a key that does not exist; and — the direction that caught the
+clash orphan — **no `.rpanel` is unreachable from the rail.** String keys have no referential
+integrity unless something asserts it.
+
+### Fixed — three engine defects
+
+- `groups.py` — a pitch change **repositioned nothing**. Only newly-added cells used the new spacing
+  while existing members kept the old, producing a silently mixed-pitch array; worse, the next call
+  measured against the new pitch, read every un-moved member as hand-edited, and refused shrinks to
+  protect edits nobody made. Members still on their old cell now follow the array; genuinely
+  hand-moved ones stay put and are reported, as always intended.
+- `icdd.py` — `build_linkset`'s refusals fired **inside** the open archive, leaving a truncated
+  container on disk while the caller saw an exception and assumed nothing was written. Everything
+  that can refuse now refuses before the file is touched.
+- `drawings.py` — the guided cut mirrored `cut_baked`'s per-mesh tolerance but not its accounting:
+  bare `continue`, no counter, no log. The default plan path dropped linework in total silence where
+  the function it replaced had always warned.
+
+### Also — the roadmap reconciled, and the citation gate caught the reconciliation
+
+Lane D's merge train landed (PRs #176/#178/#179), so the "only OPEN item" note on R38-ARRAY-LIVE was
+stale. **R36-AUTHOR-MENU is marked shipped with a note that the item under-scoped the work**: it asked
+for four groups and some promotions; the panel actually held 182 buttons doing ten jobs, so the More
+menu is gone rather than reorganised. **R36-VIEWER-SUBAPP is now the top of that ring** — the rail
+work cleared its way, and it carries a requirement the original item missed: *print is part of the
+interface*, and 2D and 3D are not yet peers there.
+
+New item **R36-EMPTY-STATE**, from the specs report — a register with no rows must say which of
+*nothing created yet*, *a filter hid everything*, or *the fetch failed* is true, extending
+`ui/empty.ts` rather than starting a second empty-state vocabulary beside it.
+
+Writing that reconciliation **failed `test_claude_md_gates`**: the roadmap cited `railKeys.test.ts`,
+which this release adds but which was not yet tracked, and the gate resolves citations against
+`git ls-files`. Exactly the rule it exists to enforce — backticks are reserved for files that exist.
+Verified against the commit's own tree before shipping rather than assuming the commit would fix it.
+
 ## v0.3.842 — the tower drive now builds the Design room it was skipping
 
 ### Added — phase 1b, because 25 of 29 design registers were empty after a full run

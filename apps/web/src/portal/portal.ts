@@ -758,7 +758,9 @@ export class PortalUI {
       + "carries the data the downstream trades, estimators, and plan reviewers need.";
     root.appendChild(intro);
     const goTools = () => { window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "model" }));
-      setTimeout(() => (document.querySelector('.rail-btn[data-rail="tools"]') as HTMLElement | null)?.click(), 60); };
+      // RAIL-SPLIT renamed this destination: the model-QA checks this card describes live under
+      // Review. The old selector matched nothing, so the button silently did nothing.
+      setTimeout(() => (document.querySelector('.rail-btn[data-rail="review"]') as HTMLElement | null)?.click(), 60); };
     const open = el("button", "tool-btn"); open.textContent = "Open Model → Tools →"; open.onclick = goTools;
     open.style.marginBottom = "12px"; root.appendChild(open);
     const checks: [string, string][] = [

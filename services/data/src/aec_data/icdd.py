@@ -186,14 +186,26 @@ def write_container(path: str, documents: list[dict], links: list[dict] | None =
 
     linksets = [linkset_name] if links else []
     index = build_index(docs, linksets, creator=creator, description=description)
+    # Serialise the linkset BEFORE the archive is opened.
+    #
+    # It used to be built on the last line INSIDE the `with`, so any refusal `build_linkset` raises
+    # (a link relating fewer than two elements, a malformed element reference) fired with the zip
+    # already created and the index and every payload already written. The caller saw the exception
+    # and reasonably assumed nothing had been written — but a truncated container was sitting on
+    # disk, indistinguishable from a real one to anything that only checks for the file. **A refusal
+    # that leaves a partial artefact is worse than no refusal**, because it converts a loud failure
+    # into a quiet corruption.
+    #
+    # Everything that can refuse now refuses while `path` is still untouched.
+    linkset_body = build_linkset(links) if links else None
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr(INDEX_NAME, index)
         for d in docs:
             data = d["data"]
             z.writestr(f"{PAYLOAD_DIR}/{d['name']}",
                        data if isinstance(data, bytes) else str(data).encode("utf-8"))
-        if links:
-            z.writestr(f"{TRIPLES_DIR}/{linkset_name}", build_linkset(links))
+        if linkset_body is not None:
+            z.writestr(f"{TRIPLES_DIR}/{linkset_name}", linkset_body)
     return {"path": path, "documents": [d["name"] for d in docs],
             "linksets": linksets, "links": len(links), "conformance": CONFORMANCE}
 

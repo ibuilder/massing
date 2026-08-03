@@ -1634,6 +1634,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // modules that own them. `innerHTML = ""` would destroy them and nothing rebuilds them, so
     // detach first. (buildToolsPanel re-runs on every persona switch.)
     for (const key of railToolbox.hostKeys()) railToolbox.hostFor(key)?.remove();
+    // ...and only now empty the panels the distribution writes into. The hosts are detached above,
+    // so this cannot destroy them; anything still in those panels is last build's output, which
+    // would otherwise survive as a second identical-looking copy with dead handlers.
+    clearDistributed();
     panel.innerHTML = "";
     const intro = document.createElement("div");
     intro.className = "meta"; intro.style.cssText = "margin:2px 2px 6px;font-size:11px;line-height:1.4";
@@ -4628,8 +4632,23 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     };
     for (const key of order) builders[key]?.();
     regroupByPhase();                                        // UX-1: physical phase clusters + headers
-    applyPhase(localStorage.getItem(RIBBON_KEY) || "All");   // UX-1: restore the active lifecycle tab
+    // RAIL-SPLIT: distribute BEFORE restoring the ribbon tab, and restore it only over what is left.
+    //
+    // The other order shipped a trap. `applyPhase` inline-hides the groups outside the saved
+    // lifecycle tab; the distribution then moved some of those hidden groups into rail panels that
+    // have **no ribbon at all**, so nothing could ever un-hide them. A user whose last tab was, say,
+    // "Construct" opened Build or Export and found it empty — with no control anywhere on screen to
+    // explain why, because the tab that hid it lives in a panel they were no longer looking at.
+    //
+    // Distributing first makes the ribbon govern only the groups that remain under it, which is the
+    // only set it can still reach.
     distributeToolGroups(panel);                             // RAIL-SPLIT: one job per rail item
+    applyPhase(localStorage.getItem(RIBBON_KEY) || "All");   // UX-1: restore the active lifecycle tab
+    // A group that moved out from under the ribbon must not carry a stale inline hide with it.
+    for (const key of DISTRIBUTED_PANELS) {
+      const p = document.getElementById(`panel-${key}`);
+      p?.querySelectorAll<HTMLElement>(".tool-group").forEach((g) => { g.style.display = ""; });
+    }
   }
 
   /**
@@ -4675,6 +4694,25 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     target.appendChild(sec);
   }
 
+  /**
+   * Every rail panel this distribution writes into — the set that must be cleared before a rebuild.
+   *
+   * `buildToolsPanel` clears `panel-tools` and then rebuilds, which was correct while everything
+   * landed there. Once the groups distribute, the destination panels are **never cleared**, so each
+   * persona switch (`aec:persona` re-runs the build) appended a second, third, fourth copy of every
+   * group. The duplicates are not cosmetic: they are detached from the rebuilt handlers, so they
+   * look identical to the live controls and simply do nothing.
+   */
+  const DISTRIBUTED_PANELS = ["view", "build", "library", "detail", "annotate", "export", "review", "analyse"];
+
+  /** Empty the panels this pass owns, so a rebuild replaces rather than stacks. */
+  function clearDistributed() {
+    for (const key of DISTRIBUTED_PANELS) {
+      const p = document.getElementById(`panel-${key}`);
+      if (p) p.textContent = "";
+    }
+  }
+
   function distributeToolGroups(panel: HTMLElement) {
     // `authoring` is deliberately NOT split here. It genuinely mixes annotation, the content
     // library and fabrication detail under one heading, and splitting a section by guessing which
@@ -4695,6 +4733,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       const target = document.getElementById(`panel-${railKey}`);
       if (group && target) target.appendChild(group);
     }
+    // ...and everything still here goes to Build.
+    //
+    // The original rule was "a group with no destination stays in `panel-tools` on purpose —
+    // unrouted must mean *visible in the old place*, never *gone*." That rule quietly stopped being
+    // true the moment the split removed the Tools rail item: nothing opens `panel-tools` any more,
+    // so "stays put" became "is unreachable", which is the exact failure the rule existed to
+    // prevent. Build is the honest fallback for the same reason the toolbox spill uses it — an
+    // undescribed group is most likely an authoring verb, and it must land somewhere people open.
+    const strays = [...panel.querySelectorAll<HTMLElement>(".tool-group")];
+    const build = document.getElementById("panel-build");
+    if (build) for (const g of strays) build.appendChild(g);
   }
 
   /** Hashed hue for an IFC class — the stable per-class fallback color. */

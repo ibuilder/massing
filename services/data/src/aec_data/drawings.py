@@ -292,14 +292,26 @@ def cut_baked_guided(meshes: list[tuple[str, str, trimesh.Trimesh]], view: str,
     normal, axes = _VIEWS[view]
     origin = normal * offset
     out: list[tuple[str, str, np.ndarray]] = []
+    skipped: list[str] = []
     for guid, cls, mesh in meshes:
         try:
             sec = mesh.section(plane_origin=origin, plane_normal=normal)
             if sec is not None:
                 for poly in sec.discrete:
                     out.append((guid, cls, np.asarray(poly)[:, axes]))
-        except Exception:                    # noqa: BLE001 — mirror cut_baked's per-mesh tolerance
-            continue
+        except Exception as exc:             # noqa: BLE001 — one unsectionable mesh must not kill the cut
+            # It "mirrored cut_baked's tolerance" but not its ACCOUNTING: `continue` alone, no
+            # counter, no log. So the guided cut — the one this ring made the default — dropped
+            # linework in total silence where the function it replaced had always warned. A plan
+            # missing a wall renders perfectly; nothing about it says a wall is missing, and the
+            # GUIDs make that worse rather than better, because everything still on the sheet
+            # resolves correctly and invites you to trust the sheet.
+            skipped.append(guid)
+            log.debug("drawings.cut_baked_guided: %s (%s) failed to section: %s", guid, cls, exc)
+    if skipped:
+        log.warning("drawings.cut_baked_guided(%s@%.2f): %d of %d mesh(es) failed to section — "
+                    "linework is INCOMPLETE for those elements (first: %s)",
+                    view, offset, len(skipped), len(meshes), skipped[0])
     return out
 
 

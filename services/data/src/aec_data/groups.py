@@ -278,8 +278,26 @@ def set_array_params(model: ifcopenshell.file, guid: str, nx: int | None = None,
             added.append({"guid": g, "i": i, "j": j})
 
     # --- members a person repositioned stay put, and are reported ------------------------------------
+    # --- a pitch change MOVES the members that are still on the grid ---------------------------------
+    #
+    # This used only to *detect* off-grid members and report them; it never repositioned anything. So
+    # changing dx/dy/dz relaid only the cells the change happened to ADD, while every existing member
+    # stayed at the old spacing — a silently mixed-pitch array that looks authored rather than broken.
+    #
+    # It compounded on the next call. `_moved` measures against the CURRENT params, so once the pset
+    # said "new pitch" every un-moved member read as displaced, the authored-member guard saw them all
+    # as hand-edited, and a subsequent shrink was refused with a message about protecting edits that
+    # were never made. A change that half-applies is worse than one that refuses: it leaves the model
+    # in a state no operation the user performed could have produced.
+    #
+    # The distinction the original code was reaching for still holds, and is now the thing that
+    # decides: a member sitting where the OLD pitch put it is a generated copy and follows the array;
+    # a member somewhere else was moved by hand and is left alone, reported, never snapped back.
     kept_moved = []
+    relaid = []
     if (dx, dy, dz) != (a["dx"], a["dy"], a["dz"]):
+        from .edit import move_element
+
         for (i, j), m in by_cell.items():
             if (i, j) not in wanted or m["is_source"]:
                 continue
@@ -289,6 +307,13 @@ def set_array_params(model: ifcopenshell.file, guid: str, nx: int | None = None,
                 continue
             if _moved(el, base, i, j, a["dx"], a["dy"], a["dz"]) > ARRAY_MOVED_TOL:
                 kept_moved.append({**m, "note": "repositioned by hand; left where it is"})
+                continue
+            # On its old cell → a generated copy. Move it by the delta between old and new cell.
+            ox, oy, oz = _expected_origin(base, i, j, a["dx"], a["dy"], a["dz"])
+            nx_, ny_, nz_ = _expected_origin(base, i, j, dx, dy, dz)
+            if max(abs(nx_ - ox), abs(ny_ - oy), abs(nz_ - oz)) > ARRAY_MOVED_TOL:
+                move_element(model, m["guid"], nx_ - ox, ny_ - oy, nz_ - oz)
+                relaid.append({**m, "note": "moved to the new pitch"})
 
     _write_pset(model, grp, ARRAY_PSET,
                 {"source": src_guid, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "dz": dz})

@@ -152,10 +152,10 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE · R40-RIBBON ② |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ *(only OPEN item — rdflib add cleared, start after the 2026-08-02 merge train)* · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② *(these four SHIPPED 2026-08-02, pending archive to roadmap-completed)* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② *(SHIPPED v0.3.831, pending archive)* · A29-SPATIAL-SELECT ② *(SHIPPED v0.3.832, pending archive)* · A29-UNDO-LOCAL ③ *(SHIPPED v0.3.833, pending archive)* · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP · R36-AUTHOR-MENU · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -1630,16 +1630,51 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 - ⭐ **R36-DRAWINGS-RETURN** *(S — Lane A)* — a back affordance from drawings/specs to Design, and
   the room tabs visibly present in those workspaces. The cheapest real defect in the ring; ship it
   first and alone.
-- **R36-RAIL-SCOPE** *(M — Lane A)* — the rail shows ONLY the current room's group; other rooms are
-  reachable by the tabs, not by scrolling the rail. Keep the unrouted-destination report. The command
-  bar (⌘K) remains the everything-escape so scoping never hides capability.
-- **R36-VIEWER-SUBAPP** *(L — Lane E; slice before starting)* — drawings + specs + model as one
-  subapp with a mode switch (Model ▸ Sheets ▸ Specs), the takeoff/markup layer as a plugin of it, and
-  selection carried across modes by GlobalId (pick a door in 3D, see it on the sheet; pick a keynote,
-  see the spec section). This is the cohesion ask; it subsumes the back button but must not gate it.
+- ✅ **R36-RAIL-SCOPE** *(SHIPPED v0.3.828–835)* — the rail shows only the current room's group, and
+  `rooms.py` gained the allocation the audit was missing: Work went from **0 registers to 28**, and
+  Closeout moved to Operate. The room table is the single source; `roomNames.test.ts` gates the
+  duplicate in `spine.ts`.
+- ✅ **R36-AUTHOR-MENU** *(SHIPPED v0.3.836–843; the item under-scoped what was needed)* — the plan
+  said "split Author into four groups and promote the proven More tools". Measured live first, the
+  panel held **182 buttons and 11 inputs under 7 headings**, doing about ten unrelated jobs — 154 of
+  them there before the toolbox arrived. "Tools" was not a category; it was where a control went when
+  nobody decided, the same failure `rooms.py` records about the retired "Engineering" section.
+  So the split went further than promotion: **28 viewer tools left the floating bar entirely** (the
+  bar hid 23 of 28 behind **More**, and covered the model it acts on), the rail became 14 job-scoped
+  items across 4 clusters, and `panel-tools` fell from 182 controls to 9. Context now **dims rather
+  than hides** — a tool that relocates itself is a defect this repo shipped twice.
+  Follow-on work the split itself created, all closed in v0.3.843: persona allowlists still named the
+  deleted key, panels stacked duplicates on every persona switch, a saved ribbon tab could empty a
+  panel permanently, and Clash was orphaned. `railKeys.test.ts` now holds all of it — **no rail key
+  may be named that no item defines, and no panel may be unreachable.**
+- ⭐ **R36-VIEWER-SUBAPP** *(L — Lane E; slice before starting)* — **now the top item in this ring**,
+  because the rail work above cleared its way: the tools no longer float over the canvas, so the
+  canvas is free to change what it renders. Drawings + specs + model as one subapp with a mode switch
+  (Model ▸ Sheets ▸ Specs), the takeoff/markup layer as a plugin of it, and selection carried across
+  modes **by GlobalId** — pick a door in 3D, see it on the sheet; pick a keynote, see the spec section.
+  The user's framing adds a requirement the original item missed: *"they need to be interchangeable
+  and may need some refactoring so that we can print 2d or 3d"* — **print is part of the interface,
+  not a later concern.** Today 2D has a real path (plan SVG → sheet → PDF) while 3D only captures a
+  hero image, so the two are not yet peers and the mode switch would expose that immediately. Slice
+  the print path first. Per the non-negotiables the interface speaks GlobalId only, never viewer ids.
 - **R36-AUTHOR-MENU** *(M — Lane E)* — split Author into Draw · Modify · Levels & Grids · Families,
   promote the proven "More" tools into those groups, and demote the rest behind the command bar.
   Depends on a usage read: promote what the demo walkthrough and samples actually exercise.
+- ⭐ **R36-EMPTY-STATE** *(S — Lane B)* — **a register with no rows is indistinguishable from a broken
+  one, and was reported as exactly that.** The trigger: "something is wrong with specs". Specs was
+  fine — the module rendered in full, toolbar, filters, saved views, templates, import — but the
+  project held **zero** `spec_section` records, and so did every other design register. A full surface
+  around an empty table reads as a failure of the surface.
+  Every register needs an empty state that says which of three things is true: *nothing has been
+  created yet* (with the create action), *a filter is hiding everything* (with a clear-filters
+  action), or *the fetch failed*. Today all three render identically. The distinction is the whole
+  value — the first is an invitation, the second is a mistake the user made, the third is an outage.
+  **Extend `ui/empty.ts` rather than starting one**: it already owns this job for the adjacent case
+  ("no project open", demo-aware, 17 adopters) and already ships the `.empty-state` class. A second
+  empty-state vocabulary beside it is how the icon set ended up with two languages.
+  *Premise-check before building*: confirm the register renderer can distinguish an empty result from
+  a filtered-to-nothing one — if it cannot, that plumbing is the real item and the copy is trivial.
+
 - **R36-ROOM-BRIEFS** *(M — Lane B; one room per release)* — per-room, per-role landing priority:
   each room opens with the three answers its primary role needs (superintendent in Schedule: today's
   lookahead, blockers, yesterday's variance; developer in Deal: returns vs guardrails, open
