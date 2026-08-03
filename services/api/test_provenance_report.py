@@ -130,6 +130,71 @@ check("  a partially-cited assumptions leg is has_uncited, not no_data",
                  [{"text": "x", "citations": [{"s": 1}]}]), "assumptions")["status"] == STATUS_GAPS)
 check("nothing supplied at all is INCOMPLETE, not a crash", report()["verdict"] == VERDICT_INCOMPLETE)
 
+# --- PROJECT-SCOPED (slice 2): only ONE leg is gatherable, and saying which is the point -------------
+# `not_captured` must be distinct from `no_data`. "You have not filled this in" and "this system has
+# nowhere to put it" send a reader to different places — one fills a field, the other changes a
+# schema — and a verdict that conflates them wastes the time of whoever acts on it.
+import os as _os  # noqa: E402
+
+_os.environ["DATABASE_URL"] = "sqlite:///./test_provenance_report.db"
+_os.environ["STORAGE_DIR"] = "./test_storage_prov"
+_os.environ.pop("AEC_RBAC", None)
+for _f in ("./test_provenance_report.db",):
+    if _os.path.exists(_f):
+        _os.remove(_f)
+
+from aec_api import provenance_report as _pr  # noqa: E402
+from aec_api.db import Base as _Base, SessionLocal as _SL, engine as _eng  # noqa: E402
+from aec_api.models import Project as _P, Scenario as _S  # noqa: E402
+
+_Base.metadata.create_all(_eng)
+with _SL() as _db:
+    _db.add(_P(id="pp1", name="Prov"))
+    _db.add(_S(id="s1", project_id="pp1", name="Base case",
+               assumptions={"exit": {"exit_cap": 0.055}, "debt": {"ltc": 0.6}}))
+    _db.commit()
+    FP = _pr.from_project(_db, "pp1")
+    EMPTY = _pr.from_project(_db, "no-project")
+
+check("from_project finds the project's scenario", FP["scenario_id"] == "s1", FP.get("scenario_id"))
+check("  the ASSUMPTIONS leg is real — gathered, not supplied",
+      leg(FP, "assumptions")["status"] in (STATUS_OK, STATUS_GAPS), leg(FP, "assumptions"))
+check("THE ESTIMATE LEG IS not_captured, NOT no_data",
+      leg(FP, "estimate")["status"] == _pr.STATUS_NOT_CAPTURED, leg(FP, "estimate")["status"])
+check("  and names the exact columns that would make it gatherable",
+      all(k in leg(FP, "estimate")["note"] for k in ("quote_ref", "basis_date")),
+      leg(FP, "estimate")["note"])
+check("THE ANSWERS LEG IS not_captured — agent answers are never persisted",
+      leg(FP, "answers")["status"] == _pr.STATUS_NOT_CAPTURED, leg(FP, "answers")["status"])
+check("  naming what would make it gatherable", "store of answered claims"
+      in leg(FP, "answers")["note"], leg(FP, "answers")["note"])
+check("the two are LISTED separately from absent legs",
+      FP["legs_not_captured"] == ["estimate", "answers"], FP.get("legs_not_captured"))
+
+check("A PROJECT VERDICT CANNOT READ admissible TODAY — and says why",
+      FP["verdict"] != VERDICT_ADMISSIBLE, FP["verdict"])
+check("  attributing it to the SCHEMA, not to the deal",
+      "statement about this schema, not about the deal" in FP["note"], FP["note"][:120])
+check("  which is the honest alternative to scoring only the leg that works",
+      "hidden by scoring only the leg" in FP["note"])
+
+check("a project with no scenario still answers, rather than erroring",
+      EMPTY["scenario_id"] is None and EMPTY["verdict"] == VERDICT_INCOMPLETE, EMPTY["verdict"])
+check("  its assumptions leg is no_data — a source EXISTS and is empty",
+      leg(EMPTY, "assumptions")["status"] == STATUS_NO_DATA, leg(EMPTY, "assumptions")["status"])
+check("  so no_data and not_captured coexist in one report, meaning different things",
+      {leg(EMPTY, "assumptions")["status"], leg(EMPTY, "estimate")["status"]}
+      == {STATUS_NO_DATA, _pr.STATUS_NOT_CAPTURED},
+      [(x["leg"], x["status"]) for x in EMPTY["legs"]])
+
+_eng.dispose()
+for _f in ("./test_provenance_report.db",):
+    if _os.path.exists(_f):
+        try:
+            _os.remove(_f)
+        except OSError:
+            pass
+
 print()
 if FAILED:
     print(f"provenance_report: {len(FAILED)} FAILED — {FAILED}")

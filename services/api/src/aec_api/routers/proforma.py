@@ -14,14 +14,14 @@ from .. import cost as cost_engine
 from .. import modules as me
 from .. import provenance_report, rbac
 from ..db import get_db
-from ..models import Scenario
+from ..models import Project, Scenario
 from ..proforma import entitlement_risk
 from ..proforma import provenance as _provenance
 from ..proforma.draws import reforecast
 from ..proforma.monte_carlo import monte_carlo
 from ..proforma.sensitivity import sensitivity
 from ..proforma.solve import solve
-from ..rbac import current_user, require_identified
+from ..rbac import current_user, require_identified, require_role
 
 router = APIRouter()
 
@@ -42,6 +42,35 @@ def solve_stateless(a: Assumptions):
     result = solve(a.model_dump())
     return {**result, "guardrails": underwrite.guardrails(result),
             "provenance": _provenance.derive(_provenance.declared_from(a), result)}
+
+
+@router.get("/projects/{pid}/provenance/admissibility")
+def project_admissibility(pid: str, scenario_id: str | None = None,
+                          db: Session = Depends(get_db),
+                          _: str = Depends(require_role("viewer"))):
+    """R22-PROVENANCE — the admissibility verdict for a project, from what this system PERSISTS.
+
+    The stateless sibling takes all three legs in a request body. This one gathers them, and the
+    honest answer is that **only one of the three is gatherable**:
+
+    * **assumptions** — real, from the project's own scenarios (most recent unless `scenario_id`);
+    * **estimate** — `not_captured`. The `estimate` register stores line_items as
+      code/description/qty/unit/unit_cost/amount and captures no `source`, `quote_ref` or
+      `basis_date`, which are precisely the fields a basis-of-estimate ledger checks;
+    * **answers** — `not_captured`. Agent answers are never persisted; `cited_answer` is an
+      in-flight contract and no store keeps the claims or citations after the response returns.
+
+    **`not_captured` is deliberately distinct from `no_data`.** "You have not filled this in" and
+    "this system has nowhere to put it" send a reader to completely different places — one fills a
+    field, the other changes a schema — and a verdict that conflates them wastes the time of whoever
+    acts on it. Each un-gatherable leg names the change that would make it gatherable.
+
+    Consequently a project verdict cannot read `admissible` today, and it says so rather than
+    quietly scoring only the leg that happens to work.
+    """
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return provenance_report.from_project(db, pid, scenario_id)
 
 
 @router.post("/proforma/provenance/admissibility")
