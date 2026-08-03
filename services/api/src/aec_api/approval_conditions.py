@@ -48,11 +48,18 @@ _ENUM = re.compile(
     r"^\s*(?:\(?\d{1,3}[.)]|\(?[a-z][.)]|condition\s+\d{1,3}\s*[:.]?|[•\-–—])\s+",
     re.I)
 
-#: Quantities worth surfacing, with the unit kept as written. Deliberately narrow: a pattern that
-#: matches everything produces confident readings of sentences it did not understand.
+#: Quantities worth surfacing, with the unit kept as written. The unit list is deliberately narrow —
+#: a pattern matching everything produces confident readings of sentences it did not understand.
+#:
+#: ONE optional descriptive word is allowed between the number and its unit. Requiring strict
+#: adjacency was the first cut and it was too strict for how agencies actually write: "20 parking
+#: spaces", "45 dwelling units" and "1.5 parking spaces per unit" all extract nothing under it, so
+#: every parking condition came back unreadable. Safety does not come from refusing to read — it
+#: comes from `topic` having to agree with the unit family, and from every quantity carrying the
+#: `source_text` it was taken from, so a wrong reading is visible rather than silent.
 _QTY = re.compile(
-    r"(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>ft|feet|foot|m|metres|meters|stor(?:e|ie)ys?|stories|"
-    r"spaces?|units?|percent|%)\b", re.I)
+    r"(?P<value>\d+(?:\.\d+)?)\s*(?:[A-Za-z][A-Za-z-]{1,14}\s+)?(?P<unit>ft|feet|foot|m|metres|"
+    r"meters|stor(?:e|ie)ys?|stories|spaces?|units?|percent|%)\b", re.I)
 
 _KEYWORDS = {
     "height": ("height", "storey", "story", "stories", "storeys"),
