@@ -72,19 +72,23 @@ check("  and the SOURCE TEXT it came from, so a person can check the reading",
 check("  the condition is topic-tagged", h["topic"] == "height", h["topic"])
 check("a parking condition is tagged parking", items[2]["topic"] == "parking", items[2]["topic"])
 check("a landscape condition is tagged landscape", items[3]["topic"] == "landscape", items[3]["topic"])
-# Extraction requires the number and unit to be ADJACENT. "45 dwelling units" yields nothing, and
-# that is the correct answer: the alternative is associating a number with a unit a word or more
-# away, which is precisely how "45" from "45 dwelling units" becomes a height limit nobody imposed.
-# A missed quantity is tracked as an unparsed condition a person reads; an invented one is a
-# constraint nobody chose.
+# Extraction allows ONE descriptive word between the number and its unit. Strict adjacency was the
+# first cut and it was too strict for how agencies actually write — "20 parking spaces", "45 dwelling
+# units" and "1.5 parking spaces per unit" all extracted NOTHING, so every parking condition came
+# back unreadable (found by R22-ENTITLEMENT ②'s checks). Safety is not "refuse to read": it is that
+# `topic` must agree with the unit family, and that every quantity carries its source_text — a wrong
+# reading is then visible rather than silent.
 _far = parse("Project limited to 45 dwelling units.")[0]
-check("a number NOT adjacent to its unit is not extracted — conservative on purpose",
-      _far["quantities"] == [], _far["quantities"])
-check("  and the condition is therefore tracked as UNPARSED for a person to read",
-      _far["status"] == STATUS_UNPARSED, _far["status"])
-check("  while an ADJACENT quantity IS extracted with its unit as written",
-      parse("Limited to 45 units.")[0]["quantities"][0]["unit"] == "units",
-      parse("Limited to 45 units.")[0]["quantities"])
+check("one descriptive word between number and unit still extracts — real agencies write this way",
+      _far["quantities"][0]["value"] == 45.0 and _far["quantities"][0]["unit"] == "units",
+      _far["quantities"])
+check("  and it is read as UNITS, not as a height — the unit is taken as written",
+      _far["quantities"][0]["unit"] == "units")
+check("  with the source text, so a wrong reading is visible rather than silent",
+      "dwelling" in _far["quantities"][0]["source_text"], _far["quantities"][0]["source_text"])
+check("'20 parking spaces' extracts 20 spaces — the phrasing that broke strict adjacency",
+      parse("Provide a minimum of 20 parking spaces.")[0]["quantities"][0]["unit"] == "spaces",
+      parse("Provide a minimum of 20 parking spaces.")[0]["quantities"])
 check("  a landscape condition containing 'installed' is NOT tagged parking (stall/installed)",
       parse("A landscape buffer shall be installed.")[0]["topic"] == "landscape",
       parse("A landscape buffer shall be installed.")[0]["topic"])

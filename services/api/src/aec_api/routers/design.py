@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from .. import adjacency, approval_conditions, design_phase, resilience, soft_costs, spine
+from .. import adjacency, approval_conditions, condition_checks, design_phase, resilience, soft_costs, spine
 from .. import modules as me
 from ..db import get_db
 from ..models import Project
@@ -541,3 +541,47 @@ def entitlement_conditions(pid: str, db: Session = Depends(get_db),
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     return approval_conditions.for_project(db, pid)
+
+
+@router.get("/projects/{pid}/entitlements/condition-checks")
+def entitlement_condition_checks(pid: str, db: Session = Depends(get_db),
+                                 _: str = Depends(require_role("viewer"))):
+    """R22-ENTITLEMENT ② — the project's approval conditions checked against its model.
+
+    Slice ① made conditions individually tracked; this is the ring entry's actual clause, conditions
+    carried into the model as constraints. It checks the two topics the model can genuinely answer —
+    **height** (from the storey elevations) and **parking** (a count of parking spaces) — and refuses
+    the rest. A setback check without a surveyed property line would be a number dressed as a
+    compliance finding.
+
+    **Units are converted explicitly and both are reported.** A condition reads "45 feet"; the model
+    is metric. Comparing 45 against metres is how a 45 ft height limit silently becomes a 45 m one —
+    a three-fold error that reads as a pass. Every comparison returns the condition value as written,
+    the converted value, the model value, and the unit of each.
+
+    **A height limit is a maximum; a parking condition is a minimum.** Reading one as the other
+    inverts the finding, so the direction is stated per check.
+
+    Anything unevaluable — an unsupported topic, a missing quantity, or a model fact the file does
+    not answer — is `not_checkable`, **never a pass**. A condition reported satisfied because nobody
+    could evaluate it is a building put up out of compliance while the report said it was fine.
+    """
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import mcp_tools
+    tracked = approval_conditions.for_project(db, pid)
+    facts = {"height_m": None, "storeys": None, "parking_spaces": None}
+    try:
+        model = mcp_tools._open_source(db, pid)
+        facts = condition_checks.model_facts(model)
+    except Exception:                            # noqa: BLE001 — no model is not_checkable, not a pass
+        pass
+    out = []
+    for ent in tracked.get("entitlements", []):
+        res = condition_checks.check_all(ent.get("conditions") or [], facts)
+        out.append({"entitlement_id": ent.get("entitlement_id"), "ref": ent.get("ref"),
+                    "workflow_state": ent.get("workflow_state"), **res})
+    return {"project_id": pid, "model_facts": facts, "entitlements": out,
+            "total_exceeds": sum(x["exceeds_count"] for x in out),
+            "total_not_checkable": sum(x["not_checkable_count"] for x in out),
+            "note": tracked.get("note", "")}
