@@ -152,7 +152,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT *(SHIPPED v0.3.848)* · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE · R40-RIBBON ② |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · AUTH-SNAP-OVERRIDE · RAIL-DRAG · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
@@ -1746,7 +1746,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 - **R36-AUTHOR-MENU** *(M — Lane E)* — split Author into Draw · Modify · Levels & Grids · Families,
   promote the proven "More" tools into those groups, and demote the rest behind the command bar.
   Depends on a usage read: promote what the demo walkthrough and samples actually exercise.
-- ⭐ **R36-EMPTY-STATE** *(S — Lane B)* — **a register with no rows is indistinguishable from a broken
+- **R36-EMPTY-STATE** *(S — Lane B — **SHIPPED v0.3.849**)* — **a register with no rows is indistinguishable from a broken
   one, and was reported as exactly that.** The trigger: "something is wrong with specs". Specs was
   fine — the module rendered in full, toolbar, filters, saved views, templates, import — but the
   project held **zero** `spec_section` records, and so did every other design register. A full surface
@@ -1760,6 +1760,19 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   empty-state vocabulary beside it is how the icon set ended up with two languages.
   *Premise-check before building*: confirm the register renderer can distinguish an empty result from
   a filtered-to-nothing one — if it cannot, that plumbing is the real item and the copy is trivial.
+
+  **Checked, and the premise held — the plumbing was the item, in two ways.** The branch tested
+  `filter.q || filter.state`, which is half the filter vocabulary: `filter.fields` (the ⧧ Filter
+  panel, and the control most likely to narrow a register to nothing) was invisible to it, so a
+  filtered-out register claimed nothing had ever been created *and* offered curated advice about
+  where those records come from. And the third case did not exist at all — the records fetch was the
+  only unguarded `await` in `openModule`, so a failure left the "Loading …" skeleton up permanently
+  and the rejection escaped through the `void openModule(...)` call sites. Both fixed in v0.3.849;
+  the vocabulary went into `apps/web/src/ui/empty.ts` as directed, and the states are marked in the
+  DOM with `data-empty` so a check can assert *which* was decided rather than that something
+  rendered. Gates: `apps/web/src/ui/empty.test.ts` (the partition) and
+  `apps/web/src/portal/registerEmpty.test.ts` (the renderer reaching all three, driven rather than
+  grepped — a source regex passes on a branch that is present and never taken).
 
 - **R36-ROOM-BRIEFS** *(M — Lane B; one room per release)* — per-room, per-role landing priority:
   each room opens with the three answers its primary role needs (superintendent in Schedule: today's

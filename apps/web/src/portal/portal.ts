@@ -3,7 +3,7 @@ import { escapeHtml as esc, toast } from "../ui/feedback";
 import { progressBar } from "../ui/charts";
 import { countNarrative, statusChip } from "../ui/chips";
 import { confirmModal, modalShell, promptModal } from "../ui/modal";
-import { noProjectHtml } from "../ui/empty";
+import { type RegisterEmptyKind, noProjectHtml, registerEmptyEl } from "../ui/empty";
 import { emptyHint } from "../ui/emptyGuide";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "./offlineQueue";
 import { buildPulse, pulseRailEl } from "./panels/pulse";
@@ -1567,11 +1567,29 @@ export class PortalUI {
     const wireFilters = Object.entries(filter.fields ?? {}).map(([k, v]) => ({
       field: k.includes("__") ? k.slice(0, k.lastIndexOf("__")) : k, op: v.op, value: v.value,
     }));
-    const page = await this.host.api.moduleRecordsFiltered(pid, m.key, {
-      q: filter.q, state: filter.state, limit: PAGE + 1, offset,
-      filters: wireFilters,
-      ...(sortField ? { sort: sortField, sortDir: sortState!.dir === -1 ? "desc" : "asc" } : {}),
-    });
+    // R36-EMPTY-STATE — this was the ONE unguarded `await` in the method. Its two neighbours
+    // (`listViews`, `templates`) both `.catch`; this one let a rejection escape through the
+    // `void this.openModule(...)` call sites, so a 500 or a dropped connection left the "Loading …"
+    // skeleton on screen permanently. A dead screen and an empty register then looked identical,
+    // which is exactly the confusion this item is named for — so the failure gets its own state.
+    let page: ModuleRecord[];
+    try {
+      page = await this.host.api.moduleRecordsFiltered(pid, m.key, {
+        q: filter.q, state: filter.state, limit: PAGE + 1, offset,
+        filters: wireFilters,
+        ...(sortField ? { sort: sortField, sortDir: sortState!.dir === -1 ? "desc" : "asc" } : {}),
+      });
+    } catch (e) {
+      // The bar stays so the reader can leave; the toolbar does NOT — a full set of controls around
+      // a register that was never fetched is the "complete surface wrapped around nothing" defect.
+      this.root.innerHTML = "";
+      this.root.appendChild(this.bar(m.name, () => this.renderHome()));
+      this.root.appendChild(registerEmptyEl(
+        { kind: "failed", name: m.name, reason: (e as Error).message },
+        () => void this.openModule(m, filter),
+      ));
+      return;
+    }
     const hasMore = page.length > PAGE;
     const records = hasMore ? page.slice(0, PAGE) : page;
     const editing = !!this.editInline[m.key];              // inline-edit mode: data cells become inputs
@@ -1721,18 +1739,22 @@ export class PortalUI {
       // button three inches away; what the user cannot see is that an RFI is asked against a drawing
       // and a submittal is driven by a spec section. Curated per module, generic where it is not —
       // an invented upstream would be a confident wrong answer somewhere nobody can check it.
-      const e = document.createElement("div"); e.className = "empty-state";
-      if (filter.q || filter.state) {
-        e.innerHTML = `No matching records<span class="es-hint">Try clearing the filter or state.</span>`;
-      } else {
-        // textContent for the module name: it is server-supplied and this is an innerHTML sink.
-        e.textContent = `No ${m.name.toLowerCase()} yet`;
-        const hint = document.createElement("span");
-        hint.className = "es-hint";
-        hint.textContent = emptyHint(m.key);
-        e.appendChild(hint);
-      }
-      this.root.appendChild(e);
+      //
+      // R36-EMPTY-STATE — but only if nothing is being HIDDEN. The old test was `filter.q ||
+      // filter.state`, which is the two-control half of the filter vocabulary; `filter.fields` — the
+      // ⧧ Filter panel, and the one most likely to be narrowing a register to nothing — was invisible
+      // here, so a filtered-out register claimed nothing had ever been created and then offered
+      // curated advice about where those records come from. Counting all three clauses is the fix,
+      // and the count is worth having: "3 filters are narrowing this" is a different sentence from
+      // "a filter is".
+      const narrowing = Object.keys(filter.fields ?? {}).length + (filter.q ? 1 : 0) + (filter.state ? 1 : 0);
+      const kind: RegisterEmptyKind = narrowing ? "filtered" : "none";
+      this.root.appendChild(registerEmptyEl(
+        { kind, name: m.name, hint: emptyHint(m.key), filterCount: narrowing },
+        // Clearing drops q, state and fields together — a "clear filters" that left one clause behind
+        // would land the reader back on this same screen with no way to tell it had done anything.
+        kind === "filtered" ? () => void this.openModule(m, { offset: 0 }) : () => this.renderForm(m),
+      ));
       return;
     }
 

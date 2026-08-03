@@ -4,6 +4,65 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.849 — a register with no rows now says *which* of three things is true
+
+**Reported as "something is wrong with specs".** Specs was fine: the module rendered in full —
+toolbar, filters, saved views, templates, import — around a table holding zero rows, because the
+project had never had a spec section created. Every design register was in the same state. A
+complete surface wrapped around nothing reads as a failure *of the surface*, and the reader had no
+way to tell which of three unrelated situations they were in:
+
+1. **nothing has been created yet** — an invitation. The next step is to create one.
+2. **a filter is hiding everything** — a mistake the reader made. The next step is to clear it.
+3. **the fetch failed** — an outage. The next step is to retry, or to tell somebody.
+
+Those three send a reader to three different places, so rendering them identically was the whole
+defect — not the wording of any one of them.
+
+**The premise-check said the copy was not the item, and it was right.** The roadmap entry asked
+whether the register renderer could actually *distinguish* an empty result from a filtered-to-nothing
+one before any copy was written, because writing copy for a distinction the code cannot make is a UI
+promise the data cannot keep. It could not, in two ways:
+
+- **The filter test was half the filter vocabulary.** The branch asked `filter.q || filter.state` and
+  knew nothing of `filter.fields` — the ⧧ Filter panel, which is the *primary* filter UI and the one
+  most likely to narrow a register to nothing. So "amount ≥ 1M" produced "No change events yet" *plus*
+  curated guidance about where change events come from: a confident wrong answer in the one place a
+  reader has no way to check it.
+- **The failed case did not exist at all.** The records fetch was the only unguarded `await` in
+  `openModule` — its neighbours `listViews` and `templates` both `.catch` — so a 500 or a dropped
+  connection left the "Loading …" skeleton on screen permanently and the rejection escaped through
+  the `void openModule(...)` call sites. A dead screen and an empty register looked identical, which
+  is the reported defect exactly.
+
+So the plumbing was the work and the copy was the easy half. The vocabulary lives in
+`apps/web/src/ui/empty.ts` beside `noProjectHtml` rather than in a new file: that function already
+owns the adjacent case with ~17 adopters and already ships the `.empty-state` class, and a second
+empty-state vocabulary next to it is how the icon set once ended up speaking two languages.
+
+- **Three states, three actions, marked in the DOM.** `data-empty` carries the decided kind, so a
+  check can assert *which* was chosen rather than that something rendered — three states that read
+  differently but are indistinguishable to a test would repeat the defect one level up. The failure
+  state renders the back link, the reason and a retry, and deliberately **not** the toolbar: a full
+  set of controls around a register that was never fetched is the original defect.
+- **"Clear filters" clears all three clauses** — search, state and fields together. One left behind
+  would land the reader on the same screen with no sign anything had happened.
+- **The failure state refuses to claim the register is empty.** A request that did not answer cannot
+  say whether rows exist, so it names the cause instead of inventing the one fact it just failed to
+  fetch.
+- **`No rfis yet` is fixed too.** The shipped line lower-cased the whole display name, which renders
+  the busiest register on a jobsite as an unreadable slug. The rule is now on the word: two or more
+  consecutive capitals is an acronym and is left as authored.
+- **Verified live, in the real app, for all three states and both recoveries** — a register with zero
+  rows, the same register narrowed to nothing through the actual ⧧ Filter control, and a forced fetch
+  failure; then clear-filters restoring the rows and retry recovering the register. Twenty new tests
+  across `ui/empty.test.ts` and `portal/registerEmpty.test.ts`, the latter driving the real renderer
+  rather than asserting on its source — the defect being fixed *was* an unreachable branch, and a
+  source regex passes on a branch that is present and never taken. Six deliberate mutations (drop
+  `filter.fields` from the count, silence the catch, collapse the noun rule, blank `data-empty`, keep
+  the filter that "clear" claims to drop, and make all three copies identical) each turn the suite
+  red.
+
 ## v0.3.848 — Analyse leaves Review, because a 1087-line section was never one job
 
 The viewer rail had a **Review** item that meant two different things at once: *is the model right*
