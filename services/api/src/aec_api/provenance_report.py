@@ -36,6 +36,14 @@ STATUS_OK = "cited"
 STATUS_GAPS = "has_uncited"
 STATUS_NO_DATA = "no_data"
 
+#: Distinct from `no_data`, and the distinction is the point. `no_data` means a source exists and is
+#: empty — the user can fix that by filling it in. `not_captured` means **this system has nowhere to
+#: put the evidence**: the `estimate` register's `line_items` columns are code/description/qty/unit/
+#: unit_cost/amount, with no `source`, `quote_ref` or `basis_date`, so a basis-of-estimate ledger can
+#: only ever be built from lines posted in a request body. Reporting that as "no data" would send
+#: somebody looking for a field to fill that does not exist.
+STATUS_NOT_CAPTURED = "not_captured"
+
 VERDICT_ADMISSIBLE = "admissible"
 VERDICT_BLOCKED = "blocked"
 VERDICT_INCOMPLETE = "incomplete"
@@ -93,6 +101,63 @@ def _leg_answers(answers: list[dict] | None) -> dict[str, Any]:
             "counted": len(rows), "uncited_count": len(uncited),
             "uncited": uncited[:MAX_NAMED],
             "note": "agent answers carrying no citation" if uncited else ""}
+
+
+#: What each un-gatherable leg would need before a project-scoped verdict could include it. Named
+#: rather than described, so the follow-up is a schema change somebody can action, not a sentiment.
+NOT_CAPTURED_REASON: dict[str, str] = {
+    "estimate": ("the `estimate` register stores line_items as code/description/qty/unit/unit_cost/"
+                 "amount — it captures no `source`, `quote_ref` or `basis_date` per line, which are "
+                 "exactly the fields a basis-of-estimate ledger checks. `boe_ledger` can therefore "
+                 "only run on lines posted in a request body. Capturing those three columns is what "
+                 "would make this leg gatherable"),
+    "answers": ("agent answers are not persisted at all. `cited_answer` is an in-flight contract "
+                "consumed by decision_gate / persona_answer / rfi_qa; no store keeps the answers or "
+                "their citations after the response is returned. A store of answered claims is what "
+                "would make this leg gatherable"),
+}
+
+
+def from_project(db, project_id: str, scenario_id: str | None = None) -> dict[str, Any]:
+    """The admissibility verdict for a project, from what this system actually persists.
+
+    **Only one of the three legs is gatherable, and saying so precisely is the point.** The
+    assumptions leg comes from the project's own scenarios. The other two report `not_captured` with
+    the schema change each would need — because "you have not filled this in" and "this system has
+    nowhere to put it" send a reader to completely different places, and a verdict that conflates
+    them wastes the time of whoever acts on it.
+
+    Pass `scenario_id` to judge one scenario; otherwise the project's most recent is used, since that
+    is the one an IC memo is written from.
+    """
+    from .models import Scenario
+
+    q = db.query(Scenario).filter(Scenario.project_id == project_id)
+    scen = (q.filter(Scenario.id == scenario_id).first() if scenario_id
+            else q.order_by(Scenario.created_at.desc()).first())
+
+    ap = None
+    if scen is not None:
+        from . import assumption_provenance
+        ap = assumption_provenance.scenario_provenance(scen)
+
+    out = report(ap, None, None)
+    for name in ("estimate", "answers"):
+        lg = next(x for x in out["legs"] if x["leg"] == name)
+        lg["status"] = STATUS_NOT_CAPTURED
+        lg["note"] = NOT_CAPTURED_REASON[name]
+    out["legs_absent"] = [x["leg"] for x in out["legs"] if x["status"] == STATUS_NO_DATA]
+    out["legs_not_captured"] = [x["leg"] for x in out["legs"]
+                                if x["status"] == STATUS_NOT_CAPTURED]
+    out["project_id"] = project_id
+    out["scenario_id"] = getattr(scen, "id", None)
+    out["verdict"] = VERDICT_INCOMPLETE if out["verdict"] == VERDICT_ADMISSIBLE else out["verdict"]
+    out["note"] = (
+        "a project-scoped verdict can never read `admissible` today: two of the three legs are "
+        "NOT_CAPTURED — the system has nowhere to store their evidence — so no project can satisfy "
+        "them. That is a statement about this schema, not about the deal, and it is reported rather "
+        "than hidden by scoring only the leg that happens to work. " + out["note"])
+    return out
 
 
 def report(assumptions_provenance: dict | None = None, estimate_ledger: dict | None = None,
