@@ -22,6 +22,7 @@ from datetime import date, datetime, timezone
 
 sys.path.insert(0, "src")
 
+from aec_api import routines as routines_mod  # noqa: E402
 from aec_api.routines import (  # noqa: E402
     CADENCES,
     STATUS_BAD_CADENCE,
@@ -139,6 +140,97 @@ check("  and RETURNS the skips with their reasons — 'nothing ran' and 'nothing
       len(batch["skipped"]) == 2 and all(s.get("reason") for s in batch["skipped"]),
       batch["skipped"])
 check("an empty routine set is a clean no-op, not an error", due([], at(2026, 8, 2))["due_count"] == 0)
+
+# --- PERSISTENCE (R22-ROUTINES slice 2) ---------------------------------------------------------------
+# The register and the engine must agree on the CADENCE VOCABULARY. If module.json offered a cadence
+# the engine does not know, a user could save a routine that is then refused every time it is
+# evaluated — valid to store, impossible to run, and nothing would report the mismatch.
+import json as _json  # noqa: E402
+import os as _os  # noqa: E402
+
+_mj = _json.load(open(_os.path.join(_os.path.dirname(__file__), "modules", "routine",
+                                        "module.json"), encoding="utf-8"))
+_opts = [f for f in _mj["fields"] if f["name"] == "cadence"][0]["options"]
+check("the register offers EXACTLY the cadences the engine knows — set equality both ways",
+      sorted(_opts) == sorted(CADENCES), (sorted(_opts), sorted(CADENCES)))
+_states = set(_mj["workflow"]["states"])
+check("  and the register has the ACTIVE state the loader filters on",
+      routines_mod.ACTIVE_STATE in _states, (routines_mod.ACTIVE_STATE, sorted(_states)))
+check("  with draft and retired distinguishable from it",
+      {"draft", "retired"} <= _states, sorted(_states))
+# `enabled` was removed, not merely un-defaulted: it duplicated `paused`, so two switches governed
+# one concept with nothing stating which won. test_field_attrs refused its default and finding out
+# why exposed the redundancy. The workflow is the single authority for a STORED routine.
+check("the register carries NO `enabled` field — the workflow is the only switch",
+      "enabled" not in {f["name"] for f in _mj["fields"]},
+      sorted(f["name"] for f in _mj["fields"]))
+check("  and `paused` is what 'disabled' means for a stored routine", "paused" in _states)
+check("  while the STATELESS engine still honours a caller-supplied enabled",
+      evaluate({**R, "enabled": False}, at(2026, 8, 2))["status"] == STATUS_DISABLED)
+
+_os.environ["DATABASE_URL"] = "sqlite:///./test_routines.db"
+_os.environ["STORAGE_DIR"] = "./test_storage_routines"
+_os.environ.pop("AEC_RBAC", None)
+for _f in ("./test_routines.db",):
+    if _os.path.exists(_f):
+        _os.remove(_f)
+
+from aec_api import modules as _me  # noqa: E402
+from aec_api import modules_registry as _mr  # noqa: E402
+
+_mr.load_registry()   # the app does this at startup; a bare import leaves TABLES empty
+from aec_api.db import Base as _Base  # noqa: E402
+from aec_api.db import SessionLocal as _SL
+from aec_api.db import engine as _eng
+from aec_api.models import Project as _P  # noqa: E402
+
+_Base.metadata.create_all(_eng)
+with _SL() as _db:
+    _db.add(_P(id="proj1", name="Routines"))
+    _db.commit()
+
+    def _mk(name, cadence, state, last_run=None):
+        # create_record takes {"data": {...}} — only POST-create wraps; PATCH takes the field map.
+        rec = _me.create_record(_db, "routine", "proj1",
+                                {"data": {"name": name, "kind": "progress_report",
+                                          "cadence": cadence,
+                                          **({"last_run": last_run} if last_run else {})}},
+                                actor="t@test", party="GC")
+        rid = rec["id"] if isinstance(rec, dict) else rec
+        _db.execute(_me.TABLES["routine"].update()
+                    .where(_me.TABLES["routine"].c.id == rid).values(workflow_state=state))
+        _db.commit()
+        return rid
+
+    _active_id = _mk("monthly report", "monthly", "active", last_run="2026-04-10")
+    _mk("draft one", "monthly", "draft")
+    _mk("retired one", "weekly", "retired")
+
+    P = routines_mod.from_project(_db, "proj1", now=at(2026, 8, 2))
+
+check("from_project reads the STORED routines", P["stored"] == 3, P.get("stored"))
+check("  but evaluates only the ACTIVE one — a draft was never switched on",
+      P["evaluated"] == 1, P.get("evaluated"))
+check("  and says so rather than letting the other two vanish",
+      "not active" in P["note"], P["note"])
+check("THE STORED last_run DRIVES RECURRENCE — this is what persistence buys",
+      P["due_count"] == 1 and P["due"][0]["missed_windows"] == 3, P["due"])
+check("  the due routine is the active one, by id", P["due"][0]["id"] == _active_id, P["due"][0])
+check("  and catch-up is still suppressed across the restart boundary",
+      P["due"][0]["catch_up_suppressed"] is True, P["due"][0])
+
+with _SL() as _db:
+    P2 = routines_mod.from_project(_db, "no-such-project", now=at(2026, 8, 2))
+check("a project with no routines is a clean empty evaluation, not an error",
+      P2["due_count"] == 0 and P2["stored"] == 0, P2)
+
+_eng.dispose()
+for _f in ("./test_routines.db",):
+    if _os.path.exists(_f):
+        try:
+            _os.remove(_f)
+        except OSError:
+            pass
 
 print()
 if FAILED:

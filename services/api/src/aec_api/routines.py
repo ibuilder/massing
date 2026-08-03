@@ -174,6 +174,59 @@ def due(routines: list[dict], now: datetime, last_runs: dict[str, Any] | None = 
                      "are reported, never replayed.")}
 
 
+#: Only routines in this workflow state are ever evaluated. `draft` has not been turned on and
+#: `retired` has been turned off deliberately — neither is "disabled by accident", and a scheduler
+#: that fires a draft is one nobody can safely author against.
+#:
+#: The stored register has NO `enabled` field, and that is deliberate. It carried one until
+#: `test_field_attrs` refused its `default: true` — a default writes a value nobody chose, and for a
+#: switch that governs recurring jobs the record could no longer distinguish "somebody enabled this"
+#: from "nobody looked at it". Chasing that turned up the real defect: **`enabled` duplicated the
+#: workflow.** `paused` already means disabled, so two switches governed one concept with nothing
+#: stating which won. The workflow is the authority — turning a routine on is an explicit `activate`
+#: transition, which is the authorisation a scheduled job needs. `evaluate()` still honours a
+#: caller-supplied `enabled` for the stateless endpoint, where there is no workflow to consult.
+ACTIVE_STATE = "active"
+
+
+def from_project(db, project_id: str, now: datetime | None = None,
+                 in_flight: set[str] | None = None) -> dict[str, Any]:
+    """Evaluate the routines stored for one project.
+
+    The stored `last_run` is the routine's own record of when it last fired, so recurrence survives a
+    restart — which is the whole point of persisting these. A routine that is not `active` is not
+    evaluated at all: `draft` was never switched on and `retired` was switched off on purpose, and
+    firing either would be the scheduler inventing intent.
+    """
+    from . import modules as me
+
+    try:
+        rows = me.list_records(db, "routine", project_id, limit=10_000)
+    except Exception:                            # noqa: BLE001 — module absent in a trimmed deploy
+        return {**due([], now or utc_now()), "note": "the routine register is not installed here"}
+
+    routines, last_runs = [], {}
+    for r in rows:
+        if str(r.get("workflow_state") or "") != ACTIVE_STATE:
+            continue
+        d = r.get("data") or {}
+        rid = str(r.get("id"))
+        # No `enabled` is passed: the workflow state above IS the switch. Reading a stored
+        # `enabled` here would reinstate the two-switches ambiguity the register just shed.
+        routines.append({"id": rid, "ref": r.get("ref"), "kind": d.get("kind"),
+                         "cadence": d.get("cadence"), "project_id": project_id})
+        if d.get("last_run"):
+            last_runs[rid] = d["last_run"]
+    out = due(routines, now or utc_now(), last_runs=last_runs, in_flight=in_flight)
+    out["project_id"] = project_id
+    out["evaluated"] = len(routines)
+    out["stored"] = len(rows)
+    out["note"] += (f" {len(rows) - len(routines)} stored routine(s) were not evaluated because they "
+                    "are not active — draft was never switched on, retired was switched off."
+                    if len(rows) != len(routines) else "")
+    return out
+
+
 def utc_now() -> datetime:
     """The one place the clock is read — so every other function stays testable at a boundary."""
     return datetime.now(timezone.utc)
