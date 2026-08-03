@@ -20,7 +20,7 @@ from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-TESTS = ["test_proforma", "test_renovation", "test_rollover", "test_income_basis", "test_cost", "test_g702_lines", "test_modules", "test_dashboard",
+TESTS = ["test_provenance_report", "test_proforma", "test_renovation", "test_rollover", "test_income_basis", "test_cost", "test_g702_lines", "test_modules", "test_dashboard",
          "test_rbac", "test_auth", "test_connections", "test_presence", "test_collab", "test_serving", "test_api",
          "test_evidence_gate", "test_cpm", "test_estimate", "test_bidding", "test_safety", "test_portfolio", "test_templates", "test_versions", "test_generate", "test_sso", "test_ai", "test_closeout", "test_security", "test_dev_budget", "test_specialty", "test_testfit", "test_structure", "test_research", "test_compute_graph", "test_ratelimit", "test_federated_clash", "test_classification",
          # R22-ENTITLE-RISK — approval odds + entitlement duration in the Monte Carlo:
