@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.851 - R22-PHOTO-CV Tier 1: the site photos finally have a reader
+
+`routers/verification.py` has been attaching field photos to IFC GlobalIds for months and nothing
+ever read one. The gap was a CONSUMER, not a model, so this ships without a new dependency - numpy
+and pillow were already in both lockfiles.
+
+- **`photo_cv.py`** (new leaf): a quality gate that refuses a photo carrying no evidence (Laplacian
+  focus + exposure clipping), a perceptual hash that catches one shot uploaded against thirty
+  elements to clear a checklist, and a normalised comparison that screens the incoming photo against
+  the outgoing one at upload - the only moment both exist, since `photo_key` is a single column.
+- **The API states its own confidence.** `near_identical=True` is a strong claim; a high
+  `change_score` is a screening signal only, because a camera move scores higher than most real
+  change. Returning a bare `changed: bool` would have asserted more than the mathematics supports.
+- **A test corrected the design.** The load-bearing case - an exposure shift must NOT read as change
+  - failed on first run at correlation 0.98 with zero changed cells, rejected solely on hash
+  distance. dHash is not exposure-invariant where highlights clip, so it can no longer veto the two
+  measures that are invariant by construction. A tight bound there would have reported "changed" for
+  most unchanged elements, which is how a monitoring feature gets switched off.
+- **Roadmap correction.** The licence objection filed against this item was wrong: torch,
+  torchvision, scikit-image and scikit-learn are BSD-3 and OpenCV is Apache-2.0. The actual trap is
+  Ultralytics YOLO (AGPL), and naming the category instead of the package had blocked the item for
+  days. Defect detection stays refused - no labelled data - with concrete cracks carved out, since
+  public CC-BY datasets exist for that one class.
+
 ## v0.3.850 — the register renderer leaves the shell, because two lanes were sharing one file
 
 **The lane table was green and the boundary was fiction.** `docs/roadmap.md` assigns

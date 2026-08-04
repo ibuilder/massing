@@ -1112,18 +1112,45 @@ construction teams actually automate**, at a granularity nobody publishes otherw
 coverage checklist against our 130 modules it is a gap-analysis input, not an import.
 
 
-* ⭐ **R22-PHOTO-CV** *(M — needs a mission-fit call before building)* — **the one real gap the corpus
-  surfaced.** Three skills (`progress-monitoring-cv`, `progress-photo-analyzer`, `defect-detection-ai`)
-  have no counterpart here; grepping for photo analysis returns nothing but storage.
+* ✅ **R22-PHOTO-CV Tier 1 — SHIPPED v0.3.851.** `services/api/src/aec_api/photo_cv.py`, wired into
+  `services/api/src/aec_api/routers/verification.py`. The gap was never a model, it was a **consumer**:
+  that route had been attaching photos to GlobalIds for months and nothing ever read one.
 
-  **The substrate already exists, and it is the reach shape one layer up:** `routers/verification.py:109`
-  uploads a photo **against a GUID**, so site photos are already element-attached — and *nothing reads
-  them*. The data is landing and no consumer exists. That makes this cheaper than a green-field CV
-  feature and it is why it is worth recording rather than dismissing.
+  Tier 1 is classical image processing with **no new dependency** — numpy and pillow were already in
+  both lockfiles. A quality gate (Laplacian-variance focus + exposure clipping) refuses a photo that
+  carries no evidence, a perceptual hash catches the same shot uploaded against thirty elements to
+  clear a checklist, and a normalised comparison screens the incoming photo against the outgoing one
+  at upload — the only moment both exist, since `photo_key` is a single column.
 
-  **Gate it on the non-negotiables before any build:** a CV model is a new dependency and probably a
-  large one, the viewer must stay fully offline, and licences must be MIT/BSD/Apache. If those cannot
-  all hold, the honest outcome is to refuse it in place — the way semantic search was refused above.
+  **The API states its own confidence, because the mathematics is asymmetric.** `near_identical=True`
+  is a strong claim; a high `change_score` is a screening signal only, and a camera move scores higher
+  than most real change. That asymmetry is asserted in `services/api/test_photo_cv.py`, whose
+  load-bearing case is that an *exposure* shift must NOT read as change — a test that failed on first
+  run and corrected the design: dHash is not exposure-invariant where highlights clip, so it cannot
+  veto the two measures that are invariant by construction.
+
+* ⭐ **R22-PHOTO-CV Tier 2 — pretrained detection** *(M — decided 2026-08-03: site logistics first)*.
+  Torch + torchvision (**both BSD-3**) for training/export only; the API service gets **onnxruntime**
+  (MIT, ~50 MB) so the training framework never enters the deployed image. Per the dependency rule
+  above, neither is pinned until the code that uses it lands. First target is COCO-pretrained
+  detection — people, vehicles, plant — which needs **zero labelling** and proves the pipeline end to
+  end on real photos before anyone labels anything. `photo_cv.photo_quality` becomes the pre-filter:
+  feeding a blurred frame to a detector produces confident nonsense.
+
+  **The licence objection recorded here until 2026-08-03 was wrong and is retracted.** It read "a CV
+  model is a new dependency and probably a large one… licences must be MIT/BSD/Apache", implying the
+  frameworks were the problem. They are not: torch, torchvision, scikit-image and scikit-learn are
+  BSD-3 and OpenCV is Apache-2.0. **The actual trap is Ultralytics YOLO, which is AGPL** — and it is
+  what nearly every tutorial reaches for, so name it rather than the category.
+
+* ⛔ **R22-PHOTO-CV defect detection — REFUSED IN PLACE**, the way semantic search was. Not a
+  scheduling problem: a defect classifier needs labelled construction photos and this project has
+  none. **One carve-out, recorded so the refusal is not read wider than it is:** concrete *cracks*
+  specifically do have public datasets (SDNET2018 and several Mendeley sets, mostly CC-BY), so that
+  one class is reachable by fine-tuning if it is ever wanted. Broader defect detection is not.
+  Fine-tuning needs a few hundred labelled images per class, not the thousands a from-scratch model
+  would — the earlier "months of labelling" estimate was costed against training from scratch, which
+  nobody should do, and overstated the barrier.
 
 **⛔ Licence exclusions recorded from this scan (evaluated, refused, do not re-litigate).** Two
 otherwise-relevant OSS projects are unusable under the standing MIT/BSD/Apache-only rule: a GPU map-

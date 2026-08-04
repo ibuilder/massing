@@ -108,18 +108,55 @@ def set_status(pid: str, guid: str, body: dict = Body(...), db: Session = Depend
 @router.post("/projects/{pid}/verification/{guid}/photo")
 async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
                        user: str = Depends(require_role("editor"))):
-    """Attach a field photo to an element's verification (deviation evidence / install proof)."""
+    """Attach a field photo to an element's verification (deviation evidence / install proof).
+
+    R22-PHOTO-CV: the upload is also the only moment both photos exist, so it is where the analysis
+    has to happen. `photo_key` is a single column — one photo per element — so replacing it is
+    destructive, and comparing the incoming shot against the stored one *before* the overwrite is the
+    only progress signal available without a schema change and a migration.
+
+    Two results ride back on the response:
+
+      * `quality` — a blurred or blown-out photo is stored anyway but reported as unusable. Refusing
+        it outright would be wrong: a field engineer in a dark riser may have no better shot, and
+        losing the evidence is worse than keeping a poor frame. Flagging it lets the app offer a
+        retake while the person is still standing there, which is the only time a retake is cheap.
+      * `change` — present only when this element already had a photo. Read `change.confidence`
+        before believing `change_score`; see `photo_cv.compare_photos`.
+
+    Analysis never fails the upload. A photo that cannot be DECODED is a different matter and is
+    refused with a 400, because storing a non-image under a verification record silently destroys the
+    evidence value of the record.
+    """
     import os
     import re
+
+    from .. import photo_cv
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "photo")).lstrip(".") or "photo"
     key = f"verification/{pid}/{guid}/{safe}"
-    storage.put(key, await file.read())
+    data = await file.read()
+
+    try:
+        quality = photo_cv.photo_quality(data)
+    except photo_cv.PhotoError as exc:
+        raise HTTPException(400, f"not a usable photo: {exc}") from exc
+
     v = db.execute(select(ElementVerification).where(
         ElementVerification.project_id == pid, ElementVerification.guid == guid)).scalar_one_or_none()
+
+    # Compare against the outgoing photo while it is still the stored one.
+    change = None
+    if v is not None and v.photo_key:
+        try:
+            change = photo_cv.compare_photos(storage.get(v.photo_key), data)
+        except Exception:  # noqa: BLE001 — a missing or unreadable prior photo must not block the upload
+            change = None
+
+    storage.put(key, data)
     if v is None:
         v = ElementVerification(project_id=pid, guid=guid, status="installed", verified_by=user)
         db.add(v)
     v.photo_key = key
     v.modified_at = _now()
     db.commit()
-    return {"guid": guid, "has_photo": True}
+    return {"guid": guid, "has_photo": True, "quality": quality, "change": change}
