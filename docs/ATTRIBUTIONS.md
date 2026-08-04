@@ -56,6 +56,25 @@ permissive and compatible with this project's MIT/BSD/Apache-only dependency rul
 its code is supply-chain surface with no offsetting benefit, and the lockfile gate requires
 `requirements.lock` to be regenerated in the same commit.
 
+## Site-photo object detection — R22-PHOTO-CV Tier 2
+
+**`onnxruntime` (MIT)** runs the exported detector in `services/api/src/aec_api/photo_detect.py`. It
+is the ONLY new runtime dependency for detection, and that split is deliberate: `torch` and
+`torchvision` are used exclusively by `services/api/scripts/export_detector.py`, offline, to produce
+the `.onnx`. They are not in `requirements.in` and must not be added — the CPU build is 200 MB+
+against onnxruntime's ~50 MB, and the service performs inference only, never training.
+
+The pretrained weights are torchvision's `FasterRCNN_MobileNet_V3_Large_FPN_Weights.COCO_V1`
+(**BSD-3**, from download.pytorch.org). The exported model is **not committed** — weights are large
+binaries carrying their own terms — so the export script plus its pinned weights enum is the
+reproducible recipe instead.
+
+**Explicitly refused: Ultralytics YOLO (AGPL).** It is what most object-detection material reaches
+for, and it would relicense anything it touches. Naming the package rather than the category is the
+point: the frameworks in this space — torch, torchvision, OpenCV, scikit-image, scikit-learn — are
+all permissive, so a blanket "CV libraries are a licence risk" would be wrong and was in fact
+recorded in the roadmap as such until 2026-08-04.
+
 ## Ara3D SDK — format inspiration (MIT)
 
 The columnar BIM data layer and the BFAST/G3D/VIM reader draw on the **[Ara3D SDK](https://github.com/ara3d/ara3d-sdk)**

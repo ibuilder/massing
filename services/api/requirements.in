@@ -60,3 +60,10 @@ opentelemetry-instrumentation-sqlalchemy>=0.65b0
 # BSD-3, approved 2026-07-26 and recorded in ATTRIBUTIONS.md. Pinned in the change that FIRST USES
 # it, per the roadmap: a dependency carried ahead of its code is supply-chain surface for no benefit.
 rdflib>=7.1
+
+# --- R22-PHOTO-CV Tier 2: site-photo object detection (photo_detect.py) ---
+# MIT, recorded in docs/ATTRIBUTIONS.md. INFERENCE ONLY — torch/torchvision are used offline by
+# scripts/export_detector.py to produce the .onnx and must NEVER appear here: the CPU build is
+# 200 MB+ against onnxruntime's ~50 MB, and the service never trains. Detection stays inert without
+# a model file (AEC_PHOTO_MODEL), so installing this does not by itself turn anything on.
+onnxruntime>=1.23
