@@ -1160,6 +1160,20 @@ coverage checklist against our 130 modules it is a gap-analysis input, not an im
   BSD-3 and OpenCV is Apache-2.0. **The actual trap is Ultralytics YOLO, which is AGPL** — and it is
   what nearly every tutorial reaches for, so name it rather than the category.
 
+* ✅ **R22-PHOTO-CV Tier 2 — VALIDATED on a real photograph, 2026-08-04.** The claim the unit suite
+  is structurally unable to make is now settled by observation. Against a CC BY 3.0 construction
+  photo from Wikimedia Commons ("A day's work done, Hitchin railway flyover workers go home"),
+  `scripts/try_detect.py` returned **5 people and 1 car in 1.18 s**, scores 0.58–0.99.
+
+  **The box geometry is what makes it convincing, not the count.** People came back 40–62 px wide by
+  135–160 px tall — roughly 1:2.6, the human aspect ratio — clustered together, while the car was
+  104×44, wide and short, elsewhere in the frame. A miswired preprocessing step produces plausible
+  *counts* but not correct *proportions*; this is the check that would have caught the CHW/NCHW bug
+  fixed in v0.3.857 had a photo been available then.
+
+  The test photo is **not committed** — it is third-party CC BY content and the repo has no need of
+  it. `scripts/try_detect.py` points at any local image, which is the reusable half.
+
 * ⛔ **R22-PHOTO-CV defect detection — REFUSED IN PLACE**, the way semantic search was. Not a
   scheduling problem: a defect classifier needs labelled construction photos and this project has
   none. **One carve-out, recorded so the refusal is not read wider than it is:** concrete *cracks*
