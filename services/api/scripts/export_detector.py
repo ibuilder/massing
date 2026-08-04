@@ -20,7 +20,24 @@ permissive.
 
 Install (in a THROWAWAY venv, not the service venv — these must never reach requirements.in):
 
-    python -m venv .venv-export && .venv-export/Scripts/pip install torch torchvision
+    python -m venv .venv-export
+    .venv-export/Scripts/pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+    .venv-export/Scripts/pip install onnx
+
+**Two export gotchas, recorded because both cost a cycle and neither is obvious.**
+
+1. **`dynamo=False` is load-bearing.** torch >= 2.6 defaults `torch.onnx.export` to the dynamo
+   exporter, and dynamo **cannot** trace Faster R-CNN: the number of proposals surviving NMS depends
+   on the pixel data, so `torch.export` raises a data-dependent-shape error. torchvision's detection
+   models are exportable only through the legacy TorchScript path. The failure is loud but its
+   message is three frames deep.
+
+2. **Run it with `PYTHONUTF8=1` on Windows.** When the export fails, torch prints its progress
+   markers (`❌`) to stderr, and on a cp1252 console *the error reporting itself* dies with
+   `UnicodeEncodeError` — masking the real error entirely. The first failure here looked like a
+   Unicode bug and was actually the data-dependent-shape one above.
+
+    PYTHONUTF8=1 python scripts/export_detector.py --out <path>
 """
 from __future__ import annotations
 
@@ -58,14 +75,25 @@ def main() -> int:
     model = fasterrcnn_mobilenet_v3_large_fpn(weights=weights, box_score_thresh=0.30)
     model.eval()
 
-    # box_score_thresh is set LOW here and filtered properly at call time by photo_detect.MIN_SCORE.
-    # Baking a high threshold into the graph would make the runtime constant a lie — you could raise
-    # MIN_SCORE and never see the extra boxes, because the graph had already discarded them.
-    dummy = torch.zeros(1, 3, INPUT_SIZE, INPUT_SIZE, dtype=torch.float32)
+    # box_score_thresh is BAKED INTO THE GRAPH — it is part of the model's own postprocessing, not
+    # something the runtime can undo. So 0.30 here is a hard FLOOR: `photo_detect.MIN_SCORE` (0.55)
+    # can only tighten it further, and setting MIN_SCORE below 0.30 changes nothing because those
+    # boxes were discarded before the graph ever emitted them.
+    #
+    # Stated plainly because the first draft of this comment claimed the threshold was "set low and
+    # filtered properly at call time", which is only half true and is exactly the kind of note that
+    # sends someone hunting for a runtime bug that is really an export-time constant. If you need
+    # detections below 0.30, re-export — do not touch MIN_SCORE.
+    # torchvision detection models take List[Tensor] of CHW images, not a batched NCHW tensor. The
+    # trailing comma matters: it makes this the single positional argument `images`, so the exported
+    # graph's input is one 3-D tensor. photo_detect._preprocess must therefore feed CHW, not NCHW.
+    dummy = torch.zeros(3, INPUT_SIZE, INPUT_SIZE, dtype=torch.float32)
     torch.onnx.export(
-        model, dummy, args.out,
+        model, ([dummy],), args.out,
         input_names=["images"], output_names=["boxes", "labels", "scores"],
         opset_version=args.opset,
+        # See gotcha 1 in the module docstring: the dynamo exporter cannot trace this model at all.
+        dynamo=False,
         # Batch stays 1 (one photo per upload) but detection COUNT varies per image, so the output
         # dim must be dynamic or the graph silently truncates to whatever the dummy produced.
         dynamic_axes={"boxes": {0: "n"}, "labels": {0: "n"}, "scores": {0: "n"}},

@@ -151,7 +151,15 @@ def unletterbox(box: tuple[float, float, float, float], scale: float, pad_x: int
 
 
 def _preprocess(data: bytes) -> tuple[np.ndarray, float, int, int, int, int]:
-    """Decode -> letterbox -> CHW float32 in [0,1], the layout the exported graph expects."""
+    """Decode -> letterbox -> **CHW** float32 in [0,1], the layout the exported graph expects.
+
+    **Three dimensions, not four.** torchvision's detection models take `List[Tensor]` of CHW images
+    rather than a batched NCHW tensor, so the exported graph's input is `images: [3, 640, 640]`.
+    Adding the batch axis here — the reflex, and what the first version did — fails at
+    `sess.run` with a rank mismatch. Verified by asking the graph rather than assuming:
+
+        [i.shape for i in ort.InferenceSession(model).get_inputs()]  ->  [[3, 640, 640]]
+    """
     from PIL import Image  # pillow is a hard dep (photo_cv uses it); local import keeps this leaf tidy
     img = photo_cv._decode(data)          # noqa: SLF001 — same package, one decoder, one set of limits
     w, h = img.width, img.height
@@ -160,7 +168,7 @@ def _preprocess(data: bytes) -> tuple[np.ndarray, float, int, int, int, int]:
     canvas = Image.new("RGB", (INPUT_SIZE, INPUT_SIZE), (114, 114, 114))
     canvas.paste(resized, (pad_x, pad_y))
     arr = np.asarray(canvas, dtype=np.float32) / 255.0
-    return np.transpose(arr, (2, 0, 1))[None, ...], scale, pad_x, pad_y, w, h
+    return np.transpose(arr, (2, 0, 1)), scale, pad_x, pad_y, w, h
 
 
 def summarise(detections: list[dict]) -> dict:

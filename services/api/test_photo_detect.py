@@ -90,6 +90,23 @@ except ValueError:
 except ZeroDivisionError:
     check("letterbox(0, …) raises rather than dividing by zero", False, "raised ZeroDivisionError")
 
+# --- 1b. the preprocessing CONTRACT with the exported graph ---------------------------------------
+# Verified against a real export on 2026-08-04: the graph's input is `images: [3, 640, 640]`, because
+# torchvision detection models take List[Tensor] of CHW images rather than a batched NCHW tensor. The
+# first version of _preprocess added a batch axis — the reflex — and would have failed on the first
+# real inference with a rank mismatch. No unit test could catch that without the model, so the SHAPE
+# is pinned here instead: if someone reintroduces the batch axis, this fails immediately rather than
+# in production.
+print("preprocess contract")
+t, scale, px, py, w, h = pd._preprocess(png(1280, 720))
+check("tensor is CHW (3 dims), NOT NCHW — matches the exported graph's input", t.ndim == 3,
+      f"got shape {t.shape}")
+check("channels first, square input", t.shape == (3, pd.INPUT_SIZE, pd.INPUT_SIZE), f"{t.shape}")
+check("float32 in [0,1], as the graph expects",
+      t.dtype == np.float32 and 0.0 <= float(t.min()) and float(t.max()) <= 1.0,
+      f"dtype={t.dtype} range=({float(t.min()):.3f},{float(t.max()):.3f})")
+check("original dimensions are returned for the box mapping", (w, h) == (1280, 720), f"{(w, h)}")
+
 # --- 2. degradation: no runtime / no model must REPORT, never raise -------------------------------
 print("degradation")
 os.environ.pop(pd.MODEL_ENV, None)
