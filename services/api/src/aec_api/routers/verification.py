@@ -124,9 +124,19 @@ async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Se
       * `change` — present only when this element already had a photo. Read `change.confidence`
         before believing `change_score`; see `photo_cv.compare_photos`.
 
-    Analysis never fails the upload. A photo that cannot be DECODED is a different matter and is
-    refused with a 400, because storing a non-image under a verification record silently destroys the
-    evidence value of the record.
+    **Analysis never fails the upload — including when the bytes cannot be decoded at all.** The
+    first version refused an undecodable file with a 400, on the reasoning that a non-image under a
+    verification record destroys the record's evidence value. That was wrong twice over.
+
+    It contradicted the paragraph above it: if a blurred frame is worth keeping because the engineer
+    may have no better shot, an unparseable one is worth keeping for exactly the same reason. And it
+    would have rejected the most likely real field photo on the platform — **iPhones shoot HEIC by
+    default, and Pillow cannot decode HEIC without `pillow-heif`**, which is not a dependency here.
+    A gate meant to protect evidence would have thrown away the evidence.
+
+    So an undecodable upload is stored with `quality.analysed = False` and the decoder's complaint.
+    The API cannot tell "corrupt" from "a format we lack a codec for", and between silently
+    discarding a real photo and keeping one it could not read, keeping is the recoverable error.
     """
     import os
     import re
@@ -138,8 +148,10 @@ async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Se
 
     try:
         quality = photo_cv.photo_quality(data)
+        quality["analysed"] = True
     except photo_cv.PhotoError as exc:
-        raise HTTPException(400, f"not a usable photo: {exc}") from exc
+        # Store it regardless — see the docstring. HEIC lands here on an unpatched Pillow.
+        quality = {"analysed": False, "usable": None, "reasons": [f"could not be read: {exc}"]}
 
     v = db.execute(select(ElementVerification).where(
         ElementVerification.project_id == pid, ElementVerification.guid == guid)).scalar_one_or_none()
