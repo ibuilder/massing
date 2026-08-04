@@ -51,7 +51,11 @@ const BASELINE: Record<string, number> = {
   "portal/panels/standards.ts": 8,
   "portal/panels/traceability.ts": 1,
   "portal/panels/wip.ts": 1,
-  "portal/portal.ts": 14,
+  // v0.3.850 split the register renderer out of `portal.ts`; the 14 that lived in one file are now
+  // 8 + 6 across two. Re-split rather than left at 14, because a per-file allowance parked above the
+  // file's real count is headroom for a new sink — the repo-wide total below never noticed the move.
+  "portal/portal.ts": 8,
+  "portal/register/register.ts": 6,
   "proforma/proforma.ts": 16,
   "reportCenter.ts": 4,
   "studio/nodeEditor.ts": 1,

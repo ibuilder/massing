@@ -4,6 +4,60 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.850 — the register renderer leaves the shell, because two lanes were sharing one file
+
+**The lane table was green and the boundary was fiction.** `docs/roadmap.md` assigns
+`apps/web/src/portal/portal.ts` to Lane A · Shell & IA and every register-shaped item to Lane B ·
+UI & panels, and `roadmapLanes.test.ts` proved those paths disjoint. They were. The generic **register
+renderer** — the config-driven engine behind all ~130 registers' list, filters, sortable table, inline
+edit, form, record page and board — was inside `portal.ts`, so a Lane B item could not do its own work
+without editing a Lane A file. Disjointness is a property of *paths*; this was a mismatch between a
+path and the *work*, and no version of that check can see it.
+
+Three items had already hit it. **`R36-EMPTY-STATE` shipped through it last release** and missed a
+collision only because the Lane A session happened to be in the viewer that hour. **`R24-MONO-DATA`
+gave up** on its `portal.ts` hunk and recorded why in `ui/monoData.test.ts`: "held by another
+session's in-flight work". **`R24-DENSITY ②`** — *"applied to registers, not just the dashboards"* —
+was aimed at the same wall.
+
+**Moving the items to Lane A would have relabelled the collision, not removed it.**
+`R36-EMPTY-STATE` genuinely edited `ui/empty.ts` *and* `portal.ts`; under Lane A it straddles the
+other way. While one file holds both jobs, no assignment of the items makes them stop straddling. And
+a carve-out is written `!path` — a path is a file, so "the register methods of `portal.ts`" cannot be
+said at all, and the directions are explicit that a prose exclusion is not a boundary.
+
+So the renderer became a file. `apps/web/src/portal/register/register.ts` now holds it and **Lane B
+owns `portal/register/`**; `portal.ts` keeps the shell — nav rail, room spine, workspace and persona
+filters, dashboards, module catalog, destination dispatch — and stays Lane A's. Its 3,501 lines became
+1,413 + 2,140.
+
+**Behaviour-preserving by construction.** The move was mechanical: the ~90 internal calls between
+these pieces are untouched, and only references to *shell* state became `this.ctx.*` over the existing
+`PanelContext` — the same seam `portal/panels/*` already uses, plus one addition (`hasDest`, so a
+register's declared `tools[]` can ask whether a destination exists before rendering a button for it).
+The shell reaches back through exactly six members. **1149/1149 web tests green, typecheck and lint
+clean, no behaviour change intended or observed.**
+
+**Two checks hold the boundary, because prose would not.**
+
+- `portal/register/registerOwnership.test.ts` — no register internal may reappear in `portal.ts`, and
+  the six doors the shell may use are enumerated with the reason for each. A seam holds only while
+  crossing it is inconvenient, and `this.reg.` is not inconvenient at all. Mutation-checked both ways.
+- `shell/roadmapLanes.test.ts` gained one assertion: the lane owning the portal shell is not the lane
+  owning the register renderer, and neither path is unowned.
+
+`ui/innerHtmlGuard.test.ts`'s per-file allowance was re-split with the code (14 in one file → 8 + 6
+across two) rather than left at 14, since an allowance parked above a file's real count is headroom
+for the next unescaped sink; its repo-wide total was already rename-proof and never moved.
+
+**One finding recorded, deliberately not decided.** The lane check asserts lanes do not *overlap*;
+nothing asserts they *cover*, and they do not — `drawings/`, `proforma/`, `studio/`, `tools/`,
+`tree/`, `pins/`, `kernel/`, `account/`, `connections/` and the `portal/` root files have no lane at
+all. The live case is `apps/web/src/drawings/`, where **Lane B's `R23-SYMBOL-COUNT` and
+`R38-SHEET-MARKUP ③` and Lane A's `R36-DRAWINGS-RETURN` all land**. Same shape as this bug with the
+extra twist that nobody owns it. It is written into the roadmap rather than settled here: guessing an
+owner for a directory two lanes are already aimed at is how this one was made.
+
 ## v0.3.849 — a register with no rows now says *which* of three things is true
 
 **Reported as "something is wrong with specs".** Specs was fine: the module rendered in full —

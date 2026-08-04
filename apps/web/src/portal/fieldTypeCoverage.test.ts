@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { EDITABLE_FIELD_TYPES, NUMERIC_FIELD_TYPES, READ_ONLY_FIELD_TYPES } from "./portal";
+import { EDITABLE_FIELD_TYPES, NUMERIC_FIELD_TYPES, READ_ONLY_FIELD_TYPES } from "./register/register";
 
 /**
  * MOD-PERCENT — every field type a shipped module declares is one the form layer can actually render.

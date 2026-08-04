@@ -75,9 +75,13 @@ function hardCodedMono(): { file: string; line: number }[] {
 /**
  * Remaining hand-rolled stacks, and why each survives.
  *
- * `portal/portal.ts` was held by another session's in-flight work when this landed; converting it
- * would have meant editing a file two people had open. It is a one-line change for whoever is next
- * in that file — and this number going UP is a build failure either way.
+ * The survivor is `pasteRows`, and its history is the point. It was left because `portal/portal.ts`
+ * was held by another session's in-flight work when this landed — converting it would have meant
+ * editing a file two people had open. That was not bad luck: `R24-MONO-DATA` is a Lane B item and
+ * `portal.ts` was a Lane A file, so the collision was structural and permanent. v0.3.850 moved the
+ * register renderer to `portal/register/register.ts`, which Lane B owns, and this line went with it.
+ * It is now a one-line change inside the lane that wants it — and this number going UP is a build
+ * failure either way.
  */
 const ALLOWANCE = 1;
 

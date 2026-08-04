@@ -225,6 +225,36 @@ describe("the roadmap lane table", () => {
       .toEqual([]);
   });
 
+  it("owns the portal shell and the register renderer in DIFFERENT lanes", () => {
+    // The one boundary this file could not see, asserted here because a second reader of the lane
+    // table would drift from `laneRows()` — the mistake the LANE_ROW_LINES note above is about.
+    //
+    // Until 2026-08-03 the generic register renderer lived inside `portal/portal.ts`. Lane A owned
+    // that file; every register-shaped item is Lane B's, because a register is a data surface. The
+    // paths were disjoint, every assertion above was green, and Lane B still had to edit a Lane A
+    // file to do its own work — `R36-EMPTY-STATE` shipped exactly that way, `R24-MONO-DATA` gave up
+    // and said so in `ui/monoData.test.ts`. **Disjointness is a property of paths; this was a
+    // mismatch between a path and the work**, and no version of the check above can reach it.
+    //
+    // v0.3.850 made the boundary statable by making the renderer a file. What can rot from here is
+    // the assignment: drop `portal/register/` from Lane B and the directory has no owner, which
+    // every session may then edit — the state the carve-out check above exists to forbid. So the
+    // claim is named. Two paths, not a general coverage rule, because the lanes do NOT cover the
+    // tree today (`drawings/`, `proforma/`, `studio/` and others are unowned) and a rule that fails
+    // for reasons nobody has decided yet is a rule people turn off.
+    const ownerOf = (path: string) =>
+      LANES.filter((l) => l.paths.some((p) => p === path || p.endsWith(path))).map((l) => l.name);
+    const shell = ownerOf("portal/portal.ts");
+    const register = ownerOf("portal/register/");
+    expect(shell, "no lane owns portal/portal.ts").toHaveLength(1);
+    expect(register, "no lane owns portal/register/ — an unowned path is editable by everyone")
+      .toHaveLength(1);
+    expect(register[0],
+      "the portal shell and the register renderer are back in one lane; the point of the v0.3.850 "
+      + "split was that a register item must not have to reach into a Shell & IA file")
+      .not.toBe(shell[0]);
+  });
+
   it("claims no item in two lanes at once", () => {
     const seen = new Map<string, string>();
     const dupes: string[] = [];

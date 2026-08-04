@@ -27,4 +27,9 @@ export interface PanelContext {
   openModule(m: ModuleDef, filter?: { q?: string; state?: string; offset?: number }): Promise<void>;
   /** Jump to a first-class portal destination by its `__key__` (SPRINT MB deep-links). */
   navigate(key: string): void;
+  /** Whether a `__key__` destination has a handler at all. `navigate` no-ops on an unknown key, so a
+   *  caller that renders a *button* for a declared destination has to ask first — a button that
+   *  silently does nothing is worse than an absent one (`railWiring.test.ts` guards the same rule for
+   *  the rail). The register's `module.json` `tools[]` are exactly that case. */
+  hasDest(key: string): boolean;
 }

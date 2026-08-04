@@ -152,7 +152,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT *(SHIPPED v0.3.848)* · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE · R40-RIBBON ② |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · AUTH-SNAP-OVERRIDE · RAIL-DRAG · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
@@ -171,6 +171,54 @@ it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isol
 least likely to notice each other shared a directory. And `routers/` sat inside C's path with no owner
 of its own, which is how a route can be added twice. **A lane table whose paths overlap is not a lane
 table**; the new `roadmapLanes.test.ts` asserts disjointness so this cannot come back.
+
+**A third was wrong until 2026-08-03, and it is a different KIND of wrong — worth more than the other
+two.** Lane A owned `portal/portal.ts`; Lane B owned the register-shaped items. Those paths are
+perfectly disjoint and `roadmapLanes.test.ts` was perfectly green, because the generic **register
+renderer** — the config-driven engine behind every register's list, filters, table, form, record and
+board — lived inside `portal.ts`. So every Lane B item aimed at a register had to edit a Lane A file
+to do its work, and the table said nothing was wrong.
+
+Three items hit it before anyone named it. `R36-EMPTY-STATE` shipped that way (v0.3.849) and avoided a
+collision only because the Lane A session happened to be elsewhere that hour. `R24-MONO-DATA` gave up
+on its `portal.ts` hunk and left the reason in `ui/monoData.test.ts` — "held by another session's
+in-flight work". `R24-DENSITY ②`, whose whole point is *"applied to registers, not just the
+dashboards"*, was pointed at the same wall.
+
+**The lane check cannot see this class of defect and no version of it can.** It asserts a property of
+*paths*; this is a mismatch between a path and the *work*. Two fixes were available and only one was
+honest:
+
+* *Move the register items to Lane A.* **Rejected** — it relabels the collision instead of removing
+  it. `R36-EMPTY-STATE` genuinely edited `ui/empty.ts` **and** `portal.ts`; under Lane A it would have
+  straddled in the other direction. While one file holds both jobs there is no assignment of the items
+  that makes them stop straddling.
+* *Make the boundary statable.* A carve-out is written `!path` and a path is a file, so "the register
+  methods of `portal.ts`" cannot be expressed at all — and §4 of the directions is explicit that a
+  prose exclusion is not a boundary. So the renderer became a file: **`apps/web/src/portal/register/`
+  belongs to Lane B**, and `portal.ts` is the shell (nav rail, room spine, dashboards, destination
+  dispatch) and stays Lane A's. Shipped v0.3.850; a behaviour-preserving move, 1149/1149 web green.
+
+Two checks hold it. `roadmapLanes.test.ts` now asserts the two paths are owned by *different* lanes —
+the failure that matters is someone dropping `portal/register/` and leaving it unowned. And
+`portal/register/registerOwnership.test.ts` asserts the code side: no register internal may reappear
+in `portal.ts`, and the six members the shell reaches through are enumerated, because a seam holds
+only while crossing it is inconvenient and `this.reg.` is not inconvenient at all.
+
+**The general lesson, and it is not about registers.** *A lane's paths and a lane's items are two
+claims, and only the first one is tested.* Before starting an item, check that the file you will
+actually edit is inside your lane — the table's own greenness is not evidence of that.
+
+**Unowned paths — found while fixing the above, 2026-08-03. NOT decided here.** The lane check asserts
+that lanes do not *overlap*; nothing asserts they *cover*, and they do not. `apps/web/src/drawings/`,
+`proforma/`, `studio/`, `tools/`, `tree/`, `pins/`, `kernel/`, `account/`, `connections/` and the
+`portal/` root files (`prefs.ts`, `offlineQueue.ts`, `panelContext.ts`) belong to no lane, which the
+carve-out check in `roadmapLanes.test.ts` correctly calls "editable by everyone" when it happens
+deliberately. The live case: **`R23-SYMBOL-COUNT` and `R38-SHEET-MARKUP ③` are Lane B and land in
+`apps/web/src/drawings/`, while `R36-DRAWINGS-RETURN` is Lane A and lands there too** — so `drawings/`
+is contested by two lanes right now, the same shape as the register with the extra twist that nobody
+owns it. It needs its own premise-check and possibly the same answer. It is deliberately left open:
+guessing an owner for a directory two lanes are already aimed at is how the register problem was made.
 
 **Shared files that need a heads-up before editing.** Every multi-session conflict so far has been one
 of these: `services/api/run_tests.py` · `services/api/src/aec_api/main.py` · `docs/roadmap.md` ·
@@ -768,6 +816,8 @@ refute one, so this goes first even though it is the least visible.
   work — the `Elements` and `Reports` sections exist and are empty until something registers into them.
 - **R24-DENSITY ②** *(M)* — three steps (Field 56 px / Default 36 px / Compact 28 px) applied to
   **registers**, not just the dashboards `prefs.ts` covers today. Tabular figures wherever a number appears.
+  *The register half is `portal/register/register.ts` as of v0.3.850 — inside Lane B, where this item
+  is. It was inside Lane A's `portal.ts` until then, which is why `R24-MONO-DATA` skipped its hunk.*
 
 ### Sprint 4 — field, and the long tail
 

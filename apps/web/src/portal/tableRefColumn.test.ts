@@ -27,7 +27,9 @@ import { describe, expect, it } from "vitest";
  * to hold, in the place it has to hold.
  */
 
-const PORTAL = resolve(__dirname, "portal.ts");
+// The register renderer, which is where `tableEditor` and `refCell` live. It was inside
+// `portal.ts` until v0.3.850 — see `register/register.ts` for why it moved.
+const PORTAL = resolve(__dirname, "register", "register.ts");
 const MODULES_DIR = resolve(__dirname, "../../../../services/api/modules");
 
 function referenceColumns(): { module: string; field: string; column: string; target: string }[] {
