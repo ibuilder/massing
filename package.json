@@ -15,6 +15,7 @@
   },
   "overrides": {
     "eslint": "10.8.0",
+    "fast-uri": "^3.1.5",
     "js-yaml": "^4.3.0",
     "postcss": "^8.5.18"
   },
