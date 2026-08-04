@@ -43,16 +43,38 @@ def list_verifications(pid: str, status: str | None = None, db: Session = Depend
 @router.get("/projects/{pid}/verification/coverage")
 def coverage(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """Install-coverage summary: of the model's elements, how many are installed/verified, plus the
-    deviation count. `total` comes from the uploaded property index (0 if none yet)."""
+    deviation count. `total` comes from the uploaded property index (0 if none yet).
+
+    **Also reports EVIDENCE coverage, which is the half this endpoint was missing.** This module
+    exists for the verified handover to operations, and its own docstring calls deviations
+    "photo-anchored" — but until now `coverage` counted status flags only. "42 elements verified" with
+    no idea how many carry a photo is a claim nobody downstream can audit, and the status flag is the
+    cheapest thing in the system to set.
+
+    `deviations_without_photo` is the number worth surfacing first: a deviation is an assertion that
+    something does not match design, and one with no photo is that assertion with nothing behind it.
+    That is what becomes contentious at handover, months later, when the person who logged it has
+    left the project.
+
+    Deliberately NOT reported: anything derived from what the photos *contain*. Object detection
+    answers "what is in this frame", which is not the same question as "is this element documented",
+    and mixing the two would put an inferred number where an auditable one belongs.
+    """
     _ensure_loaded(pid)
     total = len(_INDEX.get(pid, {}))
     by_status = dict.fromkeys(STATUSES, 0)
-    rows = list(db.execute(select(ElementVerification.status, ElementVerification.guid)
+    rows = list(db.execute(select(ElementVerification.status, ElementVerification.guid,
+                                  ElementVerification.photo_key)
                            .where(ElementVerification.project_id == pid)).all())
     tracked_guids = set()
-    for st, guid in rows:
+    photo_guids: set[str] = set()
+    photo_by_status = dict.fromkeys(STATUSES, 0)
+    for st, guid, photo_key in rows:
         by_status[st] = by_status.get(st, 0) + 1
         tracked_guids.add(guid)
+        if photo_key:
+            photo_guids.add(guid)
+            photo_by_status[st] = photo_by_status.get(st, 0) + 1
     # untracked elements count as pending against the model total
     tracked = len(tracked_guids)
     by_status["pending"] = max(by_status.get("pending", 0), (total - tracked) if total else by_status.get("pending", 0))
@@ -68,6 +90,16 @@ def coverage(pid: str, db: Session = Depends(get_db), _: str = Depends(require_r
         "deviations": by_status.get("deviation", 0),
         "verified_pct": round(100 * verified / denom, 1),
         "installed_pct": round(100 * installed / denom, 1),
+        # --- evidence coverage -------------------------------------------------------------------
+        # Percentages are against TRACKED elements, not the model total: an element nobody has looked
+        # at yet is not missing evidence, it is simply not started. Dividing by `total` would blame
+        # the field team for work that has not begun and make the number drift with model size.
+        "with_photo": len(photo_guids),
+        "photo_by_status": photo_by_status,
+        "evidence_pct": round(100 * len(photo_guids) / tracked, 1) if tracked else 0.0,
+        "verified_with_photo": photo_by_status.get("verified", 0),
+        # The handover number. A deviation with no photo is an assertion with nothing behind it.
+        "deviations_without_photo": by_status.get("deviation", 0) - photo_by_status.get("deviation", 0),
     }
 
 

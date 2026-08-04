@@ -43,6 +43,17 @@ with TestClient(app) as c:
     assert cov["verified_pct"] == 25.0 and cov["installed_pct"] == 50.0, cov
     assert cov["by_status"]["pending"] == 1, cov                    # g4 untracked → pending
 
+    # --- EVIDENCE coverage ------------------------------------------------------------------------
+    # No photos attached yet, so every evidence figure must read zero — and crucially the DEVIATION
+    # with no photo must be visible as such. A deviation is an assertion that something does not match
+    # design; with no photo behind it, that assertion is what becomes contentious at handover months
+    # later. Reporting only "1 deviation" hides whether anyone can substantiate it.
+    assert cov["with_photo"] == 0, cov
+    assert cov["evidence_pct"] == 0.0, cov
+    assert cov["verified_with_photo"] == 0, cov
+    assert cov["deviations_without_photo"] == 1, cov
+    assert cov["photo_by_status"]["deviation"] == 0, cov
+
     # deviation log
     dev = c.get(f"/projects/{pid}/verification/deviations").json()
     assert len(dev) == 1 and dev[0]["guid"] == "g3" and dev[0]["note"], dev
@@ -92,6 +103,17 @@ with TestClient(app) as c:
     # no model is configured — which is the default here and in CI, since neither onnxruntime nor
     # the exported .onnx ships with the repo. Asserted because a detector wired in and then quietly
     # dropped from the payload is indistinguishable from one that was never wired at all.
+    # The twin for the evidence assertions above: attaching a photo to g3 (the deviation) must MOVE
+    # the numbers. Without this, every evidence figure could be hard-coded to zero and the block above
+    # would still pass — the exact shape this repo has a standing rule against.
+    cov2 = c.get(f"/projects/{pid}/verification/coverage").json()
+    assert cov2["with_photo"] == 1, cov2
+    assert cov2["photo_by_status"]["deviation"] == 1, cov2
+    assert cov2["deviations_without_photo"] == 0, cov2          # it now has evidence behind it
+    assert cov2["evidence_pct"] > 0, cov2
+    # ...and the denominator is TRACKED, not the model total: 3 elements are tracked, 1 has a photo.
+    assert cov2["evidence_pct"] == round(100 / cov2["tracked"], 1), cov2
+
     det = ok.json()["detected"]
     assert det["available"] is False, det          # no model in CI...
     assert det["reasons"], det                     # ...and it says so
