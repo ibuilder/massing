@@ -87,6 +87,16 @@ with TestClient(app) as c:
     assert ok.status_code == 200, ok.text[:160]
     oq = ok.json()["quality"]
     assert oq["analysed"] is True and "sharpness" in oq, oq
+
+    # R22-PHOTO-CV Tier 2 must RIDE ALONG on this response, and must degrade rather than fail when
+    # no model is configured — which is the default here and in CI, since neither onnxruntime nor
+    # the exported .onnx ships with the repo. Asserted because a detector wired in and then quietly
+    # dropped from the payload is indistinguishable from one that was never wired at all.
+    det = ok.json()["detected"]
+    assert det["available"] is False, det          # no model in CI...
+    assert det["reasons"], det                     # ...and it says so
+    assert det["detections"] == [], det            # never a missing key
+    assert det["summary"]["people"] == 0, det      # a well-formed summary regardless
     # No change report here, and that is correct rather than a gap: the photo being REPLACED is the
     # undecodable one above, so there is nothing to compare against. Asserted explicitly because the
     # first version of this test expected a report and was wrong — a comparison needs two readable

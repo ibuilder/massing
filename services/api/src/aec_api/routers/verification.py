@@ -142,7 +142,7 @@ async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Se
     import os
     import re
 
-    from .. import photo_cv
+    from .. import photo_cv, photo_detect
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "photo")).lstrip(".") or "photo"
     key = f"verification/{pid}/{guid}/{safe}"
     data = await file.read()
@@ -175,6 +175,12 @@ async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Se
         except Exception:  # noqa: BLE001 — a missing or unreadable prior photo must not block the upload
             change = None
 
+    # R22-PHOTO-CV Tier 2 — what is IN the frame: people, vehicles, plant. Returns a stated reason
+    # instead of detections when no model is configured, which is the DEFAULT deployment: neither
+    # onnxruntime nor the exported .onnx ships with the repo. Like the two analyses above, it can
+    # never fail the upload — `photo_detect.detect` does not raise.
+    detected = photo_detect.detect(data)
+
     storage.put(key, data)
     if v is None:
         v = ElementVerification(project_id=pid, guid=guid, status="installed", verified_by=user)
@@ -182,4 +188,5 @@ async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Se
     v.photo_key = key
     v.modified_at = _now()
     db.commit()
-    return {"guid": guid, "has_photo": True, "quality": quality, "change": change}
+    return {"guid": guid, "has_photo": True, "quality": quality, "change": change,
+            "detected": detected}
