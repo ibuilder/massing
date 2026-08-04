@@ -286,6 +286,26 @@ export class ApiClient extends withProcurement(withEstimate(withModules(withMode
     return this.json<{ guid: string; status: string; ifc_class?: string }>(
       `/projects/${pid}/verification/${guid}`, { method: "PUT", body: JSON.stringify(body) });
   }
+  /**
+   * R22-PHOTO-CV — attach a field photo to an element and get the server's read on it back.
+   *
+   * The endpoint has existed since the verification router shipped and, until now, **had no caller
+   * in this app at all** — it appeared only in the generated `schema.d.ts`. So the photo analysis
+   * built on top of it (quality gate, change screening, object detection) was reachable by API but
+   * not by anyone using the product. This is the front door.
+   *
+   * The response carries three separately-hedged answers; use `photoVerdict` in `ui/photoVerdict.ts`
+   * to render them rather than reading the fields raw, because the qualifiers matter and are easy to
+   * drop. `quality` is trustworthy in both directions, `change` is a screening signal only, and
+   * `detected` is absent unless the deployment has a model configured.
+   */
+  async uploadVerificationPhoto(pid: string, guid: string, file: File | Blob, name = "photo.jpg") {
+    const fd = new FormData(); fd.append("file", file, name);
+    const r = await fetch(this.url(`/projects/${pid}/verification/${encodeURIComponent(guid)}/photo`),
+      { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    return r.json() as Promise<import("../ui/photoVerdict").PhotoUploadResult>;
+  }
   /** The deviation log (elements flagged as not matching design). */
   verificationDeviations(pid: string) {
     return this.json<{ guid: string; ifc_class?: string; storey?: string; note?: string }[]>(

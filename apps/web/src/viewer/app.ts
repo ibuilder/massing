@@ -17,6 +17,7 @@ import { buildElementProps, buildRawProps } from "./propsView";
 import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
 import { buildLifecycleStrip } from "../ui/lifecycleStrip";
 import { type ModelIdMap } from "./modelIds";
+import { photoVerdict, photoVerdictSummary } from "../ui/photoVerdict";
 import { askText } from "../ui/prompt";
 import { confirmModal, promptModal } from "../ui/modal";
 import { SelectionSets } from "./selectionSets";
@@ -261,7 +262,47 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
                setBtn("Deviation", "deviation", "#e2554a"));
     const lbl = document.createElement("span"); lbl.className = "meta";
     bar.appendChild(lbl);
-    row.appendChild(bar); propsVerify.appendChild(row);
+
+    // R22-PHOTO-CV — the front door for element-attached photos. The upload endpoint and its whole
+    // analysis stack (quality gate, change screening, detection) previously had NO caller in this
+    // app: reachable by API, unreachable by a person. `capture="environment"` makes a phone open the
+    // rear camera directly rather than the gallery, which is what someone standing at the element
+    // wants.
+    const photoIn = document.createElement("input");
+    photoIn.type = "file"; photoIn.accept = "image/*"; photoIn.hidden = true;
+    photoIn.setAttribute("capture", "environment");
+    const photoBtn = document.createElement("button");
+    photoBtn.className = "file-btn"; photoBtn.textContent = "\u{1F4F7} Photo";
+    photoBtn.style.cssText = "font-size:11px;padding:2px 8px";
+    photoBtn.title = "Attach a field photo to this element";
+    photoBtn.onclick = () => photoIn.click();
+    const verdict = document.createElement("div");
+    verdict.className = "meta"; verdict.style.cssText = "margin-top:4px;line-height:1.45";
+    photoIn.onchange = async () => {
+      const f = photoIn.files?.[0]; if (!f) return;
+      photoIn.value = "";                       // so re-picking the SAME file fires change again
+      verdict.textContent = "uploading\u2026";
+      photoBtn.disabled = true;
+      try {
+        const res = await api.uploadVerificationPhoto(projectId!, guid, f, f.name || "photo.jpg");
+        verdict.textContent = "";
+        const lines = photoVerdict(res);
+        if (!lines.length) verdict.textContent = "photo attached";
+        for (const ln of lines) {
+          const el = document.createElement("div");
+          // textContent, never innerHTML: these strings carry server-derived text.
+          el.textContent = (ln.tone === "warn" ? "\u26A0 " : ln.tone === "ok" ? "\u2713 " : "\u00B7 ") + ln.text;
+          if (ln.tone === "warn") el.style.color = "#e2554a";
+          verdict.appendChild(el);
+        }
+        setStatus(photoVerdictSummary(res) || "photo attached");
+      } catch (e) {
+        verdict.textContent = "upload failed: " + (e as Error).message;
+        verdict.style.color = "#e2554a";
+      } finally { photoBtn.disabled = false; }
+    };
+    bar.append(photoBtn, photoIn);
+    row.appendChild(bar); row.appendChild(verdict); propsVerify.appendChild(row);
   }
 
   async function render5D(guid: string) {
