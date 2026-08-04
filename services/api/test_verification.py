@@ -67,6 +67,13 @@ with TestClient(app) as c:
     q = ph.json()["quality"]
     assert q["analysed"] is False, q          # it admits it could not read the file...
     assert q["reasons"], q                    # ...and says why, rather than reporting a fake verdict
+    # ...but says why in ITS OWN words. Returning the decoder's message leaked interpreter detail
+    # ("cannot identify image file <_io.BytesIO object at 0x7f...>") and CodeQL flagged this exact
+    # response line as py/stack-trace-exposure. The detail goes to the log; the caller gets a fixed
+    # sentence. Asserted here because the natural way to write this handler is the leaky way.
+    _blob = " ".join(q["reasons"])
+    for _leak in ("0x", "BytesIO", "Traceback", "PIL.", "object at"):
+        assert _leak not in _blob, f"decoder internals leaked to the client: {_blob!r}"
 
     # The twin: a photo it CAN read must actually be analysed, or the assertion above passes on a
     # gate that has quietly stopped analysing anything at all.

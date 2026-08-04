@@ -3,6 +3,7 @@ log deviations (photo-anchored), and report % coverage for the verified-handover
 (Argyle-style spatial QA, without AR hardware). Keyed by IFC GlobalId so it survives re-conversion."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
@@ -151,7 +152,17 @@ async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Se
         quality["analysed"] = True
     except photo_cv.PhotoError as exc:
         # Store it regardless — see the docstring. HEIC lands here on an unpatched Pillow.
-        quality = {"analysed": False, "usable": None, "reasons": [f"could not be read: {exc}"]}
+        #
+        # The decoder's own text is deliberately NOT returned. It carries interpreter detail (Pillow
+        # reports "cannot identify image file <_io.BytesIO object at 0x7f...>"), which CodeQL flags as
+        # py/stack-trace-exposure — correctly, and it was flagged on this exact line. The address is
+        # of no use to the person holding the phone either. A fixed sentence naming the likeliest
+        # real cause is both safe and more actionable than the exception ever was.
+        logging.getLogger("aec.verification").info(
+            "photo for %s/%s could not be decoded: %s", pid, guid, exc)
+        quality = {"analysed": False, "usable": None,
+                   "reasons": ["could not be decoded — the format may not be supported "
+                               "(iPhone HEIC cannot be read server-side); the photo was kept"]}
 
     v = db.execute(select(ElementVerification).where(
         ElementVerification.project_id == pid, ElementVerification.guid == guid)).scalar_one_or_none()
