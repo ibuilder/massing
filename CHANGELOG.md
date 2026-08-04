@@ -4,6 +4,55 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.853 — the decoder's complaint was going straight to the caller
+
+CodeQL flagged `py/stack-trace-exposure` (medium) at the exact response line added in v0.3.852. The
+Pillow error was interpolated into the API response, so a caller uploading an unreadable file got back
+
+    cannot identify image file <_io.BytesIO object at 0x7fe86faefbf0>
+
+— which discloses interpreter detail and a heap address, and tells the person holding the phone
+nothing they can act on.
+
+The detail now goes to the log; the response carries a fixed sentence naming the likeliest real cause,
+an unsupported format and HEIC in particular. That is both safe and strictly more useful than the
+exception was.
+
+A regression guard comes with it, because the natural way to write this handler is the leaky way and
+it will be written again: `services/api/test_verification.py` asserts the returned reasons contain no
+`0x`, `BytesIO`, `Traceback`, `PIL.` or `object at`. Mutation-checked — restoring the interpolation
+reds the suite.
+
+**Not caught by review or by the suite in v0.3.852; caught by CodeQL after the push.** The alert count
+went 0 → 1 on our own commit, which is the concrete argument for the standing directive to read
+alerts rather than trust a green scan *run*.
+
+## v0.3.852 — the photo gate would have thrown away every iPhone photo
+
+Fixed main, red since v0.3.851. One suite of 525 failed: `services/api/test_verification.py` uploads
+bytes carrying a JPEG magic number that are not a decodable JPEG, and the quality gate added in
+v0.3.851 refused them with a 400.
+
+**The test was right and the route was wrong, in two ways.**
+
+It contradicted its own docstring, which argues a blurred frame must be stored anyway because a field
+engineer in a dark riser may have no better shot and losing the evidence is worse than keeping a poor
+frame. An unparseable frame is the same argument, and it was refused.
+
+And it was a live production bug, not merely an inconsistency. **iPhones shoot HEIC by default; Pillow
+cannot decode HEIC without `pillow-heif`**, which is not a dependency here. A gate written to protect
+evidence would have rejected the most likely genuine field photo on the platform most field engineers
+carry — and CI could never have caught it, because no fixture is a real phone photo.
+
+An undecodable upload is now stored with `quality.analysed = False` and a plain-language reason. The
+API cannot tell "corrupt" from "a format we have no codec for", and **between silently discarding real
+evidence and keeping something unreadable, keeping is the recoverable error.**
+
+**Process note, which is the transferable part.** The v0.3.851 push ran the new test and the
+reachability gate, and not the suite covering the route it modified. A passing check is a statement
+about what it ran on. Adding validation to an existing endpoint is a contract change for every caller,
+and the expensive failures are the *legitimate* inputs that fall inside the new refusal set.
+
 ## v0.3.851 - R22-PHOTO-CV Tier 1: the site photos finally have a reader
 
 `routers/verification.py` has been attaching field photos to IFC GlobalIds for months and nothing

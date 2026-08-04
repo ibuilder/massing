@@ -1117,10 +1117,27 @@ coverage checklist against our 130 modules it is a gap-analysis input, not an im
   that route had been attaching photos to GlobalIds for months and nothing ever read one.
 
   Tier 1 is classical image processing with **no new dependency** — numpy and pillow were already in
-  both lockfiles. A quality gate (Laplacian-variance focus + exposure clipping) refuses a photo that
+  both lockfiles. A quality gate (Laplacian-variance focus + exposure clipping) **flags** a photo that
   carries no evidence, a perceptual hash catches the same shot uploaded against thirty elements to
   clear a checklist, and a normalised comparison screens the incoming photo against the outgoing one
   at upload — the only moment both exist, since `photo_key` is a single column.
+
+  **The gate FLAGS, it does not REFUSE — corrected in v0.3.852, and the distinction was bought the
+  hard way.** As first shipped it returned a 400 for anything it could not decode. That reddened main,
+  and the red build was the lesser problem: **iPhones shoot HEIC by default and Pillow cannot decode
+  HEIC without `pillow-heif`**, which is not a dependency here, so the gate would have rejected the
+  most likely genuine field photo on the platform most field engineers carry. Silent data loss wearing
+  the costume of a safety check — and one CI could never catch, because no fixture is a real phone
+  photo. It also contradicted its own docstring one paragraph up, which argues a blurred frame must be
+  kept because the engineer may have no better shot. An undecodable upload is now stored with
+  `quality.analysed = False`: **between discarding real evidence and keeping something unreadable,
+  keeping is the recoverable error.**
+
+  **A second defect rode in on that fix (v0.3.853).** The decoder's exception was interpolated into
+  the response, leaking `<_io.BytesIO object at 0x7f…>`; CodeQL flagged `py/stack-trace-exposure` on
+  the exact line, taking open alerts 0 → 1 on the fixing commit. Detail now goes to the log and the
+  caller gets a fixed sentence. Both behaviours are mutation-checked in
+  `services/api/test_verification.py` — restoring either defect reds the suite.
 
   **The API states its own confidence, because the mathematics is asymmetric.** `near_identical=True`
   is a strong claim; a high `change_score` is a screening signal only, and a camera move scores higher
