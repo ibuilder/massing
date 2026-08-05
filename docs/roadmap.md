@@ -191,8 +191,8 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT *(SHIPPED v0.3.848)* · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-SANDBOX · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · AUTH-SNAP-OVERRIDE · RAIL-DRAG · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
@@ -591,8 +591,11 @@ stakes we are missing.
 - **R22-PM-CONTRACTS** *(M)* — **preventative-maintenance contracts from turnover data.** The COBie
   asset register, warranties and service intervals become billable recurring PM contracts. Extends
   past turnover without breaking the mission; nobody in the scanned set does it from model data.
-- **R22-PUBLIC-VIEWER** *(S)* — zero-signup public model viewer + shareable option links. Cheapest
-  possible top-of-funnel for an open-source product.
+- **R22-PUBLIC-VIEWER** — *(sized **M**, not S; see the Band 2 entry, which is the live one.)* This
+  line is the original scan's one-sentence estimate. It called the item S because it counted the
+  viewer, which exists; the Band 2 entry counted the **scoped revocable token and a route that
+  honours it**, which do not. Two sizes for one ID is a prioritisation bug, not a rounding
+  difference — S and M land in different sprints.
 
 **Deliberately NOT taken:** crew/equipment dispatch, payroll, inventory, and a general ledger. Those
 are mature, crowded, low-margin categories with a decade of incumbency. **Prefer seams to
@@ -1617,8 +1620,18 @@ scan, because it stops the exercise being re-run.
   reached; what is missing is the allocation and the document. Well-bounded precisely because the
   boundary was written down rather than left implied.
 
-- ⭐ **R31-CITE-HIGHLIGHT** *(S — premise HOLDS, and it is far cheaper than written)* — **checked
-  2026-07-31.** Confirmed: we cite document and page and do **not** highlight the passage.
+- ◧ **R31-CITE-HIGHLIGHT** *(re-headed 2026-08-05 — **this heading contradicted its own body**, and
+  the live entry is the Band 2 one)* — it read *"S — premise HOLDS, and it is far cheaper than
+  written"* while the ⚠️ CORRECTION further down this same entry establishes that the viewer half is
+  **not** available and needs a decision about the vendored kernel repo. A reader taking the ⭐ and
+  the "S" at face value — which is what a starred size is *for* — would never reach the paragraph
+  that withdraws them.
+
+  The two entries found **different, independent blockers, and both are real**: this one found the
+  highlight function is module-private inside vendored code, and Band 2 found the `doc_id` resolves
+  to no openable document. Neither alone is the whole story, which is why this is folded in rather
+  than deleted. — **checked 2026-07-31.** Confirmed: we cite document and page and do **not**
+  highlight the passage.
   `aiassist.ts:334` renders `"Source: p.12"` as **inert text** — not a link, and nothing calls the
   viewer. Citing a 40-page PDF and citing a paragraph are different products.
 
@@ -1994,9 +2007,12 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   not a later concern.** Today 2D has a real path (plan SVG → sheet → PDF) while 3D only captures a
   hero image, so the two are not yet peers and the mode switch would expose that immediately. Slice
   the print path first. Per the non-negotiables the interface speaks GlobalId only, never viewer ids.
-- **R36-AUTHOR-MENU** *(M — Lane E)* — split Author into Draw · Modify · Levels & Grids · Families,
-  promote the proven "More" tools into those groups, and demote the rest behind the command bar.
-  Depends on a usage read: promote what the demo walkthrough and samples actually exercise.
+- ✅ **R36-AUTHOR-MENU** — **SHIPPED v0.3.836–843; see the resolved entry in this ring above.** This
+  was the original plan text ("split Author into four groups, promote the proven More tools") and it
+  outlived the work: the shipped split went considerably further, because measuring the panel first
+  found 182 buttons rather than the handful the plan assumed. Kept as a pointer rather than deleted so
+  the under-scoping is visible, and marked ✅ so it can never again read as open work — it sat
+  unmarked, four days after shipping, one screen below its own resolution.
 - **R36-EMPTY-STATE** *(S — Lane B — **SHIPPED v0.3.849**)* — **a register with no rows is indistinguishable from a broken
   one, and was reported as exactly that.** The trigger: "something is wrong with specs". Specs was
   fine — the module rendered in full, toolbar, filters, saved views, templates, import — but the
@@ -2082,7 +2098,13 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   and the second deleted a docstring line naming the method. **A mutation you have not confirmed landed
   tells you nothing.**
 
-- **SEC-PLUGIN-SANDBOX** *(L)* — **plugin Python executes inside the API process.**
+- **SEC-PLUGIN-LOADER** *(L)* — **renamed from SEC-PLUGIN-SANDBOX on 2026-08-05: it was a different
+  item wearing the same ID.** The other SEC-PLUGIN-SANDBOX (Band 1) is `sandbox.py`'s
+  `execute_ifc_code` AST allowlist, shipped v0.3.864. This one is `plugin_registry.py` importing
+  third-party Python into the API process. Different file, different lane, different status — and
+  while they shared an ID, "SEC-PLUGIN-SANDBOX is partially shipped" was simultaneously true and
+  false. An ID collision is worse than a stale line: a stale line is merely out of date, whereas this
+  made a *correct* status report misleading. — **plugin Python executes inside the API process.**
   `plugin_registry.py:136-141` does `spec_from_file_location` → `module_from_spec` →
   `spec.loader.exec_module(mod)`, then calls `mod.register(PluginApi(...))`. Whatever the entry
   module does at import time runs with the API's full privileges: its DB session, its filesystem, its

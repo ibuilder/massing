@@ -148,6 +148,67 @@ describe("the roadmap does not call an implemented item open", () => {
       .toEqual([]);
   });
 
+  /**
+   * **One ID must not be both open and done at the same time.**
+   *
+   * On 2026-08-05 a sweep found seven IDs defined more than once and **four of the duplicates
+   * disagreed**. The worst was `R36-AUTHOR-MENU`: marked ✅ SHIPPED (v0.3.836–843) in one entry and
+   * sitting *unmarked* — i.e. open work — about twenty lines below it. Anyone reading down to pick up
+   * the next item would have rebuilt a feature that shipped four days earlier.
+   *
+   * That is the same incident `roadmapStale` was written for, and **this file could not see it.** The
+   * check above compares an open item against the *code*; nothing compared an entry against its own
+   * twin. A gate written for a class of bug that misses another instance of that class is the failure
+   * worth guarding hardest, because its green result reads as coverage.
+   *
+   * ## Why "open AND done" rather than "no duplicates"
+   *
+   * Duplicates are legitimate: `R22-PHOTO-CV` has three bullets (Tier 1, the Tier 2 decision, the
+   * Tier 2 validation), all ✅ and all true. Banning duplication outright would need an exemption
+   * list, and an exemption list is the reliable sign that the *property* is wrong rather than the
+   * document. Contradiction is the thing that actually misleads, and it needs no exemptions.
+   *
+   * ## What this deliberately does NOT catch
+   *
+   *   - **Disagreeing sizes.** `R22-PUBLIC-VIEWER` was S in one entry and M in another, which lands it
+   *     in a different sprint. Sub-items legitimately differ in size, so a gate here would fire on
+   *     honest entries; it is left to review.
+   *   - **A heading that contradicts its own body.** `R31-CITE-HIGHLIGHT` was headed "S — premise
+   *     HOLDS" above a ⚠️ CORRECTION withdrawing exactly that. Prose disagreeing with prose is not
+   *     mechanically checkable, and pretending otherwise would be worse than admitting the gap.
+   *   - **ID collisions** — two *different* items sharing a name, which is how `SEC-PLUGIN-SANDBOX`
+   *     covered both `sandbox.py` and `plugin_registry.py`. It was renamed to `SEC-PLUGIN-LOADER`;
+   *     detecting the next one needs a human reading two entries, not a regex.
+   */
+  it("no item is listed as done in one place and open in another", () => {
+    const seen = new Map<string, Set<boolean>>();
+    for (const line of md.split("\n")) {
+      const m = ITEM.exec(line);
+      if (!m) continue;
+      const id = m[2]!;
+      if (!seen.has(id)) seen.set(id, new Set());
+      seen.get(id)!.add(DONE_MARKERS.has(m[1] ?? ""));
+    }
+    const conflicted = [...seen.entries()].filter(([, v]) => v.size > 1).map(([id]) => id).sort();
+    expect(conflicted,
+      "these ids appear BOTH marked done (✅/◧/🟡) and unmarked (open). One of the two is wrong and " +
+      "a reader has no way to tell which. Resolve the entry — mark the stale one and point it at the " +
+      "live one — rather than deleting it, so the disagreement stays visible.")
+      .toEqual([]);
+  });
+
+  it("the duplicate check has duplicates to look at — it is not vacuously green", () => {
+    // Roughly seven ids legitimately appear more than once. If that count collapses to zero the
+    // check above passes trivially, and would keep passing after the ITEM regex stopped matching.
+    const counts = new Map<string, number>();
+    for (const line of md.split("\n")) {
+      const m = ITEM.exec(line);
+      if (m) counts.set(m[2]!, (counts.get(m[2]!) ?? 0) + 1);
+    }
+    expect([...counts.values()].filter((c) => c > 1).length,
+      "no id appears twice at all — the bullet regex has probably stopped matching").toBeGreaterThan(0);
+  });
+
   it("⭐ is a priority flag and must NOT satisfy this check", () => {
     // The subtle way this gate could be defeated: ⭐ appears in the same slot as the status markers,
     // so treating it as "done" would silently exempt every high-priority item — precisely the ones

@@ -4,6 +4,35 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.871 — the roadmap contradicted itself in four places
+
+Seven item ids were defined more than once and four of the duplicates disagreed. Since every
+prioritisation decision is made from this file, that corrupted the decisions rather than just the
+document.
+
+`R36-AUTHOR-MENU` was the dangerous one: marked ✅ SHIPPED (v0.3.836–843) in one entry and sitting
+*unmarked* — open work — about twenty lines below it. `R31-CITE-HIGHLIGHT` carried a ⭐ and an "S"
+above a correction, inside its own entry, withdrawing exactly that estimate. `R22-PUBLIC-VIEWER` was
+S in one place and M in another, which lands it in a different sprint.
+
+`SEC-PLUGIN-SANDBOX` turned out not to be a stale duplicate at all but an **id collision**: one entry
+is `sandbox.py`'s AST allowlist (shipped v0.3.864, Lane D), the other is `plugin_registry.py`
+importing third-party Python into the API process (open, Lane C). Two different items wearing one
+name, so "SEC-PLUGIN-SANDBOX is partially shipped" was true and false at once. The second is now
+`SEC-PLUGIN-LOADER`. Splitting them exposed a fifth consequence: the lane table listed the id under
+Lane C while the item's own text read "Lane **D**, not C" — with one id covering two items, the table
+could not be right about both.
+
+`roadmapStale.test.ts` now fails the build if any id is marked done in one place and open in another.
+It could not see this before: it compares open items against the *code*, and nothing compared an
+entry against its own twin — a gate written for this exact class of bug, missing another instance of
+it, while reading as coverage. Contradiction is checked rather than duplication, because duplicates
+are legitimate (`R22-PHOTO-CV` has three, all true) and banning them would need an exemption list.
+
+Three things it deliberately cannot catch are named in the test: disagreeing sizes, a heading that
+contradicts its own body, and the next id collision. Those need a reader, and saying so beats
+implying the gate covers them.
+
 ## v0.3.870 — a stalled queue and an idle one no longer look the same
 
 v0.3.869 let the job worker run in its own container. That closed a scaling ceiling and opened an
