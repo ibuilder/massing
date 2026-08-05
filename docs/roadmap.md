@@ -1375,6 +1375,36 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 (`apps/web/nginx.conf` + `apps/web/src/deploy/nginx.test.ts`), the multi-worker sidecar-lock boot
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
 
+- ✅ **R39-WORKER-SPLIT** *(shipped v0.3.869 — the platform's real scaling ceiling)* — the durable
+  job queue ran as a **daemon thread inside the API process**, so the heavy kinds (full-model COBie,
+  bundle generation, generative runs — all CPU- and memory-bound IFC parses) competed with every HTTP
+  request the same container was serving. The symptom was never an error: one person converting a
+  large model made the whole application slower for everyone, which reads as "the product is slow"
+  rather than "a job is running".
+
+  **Two things had already landed that made the split safe, and a stale comment hid both.**
+  `jobs._claim_next` is a compare-and-swap (`UPDATE … WHERE id = :id AND state = 'queued'`) that is
+  already correct across processes and hosts, and `pid_lock` became cross-process in
+  R35-PIDLOCK-XPROC. But the `jobs.py` docstring still read *"the in-process claim is safe for the
+  supported single-writer deployment; multi-worker deployments would add a DB row-lock claim
+  (SELECT … FOR UPDATE SKIP LOCKED)"* — **both halves false**, and `FOR UPDATE` is a silent no-op on
+  SQLite besides. A comment that talks the reader out of a capability the code already has is worse
+  than no comment: it would have stopped exactly this change, and it was written by the same effort
+  that built the CAS.
+
+  Shipped: `AEC_JOB_WORKER` (`inline` default, `off` to serve requests only), the
+  `python -m aec_api.worker` entrypoint in `services/api/src/aec_api/worker.py`, and a `worker`
+  service in both compose files sharing the API's image and environment by YAML anchor. Scale it with
+  `--scale worker=N`.
+
+  **The failure mode this creates, and how it is held closed.** Setting `off` without running a
+  worker means every enqueue succeeds, every row is written, every caller is told the work is under
+  way, and nothing ever runs — no exception, no failed healthcheck, because the API is genuinely
+  fine. `services/api/test_worker_split.py` therefore checks the flag *through a started app* in both
+  directions (asserting only the `off` case would pass on a build where the worker never starts at
+  all), drives a real job through `run_forever()`, and fails the build if any compose file sets `off`
+  without a service that runs the worker. All four mutations were tried and all four fail the gate.
+
 - **R39-THROTTLE-SHARED ①** *(M, Lane C)* — the per-endpoint throttles in
   `services/api/src/aec_api/throttle.py` keep in-process counters, so behind N workers every limit is
   silently N× its configured value — the exact defect the rate-limit boot guard refuses for

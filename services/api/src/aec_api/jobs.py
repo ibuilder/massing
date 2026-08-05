@@ -13,12 +13,38 @@ the smallest durable queue that fixes that with **no new dependencies**:
   · handlers come from a small registry (`register_kind`) — the same shape as the edit-recipe registry,
     so a plugin or a new engine adds a kind in one line.
 
-Cross-worker note: like `pid_lock`, the in-process claim is safe for the supported single-writer
-deployment; multi-worker deployments would add a DB row-lock claim (`SELECT … FOR UPDATE SKIP LOCKED`)
-— the schema already supports it."""
+## Running the worker somewhere other than the API process (JOB-WORKER-SPLIT)
+
+**The note that used to sit here was stale and said the opposite of the truth.** It read: "like
+`pid_lock`, the in-process claim is safe for the supported single-writer deployment; multi-worker
+deployments would add a DB row-lock claim". Both halves stopped being true:
+
+  · `_claim_next` is a **CAS** (`UPDATE … WHERE id = :id AND state = 'queued'`), which is already
+    safe across processes and hosts — no `FOR UPDATE SKIP LOCKED` needed, and deliberately not used,
+    since `FOR UPDATE` is a silent no-op on SQLite;
+  · `pid_lock` became **cross-process** in R35-PIDLOCK-XPROC (a Postgres session advisory lock), so
+    per-project serialisation no longer depends on there being one process.
+
+A comment that talks the reader out of the thing the code already supports is worse than no comment:
+this one would have stopped someone from scaling the queue out, which is the *entire* reason the CAS
+and the advisory lock were written. Hence `AEC_JOB_WORKER`:
+
+  · `inline` (**default**) — the API process runs the worker thread, as it always has. Nothing about
+    an existing single-container deployment changes.
+  · `off` — the API serves requests only. A dedicated worker process (`python -m aec_api.worker`)
+    must be running, or **jobs queue forever and nothing raises**. That silence is the whole risk of
+    this split, so it is defended twice: `main.py` logs a warning naming the required process at
+    boot, and `test_worker_split.py` fails the build if a compose file sets `off` without also
+    defining a service that runs the worker.
+
+Splitting matters because the heavy kinds here (full-model COBie, bundle generation, generative runs)
+are CPU- and memory-bound IFC parses. Inline, one large reconvert degrades every HTTP request sharing
+that container. Split, conversion throughput scales by adding worker containers and does not touch
+the latency of the API at all."""
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import traceback
 from collections.abc import Callable
@@ -180,6 +206,58 @@ def start_worker() -> None:
 def stop_worker() -> None:
     _STOP.set()
     _WAKE.set()
+
+
+# --- JOB-WORKER-SPLIT: where does the worker run? -------------------------------------------------
+WORKER_ENV = "AEC_JOB_WORKER"
+
+
+def worker_enabled() -> bool:
+    """Should THIS process run the worker thread? Read per call, never cached at import.
+
+    Default `inline` — an unset variable must mean "behave exactly as before", because every existing
+    single-container deployment has it unset and none of them should change on upgrade. The dangerous
+    default here is the *plausible* one: defaulting to `off` would be defensible ("the split is the
+    better architecture") and would silently stop every existing deployment from running any job at
+    all, with no error anywhere. So the safe direction is the default and the split is opt-in.
+
+    Anything other than `off` is inline, including a typo. Refusing to start on an unrecognised value
+    would turn a fat-fingered env var into a boot failure; running the worker is the recoverable
+    reading of an ambiguous instruction, whereas not running it is the silent one.
+    """
+    return os.environ.get(WORKER_ENV, "inline").strip().lower() != "off"
+
+
+def run_forever() -> None:
+    """Run the queue in the foreground until SIGTERM/SIGINT — the dedicated worker-process entrypoint.
+
+    This deliberately **reuses `start_worker()`** rather than reimplementing the loop in the foreground.
+    A second copy of the drain loop is the kind of duplicate that stays correct for one release and
+    then drifts: the orphan recovery, the CAS retry, and the `_MUTATING_KINDS` lock handling would all
+    have to be kept in step by hand, and nothing would fail when they weren't. The cost of reuse is one
+    idle thread in the main process, which is not a cost.
+    """
+    import signal
+
+    def _bye(signum, _frame):                            # noqa: ANN001 — signal handler signature
+        log.info("job worker: signal %s — finishing the current job, then exiting", signum)
+        stop_worker()
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            signal.signal(sig, _bye)
+        except (ValueError, OSError):                    # not the main thread, or not supported here
+            log.debug("job worker: could not install a handler for %s", sig)
+
+    start_worker()
+    t = _THREAD
+    if t is None:                                        # start_worker always sets it; be explicit
+        raise RuntimeError("job worker failed to start")
+    log.info("job worker: running in a dedicated process (queue kinds: %s)",
+             ", ".join(sorted(KINDS)) or "none registered")
+    while t.is_alive():
+        t.join(timeout=1.0)
+    log.info("job worker: stopped")
 
 
 # --- built-in kinds -------------------------------------------------------------------------------

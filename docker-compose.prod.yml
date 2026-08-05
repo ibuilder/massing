@@ -6,6 +6,17 @@
 #
 # Requires: a VM with Docker, a DNS A record for $DOMAIN pointing at it, and ports 80+443 open.
 # Lock the rest down with a firewall (e.g. `ufw allow 80,443/tcp` and deny 8000/8080/5432/9000).
+
+# Fail-closed datastore credentials, shared by every service that opens the database or the object
+# store. This is an anchor rather than two copies because the API and the job worker MUST fail closed
+# in the same way: the worker inherits the base compose's permissive `${POSTGRES_PASSWORD:-bim}`
+# unless something overrides it here, so a copy that drifted would leave the worker connecting with
+# the dev default password in production while the API refused to start — and only the API's refusal
+# would be visible.
+x-prod-datastore: &prod-datastore
+  DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-bim}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env for production}@postgres:5432/${POSTGRES_DB:-bim}"
+  S3_SECRET_KEY: "${S3_SECRET_KEY:?set S3_SECRET_KEY in .env for production}"
+
 services:
   caddy:
     image: caddy:2
@@ -56,8 +67,7 @@ services:
       AEC_ALLOWED_HOSTS: "${AEC_ALLOWED_HOSTS:-}"
       # Fail-closed on the datastore secrets in production — refuse to start rather than silently fall
       # back to the dev defaults (the base compose uses `${…:-bim}` / `${…:-minioadmin}` for local dev).
-      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-bim}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env for production}@postgres:5432/${POSTGRES_DB:-bim}"
-      S3_SECRET_KEY: "${S3_SECRET_KEY:?set S3_SECRET_KEY in .env for production}"
+      <<: *prod-datastore
     # Resource limits (opt-in): same env vars as the base compose (see .env.example). Kept OFF by
     # default so a too-low cap can't OOM-kill a legitimate large-IFC reconvert. Uncomment + size
     # for the production host.
@@ -66,6 +76,23 @@ services:
     #     limits:
     #       memory: "${AEC_API_MEM_LIMIT:-4g}"
     #       cpus: "${AEC_API_CPUS:-2}"
+
+  # JOB-WORKER-SPLIT — the queue container from the base compose, made production-shaped. The base
+  # file already sets `AEC_JOB_WORKER=off` on the API and defines this service; all that is added here
+  # is the restart policy and the fail-closed credentials.
+  #
+  # This is the service to scale when conversions back up — `--scale worker=N` — and the one to give
+  # the memory limit to, because after the split it is where the large IFC parses actually happen.
+  worker:
+    restart: unless-stopped
+    environment:
+      <<: *prod-datastore
+      AEC_JOB_WORKER: "inline"       # this process IS the worker
+    # deploy:                        # opt-in cap — the heavy parses live here now, so size this one
+    #   resources:                   # before the API's.
+    #     limits:
+    #       memory: "${AEC_WORKER_MEM_LIMIT:-4g}"
+    #       cpus: "${AEC_WORKER_CPUS:-2}"
 
   postgres:
     restart: unless-stopped

@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.869 — the heavy work moved out of the process answering requests
+
+The durable job queue ran as a daemon thread **inside the API process**. Its heavy kinds are
+full-model IFC parses — COBie handover export, bundle generation, generative runs — so one person
+converting a large model competed for CPU and memory with every request that container was serving.
+Nothing errored. The application just got slower for everyone, which reads as "the product is slow"
+rather than "a job is running".
+
+`AEC_JOB_WORKER=off` now makes the API serve requests only, and `python -m aec_api.worker` runs the
+queue in its own container. `docker compose --scale worker=3` scales conversion throughput without
+touching API latency. The default is `inline` — an existing single-container deployment upgrades and
+changes nothing.
+
+The two mechanisms that make this safe were already there, and a stale comment was hiding both: job
+claim is a compare-and-swap that is correct across processes, and `pid_lock` became cross-process in
+R35-PIDLOCK-XPROC. The docstring still said multi-worker deployments were unsupported and would need
+`SELECT … FOR UPDATE SKIP LOCKED` — false, and a no-op on SQLite. It would have talked the next
+reader out of the change it was sitting next to.
+
+The new risk is silence: turning the API's worker off without running one leaves every enqueue
+succeeding and nothing ever running, with no exception and no failed healthcheck. `test_worker_split.py`
+holds that closed — it checks the flag through a started app in both directions, drives a real job
+through the entrypoint, and fails the build if a compose file sets `off` without a service that runs
+the worker.
+
 ## v0.3.853 — the decoder's complaint was going straight to the caller
 
 CodeQL flagged `py/stack-trace-exposure` (medium) at the exact response line added in v0.3.852. The

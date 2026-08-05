@@ -42,6 +42,11 @@ ENTRY_POINTS = {
     "main": "the FastAPI app itself — the root every route hangs off, so it seeds the walk",
     "desktop": "separate process entry point: `desktop_entry.py` and `python -m aec_api.desktop`",
     "demo_seed": "build-time script, invoked by build_demo_data.py to capture the demo snapshot",
+    "worker": "separate process entry point: `python -m aec_api.worker`, run as the compose `worker` "
+              "service when the API sets AEC_JOB_WORKER=off (JOB-WORKER-SPLIT). Reachable by being "
+              "*launched*, not by being imported — which is exactly why this list has to name the way "
+              "in: `docker-compose.yml` is the caller, and no amount of walking Python imports from a "
+              "route will ever find it",
 }
 
 # Real gaps: tested, shipped, and callable by nothing. Each carries the date it was found so an entry

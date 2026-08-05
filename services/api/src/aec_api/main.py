@@ -246,8 +246,18 @@ async def lifespan(_app: FastAPI):
     from . import plugin_registry
     plugin_registry.load_all()
     # JOB-QUEUE: start the per-process durable job worker (recovers orphaned running jobs from a crash).
+    # JOB-WORKER-SPLIT: unless AEC_JOB_WORKER=off, in which case a dedicated worker process must be
+    # running. Log it loudly — an API with no worker anywhere accepts every enqueue, writes every row,
+    # tells every caller the work is under way, and never does any of it. Nothing raises, so the only
+    # signal that configuration is wrong is this line.
     from . import jobs
-    jobs.start_worker()
+    if jobs.worker_enabled():
+        jobs.start_worker()
+    else:
+        logging.getLogger("aec").warning(
+            "JOB-QUEUE: in-process worker disabled (%s=off). A dedicated worker must be running "
+            "(`python -m aec_api.worker`) or queued jobs will never run and nothing will raise.",
+            jobs.WORKER_ENV)
     task = asyncio.create_task(_autosync_loop()) if os.environ.get("AEC_AUTOSYNC", "1") == "1" else None
     try:
         yield
