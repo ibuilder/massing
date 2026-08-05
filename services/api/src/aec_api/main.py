@@ -684,8 +684,23 @@ def perf_budget_report(_: None = Depends(_guard_metrics)) -> dict:
 @app.get("/metrics")
 def prometheus_metrics(_: None = Depends(_guard_metrics)) -> Response:
     """Prometheus text exposition (request counts, latencies, in-flight, uptime). Open by default;
-    gate behind the AEC_API_KEY bearer by setting AEC_METRICS_AUTH=1."""
-    return Response(metrics.render(), media_type="text/plain; version=0.0.4; charset=utf-8")
+    gate behind the AEC_API_KEY bearer by setting AEC_METRICS_AUTH=1.
+
+    JOB-STALL-VISIBLE appends the queue gauges. The DB read is deliberately wrapped: a scrape that
+    500s because the database blinked loses the request metrics too, which are in-process and were
+    perfectly fine. On failure the queue block reports `aec_jobs_stats_ok 0` and omits the rest —
+    that is why the ok-gauge exists, so "could not measure" never renders as "nothing queued".
+    """
+    from . import jobs
+    body = metrics.render()
+    stats = None
+    try:
+        with SessionLocal() as db:
+            stats = jobs.queue_stats(db)
+    except Exception:                                  # noqa: BLE001 — never fail a scrape on this
+        logging.getLogger("aec").warning("metrics: could not read the job queue", exc_info=True)
+    body += "\n".join(metrics.render_queue(stats, jobs.worker_enabled())) + "\n"
+    return Response(body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 # Single-process desktop build: serve the built web app from the same origin as the API, so the

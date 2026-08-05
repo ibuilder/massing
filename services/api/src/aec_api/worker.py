@@ -23,9 +23,14 @@ copy of a concurrency-critical loop drifts, and nothing fails when it does.
 
 It builds no FastAPI app, binds no port, and serves no request. It therefore has **no HTTP
 healthcheck** — liveness is "the process is up and the queue is draining", which is a property of the
-queue, not of this process. If you need to alert on a stalled queue, alert on the age of the oldest
-`queued` job in the database; a worker container that is running but wedged looks identical to a
+queue, not of this process. A worker container that is running but wedged looks identical to a
 healthy idle one from the outside, and only the queue can tell them apart.
+
+That signal now exists, so alert on it rather than on this container: the API's `/metrics` exposes
+`aec_jobs_oldest_queued_seconds` (JOB-STALL-VISIBLE, v0.3.870), the age of the head of the queue,
+**absent when nothing is queued** so a `> N` rule stays quiet on an idle system. Alert on that age,
+not on `aec_jobs_by_state{state="queued"}` — a deep queue draining fast is healthy, and one job
+wedged for six hours never crosses a depth threshold.
 
 ## The failure mode to know about
 

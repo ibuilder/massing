@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.870 — a stalled queue and an idle one no longer look the same
+
+v0.3.869 let the job worker run in its own container. That closed a scaling ceiling and opened an
+observability hole: with the worker elsewhere, nothing the API can see changes when it dies. The API
+is fine — it does not run jobs. The worker container may be up and wedged. Every enqueue keeps
+succeeding.
+
+`/metrics` now exposes `aec_jobs_oldest_queued_seconds`, the age of the head of the queue. Alert on
+that. The series is **absent when nothing is queued** rather than zero, because a zero would say "the
+oldest job is brand new" and make the rule both silent during a stall and reassuring the rest of the
+time. `aec_jobs_stats_ok` is always emitted so that "could not read the queue" never renders
+identically to "nothing is queued". Depth is exported too, but it is the thing to scale on, not the
+thing to page on — one job wedged for six hours never crosses a depth threshold.
+
 ## v0.3.869 — the heavy work moved out of the process answering requests
 
 The durable job queue ran as a daemon thread **inside the API process**. Its heavy kinds are

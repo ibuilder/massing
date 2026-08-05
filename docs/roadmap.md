@@ -1375,6 +1375,29 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 (`apps/web/nginx.conf` + `apps/web/src/deploy/nginx.test.ts`), the multi-worker sidecar-lock boot
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
 
+- ✅ **R39-STALL-VISIBLE** *(shipped v0.3.870 — the hole R39-WORKER-SPLIT opened, closed)* — once the
+  worker can live in another container, **nothing the API can see changes when it dies.** The API is
+  healthy (it does not run jobs), the worker container may be up and wedged, and every enqueue keeps
+  succeeding. The only difference between a stalled queue and a healthy idle one is that a stalled
+  queue has an *old job at its head*.
+
+  So `/metrics` now exposes `aec_jobs_oldest_queued_seconds` — the age of the head — plus
+  `aec_jobs_by_state`, `aec_jobs_worker_inline` and `aec_jobs_stats_ok`. Three choices carry the
+  whole design, each one a way the metric could have read as reassuring while being useless:
+
+  · **the age series is OMITTED on an empty queue, never 0.** Zero says "the head is brand new" when
+    the truth is "there is no head", and it would make a `> 600` rule both permanently quiet on a
+    stall and permanently healthy-looking. Absence is the Prometheus idiom for an unmeasured value.
+  · **`aec_jobs_stats_ok` is always emitted** — it is the gauge that says whether the others mean
+    anything. Without it a database the scrape cannot reach and a perfectly empty queue produce
+    identical output, and an operator will read the reassuring one.
+  · **age is the alarm, depth is not.** A deep queue draining fast is healthy; one job wedged for six
+    hours never crosses a depth threshold. Depth is exported to *scale* on, not to page on.
+
+  `services/api/test_job_stall.py` asserts all three, plus that the block actually comes out of the
+  `/metrics` route rather than only out of the function — a perfect metric no endpoint serves is the
+  same defect as a tested module behind no route. Four mutations tried, four caught.
+
 - ✅ **R39-WORKER-SPLIT** *(shipped v0.3.869 — the platform's real scaling ceiling)* — the durable
   job queue ran as a **daemon thread inside the API process**, so the heavy kinds (full-model COBie,
   bundle generation, generative runs — all CPU- and memory-bound IFC parses) competed with every HTTP

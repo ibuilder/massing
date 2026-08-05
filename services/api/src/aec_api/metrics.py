@@ -76,6 +76,47 @@ def _esc(v: str) -> str:
     return v.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
+def render_queue(stats: dict | None, worker_inline: bool) -> list[str]:
+    """JOB-STALL-VISIBLE — Prometheus lines for the job queue. `stats=None` means it could not be read.
+
+    Three deliberate choices, each guarding against a metric that reads as reassuring when it is not:
+
+    **`aec_jobs_stats_ok` is always emitted.** It is the gauge that says whether the other gauges mean
+    anything. Without it, a database the scrape cannot reach and a perfectly empty queue produce the
+    same output — no queue series at all — and the second reading is the one an operator will make.
+
+    **`aec_jobs_oldest_queued_seconds` is OMITTED when nothing is queued, never zero.** Zero says "the
+    oldest job is brand new"; the truth is "there is no oldest job". An alert written as
+    `aec_jobs_oldest_queued_seconds > 600` then simply does not fire on an empty queue, which is the
+    Prometheus idiom for an absent measurement, and a `0` would have made the metric useless for the
+    one thing it exists to detect.
+
+    **Age, not depth, is the alarm.** Depth is wrong in both directions: a deep queue draining quickly
+    is healthy, and a single job wedged for six hours — the exact shape of a missing worker after
+    JOB-WORKER-SPLIT — never crosses a depth threshold at all. Depth is still exported, because it is
+    the right thing to *scale* on; it is just not the right thing to *page* on.
+    """
+    out = ["# HELP aec_jobs_stats_ok 1 if the queue could be read; 0 means the values below are absent.",
+           "# TYPE aec_jobs_stats_ok gauge",
+           f"aec_jobs_stats_ok {1 if stats else 0}",
+           "# HELP aec_jobs_worker_inline 1 if THIS process runs the job worker (AEC_JOB_WORKER).",
+           "# TYPE aec_jobs_worker_inline gauge",
+           f"aec_jobs_worker_inline {1 if worker_inline else 0}"]
+    if not stats:
+        return out
+    out += ["# HELP aec_jobs_by_state Job rows by state. Scale on `queued`; do not page on it.",
+            "# TYPE aec_jobs_by_state gauge"]
+    for st in ("queued", "running", "done", "error"):
+        out.append(f'aec_jobs_by_state{{state="{st}"}} {int(stats.get(st, 0))}')
+    age = stats.get("oldest_queued_seconds")
+    if age is not None:
+        out += ["# HELP aec_jobs_oldest_queued_seconds Age of the head of the queue. THIS is the stall "
+                "alarm; absent when nothing is queued.",
+                "# TYPE aec_jobs_oldest_queued_seconds gauge",
+                f"aec_jobs_oldest_queued_seconds {float(age):.3f}"]
+    return out
+
+
 def render() -> str:
     with _lock:
         req = dict(_req_total); lat_s = dict(_lat_sum); lat_c = dict(_lat_count); inflight = _inflight

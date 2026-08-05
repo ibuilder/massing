@@ -48,6 +48,7 @@ import os
 import threading
 import traceback
 from collections.abc import Callable
+from datetime import timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -206,6 +207,41 @@ def start_worker() -> None:
 def stop_worker() -> None:
     _STOP.set()
     _WAKE.set()
+
+
+# --- JOB-STALL-VISIBLE: is the queue actually moving? ---------------------------------------------
+def queue_stats(db: Session) -> dict[str, Any]:
+    """Depth and head-of-line age for the whole queue, across every project.
+
+    **This is the only thing that can tell a wedged worker from an idle one.** Every other signal
+    says the same thing in both cases: the API is healthy either way (it does not run the jobs), the
+    worker container is up either way, and `/projects/{pid}/jobs` is project-scoped so no operator
+    view exists at all. What differs is that a stalled queue has an old job at its head, and a
+    healthy idle queue has no head.
+
+    So the age is measured from `created_at` of the oldest **queued** row — not from the count.
+    Depth alone is a bad alarm in both directions: a deep queue draining fast is fine, and a queue
+    of ONE job stuck for six hours is an incident that never trips a threshold on depth.
+
+    `oldest_queued_seconds` is **None when nothing is queued**, never 0.0. Zero would be a lie of the
+    same kind the photo verdict avoids: it reads as "the oldest job is brand new" when the truth is
+    "there is no oldest job". The renderer omits the series entirely in that case.
+    """
+    from sqlalchemy import func
+    rows = dict(db.execute(select(Job.state, func.count()).group_by(Job.state)).all())
+    oldest = db.scalars(select(Job.created_at).where(Job.state == "queued")
+                        .order_by(Job.created_at).limit(1)).first()
+    age = None
+    if oldest is not None:
+        # SQLite hands back a naive datetime even from DateTime(timezone=True); Postgres does not.
+        # Subtracting an aware from a naive raises, so normalise before the arithmetic rather than
+        # after — a TypeError here would take out the whole /metrics scrape.
+        if oldest.tzinfo is None:
+            oldest = oldest.replace(tzinfo=timezone.utc)
+        age = max(0.0, (utc_now() - oldest).total_seconds())
+    return {"queued": int(rows.get("queued", 0)), "running": int(rows.get("running", 0)),
+            "done": int(rows.get("done", 0)), "error": int(rows.get("error", 0)),
+            "oldest_queued_seconds": age}
 
 
 # --- JOB-WORKER-SPLIT: where does the worker run? -------------------------------------------------
