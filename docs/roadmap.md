@@ -1721,7 +1721,16 @@ Execution order after triage (the backlog's own, amended). **Paths are directory
 both basenames the backlog cites are ambiguous** — `modules.py` and `codecheck.py` each match two
 tracked files, and the wrong-directory misroute is exactly how lanes collide:
 
-1. Break the two cycles (`services/api/src/aec_api/db.py` ring; `apps/web/src/portal/panelContext.ts` ring).
+1. ~~Break the two cycles~~ — **ALREADY-CLOSED, verified 2026-08-04, and both are now gated.**
+   `services/api/test_import_cycles.py` reports **zero** top-level cycles across 516 first-party
+   modules and 968 import edges, and `apps/web/src/no-import-cycles.test.ts` passes on the web side.
+   The `db.py` ring is gone in the direction that matters: `models.py` does `from .db import Base`
+   and `db.py` imports nothing back. `panelContext.ts` still exists — the *file* was never the
+   problem, the *edge* was, and the edge is gone.
+
+   Recorded rather than deleted because the backlog's index is 455 releases old: the useful output
+   of triage is "this was true and is not any more", not a quietly shortened list. Nobody needs to
+   re-derive it, and if a cycle returns, the two gates fail before anyone reads this.
 2. Split `services/api/src/aec_api/modules.py` (982 lines — Lane C) and
    `services/api/src/aec_api/main.py` (Lane G convention applies: announce first, it is a shared
    file). The backlog's "codecheck.py" split almost certainly means
