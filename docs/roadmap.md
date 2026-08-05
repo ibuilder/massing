@@ -1711,7 +1711,12 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   repo's own known god-files, and SCALE-SEAM already split `client.ts` by domain after this index
   was taken. Credit what shipped; keep the rest.
 
-- **R37-TRIAGE** *(M — Lane C; do FIRST, before any deletion or split)* — re-run the backlog's
+- ◧ **R37-TRIAGE** *(M — Lane C; do FIRST, before any deletion or split)* — **steps 1–3 triaged in
+  v0.3.865–867 on measurements rather than recollection:** cycles ALREADY-CLOSED and gated on both
+  sides; the oversized-files list names the wrong files (`app.ts` sits at 97% of ceiling, the named
+  candidates at 13–19%); the dead-code list should be re-derived, not triaged. Step 4 is explicitly
+  Lane A and not routed here; step 5 is opportunistic. What remains needs a dependency decision.
+  Original: re-run the backlog's
   claims against main: for each §2 symbol, grep for callers today and mark delete/wire/keep with
   the evidence; for §1's cycles, confirm the edges still exist; for §1b's split candidates, compare
   against the REL-3/REL-4 decompositions already landed. Output: this section rewritten with each
@@ -1756,7 +1761,26 @@ tracked files, and the wrong-directory misroute is exactly how lanes collide:
    `services/api/src/aec_api/routers/codecheck.py` (614 lines) — that is the **routers carve-out
    Lane C does not own**; whoever takes it claims it as a routers change, not under this item. The
    non-router `services/api/src/aec_api/codecheck.py` is 184 lines and needs no split.
-3. Delete only VERIFIED dead exports.
+3. **Delete only VERIFIED dead exports — and TRIAGING THIS LIST IS THE WRONG MOVE, verified
+   2026-08-04.** Three cheap measurements, together decisive:
+
+   * The two examples this section already suspected are confirmed stale: `validate.py` has **3**
+     importers today and `docgraph.py` has **2**. Called "unused" in mid-July, wired since.
+   * The cheap dead-code classes are **already gated** — `ruff --select F401,F841` (unused imports,
+     unused locals) passes clean across `services/api/src` and `services/data/src` on every push.
+     Whatever remains in the 139 findings is symbol-level: exports defined and never called, which
+     ruff does not look for.
+   * Finding those needs a tool this repo does not have (`vulture` is not installed), and **adding
+     one is a new dependency — the user's call, not a triage step.**
+
+   So the real choice is not "triage 139 findings vs skip them", it is **re-derive vs triage a
+   455-release-old list**. Each stale entry costs a `git grep` including string and registry
+   references — a symbol reached only through a registry looks dead to every naive check — and the
+   two spot-checks suggest a high false-positive rate. Triage would spend that cost and still
+   produce a list bounded by July's tree.
+
+   **Recommended: leave this step closed as specified; open a fresh scan as its own item once the
+   dependency question is answered.**
 4. The web-side refactors (`apps/web/vite.config.ts`, `apps/web/src/main.ts`) are **Lane A work and
    belong to R36-RAIL-SCOPE's owner** — they are listed here for sequence only, not routed by this
    Lane C item; a C session must not pick them up off this list.
