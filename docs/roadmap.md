@@ -116,8 +116,28 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
-- ⭐ **R31-CITE-HIGHLIGHT** *(S — Lane B)* — **the data half and the locator are both done; nothing
-  calls them.** `doc_text.answer()` carries `doc_id` into every citation and `rfi_qa` passes the
+- ◧ **R31-CITE-HIGHLIGHT** *(NOT S — re-scoped 2026-08-04 after a premise check; snippet display
+  shipped v0.3.868, the highlight is BLOCKED on a data-model gap)* — **the citation cannot be
+  resolved to anything openable, so "make it a control" has nothing to click through to.**
+
+  `doc_text.py` derives `doc_id` as a **slug of the document's name**, and the doctext index stores
+  `{doc_id, name, chunks, sections, ingested_at}` — no file id, no path. `ingest(pid, name, text=None,
+  pdf_bytes=None)` takes raw bytes plus a name, so **a doctext document need never have been a stored
+  file at all**; for a text ingest there is no PDF anywhere. `rfi_qa.py:182` switched citations to
+  `doc_id` in v0.3.810 describing it as "the RESOLVABLE identifier" — it is not resolvable either, so
+  that change moved the dead end rather than closing it.
+
+  Unblocking it needs a backend change first: record the source document (file id or storage key) on
+  the doctext index entry at ingest, and accept that text-only ingests can never highlight. Then the
+  viewer needs a `PageWords` bridge for `locatePassage` to read — `citeLocate.ts` is written against
+  a structural interface precisely so it does not depend on the viewer, but something must still
+  supply the words.
+
+  **Shipped instead (v0.3.868): the citation now shows the snippet it is citing**, which the server
+  has been sending all along and the UI discarded, rendering `p.12` alone. That is a page number the
+  reader had to take on trust in a draft about to go to a design team. It needs no resolution path.
+
+  Original: **the data half and the locator are both done; nothing calls them.** `doc_text.answer()` carries `doc_id` into every citation and `rfi_qa` passes the
   passage as `span` (v0.3.810); `drawings/citeLocate.ts` finds that passage on the page and returns
   its box, degrading through three match rungs and reporting ambiguity (v0.3.816). The remaining work
   is one seam: `portal/panels/aiassist.ts` still renders `"Source: p.12"` as inert `textContent`, and

@@ -330,8 +330,27 @@ export async function renderAiAssist(ctx: PanelContext) {
     const q = el("textarea", "portal-filter") as HTMLTextAreaElement; q.value = d.question; q.style.cssText = "width:100%;min-height:80px;margin:2px 0";
     const meta = el("div", "meta"); meta.style.margin = "4px 0";
     meta.textContent = `Discipline: ${d.discipline}${d.spec_section ? " · Spec " + d.spec_section : ""} · Priority ${d.priority} · ${d.source}`;
+    // R31-CITE-HIGHLIGHT (partial): show WHAT was cited, not only where. The server has been sending
+    // `snippet` all along and this rendered `p.12` alone — a page number the reader has to take on
+    // trust, in a draft they are about to send to a design team.
+    //
+    // Deliberately NOT made clickable, and the reason is a blocker worth knowing before anyone tries:
+    // a citation's `doc_id` is a SLUG OF THE DOCUMENT NAME (doc_text.py), and the doctext index
+    // stores `{doc_id, name, chunks, sections, ingested_at}` — no file id, no path. `ingest()` takes
+    // raw bytes plus a name, so a doctext document need never have been a stored file at all. There
+    // is nothing to open. `rfi_qa.py` switched citations to `doc_id` calling it "the RESOLVABLE
+    // identifier"; it is not resolvable either, so the dead end moved rather than closed.
     const cite = el("div", "meta");
-    if (d.citations?.length) cite.textContent = "Source: " + d.citations.map((c) => `p.${c.page}`).join(", ");
+    if (d.citations?.length) {
+      cite.textContent = "Source: " + d.citations.map((c) => `p.${c.page}`).join(", ");
+      for (const c of d.citations) {
+        if (!c.snippet) continue;
+        const q = el("div", "meta");
+        q.style.cssText = "margin:2px 0 0 8px;border-left:2px solid var(--line);padding-left:6px;font-style:italic";
+        q.textContent = `p.${c.page}: “${c.snippet}”`;   // textContent: this is document text
+        cite.appendChild(q);
+      }
+    }
     const create = el("button", "file-btn") as HTMLButtonElement; create.textContent = "Create RFI";
     create.onclick = async () => {
       create.disabled = true; create.textContent = "creating…";
