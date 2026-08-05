@@ -46,6 +46,55 @@ import logging
 import os
 import sys
 
+UNSAFE_LOCK_ENV = "AEC_WORKER_ALLOW_UNSAFE_LOCK"
+
+
+def lock_check() -> tuple[bool, str]:
+    """May this process safely run as a dedicated worker? `(ok_to_run, message)`.
+
+    A dedicated worker is, by definition, a **second writer** against the same projects the API is
+    editing. `pid_lock` serialises those writes across processes **only on Postgres** — on any other
+    backend it degrades to a `threading.RLock`, which two processes cannot share. Nothing raises when
+    that happens: a mutating job here and a document upload in the API interleave their load→save on
+    the same sidecar index, and one entry silently disappears.
+
+    So this refuses rather than warns. `main._production_guard` covers the same ground, but only for
+    deployments it judges to be production — and this process can be pointed at a database the API
+    never saw. **A guard that runs where the risk is beats one that runs where the config is.**
+
+    Pure and non-blocking on purpose: `main()` used to inline this, which made the safe path
+    untestable because asserting it meant entering `run_forever()`. A check whose "everything is
+    fine" branch cannot be exercised is only half-checked.
+
+    Returns `(True, "")` when safe, `(True, warning)` when the operator has explicitly accepted the
+    risk via `AEC_WORKER_ALLOW_UNSAFE_LOCK=1`, and `(False, reason)` when it must not start.
+    """
+    from . import jobs
+
+    # The dialect comes from DATABASE_URL, **not** from `pid_lock.cross_process_status()`, which opens
+    # a live session. They name the same database — `db.py` builds the engine from this exact var —
+    # but a transient connection blip at container start would make the status call return "unknown"
+    # and permanently refuse a perfectly good Postgres deployment. The env var cannot blip.
+    #
+    # This is not a fresh judgement call: `main._production_guard` reached the same conclusion for the
+    # same reason, and says so in a comment. Live truth still belongs on a health surface, where a
+    # blip reads as *degraded*; a boot refusal has to be certain.
+    db_url = os.environ.get("DATABASE_URL", "")
+    dialect = db_url.split("://", 1)[0].split("+", 1)[0] if "://" in db_url else "sqlite"
+    if dialect == "postgresql":
+        return True, ""
+    if os.environ.get(UNSAFE_LOCK_ENV) == "1":
+        return True, (
+            f"running a dedicated worker on a {dialect!r} database, where sidecar writes CANNOT be "
+            f"serialised against the API process. {UNSAFE_LOCK_ENV}=1 is set, so starting anyway — "
+            "a concurrent document-index write can be silently lost.")
+    return False, (
+        f"refusing to start: a dedicated job worker is a second writer, and on a {dialect!r} database "
+        "pid_lock cannot serialise it against the API process — it falls back to a threading.RLock, "
+        "which two processes cannot share. A mutating job and an API edit on the same project would "
+        "interleave and silently drop one sidecar entry. Use Postgres, or run the worker in-process "
+        f"(leave {jobs.WORKER_ENV} unset). Set {UNSAFE_LOCK_ENV}=1 only if you accept that loss.")
+
 
 def main() -> int:
     logging.basicConfig(
@@ -65,6 +114,22 @@ def main() -> int:
     if not jobs.KINDS:
         log.error("no job kinds registered — refusing to run a worker that cannot handle anything")
         return 2
+
+    # A dedicated worker process is, by definition, a SECOND writer against the same projects the API
+    # is editing. `pid_lock` serialises those writes across processes **only on Postgres** — on any
+    # other backend it degrades to a `threading.RLock`, which two processes cannot share. Nothing
+    # raises when that happens: a mutating job here and a document upload in the API interleave their
+    # load→save on the same sidecar index and one entry silently disappears.
+    #
+    # So this refuses rather than warns. The API's boot guard covers the same ground, but only for
+    # deployments it judges to be production — and this process can be pointed at a database the API
+    # never saw. A guard that runs where the risk is beats a guard that runs where the config is.
+    ok, message = lock_check()
+    if not ok:
+        log.error("%s", message)
+        return 3
+    if message:
+        log.warning("%s", message)
 
     log.info("starting dedicated job worker (%d kinds)", len(jobs.KINDS))
     jobs.run_forever()

@@ -72,8 +72,16 @@ the reserve/benchmarking/proforma sweep) — its full record is in
 sweep rather than by a failing test, which is the reason they rank first: **nothing in the suite can
 currently fail if either regresses.**
 
-- ✅ **R35-PIDLOCK-XPROC** *(M — Lane C, SHIPPED `2b332674`)* — `pid_lock.mutating(pid)` serialises the sidecar
-  read-modify-write (docmanager index, edit history) **within one process only**, and the module says
+- ✅ **R35-PIDLOCK-XPROC** *(M — Lane C, SHIPPED `2b332674`; **body corrected 2026-08-05**)* — the
+  paragraph below described the problem in the present tense long after the fix landed, so a ✅ item
+  read as open work. It said `pid_lock` serialises "within one process only"; since `2b332674` it
+  takes a **Postgres session advisory lock** as well. **The one true residue, now enforced rather
+  than narrated:** on any non-Postgres backend there is no advisory lock, so serialisation really is
+  in-process only — and v0.3.869's worker split made that reachable in a new way, since a dedicated
+  worker is a second writer by definition. v0.3.872 closes it: `services/api/src/aec_api/worker.py` refuses to start there,
+  and the boot guard counts **writer processes** rather than uvicorn workers. Historical description
+  follows. — `pid_lock.mutating(pid)` serialises the sidecar
+  read-modify-write (docmanager index, edit history) **within one process only**, and the module said
   so plainly. Under `uvicorn --workers > 1` two workers can interleave load→save on the same project
   and the first writer's entry is silently lost — no error, no duplicate, just an index that forgot
   something. The v0.3.817 sweep fixed the two seams that had a *database* to arbitrate them (ref
@@ -1377,6 +1385,28 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 (`services/api/Dockerfile`), a Content-Security-Policy with a no-inline-script gate
 (`apps/web/nginx.conf` + `apps/web/src/deploy/nginx.test.ts`), the multi-worker sidecar-lock boot
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
+
+- ✅ **R39-WORKER-SAFE** *(shipped v0.3.872 — the guard whose population I widened without widening
+  the guard)* — `_production_guard` refused to boot a deployment that could not serialise sidecar
+  writes across workers, testing `_worker_count() > 1`. That was **one route** to having two writer
+  processes. R39-WORKER-SPLIT added a second, independent one: `AEC_JOB_WORKER=off` moves the job
+  worker into its own process, so `UVICORN_WORKERS=1` plus a dedicated worker container is two
+  writers and sailed straight through. On anything but Postgres, `pid_lock` degrades to a
+  `threading.RLock` that two processes cannot share, and a mutating job interleaving with an API edit
+  drops a sidecar entry **with nothing raised**.
+
+  The guard was correct when written and became wrong when the product grew a new way to do the thing
+  it forbids. That is the failure mode of any check that enumerates *causes* rather than measuring the
+  *condition* — it cannot know about a cause invented later, and it keeps reporting green.
+
+  Closed on both sides: the boot guard now counts writer processes and names which second writer it
+  found, and `services/api/src/aec_api/worker.py` refuses to start where the lock cannot span
+  processes —
+  `AEC_WORKER_ALLOW_UNSAFE_LOCK=1` accepts the risk explicitly and still warns. **A guard that runs
+  where the risk is beats one that runs where the config is**: the API's guard is production-scoped
+  and the worker can be pointed at a database the API never saw. The dialect is read from
+  `DATABASE_URL`, not from a live session, for the reason `main.py` already documented one file over
+  — a connection blip must not permanently refuse a good deployment.
 
 - ✅ **R39-STALL-VISIBLE** *(shipped v0.3.870 — the hole R39-WORKER-SPLIT opened, closed)* — once the
   worker can live in another container, **nothing the API can see changes when it dies.** The API is

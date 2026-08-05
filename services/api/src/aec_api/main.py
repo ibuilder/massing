@@ -199,14 +199,31 @@ def _production_guard() -> None:
         # opens a live session, so a transient connection blip would return "" and refuse to boot a
         # perfectly configured Postgres deployment. The env var cannot blip. The live-truth surface
         # stays `cross_process_status()` on /health, where a blip reads as degraded, not fatal.
-        if _worker_count() > 1:
+        #
+        # **The population, not just the count.** This asked `_worker_count() > 1` — one route to
+        # having two writer processes. JOB-WORKER-SPLIT (v0.3.869) added a second, independent one:
+        # `AEC_JOB_WORKER=off` moves the job worker into its OWN process, so a deployment with
+        # UVICORN_WORKERS=1 and a dedicated worker container has two writers and sailed straight
+        # through this guard. A mutating job in the worker and an API edit on the same project would
+        # then interleave with nothing arbitrating them.
+        #
+        # The guard was correct when written and became wrong when the product grew a new way to do
+        # the thing it forbids. That is the failure mode to watch for in any check that enumerates
+        # causes rather than measuring the condition: it cannot know about a cause invented later.
+        from . import jobs
+        writers, why = _worker_count(), f"{_worker_count()} uvicorn workers"
+        if not jobs.worker_enabled():
+            writers += 1
+            why = (f"{_worker_count()} uvicorn worker(s) plus a dedicated job-worker process "
+                   f"({jobs.WORKER_ENV}=off)")
+        if writers > 1:
             dialect = db_url.split("://", 1)[0].split("+", 1)[0] if "://" in db_url else "sqlite"
             if dialect != "postgresql":
                 problems.append(
-                    f"{_worker_count()} workers are configured but the sidecar write lock cannot "
-                    f"serialise across them on a {dialect!r} database — two workers can "
+                    f"this deployment runs {writers} writer processes ({why}) but the sidecar write "
+                    f"lock cannot serialise across them on a {dialect!r} database — two writers can "
                     "interleave a document-index write and silently lose one. Use Postgres, or run "
-                    "a single worker.")
+                    f"a single uvicorn worker with {jobs.WORKER_ENV} unset (in-process job worker).")
         if problems:
             raise RuntimeError(
                 "refusing to start a production deployment with an unsafe configuration:\n  - "

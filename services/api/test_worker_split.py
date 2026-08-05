@@ -134,6 +134,77 @@ assert state == "done", f"run_forever() did not drain the queue (job state={stat
 assert _ran == [{"n": 7}], f"the handler did not receive its params: {_ran!r}"
 assert not t.is_alive(), "run_forever() ignored stop_worker() — a worker container would never shut down"
 
+# --- C2. the split is only SAFE where pid_lock spans processes -------------------------------------
+# The gap this file missed when it was written (v0.3.869) and that closed in v0.3.872: a dedicated
+# worker is a second writer, and `pid_lock` serialises across processes ONLY on Postgres. On any
+# other backend it is a `threading.RLock`, which two processes cannot share — so a mutating job here
+# and a document upload in the API interleave their load→save on one sidecar index and an entry
+# disappears with nothing raised. This test process is on SQLite, which is exactly the unsafe case.
+from aec_api import pid_lock  # noqa: E402
+
+assert not pid_lock.cross_process_status()["cross_process"], (
+    "this test asserts the REFUSAL path and needs a backend without an advisory lock; on Postgres "
+    "it would be asserting nothing")
+
+os.environ.pop(worker.UNSAFE_LOCK_ENV, None)
+ok, why = worker.lock_check()
+assert ok is False, "a dedicated worker must refuse to start where pid_lock cannot span processes"
+assert "second writer" in why and "Postgres" in why, why
+assert jobs.WORKER_ENV in why, "the refusal must name the way out, not just the problem"
+
+# ...and the operator can accept the risk explicitly, which must WARN rather than go quiet. An
+# override that silences the message would leave no trace of a knowingly unsafe deployment.
+os.environ[worker.UNSAFE_LOCK_ENV] = "1"
+ok, why = worker.lock_check()
+assert ok is True, "the explicit override must allow the worker to run"
+assert why and "silently lost" in why, f"the override must still warn: {why!r}"
+os.environ.pop(worker.UNSAFE_LOCK_ENV, None)
+
+# --- C3. the API's boot guard counts WRITER PROCESSES, not uvicorn workers -------------------------
+# `_production_guard` asked `_worker_count() > 1` — one route to two writers. AEC_JOB_WORKER=off is a
+# second, independent one, so UVICORN_WORKERS=1 plus a dedicated worker container sailed straight
+# through. The guard was correct when written and became wrong when the product grew a new way to do
+# the thing it forbids.
+from aec_api.main import _production_guard  # noqa: E402
+
+_saved = {k: os.environ.get(k) for k in
+          ("AEC_ENV", "UVICORN_WORKERS", "AEC_RBAC", "AEC_AUTH_SECRET", "AEC_ALLOW_OPEN",
+           jobs.WORKER_ENV)}
+
+
+def _guard_problem() -> str:
+    try:
+        _production_guard()
+        return ""
+    except RuntimeError as exc:
+        return str(exc)
+
+
+os.environ.update({"AEC_ENV": "production", "UVICORN_WORKERS": "1", "AEC_RBAC": "1",
+                   "AEC_AUTH_SECRET": "x" * 32})
+os.environ.pop("AEC_ALLOW_OPEN", None)
+import aec_api.rbac  # noqa: E402
+
+aec_api.rbac.RBAC_ON = True                      # the guard reads the module flag, set at import
+
+os.environ.pop(jobs.WORKER_ENV, None)            # in-process worker ⇒ ONE writer ⇒ allowed
+assert "writer processes" not in _guard_problem(), (
+    "a single uvicorn worker with the in-process job worker is ONE writer and must boot — without "
+    "this twin, a guard that refused everything would pass the assertion below")
+
+os.environ[jobs.WORKER_ENV] = "off"              # dedicated worker ⇒ TWO writers on SQLite ⇒ refuse
+problem = _guard_problem()
+assert "writer processes" in problem, (
+    f"UVICORN_WORKERS=1 + {jobs.WORKER_ENV}=off is two writer processes on SQLite and must be "
+    f"refused at boot; guard said: {problem!r}")
+assert "dedicated job-worker process" in problem, "the message must say WHICH second writer"
+
+for _k, _v in _saved.items():
+    if _v is None:
+        os.environ.pop(_k, None)
+    else:
+        os.environ[_k] = _v
+
 # --- D. no compose file may turn the API's worker off without replacing it -------------------------
 # The production accident this exists to catch: `AEC_JOB_WORKER=off` lands on the api service, the
 # worker container is forgotten or deleted, and the stack comes up perfectly healthy while doing no
@@ -228,6 +299,11 @@ for f in ("./_worker_split_test.db",):
 
 print("WORKER-SPLIT OK - AEC_JOB_WORKER defaults to inline (unset/typo → inline, only 'off' disables) "
       "and a STARTED app honours it in BOTH directions; `run_forever()` (what `python -m aec_api.worker` "
-      "runs) drained a real queued job off the main thread and shut down on stop_worker(); every compose "
-      "service that sets off is matched by a service running the worker, built from the same Dockerfile "
-      "as the API; and the stale single-writer/FOR-UPDATE note is gone.")
+      "runs) drained a real queued job off the main thread and shut down on stop_worker(); the worker "
+      "REFUSES to start where pid_lock cannot span processes (a dedicated worker is a second writer, "
+      "and on anything but Postgres the sidecar lock is an in-process RLock two processes cannot "
+      "share) while an explicit AEC_WORKER_ALLOW_UNSAFE_LOCK=1 still warns; the boot guard counts "
+      "WRITER PROCESSES rather than uvicorn workers, so UVICORN_WORKERS=1 plus a dedicated worker is "
+      "refused on SQLite and the single-writer twin still boots; every compose service that sets off "
+      "is matched by a service running the worker, built from the same Dockerfile as the API; and the "
+      "stale single-writer/FOR-UPDATE note is gone.")

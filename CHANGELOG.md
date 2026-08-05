@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.872 — the guard forbidding two writers didn't know I had added a second way to have two
+
+v0.3.869 moved the job worker into its own container. `_production_guard` already refused to boot a
+deployment that could not serialise sidecar writes across workers — but it asked `UVICORN_WORKERS > 1`,
+which is *one* route to two writer processes. `AEC_JOB_WORKER=off` is a second, independent one, so a
+stack with one uvicorn worker and a dedicated worker container went straight through.
+
+On anything but Postgres this matters: `pid_lock` falls back to a `threading.RLock`, which two
+processes cannot share. A mutating job in the worker and a document upload in the API then interleave
+their load→save on the same sidecar index and one entry disappears, with nothing raised.
+
+The guard was right when written and became wrong when the product grew a new way to do the thing it
+forbids — the failure mode of any check that enumerates causes instead of measuring the condition.
+
+Both sides now close it. The boot guard counts writer processes and names which second writer it
+found. `python -m aec_api.worker` refuses to start where the lock cannot span processes, because the
+API's guard is production-scoped and the worker can be pointed at a database the API never saw;
+`AEC_WORKER_ALLOW_UNSAFE_LOCK=1` accepts the risk explicitly and still warns. The dialect is read
+from `DATABASE_URL` rather than a live session, so a connection blip cannot permanently refuse a good
+deployment — the reason `main.py` already documented for the same decision.
+
+Also corrected: the R35-PIDLOCK-XPROC roadmap entry described its problem in the present tense long
+after the fix shipped, so a ✅ item read as open work.
+
 ## v0.3.871 — the roadmap contradicted itself in four places
 
 Seven item ids were defined more than once and four of the duplicates disagreed. Since every
