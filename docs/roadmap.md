@@ -72,7 +72,7 @@ the reserve/benchmarking/proforma sweep) — its full record is in
 sweep rather than by a failing test, which is the reason they rank first: **nothing in the suite can
 currently fail if either regresses.**
 
-- ⭐ **R35-PIDLOCK-XPROC** *(M — Lane C)* — `pid_lock.mutating(pid)` serialises the sidecar
+- ✅ **R35-PIDLOCK-XPROC** *(M — Lane C, SHIPPED `2b332674`)* — `pid_lock.mutating(pid)` serialises the sidecar
   read-modify-write (docmanager index, edit history) **within one process only**, and the module says
   so plainly. Under `uvicorn --workers > 1` two workers can interleave load→save on the same project
   and the first writer's entry is silently lost — no error, no duplicate, just an index that forgot
@@ -479,7 +479,7 @@ stakes we are missing.
 
 **Tier 1 — closes the mission's own gaps**
 
-- **R22-ENTITLEMENT** *(M/L)* — **permit & entitlement workflow**: jurisdiction submittal packages,
+- ◧ **R22-ENTITLEMENT** *(M/L — ①② shipped: `approval_conditions.py`, `condition_checks.py`)* — **permit & entitlement workflow**: jurisdiction submittal packages,
   review cycles, comment responses, and **conditions of approval carried into the model as
   constraints**. Today there is a hole between "acquisition" and "construction" in our own mission
   statement — we underwrite the deal and we build it, and nothing spans approval.
@@ -495,7 +495,7 @@ stakes we are missing.
   never noticing `approval_risk.py`, which the eventual build should probably feed. Third
   collision found on 2026-07-31, after `report_builders/` (five hardcoded builders, not the no-code
   builder R22-REPORT-BUILDER describes).
-- ⭐ **R22-AGENT-PACKS** *(M)* — **named agent packs + org "Skills" + a governance console** over the
+- ◧ **R22-AGENT-PACKS** *(M — `agent_packs.py` shipped; console scope unverified)* — **named agent packs + org "Skills" + a governance console** over the
   MCP layer we already ship. We expose raw capability; the market ships "Submittal Review Agent",
   which a superintendent understands. Pure packaging of existing tools, plus per-run audit logging —
   the gating factor for enterprise adoption. Our version reads the IFC, so a submittal check can test
@@ -503,11 +503,11 @@ stakes we are missing.
 
 **Tier 2 — evidence, provenance and procurement**
 
-- **R22-PROVENANCE** *(L)* — **cite to file, page and revision.** Every proforma assumption, estimate
+- ◧ **R22-PROVENANCE** *(L — `assumption_provenance.py`, `provenance_report.py` shipped)* — **cite to file, page and revision.** Every proforma assumption, estimate
   line and agent answer traceable to a source page. Three of thirteen platforms *lead* with this; it
   is what makes AI output admissible in an IC memo or a claim.
 
-- **R22-OPTION-OBJECT** *(S/M)* — make **option the primary object**: geometry + unit mix + cost +
+- ◧ **R22-OPTION-OBJECT** *(S/M — `option_economics.py` shipped)* — make **option the primary object**: geometry + unit mix + cost +
   carbon + IRR as one comparable record, so no massing is ever evaluated without its returns.
 - **R22-REPORT-BUILDER** *(M)* — **RESCOPED 2026-07-31; the original premise was false.** The entry
   read "132 modules of structured data with **no end-user query surface**". There is one, and it is
@@ -546,9 +546,9 @@ stakes we are missing.
   give `SavedView.config` a schema, and let a view be shared. **Building the entry as written would
   have rebuilt working filtering.** Items 3 and 4 land in `models.py`/`routers/modules.py` — check the
   lane table before starting, that is not lane C's to take unilaterally.
-- **R22-PIPELINE** *(M)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
+- ◧ **R22-PIPELINE** *(M — `deal_funnel.py` + migration shipped)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
   is a funnel, not a project.
-- **R22-ROUTINES** *(S)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
+- ◧ **R22-ROUTINES** *(S — `routines.py` + migration shipped)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
   scan) rather than on-demand only. Turns AI from a tool you remember to use into infrastructure.
 - **R22-PM-CONTRACTS** *(M)* — **preventative-maintenance contracts from turnover data.** The COBie
   asset register, warranties and service intervals become billable recurring PM contracts. Extends
@@ -592,7 +592,7 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   licence list — a ~60–100 KB prebuilt wheel, and already a transitive dependency of matplotlib, so
   it adds a *declaration* rather than new surface area. Trivially reversible. Proceeding on the
   standing delegation; flagged here so it can be objected to in one line.
-- **R23-STOREY-LOD** *(L)* — server-side coarse proxies per storey (extruded footprint / AABB) for
+- ✅ **R23-STOREY-LOD** *(L — SHIPPED, PR #176/#178/#179)* — server-side coarse proxies per storey (extruded footprint / AABB) for
   small parts, MEP and furniture, swapping to real fragments on demand. Server-side keeps it
   deterministic, offline and $0. **Blocker retired by measurement 2026-08-02:** the recorded
   "no Fragments writer" blocker blocks *direct encoding* of a `.frag` in Python, not *production* of
@@ -768,7 +768,7 @@ Everything after this sprint is a claim about adoption. Nothing in the stack can
 refute one, so this goes first even though it is the least visible.
 
 
-- ⭐ **R24-PERF-BUDGET** *(S)* — **now measurable**: `metrics.quantile(0.95)` reads the histogram
+- ◧ **R24-PERF-BUDGET** *(S — `perf_budget.py` shipped)* — **now measurable**: `metrics.quantile(0.95)` reads the histogram
   above. The remaining work is the asserted budget itself (100 ms click echo, 1 s panel, p95 < 100 ms)
   as a `test_*`, per *Verify, don't recall*. Note what the server can and cannot say: request p95 is
   server-side and now real; **click-echo latency is client-side and still needs a beacon.**
@@ -1022,7 +1022,7 @@ seam.
   the UI, show what a bundle contains before import, and state on export what was included and what
   was **left out** (`_SKIP_TABLES` drops users, audit log, settings and connections — correct, and
   currently silent). The same unknown ≠ none rule the engines follow.
-* **R28-ICDD ③ — a standards-conformant envelope.** Emit and read ISO 21597 containers, with our
+* ✅ **R28-ICDD ③ — a standards-conformant envelope.** Emit and read ISO 21597 containers, with our
   payloads as documents and the GlobalId-keyed relationships as RDF linksets. `.mass` can then simply
   **be** an ICDD container with our extension — the branding without the lock-in.
   ✅ **`rdflib` (BSD-3) is APPROVED** *(user, 2026-07-26)* — no longer gated. Licensing is recorded in
@@ -1146,7 +1146,7 @@ coverage checklist against our 130 modules it is a gap-analysis input, not an im
   run and corrected the design: dHash is not exposure-invariant where highlights clip, so it cannot
   veto the two measures that are invariant by construction.
 
-* ⭐ **R22-PHOTO-CV Tier 2 — pretrained detection** *(M — decided 2026-08-03: site logistics first)*.
+* ✅ **R22-PHOTO-CV Tier 2 — pretrained detection** *(M — decided 2026-08-03: site logistics first)*.
   Torch + torchvision (**both BSD-3**) for training/export only; the API service gets **onnxruntime**
   (MIT, ~50 MB) so the training framework never enters the deployed image. Per the dependency rule
   above, neither is pinned until the code that uses it lands. First target is COCO-pretrained
@@ -1310,7 +1310,7 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
   glyphs, and its tests are mostly about *nothing disappearing* and only then about the bar being
   short. A ribbon inherits that gate — `unlaidTitles()` staying empty matters more than any tab
   layout. Design question before build.
-- **R40-EOT ②** *(M–L, Lane C)* — extension-of-time entitlement, with its method stated. Every input
+- ◧ **R40-EOT ②** *(M–L, Lane C — `eot.py` shipped)* — extension-of-time entitlement, with its method stated. Every input
   exists (`schedule_cpm.compute` gives ES/EF/LS/LF and free float, with total float derivable as
   LS−ES; `schedule_baselines` gives named baselines and per-activity variance; `notice_clock`
   already types weather/constructive-change/suspension delay events). What is missing is the step
@@ -1322,7 +1322,7 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
   its method and **refuses to emit an EOT number without one**, reporting concurrency *as*
   concurrency rather than silently apportioning it. An unmethodded EOT figure is the
   confident-wrong shape at its most expensive: this number ends up in arbitration.
-- **R22-PIPELINE** — no rewrite needed; a **spec reference now exists** from the same drop (portfolio
+- ◧ **R22-PIPELINE** — no rewrite needed; a **spec reference now exists** from the same drop (portfolio
   dashboard: multi-project KPI strip, cross-project Gantt, EVM PV/EV/AC + SPI/CPI, risk heat map,
   milestone tracking, resource allocation by department, cost-by-project).
 
@@ -1657,11 +1657,11 @@ Shipped 2026-08-01:
 
 Open:
 
-- **R35-PIDLOCK-XPROC** *(M)* — `pid_lock` serialises sidecar read-modify-write **in-process only**
+- ✅ **R35-PIDLOCK-XPROC** *(M — SHIPPED `2b332674`)* — `pid_lock` serialises sidecar read-modify-write **in-process only**
   and says so honestly; `uvicorn --workers > 1` needs a shared lock (DB advisory lock or storage
   CAS). Until then single-writer-per-project is the supported shape. The item is the DB advisory
   lock, behind the same `mutating(pid)` interface so callers do not change.
-- **R35-DEAL-MEMORY** *(M)* — the platform's own closed deals as a comp database: when underwriting
+- ◧ **R35-DEAL-MEMORY** *(M — `deal_memory.py` shipped)* — the platform's own closed deals as a comp database: when underwriting
   a new deal, surface this portfolio's realised outcomes (exit cap achieved vs assumed, actual
   lease-up months, cost/SF by vintage) beside the assumption being entered. External research
   (2026-08) puts this "institutional knowledge" layer as the least-commoditised part of the
