@@ -1731,7 +1731,26 @@ tracked files, and the wrong-directory misroute is exactly how lanes collide:
    Recorded rather than deleted because the backlog's index is 455 releases old: the useful output
    of triage is "this was true and is not any more", not a quietly shortened list. Nobody needs to
    re-derive it, and if a cycle returns, the two gates fail before anyone reads this.
-2. Split `services/api/src/aec_api/modules.py` (982 lines — Lane C) and
+2. **MEASURED 2026-08-04 — the backlog names the wrong files, and the real one is nearly out of
+   room.** Against this repo's own ratchet (`services/api/test_file_sizes.py`, CEILING 5200):
+
+       apps/web/src/viewer/app.ts   5064   97% of ceiling   <- 136 lines of headroom
+       apps/web/src/api/client.ts   3967   76%
+       .../portal/register/register.ts 2162  42%
+       services/api/src/aec_api/modules.py  988  19%
+       services/api/src/aec_api/main.py     697  13%
+
+   The backlog's candidates are 13–19% of the ceiling; they are not the problem. `app.ts` is, and
+   **the next feature that touches it reds the build** — v0.3.861 put 42 of those lines there for the
+   verification photo button, so this is a live constraint, not a projection. Splitting `app.ts` is
+   Lane E and a real piece of work; it is named here so nobody spends the effort on `modules.py`
+   first and reports the file-size item as addressed.
+
+   Retained below because "982 lines" is now 988 — the file grew while sitting on a to-split list,
+   which is the other reason a stale backlog costs: it makes work look done that is quietly getting
+   worse.
+
+   Original: split `services/api/src/aec_api/modules.py` (982 lines — Lane C) and
    `services/api/src/aec_api/main.py` (Lane G convention applies: announce first, it is a shared
    file). The backlog's "codecheck.py" split almost certainly means
    `services/api/src/aec_api/routers/codecheck.py` (614 lines) — that is the **routers carve-out
