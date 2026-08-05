@@ -82,7 +82,25 @@ currently fail if either regresses.**
   *Until it lands, single-writer-per-project is the supported deployment shape — that is a real
   constraint on the product, not a note.*
 
-- **SEC-PLUGIN-SANDBOX** *(M — Lane C)* — the external audit's one legitimate High. `sandbox.py`
+- ◧ **SEC-PLUGIN-SANDBOX** *(M — Lane **D**, not C: `sandbox.py` lives in `services/data/src/aec_data/`)*
+  — **the binding half SHIPPED v0.3.864; the `setrlimit` half is REFUSED as specified, see below.**
+  The attribute check is now an allowlist rather than a denylist: IFC entity attributes are CamelCase
+  by schema and the dangerous stdlib surface is lowercase, so CamelCase passes and every lowercase
+  name must be explicitly exposed. Each red-team escape in `services/api/test_sandbox.py`
+  (`ifcopenshell.os.system`, `.express.subprocess`, `.api.importlib`, `format_map`, `wrapped_data`)
+  was a lowercase attribute somebody had to think of first; the ones nobody thinks of are now closed
+  by default.
+
+  **`setrlimit` cannot be added correctly in-process, and adding it would be worse than not.**
+  `RLIMIT_CPU` bounds *cumulative process CPU since start*, not one call — so it would kill a healthy
+  API worker after enough ordinary traffic, and when it fires it delivers `SIGXCPU` to the whole
+  process, taking every concurrent request with it. `RLIMIT_AS` is process-wide too, so a snippet's
+  memory ceiling would constrain unrelated threads. Both need a child process to be meaningful, which
+  is exactly **R35-SANDBOX-ISOLATION**, Parked pending a deployment-shape decision. The residual risk
+  is unchanged and stated in `services/data/src/aec_data/sandbox.py`: a native call reached through
+  an allowed binding is bounded by that library, not by the trace hook.
+
+  Original text: the external audit's one legitimate High. `sandbox.py`
   executes snippets in-process behind AST checks and a trace-hook timeout; the AST layer is genuinely
   strong, but a native call reached through an allowed binding can block uninterruptibly, and
   in-process means the snippet shares the API's file descriptors and environment. Execution is

@@ -72,6 +72,40 @@ assert rejected("'{0}'.format(model).format_map({})"), "format_map blocked"
 assert rejected("ifcopenshell.express"), "non-exposed subpackage blocked"
 assert rejected("model.wrapped_data"), "model.wrapped_data blocked"
 
+# --- SEC-PLUGIN-SANDBOX: the attribute check is an ALLOWLIST, not a denylist ----------------------
+# Every red-team case above is a *lowercase* attribute that someone had to think of and add by hand.
+# The escapes nobody thinks of are the ones that matter, so the check now refuses any lowercase
+# attribute not explicitly exposed. These names are NOT in `_DENIED_ATTRS` — before this change each
+# one parsed cleanly, and on `model` (a real `ifcopenshell.file`, not a facade) would have resolved.
+assert rejected("model.header"), "un-enumerated file attribute must be refused, not merely undenied"
+assert rejected("ifcopenshell.util"), "un-enumerated subpackage refused at the AST, not at runtime"
+assert rejected("model.by_type('IfcWall')[0].walk"), "arbitrary lowercase attribute refused"
+assert rejected("model.transaction"), "un-enumerated attribute refused"
+assert rejected("model._chained"), "private surface is not authoring surface"
+
+# ...and the allowlist is genuinely permissive where authoring needs it, or the flag gets switched
+# off permanently. CamelCase passes because IFC entity attributes are CamelCase by schema.
+m0 = open_model(TMP)
+for ok_code in (
+    "x = model.by_type('IfcWall')",
+    "n = len(model.by_type('IfcProject'))",
+    "s = 'a-b'.split('-')",
+    "t = ' x '.strip().upper()",
+    "g = ifcopenshell.guid.new()",
+):
+    try:
+        sandbox.execute_ifc_code(m0, ok_code)
+    except sandbox.SandboxError as e:                      # noqa: PERF203 — one message per case
+        raise AssertionError(f"legitimate snippet was refused: {ok_code!r} -> {e}") from e
+
+# CamelCase entity attributes must survive — the property the whole split relies on. Exercised on
+# IfcProject, which every valid IFC file has exactly one of: the first version guarded this behind
+# `if model.by_type("IfcWall")` and the fixture has none, so it silently never ran. A mutation that
+# stopped CamelCase passing left the suite green — a test skipped by its own precondition.
+assert m0.by_type("IfcProject"), "fixture must contain an IfcProject for the CamelCase check"
+sandbox.execute_ifc_code(m0, "nm = model.by_type('IfcProject')[0].Name")
+sandbox.execute_ifc_code(m0, "gid = model.by_type('IfcProject')[0].GlobalId")
+
 # --- a whitelisted ifcopenshell snippet authors into the model ------------------------------------
 m = open_model(TMP)
 n0 = len(m.by_type("IfcWall"))

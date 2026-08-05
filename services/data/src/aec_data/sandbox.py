@@ -75,6 +75,48 @@ _DENIED_ATTRS = frozenset({
     # the model is the *caller's* job, so none of these have a legitimate use inside a snippet.
     "write", "from_string", "from_pointer", "assign_header_from", "storage",
 })
+#: SEC-PLUGIN-SANDBOX — the lowercase attribute names a snippet may reach. Everything else lowercase
+#: is refused, so an escape route nobody enumerated is closed by default rather than after someone
+#: finds it. The split works because of a property of the domain, not a coincidence: **IFC entity
+#: attributes are CamelCase** (`Name`, `GlobalId`, `ObjectPlacement`) while the dangerous stdlib
+#: surface is lowercase (`os`, `system`, `environ`, `import_module`, `format_map`, `wrapped_data`).
+#: So CamelCase passes and lowercase must be named here.
+#:
+#: Kept deliberately generous — a sandbox that rejects ordinary authoring gets its flag switched on
+#: permanently and then off again, which is worse than a slightly wider allowlist. Add to this list
+#: rather than removing the check.
+_ALLOWED_LOWER_ATTRS = frozenset({
+    # the authoring facade the snippet is actually here to use
+    "api", "run", "guid", "new", "create_entity",
+    # ifcopenshell.file read surface
+    "by_type", "by_id", "by_guid", "get_inverse", "traverse", "schema", "types", "is_a", "id",
+    # ordinary value manipulation
+    "append", "extend", "insert", "index", "count", "sort", "reverse", "copy",
+    "keys", "values", "items", "get", "add", "update", "pop",
+    "strip", "lstrip", "rstrip", "lower", "upper", "title", "split", "rsplit", "join",
+    "replace", "startswith", "endswith", "find", "isdigit", "isalpha", "zfill", "ljust", "rjust",
+    "real", "imag",
+})
+
+
+def _attr_allowed(attr: str) -> bool:
+    """True for an attribute a snippet may read.
+
+    CamelCase (an IFC entity attribute) passes; anything else must be on `_ALLOWED_LOWER_ATTRS`.
+
+    There is deliberately NO separate leading-underscore branch. The obvious one —
+    `if attr.startswith("_"): return False` — was written first and removed: `_foo` already fails
+    `isupper()` and is not on the allowlist, so it was rejected either way. Mutation testing caught
+    it as a branch that could not change any outcome. A redundant clause in security code is worse
+    than none, because it reads as a distinct protection and invites relying on it.
+    """
+    if not attr:
+        return False
+    if attr[0].isupper():
+        return True                      # IfcWall.Name, .GlobalId, .ObjectPlacement, …
+    return attr in _ALLOWED_LOWER_ATTRS
+
+
 _MAX_LEN = 8000
 # SEC: wall-clock budget for a snippet. `while` is rejected by the AST allowlist, but `for` over a
 # large range is an equivalent unbounded loop and pins a uvicorn worker forever (a handful of requests
@@ -105,6 +147,16 @@ def _check(tree: ast.AST) -> None:
                 raise SandboxError(f"disallowed attribute: {node.attr}")
             if node.attr in _DENIED_ATTRS:
                 raise SandboxError(f"disallowed attribute: {node.attr}")
+            # SEC-PLUGIN-SANDBOX: the denylist above stays as defence-in-depth, but the ALLOWLIST
+            # below is what actually holds. A denylist over an injected object's API is unclosable —
+            # it blocks what someone thought of, and `model` is a real `ifcopenshell.file` whose
+            # surface nobody here enumerated. Every escape in the red-team suite above
+            # (`ifcopenshell.os.system`, `.express.subprocess`, `.api.importlib`, `format_map`,
+            # `wrapped_data`) is a *lowercase* attribute that had to be discovered and added by hand.
+            if not _attr_allowed(node.attr):
+                raise SandboxError(
+                    f"attribute not on the allowlist: {node.attr} "
+                    "(IFC attributes are CamelCase; only a fixed set of lowercase helpers is exposed)")
         if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
             # a**b**c chains, or a single huge constant exponent, are integer-blowup DoS shapes
             if isinstance(node.right, ast.BinOp) and isinstance(node.right.op, ast.Pow):
