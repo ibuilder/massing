@@ -72,9 +72,13 @@ PER_FILE = {
     #: Pinned BEFORE the split rather than after, so the number the extraction has to beat is the
     #: unimproved one. Pinning afterwards would freeze the improved figure and lose the evidence that
     #: it moved — the history in the line above (3,967 → 3,871 → 3,796) is the thing worth having.
-    #: R39-DECOMP-VIEWER: ① Exports out (51) -> 5,114; ② the clash/QA section out (851) -> 4,272.
-    #: Ratcheted each time, never reset — the movement is the evidence the seam is real.
-    "apps/web/src/viewer/app.ts": 4_272,
+    #: R39-DECOMP-VIEWER, one entry per slice so the movement is the record:
+    #:   ① Exports (51)   5,160 -> 5,114
+    #:   ② clash/QA (851) 5,114 -> 4,272
+    #:   ③ analyse (238) + ④ authoring (91)  4,272 -> 3,953
+    #:   ⑤ project-browser panel (216)      3,953 -> 3,751
+    #: The whole `builders` map is now out of app.ts. Ratcheted each time, never reset.
+    "apps/web/src/viewer/app.ts": 3_751,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.

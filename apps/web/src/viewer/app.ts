@@ -33,16 +33,13 @@ import { createRailToolbox } from "./railToolbox";
 import { VisibilityTool } from "../tools/visibility";
 import { ColorizeTool } from "../tools/colorize";
 import { LayerManager } from "../tools/layers";
-import { type SelSet, loadSelSets, saveSelSets, resolveGuids } from "../tools/selectionSetsStore";
+import { loadSelSets, saveSelSets } from "../tools/selectionSetsStore";
 import { OriginTool } from "../tools/origin";
-import { buildTree, setDisciplineLookup } from "../tree/tree";
 import { installDraftPanel, type ArmedDraft, type DraftPanelHandle } from "./draft/draftPanel";
 import { type FamilyDef } from "./draft/draftCatalog";
 import { GridOverlay } from "./draft/gridOverlay";
 import { LogisticsOverlay } from "./draft/logisticsOverlay";
-import { type LogisticsResource } from "../api/client";
 import { DraftProxyLayer } from "./draft/draftProxy";
-import { populate4dPanel } from "./fourD";
 import { TransformGizmo } from "./draft/transformGizmo";
 import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
 import { PlanPane } from "./planPane";
@@ -50,6 +47,9 @@ import { type PlanBounds, validatePlacement } from "./placeValid";
 import { planBoundsFromModels } from "./modelBounds";
 import { buildExportsSection } from "./tools/exportsSection";
 import { buildQaSection } from "./tools/qaSection";
+import { buildAnalyseSection } from "./tools/analyseSection";
+import { buildAuthoringSection } from "./tools/authoringSection";
+import { buildProjectPanels } from "./tools/projectPanel";
 import { GuideUnderlay, openUnderlayPanel } from "./guideUnderlay";
 import { type SpatialElement, type SpatialScope, nextScope, scopeSelection } from "./spatialSelect";
 import { DraftPointHistory } from "./draftHistory";
@@ -63,7 +63,6 @@ import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type DisciplineTree, type ElementProps, type Topic } from "../api/client";
 import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
 import { showResult, kvTable, resultNote } from "../ui/result";
-import { openNodeCanvas } from "./nodeCanvas";
 
 /** View options the settings bar owns (in main) and the viewer applies. */
 export type Settings = {
@@ -150,7 +149,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const visibility = new VisibilityTool(viewer.components);
   const colorize = new ColorizeTool(viewer.components);
   const layerMgr = new LayerManager(viewer.components);
-  let dispose4d: (() => void) | null = null;   // FOURD-SIM playback teardown (restores visibility)
+  // FOURD-SIM playback teardown (restores visibility). A REF rather than a `let` since
+  // R39-DECOMP-VIEWER ③: the analyse section writes it, and ownership stays here so its
+  // lifetime still spans `buildToolsPanel` running again on a persona change.
+  const fourD: { dispose: (() => void) | null } = { dispose: null };
   const origin = new OriginTool();
 
   let selection: ModelIdMap | null = null;
@@ -1383,222 +1385,20 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     return discTree?.ifc_class_discipline[cls] ?? null;
   }
 
-  async function buildPanels() {
-    if (!projectId) return;
-    // A project with no model 404s here. Fetching BEFORE rendering meant the throw escaped to a
-    // console.warn at the call site and left the Project Browser — the rail's default panel —
-    // completely blank, with the AUTHOR tools sitting one unmarked click away. An empty panel reads
-    // as a broken app, not as an empty project, so the empty state is rendered first and the
-    // elements are layered on only if they arrive.
-    let elements: ElementProps[] = [];
-    let noModel = false;
-    try {
-      elements = await api.elements(projectId, { limit: 5000 });
-      // A29-SPATIAL-SELECT reads containment from this same list — one fetch, one truth.
-      spatialElements = elements.map((e) => ({ guid: e.guid, storey: e.storey }));
-    } catch {
-      noModel = true;
-    }
-    const treePanel = $("panel-tree");
-    treePanel.innerHTML = "";
-    // UX-4 Project-Browser spine: a Views · Sheets · Schedules nav strip above the spatial/element tree,
-    // so the model browser is a full project index (à la Revit's Project Browser), not just elements.
-    const spine = document.createElement("div");
-    spine.className = "browser-spine";
-    spine.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;padding:4px 6px 6px;border-bottom:1px solid var(--border,#334155);margin-bottom:4px";
-    const spineTitle = document.createElement("div");
-    spineTitle.className = "section-title"; spineTitle.textContent = "Project browser"; spineTitle.style.width = "100%";
-    spine.appendChild(spineTitle);
-    const goWs = (key: string) => window.dispatchEvent(new CustomEvent("aec:workspace", { detail: key }));
-    for (const [label, ws, title] of [
-      ["📐 Plans & views", "drawings", "Open the Drawings workspace — plans, sections, elevations"],
-      ["📄 Sheets", "drawings", "Composed sheets (titleblock + viewports) in the Drawings workspace"],
-      ["📋 Schedules", "drawings", "Door / window / room schedules in the Drawings workspace"],
-    ] as const) {
-      const btn = document.createElement("button"); btn.className = "mini-btn"; btn.textContent = label;
-      btn.style.cssText = "font-size:10.5px;padding:2px 7px"; btn.title = title;
-      btn.onclick = () => goWs(ws);
-      spine.appendChild(btn);
-    }
-    const treeHead = document.createElement("div");
-    treeHead.className = "section-title"; treeHead.textContent = "Model";
-    treeHead.style.cssText = "padding:0 6px";
-    treePanel.append(spine, treeHead);
-    if (noModel || !elements.length) {
-      // Name the state and give it the two things that resolve it. Without this the panel is blank
-      // and a reader cannot tell an empty project from a failed load.
-      const empty = document.createElement("div");
-      empty.className = "browser-empty";
-      empty.style.cssText = "padding:10px 8px;font-size:11.5px;line-height:1.55;color:var(--muted,#94a3b8)";
-      const msg = document.createElement("div");
-      msg.textContent = noModel
-        ? "No model in this project yet."
-        : "This model published with no elements.";
-      const hint = document.createElement("div");
-      hint.style.cssText = "margin-top:6px";
-      hint.textContent = "Open an IFC to browse it here — or start authoring from the AUTHOR group in the rail.";
-      const row = document.createElement("div");
-      row.style.cssText = "display:flex;gap:6px;margin-top:9px;flex-wrap:wrap";
-      const openBtn = document.createElement("button");
-      openBtn.className = "mini-btn"; openBtn.textContent = "📂 Open IFC";
-      openBtn.title = "Load an IFC into this project";
-      openBtn.onclick = () => ($("ifc-input") as HTMLInputElement | null)?.click();
-      const authorBtn = document.createElement("button");
-      authorBtn.className = "mini-btn"; authorBtn.textContent = "✎ Authoring tools";
-      authorBtn.title = "Jump to the AUTHOR tools — create levels, grids, walls without a model";
-      authorBtn.onclick = () => document.querySelector<HTMLElement>('[data-panel="tools"]')?.click();
-      row.append(openBtn, authorBtn);
-      empty.append(msg, hint, row);
-      treePanel.appendChild(empty);
-    } else {
-      treePanel.appendChild(buildTree(elements, (guid) => selectByGuid(guid, false)));
-    }
-    if (noModel) return;   // meta/discipline calls below all need a published model
-
-    const meta = await api.meta(projectId);
-    discTree ??= await api.disciplineTree().catch(() => null);
-    // hand the served IFC-class→discipline map to the model browser so it stops re-deriving disciplines
-    // from its own regex (one shared vocabulary).
-    if (discTree) setDisciplineLookup(discTree.ifc_class_discipline,
-      Object.fromEntries(discTree.disciplines.map((d) => [d.code, d.name])));
-    const layersPanel = $("panel-layers");
-    layersPanel.innerHTML = `<div class="section-title">IFC classes</div>`;
-
-    // Color-by toggle (Class ↔ Discipline) + a one-click "paint the model" so a coordinator can flip the
-    // whole model to discipline colors (fire=red, plumbing=green, …) the way Navisworks/Revit do.
-    const swatchRows: { cls: string; swatch: HTMLElement; ensure: () => Promise<string> }[] = [];
-    const paintAll = async () => {
-      for (const r of swatchRows) { r.swatch.style.background = colorFor(r.cls); await layerMgr.setColor(await r.ensure(), colorFor(r.cls)); }
-    };
-    if (discTree) {
-      const bar = document.createElement("div"); bar.className = "layer-row"; bar.style.cssText = "gap:6px;margin-bottom:4px";
-      const lbl = document.createElement("span"); lbl.className = "name"; lbl.textContent = "Color by"; lbl.style.flex = "0 0 auto";
-      const sel = document.createElement("select"); sel.className = "mini-select";
-      sel.innerHTML = `<option value="class">IFC class</option><option value="discipline">Discipline</option>`;
-      sel.value = colorMode;
-      const paint = document.createElement("button"); paint.className = "mini-btn"; paint.textContent = "Paint model";
-      paint.title = "Apply the current color scheme to every element in the 3D view";
-      paint.onclick = paintAll;
-      sel.onchange = () => {
-        colorMode = sel.value === "discipline" ? "discipline" : "class";
-        for (const r of swatchRows) r.swatch.style.background = colorFor(r.cls);
-        legend.style.display = colorMode === "discipline" ? "" : "none";
-        buildLegend();
-      };
-      bar.append(lbl, sel, paint);
-      layersPanel.appendChild(bar);
-    }
-    // discipline color legend (shown in discipline mode) — the palette, so the colors read as a system.
-    const legend = document.createElement("div"); legend.className = "disc-legend";
-    legend.style.display = colorMode === "discipline" ? "" : "none";
-    const buildLegend = () => {
-      legend.innerHTML = "";
-      if (colorMode !== "discipline" || !discTree) return;
-      const present = new Set(meta.facets.classes.map((c) => disciplineOfClass(c)).filter(Boolean));
-      for (const d of discTree.disciplines) {
-        if (!present.has(d.code)) continue;
-        const chip = document.createElement("span"); chip.className = "disc-chip";
-        const sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = d.color;
-        const nm = document.createElement("span"); nm.textContent = d.name;
-        chip.append(sw, nm); legend.appendChild(chip);
-      }
-    };
-    buildLegend();
-    layersPanel.appendChild(legend);
-
-    for (const cls of meta.facets.classes) {
-      const row = document.createElement("div"); row.className = "layer-row";
-      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = true;
-      const name = document.createElement("span"); name.className = "name"; name.textContent = cls;
-      const swatch = document.createElement("span"); swatch.className = "swatch"; swatch.style.background = colorFor(cls);
-      let layerId: string | null = null;
-      const ensure = async () => (layerId ??= (await layerMgr.addClassLayer(cls, cls)).id);
-      swatchRows.push({ cls, swatch, ensure });
-      cb.onchange = async () => { await ensure(); await layerMgr.setVisible(layerId!, cb.checked); };
-      swatch.onclick = async () => { await ensure(); await layerMgr.setColor(layerId!, colorFor(cls)); };
-      name.onclick = async () => {
-        await ensure();
-        const layer = layerMgr.layers.get(layerId!);
-        await layerMgr.isolate(layerId!);
-        if (layer) await fitToItems(layer.items);
-        setStatus(`isolated ${cls}`);
-      };
-      row.append(cb, swatch, name);
-      layersPanel.appendChild(row);
-    }
-
-    // Named selection sets (the saved-search-set pattern) — saved queries you can isolate.
-    buildSelSets(layersPanel, elements);
-
-    await refreshIssues();
-    await reloadModelPins();
-  }
-
-  /** Render the "Selection sets" block into the Layers panel: saved queries → isolate. */
-  function buildSelSets(host: HTMLElement, elements: ElementProps[]) {
-    if (!projectId) return;
-    const pid = projectId;
-    const wrap = document.createElement("div"); wrap.className = "selset-block";
-    const title = document.createElement("div"); title.className = "section-title"; title.style.marginTop = "10px";
-    title.textContent = "Selection sets";
-    wrap.appendChild(title);
-
-    const list = document.createElement("div"); wrap.appendChild(list);
-
-    const draw = () => {
-      const sets = loadSelSets(pid);
-      list.innerHTML = "";
-      if (!sets.length) {
-        const hint = document.createElement("div"); hint.className = "meta"; hint.style.fontSize = "11px";
-        hint.textContent = "Save a search as a set to isolate it in one click.";
-        list.appendChild(hint);
-      }
-      sets.forEach((s, i) => {
-        const row = document.createElement("div"); row.className = "selset-row";
-        const label = document.createElement("span"); label.className = "selset-name";
-        label.textContent = `${s.name} (${s.guids.length})`;
-        label.title = `Isolate — query: “${s.q}”`;
-        label.onclick = async () => {
-          if (!s.guids.length) { notify(`“${s.name}” has no elements`, "error"); return; }
-          await layerMgr.isolateGuids(s.guids);
-          setStatus(`isolated set “${s.name}” · ${s.guids.length}`);
-        };
-        const del = document.createElement("button");
-        del.className = "selset-del"; del.textContent = "✕"; del.title = "Delete set";
-        del.setAttribute("aria-label", `Delete set ${s.name}`);
-        del.onclick = () => { const next = loadSelSets(pid); next.splice(i, 1); saveSelSets(pid, next); draw(); };
-        row.append(label, del);
-        list.appendChild(row);
-      });
-    };
-
-    const actions = document.createElement("div"); actions.className = "selset-actions";
-    const add = document.createElement("button"); add.className = "mini-btn"; add.textContent = "➕ New set…";
-    add.title = "Save a search (by name / class / type / discipline / level) as an isolatable set";
-    add.onclick = async () => {
-      const q = await askText("New selection set", { label: "Match elements containing (name / class / type / discipline / level):", value: "" });
-      if (!q) return;
-      const guids = resolveGuids(elements, q);
-      if (!guids.length) { notify(`no elements match “${q}”`, "error"); return; }
-      const name = await askText("New selection set", { label: `Name this set (${guids.length} elements)`, value: q });
-      if (!name) return;
-      const sets = loadSelSets(pid);
-      const existing = sets.findIndex((s) => s.name === name);
-      const entry: SelSet = { name, q, guids };
-      if (existing >= 0) sets[existing] = entry; else sets.push(entry);
-      saveSelSets(pid, sets);
-      draw();
-      notify(`saved set “${name}” · ${guids.length} elements`, "success");
-    };
-    const showAll = document.createElement("button"); showAll.className = "mini-btn"; showAll.textContent = "👁 Show all";
-    showAll.title = "Clear isolation — make every element visible again";
-    showAll.onclick = async () => { await layerMgr.showAll(); setStatus("all elements visible"); };
-    actions.append(add, showAll);
-
-    wrap.append(actions);
-    draw();
-    host.appendChild(wrap);
-  }
+  // R39-DECOMP-VIEWER ⑤ — moved to `tools/projectPanel.ts`. The discipline state crosses as a
+  // REF (get/set over the `let`s above) because the moved code WRITES both: `discTree ??=` and
+  // the colour-mode <select>. Ownership stays here, so the reads at `disciplineOfClass` and in
+  // the colour lookup below are untouched.
+  const disciplineRef = {
+    get tree() { return discTree; }, set tree(v: DisciplineTree | null) { discTree = v; },
+    get mode() { return colorMode; }, set mode(v: "class" | "discipline") { colorMode = v; },
+  };
+  const buildPanels = () => buildProjectPanels({
+    api, projectId, notify, setStatus, selectByGuid, reloadModelPins, colorFor,
+    disciplineOfClass, discipline: disciplineRef, layerMgr, fitToItems, refreshIssues,
+    spatialElements: { get value() { return spatialElements; },
+                       set value(v: SpatialElement[]) { spatialElements = v; } },
+  });
 
   // KERNEL-ADOPT ②: markup runs as a kernel plugin. Lazily built because the pin overlay and the
   // click handler only exist once the viewer has, and a kernel per viewer instance is correct —
@@ -3574,339 +3374,18 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
        * partition by label in both directions, because a control that silently vanishes looks
        * exactly like one deliberately removed.
        */
-      analyse: () => {
-        const b = section("analyse", "Analyze & Coordinate · code, cost & 4D", { requires: "sourceIfc", tool: true });
-        if (!b) return;
-        const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "4px";
-        b.appendChild(toolBtn2("🏗 Site logistics (4D timeline)", async () => {
-          if (!projectId) { notify("connect a project first", "error"); return; }
-          let resources: LogisticsResource[];
-          try { resources = (await api.getLogistics(pid)).resources; }
-          catch { toast("Could not load logistics", "error"); return; }
-          logisticsOverlay.render(resources); logisticsOverlay.showAll();
-          showResult("Site logistics — time-phased on the 4D timeline", (body) => {
-            body.appendChild(resultNote(`Temporary construction resources (cranes / laydown / gates / fencing / haul routes) placed in project coordinates with a schedule window — they show + hide as the timeline advances. Click in the model first to set a point, then add a resource there. <b>${resources.length}</b> placed.`, "ok"));
-            const list = document.createElement("div"); list.style.margin = "6px 0";
-            const status = document.createElement("div"); status.className = "meta"; status.style.marginTop = "6px";
-            const draw = () => {
-              list.innerHTML = "";
-              resources.forEach((r, i) => {
-                const row = document.createElement("div"); row.className = "selset-row";
-                const s = document.createElement("span"); s.className = "selset-name"; s.style.cursor = "default";
-                s.textContent = `${r.kind} · ${r.label || r.id}${r.start ? ` · ${r.start}→${r.end || "…"}` : ""}`;
-                const del = document.createElement("button"); del.className = "selset-del"; del.textContent = "✕";
-                del.onclick = () => { resources.splice(i, 1); logisticsOverlay.render(resources); draw(); };
-                row.append(s, del); list.appendChild(row);
-              });
-              if (!resources.length) { const e = document.createElement("div"); e.className = "meta"; e.textContent = "No resources yet."; list.appendChild(e); }
-            };
-            draw(); body.appendChild(list);
-            // add form
-            const form = document.createElement("div"); form.style.cssText = "display:flex;flex-wrap:wrap;gap:2px;align-items:center;margin:6px 0";
-            const kind = document.createElement("select"); kind.className = "portal-filter"; kind.style.cssText = "font-size:12px;margin:2px";
-            for (const k of ["crane", "hoist", "laydown", "gate", "fence", "haul_route", "trailer", "parking"]) { const o = document.createElement("option"); o.value = k; o.textContent = k; kind.appendChild(o); }
-            const mk = (ph: string) => { const i = document.createElement("input"); i.className = "portal-filter"; i.placeholder = ph; i.style.cssText = "font-size:12px;margin:2px;flex:0 1 110px;min-width:0"; return i; };
-            const label = mk("label"); const startI = mk("start YYYY-MM-DD"); const endI = mk("end YYYY-MM-DD");
-            const add = document.createElement("button"); add.className = "mini-btn"; add.textContent = "＋ at last point";
-            add.onclick = () => {
-              if (!lastPoint) { notify("click a point in the model first", "error"); return; }
-              const id = `r${Date.now().toString(36)}`;
-              const e = lastPoint.x, n = -lastPoint.z;   // world (E, y, -N) → E, N
-              const r: LogisticsResource = { id, kind: kind.value, label: label.value.trim() || kind.value, position: [e, 0, n], start: startI.value.trim() || undefined, end: endI.value.trim() || undefined };
-              if (kind.value === "crane") r.radius = 25;
-              resources.push(r); logisticsOverlay.render(resources); label.value = ""; draw();
-              status.textContent = `added ${kind.value} at E ${e.toFixed(1)}, N ${n.toFixed(1)}`;
-            };
-            form.append(kind, label, startI, endI, add); body.appendChild(form);
-            // time-phase + save
-            const actions = document.createElement("div"); actions.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center";
-            const dateI = mk("show at date"); dateI.style.flex = "0 1 130px";
-            const phase = document.createElement("button"); phase.className = "mini-btn"; phase.textContent = "⏱ Show at date";
-            phase.onclick = async () => {
-              try { const st = await api.putLogistics(pid, resources).then(() => api.logisticsState(pid, dateI.value.trim() || undefined));
-                logisticsOverlay.showActive(new Set(st.active.map((x) => x.id)));
-                status.textContent = `${st.active_count} of ${st.total} active${st.date ? ` on ${st.date}` : ""}`;
-              } catch (e) { notify((e as Error).message, "error"); }
-            };
-            const showAll = document.createElement("button"); showAll.className = "mini-btn"; showAll.textContent = "👁 Show all";
-            showAll.onclick = () => { logisticsOverlay.showAll(); status.textContent = ""; };
-            const save = document.createElement("button"); save.className = "mini-btn on"; save.textContent = "💾 Save";
-            save.onclick = async () => { try { await api.putLogistics(pid, resources); notify("logistics saved", "success"); } catch (e) { notify((e as Error).message, "error"); } };
-            actions.append(dateI, phase, showAll, save); body.append(actions, status);
-          });
-        }));
-        b.appendChild(toolBtn2("⏱ 4D construction sequence (playback)", () => {
-          if (!projectId) { notify("connect a project first", "error"); return; }
-          // teardown rides the modal's onClose (✕/Esc/backdrop/replaced) — stops the play timer and
-          // restores visibility, so closing mid-play never leaves the model isolated (HARDEN-2 B5).
-          showResult("4D construction sequence", (body) => {
-            dispose4d = populate4dPanel(body, { api, pid, layers: layerMgr, notify });
-          }, () => { dispose4d?.(); dispose4d = null; });
-        }));
-        b.appendChild(toolBtn2("🏛 Occupancy & egress (IBC pre-check)", () => withLoading(container, "Computing occupancy load + egress", async () => {
-          let r;
-          try { r = await api.codecheckEgress(pid); }
-          catch { toast("Needs a source IFC with IfcSpaces", "error"); return; }
-          const load = r.building.occupant_load;
-          out.textContent = `${load} occ · egress ${r.egress.adequate === false ? "SHORT" : "ok"}`;
-          showResult("Occupancy load & egress — IBC pre-check", (body) => {
-            body.appendChild(resultNote(`Computed from <b>${r!.building.spaces}</b> spaces + doors — <b>${load}</b> total occupants over ${r!.building.area_ft2.toLocaleString()} ft². `
-              + `Required egress width <b>${r!.egress.required_width_in} in</b> vs <b>${r!.egress.provided_width_in} in</b> provided → `
-              + `<b>${r!.egress.adequate == null ? "n/a" : r!.egress.adequate ? "adequate" : "SHORT — add egress width"}</b>.`,
-              r!.egress.adequate === false ? "bad" : "ok"));
-            if (r!.building.spaces_missing_area) body.appendChild(resultNote(`${r!.building.spaces_missing_area} space(s) have no floor-area quantity and were skipped — add areas for a complete count.`, ""));
-            if (r!.by_occupancy.length) body.appendChild(kvTable(r!.by_occupancy.map((o) => ({ k: `${o.occupancy} (1:${o.factor} ${o.basis})`, v: `${o.load} occ · ${o.spaces} space(s) · ${o.area_ft2.toLocaleString()} ft²` }))));
-            if (r!.doors.below_min_32in) {
-              body.appendChild(resultNote(`${r!.doors.below_min_32in} of ${r!.doors.checked} doors are below the 32 in (0.81 m) minimum clear width (IBC 1010.1.1).`, "bad"));
-              body.appendChild(toolBtn2("◎ Isolate narrow doors in 3D", () => { void layerMgr.isolateGuids(r!.doors.fail_guids); }));
-            }
-            const twoExit = r!.spaces.filter((s) => s.needs_2_exits);
-            if (twoExit.length) body.appendChild(resultNote(`${twoExit.length} space(s) exceed 49 occupants → two exits required (IBC 1006.2): ${twoExit.slice(0, 6).map((s) => s.name || "space").join(", ")}${twoExit.length > 6 ? "…" : ""}.`, ""));
-            body.appendChild(resultNote(r!.disclaimer + " Cited: " + r!.citations.join("; ") + ".", ""));
-            const nFindings = r!.doors.below_min_32in + (r!.egress.adequate === false ? 1 : 0) + r!.spaces.filter((s) => s.needs_2_exits).length;
-            if (nFindings) {
-              const bcf = toolBtn2(`📌 Promote ${nFindings} finding${nFindings === 1 ? "" : "s"} to BCF issues`, async () => {
-                try { const res = await api.codecheckEgressBcf(pid); notify(`created ${res.created} BCF issue${res.created === 1 ? "" : "s"} — see the Issues panel`, "success"); await refreshIssues(); }
-                catch (e) { notify((e as Error).message, "error"); }
-              });
-              bcf.title = "Create trackable BCF topics from the code findings (below-min doors, egress shortfall, two-exit spaces)";
-              body.appendChild(bcf);
-            }
-          });
-        })));
-        const runCodeAnalysis = (jur: string) => withLoading(container, "Assembling the IBC code-analysis summary", async () => {
-          let r;
-          try { r = await api.codeAnalysis(pid, jur ? { jurisdiction: jur } : {}); }
-          catch { toast("Needs a source IFC with IfcSpaces", "error"); return; }
-          const ed = r.code_context.ibc_edition;
-          out.textContent = `${r.occupancy.group} · ${r.construction_type.split(" ")[0]} · ${r.building.stories} st${ed ? ` · IBC ${ed}` : ""}`;
-          showResult("Code analysis — permit-set G-series summary", (body) => {
-            const cc = r!.code_context;
-            body.appendChild(resultNote(`Code edition: <b>IBC ${cc.ibc_edition ?? "—"}</b> `
-              + (cc.resolved ? `(${cc.jurisdiction} adoption, as-of ${cc.as_of})` : "(national baseline — enter your state below)")
-              + `. <i>${cc.verify}</i>`, cc.resolved ? "ok" : ""));
-            body.appendChild(resultNote(`The IBC <b>code-analysis summary</b> a permit set carries on its G-series code sheet, assembled from the model. `
-              + `Verify allowable area/height against the actual Table 506.2 with the AHJ.`, "ok"));
-            body.appendChild(kvTable([
-              { k: "Occupancy group", v: `${r!.occupancy.group}${r!.occupancy.primary && r!.occupancy.primary !== "—" ? ` — ${r!.occupancy.primary}` : ""}` },
-              { k: "Occupancy mix", v: r!.occupancy.mix.length ? r!.occupancy.mix.join(", ") : "—" },
-              { k: "Construction type", v: r!.construction_type },
-              { k: "Sprinklered (NFPA-13)", v: r!.sprinklered ? "yes" : "no" },
-              { k: "Stories", v: String(r!.building.stories) },
-              { k: "Gross area", v: `${r!.building.gross_area_ft2.toLocaleString()} ft²` },
-              { k: "Computed occupant load", v: `${r!.building.occupant_load} occ` },
-            ]));
-            body.appendChild(resultNote(`Egress width required <b>${r!.egress.required_width_in} in</b> vs <b>${r!.egress.provided_width_in} in</b> provided → `
-              + `<b>${r!.egress.adequate == null ? "n/a" : r!.egress.adequate ? "adequate" : "SHORT"}</b>. `
-              + `Doors checked ${r!.doors.checked}${r!.doors.below_min_32in ? ` · ${r!.doors.below_min_32in} below 32 in` : ""}.`,
-              r!.egress.adequate === false || r!.doors.below_min_32in ? "bad" : "ok"));
-            if (r!.occupant_load_by_occupancy.length) body.appendChild(kvTable(r!.occupant_load_by_occupancy.map((o) => ({ k: o.occupancy, v: `${o.load} occ · ${o.area_ft2.toLocaleString()} ft²` }))));
-            body.appendChild(resultNote(`<b>Allowable area & height</b> — ${r!.allowable.note} Sprinkler increase: <b>${r!.allowable.sprinkler_increase}</b>. `
-              + `Governing sections: ${r!.allowable.sections.join("; ")}.`, ""));
-            // CODE-1/3: set the jurisdiction → re-run the analysis edition-aware (cites the adopted IBC).
-            const jurWrap = document.createElement("div"); jurWrap.style.cssText = "display:flex;gap:6px;align-items:center;margin:6px 0";
-            const jurLbl = document.createElement("span"); jurLbl.className = "meta"; jurLbl.textContent = "Jurisdiction (US state):";
-            const jurIn = document.createElement("input"); jurIn.className = "portal-filter"; jurIn.placeholder = "e.g. CA"; jurIn.maxLength = 2; jurIn.value = cc.jurisdiction || ""; jurIn.style.cssText = "width:80px;font-size:12px";
-            const jurBtn = document.createElement("button"); jurBtn.className = "mini-btn"; jurBtn.textContent = "↻ Re-check for this state";
-            jurBtn.onclick = () => { void runCodeAnalysis(jurIn.value.trim().toUpperCase()); };
-            jurIn.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); void runCodeAnalysis(jurIn.value.trim().toUpperCase()); } };
-            jurWrap.append(jurLbl, jurIn, jurBtn); body.appendChild(jurWrap);
-            body.appendChild(resultNote(r!.disclaimer, ""));
-          });
-        });
-        b.appendChild(toolBtn2("🏛 Code analysis (G-series summary)", () => { void runCodeAnalysis(""); }));
-        // CODE-EBC — existing-building scope classifier (IEBC Work Area Method), inferred from phasing
-        const runEbc = (jur: string) => withLoading(container, "Classifying the existing-building scope (IEBC)", async () => {
-          let r;
-          try { r = await api.ebcClassify(pid, { infer: true, ...(jur ? { jurisdiction: jur } : {}) }); }
-          catch { toast("Needs a source IFC to infer scope from phasing", "error"); return; }
-          out.textContent = r.classification ? `${r.classification}${r.code.edition ? ` · IEBC ${r.code.edition}` : ""}` : "no scope";
-          showResult("Existing-building scope — IEBC Work Area Method", (body) => {
-            body.appendChild(resultNote(`Inferred from the model's <b>phasing</b> (existing vs new/demolish). `
-              + `The IEBC governs renovation/adaptive-reuse; this classifies the <b>scope of work</b> → which provisions apply.`, ""));
-            if (!r!.ok) {
-              body.appendChild(resultNote(r!.reason || "No scope classified.", "bad"));
-            } else {
-              body.appendChild(resultNote(`Classification: <b>${r!.classification}</b>`
-                + (r!.work_area_pct != null ? ` · work area ≈ <b>${Math.round(r!.work_area_pct)}%</b>` : "")
-                + `. <span class="meta">${r!.gist || ""}</span>`, "ok"));
-              body.appendChild(resultNote(`Compliance method: <b>${r!.method}</b> (${r!.method_cite}). `
-                + `Code edition: <b>IEBC ${r!.code.edition ?? "—"}</b> `
-                + (r!.code.adoption_resolved ? `(${r!.code.jurisdiction} adoption)` : "(national baseline — set your state below)")
-                + `.`, r!.code.adoption_resolved ? "ok" : ""));
-              if (r!.applies?.length) body.appendChild(kvTable(r!.applies.map((a) => ({ k: a.classification, v: `${a.section} · ${a.requirements}` }))));
-              if (r!.basis?.length) body.appendChild(resultNote(`<b>How this was inferred:</b> ${r!.basis.join(" ")}`, ""));
-              if (r!.notes?.length) body.appendChild(resultNote(r!.notes.join(" "), ""));
-            }
-            // jurisdiction re-check (edition-aware) — mirror the code-analysis flow
-            const jurWrap = document.createElement("div"); jurWrap.style.cssText = "display:flex;gap:6px;align-items:center;margin:6px 0";
-            const jurLbl = document.createElement("span"); jurLbl.className = "meta"; jurLbl.textContent = "Jurisdiction (US state):";
-            const jurIn = document.createElement("input"); jurIn.className = "portal-filter"; jurIn.placeholder = "e.g. CA"; jurIn.maxLength = 2; jurIn.value = r!.code.jurisdiction || ""; jurIn.style.cssText = "width:80px;font-size:12px";
-            const jurBtn = document.createElement("button"); jurBtn.className = "mini-btn"; jurBtn.textContent = "↻ Re-check for this state";
-            jurBtn.onclick = () => { void runEbc(jurIn.value.trim().toUpperCase()); };
-            jurIn.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); void runEbc(jurIn.value.trim().toUpperCase()); } };
-            jurWrap.append(jurLbl, jurIn, jurBtn); body.appendChild(jurWrap);
-            body.appendChild(resultNote(r!.disclaimer, ""));
-          });
-        });
-        b.appendChild(toolBtn2("🏚 Existing-building code (IEBC scope)", () => { void runEbc(""); }));
-        // EST-1 — rough labour cost + duration from the model's quantities (productivity rates)
-        b.appendChild(toolBtn2("💰 Cost estimate (labour · material · equipment)", () => withLoading(container, "Estimating cost from the model", async () => {
-          let e;
-          try { e = await api.laborEstimate(projectId!, "commercial", 25, true); }
-          catch { toast("Needs a source IFC", "error"); return; }
-          const grand = e.total_cost ?? e.total_labor_cost;
-          out.textContent = `${e.total_man_hours.toLocaleString()} mh · $${Math.round(grand).toLocaleString()}`;
-          showResult("Cost estimate — productivity rates", (body) => {
-            body.appendChild(resultNote(`Rough <b>cost</b> takeoff from the model (${e!.line_count} activity(ies), `
-              + `${e!.loading} loading ×${e!.loading_factor}, $${e!.hourly_rate}/hr labour): `
-              + `<b>${e!.total_man_hours.toLocaleString()} man-hours</b>.`, e!.line_count ? "ok" : ""));
-            if (!e!.line_count) body.appendChild(resultNote("No estimable quantities yet — author walls / slabs / columns.", ""));
-            if (e!.has_material_equipment) {
-              body.appendChild(kvTable([
-                { k: "Labour", v: `$${Math.round(e!.total_labor_cost).toLocaleString()}` },
-                { k: "Material", v: `$${Math.round(e!.total_material_cost ?? 0).toLocaleString()}` },
-                { k: "Equipment", v: `$${Math.round(e!.total_equipment_cost ?? 0).toLocaleString()}` },
-                { k: "Total (excl. overhead/profit)", v: `$${Math.round(e!.total_cost ?? 0).toLocaleString()}`, strong: true },
-              ]));
-            }
-            if (e!.lines.length) {
-              body.appendChild(kvTable(e!.lines.map((l) => ({
-                k: `${l.activity.replace(/_/g, " ")} (${l.group})`,
-                v: `${l.quantity} ${l.unit} → ${l.man_hours} mh · ${l.crew_days} cd`
-                  + (l.line_total != null ? ` · $${Math.round(l.line_total).toLocaleString()}` : ` · $${Math.round(l.labor_cost).toLocaleString()}`) }))));
-            }
-            body.appendChild(resultNote(e!.note, ""));
-          });
-        })));
-        // RFI-0 NL-QA — ask a plain-language question, get a cited answer from the model's own data
-        const qaWrap = document.createElement("div");
-        qaWrap.style.cssText = "display:flex;gap:4px;margin:4px 2px";
-        const qaInput = document.createElement("input");
-        qaInput.type = "text";
-        qaInput.placeholder = "Ask: what governs <element>? · what's blocking approval?";
-        qaInput.style.cssText = "flex:1;min-width:0;font-size:11px;padding:3px 6px";
-        qaInput.setAttribute("aria-label", "Ask a question about the model");
-        const qaBtn = document.createElement("button");
-        qaBtn.className = "tool-btn"; qaBtn.textContent = "Ask"; qaBtn.style.cssText = "font-size:11px;padding:3px 10px";
-        const askQa = () => {
-          const q = qaInput.value.trim();
-          if (!q) return;
-          void withLoading(container, "Asking the model", async () => {
-            let r;
-            try { r = await api.rfiQa(pid, q); }
-            catch { toast("Needs a source IFC", "error"); return; }
-            out.textContent = r.answer.slice(0, 60);
-            showResult("Ask the model — cited answer", (body) => {
-              body.appendChild(resultNote(r!.answer, r!.ready === false ? "bad" : "ok"));
-              if (r!.citations.length) {
-                body.appendChild(kvTable(r!.citations.map((c) => ({ k: c.kind, v: c.ref }))));
-                const guids = r!.citations.flatMap((c) => c.guids || []);
-                if (guids.length) body.appendChild(toolBtn2(`◎ Isolate ${guids.length} cited element(s)`, () => { void layerMgr.isolateGuids(guids); }));
-              }
-              body.appendChild(resultNote(r!.disclaimer, ""));
-            });
-          });
-        };
-        qaBtn.onclick = askQa;
-        qaInput.onkeydown = (e) => { if (e.key === "Enter") askQa(); };
-        qaWrap.append(qaInput, qaBtn);
-        b.appendChild(qaWrap);
-        b.appendChild(out);
-      },
-      authoring: () => {
-        const b = section("authoring", "Build · Advanced authoring, annotate & library", { requires: "sourceIfc", tool: true });
-        const group = panel.querySelector('.tool-group[data-tool="authoring"]') as HTMLElement | null;
-        if (group) group.dataset.cap = "edit";   // whole section hidden for non-editors
-        if (!b) return;
-        const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "4px"; out.id = "au-out";
-        const fix = toolBtn2("✎ Fix slabs: set LoadBearing", async () => {
-          out.textContent = "editing IFC…";
-          const r = await api.editIfc(pid, "set_pset", { ifc_class: "IfcSlab", pset: "Pset_SlabCommon", prop: "LoadBearing", value: true, dtype: "bool" }, true);
-          const v = await api.validate(pid);
-          out.innerHTML = `edited ${r.changed} slabs · IDS now: <b>${v.status.toUpperCase()}</b> · converting…`;
-          const state = await waitForPublish(pid);
-          if (state === "done") await loadProjectModel();
-          out.innerHTML += `<br>publish: ${state}`;
-        });
-        fix.dataset.cap = "edit";
-        const pub = toolBtn2("⟳ Republish (reconvert + reindex)", async () => {
-          out.textContent = "publishing… (running in background)";
-          await api.publish(pid);
-          const state = await waitForPublish(pid, (s) => (out.textContent = `publish: ${s}…`));
-          if (state === "done") await loadProjectModel();
-          out.textContent = `publish ${state}`;
-        });
-        pub.dataset.cap = "edit";
-        // Furnish & equip — add starter-library families (furniture / sanitary / appliances /
-        // plants). Works on a generated massing model too, since the types are generated on demand.
-        const furnish = document.createElement("div"); furnish.style.marginTop = "6px";
-        const hint = document.createElement("div"); hint.className = "meta";
-        hint.textContent = "Click a point in the model to set placement, then pick a family.";
-        const sel = document.createElement("select"); sel.className = "tool-btn";
-        sel.style.cssText = "display:block;width:100%;margin:4px 0"; sel.dataset.cap = "edit";
-        sel.innerHTML = `<option value="">＋ Furnish & equip…</option>`;
-        void api.familyLibrary().then((c) => {
-          for (const [cat, items] of Object.entries(c.categories)) {
-            const og = document.createElement("optgroup"); og.label = cat;
-            for (const it of items) {
-              const o = document.createElement("option"); o.value = it.key; o.textContent = it.label; og.appendChild(o);
-            }
-            sel.appendChild(og);
-          }
-          const ext = c.external.length ? ` · ${c.external.length} external` : "";
-          hint.textContent = `${c.count} families in the library${ext}. Click a point to set placement, then pick a family — or import an IFC for more.`;
-        }).catch(() => { hint.textContent = "Family library unavailable (API offline)."; });
-        const place = toolBtn2("⊕ Place selected family", async () => {
-          const key = sel.value;
-          if (!key) { out.textContent = "pick a family first"; return; }
-          const label = sel.options[sel.selectedIndex]?.text ?? key;
-          const pos: [number, number] | null = lastPoint ? [lastPoint.x, -lastPoint.z] : null;
-          out.textContent = `adding ${label}…`;
-          await api.addFamily(pid, key, pos);
-          out.textContent = `${label} added · converting…`;
-          const state = await waitForPublish(pid);
-          if (state === "done") await loadProjectModel();
-          out.innerHTML = `added <b>${escapeHtml(label)}</b>${pos ? ` at ${pos[0].toFixed(1)}, ${pos[1].toFixed(1)} m` : " at origin"}<br>publish: ${escapeHtml(state)}`;
-        });
-        place.dataset.cap = "edit";
-        // Import external IFC type content (manufacturer / 3rd-party families) into the project.
-        const impInput = document.createElement("input");
-        impInput.type = "file"; impInput.accept = ".ifc"; impInput.style.display = "none";
-        const imp = toolBtn2("⇪ Import IFC families…", () => impInput.click());
-        imp.dataset.cap = "edit";
-        imp.title = "Import type content (families) from a manufacturer / 3rd-party IFC";
-        impInput.addEventListener("change", async () => {
-          const f = impInput.files?.[0]; if (!f) return;
-          out.textContent = `importing families from ${f.name}…`;
-          try {
-            const r = await api.importFamilies(pid, f);
-            if (!r.count) { out.textContent = "no new families found in that IFC"; impInput.value = ""; return; }
-            const state = await waitForPublish(pid);
-            if (state === "done") await loadProjectModel();
-            out.innerHTML = `imported <b>${r.count}</b> famil${r.count === 1 ? "y" : "ies"} `
-              + `(${r.imported.slice(0, 3).map((i) => i.name).join(", ")}${r.count > 3 ? "…" : ""}) · publish: ${state}`;
-          } catch (e) { out.textContent = `import failed: ${(e as Error).message}`; }
-          impInput.value = "";
-        });
-        furnish.append(hint, sel, place, imp, impInput);
-        // AUTH-VS: open the visual node-authoring canvas (chain recipes as a graph, run in one pass)
-        const nodeBtn = toolBtn2("🕸 Visual node authoring", () => {
-          openNodeCanvas({
-            recipes: ["add_wall", "add_column", "add_beam", "add_slab", "add_base_plate", "add_curtain_wall", "derive_analytical"],
-            runGraph: async (graph) => {
-              const r = await api.editGraph(pid, graph, { publish: true });
-              const state = await waitForPublish(pid);
-              if (state === "done") await loadProjectModel();
-              return r;
-            },
-            notify,
-          });
-        });
-        nodeBtn.dataset.cap = "edit";
-        nodeBtn.title = "Drag recipe nodes, wire outputs → inputs, and run the graph as one GUID-stable authoring pass";
-        b.append(fix, pub, furnish, nodeBtn, out);
-      },
+      // R39-DECOMP-VIEWER ③ — moved verbatim to `tools/analyseSection.ts`.
+      // `lastPoint` is an ACCESSOR: a `let` here, read at click time by the placement tools.
+      analyse: () => buildAnalyseSection({
+        section, toolBtn2, api, pid, projectId, notify, container, logisticsOverlay,
+        layerMgr, refreshIssues, fourD,
+        lastPoint: () => lastPoint,
+      }),
+      // R39-DECOMP-VIEWER ④ — moved verbatim to `tools/authoringSection.ts`.
+      authoring: () => buildAuthoringSection({
+        section, toolBtn2, api, pid, notify, panel, waitForPublish, loadProjectModel,
+        lastPoint: () => lastPoint,
+      }),
     };
     for (const key of order) builders[key]?.();
     regroupByPhase();                                        // UX-1: physical phase clusters + headers
