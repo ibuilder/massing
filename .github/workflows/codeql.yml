@@ -19,6 +19,27 @@ on:
   schedule:
     - cron: '36 2 * * 6'
 
+# Supersede a PR's own older analyses; never supersede one on main.
+#
+# This is the stock starter workflow and had no concurrency control at all. The matrix runs FOUR
+# language analyses, so every push to a PR enqueued four more and nothing cancelled the previous
+# four. On 2026-08-06 one branch was rebased three times and left twelve stale analyses running;
+# repo-wide, CodeQL was 15 of 28 queued jobs -- the single largest consumer of a saturated queue,
+# analysing commits nobody would merge.
+#
+# Grouped by head branch for pull_request, and by `github.run_id` for push, so every commit on main
+# gets its OWN group and can never be cancelled by a later one. Grouping main pushes together would
+# make them queue and cancel each other, which silently stops analysing intermediate commits -- the
+# exact trap `ci.yml` documents, and the one `pages.yml` was failing on the same day.
+#
+# NOTE what this deliberately does NOT do: it does not add a `paths:` filter and does not drop the
+# pull_request trigger. Both would cut the queue further and both reduce SECURITY COVERAGE, which is
+# a decision for a human, not a throughput fix. Superseding a run that a newer commit has already
+# replaced loses nothing -- skipping analysis of a path does.
+concurrency:
+  group: codeql-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
