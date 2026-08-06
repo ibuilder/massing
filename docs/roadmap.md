@@ -172,9 +172,28 @@ instances:
   *Recorded as unreachable in the module's own header so it cannot be mistaken for shipped
   capability — the mistake this band exists to catch.*
 
-- **R22-PUBLIC-VIEWER** *(M — Lane E)* — a share link that opens the model read-only for someone with
-  no account. The viewer, the offline `.frag` path and the demo harness all exist; what is missing is
-  the scoped, revocable token and a route that honours it.
+- ◧ **R22-PUBLIC-VIEWER** *(M — Lane E; **premise corrected 2026-08-06, and it was wrong on both
+  halves**)* — a share link that opens the model read-only for someone with no account.
+
+  The entry said *"what is missing is the scoped, revocable token and a route that honours it"*.
+  **Both exist.** `services/api/src/aec_api/models.py` defines `ShareToken` — project-scoped, soft
+  **revocable** (`revoked`, and revoking stops access immediately), audited
+  (`last_viewed_at`, `view_count`), with the token string itself as the credential. And
+  `services/api/src/aec_api/routers/client_portal.py` already has `create_share_token`,
+  `list_share_tokens`, `revoke_share_token`, plus **four routes that honour a token**:
+  `shared_decision`, `shared_comment`, `shared_digest`, `shared_page`.
+
+  **What is actually missing is smaller in code and larger in decision.** No token route serves
+  **model geometry** — the `.frag` path is not reachable behind a token. And the token's scope is
+  deliberately *"a curated project digest (readiness only; no record-level data)"*, so serving the
+  model through it is **not a route, it is a scope change**: a model is record-level data by any
+  reading of that sentence, and the `PORTAL-TXN` precedent is that widening a token's reach is
+  **opt-in per token**, not a default.
+
+  So the residue is: **(1) a decision** on whether a share token may expose model geometry at all,
+  and if so under what per-token opt-in — *this is the user's or the release holder's call, not a
+  build*; **(2) then** a `shared_model` route and a viewer entry that runs read-only from a token.
+  Sized M on the old premise; the build half is nearer S once the decision exists.
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
@@ -687,7 +706,7 @@ stakes we are missing.
   reads as an empty registry and was the instrument — `TestClient(app)` outside a `with` block never
   runs startup, so the registry never loaded. The route had been answering 200 the whole time.
   (`/modules/{key}` 404s for `pm_schedule` too; that route shape does not exist.)
-- **R22-PUBLIC-VIEWER** — *(sized **M**, not S; see the Band 2 entry, which is the live one.)* This
+- ◧ **R22-PUBLIC-VIEWER** — *(sized **M**, not S; see the Band 2 entry, which is the live one — its premise was corrected 2026-08-06: the scoped, revocable token and the routes honouring it ALREADY EXIST.)* This
   line is the original scan's one-sentence estimate. It called the item S because it counted the
   viewer, which exists; the Band 2 entry counted the **scoped revocable token and a route that
   honours it**, which do not. Two sizes for one ID is a prioritisation bug, not a rounding
@@ -1964,7 +1983,28 @@ removed. Remaining, in priority order:
   under `Analyse & check`, which makes the overlap visible and worth resolving rather than hiding it.
 - **UX-GANTT** *(M)* — weekly Gantt/calendar hybrid with inline % + crew coloring + a metric strip.
 - **UX-VIEWED** *(S)* — ShareToken page view-timestamps → Sent/Viewed/Paid chips, self-hosted.
-- **UX-AR** *(S)* — Sent→Approved→Paid manual status pipeline on invoices/bills (no payment rails).
+- ✅ **UX-AR** *(S — **checked 2026-08-06: ALREADY BUILT, and built better than this asked**)* —
+  Sent→Approved→Paid manual status pipeline on invoices/bills (no payment rails).
+  `services/api/modules/owner_invoice/module.json` and
+  `services/api/modules/sub_invoice/module.json` both carry a real **workflow state machine**, not
+  the manual status field this asked for: owner invoices run `draft → submitted → approved →
+  rejected → paid` with transitions gated by **party**, sub invoices run `submitted → approved →
+  paid → rejected`. The "(no payment rails)" constraint also still holds — there is no payment
+  integration anywhere in `services/api/src`.
+
+  **Two things about this entry are worth more than the tick.**
+
+  *The ID is misleading and the lane follows the ID.* `UX-AR` sits in **Lane E · Authoring feel &
+  viewer**, between `R28-VIEWER ④`, `R22-PUBLIC-VIEWER` and `R36-VIEWER-SUBAPP`. Read there, "AR"
+  is **augmented reality**. It is **accounts receivable** — Billing. Its implementation is
+  `services/api/modules/*/module.json`, which is **Lane H · Registers**. *Not moved here: the lane
+  table is mid-restructure and belongs to the release holder — flagged for that pass.*
+
+  *This is the ID-collision class `apps/web/src/shell/roadmapStale.test.ts` says it deliberately
+  cannot catch* — "two different items sharing a name … detecting the next one needs a human reading
+  two entries, not a regex". Here it is not two items sharing a name but **one name reading as two
+  different things depending on which lane you meet it in**, which is worse: nothing is ambiguous
+  until you notice, and a viewer session would have skipped it forever as somebody else's AR work.
 - **UX-3 library depth** — thumbnails · drag-to-place · pick-host→auto-build · appendable IFC
   libraries · CC0 seed/H1. **UX-4** one-shell layout (a11y/mobile pass).
 
