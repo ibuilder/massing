@@ -2133,7 +2133,7 @@ footing the July study stood on when CADCMD was written.
   pick (theirs is Shift+right-click; Shift is already ortho lock here, so pick a free chord). The
   genuine gap: today a snap preference is modal, and needing *this one pick* to take a perpendicular
   means changing a mode and changing it back.
-- 🟡 **RAIL-DRAG** *(M — Lane E; **SHIPPED PR #197**)* — the palette rows in
+- ✅ **RAIL-DRAG** *(M — Lane E; **SHIPPED PR #197**)* — the palette rows in
   `apps/web/src/viewer/draft/draftPanel.ts` are drag sources; `apps/web/src/viewer/railDrag.ts` owns
   the payload rules and the one-drop-is-one-point verdict; `apps/web/src/viewer/app.ts` makes the
   canvas a drop target that hands the `DragEvent` straight to `captureDraftPoint`. One pipeline, two
@@ -2260,7 +2260,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   found 182 buttons rather than the handful the plan assumed. Kept as a pointer rather than deleted so
   the under-scoping is visible, and marked ✅ so it can never again read as open work — it sat
   unmarked, four days after shipping, one screen below its own resolution.
-- **R36-EMPTY-STATE** *(S — Lane B — **SHIPPED v0.3.849**)* — **a register with no rows is indistinguishable from a broken
+- ✅ **R36-EMPTY-STATE** *(S — Lane B — **SHIPPED v0.3.849**)* — **a register with no rows is indistinguishable from a broken
   one, and was reported as exactly that.** The trigger: "something is wrong with specs". Specs was
   fine — the module rendered in full, toolbar, filters, saved views, templates, import — but the
   project held **zero** `spec_section` records, and so did every other design register. A full surface
