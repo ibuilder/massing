@@ -3,22 +3,24 @@
 import { mkdirSync, copyFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { createRequire } from "node:module";
+
+import { findPackageDir } from "./wasmSources.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webRoot = join(here, "..");
 const dest = join(webRoot, "public", "wasm");
 
-// resolve the web-ifc package dir — handles npm-workspace hoisting (root node_modules)
-// or a local install. web-ifc blocks ./package.json in its exports map, so probe paths.
-createRequire(import.meta.url); // (kept for potential future resolve use)
-const candidates = [
-  join(webRoot, "node_modules", "web-ifc"),
-  join(webRoot, "..", "..", "node_modules", "web-ifc"),
-];
-const wasmSource = candidates.find((c) => existsSync(join(c, "web-ifc.wasm")));
-if (!wasmSource) {
-  console.error("[copy-wasm] could not find web-ifc package. Looked in:\n  " + candidates.join("\n  "));
+// Resolve the package rather than guessing how far up `node_modules` is: the old two-candidate
+// probe assumed the repo root was exactly two levels above `apps/web`, which is false in every
+// git worktree and made `npm run build` fail there. See scripts/wasmSources.mjs.
+const wasmSource = findPackageDir("web-ifc", webRoot);
+if (!wasmSource || !existsSync(join(wasmSource, "web-ifc.wasm"))) {
+  console.error(
+    "[copy-wasm] could not find the web-ifc package.\n" +
+    `  resolved to: ${wasmSource ?? "(unresolved)"}\n` +
+    "  Run `npm install` at the repo root. From a git worktree this resolves the MAIN clone's\n" +
+    "  node_modules by upward lookup, which is expected — worktrees do not get their own.",
+  );
   process.exit(1);
 }
 
@@ -36,10 +38,8 @@ for (const f of files) {
 }
 
 // laz-perf WASM (LAZ point-cloud decoding) — same offline-vendoring rule; loaded via locateFile.
-const lazSrc = [
-  join(webRoot, "node_modules", "laz-perf", "lib", "laz-perf.wasm"),
-  join(webRoot, "..", "..", "node_modules", "laz-perf", "lib", "laz-perf.wasm"),
-].find((p) => existsSync(p));
+const lazDir = findPackageDir("laz-perf", webRoot);
+const lazSrc = lazDir ? [join(lazDir, "lib", "laz-perf.wasm")].find((p) => existsSync(p)) : undefined;
 if (lazSrc) {
   copyFileSync(lazSrc, join(dest, "laz-perf.wasm"));
   console.log("[copy-wasm] laz-perf.wasm -> public/wasm/");
