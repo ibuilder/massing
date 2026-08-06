@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { closeSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -73,6 +73,61 @@ function pyFiles(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
+/** Bytes of each module we actually need — enough for a docstring's opening line, and no more. */
+const HEAD_BYTES = 500;
+
+/**
+ * Read only the first {@link HEAD_BYTES} of a file.
+ *
+ * `readFileSync(f).slice(0, 500)` reads the **whole file** and then throws almost all of it away.
+ * That is invisible on small files and expensive here: this tree's own size guard permits modules up
+ * to 5,200 lines, so the scan was pulling megabytes off disk to look at 500 bytes of each. Opening a
+ * descriptor and reading one fixed-size buffer is the same answer for a fraction of the I/O.
+ *
+ * Errors are deliberately allowed to propagate to the caller's try/catch, which records them in
+ * `failed` — a read that cannot happen must stay loud, for the reason spelled out below.
+ */
+function readHead(f: string): string {
+  const fd = openSync(f, "r");
+  try {
+    const buf = Buffer.alloc(HEAD_BYTES);
+    const n = readSync(fd, buf, 0, HEAD_BYTES, 0);
+    return buf.subarray(0, n).toString("utf8");
+  } finally {
+    closeSync(fd);
+  }
+}
+
+type Declared = { ids: Map<string, string[]>; scanned: number; failed: string[] };
+
+/**
+ * The scan is memoised because it was being run **three times per file** — once by each test that
+ * needed it — and each run walks and reads ~500 Python modules.
+ *
+ * Measured on this machine, cold: 2127 ms + 1370 ms + 484 ms across the three callers, against
+ * vitest's **5 s per-test default**. Warm it is ~300 ms total, which is why it looked fine. Under a
+ * full 107-file suite with other sessions competing for I/O, a session hit the 5 s timeout on the
+ * first of those tests, and it passed on a standalone re-run — the exact signature of a load-sensitive
+ * threshold rather than a defect in the roadmap.
+ *
+ * **The fix is to do the work once, not to raise the timeout.** A larger timeout would keep the same
+ * three scans and move the cliff somewhere less predictable; it also degrades the signal, because a
+ * gate that takes noticeably longer than it needs to is one people start running less often. The
+ * memo is safe here: every caller reads the same tree at the same commit within a single run, so a
+ * second scan could only ever produce the same answer more slowly.
+ *
+ * Note what is deliberately NOT cached: nothing about the *result* is softened. `failed` is still
+ * fatal and `scanned` is still floor-checked — see the note below on why a swallowed read must never
+ * be allowed to read as "nothing implemented".
+ */
+let _declared: Declared | null = null;
+
+function declaringModules(): Declared {
+  if (_declared) return _declared;
+  _declared = scanDeclaringModules();
+  return _declared;
+}
+
 /**
  * id -> modules whose OPENING docstring line declares them the implementation of that id.
  *
@@ -84,7 +139,7 @@ function pyFiles(dir: string, acc: string[] = []): string[] {
  * nothing to do with the roadmap. Surfacing the error is what stops a transient I/O problem from
  * being read as a clean bill of health.
  */
-function declaringModules(): { ids: Map<string, string[]>; scanned: number; failed: string[] } {
+function scanDeclaringModules(): Declared {
   const ids = new Map<string, string[]>();
   const failed: string[] = [];
   let scanned = 0;
@@ -92,7 +147,7 @@ function declaringModules(): { ids: Map<string, string[]>; scanned: number; fail
     for (const f of pyFiles(join(REPO, root))) {
       let head: string;
       try {
-        head = readFileSync(f, "utf8").slice(0, 500);
+        head = readHead(f);
         scanned++;
       } catch (e) {
         failed.push(`${f}: ${(e as Error).message}`);
@@ -120,7 +175,18 @@ describe("the roadmap does not call an implemented item open", () => {
       .toBeGreaterThan(10);
   });
 
-  it("reads every module it found — a swallowed read must not read as 'nothing implemented'", () => {
+  // The only test that pays for the scan (every later caller hits the memo). Measured cold on this
+  // machine after both optimisations: ~2.0-2.4 s, against vitest's 5 s default. Subagent 3 hit that
+  // default during a full 107-file suite with three other sessions competing for I/O, and it passed
+  // standalone on re-run — a load-sensitive threshold, not a roadmap defect.
+  //
+  // The timeout is raised ONLY AFTER the work was actually minimised: three scans became one, and
+  // whole-file reads became 500-byte reads. Raising it first would have been the tempting fix and the
+  // wrong one — it hides the cost rather than removing it, and leaves the same cliff a bit further
+  // out. What remains is irreducible directory-walk I/O over ~500 modules, so 20 s is ~8x the
+  // measured cost: enough that a loaded machine cannot reach it, small enough that a genuine hang
+  // still fails the build rather than stalling CI.
+  it("reads every module it found — a swallowed read must not read as 'nothing implemented'", { timeout: 20_000 }, () => {
     const { scanned, failed } = declaringModules();
     expect(failed, "modules could not be read; this gate's answer is meaningless until they can")
       .toEqual([]);
