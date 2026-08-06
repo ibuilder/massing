@@ -1646,7 +1646,7 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   Specification, run it against a model, read the report.** Conspicuously absent for a product whose
   thesis is IFC-native, and a likely second gap in the "openBIM gaps complete except the IFC5/IFCX
   write-path" claim. **Verify that claim against the tree before sizing this.**
-- **R41-UPLOAD-WARK** *(M — Lane C)* — **content-addressed resumable upload in front of object
+- **R41-UPLOAD-WARK** *(M — Lane C; **paired with `R39-UPLOAD-CAP-APP` 2026-08-06 — one mechanism, two ends**: `storage.py` has no streaming put, so **36 call sites across 15 router modules** `await file.read()` a whole upload into memory before storing it, while the size guard in front of them is header-derived. Fixing either alone leaves the other holding the memory open)* — **content-addressed resumable upload in front of object
   storage.** Technique from an MIT-licensed file server (verified from its LICENSE); reimplement the
   handshake rather than adopt the server. Three parts: chunk size chosen so the **chunk *count* stays
   bounded**, keeping the handshake manifest roughly constant regardless of file size — a fixed part
@@ -1661,7 +1661,7 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
 
 ### Gate and process items
 
-- **R41-SCHEMA-STALE** *(S — Lane C)* — **a stored record that predates a semantics change must read
+- **R41-SCHEMA-STALE** *(S — Lane C; **checked 2026-08-06: genuinely unbuilt** — no `schema_version` or equivalent stamp exists on any persisted record)* — **a stored record that predates a semantics change must read
   back visibly broken, never plausibly wrong.** Stamp a schema version on every persisted record; on
   read, a record at any other version returns with its payload **forced to null and a stale flag set**,
   so the caller degrades in a way a user can see and fix. We have 135+ registers plus BCF pins, saved
@@ -1942,17 +1942,48 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   all), drives a real job through `run_forever()`, and fails the build if any compose file sets `off`
   without a service that runs the worker. All four mutations were tried and all four fail the gate.
 
-- **R39-THROTTLE-SHARED ①** *(M, Lane C)* — the per-endpoint throttles in
+  The original text: the per-endpoint throttles in
   `services/api/src/aec_api/throttle.py` keep in-process counters, so behind N workers every limit is
   silently N× its configured value — the exact defect the rate-limit boot guard refuses for
   `AEC_RATE_LIMIT_RPM`, one file over. Back the counters with Redis when `AEC_REDIS_URL` is set (the
   seam the rate limiter already uses), and fold "endpoint throttles are per-worker" into the same
   production-guard warning so the operator is told instead of protected-in-name-only.
-- **R39-UPLOAD-CAP-APP ①** *(S, Lane C)* — the upload size cap lives only in nginx
-  (`client_max_body_size`); a deployment that fronts the API differently (or exposes it directly) has
-  **no cap at all**. Enforce a streamed byte limit at the app boundary — count as chunks arrive and
-  cut off at the limit, never buffer-then-measure — so the cap is a property of the API, not of one
-  particular proxy in front of it.
+- ◧ **R39-UPLOAD-CAP-APP ①** *(S, Lane C — **premise corrected 2026-08-06: an app-level cap DOES
+  exist**, so the item is not "add one" but "make the existing one measure rather than trust")* —
+  the entry said the cap lives only in nginx (`client_max_body_size`) and that a deployment exposing
+  the API directly has **no cap at all**. That is wrong: `services/api/src/aec_api/main.py` defines
+  `_MAX_UPLOAD_BYTES` from `AEC_MAX_UPLOAD_MB` (1 GB default) and the `security` middleware rejects
+  oversized bodies with a 413.
+
+  **The residue is exactly the sentence the entry already wrote as its prescription, and it is worth
+  keeping for that reason:** *"count as chunks arrive and cut off at the limit, never
+  buffer-then-measure"*. The present guard does neither — it is **header-derived**, and its own
+  comment says so (*"cheap Content-Length check — avoids reading them into memory"*). A request that
+  does not carry that header is not measured. So the work is to make the limit a property of the
+  bytes received rather than of what the request declared about itself.
+
+  *Deliberately not spelled out further here: the repo is public and this is a request-handling
+  boundary. The precise reachability note went to the release holder for `docs/internal/`, per the
+  non-negotiable that security detail stays out of published docs.*
+
+  **How to size it, so the next reader neither panics nor dismisses it.** An unbounded body read is
+  **DoS-shaped**, and the standing security-review policy explicitly excludes DoS and
+  memory-exhaustion from vulnerability reporting. That does not make it a non-issue — it makes it
+  **tracked engineering work rather than an incident**. No drop-everything fix; a real entry with a
+  real fix.
+
+  **It composes with `R41-UPLOAD-WARK`, and neither entry could see this alone.**
+  `services/api/src/aec_api/storage.py` has **no streaming put**: the protocol is
+  `put(key, data: bytes)`, and **36 call sites across 15 router modules** do `await file.read()`
+  before handing the bytes over — counted 2026-08-06. So the same request is **both unmeasured and
+  fully materialised**: this entry bounds it from the front, `R41-UPLOAD-WARK`'s chunked handshake
+  bounds it from the back, and *"count as chunks arrive"* is the identical instruction from either
+  end. **Two entries, one mechanism** — fix either in isolation and the other still holds the memory
+  open.
+
+- **R39-THROTTLE-SHARED ①** *(M, Lane C — **checked 2026-08-06: accurate and genuinely open**;
+  recorded so the next reader does not re-verify)* — `throttle.py` keeps `_HITS` as a plain
+  in-process `dict`, so the per-worker multiplication the entry describes is real and unchanged.
 - **R39-A11Y-JOURNEYS ②** *(M, Lane B)* — keyboard-only acceptance journeys for the seven rooms,
   encoded as tests rather than an audit doc: for each room, tab-reach the primary action, operate it,
   and land focus somewhere sane. The a11y sweeps so far checked *attributes*; nothing yet checks a
