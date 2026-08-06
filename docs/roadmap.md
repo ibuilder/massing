@@ -224,7 +224,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS *(SHIPPED 2026-08-06 — `pm_contract`; pending archive)* — lane now empty |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑧ |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* · R41-GATE-SUBSTANCE · R41-DELETE-RATCHET · R41-LICENCE-GATE |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* · R41-GATE-SUBSTANCE *(SHIPPED 2026-08-06 — `test_doc_substance.py`; pending archive)* · R41-DELETE-RATCHET · R41-LICENCE-GATE |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -1613,11 +1613,40 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   predates a change, does it read back as broken or as quietly wrong?** Related grep while in there —
   any composite cache or dedup key built by bare string concatenation collides, since `"abc" + "d"`
   equals `"abcd" + ""`; use an explicit delimiter.
-- **R41-GATE-SUBSTANCE** *(S — Lane J)* — **`services/api/test_claude_md_gates.py` proves a cited path
-  resolves; it does not prove the file still says anything.** A path can resolve to a twelve-byte stub.
-  Add a size or heading floor for the artefacts carrying real content — the roadmap, the family-shelf
-  catalogue, the rate tables — in the same ratchet style as the per-file line limits in
-  `services/api/test_file_sizes.py`.
+- ✅ **R41-GATE-SUBSTANCE** *(S — Lane J, SHIPPED 2026-08-06)* —
+  **`services/api/test_claude_md_gates.py` proves a cited path resolves; it does not prove the file
+  still says anything.** A path can resolve to a twelve-byte stub. Shipped as
+  `services/api/test_doc_substance.py` over eight artefacts.
+
+  **A floor is not a ratchet, and writing it like one would have been wrong.** `test_file_sizes.py`
+  sets per-file *ceilings* at the exact current value, because the direction of travel is down and
+  slack makes them decorative. **A floor is the mirror image, and the same reasoning gives the
+  opposite answer:** these artefacts legitimately *lose* content — the roadmap sheds items into
+  `docs/roadmap-completed.md`, the README gets tightened, a demo corpus is regenerated smaller. A
+  floor at today's value fails on every honest deletion, and a gate that goes red when you do the
+  right thing is one people switch off. So the floors sit clearly below current and far above a stub:
+  they catch **truncation, not shrinkage.**
+
+  **Bytes alone are a poor proxy and the mutation test proved it.** A file of repeated whitespace
+  passes a byte floor — so markdown is measured by **headings** as well, and the two data catalogues
+  by **entry count**. `apps/web/src/demo/demoData.json` is minified to a single line, so a
+  line-count floor reads **zero** for a healthy 1.4 MB file; that is why this is its own gate rather
+  than another map inside the line-count one. *The unit that detects a stub differs per artefact.*
+
+  Covered: `docs/roadmap.md` (226 KB / 61 headings) · `docs/roadmap-directions.md` ·
+  `docs/roadmap-completed.md` — deliberately **not** citation-gated, so nothing else would notice it
+  emptying · `README.md` · `CLAUDE.md` · `LICENSE-NOTES.md` ·
+  `services/data/families/external/manifest.json` (the family shelf: 57 `packs`) ·
+  `apps/web/src/demo/demoData.json` (1,249 endpoint keys).
+
+  Mutation-checked in all three modes: truncate the roadmap to ten bytes → red; 240 KB of newlines
+  with **zero headings** → red; the shelf reduced to 3 packs but padded to 214 KB → red. The last two
+  are the ones a byte floor alone would have passed.
+
+  **The rate tables named in the original entry were deliberately left out.** `equipment_rate`,
+  `labor_rate` and `material_rate` are `module.json` *schemas*, not data files, and
+  `module_schema.py` already rejects a malformed one — a size floor there would guard something that
+  is guarded, while implying the rate *data* is covered when it lives in the database.
 - **R41-DELETE-RATCHET** *(S — Lane J)* — **assert in CI that removed things stay removed.** Several
   lanes ship to main at once and nothing currently stops one reintroducing a decomposed god-module or a
   re-export that reads as a dead import. A negative assertion is three lines and makes a removal stick:
