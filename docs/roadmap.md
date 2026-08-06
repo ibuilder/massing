@@ -1597,6 +1597,18 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   `fault_finding` register keyed to IFC GlobalId, populated from an external system's MCP or REST
   surface**, feeding the FCI and work-order modules we already have. Public ASHRAE Guideline 36 fault
   identifiers are a stable vocabulary to key against.
+
+  **CHECKED 2026-08-06 — the premise HOLDS, which is worth recording because most have not.** The
+  modules the entry says exist do: `fca_element` + `services/api/src/aec_api/fca.py`, `work_order`,
+  `pm_schedule`, `asset_register`, `warranty`. There is **no `fault_finding` register**, and **no
+  ASHRAE Guideline 36 vocabulary anywhere** — every ASHRAE reference in the tree is design-side
+  (Level 1 audit, heat-balance load, low-velocity duct, rule-of-thumb), none is FDD.
+
+  **The one thing that looked like a counter-example is not one.** `meter` and `meter_reading`
+  registers exist, so "nothing consumes time-series" reads wrong at first glance. `meter_reading`'s
+  fields are `subject`, `meter`, `reading_date`, `consumption`, `cost` — **a utility bill, not
+  building-automation telemetry**. Periodic manual consumption is a different shape from continuous
+  point data, and nothing bridges them. The gap and the proposed cheap path both stand as written.
 - **R41-MODEL-ALIGN** *(M — Lane E)* — **align a federated model that arrived with wrong, missing or
   unit-mismatched georeferencing, without touching the source file.** This is the daily reality of GC
   federation and is *not* the same problem as our standing set-origin note. Two techniques, both
@@ -1610,7 +1622,35 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   **(b) pick-based move, rotate and scale** from two point pairs.
   **Check first whether the AABB-versus-OBB gap already affects our section box, zoom-to-model and any
   bounding-box UI** — if it does, that is a defect rather than a feature.
-- ✅ **R41-CLASH-TRIAGE** *(M — Lane C; premise-checked 2026-08-06, the stage already existed)* — **a reduction stage between detection and workflow.** A
+
+  **CHECKED 2026-08-06, and the answer is BOTH — but the live defect is not the one this entry
+  hypothesised.** Two sites build a scene-wide `Box3` and include the **2000 × 2000** presentation
+  ground plane `world.ts` adds (`aec-shadow-ground`):
+  `apps/web/src/viewer/measureSection.ts` and `apps/web/src/viewer/envTools.ts`. Neither excludes it;
+  `world.ts` does, with the comment *"the shadow-catching ground is 1 km across and would swallow the
+  fit"*. **These are the fourth and fifth instances of the defect `apps/web/src/viewer/modelBounds.ts`
+  was written to fix**, whose docstring already records that the fact was "encoded correctly twice and
+  missed once".
+
+  Measured against a 54 × 78 m building rotated 37° plus the real plane:
+
+  | | |
+  |---|---|
+  | AABB of the model alone | **90.1 × 94.8 m** — the genuine AABB-vs-OBB gap, ~2× the true area |
+  | AABB including the ground plane | **2000 × 2000 m** — what those two sites actually measure |
+  | section-box clip half-extent | **700 × 700 m** about the origin → **the whole building is inside it, so the section box clips nothing** |
+  | storey grid size | **2200 m** where it should be 104 m — **21× too large** |
+
+  With presentation mode **off** both are correct, which is exactly why it hides and why no test caught
+  it: it misbehaves in one render mode only.
+
+  **So this entry splits.** The two ground-plane sites are a **defect** for Lane E to fix now, and the
+  fix already exists — `planBoundsFromModels` in `modelBounds.ts` is an allowlist precisely so every
+  future non-model mesh is excluded by construction rather than by name. Both sites should call it
+  instead of hand-rolling a traverse. The OBB work then remains a real feature at its stated size:
+  fitting an oriented box on top of these two sites would compute a beautiful oriented box over a 2 km
+  ground plane.
+- **R41-CLASH-TRIAGE** *(M — Lane C)* — **a reduction stage between detection and workflow.** A
   competitor's headline is not detection quality but **22,843 raw clashes reduced to 103 groups**:
   group by geometric and semantic similarity, drop duplicates, filter grazing false positives, then
   rank survivors by construction consequence. We have detection including soft and sequence clash, and
@@ -1646,7 +1686,27 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   Specification, run it against a model, read the report.** Conspicuously absent for a product whose
   thesis is IFC-native, and a likely second gap in the "openBIM gaps complete except the IFC5/IFCX
   write-path" claim. **Verify that claim against the tree before sizing this.**
-- **R41-UPLOAD-WARK** *(M — Lane C; **paired with `R39-UPLOAD-CAP-APP` 2026-08-06 — one mechanism, two ends**: `storage.py` has no streaming put, so **36 call sites across 15 router modules** `await file.read()` a whole upload into memory before storing it, while the size guard in front of them is header-derived. Fixing either alone leaves the other holding the memory open)* — **content-addressed resumable upload in front of object
+
+  ✅ **VERIFIED 2026-08-06 — the premise is wrong and the claim HOLDS. This is already built,
+  end-to-end and reachable.** All three parts the entry asks for exist:
+
+  * **author** — `services/api/src/aec_api/ids_authoring.py` builds a standards-valid IDS 1.0 via
+    `ifctester` from a starter template library, plus an EIR document. Routes `/ids/templates`,
+    `/ids/build`, `/ids/eir` in `services/api/src/aec_api/routers/ids.py`; client methods
+    `idsTemplates` / `idsBuildBlob` / `idsDownload`; UI in `apps/web/src/portal/panels/standards.ts`.
+  * **pin to a project** — `/projects/{pid}/ids` with pin / unpin / status, so validation runs with no
+    re-upload.
+  * **run it and read the report** — `POST /projects/{pid}/validate`
+    (`services/api/src/aec_api/routers/analysis.py`) over `services/data/src/aec_data/validate.py`,
+    with precedence *uploaded > pinned > built-in defaults*. `format=json` returns the per-spec
+    pass/fail summary and **`format=bcf` returns a .bcfzip punch list of the non-conformances**, one
+    topic per failing specification — so an IDS audit round-trips into other coordination tools.
+
+  That last part is **more** than the entry asks for. `ids_authoring.py`'s own docstring says it
+  plainly: *"We already validate models against an IDS; this is the upstream half."* Closing as
+  already built. **The "openBIM gaps complete except the IFC5/IFCX write-path" claim survives this
+  test** — IDS was the suspected second gap and it is not one.
+- **R41-UPLOAD-WARK** *(M — Lane C)* — **content-addressed resumable upload in front of object
   storage.** Technique from an MIT-licensed file server (verified from its LICENSE); reimplement the
   handshake rather than adopt the server. Three parts: chunk size chosen so the **chunk *count* stays
   bounded**, keeping the handshake manifest roughly constant regardless of file size — a fixed part
@@ -1659,6 +1719,23 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   mismatch it **refuses loudly**, naming file, chunk index and offset, rather than silently writing a
   corrupt file.
 
+  **CHECKED 2026-08-06 — the premise HOLDS, and the tree is one step worse than the entry says.**
+  Nothing in `services/` mentions resumable, chunked, multipart or part-number uploads. Every upload
+  is a single FastAPI `UploadFile` multipart POST, and `services/api/src/aec_api/storage.py`'s
+  interface is `put(key, data: bytes)` — **there is no streaming put at all**. Six call sites do
+  `await file.read()`, so **the whole file is materialised in memory** before it reaches storage.
+
+  So the entry's framing — "an unchanged re-upload currently costs a full transfer" — is a *bandwidth*
+  argument, and it is right. But the same fact is also a **memory** argument for a 50 MB IFC, and that
+  half is not in the entry. Note the asymmetry that makes this cheap to miss: `storage.py` already has
+  `get_range(key, start, end)`, so ranged **reads** are supported and only **writes** are all-or-nothing
+  — the capability looks half-present when the half that matters is absent.
+
+  Nothing is content-addressed either: storage keys are caller-supplied paths sanitised by `safe_seg`
+  / `validate_key`, and there is no hashing in the storage layer, so deduplication has nothing to key
+  on. The entry's `hash(salt + filesize + chunk hashes)` identity would be the first content address
+  in the system rather than a change to an existing one.
+
 ### Gate and process items
 
 - **R41-SCHEMA-STALE** *(S — Lane C; **checked 2026-08-06: genuinely unbuilt** — no `schema_version` or equivalent stamp exists on any persisted record)* — **a stored record that predates a semantics change must read
@@ -1669,6 +1746,41 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   predates a change, does it read back as broken or as quietly wrong?** Related grep while in there —
   any composite cache or dedup key built by bare string concatenation collides, since `"abc" + "d"`
   equals `"abcd" + ""`; use an explicit delimiter.
+
+  **AUDITED 2026-08-06. The answer is QUIETLY WRONG — the data-integrity category, not the UX one.**
+
+  **There is no schema version to check.** The `mod_*` tables carry fourteen columns — `id`,
+  `project_id`, `ref`, `title`, `workflow_state`, `party_owner`, `assignee`, `created_by`,
+  `created_at`, `modified_at`, `anchor`, `element_guids`, `links`, `data` — and **not one of them
+  records which version of the `module.json` wrote the row**. The only "stale" handling in
+  `services/api/src/aec_api/modules.py` is a `stale_write` 409, which is optimistic concurrency on
+  *simultaneous edits* and says nothing about a record predating a schema change.
+
+  **Reads are keyed by the CURRENT schema's field names** — `data.get(f["name"])` — so drift degrades
+  silently and in three distinct ways, none of which raises:
+
+  * a **renamed** field leaves the old key orphaned in `data` and the new key absent, so the value
+    renders **empty and indistinguishable from "never filled in"** — the worst case, because the data
+    is still there and the UI says it never existed;
+  * a **removed** field's value stays in `data`, unread and invisible;
+  * a **retyped** field is rendered under the new type.
+
+  So the entry's prescription stands unchanged and its urgency is confirmed: this is silent data loss
+  in appearance, not a crash. **135+ registers share this one table shape**, so the fix is one column
+  and one read-path branch rather than 135 changes.
+
+  **The composite-key grep found nothing, and the instrument is the finding.** A scan of all 1,388
+  tracked `.ts`/`.py` files for two interpolations with no delimiter between them
+  (`` `${a}${b}` `` / `f"{a}{b}"`) returns **18 hits, none of them an identity**: every one is display
+  text where the second interpolation is a conditional suffix, or a URL where it is a query string.
+  **Zero genuine collisions.**
+
+  That negative is only worth stating because the first version of the scan was **worthless and
+  confident**. Its filter was `\b(key|cache|…)\b` — word-bounded — which **cannot match `cacheKey` or
+  `cache_key`**, the two most likely real names. A self-test planting a real collision in each
+  language caught it: the scan returned the same count with the probes present. *Word-bounding is the
+  right default for a symbol search and the wrong one for a name-fragment search* — and a filter that
+  excludes its own subject produces a clean bill of health.
 - ✅ **R41-GATE-SUBSTANCE** *(S — Lane J, SHIPPED 2026-08-06)* —
   **`services/api/test_claude_md_gates.py` proves a cited path resolves; it does not prove the file
   still says anything.** A path can resolve to a twelve-byte stub. Shipped as
