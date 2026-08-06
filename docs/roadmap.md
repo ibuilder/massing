@@ -572,8 +572,23 @@ stakes we are missing.
   line and agent answer traceable to a source page. Three of thirteen platforms *lead* with this; it
   is what makes AI output admissible in an IC memo or a claim.
 
-- ◧ **R22-OPTION-OBJECT** *(S/M — `option_economics.py` shipped)* — make **option the primary object**: geometry + unit mix + cost +
+- ✅ **R22-OPTION-OBJECT** *(S/M — done)* — option as the primary object: geometry + unit mix + cost +
   carbon + IRR as one comparable record, so no massing is ever evaluated without its returns.
+  `option_object.py`, served at `GET /projects/{pid}/design/options/record`. **Band 3 outcome: all
+  four engines already existed and were good — nothing joined them**, so a reader compared schemes
+  across three screens by eye, which is the failure the entry's own sentence describes. The join
+  re-derives nothing; each number comes from the engine that owns it, and each engine's `basis`
+  (declared / benchmark / derived / unlinked) is carried through rather than flattened. It refuses
+  twice: a missing axis is `absent`, never a zero (`option_score` once coerced a missing `cost_per_sf`
+  to 0.0 and scored it **100** on a lower-is-better axis), and it does **not** rank — `option_score`
+  owns that. `comparable_count` is the number to read.
+  *The defect worth remembering was in the seam, not the logic:* the first join read `total_cost`,
+  `equity_irr` and `carbon_intensity_kgco2e_m2`, **none of which any engine emits**. It returned all
+  five axes absent for a fully-populated project while its unit test passed, because the fixture was
+  invented alongside the code — both sides of the join were wrong in the same way and agreed
+  perfectly. A test that supplies both sides of a join cannot see the only defect that matters;
+  `test_option_object_route.py` supplies neither and asserts every axis equals what its owning route
+  serves.
 - **R22-REPORT-BUILDER** *(M)* — **RESCOPED 2026-07-31; the original premise was false.** The entry
   read "132 modules of structured data with **no end-user query surface**". There is one, and it is
   good: per-field filtering with operators (`?f.discipline=Structural&f.amount.gte=1000`, capped at
@@ -876,10 +891,18 @@ Everything after this sprint is a claim about adoption. Nothing in the stack can
 refute one, so this goes first even though it is the least visible.
 
 
-- ◧ **R24-PERF-BUDGET** *(S — `perf_budget.py` shipped)* — **now measurable**: `metrics.quantile(0.95)` reads the histogram
-  above. The remaining work is the asserted budget itself (100 ms click echo, 1 s panel, p95 < 100 ms)
-  as a `test_*`, per *Verify, don't recall*. Note what the server can and cannot say: request p95 is
-  server-side and now real; **click-echo latency is client-side and still needs a beacon.**
+- ◧ **R24-PERF-BUDGET** *(S — `perf_budget.py` shipped)* — **premise re-checked 2026-08-06: the work
+  this entry describes as remaining is done.** It reads "the remaining work is the asserted budget
+  itself … as a `test_*`". That test exists — `services/api/test_perf_budget.py` — and it is the
+  strong form: the server budget is asserted against **real traffic** driven through the app, with
+  the p95 read from the live histogram rather than a synthetic number, and `quantile` returning None
+  is treated as a **failure** on the `beyond_histogram` branch, because reading None as "no problem"
+  would make the budget pass hardest exactly when latency is worst.
+  **The true remainder is the client beacon, and it is Lane A/E, not Lane C.** `BUDGETS` lists all
+  three and marks `click_echo` and `panel_load` `measurable: False` with a stated reason — nothing on
+  the server can observe a click-to-paint interval. That is the honest shape, not a gap: a budget file
+  listing three and quietly checking one is how a green suite implies more than it tested. Whoever
+  takes this should build the beacon and flip those two, and should not expect to write a backend test.
 ### Sprint 2 — cash the moat *(the differentiation no competitor can copy)*
 
 - ◧ ⭐ **R24-ELEMENT-CARD ②** *(S — was M, was L; ◧ added 2026-08-06 — `apps/web/src/ui/elementCard.ts` declares this item and one surface already mounts it, so "nothing exists" was never true; what is open is REACH, not capability)* — the strip exists and works, **and the extraction it
