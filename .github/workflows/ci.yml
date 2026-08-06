@@ -96,6 +96,18 @@ jobs:
       - name: Bundle-size budget (app shell)
         run: npm run budget --workspace apps/web
 
+      # R41-LICENCE-GATE. Runs HERE and not in the API gate on purpose: this job is the one that
+      # runs `npm ci`, so `node_modules` exists. The API job does not install it, and a licence scan
+      # over an absent tree passes by finding nothing — the vacuous-population failure this repo has
+      # hit repeatedly. Where a check runs is part of its claim.
+      #
+      # `services/api/test_license_gate.py` already fails on a GPL/AGPL **Python** distribution, from
+      # its **declared metadata**. This covers the 638-package **npm** tree, which that gate never
+      # saw, and reads each package's **LICENSE file** rather than its badge — because the item this
+      # implements exists precisely because declarations and licence files disagree.
+      - name: Licence allowlist (npm tree, reads LICENSE files)
+        run: npm run licences --workspace apps/web
+
   # Container supply chain: build the deployable images, scan them, and (on main) publish to ghcr
   # with an immutable :sha tag so production can pin digests instead of pulling a mutable :latest.
   containers:
