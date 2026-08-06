@@ -309,12 +309,33 @@ crosses sessions.
   gate existed and was stronger); "6 of 158 matched" became "the port does not work" (the reader was
   reading the wrong line); "this is unbuilt" became "nobody is building it". A checked claim can be
   refuted precisely; a concluded one can only be contradicted, which takes far longer to settle.
-- **A getter cannot express a write.** Passing captured state across an extraction seam by accessor
-  covers reads only. When the moved code *assigns* to the captured binding, both obvious fixes are
-  wrong in different ways: moving the declaration into the new module changes its **lifetime** (it may
-  need to survive the enclosing builder re-running), and passing by value reintroduces the exact
-  stale-closure bug accessors exist to prevent. Keep ownership in the original scope and pass a
-  mutable **ref**.
+- **A ref is the DEFAULT; an accessor means you got lucky.** Captured state crosses an extraction
+  seam three ways, and the ranking is the opposite of the intuitive one:
+  1. **read-only** → pass an accessor (a getter). This is the *lucky* case, not the normal one.
+  2. **read-write** → pass a mutable **ref**, ownership staying in the original scope.
+  3. **neither** → pass by value, which is safe only for a `const`.
+
+  **A getter cannot express a write.** When the moved code *assigns* to the captured binding, both
+  obvious repairs are wrong in different ways: moving the declaration into the new module changes its
+  **lifetime** (it may need to survive the enclosing builder re-running), and passing by value
+  reintroduces the exact stale-closure bug accessors exist to prevent — silently, since it compiles.
+
+  This was first written as an exception. It is not. **Any state a builder owns the lifecycle of will
+  be written by it; only state it merely consults is read-only** — and in a closure that has grown to
+  four thousand lines, most captured state is owned in one place and consulted in another. Measured
+  across two consecutive extractions from the same file: the first had one read-write capture, the
+  second had two of two, one of them a `??=`, which no getter can express at all.
+
+- **Close the population by SCOPE, not by search.** Before threading a capture, enumerate its readers
+  — and prefer an argument that makes the enumeration *exhaustive by construction*: a `let` declared
+  inside a function, not exported, not attached to any global or object literal, **can only be read
+  inside that function**, so there is nowhere else to look. That is categorically stronger than "I
+  grepped every file carefully", which is the N−1-correct shape that fails on the Nth site.
+
+  When you must grep, **word-bound the pattern**. An unbounded search for `discTree` matched
+  `private _discTree` in an unrelated file and read as "this variable escapes into the API client" —
+  a dependency that does not exist, which would have been threaded through the seam to fix a
+  non-problem. Same family as a search for `EIR` matching the word "their".
 - **Prove a move was a move.** Diff the extracted body against the original range with
   `git show <ref>:<path>`, do not read it and judge. Do not re-indent — re-indenting can silently edit
   the contents of a multi-line template literal. Name every non-identical line in the PR; two out of
