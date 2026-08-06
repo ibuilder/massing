@@ -33,9 +33,8 @@ import { createRailToolbox } from "./railToolbox";
 import { VisibilityTool } from "../tools/visibility";
 import { ColorizeTool } from "../tools/colorize";
 import { LayerManager } from "../tools/layers";
-import { type SelSet, loadSelSets, saveSelSets, resolveGuids } from "../tools/selectionSetsStore";
+import { loadSelSets, saveSelSets } from "../tools/selectionSetsStore";
 import { OriginTool } from "../tools/origin";
-import { buildTree, setDisciplineLookup } from "../tree/tree";
 import { installDraftPanel, type ArmedDraft, type DraftPanelHandle } from "./draft/draftPanel";
 import { type FamilyDef } from "./draft/draftCatalog";
 import { GridOverlay } from "./draft/gridOverlay";
@@ -50,6 +49,7 @@ import { buildExportsSection } from "./tools/exportsSection";
 import { buildQaSection } from "./tools/qaSection";
 import { buildAnalyseSection } from "./tools/analyseSection";
 import { buildAuthoringSection } from "./tools/authoringSection";
+import { buildProjectPanels } from "./tools/projectPanel";
 import { GuideUnderlay, openUnderlayPanel } from "./guideUnderlay";
 import { type SpatialElement, type SpatialScope, nextScope, scopeSelection } from "./spatialSelect";
 import { DraftPointHistory } from "./draftHistory";
@@ -1385,222 +1385,20 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     return discTree?.ifc_class_discipline[cls] ?? null;
   }
 
-  async function buildPanels() {
-    if (!projectId) return;
-    // A project with no model 404s here. Fetching BEFORE rendering meant the throw escaped to a
-    // console.warn at the call site and left the Project Browser — the rail's default panel —
-    // completely blank, with the AUTHOR tools sitting one unmarked click away. An empty panel reads
-    // as a broken app, not as an empty project, so the empty state is rendered first and the
-    // elements are layered on only if they arrive.
-    let elements: ElementProps[] = [];
-    let noModel = false;
-    try {
-      elements = await api.elements(projectId, { limit: 5000 });
-      // A29-SPATIAL-SELECT reads containment from this same list — one fetch, one truth.
-      spatialElements = elements.map((e) => ({ guid: e.guid, storey: e.storey }));
-    } catch {
-      noModel = true;
-    }
-    const treePanel = $("panel-tree");
-    treePanel.innerHTML = "";
-    // UX-4 Project-Browser spine: a Views · Sheets · Schedules nav strip above the spatial/element tree,
-    // so the model browser is a full project index (à la Revit's Project Browser), not just elements.
-    const spine = document.createElement("div");
-    spine.className = "browser-spine";
-    spine.style.cssText = "display:flex;flex-wrap:wrap;gap:4px;padding:4px 6px 6px;border-bottom:1px solid var(--border,#334155);margin-bottom:4px";
-    const spineTitle = document.createElement("div");
-    spineTitle.className = "section-title"; spineTitle.textContent = "Project browser"; spineTitle.style.width = "100%";
-    spine.appendChild(spineTitle);
-    const goWs = (key: string) => window.dispatchEvent(new CustomEvent("aec:workspace", { detail: key }));
-    for (const [label, ws, title] of [
-      ["📐 Plans & views", "drawings", "Open the Drawings workspace — plans, sections, elevations"],
-      ["📄 Sheets", "drawings", "Composed sheets (titleblock + viewports) in the Drawings workspace"],
-      ["📋 Schedules", "drawings", "Door / window / room schedules in the Drawings workspace"],
-    ] as const) {
-      const btn = document.createElement("button"); btn.className = "mini-btn"; btn.textContent = label;
-      btn.style.cssText = "font-size:10.5px;padding:2px 7px"; btn.title = title;
-      btn.onclick = () => goWs(ws);
-      spine.appendChild(btn);
-    }
-    const treeHead = document.createElement("div");
-    treeHead.className = "section-title"; treeHead.textContent = "Model";
-    treeHead.style.cssText = "padding:0 6px";
-    treePanel.append(spine, treeHead);
-    if (noModel || !elements.length) {
-      // Name the state and give it the two things that resolve it. Without this the panel is blank
-      // and a reader cannot tell an empty project from a failed load.
-      const empty = document.createElement("div");
-      empty.className = "browser-empty";
-      empty.style.cssText = "padding:10px 8px;font-size:11.5px;line-height:1.55;color:var(--muted,#94a3b8)";
-      const msg = document.createElement("div");
-      msg.textContent = noModel
-        ? "No model in this project yet."
-        : "This model published with no elements.";
-      const hint = document.createElement("div");
-      hint.style.cssText = "margin-top:6px";
-      hint.textContent = "Open an IFC to browse it here — or start authoring from the AUTHOR group in the rail.";
-      const row = document.createElement("div");
-      row.style.cssText = "display:flex;gap:6px;margin-top:9px;flex-wrap:wrap";
-      const openBtn = document.createElement("button");
-      openBtn.className = "mini-btn"; openBtn.textContent = "📂 Open IFC";
-      openBtn.title = "Load an IFC into this project";
-      openBtn.onclick = () => ($("ifc-input") as HTMLInputElement | null)?.click();
-      const authorBtn = document.createElement("button");
-      authorBtn.className = "mini-btn"; authorBtn.textContent = "✎ Authoring tools";
-      authorBtn.title = "Jump to the AUTHOR tools — create levels, grids, walls without a model";
-      authorBtn.onclick = () => document.querySelector<HTMLElement>('[data-panel="tools"]')?.click();
-      row.append(openBtn, authorBtn);
-      empty.append(msg, hint, row);
-      treePanel.appendChild(empty);
-    } else {
-      treePanel.appendChild(buildTree(elements, (guid) => selectByGuid(guid, false)));
-    }
-    if (noModel) return;   // meta/discipline calls below all need a published model
-
-    const meta = await api.meta(projectId);
-    discTree ??= await api.disciplineTree().catch(() => null);
-    // hand the served IFC-class→discipline map to the model browser so it stops re-deriving disciplines
-    // from its own regex (one shared vocabulary).
-    if (discTree) setDisciplineLookup(discTree.ifc_class_discipline,
-      Object.fromEntries(discTree.disciplines.map((d) => [d.code, d.name])));
-    const layersPanel = $("panel-layers");
-    layersPanel.innerHTML = `<div class="section-title">IFC classes</div>`;
-
-    // Color-by toggle (Class ↔ Discipline) + a one-click "paint the model" so a coordinator can flip the
-    // whole model to discipline colors (fire=red, plumbing=green, …) the way Navisworks/Revit do.
-    const swatchRows: { cls: string; swatch: HTMLElement; ensure: () => Promise<string> }[] = [];
-    const paintAll = async () => {
-      for (const r of swatchRows) { r.swatch.style.background = colorFor(r.cls); await layerMgr.setColor(await r.ensure(), colorFor(r.cls)); }
-    };
-    if (discTree) {
-      const bar = document.createElement("div"); bar.className = "layer-row"; bar.style.cssText = "gap:6px;margin-bottom:4px";
-      const lbl = document.createElement("span"); lbl.className = "name"; lbl.textContent = "Color by"; lbl.style.flex = "0 0 auto";
-      const sel = document.createElement("select"); sel.className = "mini-select";
-      sel.innerHTML = `<option value="class">IFC class</option><option value="discipline">Discipline</option>`;
-      sel.value = colorMode;
-      const paint = document.createElement("button"); paint.className = "mini-btn"; paint.textContent = "Paint model";
-      paint.title = "Apply the current color scheme to every element in the 3D view";
-      paint.onclick = paintAll;
-      sel.onchange = () => {
-        colorMode = sel.value === "discipline" ? "discipline" : "class";
-        for (const r of swatchRows) r.swatch.style.background = colorFor(r.cls);
-        legend.style.display = colorMode === "discipline" ? "" : "none";
-        buildLegend();
-      };
-      bar.append(lbl, sel, paint);
-      layersPanel.appendChild(bar);
-    }
-    // discipline color legend (shown in discipline mode) — the palette, so the colors read as a system.
-    const legend = document.createElement("div"); legend.className = "disc-legend";
-    legend.style.display = colorMode === "discipline" ? "" : "none";
-    const buildLegend = () => {
-      legend.innerHTML = "";
-      if (colorMode !== "discipline" || !discTree) return;
-      const present = new Set(meta.facets.classes.map((c) => disciplineOfClass(c)).filter(Boolean));
-      for (const d of discTree.disciplines) {
-        if (!present.has(d.code)) continue;
-        const chip = document.createElement("span"); chip.className = "disc-chip";
-        const sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = d.color;
-        const nm = document.createElement("span"); nm.textContent = d.name;
-        chip.append(sw, nm); legend.appendChild(chip);
-      }
-    };
-    buildLegend();
-    layersPanel.appendChild(legend);
-
-    for (const cls of meta.facets.classes) {
-      const row = document.createElement("div"); row.className = "layer-row";
-      const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = true;
-      const name = document.createElement("span"); name.className = "name"; name.textContent = cls;
-      const swatch = document.createElement("span"); swatch.className = "swatch"; swatch.style.background = colorFor(cls);
-      let layerId: string | null = null;
-      const ensure = async () => (layerId ??= (await layerMgr.addClassLayer(cls, cls)).id);
-      swatchRows.push({ cls, swatch, ensure });
-      cb.onchange = async () => { await ensure(); await layerMgr.setVisible(layerId!, cb.checked); };
-      swatch.onclick = async () => { await ensure(); await layerMgr.setColor(layerId!, colorFor(cls)); };
-      name.onclick = async () => {
-        await ensure();
-        const layer = layerMgr.layers.get(layerId!);
-        await layerMgr.isolate(layerId!);
-        if (layer) await fitToItems(layer.items);
-        setStatus(`isolated ${cls}`);
-      };
-      row.append(cb, swatch, name);
-      layersPanel.appendChild(row);
-    }
-
-    // Named selection sets (the saved-search-set pattern) — saved queries you can isolate.
-    buildSelSets(layersPanel, elements);
-
-    await refreshIssues();
-    await reloadModelPins();
-  }
-
-  /** Render the "Selection sets" block into the Layers panel: saved queries → isolate. */
-  function buildSelSets(host: HTMLElement, elements: ElementProps[]) {
-    if (!projectId) return;
-    const pid = projectId;
-    const wrap = document.createElement("div"); wrap.className = "selset-block";
-    const title = document.createElement("div"); title.className = "section-title"; title.style.marginTop = "10px";
-    title.textContent = "Selection sets";
-    wrap.appendChild(title);
-
-    const list = document.createElement("div"); wrap.appendChild(list);
-
-    const draw = () => {
-      const sets = loadSelSets(pid);
-      list.innerHTML = "";
-      if (!sets.length) {
-        const hint = document.createElement("div"); hint.className = "meta"; hint.style.fontSize = "11px";
-        hint.textContent = "Save a search as a set to isolate it in one click.";
-        list.appendChild(hint);
-      }
-      sets.forEach((s, i) => {
-        const row = document.createElement("div"); row.className = "selset-row";
-        const label = document.createElement("span"); label.className = "selset-name";
-        label.textContent = `${s.name} (${s.guids.length})`;
-        label.title = `Isolate — query: “${s.q}”`;
-        label.onclick = async () => {
-          if (!s.guids.length) { notify(`“${s.name}” has no elements`, "error"); return; }
-          await layerMgr.isolateGuids(s.guids);
-          setStatus(`isolated set “${s.name}” · ${s.guids.length}`);
-        };
-        const del = document.createElement("button");
-        del.className = "selset-del"; del.textContent = "✕"; del.title = "Delete set";
-        del.setAttribute("aria-label", `Delete set ${s.name}`);
-        del.onclick = () => { const next = loadSelSets(pid); next.splice(i, 1); saveSelSets(pid, next); draw(); };
-        row.append(label, del);
-        list.appendChild(row);
-      });
-    };
-
-    const actions = document.createElement("div"); actions.className = "selset-actions";
-    const add = document.createElement("button"); add.className = "mini-btn"; add.textContent = "➕ New set…";
-    add.title = "Save a search (by name / class / type / discipline / level) as an isolatable set";
-    add.onclick = async () => {
-      const q = await askText("New selection set", { label: "Match elements containing (name / class / type / discipline / level):", value: "" });
-      if (!q) return;
-      const guids = resolveGuids(elements, q);
-      if (!guids.length) { notify(`no elements match “${q}”`, "error"); return; }
-      const name = await askText("New selection set", { label: `Name this set (${guids.length} elements)`, value: q });
-      if (!name) return;
-      const sets = loadSelSets(pid);
-      const existing = sets.findIndex((s) => s.name === name);
-      const entry: SelSet = { name, q, guids };
-      if (existing >= 0) sets[existing] = entry; else sets.push(entry);
-      saveSelSets(pid, sets);
-      draw();
-      notify(`saved set “${name}” · ${guids.length} elements`, "success");
-    };
-    const showAll = document.createElement("button"); showAll.className = "mini-btn"; showAll.textContent = "👁 Show all";
-    showAll.title = "Clear isolation — make every element visible again";
-    showAll.onclick = async () => { await layerMgr.showAll(); setStatus("all elements visible"); };
-    actions.append(add, showAll);
-
-    wrap.append(actions);
-    draw();
-    host.appendChild(wrap);
-  }
+  // R39-DECOMP-VIEWER ⑤ — moved to `tools/projectPanel.ts`. The discipline state crosses as a
+  // REF (get/set over the `let`s above) because the moved code WRITES both: `discTree ??=` and
+  // the colour-mode <select>. Ownership stays here, so the reads at `disciplineOfClass` and in
+  // the colour lookup below are untouched.
+  const disciplineRef = {
+    get tree() { return discTree; }, set tree(v: DisciplineTree | null) { discTree = v; },
+    get mode() { return colorMode; }, set mode(v: "class" | "discipline") { colorMode = v; },
+  };
+  const buildPanels = () => buildProjectPanels({
+    api, projectId, notify, setStatus, selectByGuid, reloadModelPins, colorFor,
+    disciplineOfClass, discipline: disciplineRef, layerMgr, fitToItems, refreshIssues,
+    spatialElements: { get value() { return spatialElements; },
+                       set value(v: SpatialElement[]) { spatialElements = v; } },
+  });
 
   // KERNEL-ADOPT ②: markup runs as a kernel plugin. Lazily built because the pin overlay and the
   // click handler only exist once the viewer has, and a kernel per viewer instance is correct —

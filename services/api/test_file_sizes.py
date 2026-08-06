@@ -76,8 +76,9 @@ PER_FILE = {
     #:   ① Exports (51)   5,160 -> 5,114
     #:   ② clash/QA (851) 5,114 -> 4,272
     #:   ③ analyse (238) + ④ authoring (91)  4,272 -> 3,953
+    #:   ⑤ project-browser panel (216)      3,953 -> 3,751
     #: The whole `builders` map is now out of app.ts. Ratcheted each time, never reset.
-    "apps/web/src/viewer/app.ts": 3_953,
+    "apps/web/src/viewer/app.ts": 3_751,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.
