@@ -1,5 +1,6 @@
 /** Typed client for the backend API (guide §7). Geometry comes from .frag; all element
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
+import { withAuth } from "./auth";
 import { withAuthoring } from "./authoring";
 import { withLibrary } from "./library";
 import { HttpCore, type LiveStream } from "./httpCore";
@@ -23,7 +24,7 @@ export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";
 export * from "./authoring";
 export * from "./library";
 import type {
-  AccountUser, Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
+  Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, FinancialStatements,
   IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, MonteCarloResult, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProformaForecast, ProformaResult, ProjectMember, ProjectRole, PropLayer, PropMapRule,
@@ -34,12 +35,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))) {
-  // --- auth ---------------------------------------------------------------
-  /** Enabled SSO providers (Google/Microsoft/Procore) for the login UI. */
-  authProviders() {
-    return this.json<{ providers: { id: string; label: string }[] }>("/auth/providers");
-  }
+export class ApiClient extends withAuth(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -535,15 +531,6 @@ export class ApiClient extends withProcurement(withEstimate(withModules(withMode
   }
   /** The signed-in user's own verified PE/RA licences — what the seal dialog offers. */
   myLicenses() { return this.json<{ licenses: ProfessionalLicense[] }>("/licenses/mine"); }
-  /** Re-prove the account password for ONE action, yielding a short-lived assertion.
-   *
-   *  Sealing needs this because a bearer token identifies a session, not a person: anything holding
-   *  the token could otherwise emit documents under the licensee's seal. The returned value is NOT a
-   *  session token — the server refuses it as one — so it is safe to pass straight to pdfSeal. */
-  stepUp(password: string, act = "pdf.seal") {
-    return this.json<{ token: string; act: string; expires_in: number }>(
-      "/auth/step-up", { method: "POST", body: JSON.stringify({ password, act }) });
-  }
   /** Record a revision (delta) on a sheet, optionally citing the driving instrument (ASI/CCD/Addendum). */
   reviseDrawing(pid: string, drawingId: string, body: { rev: string; description?: string; date?: string; instrument_type?: string; instrument_ref?: string }) {
     return this.json<{ drawing_id: string; revision: string; delta_count: number }>(
@@ -822,68 +809,8 @@ export class ApiClient extends withProcurement(withEstimate(withModules(withMode
       total?: number; source: string; ai_enabled: boolean; message?: string }>(
       `/projects/${pid}/ai/estimate`, { method: "POST", body: JSON.stringify({ description }) });
   }
-  /** Password login. If the account has MFA on, the reply is `{ mfa_required, mfa_token }` instead
-   *  of a token — complete it with `mfaVerify(mfa_token, code)`. */
-  login(username: string, password: string) {
-    return this.json<{ token?: string; username: string; role?: string;
-      mfa_required?: boolean; mfa_token?: string }>(
-      "/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
-  }
-  /** Login step 2: exchange the challenge ticket + a TOTP or recovery code for a session. */
-  mfaVerify(mfaToken: string, code: string) {
-    return this.json<{ token: string; username: string; role: string }>(
-      "/auth/mfa/verify", { method: "POST", body: JSON.stringify({ mfa_token: mfaToken, code }) });
-  }
-  mfaStatus() {
-    return this.json<{ enabled: boolean; pending: boolean; recovery_remaining: number }>("/auth/mfa/status");
-  }
-  mfaSetup() {
-    return this.json<{ secret: string; otpauth_uri: string }>("/auth/mfa/setup", { method: "POST" });
-  }
-  mfaEnable(code: string) {
-    return this.json<{ enabled: boolean; recovery_codes: string[] }>(
-      "/auth/mfa/enable", { method: "POST", body: JSON.stringify({ code }) });
-  }
-  mfaDisable(password: string, code: string) {
-    return this.json<{ enabled: boolean }>(
-      "/auth/mfa/disable", { method: "POST", body: JSON.stringify({ password, code }) });
-  }
-  register(username: string, password: string) {
-    return this.json<{ username: string; role: string }>(
-      "/auth/register", { method: "POST", body: JSON.stringify({ username, password }) });
-  }
-  me() {
-    return this.json<{ username: string; role: string | null; authenticated: boolean;
-      tier?: string; features?: Record<string, boolean>; platform_admin?: boolean }>("/auth/me");
-  }
-  logout() {
-    return this.json<{ ok: boolean }>("/auth/logout", { method: "POST" }).catch(() => ({ ok: false }));
-  }
-  /** Change your own password (requires the current one). The server revokes all other sessions
-   *  and returns a fresh token for this tab; adopt it so the current session keeps working. */
-  async changePassword(current: string, next: string) {
-    const r = await this.json<{ ok: boolean; token?: string }>(
-      "/auth/password", { method: "POST", body: JSON.stringify({ current, new: next }) });
-    if (r.token) this.setToken(r.token);
-    return r;
-  }
-  /** Sign out of every other session (revoke all outstanding tokens); keeps this tab signed in
-   *  via the fresh token the server returns. Use after a suspected token leak. */
-  async logoutAll() {
-    const r = await this.json<{ ok: boolean; token?: string }>("/auth/logout-all", { method: "POST" });
-    if (r.token) this.setToken(r.token);
-    return r;
-  }
-  /** Admin: force-revoke all of a user's outstanding sessions (offboarding / lost device). */
-  revokeUserSessions(username: string) {
-    return this.json<{ ok: boolean }>(
-      `/auth/users/${encodeURIComponent(username)}/revoke-sessions`, { method: "POST" });
-  }
 
   // --- admin: user management --------------------------------------------
-  listUsers() {
-    return this.json<AccountUser[]>("/auth/users");
-  }
   /** Admin: read the audit trail (newest first), optionally filtered. */
   auditLog(params: { action?: string; actor?: string; since?: string; limit?: number } = {}) {
     const qs = new URLSearchParams();
@@ -912,29 +839,6 @@ export class ApiClient extends withProcurement(withEstimate(withModules(withMode
       { method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json", ...this.authHeaders() },
         body: JSON.stringify(e), keepalive: true }).catch(() => { /* best-effort */ });
-  }
-  createUser(username: string, password: string, role: "admin" | "user" = "user", email?: string) {
-    return this.json<AccountUser>(
-      "/auth/users", { method: "POST", body: JSON.stringify({ username, password, role, email }) });
-  }
-  updateUser(username: string, patch: { role?: "admin" | "user"; active?: boolean; email?: string }) {
-    return this.json<AccountUser>(
-      `/auth/users/${encodeURIComponent(username)}`, { method: "PATCH", body: JSON.stringify(patch) });
-  }
-  resetUserPassword(username: string, password: string) {
-    return this.json<{ ok: boolean }>(
-      `/auth/users/${encodeURIComponent(username)}/password`,
-      { method: "POST", body: JSON.stringify({ password }) });
-  }
-  /** Admin: mint a single-use reset token for a user to set their own password. */
-  issueResetToken(username: string) {
-    return this.json<{ username: string; reset_token: string; expires_in: number }>(
-      `/auth/users/${encodeURIComponent(username)}/reset-token`, { method: "POST" });
-  }
-  /** Unauthenticated: set a new password using a reset token (the token is the credential). */
-  resetWithToken(token: string, next: string) {
-    return this.json<{ ok: boolean; username: string }>(
-      `/auth/reset`, { method: "POST", body: JSON.stringify({ token, new: next }) });
   }
 
   /** Absolute URL for a GET endpoint, e.g. an export download. */
