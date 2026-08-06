@@ -4,11 +4,20 @@ Premise-checked: `mcp_tools` exposes **18** tools with `dispatch()` and `catalog
 `audit.record` exists. So this is packaging, exactly as the ring entry says — with one finding the
 entry only implies:
 
-**16 of the 18 tools run with no audit trail.** `audit.record` is called inside `_run_recipe`, for
-the IFC edit it performs — not for tool dispatch itself. So today "which tools did this agent run
-against my project last week?" has no answer, and that question is the one an enterprise asks
-before it grants access, and again after an incident. `run_log()` here is the per-run record the
-entry calls the gating factor.
+**Originally 16 of the 18 tools ran with no audit trail** — `audit.record` was called inside
+`_run_recipe`, for the IFC edit it performs, not for tool dispatch itself. `dispatch` now audits
+every run, success and failure, so "which tools did this agent run against my project last week?"
+has an answer. `run_log()` here reads that trail and is the per-run record the entry calls the
+gating factor.
+
+The second half took longer to see, because it was not in the callee. `dispatch` can only record the
+identity it is **given**, and the stdio transport — the one path every real agent run takes — passed
+none, so each row read actor `mcp` with no user and no pack. `test_agent_packs.py` asserted runs are
+attributed "to the effective user, not the transport" and passed, because the test supplied a user
+the transport never did. The trail answered *which tools ran* and not *whose agent ran them*, which
+is the half an enterprise asks for. Fixed at the call site; `test_mcp_attribution.py` asserts the
+call site forwards all three, since a test that supplies a caller's arguments cannot notice the
+caller omitting them.
 
 A pack is a **named view over existing tools**. That framing carries the refusals:
 
