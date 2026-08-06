@@ -106,16 +106,42 @@ def _leg_answers(answers: list[dict] | None) -> dict[str, Any]:
 #: What each un-gatherable leg would need before a project-scoped verdict could include it. Named
 #: rather than described, so the follow-up is a schema change somebody can action, not a sentiment.
 NOT_CAPTURED_REASON: dict[str, str] = {
-    "estimate": ("the `estimate` register stores line_items as code/description/qty/unit/unit_cost/"
-                 "amount — it captures no `source`, `quote_ref` or `basis_date` per line, which are "
-                 "exactly the fields a basis-of-estimate ledger checks. `boe_ledger` can therefore "
-                 "only run on lines posted in a request body. Capturing those three columns is what "
-                 "would make this leg gatherable"),
     "answers": ("agent answers are not persisted at all. `cited_answer` is an in-flight contract "
                 "consumed by decision_gate / persona_answer / rfi_qa; no store keeps the answers or "
                 "their citations after the response is returned. A store of answered claims is what "
                 "would make this leg gatherable"),
 }
+
+
+#: The `estimate` register and `boe_ledger` name two of the same things differently: the register's
+#: table columns are `code` and `amount`, the ledger reads `cost_code` and `total`. Handing the rows
+#: over unmapped is not a crash — it is worse. `_key()` falls through to `description`, so every line
+#: still gets a key, `cost_code` comes back None on every row, and `total` silently drops to None for
+#: any line priced as a lump sum rather than qty x unit_cost. The result is a full, plausible,
+#: quietly-wrong ledger. So the mapping is written down in one place, and asserted in
+#: `test_provenance_estimate_leg.py` against `boe_ledger`'s real output rather than against a
+#: fixture written to match it.
+ESTIMATE_TO_BOE: dict[str, str] = {"code": "cost_code", "amount": "total"}
+
+
+def estimate_lines(records: list[dict] | None) -> list[dict[str, Any]]:
+    """Every line item across a project's estimate records, in the shape `boe_ledger` reads.
+
+    Pass-through for anything already named the ledger's way, so a record that carries `cost_code`
+    outright is not clobbered by an absent `code`.
+    """
+    out: list[dict[str, Any]] = []
+    for rec in records or []:
+        data = (rec.get("data") or rec) if isinstance(rec, dict) else {}
+        for ln in (data.get("line_items") or []):
+            if not isinstance(ln, dict):
+                continue
+            row = dict(ln)
+            for src, dst in ESTIMATE_TO_BOE.items():
+                if row.get(dst) in (None, "") and ln.get(src) not in (None, ""):
+                    row[dst] = ln[src]
+            out.append(row)
+    return out
 
 
 def from_project(db, project_id: str, scenario_id: str | None = None) -> dict[str, Any]:
@@ -141,8 +167,15 @@ def from_project(db, project_id: str, scenario_id: str | None = None) -> dict[st
         from . import assumption_provenance
         ap = assumption_provenance.scenario_provenance(scen)
 
-    out = report(ap, None, None)
-    for name in ("estimate", "answers"):
+    from . import boe_ledger
+    from . import modules as me
+
+    lines = estimate_lines(
+        me.list_records(db, "estimate", project_id, limit=100000) if "estimate" in me.TABLES else [])
+    led = boe_ledger.ledger(lines) if lines else None
+
+    out = report(ap, led, None)
+    for name in ("answers",):
         lg = next(x for x in out["legs"] if x["leg"] == name)
         lg["status"] = STATUS_NOT_CAPTURED
         lg["note"] = NOT_CAPTURED_REASON[name]
@@ -153,10 +186,14 @@ def from_project(db, project_id: str, scenario_id: str | None = None) -> dict[st
     out["scenario_id"] = getattr(scen, "id", None)
     out["verdict"] = VERDICT_INCOMPLETE if out["verdict"] == VERDICT_ADMISSIBLE else out["verdict"]
     out["note"] = (
-        "a project-scoped verdict can never read `admissible` today: two of the three legs are "
-        "NOT_CAPTURED — the system has nowhere to store their evidence — so no project can satisfy "
-        "them. That is a statement about this schema, not about the deal, and it is reported rather "
-        "than hidden by scoring only the leg that happens to work. " + out["note"])
+        "a project-scoped verdict still cannot read `admissible`: the ANSWERS leg is NOT_CAPTURED — "
+        "agent answers are not persisted, so the system has nowhere to store that evidence and no "
+        "project can satisfy it. That is a statement about this schema, not about the deal. The "
+        "estimate leg IS now gathered from the `estimate` register, whose line items carry `source`, "
+        "`quote_ref` and `basis_date`; an estimate leg reading `no_data` means nobody filled them in, "
+        "which is a different problem from having nowhere to put them, and the two are reported "
+        "differently on purpose. Nothing here is hidden by scoring only the leg that happens to "
+        "work. " + out["note"])
     return out
 
 

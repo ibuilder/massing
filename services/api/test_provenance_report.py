@@ -159,17 +159,19 @@ with _SL() as _db:
 check("from_project finds the project's scenario", FP["scenario_id"] == "s1", FP.get("scenario_id"))
 check("  the ASSUMPTIONS leg is real — gathered, not supplied",
       leg(FP, "assumptions")["status"] in (STATUS_OK, STATUS_GAPS), leg(FP, "assumptions"))
-check("THE ESTIMATE LEG IS not_captured, NOT no_data",
-      leg(FP, "estimate")["status"] == _pr.STATUS_NOT_CAPTURED, leg(FP, "estimate")["status"])
-check("  and names the exact columns that would make it gatherable",
-      all(k in leg(FP, "estimate")["note"] for k in ("quote_ref", "basis_date")),
-      leg(FP, "estimate")["note"])
+# The estimate leg WAS not_captured; the register now carries source/quote_ref/basis_date and
+# `from_project` gathers it, so with no estimate records this project reports no_data — "nobody
+# filled it in", which is a different sentence from "there is nowhere to put it".
+check("THE ESTIMATE LEG IS NOW GATHERED — no_data, no longer not_captured",
+      leg(FP, "estimate")["status"] == STATUS_NO_DATA, leg(FP, "estimate")["status"])
+check("  and is no longer excused as un-storable",
+      "estimate" not in _pr.NOT_CAPTURED_REASON, sorted(_pr.NOT_CAPTURED_REASON))
 check("THE ANSWERS LEG IS not_captured — agent answers are never persisted",
       leg(FP, "answers")["status"] == _pr.STATUS_NOT_CAPTURED, leg(FP, "answers")["status"])
 check("  naming what would make it gatherable", "store of answered claims"
       in leg(FP, "answers")["note"], leg(FP, "answers")["note"])
-check("the two are LISTED separately from absent legs",
-      FP["legs_not_captured"] == ["estimate", "answers"], FP.get("legs_not_captured"))
+check("ONE leg remains un-storable, and is listed separately from merely-absent legs",
+      FP["legs_not_captured"] == ["answers"], FP.get("legs_not_captured"))
 
 check("A PROJECT VERDICT CANNOT READ admissible TODAY — and says why",
       FP["verdict"] != VERDICT_ADMISSIBLE, FP["verdict"])
@@ -183,7 +185,7 @@ check("a project with no scenario still answers, rather than erroring",
 check("  its assumptions leg is no_data — a source EXISTS and is empty",
       leg(EMPTY, "assumptions")["status"] == STATUS_NO_DATA, leg(EMPTY, "assumptions")["status"])
 check("  so no_data and not_captured coexist in one report, meaning different things",
-      {leg(EMPTY, "assumptions")["status"], leg(EMPTY, "estimate")["status"]}
+      {leg(EMPTY, "assumptions")["status"], leg(EMPTY, "answers")["status"]}
       == {STATUS_NO_DATA, _pr.STATUS_NOT_CAPTURED},
       [(x["leg"], x["status"]) for x in EMPTY["legs"]])
 

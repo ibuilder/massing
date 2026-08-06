@@ -74,6 +74,27 @@
           "name": "amount",
           "label": "Amount",
           "type": "currency"
+        },
+        {
+          "name": "source",
+          "label": "Source",
+          "type": "select",
+          "options": [
+            "allowance",
+            "parametric",
+            "historical",
+            "quote"
+          ]
+        },
+        {
+          "name": "quote_ref",
+          "label": "Quote ref",
+          "type": "text"
+        },
+        {
+          "name": "basis_date",
+          "label": "Basis date",
+          "type": "date"
         }
       ],
       "total_column": "amount",
