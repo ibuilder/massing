@@ -10,6 +10,7 @@ import {
   DISCIPLINES, DRAFT_ELEMENTS, familyToDraftElement,
   type Discipline, type DraftElement, type FamilyDef, type ParamDef, type ParamValues,
 } from "./draftCatalog";
+import { setDraftDragKey } from "../railDrag";
 
 export interface ArmedDraft {
   key: string;
@@ -96,6 +97,14 @@ export function installDraftPanel(deps: DraftPanelDeps): DraftPanelHandle {
       row.innerHTML = `<span>${item.label}</span>`
         + `<span class="meta" style="font-size:10px">${item.ifcClass.replace("Ifc", "").replace("Type", "")}</span>`;
       row.onclick = () => { selected = item; renderList(); renderForm(); };
+      // RAIL-DRAG — the same row is also a drag source. Dragging selects it too, so the parameter
+      // form below matches what is being dragged: a drag that placed an element while the form showed
+      // a different one would make the form a lie about the last thing authored.
+      row.draggable = true;
+      row.ondragstart = (e) => {
+        selected = item; renderList(); renderForm();
+        setDraftDragKey(e.dataTransfer, item.key);
+      };
       list.appendChild(row);
     }
   }

@@ -219,7 +219,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(in flight, PR #197)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -1990,7 +1990,30 @@ footing the July study stood on when CADCMD was written.
   pick (theirs is Shift+right-click; Shift is already ortho lock here, so pick a free chord). The
   genuine gap: today a snap preference is modal, and needing *this one pick* to take a perpendicular
   means changing a mode and changing it back.
-- **RAIL-DRAG** *(M — Lane E)* — drag from the Library palette into the canvas. Justification is
+- 🟡 **RAIL-DRAG** *(M — Lane E; **in flight, PR #197**)* — the palette rows in
+  `apps/web/src/viewer/draft/draftPanel.ts` are drag sources; `apps/web/src/viewer/railDrag.ts` owns
+  the payload rules and the one-drop-is-one-point verdict; `apps/web/src/viewer/app.ts` makes the
+  canvas a drop target that hands the `DragEvent` straight to `captureDraftPoint`. One pipeline, two
+  gestures, as the entry required.
+
+  **Two findings worth keeping, because neither is about dragging.**
+
+  *A drop is one point, and the catalog is not.* `draftCatalog` elements are `points: 1 | 2 | "poly"`,
+  so a drop can only *finish* a `points: 1` element; a wall or a slab gets its **first** point and
+  stays armed. The entry did not say this and it is the whole shape of the interaction. It is
+  asserted as a partition over the real catalog rather than over examples, so a fourth arity added
+  later fails a build instead of silently telling the user to double-click something that cannot be
+  closed.
+
+  *The browser hides the payload exactly where you need it.* During `dragover` the DataTransfer is in
+  **protected mode** — `getData()` returns `""` and only `types` is exposed. Deciding "is this ours?"
+  by reading the value means never calling `preventDefault()`, and the browser then refuses the drop
+  **silently, with no error**. The feature does nothing and nothing reports why. Worse, **happy-dom's
+  DataTransfer does not model protected mode**, so a test written against it passes while every real
+  drop is refused — the suite would have actively vouched for the broken build. The stub in
+  `apps/web/src/viewer/railDrag.test.ts` models it deliberately.
+
+  Original text: drag from the Library palette into the canvas. Justification is
   **discovery, not parity**: dragging a door onto a wall is a better first-run mental model than
   arm-then-click. It must resolve through the existing `captureDraftPoint` + `placeValid` path so
   there is one authoring pipeline with two gestures, never two pipelines. Safe to build *because* the
