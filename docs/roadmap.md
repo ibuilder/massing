@@ -601,9 +601,26 @@ stakes we are missing.
 
 **Tier 2 — evidence, provenance and procurement**
 
-- ◧ **R22-PROVENANCE** *(L — `assumption_provenance.py`, `provenance_report.py` shipped)* — **cite to file, page and revision.** Every proforma assumption, estimate
+- ◧ **R22-PROVENANCE** *(L — assumptions + estimate legs done; ANSWERS leg is the remainder)* — **cite to file, page and revision.** Every proforma assumption, estimate
   line and agent answer traceable to a source page. Three of thirteen platforms *lead* with this; it
   is what makes AI output admissible in an IC memo or a claim.
+
+  **Estimate leg closed 2026-08-06.** `provenance_report` already said exactly what was missing, in
+  code rather than prose: the `estimate` register stored line items as code/description/qty/unit/
+  unit_cost/amount and captured no `source`, `quote_ref` or `basis_date`, so `boe_ledger` could only
+  run on lines posted in a request body. Those three columns now exist and `from_project` gathers the
+  leg from stored records.
+  *The bug that mattered was the seam, not the columns.* `boe_ledger` reads `cost_code` and `total`;
+  the register writes `code` and `amount`. Passing the rows over unmapped does not raise — `_key()`
+  falls through to `description`, so every line still gets a key, `cost_code` returns None on every
+  row, and `total` silently drops to None for any line priced as a lump sum rather than qty x unit
+  cost. That is a full, plausible, quietly-wrong ledger. The mapping is now stated in one place and
+  `services/api/test_provenance_estimate_leg.py` asserts it against `boe_ledger`'s **real output**,
+  not a fixture written to agree with it; mutation-checked by emptying the map (4 named FAILs).
+  **The ANSWERS leg stays `not_captured` and the verdict still cannot read `admissible`** — agent
+  answers are not persisted at all (`cited_answer` is an in-flight contract with no store behind it),
+  and a leg reading `no_data` because nobody filled it in is a different problem from having nowhere
+  to put it. A store of answered claims is the remaining schema change.
 
 - ✅ **R22-OPTION-OBJECT** *(S/M — done)* — option as the primary object: geometry + unit mix + cost +
   carbon + IRR as one comparable record, so no massing is ever evaluated without its returns.
