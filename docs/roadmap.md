@@ -560,11 +560,25 @@ stakes we are missing.
   never noticing `approval_risk.py`, which the eventual build should probably feed. Third
   collision found on 2026-07-31, after `report_builders/` (five hardcoded builders, not the no-code
   builder R22-REPORT-BUILDER describes).
-- ◧ **R22-AGENT-PACKS** *(M — `agent_packs.py` shipped; console scope unverified)* — **named agent packs + org "Skills" + a governance console** over the
+- ◧ **R22-AGENT-PACKS** *(M — `agent_packs.py` shipped; audit half CLOSED 2026-08-06; console is Lane A/E)* — **named agent packs + org "Skills" + a governance console** over the
   MCP layer we already ship. We expose raw capability; the market ships "Submittal Review Agent",
   which a superintendent understands. Pure packaging of existing tools, plus per-run audit logging —
   the gating factor for enterprise adoption. Our version reads the IFC, so a submittal check can test
   the submitted product against the element's *specified properties* rather than against a PDF.
+
+  **The audit half is done, and the last gap was in the caller, not the callee.** `dispatch` audits
+  every run, success and failure — but it can only record the identity it is *given*, and the stdio
+  transport (`services/api/mcp_server.py`, the one path every real agent run takes) passed none. Every
+  row read actor `mcp`, no user, no pack: the trail answered *which tools ran* and not *whose agent
+  ran them*, which is the half an enterprise actually asks for, both before granting access and after
+  an incident. `test_agent_packs.py` asserted attribution "to the effective user, not the transport"
+  and passed the whole time, because **the test supplied a user the transport never did** — a test
+  that provides a caller's arguments cannot notice the caller omitting them. The transport now reads
+  `AEC_MCP_USER` / `AEC_MCP_ACTOR` / `AEC_MCP_PACK`, warns at startup when runs will be unattributable
+  rather than recording them silently, and refuses to invent a person-shaped default (an unverified
+  name in an audit trail is worse than an honest "the transport ran this").
+  `services/api/test_mcp_attribution.py` asserts the **call site** forwards all three, mutation-checked
+  against the original defect. **What remains is the governance console itself — Lane A/E, not C.**
 
 **Tier 2 — evidence, provenance and procurement**
 
