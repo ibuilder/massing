@@ -201,7 +201,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · AUTH-SNAP-OVERRIDE · RAIL-DRAG · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · R24-ELEMENT-CARD ② · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -1935,10 +1935,43 @@ footing the July study stood on when CADCMD was written.
 
 ### What is actually left, and it is small
 
-- **AUTH-SNAP-OVERRIDE** *(S — Lane E)* — a one-shot snap override for a single pick (theirs is
-  Shift+right-click; Shift is already ortho lock here, so pick a free chord). The genuine gap: today a
-  snap preference is modal, and needing *this one pick* to take a perpendicular means changing a mode
-  and changing it back.
+- ✅ **AUTH-SNAP-OVERRIDE** *(S — Lane E; **SHIPPED — PR #192, merged `b9e4303f`**. Premise corrected
+  2026-08-06 — the original text below described a mode that does not exist)* — a one-shot snap override for a single
+  pick. Codes `EN` `MI` `CE` `PE` `NE` `NO` typed into the same two-letter buffer that arms the draw
+  tools, spent by the next click, Escape cancels it and leaves the tool armed.
+  `apps/web/src/viewer/snapOverride.ts` holds the table, the one-shot state machine and a
+  single-kind candidate producer; `apps/web/src/viewer/snapEngine.ts` gains `perpendicularSnaps`,
+  `nearestSnaps` and a kind filter on `resolveSnap`.
+
+  **⚠️ The premise was wrong in two ways, and the second one is the interesting one.**
+
+  *First:* there is **no modal snap preference to change.** The only snap setting in the app is
+  `getSettings().snap`, a grid **increment** — a number. Object-snap is entirely automatic with a
+  fixed precedence (typed constraint → Shift ortho → geometry snap → axis inference → polar → grid)
+  and no part of it can be aimed. The gap was never "the mode is inconvenient to flip"; a drafter
+  **could not ask for a snap kind at all, ever**. An entry describing a mode nobody built would have
+  sent the next reader looking for it.
+
+  *Second — this belongs in the built-but-unreachable tally, not in the authoring-feel ring.*
+  `resolveSnap` and `segmentSnaps` in `apps/web/src/viewer/snapEngine.ts` — the priority-ordered
+  resolver, the half that knows what a snap *kind* is — had **zero callers**. Only `polarConstrain`
+  and `applyDynamicInput` were wired. `perpendicular` sat in the `SnapKind` union the whole time with
+  nothing anywhere able to produce a candidate of that kind. Built, tested, correct, unreachable.
+
+  **And no gate could have seen it.** `apps/web/src/shell/roadmapStale.test.ts` catches exactly this
+  shape — an open item whose module already declares itself the implementation — but its population is
+  `services/api/src` and `services/data/src`, **Python only**. A capability built in the web tree is
+  structurally outside what it scans, so it stays "open" on this list with nothing to notice. Same
+  hole `test_reachable.py` leaves on the other side: it asks whether a *module* is reachable from a
+  route, never whether a *capability* is reachable from the product. Filed here as evidence that the
+  population of any such gate has to cover `apps/web/src/` too, alongside the API-side instances found
+  the same day (`/proforma/renovation`, `/proforma/rollover`, `/proforma/income-basis` with no
+  frontend caller; `suggestion_clears_horizon` and `nothing_renovated` emitted and unrendered).
+
+  Original text, kept because the chord suggestion still stands: a one-shot snap override for a single
+  pick (theirs is Shift+right-click; Shift is already ortho lock here, so pick a free chord). The
+  genuine gap: today a snap preference is modal, and needing *this one pick* to take a perpendicular
+  means changing a mode and changing it back.
 - **RAIL-DRAG** *(M — Lane E)* — drag from the Library palette into the canvas. Justification is
   **discovery, not parity**: dragging a door onto a wall is a better first-run mental model than
   arm-then-click. It must resolve through the existing `captureDraftPoint` + `placeValid` path so
