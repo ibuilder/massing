@@ -321,6 +321,28 @@ def design_options_economics(pid: str, db: Session = Depends(get_db),
     return option_economics.compare_economics(db, pid)
 
 
+@router.get("/projects/{pid}/design/options/record")
+def design_options_record(pid: str, db: Session = Depends(get_db),
+                          _: str = Depends(require_role("viewer"))):
+    """Each design option as ONE comparable record — geometry · unit mix · cost · carbon · returns —
+    **so no massing is evaluated without its returns.**
+
+    The three routes above each own one part of that and nothing joined them, so a reader compared
+    schemes by opening three screens and reconciling them by eye. This re-derives nothing: every
+    number comes from the engine that already owns it, so this cannot disagree with a screen opened
+    beside it.
+
+    Two refusals. A missing axis is `absent` — never a zero and never a default: `option_score` once
+    coerced a missing `cost_per_sf` to 0.0 and, on a lower-is-better axis, that scored 100, the best
+    possible mark awarded for having no data. And this does NOT rank; `option_score` owns ranking and
+    does it honestly. `comparable_count` is the number to read — if it is below the option count,
+    some massing is being evaluated without its returns, and `incomparable` says which and why."""
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    from .. import option_object
+    return option_object.for_project(db, pid)
+
+
 @router.get("/projects/{pid}/design/standards")
 def design_standards_ruleset(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """The design-standards ruleset — approved / preferred / prohibited assemblies, materials, products."""
