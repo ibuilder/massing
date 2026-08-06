@@ -467,6 +467,39 @@ with TestClient(app) as c:
     c.post(f"/projects/{pid}/budget/baseline")
     c.post(f"/projects/{pid}/schedule/baseline")
 
+    # === fill every register that the bespoke seeding above left empty ===
+    # `seed_demo.py` already does this — over HTTP, against a running server — and this capture never
+    # ran it, so 61 of the registers came out EMPTY in the public demo. The generator and the capture
+    # both existed; nothing joined them. Runs LAST on purpose: the hand-written records above are
+    # better demo content and must win, so this only fills registers that are still empty.
+    #
+    # `demo_seed.needs_references` is honoured, not worked around: a module whose REQUIRED field is a
+    # reference/file/signature is left empty rather than seeded with an invented link. An empty
+    # register is a smaller lie than a fabricated relationship.
+    from aec_api import demo_seed, modules_registry
+
+    modules_registry.load_registry()
+    _filled = _skipped = 0
+    for _key, _mod in sorted(modules_registry.REGISTRY.items()):
+        if demo_seed.needs_references(_mod):
+            _skipped += 1
+            continue
+        try:
+            if (c.get(f"/projects/{pid}/modules/{_key}").json() or {}).get("records"):
+                continue                                  # bespoke record already there — leave it
+        except Exception:                                 # noqa: BLE001
+            pass
+        _made = 0
+        for _row in demo_seed.records(_mod, count=4):
+            if not _row:
+                continue
+            r = c.post(f"/projects/{pid}/modules/{_key}", json={"data": _row})
+            if r.status_code in (200, 201):
+                _made += 1
+        if _made:
+            _filled += 1
+    print(f"  register fill: {_filled} module(s) seeded, {_skipped} skipped (required reference)")
+
     # --- crawl the GET endpoints the web app calls ---
     snap["GET /projects"] = [{"id": pid, "name": "Demo Tower", "model_kind": None}]
     grab(c, "/modules"); grab(c, "/modules/graph"); grab(c, "/portfolio/executive"); grab(c, "/portfolio/construction"); grab(c, "/proforma/portfolio")
