@@ -1585,18 +1585,28 @@ the screen stops waiting for it.
   publish completes, and a failed recipe turns it red in place instead of erasing the evidence. See
   [roadmap-completed.md](roadmap-completed.md).
 
-* **A29-PLACE-VALID ②** — **SHIPPED v0.3.831** — *say no before the round-trip, not after.* Pascal's spatial grid answers
+> **⚠️ These three carried "SHIPPED" in their own text and no ✅ marker until 2026-08-06, and
+> `roadmapStale.test.ts` could not have caught it.** That gate scans `services/api/src` and
+> `services/data/src` for a module declaring itself an item's implementation — **Python only**. All
+> three of these are TypeScript in `apps/web/src/viewer/`, so they were *structurally outside the
+> population*, and the gate would have stayed green forever. Verified before marking: each has a
+> module, a test, and a live import in `apps/web/src/viewer/app.ts` — `placeValid.ts`,
+> `spatialSelect.ts`, and `draftHistory.ts` (note the last does **not** match its item name, which is
+> why a filename-based check would also have missed it). Widening that gate to the web tree is filed
+> as ROADMAP-GATE-TS.
+
+* ✅ **A29-PLACE-VALID ②** — **SHIPPED v0.3.831** — *say no before the round-trip, not after.* Pascal's spatial grid answers
   `canPlaceOnFloor` / `canPlaceOnWall` / `getSlabElevationAt` before a placement commits. We validate
   server-side, so an invalid placement costs a full round-trip to be told no. Reuse the existing
   `inference.ts` maths; this is a pure function and belongs beside it, unit-tested the same way.
 
-* **A29-SPATIAL-SELECT ②** — **SHIPPED v0.3.832** — *click depth, not just objects.* Their selection walks Site → Building →
+* ✅ **A29-SPATIAL-SELECT ②** — **SHIPPED v0.3.832** — *click depth, not just objects.* Their selection walks Site → Building →
   Level → Zone → Item. That hierarchy is **IfcSite → IfcBuilding → IfcBuildingStorey → IfcSpace →
   element** — we hold the real one and navigate it as a flat list. This is the item where being
   IFC-native makes the feature *better* for us than for them, because their tree is a convention and
   ours is the model.
 
-* **A29-UNDO-LOCAL ③** — **SHIPPED v0.3.833** — *undo the stroke, not the commit.* We version on the server; they keep a
+* ✅ **A29-UNDO-LOCAL ③** — **SHIPPED v0.3.833** — *undo the stroke, not the commit.* We version on the server; they keep a
   50-step in-browser history. Both are right for different questions — "undo my last three drags"
   should not require three republishes. Scope: the in-progress draft only, discarded on commit, with
   the server history unchanged as the record.

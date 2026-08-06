@@ -5,8 +5,25 @@ assertions, prints a one-line summary, and exits non-zero on failure). This runn
 executes each in isolation with its own SQLite db + storage dir, and exits non-zero
 if any fail — suitable for CI.
 
-    cd services/api && PYTHONPATH=src python run_tests.py
+    cd services/api && PYTHONPATH="src;../data/src" PYTHONUTF8=1 ./.venv/Scripts/python.exe run_tests.py
     (deps: pip install -r requirements.txt -r requirements-dev.txt)
+
+**The interpreter and the path are part of the command, not details.** This line said
+`PYTHONPATH=src python run_tests.py` until 2026-08-06 and was wrong three ways at once:
+
+  * bare `python` resolves off PATH — on this machine to an unrelated 3.10, not
+    `services/api/.venv`, where ifcopenshell and pydantic are pinned;
+  * `PYTHONPATH=src` omits `../data/src`, so every `aec_data` import fails;
+  * no `PYTHONUTF8=1`, which this suite needs on Windows.
+
+`docs/roadmap-directions.md` §5 has carried the correct invocation all along, and **that is
+precisely why nobody noticed**: a reviewer asking "is this documented properly?" finds a yes
+and stops. A correct copy elsewhere is what makes the wrong copy invisible.
+
+Two ways it hurts. The obvious one is import errors, which read as broken code and get fixed
+in minutes. **The dangerous one is a run that SUCCEEDS against different library versions and
+reports a result nobody can reproduce — and reports it as a pass.** That is the failure that
+survives.
 """
 from __future__ import annotations
 

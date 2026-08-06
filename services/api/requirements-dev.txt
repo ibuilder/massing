@@ -1,6 +1,8 @@
 # Test-only dependencies (not shipped in the runtime image).
 #   pip install -r requirements.txt -r requirements-dev.txt
-#   PYTHONPATH=src python run_tests.py
+#   cd services/api && PYTHONPATH="src;../data/src" PYTHONUTF8=1 ./.venv/Scripts/python.exe run_tests.py
+#   (bare `python` picks up whatever is first on PATH, NOT this venv; see run_tests.py's
+#    docstring for why that fails in a way that can still report a pass)
 httpx>=0.28.1          # required by starlette.testclient
 pytest>=8.0          # optional: collects the run_tests gate
 pypdf>=4.0           # read generated PDFs in tests (contract documents)
