@@ -42,11 +42,13 @@ CEILING = 5_200
 #: Per-file ceilings for the files SCALE-SEAM is actively splitting. **Only ever revised DOWN.**
 #:
 #: WHY THIS EXISTS, and it is a correction to how the ratchet was understood. `CEILING` above is a
-#: single GLOBAL number, so it is pinned by whichever file is worst — today `viewer/app.ts` at 5,064.
+#: single GLOBAL number, so it is pinned by whichever file is worst — today `viewer/app.ts` at 5,106
+#: (5,064 when this was written; AUTH-SNAP-OVERRIDE added 42 lines the same day, which is exactly how
+#: a number embedded in prose goes stale — the assertion below reads the file, this sentence does not).
 #: That means an extraction out of any OTHER file cannot move it: SCALE-SEAM ⑦ took 96 lines out of
 #: `client.ts` and the global ceiling was as true at 5,200 afterwards as before. The instruction
 #: "lower the ceiling as each extraction lands" is right about the intent and cannot be carried out
-#: by this number — lowering it to 5,064 would ratchet a slack belonging to `viewer/app.ts`, a file
+#: by this number — lowering it to that figure would ratchet a slack belonging to `viewer/app.ts`, a file
 #: in a different lane, and leave it with zero headroom so the next edit there fails the build.
 #:
 #: **A ratchet has to be per-subject when the work is per-subject.** One global number measures the

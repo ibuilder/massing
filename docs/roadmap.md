@@ -108,6 +108,24 @@ currently fail if either regresses.**
   is unchanged and stated in `services/data/src/aec_data/sandbox.py`: a native call reached through
   an allowed binding is bounded by that library, not by the trace hook.
 
+  **⚠️ PREMISE CORRECTED 2026-08-06 — the stated blocker is wrong, and the real one is bigger.**
+  This says isolation is "Parked pending a deployment-shape decision". That decision is settled: the
+  repo ships `docker-compose.prod.yml`, and R39-WORKER-SPLIT (v0.3.869) built the working precedent
+  for a second process launched by compose. **Isolation is still not buildable, for a reason nobody
+  had written down:** `execute_ifc_code(model, code)` takes a **live in-memory `ifcopenshell.file`**
+  and the snippet mutates it *in place*; the caller keeps using that same object. A child process
+  cannot share it, so isolation means serialise → run → serialise back → reload, which returns a NEW
+  object and breaks every caller. **That is an API contract change at the call site, not a deployment
+  choice** — file-in/file-out first, then the recipe at `services/data/src/aec_data/edit.py`, then
+  isolation. Re-estimate M→L before starting.
+
+  *Also recorded because it nearly became a wrong finding:* the sandbox looks unreachable from the
+  routers — the only `sandbox.` reference in `routers/` reports a boolean capability. It is not.
+  `apps/web/src/viewer/app.ts` calls `editIfc(pid, "execute_ifc_code", …)`, which resolves through the
+  **edit-recipe registry**. A grep of the route layer cannot see registry indirection, and any
+  reachability gate built on direct route references will report confident false positives for the
+  same reason.
+
   Original text: the external audit's one legitimate High. `sandbox.py`
   executes snippets in-process behind AST checks and a trace-hook timeout; the AST layer is genuinely
   strong, but a native call reached through an allowed binding can block uninterruptibly, and

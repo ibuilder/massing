@@ -4,6 +4,46 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.873 — four sessions, and three of the findings were holes in the checks themselves
+
+Integration release: SCALE-SEAM ⑦, AUTH-SNAP-OVERRIDE, the roadmap-staleness scan fix, and the
+premise corrections three sessions deferred here. Merged main verified as one tree — backend 528/528,
+web 1223/1223 across 109 files — because each change was green *alone*, which is not the same claim.
+
+**SCALE-SEAM ⑦** took `/auth` out of `client.ts` (3,967 → 3,871) into `api/auth.ts`. It also found the
+surface ratchet had gone slack at 698 against a live count of 699 — one method's worth of loss would
+have passed silently. The floor was measured on the *unmodified* tree first, so "I raised the floor
+and it passes" could not be confused with "I raised the floor to hide what I dropped".
+
+**The size guard could not record that extraction at all**, and the reason is the release's theme.
+`CEILING` was one global number asserted against every file, so it is pinned by whichever file is
+worst — `viewer/app.ts`. Removing 96 lines from `client.ts` left 5,200 exactly as true as before. A
+global ceiling is structurally blind to an extraction from any file that is not the current worst.
+It is now a `PER_FILE` map, and the entries are asserted **present** before their sizes are checked,
+because a ratchet keyed by path stops ratcheting silently the moment a path changes.
+
+**AUTH-SNAP-OVERRIDE** shipped a one-shot object snap — and found `resolveSnap`/`segmentSnaps` had
+**zero callers**, with `perpendicular` sitting in `SnapKind` all along with nothing able to produce
+one. The roadmap entry described a modal snap preference that does not exist.
+
+**`roadmapStale` was timing out, and it was not a flake.** The scan ran three times per file, ~500
+Python modules each, 2127+1370+484 ms against a 5 s default. Three scans became one and whole-file
+reads became 500-byte reads; only *then* was the timeout raised, with the measurement beside it.
+Raising it first would have hidden the cost and moved the cliff somewhere less predictable.
+
+**Corrections to entries that were confidently wrong**, all found by reading rather than by any gate:
+
+  * **R35-SANDBOX-ISOLATION** is not parked on a deployment-shape decision — that is settled. It is
+    blocked because `execute_ifc_code` mutates a live in-memory `ifcopenshell.file` **in place**, so
+    isolation requires an API contract change at the call site, not a deployment choice. Re-estimate
+    M→L. And the sandbox looks unreachable from the routers but is not: the caller resolves through
+    the edit-recipe registry, which no route-reference grep can see.
+  * **⑥'s "`/auth` needs care, it owns token state"** was already discharged when written — token
+    state has been public on `HttpCore` since the T2 extraction.
+  * The per-file ratchet's own docstring said `viewer/app.ts` was 5,064 lines. It was 5,106 by the
+    time it landed. A number embedded in prose goes stale the same day; the assertion reads the file,
+    the sentence does not.
+
 ## v0.3.872 — the guard forbidding two writers didn't know I had added a second way to have two
 
 v0.3.869 moved the job worker into its own container. `_production_guard` already refused to boot a
