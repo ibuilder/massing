@@ -5,6 +5,31 @@ on:
     branches: [main]
   pull_request:
 
+# Supersede a PR's own older runs; never supersede a run on main.
+#
+# There was no concurrency control at all, and the cost is per-rebase: this suite takes ~17–40 min
+# (the API gate dominates), a PR rebase pushes a new head, and the run for the old head keeps going
+# to completion against a tree nobody will merge. One branch was rebased three times in a single
+# sitting on 2026-08-06 — three full suites, two of them answering about superseded commits.
+#
+# The obvious spelling is a trap, and it is the same one that had `pages.yml` timing out for two
+# hours the same day:
+#
+#     group: ci-${{ github.ref }}          # main pushes all share ONE group
+#     cancel-in-progress: false            # so they QUEUE — and only one may be pending, so an
+#                                          # older pending run is CANCELLED, never run at all
+#
+# That silently stops testing intermediate commits on main, which is precisely what "tag only on
+# green" depends on. Grouping by `github.run_id` for pushes gives every main commit its own group,
+# so nothing on main ever cancels anything and all of them still run in parallel. Only pull requests
+# share a group, keyed by head branch, where superseding is exactly what you want.
+#
+# `a && b || c` is GitHub's ternary. `cancel-in-progress: true` is safe here ONLY because the push
+# groups are unique — read the two lines together or the second one looks reckless.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 # least privilege: these jobs only read the repo
 permissions:
   contents: read
