@@ -219,11 +219,12 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(in flight, PR #197)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑦ |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑧ |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -1404,6 +1405,32 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 (`apps/web/nginx.conf` + `apps/web/src/deploy/nginx.test.ts`), the multi-worker sidecar-lock boot
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
 
+- **BUILD-WORKTREE-CHUNKS** *(M — Lane J)* — **a `vite build` from a git worktree succeeds and emits
+  the wrong bundle.** One commit, two checkouts: the `three-*.js` and `thatopen-*.js` chunks vanish and
+  the eager shell goes from **334 KB to 6,581 KB — 19.7×** — at **exit 0**. `searchForWorkspaceRoot`
+  returns the worktree root rather than the repo root, deps fall back to CommonJS interop, and the
+  `advancedChunks` rules never match. **Resolution is NOT the cause** — `three` and
+  `@thatopen/components` resolve to identical absolute paths in both checkouts.
+
+  **Three things had to line up for it to stay silent**, which is the part worth keeping:
+  `apps/web/scripts/bundle-budget.mjs` *computed and printed* the lazy-chunk count without asserting
+  it; the only objection came from the PWA precache limit, an accident rather than a check anyone
+  wrote; and `VitePWA` is excluded when `VITE_PAGES=1`, so on the public-facing path even the accident
+  is absent. `apps/web/vite.config.ts` had already written the warning in its own comment — *"verify by
+  grepping the OUTPUT, never by reading the config and believing it"* — and nobody was doing it.
+
+  **Half closed in v0.3.874:** `apps/web/scripts/copy-wasm.mjs` resolves the package instead of guessing
+  directory depth (the fix already existed one file away in `apps/web/vitest.config.ts`, and
+  `copy-wasm.mjs` imported `createRequire` and left it unused), and `bundle-budget.mjs` now *asserts*
+  the vendor chunks exist. What remains is workspace-root scoping in `apps/web/vite.config.ts`,
+  deliberately not taken inside a tooling PR: shared config, blast radius across every lane, and the
+  fix is scoping rather than resolution. **Interim policy, now in the gate's own failure message:**
+  builds happen in the main clone or in CI; a worktree build is for typecheck and tests, never a
+  shippable bundle.
+
+  **Still open beside it:** `npm run budget` is absent from `.github/workflows/pages.yml` entirely, so
+  the public build has neither guard. Being fixed as a follow-up.
+
 - ✅ **R39-WORKER-SAFE** *(shipped v0.3.872 — the guard whose population I widened without widening
   the guard)* — `_production_guard` refused to boot a deployment that could not serialise sidecar
   writes across workers, testing `_worker_count() > 1`. That was **one route** to having two writer
@@ -1990,7 +2017,7 @@ footing the July study stood on when CADCMD was written.
   pick (theirs is Shift+right-click; Shift is already ortho lock here, so pick a free chord). The
   genuine gap: today a snap preference is modal, and needing *this one pick* to take a perpendicular
   means changing a mode and changing it back.
-- 🟡 **RAIL-DRAG** *(M — Lane E; **in flight, PR #197**)* — the palette rows in
+- 🟡 **RAIL-DRAG** *(M — Lane E; **SHIPPED PR #197**)* — the palette rows in
   `apps/web/src/viewer/draft/draftPanel.ts` are drag sources; `apps/web/src/viewer/railDrag.ts` owns
   the payload rules and the one-drop-is-one-point verdict; `apps/web/src/viewer/app.ts` makes the
   canvas a drop target that hands the `DragEvent` straight to `captureDraftPoint`. One pipeline, two
@@ -2153,10 +2180,10 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ⭐ **SCALE-SEAM ⑦ — `client.ts` is no longer a god-file, but the split is not finished.** ②–⑦ have
+- ⭐ **SCALE-SEAM ⑧ — `client.ts` is no longer a god-file, but the split is not finished.** ②–⑧ have
   shipped: `schedule.ts` (v0.3.800, 26 methods / 207 lines) · `model.ts` (v0.3.802, 29) · `modules.ts`
-  (v0.3.803, 34) · `estimate.ts` (v0.3.804, 12) · `procurement.ts` (9) · `auth.ts` (20).
-  **`client.ts` went 4,956 → 3,871 lines** (`wc -l`). ⑧ is the next route-group by size; pick it by
+  (v0.3.803, 34) · `estimate.ts` (v0.3.804, 12) · `procurement.ts` (9) · `auth.ts` (20) · `proforma.ts` (⑧).
+  **`client.ts` went 4,956 → 3,796 lines** (`wc -l`; ⑦ left it at 3,871). ⑨ is the next route-group by size; pick it by
   re-running the classification below, not by reading the section comments.
 
   **This entry read `③+` and named `/model`, `/modules` and `/estimate` as the next groups until

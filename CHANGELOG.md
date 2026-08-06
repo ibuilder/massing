@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.874 — a build that succeeds and ships the wrong bundle
+
+**`vite build` from a git worktree exits 0 and emits a 19.7× eager shell.** One commit, two checkouts:
+`three-*.js` and `thatopen-*.js` vanish and the shell goes 334 KB → 6,581 KB. `searchForWorkspaceRoot`
+returns the worktree root, deps fall back to CommonJS interop, and the chunking rules never match.
+Package resolution is *not* the cause — both packages resolve to identical absolute paths either way.
+
+**Three things had to line up for it to stay silent.** `bundle-budget.mjs` computed and printed the
+lazy-chunk count without ever asserting it. The only objection came from the PWA precache limit — an
+accident, not a check anyone wrote. And `VitePWA` is excluded when `VITE_PAGES=1`, so on the public
+path even the accident is absent. `vite.config.ts` had already written the warning in its own comment:
+*"verify by grepping the OUTPUT, never by reading the config and believing it."* Nobody was.
+
+Half of it is closed here: `copy-wasm.mjs` resolves the package instead of guessing directory depth,
+and `bundle-budget.mjs` now **asserts** the vendor chunks exist. Fixing `copy-wasm` alone would have
+made things worse — it would have unblocked the worktree build and let it start producing the wrong
+bundle. The remaining half is workspace-root scoping, filed as **BUILD-WORKTREE-CHUNKS** rather than
+smuggled into a tooling PR.
+
+**SCALE-SEAM ⑧** took `/proforma` out of `client.ts` (3,871 → 3,796) and, in the same move, gave three
+endpoints their first caller: `/proforma/renovation`, `/rollover` and `/income-basis` were built,
+tested and unreachable from the product. The per-file ratchet added in ⑦ is what forced this — a new
+endpoint added straight to `client.ts` now fails the build, so the methods went into a domain module.
+
+**RAIL-DRAG** ships drag-to-place. Its finding is not about dragging: during `dragover` the browser's
+DataTransfer is in **protected mode**, so a handler that reads the payload concludes "not mine", never
+calls `preventDefault()`, and every drop is silently refused. **happy-dom does not model this**, so a
+test written against the real API passes while the feature does nothing — a test environment more
+permissive than the browser, vouching for a broken build.
+
+**Lane J added.** Three sessions in one day flagged a path belonging to no lane — `test_file_sizes.py`,
+`style.css`, the build scripts — each flagging it correctly and then editing it anyway. An unowned
+shared path is not neutral ground; it is a collision nobody is watching for.
+
 ## v0.3.873 — four sessions, and three of the findings were holes in the checks themselves
 
 Integration release: SCALE-SEAM ⑦, AUTH-SNAP-OVERRIDE, the roadmap-staleness scan fix, and the
