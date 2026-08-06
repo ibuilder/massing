@@ -2,6 +2,7 @@
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
 import { withAuth } from "./auth";
 import { withAuthoring } from "./authoring";
+import { withDesignOptions } from "./designOptions";
 import { withLibrary } from "./library";
 import { HttpCore, type LiveStream } from "./httpCore";
 import { withModel } from "./model";
@@ -27,15 +28,14 @@ export * from "./library";
 import type {
   Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
-  LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule,
-  PreflightGate, PreflightSummary, ProfessionalLicense,
+  LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, PreflightSummary, ProfessionalLicense,
   ResolveAction, ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem, VitalsPayload } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withAuth(withProforma(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))) {
+export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -2976,22 +2976,6 @@ export class ApiClient extends withAuth(withProforma(withProcurement(withEstimat
     return this.url(`/projects/${pid}/contracts/completion_certificate/${certRid}/document.pdf?doc=g704`);
   }
 
-  designOptionsGenerate(pid: string, base: Record<string, unknown>, types?: string[]) {
-    return this.json<{ options: Record<string, unknown>[] }>(
-      `/projects/${pid}/design/options/generate`,
-      { method: "POST", body: JSON.stringify({ base, ...(types ? { types } : {}) }) });
-  }
-  designOptionsScore(pid: string, options: Record<string, unknown>[], weights?: Record<string, number>) {
-    return this.json<{
-      options: { label: string; building_type: string; composite: number; compliant: boolean;
-        violations: string[]; cost_total: number; cost_per_sf: number | null;
-        carbon_total_tco2e: number; carbon_intensity_kgco2e_m2: number;
-        yield_net_sellable_m2: number; scores: Record<string, number>;
-        massing: { floors: number; building_height_m: number; buildable_gfa_sf: number; units: number | null } }[];
-      weights: Record<string, number>; recommended: string | null; note: string;
-    }>(`/projects/${pid}/design/options/score`,
-      { method: "POST", body: JSON.stringify({ options, ...(weights ? { weights } : {}) }) });
-  }
   ifcClassify(pid: string) {
     return this.json<{ suggestions: { guid?: string; name: string; current_class: string;
       suggested_class: string; confidence: string; reason: string }[]; count: number;

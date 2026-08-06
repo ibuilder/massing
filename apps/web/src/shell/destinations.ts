@@ -113,6 +113,7 @@ export const STAGES_BY_WS: Record<string, [string, Dest[]][]> = {
       { key: "__uw__", icon: "📊", label: "Underwriting", goto: "finance" },
       { key: "__land__", icon: "🗺️", label: "Land Screening" },
       { key: "__massingopt__", icon: "🧮", label: "Massing Optioneer" },
+      { key: "__optionrecord__", icon: "⚖", label: "Option Comparison" },
       { key: "__diligence__", icon: "📜", label: "Diligence & Entitlements" },
       { key: "__market__", icon: "💹", label: "Market Intelligence" },
     ]],

@@ -115,6 +115,7 @@ export class PortalUI {
       __spine__: () => this.renderSpine(),
       __land__: () => this.renderLandScreen(), __lifecycle__: () => this.renderLifecycle(),
       __diligence__: () => this.renderDiligence(), __esg__: () => this.renderEsg(),
+      __optionrecord__: () => this.renderOptionRecord(),
       __market__: () => this.renderMarket(), __conceptrender__: () => this.renderConceptRender(),
       __materials__: () => this.renderMaterials(),
       __modulegraph__: () => this.renderModuleGraph(),
@@ -635,6 +636,7 @@ export class PortalUI {
   private async renderLandScreen() { return (await import("./panels/design")).renderLandScreen(this.panelCtx()); }
   private async renderLifecycle() { return (await import("./panels/design")).renderLifecycle(this.panelCtx()); }
   private async renderDiligence() { return (await import("./panels/design")).renderDiligence(this.panelCtx()); }
+  private async renderOptionRecord() { return (await import("./panels/design")).renderOptionRecord(this.panelCtx()); }
   private async renderEsg() { return (await import("./panels/design")).renderEsg(this.panelCtx()); }
   private async renderConceptRender() { return (await import("./panels/design")).renderConceptRender(this.panelCtx()); }
   private async renderMaterials() { return (await import("./panels/materials")).renderMaterials(this.panelCtx()); }

@@ -360,3 +360,82 @@ export async function renderEsg(ctx: PanelContext) {
     a.href = ctx.host.api.reportUrl(pid, "esg", "pdf"); a.target = "_blank"; a.rel = "noopener";
     rb.append(a); body.append(rb);
   }
+
+// --- R22-OPTION-OBJECT: the design options as ONE comparable record ------------------------------
+/**
+ * Geometry · unit mix · cost · carbon · returns per option, so no massing is evaluated without its
+ * returns. This is the join over /design/options/{compare,carbon,economics}; none of those three had
+ * a client caller and no panel touched the `design_option` register at all, so the whole stored
+ * option family was server-only until this.
+ *
+ * **An absent axis renders as absent, never as 0.** `option_score` once coerced a missing
+ * `cost_per_sf` to 0.0 and, on a lower-is-better axis, scored it 100 — the best possible mark for
+ * having no data. `?? 0` anywhere below would put that bug back on the screen.
+ *
+ * It shows no ranking, deliberately: `option_score` owns ranking and does it honestly.
+ */
+export async function renderOptionRecord(ctx: PanelContext) {
+  const root = ctx.root; root.innerHTML = "";
+  const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
+  root.appendChild(ctx.bar("⚖ Option comparison", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+  const pid = ctx.host.projectId();
+  if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Option comparison")); return; }
+
+  const intro = el("div", "meta"); intro.style.marginBottom = "8px";
+  intro.textContent = "Each design option on all five axes at once — geometry, unit mix, cost, carbon "
+    + "and returns — so a scheme is never chosen on the axes that happen to be filled in. Every number "
+    + "comes from the engine that owns it, so this cannot disagree with the option screens.";
+  root.appendChild(intro);
+
+  const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
+  let r;
+  try { r = await ctx.host.api.designOptionsRecord(pid); }
+  catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
+  body.innerHTML = "";
+
+  if (!r.option_count) {
+    body.innerHTML = `<div class="meta">No design options recorded yet. Add them in the Design section.</div>`;
+    return;
+  }
+
+  // The headline: not a score, but how many options can actually be compared at all.
+  const banner = el("div", "dash-card");
+  const short = r.comparable_count < r.option_count;
+  banner.innerHTML = `<b>${r.comparable_count} of ${r.option_count}</b> option${r.option_count === 1 ? "" : "s"} `
+    + `comparable on all five axes`
+    + (short ? ` — <span style="color:var(--status-crit)">${r.option_count - r.comparable_count} cannot be `
+        + `compared on every axis, and are not zero on the ones they lack</span>` : "");
+  body.appendChild(banner);
+
+  const fmt = (axis: string, v: number | null) => {
+    if (v === null) return `<span style="color:var(--muted)" title="absent — not recorded, and NOT zero">—</span>`;
+    if (axis === "cost") return "$" + Math.round(v).toLocaleString();
+    if (axis === "returns") return v.toFixed(1) + "%";
+    return Math.round(v).toLocaleString();
+  };
+  const t = el("table", "portal-table") as HTMLTableElement;
+  t.style.cssText = "width:100%;font-size:11px;margin-top:8px";
+  t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Option</th>`
+    + r.axes.map((a) => `<th scope="col">${esc(a.replace("_", " "))}</th>`).join("")
+    + `<th scope="col" style="text-align:left">Basis</th></tr></thead><tbody>`
+    + r.options.map((o) => `<tr>`
+      + `<td>${o.comparable ? "" : `<span title="${esc(o.note)}">⚠ </span>`}${esc(o.name)}</td>`
+      + r.axes.map((a) => `<td style="text-align:right">${fmt(a, o.axes[a])}</td>`).join("")
+      + `<td class="meta">${esc([o.carbon_basis && `carbon: ${o.carbon_basis}`,
+          o.economics_basis && `economics: ${o.economics_basis}`].filter(Boolean).join(" · "))}</td>`
+      + `</tr>`).join("")
+    + `</tbody>`;
+  body.appendChild(t);
+
+  if (r.incomparable.length) {
+    const gap = el("div", "meta"); gap.style.marginTop = "8px";
+    gap.innerHTML = "<b>Not comparable on every axis:</b> " + r.incomparable
+      .map((x) => `${esc(x.name)} (missing ${esc(x.missing_axes.join(", "))})`).join("; ")
+      + " — a missing axis is absent, not zero. Fill it in rather than reading the gap as a good number.";
+    body.appendChild(gap);
+  }
+  const foot = el("div", "meta"); foot.style.marginTop = "6px";
+  foot.textContent = "No ranking is shown here on purpose — scoring lives in the option scorer, which "
+    + "excludes missing criteria from the pool rather than scoring them as zero.";
+  body.appendChild(foot);
+}
