@@ -243,7 +243,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS *(SHIPPED 2026-08-06 — `pm_contract`; pending archive)* — lane now empty |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑧ |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* · R41-GATE-SUBSTANCE *(SHIPPED 2026-08-06 — `test_doc_substance.py`; pending archive)* · R41-DELETE-RATCHET · R41-LICENCE-GATE |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* · R41-GATE-SUBSTANCE *(SHIPPED 2026-08-06 — `test_doc_substance.py`; pending archive)* · R41-DELETE-RATCHET · R41-LICENCE-GATE *(SHIPPED 2026-08-06 — `check-licences.mjs`; pending archive)* · R41-BUNDLER-SPLIT |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -1687,11 +1687,69 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   lanes ship to main at once and nothing currently stops one reintroducing a decomposed god-module or a
   re-export that reads as a dead import. A negative assertion is three lines and makes a removal stick:
   the ratchet-rather-than-allowlist principle applied to architecture instead of security.
-- **R41-LICENCE-GATE** *(S — Lane J)* — **enforce the licence allowlist in CI instead of by reading.**
-  This scan found three repositories whose actual LICENSE differs from their README or badge, two of
-  them forbidding exactly our use. A dependency and licence policy gate would have flagged them
-  mechanically. Pair it with a filesystem CVE scan and a Dockerfile linter, both of which look like
-  genuine gaps beside existing CodeQL, dependency-audit and secret-scan coverage.
+- ✅ **R41-LICENCE-GATE** *(S — Lane J, SHIPPED 2026-08-06)* — **enforce the licence allowlist in CI
+  instead of by reading.** This scan found three repositories whose actual LICENSE differs from their
+  README or badge, two of them forbidding exactly our use.
+
+  **Premise-checked, and the gate half-existed.** `services/api/test_license_gate.py` already fails
+  the build on a GPL/AGPL dependency — so the item as written ("enforce it in CI instead of by
+  reading") was already true. What was *not* true was its scope, in two ways that matter and that the
+  entry did not distinguish:
+
+  1. **It walks Python distributions only.** The npm tree — **638 packages**, including `three`,
+     `web-ifc` and the whole That Open stack — was never in its population.
+  2. **It reads DECLARED metadata** (Trove classifiers, the `License` field, the SPDX expression).
+     *That is the badge.* **A declaration cannot catch a lying declaration**, which is the exact
+     defect the item was filed about.
+
+  So `apps/web/scripts/check-licences.mjs` reads each package's **LICENSE file** and cross-checks it
+  against the declaration — two independent statements about one fact, disagreement is the signal,
+  the same shape as the roadmap self-consistency gate on a different artefact. It runs in the **web**
+  CI job, because that is the job that runs `npm ci`; in the API gate `node_modules` does not exist
+  and the scan would have passed by finding nothing.
+
+  **It found the defect in our own docs.** `LICENSE-NOTES.md` listed *"That Open Engine
+  (`@thatopen/*`, web-ifc) | MIT-style | Permissive"*. The `@thatopen/*` packages are MIT; **`web-ifc`
+  is MPL-2.0** — weak, file-level copyleft with a real obligation attached to modifying it. Corrected,
+  and the table now says it is checked rather than merely written.
+
+  **The false positive it almost shipped with is the reusable part.** The first classifier tested
+  licence names in *precedence* order, GPL before MPL, and reported three contradictions — one being
+  `web-ifc` "declared MPL-2.0 but actually GPL", a core dependency named in the non-negotiables.
+  Wrong: **MPL-2.0 defines "Secondary License" by naming the GNU GPL, LGPL and AGPL**, so every
+  MPL-2.0 file contains the string. The fix is not a longer exclusion list but a different rule —
+  **the earliest title wins**, because a licence names itself at the top and every later mention is
+  prose about a different licence. *An alarming result should raise the bar on the instrument, not
+  lower it*: three hits including a core dependency was the moment to doubt the classifier.
+
+  Current state: 638 packages, **0 forbidden**, 3 weak-copyleft reported (`web-ifc` + two
+  `lightningcss` builds, all MPL), 8 unclassified held as a down-only ratchet. Mutation-checked with a
+  planted package declaring MIT over an AGPL file → `CONTRADICTION`, and declaring AGPL outright →
+  `FORBIDDEN`.
+
+  **Still open from this entry, deliberately not done here:** the filesystem CVE scan and the
+  Dockerfile linter. Both are separate tools with their own populations; folding them into a licence
+  gate would repeat the scope confusion this item just corrected.
+
+- **R41-BUNDLER-SPLIT** *(S — Lane J)* — **the suite never exercises the bundler that ships.** The app
+  is *built* with **Vite 8 / rolldown** (pinned in `apps/web/package.json`, installed nested at
+  `apps/web/node_modules/vite`) and *tested* under **Vite 6 / rollup**, because `vitest@4.1.10`
+  depends on vite ^6 and that copy is hoisted to the repo root. Consistent between the clone and a
+  worktree, so test results are not *unstable* — but the test environment is not merely narrower than
+  production, it is **a different implementation**, and it can agree with you about code the shipping
+  bundler treats differently.
+
+  Chunking, CommonJS interop and tree-shaking are exactly where rollup and rolldown diverge, and we
+  assert about all three: `bundle-budget.mjs` asserts the vendor split, and the 19.7× shell found in
+  BUILD-WORKTREE-CHUNKS was a rollup-vs-rolldown difference. Same family as
+  `test-environment-more-permissive-than-browser`: happy-dom vouched for a drop the real browser
+  refuses. **Ask not what the test environment cannot see, but where it is a different thing wearing
+  the same name.**
+
+  Not resolvable inside BUILD-WORKTREE-CHUNKS — that item is about *which* Vite resolves, this one is
+  about the two of them being legitimately different tools. Options are to wait for a vitest that
+  tracks vite 8, to run a smoke suite against the built rolldown output, or to accept it explicitly
+  and write down why.
 
 ### Reclassified, and worth acting on separately
 
