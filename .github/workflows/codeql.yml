@@ -41,8 +41,65 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decide WHICH language analyses this event needs, and emit them as the matrix below.
+  #
+  # Why: the matrix ran all four languages on every pull-request push regardless of content. A
+  # roadmap sweep touching only `docs/*.md` still queued an actions, a javascript-typescript, a
+  # python AND a rust analysis. Measured 2026-08-06 during a merge jam, CodeQL was 15 of 28 queued
+  # jobs and most were analysing languages the diff never touched.
+  #
+  # THIS REDUCES SECURITY COVERAGE IF IT IS WRONG, so every branch fails TOWARD analysing more:
+  #   * push to main and the weekly schedule  -> ALL languages, always. Never scoped.
+  #   * the changed-file list is unavailable  -> ALL languages.
+  #   * a path matches nothing known          -> ignored, but if NOTHING matches, the analyse job
+  #                                              is skipped entirely (a docs-only PR has no code to
+  #                                              analyse; main will still analyse it on merge).
+  # A path may map to several languages; matching is deliberately generous.
+  scope:
+    name: Scope languages to the diff
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+    - id: pick
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        EVENT: ${{ github.event_name }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        set -uo pipefail
+        ALL='[{"language":"actions","build-mode":"none"},{"language":"javascript-typescript","build-mode":"none"},{"language":"python","build-mode":"none"},{"language":"rust","build-mode":"none"}]'
+        emit () { echo "matrix=$1" >> "$GITHUB_OUTPUT"; echo "scope: $2"; exit 0; }
+
+        # Full coverage on main and on the schedule. Only pull requests are ever scoped.
+        [ "$EVENT" = "pull_request" ] || emit "$ALL" "$EVENT is not a pull request -> all languages"
+
+        files=$(gh pr view "$PR" --repo "$REPO" --json files --jq '.files[].path' 2>/dev/null) || files=""
+        [ -n "$files" ] || emit "$ALL" "changed-file list unavailable -> all languages (fail-safe)"
+        echo "changed files:"; echo "$files" | sed 's/^/  /'
+
+        langs=""
+        add () { case ",$langs," in *",$1,"*) ;; *) langs="${langs:+$langs,}$1" ;; esac; }
+        while IFS= read -r f; do
+          case "$f" in .github/workflows/*|.github/actions/*) add actions ;; esac
+          case "$f" in *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs|*package.json|*package-lock.json) add javascript-typescript ;; esac
+          case "$f" in *.py|*requirements*.txt|*pyproject.toml) add python ;; esac
+          case "$f" in *.rs|*Cargo.toml|*Cargo.lock) add rust ;; esac
+        done <<< "$files"
+
+        [ -n "$langs" ] || emit "[]" "no analysable source changed -> skipping (main re-analyses on merge)"
+        m=$(printf '%s' "$langs" | jq -R -c 'split(",") | map({language: ., "build-mode": "none"})')
+        [ -n "$m" ] || emit "$ALL" "matrix build failed -> all languages (fail-safe)"
+        emit "$m" "scoped to: $langs"
+
   analyze:
     name: Analyze (${{ matrix.language }})
+    needs: scope
+    if: needs.scope.outputs.matrix != '[]'
     # Runner size impacts CodeQL analysis time. To learn more, please see:
     #   - https://gh.io/recommended-hardware-resources-for-running-codeql
     #   - https://gh.io/supported-runners-and-hardware-resources
@@ -63,15 +120,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-        - language: actions
-          build-mode: none
-        - language: javascript-typescript
-          build-mode: none
-        - language: python
-          build-mode: none
-        - language: rust
-          build-mode: none
+        include: ${{ fromJSON(needs.scope.outputs.matrix) }}
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
         # Use `c-cpp` to analyze code written in C, C++ or both
         # Use 'java-kotlin' to analyze code written in Java, Kotlin or both
