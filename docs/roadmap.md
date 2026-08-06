@@ -219,7 +219,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ · R38-SYNC-VIEW ③ · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ *(ALREADY BUILT — checked 2026-08-06)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -1334,8 +1334,16 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
   question for the user, not a build:** are locks meant to be *within* an element (hold depth, drive
   width, keep area) or *across* elements (align these walls, hold this offset)? Across-elements is
   the CAD-familiar meaning and needs multi-element parameter edits, which do not exist yet.
-- **R38-NODE-SLIDERS ③** *(S, Lane E)* — node-canvas inputs exposed as named room-level sliders.
-  Unblocked and small; the node graph already stores its inputs. Lowest risk of the three.
+- ✅ **R38-NODE-SLIDERS ③** *(S, Lane E — **checked 2026-08-06 and found ALREADY BUILT**, not
+  started)* — `apps/web/src/viewer/nodeSliders.ts` declares itself this item's implementation in its
+  opening line, exports `sliderSpecs` / `applySlider`, and carries 9 tests.
+  `apps/web/src/viewer/nodeCanvas.ts` wires it: a **🎚 Sliders** button opens a side rail holding
+  every numeric parameter across the graph as a named slider (`n2 · recipe`), scrubbed with the
+  mouse, with run-on-release. Reachable from `apps/web/src/viewer/app.ts` via `openNodeCanvas`.
+  The textarea stays the single source of truth — a slider reads the JSON and writes the JSON, so
+  hand-edits and scrubs interleave without two copies drifting. Original text: node-canvas inputs
+  exposed as named room-level sliders. Unblocked and small; the node graph already stores its
+  inputs. Lowest risk of the three.
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
@@ -1344,8 +1352,17 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
   `shape.guid` in hand and keeps only `(cls, mesh)`, so `cut_baked` emits anonymous polylines and
   `cut_baked_classed` adds back the class but never the GUID. Nothing in a plan can name what it
   draws. Hence:
-  - **R38-SYNC-VIEW ③** *(M, Lane E)* — the second viewport with **cursor, pan/zoom and storey
-    sync**. Buildable today; needs no identity.
+  - ◧ **R38-SYNC-VIEW ③** *(M, Lane E — **checked 2026-08-06: MOSTLY BUILT**, one of the three
+    named syncs is missing)* — `apps/web/src/viewer/planPane.ts` opens with "R38-SYNC-VIEW +
+    R38-SYNC-SELECT" and `apps/web/src/viewer/app.ts` mounts it beside the model. **Storey sync**
+    ships (`planParams(storey)`, and the pane refetches only when the *cut* changes, so a selection
+    change costs no round-trip). **Pan and zoom** ship (`overflow:auto` body; a client-side
+    `zoomPct` that deliberately does *not* refetch, because zoom is presentation and a refetching
+    zoom would cost a bake per click). 14 tests. **The residue is live CURSOR sync** — nothing
+    mirrors the 3D cursor onto the plan; the only `cursor` in the file is a CSS pointer on a hit
+    target. That is what is left of this item, and it is smaller than the entry implies.
+    Original text: the second viewport with **cursor, pan/zoom and storey sync**. Buildable today;
+    needs no identity.
   - **R38-PLAN-IDENTITY ③** *(S, Lane D — prerequisite)* — carry the GUID through the bake:
     `(guid, cls, mesh)` and a `cut_baked_guided` variant, so each polyline names its source element.
     **This is one discarded value, not new machinery** — and it unlocks selection sync, click-a-wall-
