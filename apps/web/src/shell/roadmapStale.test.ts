@@ -1,5 +1,5 @@
 import { closeSync, openSync, readdirSync, readFileSync, readSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -286,5 +286,129 @@ describe("the roadmap does not call an implemented item open", () => {
       expect(openItems(`- ${mk} **ZZ-FAKE-ITEM** *(M)* — done\n`).has("ZZ-FAKE-ITEM"),
         `${mk} should mark an item as not-open`).toBe(false);
     }
+  });
+});
+
+/**
+ * **The same check, over the WEB tree — because the scan above is Python-only.**
+ *
+ * `declaringModules()` walks `services/api/src` and `services/data/src`. Everything in
+ * `apps/web/src` was therefore outside the population while being inside the claim: the describe
+ * above reads as *"the roadmap does not call an implemented item open"*, and for the whole frontend
+ * it was silent. On 2026-08-06 five items were found marked open with a web module already
+ * implementing them — `R38-NODE-SLIDERS` (nine passing tests, wired, and a session was one command
+ * from rebuilding it), `R38-SYNC-VIEW`, `R28-UNIFY`, `R24-ELEMENT-CARD` and the `snapEngine`
+ * resolver. None was visible here. **A gate's scope is part of its claim.**
+ *
+ * ## The measured yield, stated so nobody reads "low" as "broken"
+ *
+ * Of **162** non-test `.ts`/`.tsx` files under `apps/web/src`, **93** open with a block comment and
+ * **34** name an item id on its first content line. That is the population this can see.
+ *
+ * An earlier probe of the same idea reported **6 of 158** and was nearly taken as proof the port was
+ * not worth building. It measured the wrong line. Python puts its docstring text on the *same* line
+ * as the opening `"""`, so "the first line" is the summary; JSDoc opens with a bare `/**` and the
+ * summary is on line **two**. Reading line one literally returns `/**` for almost every TS module.
+ * **The signal was fine; the probe was shaped for the other language** — which is why `firstDocLine`
+ * below is tested against both comment shapes rather than trusted.
+ *
+ * This does not subsume the roadmap-internal consistency check and is not subsumed by it: that one
+ * answers *"the document contradicts itself"*, this one answers *"code exists that nobody marked
+ * done"*. Of the five found that day, two came from modules and the rest from the document's own
+ * prose.
+ */
+
+/** First CONTENT line of a leading block comment — the TS equivalent of Python's first docstring
+ *  line. Returns null when the module has no leading block comment at all. */
+export function firstDocLine(src: string): string | null {
+  const t = src.trimStart();
+  if (!t.startsWith("/*")) return null;
+  for (const raw of t.split("\n")) {
+    const line = raw.replace(/^\s*\/\*+/, "").replace(/^\s*\*+/, "").trim();
+    if (line && line !== "/") return line;
+  }
+  return null;
+}
+
+function tsFiles(dir: string, acc: string[] = []): string[] {
+  let entries: string[];
+  try { entries = readdirSync(dir); } catch { return acc; }
+  for (const e of entries) {
+    if (e === "node_modules" || e === "dist" || e === "vendor") continue;
+    const p = join(dir, e);
+    let st; try { st = statSync(p); } catch { continue; }
+    if (st.isDirectory()) tsFiles(p, acc);
+    // `.test.ts` excluded: a test naming the item it covers is not a claim that the item is built.
+    else if (/\.tsx?$/.test(e) && !/\.test\.tsx?$/.test(e)) acc.push(p);
+  }
+  return acc;
+}
+
+/** id -> web modules whose first docstring line declares them the implementation of that id. */
+function webModulesDeclaring(): { ids: Map<string, string[]>; scanned: number; withDoc: number } {
+  const ids = new Map<string, string[]>();
+  let scanned = 0, withDoc = 0;
+  for (const f of tsFiles(join(REPO, "apps/web/src"))) {
+    scanned++;
+    const first = firstDocLine(readFileSync(f, "utf8").slice(0, 800));
+    if (first === null) continue;
+    withDoc++;
+    for (const m of first.matchAll(/\b([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,})\b/g)) {
+      const id = m[1]!;
+      ids.set(id, [...(ids.get(id) ?? []), f.slice(REPO.length + 1).split(sep).join("/")]);
+    }
+  }
+  return { ids, scanned, withDoc };
+}
+
+describe("the roadmap does not call an implemented WEB item open", () => {
+  const md = readFileSync(join(REPO, "docs/roadmap.md"), "utf8");
+
+  // The population floor. A walk that silently stops covering .ts — a moved directory, a changed
+  // extension, a thrown readdir — would otherwise report "nothing implemented", which is the
+  // reassuring direction and indistinguishable from a clean bill of health.
+  it("walks a plausible number of web modules — a broken walk must not read as 'nothing found'", () => {
+    const { scanned, withDoc } = webModulesDeclaring();
+    expect(scanned, "far fewer web modules than this tree contains").toBeGreaterThan(100);
+    expect(withDoc, "no module has a leading block comment — has the walk or the reader broken?")
+      .toBeGreaterThan(40);
+  });
+
+  it("finds modules that declare themselves — the signal is not dead", () => {
+    // 34 at the time of writing. A floor well under that catches the signal breaking without
+    // failing every time a module is renamed.
+    expect(webModulesDeclaring().ids.size,
+      "no web module declares an item id — has the docstring convention changed?").toBeGreaterThan(15);
+  });
+
+  it("no OPEN item already has a web module implementing it", () => {
+    const open = openItems(md);
+    const offenders = [...webModulesDeclaring().ids.entries()]
+      .filter(([id]) => open.has(id))
+      .map(([id, files]) => `${id} <- ${files.slice(0, 2).join(", ")}`)
+      .sort();
+    expect(offenders,
+      "these roadmap items are listed as open but a WEB module already declares itself their " +
+      "implementation. Mark them ✅ (verified complete), ◧ (partially shipped — name the module), " +
+      "or 🟡 (in flight). See this file's header for why each marker means something different.")
+      .toEqual([]);
+  });
+
+  /**
+   * `firstDocLine` is tested against both comment shapes on purpose.
+   *
+   * Getting it wrong is not hypothetical — it is exactly what made an earlier probe report 6
+   * declaring modules instead of 34, and nearly retired the idea as low-yield. The failure is
+   * silent and one-directional: read the wrong line and you find almost nothing, which looks like
+   * a clean tree rather than a broken reader.
+   */
+  it("reads the SUMMARY line, not the comment opener", () => {
+    expect(firstDocLine("/**\n * R38-FAKE — the summary is on line two.\n */\n")).toContain("R38-FAKE");
+    expect(firstDocLine("/** R38-FAKE — the summary is on line one. */\n")).toContain("R38-FAKE");
+    expect(firstDocLine("/*\n * R38-FAKE — a plain block comment.\n */\n")).toContain("R38-FAKE");
+    expect(firstDocLine("// R38-FAKE — a line comment is not a docstring\n")).toBeNull();
+    expect(firstDocLine("import x from 'y';\n")).toBeNull();
+    // the bug, pinned: line one of a JSDoc block is the opener and must never be the answer
+    expect(firstDocLine("/**\n * R38-FAKE\n */")).not.toBe("/**");
   });
 });
