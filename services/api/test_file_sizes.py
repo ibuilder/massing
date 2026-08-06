@@ -39,6 +39,28 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 #: Hand-written source we own. A file over this is a file nobody can review in one sitting.
 CEILING = 5_200
 
+#: Per-file ceilings for the files SCALE-SEAM is actively splitting. **Only ever revised DOWN.**
+#:
+#: WHY THIS EXISTS, and it is a correction to how the ratchet was understood. `CEILING` above is a
+#: single GLOBAL number, so it is pinned by whichever file is worst — today `viewer/app.ts` at 5,064.
+#: That means an extraction out of any OTHER file cannot move it: SCALE-SEAM ⑦ took 96 lines out of
+#: `client.ts` and the global ceiling was as true at 5,200 afterwards as before. The instruction
+#: "lower the ceiling as each extraction lands" is right about the intent and cannot be carried out
+#: by this number — lowering it to 5,064 would ratchet a slack belonging to `viewer/app.ts`, a file
+#: in a different lane, and leave it with zero headroom so the next edit there fails the build.
+#:
+#: **A ratchet has to be per-subject when the work is per-subject.** One global number measures the
+#: worst file and is silent about every other, which is the same shape as a gate whose scope is
+#: narrower than its claim.
+#:
+#: A new endpoint added straight to `client.ts` will fail this, and that friction is the point rather
+#: than a side effect: the question it forces is "should this live in a domain module instead?", and
+#: post-⑦ the answer is usually yes. Raising an entry is therefore a deliberate act that should be
+#: argued for in the commit message — the direction of travel is down.
+PER_FILE = {
+    "apps/web/src/api/client.ts": 3_871,   # SCALE-SEAM ⑦ (/auth out); was 3,967 before
+}
+
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.
 EXEMPT_SUBSTRINGS = (
     "/vendor/",           # vendored upstream copies — re-synced by overwrite, never hand-edited
@@ -78,6 +100,28 @@ check(
     f"no hand-written file exceeds {CEILING} lines",
     not over,
     "; ".join(f"{rel}={n}" for rel, n in over[:5]) or "",
+)
+
+measured = dict(sizes)
+
+# A per-file ratchet keyed by PATH silently stops ratcheting the moment the path changes — a rename,
+# a move, or an exemption that starts matching would drop the entry and this check would go green by
+# measuring nothing. So assert the subjects are present BEFORE asserting their sizes, individually
+# rather than in aggregate: an aggregate non-empty check cannot see a dead entry beside a live one.
+missing = [rel for rel in PER_FILE if rel not in measured]
+check(
+    "every per-file ratchet still names a file that exists",
+    not missing,
+    "; ".join(missing) or f"{len(PER_FILE)} tracked",
+)
+
+grew = [(rel, measured[rel], cap) for rel, cap in PER_FILE.items()
+        if rel in measured and measured[rel] > cap]
+check(
+    "no file under an extraction ratchet has grown",
+    not grew,
+    "; ".join(f"{rel}={n} > {cap}" for rel, n, cap in grew)
+    or "; ".join(f"{rel}={measured[rel]}/{cap}" for rel, cap in PER_FILE.items() if rel in measured),
 )
 
 # The ratchet only ratchets if somebody can see the headroom. Print the top of the list every run so
