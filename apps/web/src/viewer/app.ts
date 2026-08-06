@@ -13,6 +13,7 @@ import { applyDynamicInput, polarConstrain, resolveSnap } from "./snapEngine";
 import {
   OVERRIDE_LABEL, createSnapOverride, overrideCandidates, type OverrideKind,
 } from "./snapOverride";
+import { canAcceptDraftDrag, dropCompletion, readDraftDragKey } from "./railDrag";
 import { parseDynConstraint } from "./dynInput";
 import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
@@ -596,6 +597,47 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     await selectMap({ [hit.fragments.modelId]: new Set([hit.localId]) }, { guid: guid ?? undefined });
     setStatus(guid ? `selected ${guid} — click again to select its level` : `selected ${hit.localId}`);
   });
+  // ---- RAIL-DRAG: drop a palette element onto the canvas ---------------------
+  //
+  // A second GESTURE onto the click pipeline, never a second pipeline: the drop arms the tool and
+  // then hands the event straight to `captureDraftPoint`, so snapping, typed constraints, inference,
+  // the grid and `placeValid` all apply exactly as they do to a click. DragEvent extends MouseEvent,
+  // so it is literally the same input that function already takes.
+  //
+  // `dragover` must decide from `types` alone — the payload is unreadable there (protected mode), and
+  // reading it would silently refuse every drop. See `railDrag.ts`.
+  container.addEventListener("dragover", (e) => {
+    if (!canAcceptDraftDrag(e.dataTransfer)) return;      // a file/text drag is left for others
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    container.classList.add("rail-drag-over");
+  });
+  const clearDragCue = () => container.classList.remove("rail-drag-over");
+  container.addEventListener("dragleave", (e) => { if (e.target === container) clearDragCue(); });
+  container.addEventListener("drop", async (e) => {
+    const key = readDraftDragKey(e.dataTransfer);
+    clearDragCue();
+    if (!key) return;                                     // not ours — do not preventDefault
+    e.preventDefault();
+    // `armByKey` notifies and returns null when the key is unknown or authoring is unavailable
+    // (no project / no source IFC), so a refused drop already explains itself.
+    if (!draftHandle?.armByKey(key)) return;
+    const spec = armed;
+    if (!spec) return;
+    mouse.set(e.clientX, e.clientY);
+    const hit = await Promise.race([
+      loader.fragments.raycast({
+        camera: viewer.world.camera.three, mouse, dom: viewer.world.renderer!.three.domElement,
+      }),
+      new Promise<null>((res) => window.setTimeout(() => res(null), 1500)),
+    ]);
+    await captureDraftPoint(e, hit ?? null);
+    // One drop is one point. Only a points:1 element is finished by it; the rest keep the tool armed,
+    // and are told so rather than left to wonder whether the drag worked.
+    const done = dropCompletion(spec.points, spec.label);
+    if (!done.completes) notify(done.message, "info");
+  });
+
   container.addEventListener("dblclick", () => {
     if (armed && armed.points === "poly") {
       if (armPts.length >= 3) void finishDraft(); else notify("need at least 3 points to close", "error");

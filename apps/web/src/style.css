@@ -1230,3 +1230,14 @@ button.vit:hover { background: var(--hover, rgba(255,255,255,.06)); }
 .ws-return { position: sticky; top: 0; z-index: 5; padding: 6px 8px;
   background: var(--panel2); border-bottom: 1px solid var(--line); }
 .ws-return-btn { font-size: 12px; }
+
+/* RAIL-DRAG — the canvas as a drop target.
+   The cue is an INSET outline rather than a border: a border on the viewer container would resize
+   the canvas mid-drag and force a renderer resize on every dragover, which is both a visible jump
+   and needless work in a hot event. The pointer-events note matters too — the overlay must never
+   exist as a real element, or it would become the drop target instead of the canvas. */
+.rail-drag-over { outline: 2px dashed var(--accent); outline-offset: -6px; }
+/* Palette rows advertise that they can be dragged. `grab` is the honest cursor: the row is still a
+   button you can click to select, so it must not look exclusively like a drag handle. */
+.rail-toolgroup-body [draggable="true"], .tool-btn[draggable="true"] { cursor: grab; }
+.tool-btn[draggable="true"]:active { cursor: grabbing; }
