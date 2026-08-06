@@ -61,6 +61,20 @@ CEILING = 5_200
 #: argued for in the commit message — the direction of travel is down.
 PER_FILE = {
     "apps/web/src/api/client.ts": 3_796,   # SCALE-SEAM ⑧ (/proforma out); ⑦ 3,871; before ⑦ 3,967
+    #: R39-DECOMP-VIEWER. Pinned at its CURRENT size before any extraction, deliberately.
+    #:
+    #: `app.ts` had no per-file entry, so it lived under the 5,200 global — which it also *set*, being
+    #: the worst file. That is a ceiling it cannot ratchet against: every extraction from any other
+    #: file left the global exactly as true as before, and every feature added here drifted it up
+    #: with nothing to notice. Two Lane E features in a row had to route logic into new modules to
+    #: fit under it, which is a good outcome reached by an accidental mechanism.
+    #:
+    #: Pinned BEFORE the split rather than after, so the number the extraction has to beat is the
+    #: unimproved one. Pinning afterwards would freeze the improved figure and lose the evidence that
+    #: it moved — the history in the line above (3,967 → 3,871 → 3,796) is the thing worth having.
+    #: R39-DECOMP-VIEWER: ① Exports out (51) -> 5,114; ② the clash/QA section out (851) -> 4,272.
+    #: Ratcheted each time, never reset — the movement is the evidence the seam is real.
+    "apps/web/src/viewer/app.ts": 4_272,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.
