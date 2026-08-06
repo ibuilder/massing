@@ -243,7 +243,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS *(SHIPPED 2026-08-06 — `pm_contract`; pending archive)* — lane now empty |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑧ |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* · R41-GATE-SUBSTANCE *(SHIPPED 2026-08-06 — `test_doc_substance.py`; pending archive)* · R41-DELETE-RATCHET · R41-LICENCE-GATE *(SHIPPED 2026-08-06 — `check-licences.mjs`; pending archive)* · R41-BUNDLER-SPLIT |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* · R41-GATE-SUBSTANCE *(SHIPPED 2026-08-06 — `test_doc_substance.py`; pending archive)* · R41-DELETE-RATCHET · R41-TEST-RESIDUE · R41-LICENCE-GATE *(SHIPPED 2026-08-06 — `check-licences.mjs`; pending archive)* · R41-BUNDLER-SPLIT |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -1752,6 +1752,37 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   hard half — the population is the moved code *named*, the matcher is asserted to find real names,
   comments are stripped, and the legitimate crossings are enumerated as doors. The symbol ratchet is
   the harder second version and should extract that helper rather than re-derive it.
+- **R41-TEST-RESIDUE** *(S — Lane J; found 2026-08-06 by tracing a flaky suite to its cause)* —
+  **the backend suite leaves its databases behind, and nothing sweeps them.** A full `run_tests.py`
+  writes a SQLite file per test module into `services/api/`, and no run removes what the last one
+  wrote. Measured across the shared clone that day:
+
+  | worktree | leftover `*.db` | size |
+  |---|---|---|
+  | "lane-f-proforma" | **324** | 1,423 MB |
+  | "integrate" | **322** | 1,413 MB |
+  | main clone | **332** | 1,441 MB |
+
+  **~1.4 GB per worktree per full backend run**, and every one of those files was hours stale. With
+  free space at ~3%, that is the whole problem: two sessions independently hit
+  `sqlite3.OperationalError: disk I/O error` and vitest timeouts (`library.test.ts` 5,026 ms,
+  `pdfVendor.test.ts` 20,016 ms) that **passed on a clean re-run**. The residue does not announce
+  itself — it manufactures failures that look exactly like flaky tests, in files that have nothing
+  to do with it, which is why it survived long enough to reach 2.8 GB.
+
+  **The fix is two things and the second is the one that lasts.** The suite removes its own
+  databases; *and* a **leftover count is asserted**, because a sweep that silently stops working
+  looks identical to a clean tree — the same reason every gate here is mutation-checked rather than
+  trusted.
+
+  **Assert the COUNT, not free space.** Disk was measured swinging **~10 GB while a suite runs**, so
+  a free-space threshold would flap with concurrency and teach people to ignore it. A leftover count
+  is deterministic and attributable.
+
+  *Filed by the session that found it rather than fixed on the spot: the files belonged to other
+  sessions' worktrees, and the `git worktree remove --force` incident is precisely why a measurement
+  gets reported and someone who owns the tree does the deleting.*
+
 - ✅ **R41-LICENCE-GATE** *(S — Lane J, SHIPPED 2026-08-06)* — **enforce the licence allowlist in CI
   instead of by reading.** This scan found three repositories whose actual LICENSE differs from their
   README or badge, two of them forbidding exactly our use.
