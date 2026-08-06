@@ -60,7 +60,7 @@ CEILING = 5_200
 #: post-⑦ the answer is usually yes. Raising an entry is therefore a deliberate act that should be
 #: argued for in the commit message — the direction of travel is down.
 PER_FILE = {
-    "apps/web/src/api/client.ts": 3_796,   # SCALE-SEAM ⑧ (/proforma out); ⑦ 3,871; before ⑦ 3,967
+    "apps/web/src/api/client.ts": 3_780,   # design/options -> designOptions.ts; ⑧ 3,796; ⑦ 3,871;    before ⑦ 3,967
     #: R39-DECOMP-VIEWER. Pinned at its CURRENT size before any extraction, deliberately.
     #:
     #: `app.ts` had no per-file entry, so it lived under the 5,200 global — which it also *set*, being

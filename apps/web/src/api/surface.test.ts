@@ -86,12 +86,17 @@ describe("the API client's public surface", () => {
     // plainly: **an extraction is the occasion to re-read this number, never the cause of it moving.**
     // Anyone raising this line because their own change grew the surface should say so here; anyone
     // raising it to make a red test go green has inverted the gate.
+    // 2026-08-06 (design/options extraction): raised 702 -> 703. The move of designOptionsGenerate
+    // and designOptionsScore into designOptions.ts is invisible to this reader, which is the point;
+    // the +1 is designOptionsRecord, a client caller for an endpoint that had none. The whole
+    // stored-option family was server-only: /design/options/{compare,carbon,economics} have no
+    // caller either and no panel touched the design_option register at all.
     // 2026-08-06 (SCALE-SEAM ⑧): raised 699 -> 702, and the +3 is NEW SURFACE, not a moved one.
     // The /proforma extraction moved 15 methods and this reader counted **699 both before and after
     // the move** — that is the evidence nothing was dropped. The three added methods
     // (proformaRenovation / proformaRollover / proformaIncomeBasis) are client callers for endpoints
     // that had none, which is why the floor legitimately rises.
-    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(702);
+    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(703);
   });
 
   it("keeps the transport primitives the domain methods are built on", () => {

@@ -613,3 +613,43 @@ export interface Job {
   started_at: string | null;
   finished_at: string | null;
 }
+
+/**
+ * R22-OPTION-OBJECT — a design option as ONE comparable record across the five axes.
+ *
+ * `axes` values are `null` when the axis is ABSENT, never 0. That distinction is the whole point of
+ * the record: `option_score` once coerced a missing `cost_per_sf` to 0.0 and, on a lower-is-better
+ * axis, scored it 100 — the best possible mark, awarded for having no data. Render an absent axis as
+ * absent; do not fall back to `?? 0`, and do not sort on an axis without checking `axis_status`.
+ *
+ * There is no rank, score or recommendation here, deliberately — `option_score` owns ranking and
+ * does it honestly. `comparable_count` below the option count means some massing is being evaluated
+ * without its returns, and `incomparable` says which.
+ */
+export type OptionAxis = "geometry" | "unit_mix" | "cost" | "carbon" | "returns";
+export type OptionAxisStatus = "present" | "absent";
+
+export interface OptionRecord {
+  id: string;
+  name: string;
+  state: string | null;
+  axes: Record<OptionAxis, number | null>;
+  axis_status: Record<OptionAxis, OptionAxisStatus>;
+  /** How each engine got its number: declared / benchmark / derived / unlinked / unavailable. */
+  carbon_basis: string | null;
+  economics_basis: string | null;
+  missing_axes: OptionAxis[];
+  comparable: boolean;
+  note: string;
+}
+
+export interface OptionRecordSet {
+  options: OptionRecord[];
+  option_count: number;
+  /** Options comparable on ALL five axes. Below `option_count` is the number worth surfacing. */
+  comparable_count: number;
+  incomparable: { id: string; name: string; missing_axes: OptionAxis[] }[];
+  axes: OptionAxis[];
+  project_id?: string;
+  note: string;
+}

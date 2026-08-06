@@ -155,7 +155,8 @@ export const DEST_ROOM: Record<string, string> = {
   // COBie chain in the first place.
   __operations__: "operate", __fca__: "operate", __assets__: "operate",
   // ── Deal: the asset as an investment ──────────────────────────────────────────────────────────
-  __uw__: "deal", __land__: "deal", __massingopt__: "deal", __diligence__: "deal",
+  __uw__: "deal", __land__: "deal", __massingopt__: "deal", __optionrecord__: "deal",
+  __diligence__: "deal",
   __market__: "deal", __lifecycle__: "deal", __portfolio__: "deal",
   __esg__: "deal",
   // ── Work: whatever is in your court ───────────────────────────────────────────────────────────
