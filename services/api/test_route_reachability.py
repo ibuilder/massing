@@ -93,7 +93,6 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/models/footprint.geojson", "/projects/{pid}/models/schema-diag",
     "/projects/{pid}/modules/backfill-references",
     "/projects/{pid}/procurement/packages/{rid}/send-rfq",
-    "/projects/{pid}/proforma/income-basis", "/projects/{pid}/proforma/rollover",
     "/projects/{pid}/project-package.pdf", "/projects/{pid}/provenance/admissibility",
     "/projects/{pid}/quality/turnover-readiness", "/projects/{pid}/recipes/replay-plan",
     "/projects/{pid}/rules/space-pack", "/projects/{pid}/scan/verify-lod500",
@@ -160,8 +159,14 @@ if gone:
 check("the rule's known FALSE NEGATIVE still holds: /proforma/renovation is NOT flagged",
       "/projects/{pid}/proforma/renovation" not in FOUND,
       "renovation is now flagged — if the IEBC prose in viewer/app.ts changed, update the docstring")
-check("  and its sibling endpoints ARE flagged, which is why the family was found at all",
-      {"/projects/{pid}/proforma/rollover", "/projects/{pid}/proforma/income-basis"} <= FOUND)
+# Its siblings WERE flagged when this gate was written — that is how the family was found. Both
+# gained client methods in SCALE-SEAM ⑧ (`apps/web/src/api/proforma.ts`), so the rule no longer
+# flags them and they have been removed from KNOWN_UNCALLED. **A ratchet that only ever comes down
+# is the point**, so this now asserts they stay reachable rather than that they stay broken —
+# otherwise the gate would demand the defect it exists to remove.
+check("  the siblings that motivated this gate are STILL reachable — the fix must not regress",
+      not ({"/projects/{pid}/proforma/rollover", "/projects/{pid}/proforma/income-basis"} & FOUND),
+      "a /proforma sibling lost its client caller again; see api/proforma.ts")
 
 print()
 if FAILED:
