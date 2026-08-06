@@ -219,7 +219,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · R41-SCHEMA-STALE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ *(ALREADY BUILT — checked 2026-08-06)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ *(ALREADY BUILT — checked 2026-08-06)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS *(SHIPPED 2026-08-06 — `pm_contract`; pending archive)* — lane now empty |
@@ -1736,10 +1736,59 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   feeling, not a number. Instrument the load journey (fetch → parse → first frame, keyed by model
   size) and POST the timings to the platform's own API — no third-party telemetry, nothing new to
   approve — so p50/p95 by model-size bucket is a queryable fact before any perf work is prioritised.
-- **R39-DECOMP-VIEWER ③** *(L, Lane E)* — `apps/web/src/viewer/app.ts` is the last of the three
-  god-files still standing (client.ts was split by SCALE-SEAM, portal.ts is REL-4). Split by concern
-  behind the existing facade, same recipe as SCALE-SEAM: extraction first, no behaviour change, the
-  suite as the parity gate.
+- 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **started 2026-08-06: the ratchet is pinned and the seams
+  are measured; the extraction is NOT begun, and the reason is below**)* — `apps/web/src/viewer/app.ts`
+  is the last of the three god-files still standing (client.ts was split by SCALE-SEAM, portal.ts is
+  REL-4).
+
+  **⚠️ The recipe as written does not apply, and this is the finding that matters more than the
+  split.** It says *"the suite as the parity gate"*. **Nothing in the suite imports
+  `apps/web/src/viewer/app.ts` — it has zero test coverage.** A full suite run after moving 871 lines
+  of it would be green whether or not the move broke the viewer, because the suite never touches the
+  file. SCALE-SEAM was safe for a different reason than "we ran the tests": `client.ts` had
+  `apps/web/src/api/surface.test.ts` — *"the API client's public surface, pinned"* — asserting every
+  method still existed after each cut. **There is no viewer equivalent and there cannot easily be
+  one**, because `createViewerApp` needs a WebGL context and a Fragments worker, which is exactly why
+  the file has no tests in the first place. *Do not read a green suite as parity here.*
+
+  **What can serve as a gate instead, and it is not nothing:** make every extracted dependency an
+  **explicit typed parameter**, so a capture you fail to thread is a **compile error**. `tsc` then
+  gates the move. The one failure class it cannot see is a **stale closure** — and that is removed by
+  construction if mutable state is passed as an **accessor** rather than a value. Which matters here:
+  `projectId` is `const` (safe by value) but **`selectedGuid` and `lastPoint` are `let`**, so passing
+  them by value would compile cleanly and silently freeze whatever they held at panel-build time.
+
+  **The seams, measured 2026-08-06** (`app.ts` = 5,160 lines; pinned in `services/api/test_file_sizes.py`
+  at that number *before* any cut, so the extraction has to beat the unimproved figure):
+
+  | block | lines | size | closure captures |
+  |---|---|---|---|
+  | `buildToolsPanel()` | 1769–4840 | **3,071 (60% of the file)** | — |
+  | ├ `builders` map | 3542–4798 | 1,257 | ~16 |
+  | │ ├ `qa` | 3594–4464 | **871** | ~12 |
+  | │ ├ `analyse` | 4465–4704 | 240 | ~14 |
+  | │ ├ `authoring` | 4705–4798 | 94 | ~5 |
+  | │ └ `exports` | 3543–3593 | 51 | ~5 |
+  | `buildPanels()` | 1385–1536 | 152 | — |
+
+  **The seam is cleaner than the capture counts suggest**, and that is the useful part: the builders
+  compose two helpers — `section(key, title, opts)` and `toolBtn2(…)` — that are themselves closures
+  declared *inside* `buildToolsPanel`. They can be handed over as functions, carrying their own
+  state, instead of their state being re-plumbed. So a builder extracts as
+  `buildQaSection({ section, toolBtn2, api, … })`.
+
+  **The absence is self-reinforcing, and it decides the order.** This file has no tests *because* it
+  needs a WebGL context and a Fragments worker — and it is risky to split *for the same reason*. The
+  thing that makes coverage hard is the thing that makes change dangerous, and every year of that
+  makes the next split harder. So the order is not "smallest first" for its own sake: **extract the
+  parts that do NOT need a renderer first, precisely so they become testable.** A builder that only
+  composes `section()` and `toolBtn2()` and calls the API is pure DOM assembly — once it is a module
+  taking explicit parameters, it can be unit-tested for the first time, and the next extraction has
+  something to lean on that this one did not.
+
+  **Start with `exports`** (51 lines, 5 captures) — the cheapest place to prove the recipe, and no
+  renderer in it. Then `qa`: 871 lines, one of the four independent builders, and R24-TOOLS-SPLIT
+  already gave it internal structure.
 
 **Parked from the same audit:** brotli — the build already emits `.br` siblings and the stock
 nginx image cannot serve them; switching base images is a dependency decision for the user.
