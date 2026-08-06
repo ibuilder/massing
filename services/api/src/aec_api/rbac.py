@@ -102,6 +102,43 @@ def require_role(min_role: str):
     return dep
 
 
+def authorize_pid(db: Session, user: str, pid: str, min_role: str = "viewer") -> str:
+    """Authorise `user` against `pid` — for a project id that arrives in the **request BODY**.
+
+    `require_role` is a dependency whose inner signature is `dep(pid: str, ...)`, so FastAPI resolves
+    its `pid` from the path or query string. A route that takes the project id in its body therefore
+    **cannot use it**, and the route-authz guard (`test_route_authz`) only walks `/projects/{pid}`
+    routes — so a body-supplied id is outside both mechanisms at once. That is not a hypothetical
+    gap: it is how `POST /test-fit/optimize` came to read another project's land price and hard $/sf
+    with no gate of any kind, while sitting in `test_global_authz`'s frozen baseline under the label
+    "stateless compute". It was the only one of the five routes under that label that takes a `Session`.
+
+    Call this at the point of use, before touching the project:
+
+        if body.pid:
+            authorize_pid(db, user, body.pid, "viewer")
+
+    It honours `RBAC_ON` exactly as `require_role` does — off in dev and in the suite unless
+    `AEC_RBAC=1` — so it is the same gate, reachable from a different shape of route, rather than a
+    second policy that could drift from the first.
+
+    Raises 403 rather than 404 on a missing role, matching `require_role`. Distinguishing "no such
+    project" from "not your project" would confirm the existence of arbitrary project ids to an
+    unauthorised caller, which is the enumeration the gate exists to prevent.
+    """
+    if not RBAC_ON:
+        return user
+    role = role_for(db, pid, user)
+    if role is None or ROLE_ORDER.get(role, -1) < ROLE_ORDER[min_role]:
+        raise HTTPException(
+            status_code=403,
+            detail=f"requires {min_role} on project (user {user!r} has {role or 'no'} role)")
+    return user
+
+
+authorize_pid._role_gate = "viewer"   # same tag require_role carries, so guards can see it
+
+
 def require_identified(user: str = Depends(current_user)) -> str:
     """A caller who actually authenticated — for PLATFORM-GLOBAL routes with no `{pid}`.
 

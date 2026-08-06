@@ -128,7 +128,18 @@ BASELINE = {
     # stateless compute — no stored state; the middleware comment exempts this class explicitly
     ("POST", "/compute/graph"), ("POST", "/generate/massing/preview"),
     ("POST", "/massing/optioneer"), ("POST", "/massing/optioneer/recipes"),
-    ("POST", "/structure/recommend"), ("POST", "/test-fit/compare"), ("POST", "/test-fit/optimize"),
+    ("POST", "/structure/recommend"), ("POST", "/test-fit/compare"),
+    # (POST /test-fit/optimize was removed on 2026-08-06: FIXED, not re-frozen. It was the ONLY one
+    #  of the five routes under this "stateless compute" label that takes a `Session` — it read an
+    #  arbitrary project's purchase_price and hard $/sf from a `pid` in the request BODY, which
+    #  `require_role` structurally cannot cover (its dep resolves `pid` from path/query) and
+    #  `test_route_authz` never walks (no `{pid}` in the path). It now calls `rbac.authorize_pid`.
+    #  The lesson is about THIS LIST rather than that route: the entry was not an oversight, it was
+    #  a triage decision made by association with its neighbours — same file, same shape, and four
+    #  of the five genuinely are calculators. A frozen baseline preserves the reasoning of the day
+    #  it was written, including the parts that were wrong. The predicate that isolates the real
+    #  cases is not "no authz" but "no authz AND takes a DB session". Guarded by
+    #  `test_body_pid_authz.py`, which fails if it is ever re-added here.)
     ("POST", "/schedule/takt"), ("POST", "/schedule/takt/progress"),
     ("POST", "/estimate/assembly/price"), ("POST", "/parcels/analyze"), ("POST", "/parcels/screen"),
     ("POST", "/ids/build"), ("POST", "/ids/eir"),

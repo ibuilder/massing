@@ -18,7 +18,7 @@ from .. import audit, design_phase, soft_costs, storage
 from ..db import get_db
 from ..models import Project
 from ..proforma.solve import solve
-from ..rbac import require_role
+from ..rbac import authorize_pid, current_user, require_role
 from .authoring import _DATA_SRC, _IFC_DIR, _ifc_path, _publish_bg
 
 if str(_DATA_SRC) not in sys.path:
@@ -388,11 +388,55 @@ def _is_hard_psf_line(ln: dict) -> bool:
                 and "sf" in (ln.get("description") or "").lower())
 
 
-@router.post("/test-fit/optimize")
+def _authorize_optimize_pid(body: OptimizeIn, db: Session = Depends(get_db),
+                            user: str = Depends(current_user)) -> str:
+    """Authorise `body.pid` — a DEPENDENCY, so the route-authz guards can see it.
+
+    The policy lives in `rbac.authorize_pid`; this is only the shape that makes it visible. An
+    equivalent call in the function body works at runtime and is **invisible to
+    `test_global_authz`**, which walks the route's dependency chain for a `_role_gate` tag — so the
+    first version of this fix left the guard still reporting the route as unguarded. It was right to:
+    a reviewer reading the signature would have seen `Depends(current_user)` and nothing else, which
+    is precisely the "looks guarded, only identifies" mistake this repo has shipped twice.
+
+    **A fix the guard cannot see is a fix that will be removed by someone who trusts the guard.**
+
+    Declaring `OptimizeIn` here as well as on the endpoint is deliberate and costs nothing: FastAPI
+    parses the request body once and resolves both from the same parsed object.
+    """
+    if body.pid:
+        authorize_pid(db, user, body.pid, "viewer")
+    return user
+
+
+_authorize_optimize_pid._role_gate = "viewer"   # the tag the authz guards look for
+
+
+@router.post("/test-fit/optimize", dependencies=[Depends(_authorize_optimize_pid)])
 def test_fit_optimize(body: OptimizeIn, db: Session = Depends(get_db)):
     """Generative design — sweep unit-mix × parking presets, filter by targets, rank by yield-on-cost
     (or another objective). With `pid`, seed the econ from the project's real land price + cost budget
-    so the ranking reflects the actual deal, not a generic proxy (U6)."""
+    so the ranking reflects the actual deal, not a generic proxy (U6).
+
+    **`pid` arrives in the BODY**, so it is authorised by `_authorize_optimize_pid` above rather than
+    by `require_role` (whose dependency resolves `pid` from the path or query and structurally cannot
+    reach a body field). Without `pid` this is a pure calculator over caller-supplied numbers and
+    stays open, like its four siblings in this file. With `pid` it reads another project's
+    `purchase_price` and hard $/sf,
+    which is confidential deal data and needs the same gate a `/projects/{pid}` route would carry.
+
+    It had none. `require_role`'s inner signature is `dep(pid: str, ...)`, so FastAPI resolves that
+    `pid` from the path or query and it cannot cover a body field; `test_route_authz` only walks
+    `/projects/{pid}` routes; `/test-fit` is not in `main._PROTECTED_PREFIXES`; and the route sat in
+    `test_global_authz`'s frozen baseline labelled "stateless compute" — **the only one of the five
+    routes under that label that takes a `Session`**. Four independent mechanisms, none of which
+    could see it, and an exemption list that had absorbed it.
+
+    Seeding is also not the whole exposure: the seeded values are not echoed back, but the caller
+    controls `plate_w`, `plate_d`, `floors` and the rest of `econ`, so the ranking is invertible —
+    vary the inputs, observe the yield, solve for the seed. "Not returned verbatim" would have been
+    the comfortable reading rather than the correct one.
+    """
     from .. import test_fit as tf
     econ = dict(body.econ)
     if body.pid:
