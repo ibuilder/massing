@@ -2082,11 +2082,32 @@ removed. Remaining, in priority order:
   precisely the "tell me what to do next" surface a builder/developer/architect/engineer wants on
   opening a project, and it is reachable from exactly ONE destination inside ONE workspace (Design).
   Promote the readiness strip to every workspace dashboard, scoped per persona.
-- **UX-DUP-DESTINATIONS** *(S)* — `Model Health`, `Model Analysis` and `BIM KPIs` are three
+  `Model Health` (8 references), `Model Analysis` (5) and `BIM KPIs` (5) are three
   destinations whose names do not tell a user which answers their question; all three now sit together
   under `Analyse & check`, which makes the overlap visible and worth resolving rather than hiding it.
 - **UX-GANTT** *(M)* — weekly Gantt/calendar hybrid with inline % + crew coloring + a metric strip.
-- **UX-VIEWED** *(S)* — ShareToken page view-timestamps → Sent/Viewed/Paid chips, self-hosted.
+- ◧ **UX-VIEWED** *(S — **checked 2026-08-06: the pipeline is built end to end and the CHIP is the
+  only thing missing**)* — ShareToken page view-timestamps → Sent/Viewed/Paid chips, self-hosted.
+
+  Every layer this needs already exists. `services/api/src/aec_api/models.py` stores `view_count` and
+  `last_viewed_at` on `ShareToken`; `services/api/src/aec_api/client_portal.py` **increments both on
+  every view** and serves them from `_public_row`; `apps/web/src/api/client.ts` types them; and
+  `apps/web/src/ui/chips.ts` is the chip vocabulary itself — its opening line names *"Sent → Viewed →
+  Paid"* as the exact phrasing it exists to standardise, with 7 tests.
+
+  **What is missing is one call.** `apps/web/src/portal/panels/masterBuilder.ts` renders the share
+  row as a link plus a revoke button and inlines the count as plain text — `(3 views)`. It never
+  calls `statusChip`, and it **never uses `last_viewed_at` at all**, so the timestamp is gathered on
+  every view, stored, serialised, sent over the wire, typed in the client, and then dropped on the
+  floor.
+
+  So this is not "build a view-tracking pipeline" (S); it is *use the chip vocabulary that exists on
+  the data that is already on the wire*. The remaining work is in one file. **Nothing needed
+  building; something needed calling** — the same reach-not-capability shape as the `snapEngine`
+  resolver with zero callers.
+
+- **UX-DUP-DESTINATIONS** *(S — **checked 2026-08-06 and still genuinely OPEN**; recorded so the next
+  reader does not re-check)* — all three destinations are still present and distinct in the tree:
 - ✅ **UX-AR** *(S — **checked 2026-08-06: ALREADY BUILT, and built better than this asked**)* —
   Sent→Approved→Paid manual status pipeline on invoices/bills (no payment rails).
   `services/api/modules/owner_invoice/module.json` and
