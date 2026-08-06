@@ -72,7 +72,8 @@ PER_FILE = {
     #: Pinned BEFORE the split rather than after, so the number the extraction has to beat is the
     #: unimproved one. Pinning afterwards would freeze the improved figure and lose the evidence that
     #: it moved — the history in the line above (3,967 → 3,871 → 3,796) is the thing worth having.
-    "apps/web/src/viewer/app.ts": 5_160,
+    #: R39-DECOMP-VIEWER ① took the Exports section out (51 lines) -> 5,114. Ratcheted, not reset.
+    "apps/web/src/viewer/app.ts": 5_114,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.

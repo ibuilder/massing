@@ -48,6 +48,7 @@ import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
 import { PlanPane } from "./planPane";
 import { type PlanBounds, validatePlacement } from "./placeValid";
 import { planBoundsFromModels } from "./modelBounds";
+import { buildExportsSection } from "./tools/exportsSection";
 import { GuideUnderlay, openUnderlayPanel } from "./guideUnderlay";
 import { type SpatialElement, type SpatialScope, nextScope, scopeSelection } from "./spatialSelect";
 import { DraftPointHistory } from "./draftHistory";
@@ -62,7 +63,6 @@ import { type ApiClient, type DisciplineTree, type ElementProps, type PropLayer,
 import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
 import { showResult, kvTable, resultNote } from "../ui/result";
 import { openNodeCanvas } from "./nodeCanvas";
-import { openTakeoff2d } from "./takeoff2d";
 
 /** View options the settings bar owns (in main) and the viewer applies. */
 export type Settings = {
@@ -3540,57 +3540,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
     // --- persona-ordered tool sections ---------------------------------------
     const builders: Record<string, () => void> = {
-      exports: () => {
-        const b = section("exports", "Document · Exports & issue", { requires: "sourceIfc", tool: true });
-        if (!b) return;
-        for (const [label, file] of [["Quantity takeoff (QTO/5D)", "qto"], ["COBie", "cobie"], ["Space schedule", "spaces"], ["4D schedule", "schedule"]] as const)
-          b.appendChild(toolBtn2(`↓ ${label}`, () => window.open(api.url(`/projects/${projectId}/exports/${file}.xlsx`), "_blank")));
-        // gbXML — spaces + envelope areas for OpenStudio / EnergyPlus / IES energy modelling
-        const gbx = toolBtn2("↓ gbXML (energy model)", () => window.open(api.url(`/projects/${projectId}/exports/model.gbxml`), "_blank"));
-        gbx.title = "Green Building XML — spaces + areas/volumes from the IFC geometry, to seed an energy model (OpenStudio/EnergyPlus/IES). Simplified: building-level envelope, not per-space surfaces.";
-        b.appendChild(gbx);
-        // discipline quantities — reinforcement tonnage, MEP linear runs, structural volume (Koh rebar viz / WithRebar)
-        b.appendChild(toolBtn2("🔩 Discipline quantities", async () => {
-          if (!projectId) { notify("connect a project first", "error"); return; }
-          try {
-            const q = await api.disciplineQuantities(projectId);
-            showResult("Discipline quantities", (body) => {
-              body.appendChild(kvTable([
-                { k: `Reinforcement${q.rebar.estimated ? " (est. from volume)" : ""}`, v: `${q.rebar.tonnes} t · ${q.rebar.count} bars` },
-                { k: "Ductwork", v: `${q.mep.duct_m} m · ${q.mep.counts.duct} seg` },
-                { k: "Piping", v: `${q.mep.pipe_m} m · ${q.mep.counts.pipe} seg` },
-                { k: "Cable / carrier", v: `${q.mep.cable_m} m · ${q.mep.counts.cable} seg` },
-                { k: "MEP fittings", v: String(q.mep.counts.fittings) },
-                { k: "Structural element volume", v: `${q.structure.element_volume_m3} m³` },
-              ]));
-            });
-          } catch (e) { notify(`quantities failed: ${(e as Error).message}`, "error"); }
-        }));
-        // full turnover deliverable: as-built IFC + COBie/QTO/spaces + status PDF + closeout records
-        const pkg = toolBtn2("📦 Closeout package (.zip)", () => window.open(api.url(`/projects/${projectId}/closeout/package.zip`), "_blank"));
-        pkg.title = "Everything for handover in one ZIP: as-built model, data workbooks, status report, closeout records";
-        b.appendChild(pkg);
-        // geometry / model interchange exports (EXPORT)
-        const ifcOut = toolBtn2("⬇ Export IFC (source of truth)", () => window.open(api.modelIfcUrl(projectId!), "_blank"));
-        ifcOut.title = "First-class IFC re-export — the current authored source IFC, GUID-stable, round-trips through any openBIM tool";
-        b.appendChild(ifcOut);
-        const glb = toolBtn2("⬇ Export 3D (.glb)", () => window.open(api.modelGlbUrl(projectId!), "_blank"));
-        glb.title = "Binary glTF — the compact single-file 3D form Blender / three.js / game engines import directly";
-        b.appendChild(glb);
-        const gltf = toolBtn2("⬇ Export 3D (.gltf)", () => window.open(api.modelGltfUrl(projectId!), "_blank"));
-        gltf.title = "Self-contained glTF 2.0 JSON (interchange)";
-        b.appendChild(gltf);
-        // TAKEOFF-2D — quantify from an uploaded drawing (no model needed), feeds the 5D estimate
-        const to2d = toolBtn2("📐 2D takeoff (from a drawing)", () => {
-          if (!projectId) { notify("connect a project first", "error"); return; }
-          openTakeoff2d({
-            quantify: (regions, sc, unit) => api.takeoff2d(projectId!, regions, sc, unit),
-            notify,
-          });
-        });
-        to2d.title = "Upload a PDF-page image / scan, calibrate the scale, trace or flood-fill regions → priced quantities into the 5D estimate";
-        b.appendChild(to2d);
-      },
+      // R39-DECOMP-VIEWER ① — moved verbatim to `tools/exportsSection.ts`. `section` and
+      // `toolBtn2` are handed over as FUNCTIONS: both close over the panel, the persona
+      // ordering and `hasIfc`, so passing them whole is what keeps this a signature rather
+      // than a re-plumbing. `projectId` is `const` here, so a value is safe.
+      exports: () => buildExportsSection({ section, toolBtn2, api, projectId, notify }),
       qa: () => {
         const b = section("qa", "Analyze & Coordinate · clash / QA", { requires: "sourceIfc", tool: true });
         if (!b) return;
