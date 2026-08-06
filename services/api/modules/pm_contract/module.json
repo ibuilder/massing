@@ -1,0 +1,231 @@
+{
+  "key": "pm_contract",
+  "name": "PM Contracts",
+  "section": "Maintenance",
+  "icon": "📋",
+  "ref_prefix": "PMC",
+  "title_field": "subject",
+  "pinnable": false,
+  "fields": [
+    {
+      "name": "subject",
+      "label": "Contract",
+      "type": "text",
+      "required": true,
+      "fieldset": "Agreement"
+    },
+    {
+      "name": "vendor",
+      "label": "Service Provider",
+      "type": "reference",
+      "module": "company",
+      "required": true,
+      "fieldset": "Agreement"
+    },
+    {
+      "name": "scope",
+      "label": "Scope of Service",
+      "type": "textarea",
+      "fieldset": "Agreement",
+      "placeholder": "What the provider is obliged to do, and what is expressly excluded."
+    },
+    {
+      "name": "coverage",
+      "label": "Coverage",
+      "type": "select",
+      "options": [
+        "Labour only",
+        "Parts and labour",
+        "Full service (incl. replacement)",
+        "Inspection only"
+      ],
+      "fieldset": "Agreement"
+    },
+    {
+      "name": "asset",
+      "label": "Covered Asset",
+      "type": "reference",
+      "module": "asset_register",
+      "fieldset": "Coverage"
+    },
+    {
+      "name": "pm_schedule",
+      "label": "PM Schedule",
+      "type": "reference",
+      "module": "pm_schedule",
+      "fieldset": "Coverage"
+    },
+    {
+      "name": "warranty",
+      "label": "Superseded Warranty",
+      "type": "reference",
+      "module": "warranty",
+      "fieldset": "Coverage"
+    },
+    {
+      "name": "starts_after_warranty",
+      "label": "Starts at warranty expiry",
+      "type": "checkbox",
+      "fieldset": "Coverage"
+    },
+    {
+      "name": "response_hours",
+      "label": "Emergency Response",
+      "type": "number",
+      "unit": "hr",
+      "min": 0,
+      "fieldset": "Coverage"
+    },
+    {
+      "name": "term_start",
+      "label": "Term Start",
+      "type": "date",
+      "required": true,
+      "fieldset": "Term"
+    },
+    {
+      "name": "term_end",
+      "label": "Term End",
+      "type": "date",
+      "required": true,
+      "fieldset": "Term"
+    },
+    {
+      "name": "auto_renew",
+      "label": "Auto-renews",
+      "type": "checkbox",
+      "fieldset": "Term"
+    },
+    {
+      "name": "notice_days",
+      "label": "Non-renewal Notice",
+      "type": "number",
+      "unit": "days",
+      "min": 0,
+      "fieldset": "Term",
+      "placeholder": "Days before term end that notice must be served."
+    },
+    {
+      "name": "billing_frequency",
+      "label": "Billing Frequency",
+      "type": "select",
+      "options": [
+        "Monthly",
+        "Quarterly",
+        "Semi-annual",
+        "Annual",
+        "Per visit"
+      ],
+      "required": true,
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "billing_amount",
+      "label": "Amount per Period",
+      "type": "currency",
+      "min": 0,
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "annual_value",
+      "label": "Annual Value",
+      "type": "currency",
+      "min": 0,
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "escalation_pct",
+      "label": "Annual Escalation",
+      "type": "percent",
+      "min": 0,
+      "fieldset": "Commercial"
+    },
+    {
+      "name": "po_number",
+      "label": "PO / Cost Code",
+      "type": "text",
+      "fieldset": "Commercial"
+    }
+  ],
+  "workflow": {
+    "initial": "draft",
+    "states": [
+      "draft",
+      "active",
+      "expiring",
+      "renewed",
+      "expired",
+      "terminated"
+    ],
+    "transitions": [
+      {
+        "from": "draft",
+        "to": "active",
+        "action": "execute",
+        "party": [
+          "Owner",
+          "PM"
+        ]
+      },
+      {
+        "from": "active",
+        "to": "expiring",
+        "action": "flag renewal",
+        "party": [
+          "Owner",
+          "PM",
+          "GC"
+        ]
+      },
+      {
+        "from": "expiring",
+        "to": "renewed",
+        "action": "renew",
+        "party": [
+          "Owner",
+          "PM"
+        ]
+      },
+      {
+        "from": "renewed",
+        "to": "active",
+        "action": "start new term",
+        "party": [
+          "Owner",
+          "PM"
+        ]
+      },
+      {
+        "from": "expiring",
+        "to": "expired",
+        "action": "let lapse",
+        "party": [
+          "Owner",
+          "PM"
+        ]
+      },
+      {
+        "from": "active",
+        "to": "terminated",
+        "action": "terminate",
+        "party": [
+          "Owner"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "vendor",
+    "term_end",
+    "billing_frequency",
+    "annual_value",
+    "asset"
+  ],
+  "workspace": "construction",
+  "tools": [
+    {
+      "dest": "__operations__",
+      "label": "Review PM contract renewals"
+    }
+  ]
+}

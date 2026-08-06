@@ -222,7 +222,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ *(ALREADY BUILT — checked 2026-08-06)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
-| **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
+| **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS *(SHIPPED 2026-08-06 — `pm_contract`; pending archive)* — lane now empty |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑧ |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* |
 
@@ -615,9 +615,49 @@ stakes we are missing.
   is a funnel, not a project.
 - ◧ **R22-ROUTINES** *(S — `routines.py` + migration shipped)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
   scan) rather than on-demand only. Turns AI from a tool you remember to use into infrastructure.
-- **R22-PM-CONTRACTS** *(M)* — **preventative-maintenance contracts from turnover data.** The COBie
-  asset register, warranties and service intervals become billable recurring PM contracts. Extends
-  past turnover without breaking the mission; nobody in the scanned set does it from model data.
+- ✅ **R22-PM-CONTRACTS** *(M — Lane H, SHIPPED 2026-08-06)* — **preventative-maintenance contracts
+  from turnover data.** The COBie asset register, warranties and service intervals become billable
+  recurring PM contracts. Extends past turnover without breaking the mission.
+
+  **Premise-checked first, and the entry was half wrong — in the direction that wastes work rather
+  than causing a defect.** Read as written, this item sounds like PM capability is missing. It is
+  not: `pm_schedule`, `warranty`, `asset_register`, `work_order`, `equipment_log` and `cmms.py` were
+  all already here, and `pm_schedule` even carries `frequency_days`/`next_due` and a
+  "Generate PM work orders" tool. What did **not** exist is the item's actual noun — a *billable
+  recurring service agreement*. The four contract-shaped registers are all **construction** contracts
+  (`prime_contract`, `subcontract`, `owner_invoice`, `sub_invoice`); not one models a term, a billing
+  frequency, an escalation, a renewal notice or a response SLA. So the gap was real and much narrower
+  than an M implies: one register, not a subsystem. *Recorded rather than deleted, because "checked,
+  and here is what was actually missing" is what stops the next agent re-running the check.*
+
+  **Shipped:** `services/api/modules/pm_contract/module.json` — 18 fields in four contiguous
+  fieldsets (Agreement / Coverage / Term / Commercial), referencing `company`, `asset_register`,
+  `pm_schedule` and `warranty`, with a six-state workflow carrying the renewal path
+  (`draft → active → expiring → renewed → active`, plus lapse and terminate). `PMC` prefix verified
+  free against all 135 pre-existing registers. Alembic revision `a7e3b9c04d15` chained to head,
+  **including the Postgres FTS GIN tail** — the part that reads as boilerplate and is the reason a
+  post-baseline module silently loses full-text search on Postgres while passing every SQLite test.
+
+  **A gate caught me writing a commercial term nobody agreed to.** The first draft defaulted
+  `billing_frequency` to "Quarterly" and `coverage` to "Labour only" — helpful-looking, and exactly
+  what `test_field_attrs.py` forbids: it caps defaults across every register at eight and requires
+  each to be a fact about the **record** (a daily report is filed today), never a **policy**. On a
+  contract register that rule is at its sharpest: a defaulted billing frequency is a *term*, and it
+  would have been recorded as though someone had chosen it, invisibly, because a default looks
+  deliberate. Both removed. Worth noting that this is a **ceiling, not a floor** — the only such
+  assertion in the module gates, because here the risk runs toward adding rather than omitting.
+
+  **The `starts_after_warranty` flag is the join the item was actually asking for.** A PM contract
+  that begins while the equipment warranty still runs is money paid twice for the same obligation;
+  the field, plus the `warranty` reference, is what lets turnover data drive the contract start date
+  rather than a guess.
+
+  **Reachability measured over HTTP, not inferred:** `GET /modules` returns **136 (was 135)** with
+  `pm_contract` present and a key-shape identical to `pm_schedule`, including the derived `room`.
+  Worth recording how the first probe lied: it reported `/modules` → 200 with **0 modules**, which
+  reads as an empty registry and was the instrument — `TestClient(app)` outside a `with` block never
+  runs startup, so the registry never loaded. The route had been answering 200 the whole time.
+  (`/modules/{key}` 404s for `pm_schedule` too; that route shape does not exist.)
 - **R22-PUBLIC-VIEWER** — *(sized **M**, not S; see the Band 2 entry, which is the live one.)* This
   line is the original scan's one-sentence estimate. It called the item S because it counted the
   viewer, which exists; the Band 2 entry counted the **scoped revocable token and a route that
