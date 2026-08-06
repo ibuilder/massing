@@ -145,6 +145,32 @@ if worst_n > TARGET:
         f"        Lower CEILING here as each extraction lands — that is what makes it a ratchet."
     )
 
+# --- the public demo snapshot: a BYTE ceiling, because lines are meaningless for captured JSON ----
+# `demoData.json` was listed in EXEMPT_SUBSTRINGS above, which read as "deliberately unbounded" and
+# was in fact decorative: `tracked_source()` globs *.py *.ts *.tsx *.js, so a .json file was never in
+# the population the exemption excludes it from. NOTHING bounded this file's bytes.
+#
+# It matters because this is a SHIPPED PUBLIC SURFACE — every visitor to the Pages demo downloads it
+# on a first impression, much of it on mobile. Widening the register fill loop in build_demo_data.py
+# doubles the payload with no signal that anything changed.
+#
+# A ratchet, in the same spirit as CEILING and PER_FILE above — but deliberately a SEPARATE
+# concept, not an entry in PER_FILE: those are LINE counts for hand-written source, this is
+# BYTES for a captured artifact. Lines are meaningless for generated JSON. This number comes DOWN
+# as the snapshot gets leaner
+# and must never be raised to accommodate a bigger capture. If a change needs more bytes, the
+# question to answer first is what a reader learns from them.
+DEMO_SNAPSHOT = os.path.join(ROOT, "apps", "web", "src", "demo", "demoData.json")
+DEMO_MAX_BYTES = 1_500_000
+if os.path.exists(DEMO_SNAPSHOT):
+    _demo_n = os.path.getsize(DEMO_SNAPSHOT)
+    check(f"public demo snapshot is within {DEMO_MAX_BYTES:,} bytes",
+          _demo_n <= DEMO_MAX_BYTES,
+          f"{_demo_n:,} bytes — regenerate with a smaller `count=` in build_demo_data.py's register "
+          f"fill loop rather than raising this ceiling")
+    print(f"  demo snapshot: {_demo_n:,} bytes of {DEMO_MAX_BYTES:,} "
+          f"({100 * _demo_n // DEMO_MAX_BYTES}% of ceiling)")
+
 print()
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
