@@ -12,6 +12,20 @@ on:
     paths:
       - "apps/web/**"
       - "docs/**"
+      # ...but NOT the internal planning docs. `docs/` doubles as the Pages web root, so the filter
+      # above is right about *location* and wrong about *audience*: the roadmap is a planning file
+      # that happens to live in the published tree, and every lane touches it on nearly every merge.
+      # On 2026-08-06 that fired 20+ full public rebuilds in two hours and the deployments queued
+      # behind each other until `actions/deploy-pages` hit its 10-minute wait and failed — main was
+      # red from 13:07 for a reason that had nothing to do with the site's content.
+      #
+      # These files stay published (they are still copied by "Assemble site"); they just no longer
+      # *trigger* a deploy on their own. At this merge rate the published copy is refreshed by the
+      # next real change within hours, which is the right trade for a doc nothing links to.
+      - "!docs/roadmap.md"
+      - "!docs/roadmap-directions.md"
+      - "!docs/roadmap-completed.md"
+      - "!docs/internal/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -20,10 +34,21 @@ permissions:
   pages: write
   id-token: write
 
-# allow only one in-flight Pages deploy; don't cancel a running one mid-publish
+# Allow only one in-flight Pages deploy, and let a newer push supersede an older one.
+#
+# `cancel-in-progress: false` is GitHub's starter-workflow default, written for a repo that merges a
+# few times a day: it protects a running publish from being interrupted. At this repo's cadence
+# (several lanes merging to main continuously) it inverts — each run holds the single Pages
+# deployment slot while the next one polls `deployment_queued` until it times out, so a burst of
+# merges produces a queue of ten-minute failures rather than one deploy.
+#
+# Cancelling is safe HERE specifically because every run publishes the whole site from scratch
+# rather than patching the live one: a cancelled deploy leaves the previous version served intact,
+# and the run that superseded it publishes newer content. The failure mode this guards against
+# (a half-written site) is not reachable with a full-artefact publish.
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -60,22 +85,34 @@ jobs:
         env:
           # A SEPARATE budget, because this is a different artefact — not a relaxation of the other.
           #
-          # Measured 2026-08-06, same commit, both builds, Brotli:
+          # The static demo has no API to fetch from, so `VITE_PAGES=1` inlines the demo corpus
+          # (`apps/web/src/demo/demoData.json`, statically imported by `demoApi.ts`) into the ENTRY
+          # chunk. That is the demo working as designed, not a regression, so holding it to the
+          # default build's 220 would fail honestly-different content and teach everyone to ignore
+          # the step. Measured in CI 2026-08-06 at de980159, Brotli:
           #
-          #     default (ci.yml)   index 89.9 KB + app 85.8 + css 9.3  =  185.0 KB   (budget 220)
-          #     pages   (here)     index 189.4   + app 85.8 + css 9.3  =  284.5 KB
+          #     default (ci.yml)   index  90.2 KB + app 87.8 + css 9.3  =  187.3 KB   (budget 220)
+          #     pages   (here)     index 208.0    + app 87.8 + css 9.3  =  305.1 KB
           #
-          # `app-*` and the CSS are byte-identical; the whole 99.5 KB sits in the ENTRY chunk, which
-          # is 1.38 MB raw here against 396 KB by default. The static demo has no API to fetch from,
-          # so `VITE_PAGES=1` inlines the demo corpus and the module registry — grepping the entry
-          # chunk finds "PM Schedules" 11x and "IfcWall" 8x, both absent from the default build.
-          # That is the demo working as designed, not a regression, so holding it to 220 would fail
-          # honestly-different content and teach everyone to ignore the step.
+          # 320 is DERIVED, not observed, and that is the point. `services/api/test_file_sizes.py`
+          # already ratchets the same artefact from the other end: `DEMO_MAX_BYTES = 1_500_000`, and
+          # demoData.json is at 1,400,488 — 93.4% of a ceiling it is explicitly allowed to reach.
+          # Growing into that permitted headroom adds ~6 KB Brotli here, so any budget below ~311
+          # makes the two gates CONTRADICT each other: a demo-corpus change that passes its own
+          # size gate would be guaranteed to fail this one. Two ratchets over one artefact have to
+          # be consistent or the pair is unsatisfiable. 320 covers demoData reaching DEMO_MAX_BYTES
+          # with ~3% left for the shell itself; **lower it here whenever DEMO_MAX_BYTES comes down.**
           #
-          # 300 is a RATCHET on today's real number (284.5), not a comfortable ceiling: ~5% headroom
-          # against the default build's ~19%. It only ever moves down. **Every register added to the
-          # registry grows this**, so it is the number to re-read when the demo corpus changes.
-          BUNDLE_BUDGET_KB: "300"
+          # This number replaces a WRONG one, and the way it was wrong is the reusable part. The
+          # previous note claimed "300 is a RATCHET on today's real number (284.5)". 284.5 was real,
+          # but it was measured in a working tree sitting many releases behind the commit it was
+          # attributed to — a tree whose demoData.json was 1,097,315 bytes against 1,400,488 on
+          # main. The 303 KB of raw JSON in between is the entire 18.7 KB gap. The true shell at
+          # that commit was already ~305, so the budget was set BELOW the artefact it was gating and
+          # failed on its first real run. A local build is not a measurement of a commit unless the
+          # tree is at that commit; under the temp-index release pattern the working tree is
+          # routinely stale, so measure in CI or verify the tree first.
+          BUNDLE_BUDGET_KB: "320"
 
       # assemble the Pages site: landing page at the root, viewer demo under /app/
       #
