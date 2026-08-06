@@ -108,6 +108,15 @@ describe("the build's WASM package resolution", () => {
     // `src/no-import-cycles.test.ts` as unshipped — a false positive produced by using two
     // different glob dialects for the two halves of one comparison. One reader defines the
     // pattern; the other only supplies its side of the set.
+    // **Ask git what it IGNORES, not what it has not yet been told about.** The first version
+    // compared on-disk files against `git ls-files` and flagged anything untracked — which fires on
+    // every legitimately-new test file between writing it and staging it. That is friction with no
+    // signal: an untracked-but-not-ignored file gets committed by the next `git add` and reaches CI
+    // fine. The defect this guards is narrower and permanent — a test under a path `.gitignore`
+    // excludes (`build/`, `dist/`, `tmp/`) can never reach the archive without `-f`, so it passes
+    // locally forever and does not exist on the runner. Caught by this test failing on the author's
+    // own unstaged file minutes after it merged: **a guard whose normal state is red teaches people
+    // to ignore it**, which would have cost more than the bug it catches.
     const { execFileSync } = await import("node:child_process");
     const tracked = new Set(
       execFileSync("git", ["ls-files", "src/"], { cwd: process.cwd(), encoding: "utf8" })
@@ -115,13 +124,25 @@ describe("the build's WASM package resolution", () => {
     );
     expect(tracked.size, "git ls-files returned nothing — this check would pass vacuously").toBeGreaterThan(50);
 
+    const ignored = new Set(
+      execFileSync("git", ["ls-files", "--others", "--ignored", "--exclude-standard", "--", "src/"],
+        { cwd: process.cwd(), encoding: "utf8" })
+        .split("\n").map((s) => s.trim()).filter((p) => p.endsWith(".test.ts")),
+    );
+
     const { globSync } = await import("node:fs");
     const onDisk = globSync("src/**/*.test.ts", { cwd: process.cwd() })
       .map((p: string) => p.split("\\").join("/"))
       .filter((p) => !p.includes("/vendor/"));   // vendored suites are excluded from the run itself
 
-    const untracked = onDisk.filter((p) => !tracked.has(p));
-    expect(untracked, `test files vitest runs but git does not ship: ${untracked.join(", ")}`).toEqual([]);
+    // Ignored, not merely untracked: these can never reach the archive, so vitest runs them and CI
+    // never will. `ignored` is git's own answer, so a future .gitignore rule is covered without this
+    // test knowing which directories are excluded.
+    const unshippable = onDisk.filter((p) => ignored.has(p));
+    expect(
+      unshippable,
+      `test files vitest runs that git can never ship (they are .gitignore'd): ${unshippable.join(", ")}`,
+    ).toEqual([]);
   });
 
   it("keeps copy-wasm.mjs wired to the shared resolver", async () => {
