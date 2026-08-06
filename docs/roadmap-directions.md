@@ -295,12 +295,24 @@ crosses sessions.
   worked each time is a test supplying **neither** side: **drive the real producer, read the real
   consumer, assert they agree.** This is the twin of the refusal rule above — ask both "which checks
   still pass if the function does nothing?" and "which still pass if the other side is wrong?"
-- **A mutation proves nothing unless it APPLIED and failed for the right reason.** Two failure modes,
-  both seen in one sitting. A mutation that does not apply leaves a passing run that reads exactly
-  like a surviving mutant — assert the edit landed, do not trust the runner's output alone. And a
-  mutation that breaks *compilation* goes red while telling you nothing about the assertion; this one
-  is the more flattering of the two. Keep mutants syntactically valid (`if (false && cond)` rather
-  than commenting a line out), and beware that MSYS collapses `//` in a shell argument.
+- **A mutation proves nothing unless it APPLIED, was NOT INERT, and failed for the right reason.**
+  Three failure modes, all seen the same day.
+  1. **It never applied.** The run passes and reads exactly like a surviving mutant. Assert the edit
+     landed; do not trust the runner's output alone.
+  2. **It applied and was inert** — the mutated code does not do the job you are testing. One lane
+     mutated a function that *labels* clash groups rather than *forming* them: clean pass, and it
+     reads as "this gate is prose". The only tell was that the measured numbers came back
+     byte-identical. **Mutate the thing that does the work, and check that the output moved.**
+  3. **It broke compilation.** Goes red while telling you nothing about the assertion, which makes it
+     the most flattering of the three. Keep mutants syntactically valid (`if (false && cond)` rather
+     than commenting a line out), and beware that MSYS collapses `//` in a shell argument.
+
+- **Self-test the instrument: plant a known positive and confirm it is found.** A scan that reports
+  "zero problems" is indistinguishable from a scan that cannot see problems, and the second is more
+  common than it sounds. The method that caught it: **inject a real instance of what you are looking
+  for, in each language you claim to cover, and re-run.** If the count does not move, the clean bill
+  of health is worthless. That is the technique behind mutation-checking a gate, applied to a
+  one-off search — and a one-off search is exactly where nobody thinks to do it.
 
 ### Moving code without changing behaviour
 
@@ -332,7 +344,20 @@ crosses sessions.
   inside that function**, so there is nowhere else to look. That is categorically stronger than "I
   grepped every file carefully", which is the N−1-correct shape that fails on the Nth site.
 
-  When you must grep, **word-bound the pattern**. An unbounded search for `discTree` matched
+  When you must grep, **match the boundary to the GRANULARITY of what you are looking for — and note
+  that the two cases want opposite answers.** Written here as a flat "word-bound every pattern" on
+  2026-08-06 and corrected the same day, because that advice is right for one case and silently
+  disastrous for the other:
+
+  * **Searching for an identifier** (does anything reference `discTree`?) → **word-bound it.** The
+    name is the whole token, and an unbounded match invents dependencies (see below).
+  * **Searching for a name FRAGMENT** (does any composite key get built by concatenation? → look for
+    `key`, `cache`, `id`) → **word-bounding cannot match `cacheKey` or `cache_key`**, which are the
+    likeliest real names. The filter excludes its own subject and issues a **confident clean bill of
+    health**. That is what happened: 18 hits, zero findings, and the scan was worthless until it was
+    self-tested with planted collisions.
+
+  An unbounded search for `discTree` matched
   `private _discTree` in an unrelated file and read as "this variable escapes into the API client" —
   a dependency that does not exist, which would have been threaded through the seam to fix a
   non-problem. Same family as a search for `EIR` matching the word "their".
