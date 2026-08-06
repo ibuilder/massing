@@ -152,7 +152,10 @@ if worst_n > TARGET:
 # on a first impression, much of it on mobile. Widening the register fill loop in build_demo_data.py
 # doubles the payload with no signal that anything changed.
 #
-# A ratchet, in the same spirit as CEILING above: this number comes DOWN as the snapshot gets leaner
+# A ratchet, in the same spirit as CEILING and PER_FILE above — but deliberately a SEPARATE
+# concept, not an entry in PER_FILE: those are LINE counts for hand-written source, this is
+# BYTES for a captured artifact. Lines are meaningless for generated JSON. This number comes DOWN
+# as the snapshot gets leaner
 # and must never be raised to accommodate a bigger capture. If a change needs more bytes, the
 # question to answer first is what a reader learns from them.
 DEMO_SNAPSHOT = os.path.join(ROOT, "apps", "web", "src", "demo", "demoData.json")
