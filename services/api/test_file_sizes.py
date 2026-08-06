@@ -60,7 +60,7 @@ CEILING = 5_200
 #: post-⑦ the answer is usually yes. Raising an entry is therefore a deliberate act that should be
 #: argued for in the commit message — the direction of travel is down.
 PER_FILE = {
-    "apps/web/src/api/client.ts": 3_871,   # SCALE-SEAM ⑦ (/auth out); was 3,967 before
+    "apps/web/src/api/client.ts": 3_796,   # SCALE-SEAM ⑧ (/proforma out); ⑦ 3,871; before ⑦ 3,967
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.

@@ -86,7 +86,12 @@ describe("the API client's public surface", () => {
     // plainly: **an extraction is the occasion to re-read this number, never the cause of it moving.**
     // Anyone raising this line because their own change grew the surface should say so here; anyone
     // raising it to make a red test go green has inverted the gate.
-    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(699);
+    // 2026-08-06 (SCALE-SEAM ⑧): raised 699 -> 702, and the +3 is NEW SURFACE, not a moved one.
+    // The /proforma extraction moved 15 methods and this reader counted **699 both before and after
+    // the move** — that is the evidence nothing was dropped. The three added methods
+    // (proformaRenovation / proformaRollover / proformaIncomeBasis) are client callers for endpoints
+    // that had none, which is why the floor legitimately rises.
+    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(702);
   });
 
   it("keeps the transport primitives the domain methods are built on", () => {
@@ -104,6 +109,8 @@ describe("the API client's public surface", () => {
       "modules", "moduleRecords", "createModuleRecord", "updateModuleRecord",  // CRUD — used everywhere
       "topicsBoard", "createTopic", "viewpoints",                   // BCF coordination
       "elementEffectiveProps", "elementCosts", "costSummary",       // model + 5D
+      "solveProforma", "proformaLive", "portfolioCompare",           // ⑧ moved — spread over 4 regions
+      "proformaRenovation", "proformaRollover", "proformaIncomeBasis",  // ⑧ new — were unreachable
       "schedule4d", "scheduleCpm", "evm",                           // 4D + earned value
       "estimateFromModel", "qtoByFloor", "sovFromBudget",           // estimating
       "drawingMarkup", "promoteDrawingMarkup",                      // 2D markup -> RFI
