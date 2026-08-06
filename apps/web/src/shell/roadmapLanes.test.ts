@@ -35,8 +35,44 @@ const LINES = ROADMAP.split("\n");
 const GATED_AT = LINES.findIndex((l) => l.startsWith("## ⛔ Gated"));
 const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
 
-/** A roadmap item bullet: `- **CODE** …`, `* ⭐ **CODE ② — …**`, with or without a status glyph. */
-const ITEM = /^\s*[-*] (?:✅ |◧ |🟡 |⭐ )?\*\*([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,}?)(?:\s*([①②③④⑤⑥]))?(?:\s|\*\*|—)/;
+/**
+ * A roadmap item bullet: `- **CODE** …`, `* ⭐ **CODE ② — …**`, with or without a status glyph.
+ *
+ * **The increment marker runs ①–⑨, and it stopped at ⑥ until 2026-08-06** — the day SCALE-SEAM
+ * shipped its seventh. `⑦` was not in the class, and the interesting part is what that did rather
+ * than that it happened: the marker group is optional, so `**SCALE-SEAM ⑦ — …**` did not fail to
+ * match. It matched and returned the code as plain `SCALE-SEAM`, **silently dropping the increment
+ * number**. The item then disagreed with the lane table cell (which said `SCALE-SEAM ⑦`) and the
+ * assignment check failed — loudly, but for a reason two steps from the cause.
+ *
+ * That is the docstring's own warning arriving: "if a new item is written in a style this regex does
+ * not match, it is not in the population and the failure mode is a silent omission". Here the style
+ * was not new — only the *number* was — which is worse, because nothing about writing the eighth
+ * increment of an existing item looks like inventing a new notation. Had the table been updated to
+ * plain `SCALE-SEAM` to make the red go away, the two lists would have agreed at the cost of the
+ * roadmap no longer recording which increment was open: green, and wrong.
+ *
+ * ⑨ is not a considered limit either, just a further-off one. **A vocabulary this check defines is
+ * part of its population, so widening it is a real change and not housekeeping.**
+ */
+const MARKS = "①②③④⑤⑥⑦⑧⑨";
+
+/**
+ * One source for the marker vocabulary, because there were **two** and they had already drifted.
+ *
+ * Widening the item regex to ⑦ was not enough: `laneRows()` matched the increment on a table cell
+ * with its own separately-written `[①②③④⑤⑥]`, so the bullet parsed as `SCALE-SEAM ⑦` while the cell
+ * parsed as `SCALE-SEAM` — and the item reported as *unassigned* despite being sitting right there
+ * in the table. Two readers, one structure, opposite halves of the same comparison.
+ *
+ * This file already carries that lesson at `LANE_ROW_LINES` ("**Two readers of one structure WILL
+ * drift; the second one is the bug**"), written after a narrower row matcher let an unbolded row
+ * escape. It was true again, in the same file, about a different structure — which is the argument
+ * for making the vocabulary a value rather than restating it correctly in two places.
+ */
+const ITEM = new RegExp(
+  String.raw`^\s*[-*] (?:✅ |◧ |🟡 |⭐ )?\*\*([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,}?)(?:\s*([${MARKS}]))?(?:\s|\*\*|—)`,
+);
 
 function itemCodes(lines: string[]): Set<string> {
   const out = new Set<string>();
@@ -91,7 +127,7 @@ function laneRows(): Lane[] {
     const excludes = all.filter((p) => p.startsWith("!")).map((p) => p.slice(1));
     const items = itemCell.split("·").map((s) => s.trim())
       // Only take things shaped like a code; prose cells ("no standalone items…") contribute none.
-      .map((s) => /^([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]+(?: [①②③④⑤⑥])?)/.exec(s)?.[1])
+      .map((s) => new RegExp(String.raw`^([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]+(?: [${MARKS}])?)`).exec(s)?.[1])
       .filter((s): s is string => Boolean(s));
     rows.push({ name, paths, excludes, items });
   }
