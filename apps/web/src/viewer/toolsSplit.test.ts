@@ -31,7 +31,24 @@ import { describe, expect, it } from "vitest";
 // Resolved from the workspace root (`apps/web`, which is `process.cwd()` under the workspace test
 // command) rather than from `import.meta.url` — happy-dom gives that no `file:` scheme.
 const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
-const APP = () => read("src/viewer/app.ts");
+/**
+ * R39-DECOMP-VIEWER: the section builders no longer all live in `app.ts`.
+ *
+ * This gate reads SOURCE, which makes it one of the few real parity checks `app.ts` has — and when
+ * the `qa` builder moved to `tools/qaSection.ts` it went red immediately, correctly: measured from
+ * app.ts alone, 42 controls had vanished. **The property it asserts did not change; the file list
+ * did.** Extracted sections are listed here so the inventory is still checked in both directions.
+ *
+ * A future extraction that forgets to add its file fails loudly rather than silently shrinking the
+ * population this reads — which is this file's own failure mode, one level up. That is asserted:
+ * dropping an entry from this list turns the checks below red.
+ */
+const SECTION_SOURCES = [
+  "src/viewer/app.ts",
+  "src/viewer/tools/qaSection.ts",
+  "src/viewer/tools/exportsSection.ts",
+];
+const APP = () => SECTION_SOURCES.map(read).join("\n");
 
 /** The source text of one `section("<key>", …)` builder, up to the next section. */
 function sectionBody(key: string): string {
