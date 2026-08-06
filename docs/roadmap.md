@@ -1574,12 +1574,32 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   **(b) pick-based move, rotate and scale** from two point pairs.
   **Check first whether the AABB-versus-OBB gap already affects our section box, zoom-to-model and any
   bounding-box UI** — if it does, that is a defect rather than a feature.
-- **R41-CLASH-TRIAGE** *(M — Lane C)* — **a reduction stage between detection and workflow.** A
+- ✅ **R41-CLASH-TRIAGE** *(M — Lane C; premise-checked 2026-08-06, the stage already existed)* — **a reduction stage between detection and workflow.** A
   competitor's headline is not detection quality but **22,843 raw clashes reduced to 103 groups**:
   group by geometric and semantic similarity, drop duplicates, filter grazing false positives, then
   rank survivors by construction consequence. We have detection including soft and sequence clash, and
   BCF round-trip. **Detection without reduction produces a number nobody reads**, and the same shape
   applies to every engine that emits many findings — code compliance, scope gap, QTO variance.
+
+  **All four asks were already built**, which is the finding. `clash_intel.analyze` groups by greedy
+  set-cover on the dominant element (a duct crossing 12 joists is ONE issue), scores by discipline
+  pair x penetration volume x group size, and `aec_data.clash.detect` takes `min_volume=1e-3` plus a
+  `tolerance` that shrinks the boxes so merely-touching elements never register — that is grouping,
+  de-duplication, grazing-filter and consequence ranking. It also carries a stable `group_hash` across
+  re-runs, which this entry never asked for.
+  **What was NOT verified is the only number the entry is about.** `test_clash_intel.py` asserted
+  `reduction == 2.0` on a **four-clash** fixture, and four rows cannot demonstrate an order of
+  magnitude — greedy set-cover is precisely the algorithm whose ratio is a function of topology, fine
+  on a toy and ~1:1 on a federation where every pair is distinct. `services/api/test_clash_reduction_scale.py`
+  measures it on realistic shapes: **5,760 raw → 320 groups (18:1)**, sparse 2:1 versus dense 30:1, so
+  the ratio provably tracks density rather than sitting at a constant. It also closes the two ways a
+  grouper can cheat — reducing by *losing* clashes (membership is summed, not just groups counted) and
+  merging problems a coordinator would have to split again (60 unrelated clashes must stay 60 issues).
+  Mutation-checked by keying the group on both elements: 4 named FAILs, ratio collapses to 1.0:1.
+  *The first mutation attempt was applied and changed nothing* — it hit `_group_hash`, which labels
+  groups rather than forming them, and reported a clean pass. **An applied mutation that alters no
+  behaviour reads exactly like a gate that cannot fail**; the measured numbers coming back identical
+  is what caught it.
 - **R41-COMMERCIAL-DRIFT** *(M — Lane C)* — **diff the money across documents, not across our own
   estimates.** R25-ESTIMATE-DIFF compares two of *our* numbers. The gap is the chain **bid → executed
   contract → purchase order → invoice**, each hop diffed against the one before it with findings ranked
