@@ -479,18 +479,34 @@ with TestClient(app) as c:
     from aec_api import demo_seed, modules_registry
 
     modules_registry.load_registry()
-    _filled = _skipped = 0
+    # TWO rows, not four. Two demonstrates a LIST rather than a singleton — it proves list rendering,
+    # sorting and the empty-vs-many states. Rows three and four teach a reader nothing further, and
+    # every visitor to the public demo downloads them.
+    _filled = _skipped = _unknown = 0
     for _key, _mod in sorted(modules_registry.REGISTRY.items()):
         if demo_seed.needs_references(_mod):
             _skipped += 1
             continue
         try:
-            if (c.get(f"/projects/{pid}/modules/{_key}").json() or {}).get("records"):
-                continue                                  # bespoke record already there — leave it
-        except Exception:                                 # noqa: BLE001
-            pass
+            # The register GET returns a LIST for some modules and a {records: [...]} dict for
+            # others. Assuming the dict shape raised AttributeError on the list ones — which the
+            # swallowed except then hid, seeding them on top of their bespoke records. Handle both.
+            _body = c.get(f"/projects/{pid}/modules/{_key}").json()
+            _rows = _body if isinstance(_body, list) else (_body or {}).get("records")
+            _existing = bool(_rows)
+        except Exception as _e:                           # noqa: BLE001
+            # Do NOT swallow this. The comment above promises bespoke records win; if the probe
+            # fails we cannot know whether any exist, so seeding anyway would silently break that
+            # promise and produce bespoke PLUS generated rows in one register. Counted and printed
+            # rather than hidden — an unstated exception to an absolute rule is the defect.
+            print(f"  register probe FAILED {_key}: {type(_e).__name__} — seeding anyway, "
+                  f"bespoke-wins not guaranteed for this register")
+            _unknown += 1
+            _existing = False
+        if _existing:
+            continue                                      # bespoke record already there — leave it
         _made = 0
-        for _row in demo_seed.records(_mod, count=4):
+        for _row in demo_seed.records(_mod, count=2):
             if not _row:
                 continue
             r = c.post(f"/projects/{pid}/modules/{_key}", json={"data": _row})
@@ -498,7 +514,8 @@ with TestClient(app) as c:
                 _made += 1
         if _made:
             _filled += 1
-    print(f"  register fill: {_filled} module(s) seeded, {_skipped} skipped (required reference)")
+    print(f"  register fill: {_filled} seeded, {_skipped} skipped (required reference), "
+          f"{_unknown} probe-failed")
 
     # --- crawl the GET endpoints the web app calls ---
     snap["GET /projects"] = [{"id": pid, "name": "Demo Tower", "model_kind": None}]
