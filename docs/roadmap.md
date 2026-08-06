@@ -882,7 +882,7 @@ refute one, so this goes first even though it is the least visible.
   server-side and now real; **click-echo latency is client-side and still needs a beacon.**
 ### Sprint 2 — cash the moat *(the differentiation no competitor can copy)*
 
-- ⭐ **R24-ELEMENT-CARD ②** *(S — was M, was L)* — the strip exists and works, **and the extraction it
+- ◧ ⭐ **R24-ELEMENT-CARD ②** *(S — was M, was L; ◧ added 2026-08-06 — `apps/web/src/ui/elementCard.ts` declares this item and one surface already mounts it, so "nothing exists" was never true; what is open is REACH, not capability)* — the strip exists and works, **and the extraction it
   was blocked on is DONE.** The card's frame + loader live in `apps/web/src/ui/elementCard.ts` and one
   non-viewer surface already mounts it (`apps/web/src/portal/panels/traceability.ts:75`).
 
@@ -1122,7 +1122,7 @@ latched itself permanently empty. Both were repaired at the symptom. The cause i
 "model" are two states the app keeps having to re-marry, and every feature built on top inherits the
 seam.
 
-* **R28-UNIFY ①** — **one open, one save.** Opening any model creates or attaches a project (with its
+* ✅ **R28-UNIFY ①** *(marker added 2026-08-06 — the lane table already said SHIPPED and MERGED, and `apps/web/src/shell/openUnify.ts` declares it in its opening line; only the marker was missing)* — **one open, one save.** Opening any model creates or attaches a project (with its
   API data if it exists); opening a project ensures a model exists — **a blank authorable one if
   there is none**, so a user can start drawing immediately rather than meeting an empty viewer. This
   is the item that removes the class of bug, not the two instances of it.
@@ -1428,7 +1428,7 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
     **This is one discarded value, not new machinery** — and it unlocks selection sync, click-a-wall-
     in-plan-selects-in-3D, precise pin-to-drawing anchoring, and R27's "the drawing is data" thesis
     more broadly. Highest leverage-per-line item left in the ring.
-  - **R38-SYNC-SELECT ③** *(S, Lane E)* — **SHIPPED v0.3.829** — selection sync in both directions.
+  - ✅ **R38-SYNC-SELECT ③** *(S, Lane E)* — **SHIPPED v0.3.829** — selection sync in both directions.
     The SVG emits `data-guid` per cut polyline (both rendering modes), the pane adds invisible fat
     hit-twins to ~1px linework, and one element lights as MANY loops. Shipping it also surfaced that
     the pane had been unreachable (toggle button never appended), its fetch had failed cross-origin
@@ -2296,7 +2296,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ⭐ **SCALE-SEAM ⑧ — `client.ts` is no longer a god-file, but the split is not finished.** ②–⑧ have
+- ◧ ⭐ **SCALE-SEAM ⑧ — `client.ts` is no longer a god-file, but the split is not finished.** *(◧ added 2026-08-06: the bullet's own text says ②–⑧ have shipped and `apps/web/src/api/proforma.ts` declares ⑧ — the SLICE is done and the SERIES is not, which is exactly what ◧ means)* ②–⑧ have
   shipped: `schedule.ts` (v0.3.800, 26 methods / 207 lines) · `model.ts` (v0.3.802, 29) · `modules.ts`
   (v0.3.803, 34) · `estimate.ts` (v0.3.804, 12) · `procurement.ts` (9) · `auth.ts` (20) · `proforma.ts` (⑧).
   **`client.ts` went 4,956 → 3,796 lines** (`wc -l`; ⑦ left it at 3,871). ⑨ is the next route-group by size; pick it by
