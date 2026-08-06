@@ -4,6 +4,7 @@ import type { ApiClient } from "../api/client";
 import { sunAltAz, sunSceneDir } from "./solar";
 import { positionSun, renderMode } from "./world";
 import type { ModelLoader } from "./loader";
+import { modelBox3 } from "./modelBounds";
 
 /** REL-4 leaf (split from `app.ts`): the environment & navigation toolbar tools — render mode
  *  (sun + soft shadows), the sun/shadow study panel, the first-person walkthrough, and the storey
@@ -162,11 +163,14 @@ export function installEnvTools(d: EnvToolsDeps): { isRenderOn: () => boolean } 
     if (!pid) { d.notify("connect a project for storey levels", "error"); return; }
     let storeys: { name: string | null; elevation: number; guid: string }[] = [];
     try { storeys = await d.api.drawingStoreys(pid); } catch { d.notify("no storeys (needs source IFC)", "error"); return; }
-    const box = new THREE.Box3();
-    d.viewer.world.scene.three.traverse((o) => { const msh = o as THREE.Mesh; if (msh.isMesh) box.expandByObject(msh); });
-    const size = box.isEmpty() ? 20 : Math.max(box.getSize(new THREE.Vector3()).x, box.getSize(new THREE.Vector3()).z) * 1.1;
-    const cx = box.isEmpty() ? 0 : box.getCenter(new THREE.Vector3()).x;
-    const cz = box.isEmpty() ? 0 : box.getCenter(new THREE.Vector3()).z;
+    // The MODEL, not the scene. Walking the scene expanded over the 2000x2000 shadow-catcher plane
+    // `world.ts` adds in presentation mode, so every storey grid was sized ~2200 m across a building
+    // 104 m wide — 21x too large, at every level, and only with presentation mode on. See
+    // `modelBounds.ts` for why this is an allowlist rather than a name exclusion.
+    const box = modelBox3([...d.loader.fragments.list].map(([, m]) => m as unknown as { object: THREE.Object3D }));
+    const size = !box ? 20 : Math.max(box.getSize(new THREE.Vector3()).x, box.getSize(new THREE.Vector3()).z) * 1.1;
+    const cx = !box ? 0 : box.getCenter(new THREE.Vector3()).x;
+    const cz = !box ? 0 : box.getCenter(new THREE.Vector3()).z;
     for (const s of storeys) {
       const grid = new THREE.GridHelper(size, 10, 0x4a8cff, 0x33384a);
       grid.position.set(cx, s.elevation, cz);   // model Y is up; elevation in metres

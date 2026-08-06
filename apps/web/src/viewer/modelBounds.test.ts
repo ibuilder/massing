@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as THREE from "three";
-import { planBoundsFromModels, type BoundedModel } from "./modelBounds";
+import { modelBox3, planBoundsFromModels, type BoundedModel } from "./modelBounds";
 import { BOUNDS_MARGIN_M, checkBounds } from "./placeValid";
 
 /** A box mesh centred at (cx, 0, cz) with the given plan size, as a loaded model would appear. */
@@ -141,5 +141,75 @@ describe("app.ts asks the models, not the scene", () => {
   it("does not traverse the scene for bounds", () => {
     expect(fn, "modelPlanBounds walks the scene again — the shadow ground plane is back in the extent")
       .not.toMatch(/scene\.three\.traverse/);
+  });
+});
+
+/**
+ * `modelBox3` — the 3D population, and the two consumers that used to hand-roll it.
+ *
+ * These assert the CONSEQUENCE rather than the box, because the box being right is not what the
+ * user experiences: the section box either clips or it does not, and the storey grid is either the
+ * size of the building or twenty-one times it. A test on `box.max.x` passes for a clip computation
+ * that later divides by the wrong factor; these do not.
+ */
+describe("modelBox3 — the section box and the storey grid measure the MODEL", () => {
+  const SHADOW_HALF = 1000;   // the 2000 x 2000 catcher, half-extent
+
+  it("returns a 3D box over the models and nothing else", () => {
+    const b = modelBox3([model(0, 0, 10, 6)])!;
+    expect(b.max.x).toBeCloseTo(5, 6);
+    expect(b.max.y).toBeCloseTo(1.5, 6);   // BoxGeometry height 3, centred at y=0
+  });
+
+  it("is null for an empty population — a blank model is not a model of size zero", () => {
+    expect(modelBox3([])).toBeNull();
+    expect(modelBox3([{ object: undefined as unknown as THREE.Object3D }])).toBeNull();
+  });
+
+  // The defect, reproduced: a scene walk includes the catcher; the model population cannot.
+  it("EXCLUDES the shadow ground even when it is in the scene beside the model", () => {
+    const m = model(0, 0, 90, 95);
+    const scene = new THREE.Object3D();
+    scene.add(m.object, shadowGround());
+    scene.updateMatrixWorld(true);
+
+    const sceneWalk = new THREE.Box3();
+    scene.traverse((o) => { const msh = o as THREE.Mesh; if (msh.isMesh) sceneWalk.expandByObject(msh); });
+    expect(sceneWalk.max.x, "the scene walk really does swallow the catcher").toBeCloseTo(SHADOW_HALF, 0);
+
+    expect(modelBox3([m])!.max.x, "modelBox3 must measure the model").toBeCloseTo(45, 6);
+  });
+
+  it("SECTION BOX: the clip planes land inside the building, not 700 m away", () => {
+    // installSectionBox keeps the middle ~70%: half-extent = size * 0.35 about the centre.
+    const half = (b: THREE.Box3) => b.getSize(new THREE.Vector3()).x * 0.35;
+    const m = model(0, 0, 90, 95);
+    const swallowed = new THREE.Box3().setFromCenterAndSize(
+      new THREE.Vector3(0, 0, 0), new THREE.Vector3(SHADOW_HALF * 2, 3, SHADOW_HALF * 2));
+
+    expect(half(swallowed), "the old behaviour: a 700 m clip about the origin").toBeCloseTo(700, 0);
+    expect(half(modelBox3([m])!), "the clip must be inside a 90 m building").toBeCloseTo(31.5, 1);
+    expect(half(modelBox3([m])!)).toBeLessThan(45);   // strictly inside the model — it clips something
+  });
+
+  it("STOREY GRID: sized to the building, not 21x it", () => {
+    const gridSize = (b: THREE.Box3 | null) =>
+      !b ? 20 : Math.max(b.getSize(new THREE.Vector3()).x, b.getSize(new THREE.Vector3()).z) * 1.1;
+    const m = model(0, 0, 90, 95);
+    const swallowed = new THREE.Box3().setFromCenterAndSize(
+      new THREE.Vector3(0, 0, 0), new THREE.Vector3(SHADOW_HALF * 2, 3, SHADOW_HALF * 2));
+
+    expect(gridSize(swallowed), "the old behaviour").toBeCloseTo(2200, 0);
+    expect(gridSize(modelBox3([m])), "104.5 m for a 95 m building").toBeCloseTo(104.5, 1);
+  });
+
+  // The population guard, in the same spirit as the one above for `modelPlanBounds`.
+  it("neither consumer walks the scene for bounds any more", () => {
+    for (const f of ["measureSection.ts", "envTools.ts"]) {
+      const src = readFileSync(resolve(process.cwd(), "src/viewer", f), "utf8");
+      expect(src, `${f} walks the scene for a bounding box — the shadow ground is back in it`)
+        .not.toMatch(/scene\.three\.traverse\((?:[^)]|\)(?!\s*;))*expandByObject/s);
+      expect(src, `${f} should measure the model`).toMatch(/modelBox3\(/);
+    }
   });
 });

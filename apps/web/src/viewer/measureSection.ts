@@ -3,6 +3,7 @@ import * as THREE from "three";
 
 import type { MeasureTool, MeasureMode } from "../tools/measure";
 import type { SectionTool } from "../tools/section";
+import { modelBox3 } from "./modelBounds";
 
 /** REL-4 leaf (split from `app.ts`): the measure / visibility toolbar group and the section-box
  *  tool. Pure extraction — behaviour, button order and DOM are unchanged; `app.ts` keeps the
@@ -47,9 +48,13 @@ export function installSectionBox(d: Pick<MeasureSectionDeps, "viewer" | "loader
   d.toolBtn("⬚", "Section box (clip to model bounds)", (b) => {
     const r = d.viewer.world.renderer!.three;
     if (sectionBox) { r.clippingPlanes = []; sectionBox = null; b.classList.remove("on"); void d.loader.fragments.core.update(true); return; }
-    const box = new THREE.Box3();
-    d.viewer.world.scene.three.traverse((o) => { const msh = o as THREE.Mesh; if (msh.isMesh) box.expandByObject(msh); });
-    if (box.isEmpty()) { d.notify("no model to clip", "error"); return; }
+    // The MODEL, not the scene. Walking the scene expanded over the 2000x2000 shadow-catcher plane
+    // `world.ts` adds in presentation mode, so this box became +/-1000 m and the clip planes below —
+    // set at 35% of it, i.e. a 700 m half-extent about the origin — enclosed the entire building.
+    // The section box silently clipped NOTHING, and only with presentation mode on. See
+    // `modelBounds.ts` for why this is an allowlist rather than a name exclusion.
+    const box = modelBox3([...d.loader.fragments.list].map(([, m]) => m as unknown as { object: THREE.Object3D }));
+    if (!box) { d.notify("no model to clip", "error"); return; }
     const c = box.getCenter(new THREE.Vector3());
     const s = box.getSize(new THREE.Vector3()).multiplyScalar(0.35);   // keep the middle ~70%
     const mn = c.clone().sub(s), mx = c.clone().add(s);

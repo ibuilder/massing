@@ -56,6 +56,36 @@ export interface BoundedModel { object: THREE.Object3D }
  * right shape, mirrored — which is why it is asserted directly rather than assumed.
  */
 export function planBoundsFromModels(models: Iterable<BoundedModel>): PlanBounds | null {
+  const box = modelBox3(models);
+  if (!box) return null;
+  return { minX: box.min.x, maxX: box.max.x, minZ: -box.max.z, maxZ: -box.min.z };
+}
+
+/**
+ * The same population as a full 3D box — for callers that need Y as well as the plan extent.
+ *
+ * Added 2026-08-06 after the docstring above turned out to be understating the problem. It says the
+ * bounds walk "was the third site that needed to and did not". It was the third of **five**:
+ *
+ *     measureSection.ts  installSectionBox   scene.traverse(...expandByObject)   ← 4th
+ *     envTools.ts        storey levels grid  scene.traverse(...expandByObject)   ← 5th
+ *
+ * Both computed a scene-wide box including the `2000 × 2000` shadow-catcher, and both are
+ * user-visible in exactly the way this file predicts — silently, and only with presentation mode on:
+ *
+ *     section box   clip half-extent 700 m about the origin, against a ~95 m building
+ *                   → the section box clipped NOTHING
+ *     storey grid   2200 m across where the model is 104 m → 21x oversized, at every storey
+ *
+ * The plan-only signature is why they were not fixed when the third was: `planBoundsFromModels`
+ * returns `PlanBounds`, so a caller needing Y could not use it and hand-rolled the traverse instead
+ * — **the helper's shape, not its absence, is what let the defect spread.** A correct allowlist that
+ * does not fit the call site is a correct allowlist nobody calls.
+ *
+ * Returns null on an empty population, for the same reason as above: a blank model must not be
+ * treated as a model of size zero. Callers already handle `box.isEmpty()`; they now handle null.
+ */
+export function modelBox3(models: Iterable<BoundedModel>): THREE.Box3 | null {
   const box = new THREE.Box3();
   let any = false;
   for (const m of models) {
@@ -63,6 +93,5 @@ export function planBoundsFromModels(models: Iterable<BoundedModel>): PlanBounds
     box.expandByObject(m.object);
     any = true;
   }
-  if (!any || box.isEmpty()) return null;
-  return { minX: box.min.x, maxX: box.max.x, minZ: -box.max.z, maxZ: -box.min.z };
+  return any && !box.isEmpty() ? box : null;
 }
