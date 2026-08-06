@@ -179,15 +179,23 @@ describe("A29-GUIDE-UNDERLAY — the scene object is a picture, not geometry", (
   });
 
   /**
-   * It is a guide. If it can be picked it will be snapped to, selected and measured against.
+   * **A negative assertion needs a positive control, or it is measuring its own setup.**
    *
-   * The first version of this test passed whether or not the guard existed — a mutation removing
+   * If you are writing an "X does not happen" test, this is the paragraph to read.
+   *
+   * It is a guide: if it can be picked it will be snapped to, selected and measured against. The
+   * first version of this test passed **whether or not the guard existed** — a mutation removing
    * `mesh.raycast = () => {}` stayed green, because calling `mesh.raycast(...)` by hand on a mesh
    * whose world matrix was never updated intersects nothing either way. It asserted an empty array
-   * that was empty for the wrong reason.
+   * that was empty *for the wrong reason*, and it would have shipped green having tested nothing.
    *
-   * So the CONTROL comes first: an identical plane WITHOUT the guard must be hit by this exact ray.
-   * Only then does an empty result mean "the guard worked" rather than "the ray missed".
+   * So the CONTROL comes first: an identical plane **without** the guard must be hit by this exact
+   * ray. Only then does an empty result mean "the guard worked" rather than "the ray missed".
+   *
+   * This is the same defect as the picking benchmark that reported a confident p50 with `hits: 0`,
+   * and the same family as happy-dom's `DataTransfer` vouching for a drop the browser silently
+   * refuses (`railDrag.test.ts`). In each case the instrument never engaged and the result looked
+   * like an answer. **Assert that the instrument engaged, never the output alone.**
    */
   it("is not a raycast target, and the ray is proven to be aimed at it", () => {
     const scene = new THREE.Scene();
