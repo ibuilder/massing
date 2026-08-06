@@ -1703,10 +1703,55 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   `labor_rate` and `material_rate` are `module.json` *schemas*, not data files, and
   `module_schema.py` already rejects a malformed one — a size floor there would guard something that
   is guarded, while implying the rate *data* is covered when it lives in the database.
-- **R41-DELETE-RATCHET** *(S — Lane J)* — **assert in CI that removed things stay removed.** Several
-  lanes ship to main at once and nothing currently stops one reintroducing a decomposed god-module or a
-  re-export that reads as a dead import. A negative assertion is three lines and makes a removal stick:
-  the ratchet-rather-than-allowlist principle applied to architecture instead of security.
+- ◧ **R41-DELETE-RATCHET** *(S — Lane J; the FILE half SHIPPED 2026-08-06, the symbol half deliberately
+  not attempted)* — **assert in CI that removed things stay removed.** Shipped as
+  `apps/web/src/tooling/deleteRatchet.test.ts` over eight deleted documents.
+
+  **The entry says "a negative assertion is three lines". It is — and the population is the whole
+  problem.** Three plausible candidates were tested and all three failed, in three different ways:
+
+  * `?shell=classic` was deleted, but `"classic"` still lives in `apps/web/src/dev/liveAudit.test.ts`
+    as a run label — the string has a legitimate other life.
+  * the More menu is gone, but `"more"` appears in `apps/web/src/viewer/app.ts` and
+    `apps/web/src/viewer/railToolbox.ts` **in prose describing the removal** — the gate would fire on
+    the documentation of its own rule.
+  * the register renderer's internals — `renderRegister` and `registerBoard` were *guessed*, and
+    `git log -S` says **neither ever existed at any commit**. That assertion would have passed
+    forever, guarded nothing, and read as coverage. **It is the exact defect this ring is about, and
+    the only thing that caught it was checking history for a name somebody had invented.**
+
+  **So the first pass ratchets FILE PATHS, not symbols.** Every failure above is a string-matching
+  problem; a path has none of them — prior existence is provable from history, current absence is one
+  `git ls-files`, and it needs no comment-stripping, no word boundaries, and no matcher that can agree
+  with everything.
+
+  **The eight are load-bearing because `docs/` IS the Pages web root.** Re-adding any one republishes
+  a superseded planning document as a live public page. Two of them are competitive analyses, which a
+  standing user directive keeps out of the public docs — and `services/api/test_no_comparative_names.py`
+  enforces that **by content** while saying nothing about those *files*. **Neither check implies the
+  other**, which is a better argument for both than either makes alone.
+
+  **Enrollment stops the ninth entry being invented:** an entry must be absent now **and** present in
+  some earlier commit, so something that merely "does not exist yet" cannot be enrolled and the gate
+  cannot grow into a ban on future work. Enroll at deletion time; never archaeologise history, because
+  inference cannot separate *removed on principle* from *removed incidentally*.
+
+  **A stated blind spot, and it was proven rather than assumed.** `actions/checkout@v7` clones at
+  `fetch-depth: 1` and `.github/workflows/ci.yml` does not override it. A `git clone --depth 1` of this
+  repo reports `is_shallow=true`, **1 commit**, and the enrollment lookup finds **0** — so that half
+  would have failed all eight entries in CI for a reason unrelated to the code. The two halves are
+  therefore split by what they *need*: absence runs everywhere and is the ratchet; enrollment runs only
+  where history exists and **says so when it cannot**, rather than passing quietly. Deepening the CI
+  clone was rejected — a 2,000-commit fetch on every run to re-verify a property fixed at authoring
+  time.
+
+  Mutation-checked four ways: re-add a path → red; re-add it *relocated* → red on the basename check;
+  enroll a never-existent path → red; empty the list → red on the vacuity guard.
+
+  **Lineage:** `apps/web/src/portal/register/registerOwnership.test.ts` got there first and solved the
+  hard half — the population is the moved code *named*, the matcher is asserted to find real names,
+  comments are stripped, and the legitimate crossings are enumerated as doors. The symbol ratchet is
+  the harder second version and should extract that helper rather than re-derive it.
 - ✅ **R41-LICENCE-GATE** *(S — Lane J, SHIPPED 2026-08-06)* — **enforce the licence allowlist in CI
   instead of by reading.** This scan found three repositories whose actual LICENSE differs from their
   README or badge, two of them forbidding exactly our use.
