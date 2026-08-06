@@ -63,7 +63,10 @@ export const VIEWER_KEYS: KeyEntry[] = [
  * screen must be openable before the 3D bundle has loaded, which is exactly the moment the old toast
  * was the only thing available.
  */
-export function keyContract(drawCodes: readonly (readonly [string, string, string])[] = []): KeySection[] {
+export function keyContract(
+  drawCodes: readonly (readonly [string, string, string])[] = [],
+  snapCodes: readonly (readonly [string, string])[] = [],
+): KeySection[] {
   const sections: KeySection[] = [
     { title: "Anywhere", entries: GLOBAL_KEYS },
     {
@@ -78,6 +81,18 @@ export function keyContract(drawCodes: readonly (readonly [string, string, strin
       note: "Type the two letters with no modifier to arm a tool, then click in the model to place it. "
         + "Esc disarms. While a tool is armed you can type a distance or angle — 6, <30, or 6<30.",
       entries: drawCodes.map(([code, , label]) => ({ keys: code, does: label })),
+    });
+  }
+  // AUTH-SNAP-OVERRIDE. Same rule as the draw codes: passed in, never imported, so `?` still works
+  // before the 3D bundle has loaded — and omitted entirely rather than printed as an aspiration.
+  if (snapCodes.length) {
+    sections.push({
+      title: "Snap for one pick",
+      note: "While a draw tool is armed, type one of these to aim the NEXT click at a particular snap "
+        + "— it applies to that click only and is not a mode. Esc cancels it and leaves the tool armed. "
+        + "If the picked element has no such snap the click takes the raw cursor and the glyph says so, "
+        + "rather than quietly using a different one.",
+      entries: snapCodes.map(([code, label]) => ({ keys: code, does: label })),
     });
   }
   return sections;
@@ -95,9 +110,12 @@ export function keysIn(sections: readonly KeySection[], title: string): string[]
  * unlike the toast it replaces, it stays on screen until dismissed. A help surface with a six-second
  * timeout is a help surface you have to read faster than you can try.
  */
-export function showKeyHelp(drawCodes: readonly (readonly [string, string, string])[] = []): void {
+export function showKeyHelp(
+  drawCodes: readonly (readonly [string, string, string])[] = [],
+  snapCodes: readonly (readonly [string, string])[] = [],
+): void {
   showResult("⌨ Keyboard", (body) => {
-    for (const section of keyContract(drawCodes)) {
+    for (const section of keyContract(drawCodes, snapCodes)) {
       const h = document.createElement("div");
       h.className = "section-title";
       h.style.marginTop = "10px";

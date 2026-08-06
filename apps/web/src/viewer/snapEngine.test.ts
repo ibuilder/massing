@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { applyDynamicInput, polarConstrain, resolveSnap, segmentSnaps } from "./snapEngine";
+import {
+  applyDynamicInput, nearestSnaps, perpendicularSnaps, polarConstrain, resolveSnap, segmentSnaps,
+} from "./snapEngine";
 
 describe("SNAP-KIT resolveSnap", () => {
   const cands = [
@@ -102,5 +104,47 @@ describe("SNAP-KIT applyDynamicInput", () => {
   it("passes the raw cursor through when nothing (or invalid) is typed", () => {
     expect(applyDynamicInput(O, { x: 2, z: 3 }, {})).toEqual({ x: 2, z: 3 });
     expect(applyDynamicInput(O, { x: 2, z: 3 }, { distance: -1 })).toEqual({ x: 2, z: 3 });
+  });
+});
+
+describe("SNAP-KIT perpendicularSnaps", () => {
+  const line = [{ x: 0, z: 0 }, { x: 10, z: 0 }];
+
+  it("drops the foot at 90° onto the segment", () => {
+    const s = perpendicularSnaps(line, { x: 3, z: 7 });
+    expect(s).toEqual([{ x: 3, z: 0, kind: "perpendicular" }]);
+  });
+
+  it("emits nothing when the foot falls outside the segment", () => {
+    expect(perpendicularSnaps(line, { x: -5, z: 7 })).toEqual([]);
+    expect(perpendicularSnaps(line, { x: 15, z: 7 })).toEqual([]);
+  });
+
+  it("includes the closing edge only when closed", () => {
+    const tri = [{ x: 0, z: 0 }, { x: 10, z: 0 }, { x: 10, z: 10 }];
+    expect(perpendicularSnaps(tri, { x: 5, z: 5 }, false)).toHaveLength(2);
+    expect(perpendicularSnaps(tri, { x: 5, z: 5 }, true)).toHaveLength(3);
+  });
+
+  it("skips a degenerate (zero-length) segment instead of dividing by zero", () => {
+    const s = perpendicularSnaps([{ x: 2, z: 2 }, { x: 2, z: 2 }], { x: 0, z: 0 });
+    expect(s).toEqual([]);
+  });
+
+  it("a foot exactly on an endpoint is kept — it IS on the segment", () => {
+    expect(perpendicularSnaps(line, { x: 0, z: 4 })).toEqual([{ x: 0, z: 0, kind: "perpendicular" }]);
+  });
+});
+
+describe("SNAP-KIT nearestSnaps", () => {
+  const line = [{ x: 0, z: 0 }, { x: 10, z: 0 }];
+
+  it("projects onto the segment", () => {
+    expect(nearestSnaps(line, { x: 4, z: 3 })).toEqual([{ x: 4, z: 0, kind: "nearest" }]);
+  });
+
+  it("CLAMPS past the end, where perpendicular drops — the two differ on purpose", () => {
+    expect(nearestSnaps(line, { x: 99, z: 3 })).toEqual([{ x: 10, z: 0, kind: "nearest" }]);
+    expect(perpendicularSnaps(line, { x: 99, z: 3 })).toEqual([]);
   });
 });

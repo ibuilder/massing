@@ -1,5 +1,6 @@
 import { dynKeystroke, formatDynConstraint, isDynKey, parseDynConstraint } from "./dynInput";
 import { showKeyHelp } from "../ui/keys";
+import { OVERRIDE_CODES, OVERRIDE_LABEL, type SnapOverrideHandle } from "./snapOverride";
 import type { DraftPanelHandle } from "./draft/draftPanel";
 
 /** REL-4 leaf — the KEYS shortcut layer + SNAP-KIT dynamic input.
@@ -18,6 +19,10 @@ export interface KeysDynDeps {
   draftHandle: () => DraftPanelHandle | null;
   /** Escape pressed → disarm the draft tool (the host also clears the dyn buffer via setDynBuf). */
   onEscape: () => void;
+  /** AUTH-SNAP-OVERRIDE — the one-shot osnap override, armed from the SAME two-letter buffer as the
+   *  draw tools (the two code sets are asserted disjoint in `snapOverride.test.ts`). Owned by the
+   *  host because the host's pick handler is what consumes it. */
+  snapOverride: SnapOverrideHandle;
 }
 
 export interface KeysDynHandle {
@@ -48,7 +53,20 @@ const KEY_MAP: Record<string, string> = Object.fromEntries(KEY_SHORTCUTS.map(([c
 // mentioned each other and one global key that produced a different answer depending on whether the
 // 3D bundle had finished loading. Both now open the single contract in `ui/keys.ts`, which reads the
 // table above rather than keeping a copy of it.
-const showKeysHelp = () => showKeyHelp(KEY_SHORTCUTS);
+// AUTH-SNAP-OVERRIDE — the published form of the one-shot snap codes, **derived** from the table the
+// handler dispatches rather than retyped beside it. `ui/keys.test.ts` asserts set-equality with the
+// source in both directions, the same way the draw codes are held.
+// The `?? kind` is not defensive noise: without it an unlabelled kind throws at MODULE LOAD, which
+// takes the whole test file down before a single assertion runs — the partition test written to catch
+// exactly that mistake would never get to report it. Degrade to the raw kind name and let the
+// assertion in `snapOverride.test.ts` be the thing that fails.
+export const SNAP_HELP: [string, string][] = Object.entries(OVERRIDE_CODES)
+  .map(([code, kind]) => {
+    const label = OVERRIDE_LABEL[kind] ?? kind;
+    return [code, label.charAt(0).toUpperCase() + label.slice(1)];
+  });
+
+const showKeysHelp = () => showKeyHelp(KEY_SHORTCUTS, SNAP_HELP);
 
 export function installKeysDyn(d: KeysDynDeps): KeysDynHandle {
   const { container, notify } = d;
@@ -96,6 +114,20 @@ export function installKeysDyn(d: KeysDynDeps): KeysDynHandle {
     setTimeout(() => g.remove(), 1100);
   }
 
+  // AUTH-SNAP-OVERRIDE — the armed-override HUD. It sits above the dyn HUD and is deliberately a
+  // DIFFERENT colour: a one-shot that looks like the persistent typed-constraint box would be read as
+  // a mode, which is the exact thing this feature exists to avoid.
+  const snapHud = document.createElement("div");
+  snapHud.className = "snap-override-hud";
+  snapHud.style.cssText = "position:absolute;bottom:74px;left:50%;transform:translateX(-50%);z-index:38;"
+    + "display:none;background:var(--panel,#0f172a);color:var(--warn,#f59e0b);border:1px solid "
+    + "var(--warn,#f59e0b);border-radius:6px;padding:3px 10px;font-size:13px;font-family:var(--mono)";
+  container.appendChild(snapHud);
+  d.snapOverride.subscribe((k) => {
+    snapHud.style.display = k ? "block" : "none";
+    snapHud.textContent = k ? `⊾ next pick: ${OVERRIDE_LABEL[k]} — Esc to cancel` : "";
+  });
+
   // KEYS — the 2-letter shortcut listener + its HUD
   let buf = "";
   let bufTimer = 0;
@@ -111,7 +143,13 @@ export function installKeysDyn(d: KeysDynDeps): KeysDynHandle {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === "Escape") { d.onEscape(); clearBuf(); return; }
+    if (e.key === "Escape") {
+      // AUTH-SNAP-OVERRIDE — Escape cancels the PENDING override first and leaves the tool armed.
+      // Disarming the whole draw tool because the drafter changed their mind about one snap would
+      // throw away the points already placed; a second Escape still disarms.
+      if (d.snapOverride.peek()) { d.snapOverride.clear(); clearBuf(); return; }
+      d.onEscape(); clearBuf(); return;
+    }
     if (e.key === "?") { e.preventDefault(); showKeysHelp(); return; }
     // SNAP-KIT phase 2: while a draw tool is armed with a previous point, digits/./</- build the
     // typed distance/angle constraint (Backspace edits it) — it wins over every automatic snap.
@@ -132,6 +170,13 @@ export function installKeysDyn(d: KeysDynDeps): KeysDynHandle {
         const label = handle?.armByKey(key);
         if (label) notify(`${label} armed — click in the model to place`, "info");
         else if (handle) notify(`“${buf}” → ${key}: not available (needs a source IFC)`, "info");
+      } else if (d.isArmed()) {
+        // AUTH-SNAP-OVERRIDE — an osnap code, but only while a draw tool is armed: with nothing
+        // armed there is no "next pick" for a one-shot to attach to, so "NE" stays inert exactly as
+        // it is today rather than arming an override that would sit there waiting for a click that
+        // means something else.
+        const k = d.snapOverride.arm(buf);
+        if (k) notify(`next pick: ${OVERRIDE_LABEL[k]} — Esc to cancel`, "info");
       }
       clearBuf();
     }
