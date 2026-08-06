@@ -1133,7 +1133,13 @@ fix does not get made later from the same report.
   finding ③ contradicts its finding ①. The real options are a bounded **shared** cache (a loader
   process or Redis-backed handle), or worker affinity so one model lives in one worker. Sizing is the
   last lever, not the first.
-* **PERF-RATE ② — the rate limit is per-worker and only warns.** Verified at `main.py:155-162`: with
+* ✅ **PERF-RATE ② — DONE, verified 2026-08-06; the entry described behaviour that changed in
+  v0.3.721.** It now **refuses to start**: `_rate_limit_is_per_worker()` appends to `problems`, and
+  `_production_guard` raises *"refusing to start a production deployment with an unsafe
+  configuration"*. The prescription below — *"Refuse to start, or drop to one worker"* — was carried
+  out; only the entry lagged. `main.py`'s own comment records the change: *"Until v0.3.721 this logged
+  CRITICAL and then started anyway: the loudest possible message, followed by the exact behaviour it
+  warned about."* Original text: **the rate limit is per-worker and only warns.** Verified at `main.py:155-162`: with
   `AEC_RATE_LIMIT_RPM>0`, multiple workers and no `AEC_REDIS_URL`, each worker counts independently, so
   the effective limit is N× the configured one. It logs `CRITICAL` and **starts anyway**. A security
   control that announces it is not working and then runs is worse than one that is absent, because the
