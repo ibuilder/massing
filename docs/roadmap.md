@@ -219,7 +219,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ *(ALREADY BUILT — checked 2026-08-06)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ *(ALREADY BUILT — checked 2026-08-06)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
@@ -1634,9 +1634,32 @@ the screen stops waiting for it.
   should not require three republishes. Scope: the in-progress draft only, discarded on commit, with
   the server history unchanged as the record.
 
-* **A29-GUIDE-UNDERLAY ③** — *trace over a plan.* A 2D reference image pinned to a level and scaled,
-  for redrawing an existing building from a scan or a PDF. Small, self-contained, and the one place
-  their `Guide` node maps onto something we do not have.
+* 🟡 **A29-GUIDE-UNDERLAY ③** *(in flight, PR #199)* — *trace over a plan.* A 2D reference image
+  pinned to a level and scaled, for redrawing an existing building from a scan or a PDF. Small,
+  self-contained, and the one place their `Guide` node maps onto something we do not have.
+  `apps/web/src/viewer/guideUnderlay.ts` holds the calibration, the refusals and the plane;
+  `app.ts` gets six lines.
+
+  **Scale is the whole feature, and the entry undersold it.** An underlay that is merely *placed* is
+  decoration — the reason to build it is that walls traced over it come out at real dimensions. So
+  every path reduces to metres-per-pixel and every derivation **refuses rather than guesses**: a
+  silently-wrong scale is the one failure that poisons everything traced afterwards, and unlike a
+  mis-placed image it looks completely fine on screen. The coincident two-point pick is the one that
+  matters, because it is what a real user produces by double-clicking, and dividing by a zero pixel
+  distance yields `Infinity`.
+
+  **This item is what found the `modelPlanBounds` defect** (PR #198). Premise-checking "can I add a
+  plane to the scene?" led to "what already reads the scene?", and the answer was that a
+  2000 × 2000 shadow-catcher had been defeating the mis-click guard. *Before adding an object to a
+  shared structure, check what already reads that structure* — a new object is the moment you finally
+  have a reason to enumerate the readers.
+
+  **A mutation pass caught a decorative test of my own.** "the guide is not a raycast target" passed
+  whether or not the guard existed: calling `mesh.raycast()` by hand on a mesh whose world matrix was
+  never updated intersects nothing either way, so it asserted an empty array that was empty for the
+  wrong reason. It now runs a **control** first — an identical unguarded plane must be hit by the same
+  ray — so empty means "the guard worked" rather than "the ray missed". Same shape as the picking
+  benchmark that reported a confident p50 with `hits: 0`.
 
 **Explicitly NOT in this ring:** adopting React/R3F, adopting a bespoke node schema beside IFC,
 vendoring `engine_clay` (dormant), and anything from IFChili (AGPL). If client-side booleans become
