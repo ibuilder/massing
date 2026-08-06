@@ -70,8 +70,33 @@ const MARKS = "①②③④⑤⑥⑦⑧⑨";
  * escape. It was true again, in the same file, about a different structure — which is the argument
  * for making the vocabulary a value rather than restating it correctly in two places.
  */
+/**
+ * `⛔` marks an item CLOSED UNBUILT or REFUSED IN PLACE. It was missing from the prefix vocabulary
+ * until 2026-08-06, and the way it was missing is the point.
+ *
+ * Two such items were already in the open region — `- ⛔️ **R23-PICKING**` and
+ * `* ⛔ **R22-PHOTO-CV defect detection — REFUSED IN PLACE**`. Neither is work anyone can pick up, so
+ * neither *should* be required to hold a lane. Neither was flagged. **But not because this check
+ * decided they were closed — because the regex could not see them at all.** The prefix group is
+ * optional, so an unrecognised glyph makes `^\s*[-*] \*\*` fail outright and the line leaves the
+ * population silently. Right answer, no reasoning: the docstring above warns about exactly this
+ * ("the failure mode is a silent omission") and it had already happened twice, unnoticed.
+ *
+ * The difference is not cosmetic. An accidental exclusion inverts the moment anything else changes —
+ * a ⛔ item still listed in the lane table reports as "assigned to a lane but not an item", which
+ * names neither the item nor the cause. Recognise it, then exclude it on purpose, so the skip is a
+ * line of code that a mutation can turn red.
+ *
+ * **`⛔` and `⛔️` are different strings** — U+26D4, and U+26D4 followed by U+FE0F (VARIATION
+ * SELECTOR-16). The roadmap contains both, one per site, and an author cannot see the difference.
+ * Matching `⛔️?` covers the pair; alternating `⛔️|⛔` would also work but only in that order,
+ * since the bare form matches first and strands the selector. Prefer the optional-selector form:
+ * it cannot be reordered into a bug.
+ */
+const CLOSED = "⛔";
+
 const ITEM = new RegExp(
-  String.raw`^\s*[-*] (?:✅ |◧ |🟡 |⭐ )?\*\*([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,}?)(?:\s*([${MARKS}]))?(?:\s|\*\*|—)`,
+  String.raw`^\s*[-*] (?:✅ |◧ |🟡 |⭐ |${CLOSED}️? )?\*\*([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,}?)(?:\s*([${MARKS}]))?(?:\s|\*\*|—)`,
 );
 
 function itemCodes(lines: string[]): Set<string> {
@@ -81,6 +106,10 @@ function itemCodes(lines: string[]): Set<string> {
     if (!m?.[1]) continue;
     // ✅ items are shipped-but-not-yet-archived; they are not work anyone can pick up.
     if (l.includes("✅")) continue;
+    // ⛔ items are closed unbuilt or refused in place — likewise not pickable work. Deliberate,
+    // and asserted below, so that removing this line goes red rather than quietly widening the
+    // population back to what the un-widened regex used to exclude by accident.
+    if (l.includes(CLOSED)) continue;
     out.add(m[2] ? `${m[1]} ${m[2]}` : m[1]);
   }
   return out;
@@ -157,6 +186,25 @@ describe("the roadmap lane table", () => {
     // The can't-fail shape this repo keeps getting bitten by: a green check over an empty set.
     expect(LANES.length, `parsed ${LANES.length} lane rows`).toBeGreaterThanOrEqual(8);
     expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(40);
+  });
+
+  it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {
+    // Two assertions on purpose, because "excluded" alone is satisfied by a regex that cannot parse
+    // the line — which is exactly the state this file was in until 2026-08-06, for two real items.
+    // Only the pair distinguishes a decision from an accident.
+    for (const glyph of ["⛔", "⛔️"]) {
+      const line = `- ${glyph} **ZZFAKE-CLOSED ② — closed unbuilt, fixture only**`;
+      expect(ITEM.exec(line)?.[1], `${glyph} (${[...glyph].length} code points) must PARSE as an item`)
+        .toBe("ZZFAKE-CLOSED");
+      expect([...itemCodes([line])], `${glyph} must then be EXCLUDED from pickable work`).toEqual([]);
+    }
+    // ...and against the real document, so the fixture cannot drift away from what it describes.
+    // Located by content, never by line number: every lane edits this file, so an index would
+    // assert about whichever line happened to slide into position.
+    const picking = LINES.find((l) => /^\s*[-*] .*\*\*R23-PICKING\*\*/.test(l));
+    expect(picking, "the R23-PICKING bullet is still in docs/roadmap.md").toBeDefined();
+    expect(ITEM.test(picking!), "and it parses — a ⛔ item must be seen before it is skipped").toBe(true);
+    expect(CODES.has("R23-PICKING"), "R23-PICKING is CLOSED UNBUILT and needs no lane").toBe(false);
   });
 
   it("owns disjoint paths — a nested path is an overlap, not a boundary", () => {
