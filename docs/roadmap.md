@@ -205,7 +205,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑥ |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑦ |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -2079,11 +2079,11 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ⭐ **SCALE-SEAM ⑥ — `client.ts` is no longer a god-file, but the split is not finished.** ②–⑤ have
+- ⭐ **SCALE-SEAM ⑦ — `client.ts` is no longer a god-file, but the split is not finished.** ②–⑦ have
   shipped: `schedule.ts` (v0.3.800, 26 methods / 207 lines) · `model.ts` (v0.3.802, 29) · `modules.ts`
-  (v0.3.803, 34) · `estimate.ts` (v0.3.804, 12). **`client.ts` went 4,956 → 4,025 lines.** ⑥ is
-  `/procurement` (89 lines, 9 methods), then `/auth` (90, 19 — which needs care, because it is the one
-  group that owns token state rather than just calling routes).
+  (v0.3.803, 34) · `estimate.ts` (v0.3.804, 12) · `procurement.ts` (9) · `auth.ts` (20).
+  **`client.ts` went 4,956 → 3,871 lines** (`wc -l`). ⑧ is the next route-group by size; pick it by
+  re-running the classification below, not by reading the section comments.
 
   **This entry read `③+` and named `/model`, `/modules` and `/estimate` as the next groups until
   2026-07-30, by which point all three had shipped.** Caught by `roadmapLanes.test.ts`, and not for the
@@ -2108,6 +2108,35 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   in **six** separate regions of the file, which is the concrete form of "the section comments no
   longer delimit anything": they label where a run *starts*, and the file then carries on into other
   domains. Groups are located by the route each method calls, and each body by brace matching.
+
+  **⑦ shipped** — `/auth` out to `apps/web/src/api/auth.ts` (20 methods / 96 lines; `client.ts`
+  3,967 → 3,871), across **four** regions. Three things are worth carrying forward.
+
+  *The difficulty this entry predicted did not exist.* ⑥ said `/auth` "needs care, because it is the
+  one group that owns token state rather than just calling routes", and sized it at 19 methods / 90
+  lines. It does mutate token state — `changePassword` and `logoutAll` both adopt the fresh token the
+  server returns — but that state has lived on `HttpCore` behind a **public** `setToken` since the T2
+  transport extraction. A mixin cannot see `ApiClient`'s privates; its own base's public members are
+  fine. The real blocker in ③ was `liveStream` being private *on `ApiClient`*, and nothing here is
+  shaped like that. **The caution was recorded before the fix that removed it, and then outlived it** —
+  the same drift as the `③+` staleness above, in the one direction that costs work rather than
+  causing a defect: an item scoped defensively for a reason that has already been discharged.
+
+  *Four methods that read as `/auth` deliberately stayed.* `auditLog`, `errorLog`, `clearErrorLog` and
+  `reportClientError` sit inside the `// --- admin: user management ---` run but route to `/audit`,
+  `/admin/errors` and `/client-errors`. Grouping by section comment would have moved three unrelated
+  domains. The orphaned `// --- auth ---` banner was deleted rather than left labelling `integrations()`.
+
+  *The surface ratchet had gone slack again — the second consecutive increment to find this.* Floor
+  698, live count 699, raised to 699. What makes the claim usable is that the count was measured on
+  the **unmodified** tree first: 699 before and 699 after, from the gate's own reader, so the move
+  provably dropped nothing and the slack was inherited rather than caused. Mutation-checked both
+  ways (drop one method → 698 red; leave the mixin uncomposed → 679 red), with each mutation
+  confirmed to have applied before its result was read — the first attempt's regex silently matched
+  nothing under CRLF and returned a green that meant nothing. **`⑥` reported this same drift; two in
+  a row is the pattern the test predicted, not bad luck** — every merge that adds an endpoint converts
+  the ratchet back into a floor, so re-reading it is part of taking a SCALE-SEAM increment, not a
+  discretionary extra.
 
   **The remaining-groups list here was wrong, and re-measuring is the only way to keep it honest.**
   It named `/procurement`, `/auth` and `/elements` and omitted several larger ones. Measured on

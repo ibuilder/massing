@@ -77,7 +77,16 @@ describe("the API client's public surface", () => {
     // the same drift that took it from 685 to 696 a day earlier, and it will happen again: **every
     // merge that adds an endpoint silently converts this ratchet back into a slack floor.** The
     // number must be re-read from this reader after any batch of merges, not only when extracting.
-    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(698);
+    //
+    // 2026-08-06 (SCALE-SEAM ⑦): raised 698 -> 699, and the re-read is the point rather than the
+    // extraction. The /auth move is surface-neutral by construction — this reader counted **699 both
+    // before and after it**, which is the evidence that 20 methods changed file and none was lost.
+    // The single method of slack was therefore NOT created by this change; it had accumulated from
+    // merges since ⑥, exactly as the paragraph above predicted it would. That is worth stating
+    // plainly: **an extraction is the occasion to re-read this number, never the cause of it moving.**
+    // Anyone raising this line because their own change grew the surface should say so here; anyone
+    // raising it to make a red test go green has inverted the gate.
+    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(699);
   });
 
   it("keeps the transport primitives the domain methods are built on", () => {
@@ -100,6 +109,15 @@ describe("the API client's public surface", () => {
       "drawingMarkup", "promoteDrawingMarkup",                      // 2D markup -> RFI
       "editIfc", "publish", "createBlankModel", "placeFamily",      // authoring
       "notificationStream", "markupStream", "pullPlanStream",       // SSE subscriptions
+      // auth (SCALE-SEAM ⑦). Named here because the count alone was a weak guard for this group:
+      // losing all 20 would have dropped the surface to 679 and failed loudly, but losing ONE — say
+      // `login` — would have left 698 and cleared the floor that stood when they moved. Every one of
+      // these has a real call site in `account/accountUI.ts`, and `stepUp` gates PDF sealing, so a
+      // silent loss here locks people out rather than breaking a screen.
+      "login", "logout", "me", "register", "changePassword",        // session lifecycle
+      "mfaVerify", "mfaStatus", "mfaEnable",                        // MFA enrolment + challenge
+      "stepUp",                                                     // per-action re-auth for seals
+      "listUsers", "createUser", "updateUser", "resetWithToken",    // admin user management
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }
