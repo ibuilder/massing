@@ -69,6 +69,40 @@ console.log(`  ${kb(total).padStart(7)} KB  total  (budget ${BUDGET_KB} KB)`);
 const lazy = files.filter((f) => LAZY.test(f) && /\.js$/.test(f));
 console.log(`Lazy chunks kept out of the shell: ${lazy.length}`);
 
+// ...and ASSERT it, because printing a number is not a check.
+//
+// `vite.config.ts` says of the vendor split: "A vendor split that silently stops splitting is the
+// worst kind of build regression: the bundle still works, so nothing fails" — and then "Verify by
+// grepping the OUTPUT, never by reading the config and believing it." Nobody was verifying the
+// output. The line above computed `lazy` and printed it, and a build with the split gone printed
+// a smaller number and exited 0.
+//
+// It is not hypothetical. Measured 2026-08-06, same commit, same command, two checkouts:
+//
+//     main clone   exit 0   three-*.js + thatopen-*.js present   app shell    334 KB
+//     git worktree exit 1   NEITHER chunk emitted                app shell  6,581 KB   (19.7x)
+//
+// In a worktree the hoisted `node_modules` sits outside the workspace root, the deps fall back to
+// CommonJS interop (a `_commonjsHelpers` chunk appears; 638 modules transformed vs 585), and the
+// `advancedChunks` rules never match — so three.js and the That Open stack are folded into the
+// eager shell. The only thing that turned that into a visible failure was the PWA precache size
+// limit, which is absent from `VITE_PAGES=1` builds. Without this assertion, that configuration
+// ships a 20x shell in silence.
+const VENDOR_CHUNKS = [
+  ["three", /^three-.*\.js$/],
+  ["thatopen", /^thatopen-.*\.js$/],
+];
+const missingVendor = VENDOR_CHUNKS.filter(([, re]) => !files.some((f) => re.test(f))).map(([n]) => n);
+if (missingVendor.length) {
+  console.error(
+    `\nbundle-budget: FAIL — vendor chunk(s) not emitted: ${missingVendor.join(", ")}.\n` +
+    "The advancedChunks split did not match, so these libs are inside the eager shell and are no\n" +
+    "longer separately cacheable. If you are building from a git worktree this is expected and the\n" +
+    "build output is WRONG — build from the main clone. Otherwise the chunking config has regressed.",
+  );
+  process.exit(1);
+}
+
 if (total / 1024 > BUDGET_KB) {
   console.error(`\nbundle-budget: FAIL — shell ${kb(total)} KB exceeds ${BUDGET_KB} KB.`);
   console.error("Trim the eager path (lazy-load it) or bump BUNDLE_BUDGET_KB deliberately with a note.");
