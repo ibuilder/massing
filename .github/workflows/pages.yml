@@ -47,6 +47,36 @@ jobs:
           VITE_PAGES: "1"
           VITE_BASE: "/app/"
 
+      # The PUBLIC build had no size or chunking check of any kind, which is the worst place for that
+      # to be true. `ci.yml` runs this step; `pages.yml` never did — and `VITE_PAGES=1` also excludes
+      # `VitePWA`, whose precache limit was the only thing that ever objected to a bloated shell (it is
+      # what caught a 19.7x eager bundle, by accident, on a different build). So the one configuration
+      # facing the public was guarded by neither.
+      #
+      # This measures the same dist the "Assemble site" step is about to publish, so it gates the
+      # artefact rather than a proxy for it.
+      - name: Bundle-size budget + vendor split (public build)
+        run: npm run budget --workspace apps/web
+        env:
+          # A SEPARATE budget, because this is a different artefact — not a relaxation of the other.
+          #
+          # Measured 2026-08-06, same commit, both builds, Brotli:
+          #
+          #     default (ci.yml)   index 89.9 KB + app 85.8 + css 9.3  =  185.0 KB   (budget 220)
+          #     pages   (here)     index 189.4   + app 85.8 + css 9.3  =  284.5 KB
+          #
+          # `app-*` and the CSS are byte-identical; the whole 99.5 KB sits in the ENTRY chunk, which
+          # is 1.38 MB raw here against 396 KB by default. The static demo has no API to fetch from,
+          # so `VITE_PAGES=1` inlines the demo corpus and the module registry — grepping the entry
+          # chunk finds "PM Schedules" 11x and "IfcWall" 8x, both absent from the default build.
+          # That is the demo working as designed, not a regression, so holding it to 220 would fail
+          # honestly-different content and teach everyone to ignore the step.
+          #
+          # 300 is a RATCHET on today's real number (284.5), not a comfortable ceiling: ~5% headroom
+          # against the default build's ~19%. It only ever moves down. **Every register added to the
+          # registry grows this**, so it is the number to re-read when the demo corpus changes.
+          BUNDLE_BUDGET_KB: "300"
+
       # assemble the Pages site: landing page at the root, viewer demo under /app/
       #
       # `docs/` doubles as the web root, so a plain `cp -r docs/.` publishes everything in it. That is

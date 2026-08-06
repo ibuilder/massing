@@ -40,10 +40,18 @@ try {
   console.error(`bundle-budget: ${join(DIST_ROOT, "index.html")} not found — run \`vite build\` first.`);
   process.exit(2);
 }
-// only the entry assets index.html actually references (under /assets/), not registerSW.js etc.
+// only the entry assets index.html actually references (under <base>assets/), not registerSW.js etc.
+//
+// The `[^"]*` before `/assets/` is load-bearing and was not there originally: `vite.config.ts` sets
+// `base: process.env.VITE_BASE || "/"`, and the Pages build (`pages.yml`) sets `VITE_BASE=/app/`, so
+// Vite emits `src="/app/assets/…"` there and `src="/assets/…"` by default. Anchoring the match at
+// `/assets/` meant this script found no entry on a Pages build and exited 2 — which reads as "the
+// build output changed", not as "this configuration is unmeasured". It never surfaced because
+// `npm run budget` was not in `pages.yml` at all. Matching the segment rather than the prefix is
+// what lets one script measure both builds.
 const htmlEntry = (re) => [...html.matchAll(re)].map((m) => m[1]);
-const entryJs = htmlEntry(/<script[^>]+src="\/assets\/([^"]+\.js)"/g);
-const entryCss = htmlEntry(/<link[^>]+href="\/assets\/([^"]+\.css)"/g);
+const entryJs = htmlEntry(/<script[^>]+src="[^"]*\/assets\/([^"/]+\.js)"/g);
+const entryCss = htmlEntry(/<link[^>]+href="[^"]*\/assets\/([^"/]+\.css)"/g);
 const shellNames = new Set([...entryJs, ...entryCss, ...files.filter((f) => APP.test(f))]);
 const shellFiles = files.filter((f) => shellNames.has(f));
 if (!entryJs.length) {
