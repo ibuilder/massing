@@ -217,14 +217,14 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT *(SHIPPED v0.3.848)* · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ *(ALREADY BUILT — checked 2026-08-06)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · R41-SCHEMA-STALE |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ *(ALREADY BUILT — checked 2026-08-06)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS *(SHIPPED 2026-08-06 — `pm_contract`; pending archive)* — lane now empty |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑧ |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* · R41-GATE-SUBSTANCE · R41-DELETE-RATCHET · R41-LICENCE-GATE |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -1476,6 +1476,134 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
 - ◧ **R22-PIPELINE** — no rewrite needed; a **spec reference now exists** from the same drop (portfolio
   dashboard: multi-project KPI strip, cross-project Gantt, EVM PV/EV/AC + SPI/CPI, risk heat map,
   milestone tracking, resource allocation by department, cost-by-project).
+
+## 🔬 R41 — EXTERNAL SCAN *(27 sources, 2026-08-06; licences read from the LICENSE file, not the README)*
+
+**Why this ring reads differently from the others.** Three of the six code repositories examined carry
+a licence that **differs from what their README or badge claims**, and two of those are hard exclusions
+for us specifically. The scan's most reusable output is therefore a process change rather than a
+feature: **a machine-enforced licence allowlist in CI would have caught them mechanically instead of
+requiring a manual read** — filed below as R41-LICENCE-GATE.
+
+### ⛔ Excluded — do not vendor, copy, or depend on
+
+* **Two Claude-skill repositories** (a BIM health scorecard, a spec indexer). Their READMEs say "free,
+  self-hosted" and never mention licensing; the LICENSE file is a custom source-available licence whose
+  second clause forbids distribution **"as part of a paid service"** — which is exactly what this
+  product is. Internal use on our own models would be permitted; shipping any part is not, and the
+  rulebook cannot be copied. **Two of their ideas are free to adopt**, since ideas are not
+  copyrightable: an **evidence-tier ledger** grading each claim *verified / sourced / chosen* with a
+  dated primary-source read log recording what was opened and **what it did not contain**; and
+  **stage-aware rule severity**, where a missing field is informational at schematic design and a
+  failure at fabrication.
+* **A hosted AutoLISP script library** — no LICENSE, no repository, no named author, so all rights are
+  reserved by default. **An exclusion by absence, which is easier to misread as permissive than a bad
+  licence is.** Its twelve command names remain a field-validated requirements checklist for the R27
+  drawing-is-data ring: delete duplicates, fillet-to-zero to close corners, straighten near-axis
+  linework, split lines at intersections, and select by length, orientation, overlap or layer.
+  Behaviour from a published description is fine; implementation is not.
+* **A browser-local IFC viewer and clash tool licensed SSPL** — source-available, not open source, and
+  aggressively copyleft for hosted services. Do not read its source with intent to copy. Commercially
+  it is worth knowing that it is free and needs no signup, which makes it real pressure on a *viewer*
+  wedge and none at all on authoring, cost, scheduling or finance; its own comparison page concedes it
+  has no coordination workflow, **which we lead on**.
+* **A closed-access Automation in Construction paper** on a joint-embedding predictive architecture for
+  3D BIM geometry (DOI 10.1016/j.autcon.2026.107169, vol 191, art 107169). Title, authors and DOI
+  confirmed; **the abstract is deposited nowhere public and was deliberately not inferred.** A
+  technique to watch rather than act on: no released weights or code were found, and we have no ML
+  training pipeline. Re-check whether the authors later publish code.
+
+### Capability items
+
+- **R41-FDD-INGEST** *(M — Lane C)* — **consume fault findings; do not build a historian.** The operate
+  phase has a real hole: FCA/FCI, work orders, PM schedules, asset registers and warranties all exist,
+  but **nothing consumes time-series building-automation telemetry**, so condition is surveyed by a
+  person rather than measured continuously. The tempting answer — build fault detection ourselves —
+  needs a historian, point-role mapping and an ingest path, which is a *different product*: the
+  reference implementation is six years old and 250 MB of repository. **The cheap path is a
+  `fault_finding` register keyed to IFC GlobalId, populated from an external system's MCP or REST
+  surface**, feeding the FCI and work-order modules we already have. Public ASHRAE Guideline 36 fault
+  identifiers are a stable vocabulary to key against.
+- **R41-MODEL-ALIGN** *(M — Lane E)* — **align a federated model that arrived with wrong, missing or
+  unit-mismatched georeferencing, without touching the source file.** This is the daily reality of GC
+  federation and is *not* the same problem as our standing set-origin note. Two techniques, both
+  reimplement-from-description — the reference source carries an object-code-only header despite an MIT
+  root, so **do not paste it**:
+  **(a) a yaw-only oriented bounding box** fitted to drawn geometry (2D convex hull of the footprint,
+  minimum-area rectangle), accepted **only when it saves at least 20% area**. The reasoning is the
+  valuable part: a true minimum-area rectangle sat **37° off a building's own walls to buy 14%**, which
+  reads as broken. The threshold buys *wall-parallel* rather than *smallest*. Their measured gap was a
+  54 × 78 m true extent against a 126 × 127 m axis-aligned box.
+  **(b) pick-based move, rotate and scale** from two point pairs.
+  **Check first whether the AABB-versus-OBB gap already affects our section box, zoom-to-model and any
+  bounding-box UI** — if it does, that is a defect rather than a feature.
+- **R41-CLASH-TRIAGE** *(M — Lane C)* — **a reduction stage between detection and workflow.** A
+  competitor's headline is not detection quality but **22,843 raw clashes reduced to 103 groups**:
+  group by geometric and semantic similarity, drop duplicates, filter grazing false positives, then
+  rank survivors by construction consequence. We have detection including soft and sequence clash, and
+  BCF round-trip. **Detection without reduction produces a number nobody reads**, and the same shape
+  applies to every engine that emits many findings — code compliance, scope gap, QTO variance.
+- **R41-COMMERCIAL-DRIFT** *(M — Lane C)* — **diff the money across documents, not across our own
+  estimates.** R25-ESTIMATE-DIFF compares two of *our* numbers. The gap is the chain **bid → executed
+  contract → purchase order → invoice**, each hop diffed against the one before it with findings ranked
+  by dollar impact: scope added between bid and contract, invoice lines drifting from a locked buyout
+  price. This is where subcontractors actually lose money, and it sits on top of cost and document
+  control we already have.
+- **R41-IDS-VALIDATE** *(M — Lane D)* — **buildingSMART IDS: author an Information Delivery
+  Specification, run it against a model, read the report.** Conspicuously absent for a product whose
+  thesis is IFC-native, and a likely second gap in the "openBIM gaps complete except the IFC5/IFCX
+  write-path" claim. **Verify that claim against the tree before sizing this.**
+- **R41-UPLOAD-WARK** *(M — Lane C)* — **content-addressed resumable upload in front of object
+  storage.** Technique from an MIT-licensed file server (verified from its LICENSE); reimplement the
+  handshake rather than adopt the server. Three parts: chunk size chosen so the **chunk *count* stays
+  bounded**, keeping the handshake manifest roughly constant regardless of file size — a fixed part
+  size gives a manifest that grows linearly with a large IFC; an upload identity derived from
+  `hash(salt + filesize + chunk hashes)` so **resumption is not a special code path** (re-handshake,
+  receive the still-needed list) and deduplication falls out for free; and per-chunk hashes catching
+  corruption **before** IFC-to-Fragments conversion runs. **IFC revisions are large and mostly
+  identical between uploads**, so an unchanged re-upload currently costs a full transfer. Their
+  sparse-file capability check is this codebase's own house style expressed in a network protocol: on a
+  mismatch it **refuses loudly**, naming file, chunk index and offset, rather than silently writing a
+  corrupt file.
+
+### Gate and process items
+
+- **R41-SCHEMA-STALE** *(S — Lane C)* — **a stored record that predates a semantics change must read
+  back visibly broken, never plausibly wrong.** Stamp a schema version on every persisted record; on
+  read, a record at any other version returns with its payload **forced to null and a stale flag set**,
+  so the caller degrades in a way a user can see and fix. We have 135+ registers plus BCF pins, saved
+  views, origin data and module records. **Audit them against one question: when a stored record
+  predates a change, does it read back as broken or as quietly wrong?** Related grep while in there —
+  any composite cache or dedup key built by bare string concatenation collides, since `"abc" + "d"`
+  equals `"abcd" + ""`; use an explicit delimiter.
+- **R41-GATE-SUBSTANCE** *(S — Lane J)* — **`services/api/test_claude_md_gates.py` proves a cited path
+  resolves; it does not prove the file still says anything.** A path can resolve to a twelve-byte stub.
+  Add a size or heading floor for the artefacts carrying real content — the roadmap, the family-shelf
+  catalogue, the rate tables — in the same ratchet style as the per-file line limits in
+  `services/api/test_file_sizes.py`.
+- **R41-DELETE-RATCHET** *(S — Lane J)* — **assert in CI that removed things stay removed.** Several
+  lanes ship to main at once and nothing currently stops one reintroducing a decomposed god-module or a
+  re-export that reads as a dead import. A negative assertion is three lines and makes a removal stick:
+  the ratchet-rather-than-allowlist principle applied to architecture instead of security.
+- **R41-LICENCE-GATE** *(S — Lane J)* — **enforce the licence allowlist in CI instead of by reading.**
+  This scan found three repositories whose actual LICENSE differs from their README or badge, two of
+  them forbidding exactly our use. A dependency and licence policy gate would have flagged them
+  mechanically. Pair it with a filesystem CVE scan and a Dockerfile linter, both of which look like
+  genuine gaps beside existing CodeQL, dependency-audit and secret-scan coverage.
+
+### Reclassified, and worth acting on separately
+
+Two sources are **not competitors**: a construction-operations consultancy, and a BIM services firm
+delivering LOD 400/500 models and 5D quantity take-off on data-centre and hospital projects. **The
+latter is a customer and channel profile rather than a threat** — a services firm delivering by hand
+exactly what this platform automates, with a data-centre concentration matching the hotel and
+data-centre gap already recorded in the proforma asset-class scope. One further source is live-events
+design and is off-mission entirely. One hardware repository is a bench-top protocol tool with no
+telemetry, device management or building-automation path, and is off-mission despite a superficially
+plausible IoT reading — the connection was checked and deliberately not manufactured.
+
+*Vendor names and commercial detail are deliberately absent from this file — they live in
+`docs/internal/`, because `services/api/test_no_comparative_names.py` gates the public docs.*
 
 ## 🔧 R39 — DEPLOYMENT-TRUTH RING *(external engineering audit 2026-08-02, premise-checked item by item)*
 
