@@ -187,6 +187,22 @@ mid-construct. A resolution once passed every marker grep and failed to compile.
 
 **Resolve, then compile.** A presence check is necessary and not sufficient.
 
+### Undoing an edit — `checkout --` restores from a STALE HEAD here
+
+`git checkout -- <file>` restores from **HEAD**, not from "before my last change", so it discards every
+uncommitted edit to that file rather than the one you meant to undo. That is the generic hazard, and
+in this clone it is worse: under the temp-index release pattern **local HEAD never moves**, so HEAD is
+routinely many releases behind `origin/main`. The file you get back may be far older than anything you
+were working on, and `git status` will look clean afterwards.
+
+**Undo from a copy you made, not from git.** This applies especially to mutation-testing, where the
+whole method is edit-run-restore.
+
+The same staleness makes the working tree a poor measuring instrument. A local build, a local file
+size, a local line count are all measurements *of the tree you have*, which is not the commit you are
+reasoning about — a bundle budget was once set from one and landed below the artefact it gated.
+**Measure in CI, or verify the tree's ref first.**
+
 ---
 
 ## 4. Lanes — how several agents work at once
@@ -201,6 +217,18 @@ path**. `apps/web/src/shell/roadmapLanes.test.ts` asserts both directions and fa
    without them and let the release batch pick them up — or take the release and say so.
 5. A carve-out in the lane table is written `!path`, in the same syntax the check reads. Prose
    exclusions are not boundaries.
+6. **Checking the codebase is not checking the other agents.** A premise-check that reads the tree
+   answers "is this built?" and cannot answer "is someone building it?" — the artefact does not exist
+   anywhere the tree can see until it lands. On 2026-08-06 a lane correctly established that
+   R22-PM-CONTRACTS was genuinely unbuilt, and dropped it on discovering another session had already
+   committed it in a worktree. True about the repo, wrong about the work. Before starting, say so by
+   message; a lane claim is cheap and a duplicated day is not.
+7. **One PR per landing.** Once a PR merges, the next slice needs a fresh branch off current main.
+   Pushing a continuation to a merged PR's branch produces work that is **pushed, referenced by a
+   link that still resolves, and merged nowhere** — GitHub does not reopen a merged PR. This happened
+   the same day, and the reason it is dangerous is that "shipped" and "stranded" render identically:
+   a merged PR plus a pushed branch. It was caught only because the message itemised a line count
+   that disagreed with main.
 
 ### Shared files that need a heads-up
 
@@ -259,6 +287,38 @@ crosses sessions.
   instead.
 - **Assert against a reader you didn't write.** A round-trip through your own writer and reader passes
   on the wrong format.
+- **A test that supplies BOTH SIDES of a seam agrees with itself no matter which side is wrong.** The
+  sharpest instance: a join read three field names *no engine emits*, and all nineteen unit checks
+  passed — because the fixture was invented alongside the code. It would have reported every axis
+  absent on a fully populated project. The same shape produced the worst bug in three separate PRs on
+  one day, at three different layers (a join, an audit trail, a ledger key). The countermeasure that
+  worked each time is a test supplying **neither** side: **drive the real producer, read the real
+  consumer, assert they agree.** This is the twin of the refusal rule above — ask both "which checks
+  still pass if the function does nothing?" and "which still pass if the other side is wrong?"
+- **A mutation proves nothing unless it APPLIED and failed for the right reason.** Two failure modes,
+  both seen in one sitting. A mutation that does not apply leaves a passing run that reads exactly
+  like a surviving mutant — assert the edit landed, do not trust the runner's output alone. And a
+  mutation that breaks *compilation* goes red while telling you nothing about the assertion; this one
+  is the more flattering of the two. Keep mutants syntactically valid (`if (false && cond)` rather
+  than commenting a line out), and beware that MSYS collapses `//` in a shell argument.
+
+### Moving code without changing behaviour
+
+- **State what you checked, not what you concluded.** Three sessions made this error on 2026-08-06 in
+  three directions: "no test imports this file" became "there is no parity gate" (a source-reading
+  gate existed and was stronger); "6 of 158 matched" became "the port does not work" (the reader was
+  reading the wrong line); "this is unbuilt" became "nobody is building it". A checked claim can be
+  refuted precisely; a concluded one can only be contradicted, which takes far longer to settle.
+- **A getter cannot express a write.** Passing captured state across an extraction seam by accessor
+  covers reads only. When the moved code *assigns* to the captured binding, both obvious fixes are
+  wrong in different ways: moving the declaration into the new module changes its **lifetime** (it may
+  need to survive the enclosing builder re-running), and passing by value reintroduces the exact
+  stale-closure bug accessors exist to prevent. Keep ownership in the original scope and pass a
+  mutable **ref**.
+- **Prove a move was a move.** Diff the extracted body against the original range with
+  `git show <ref>:<path>`, do not read it and judge. Do not re-indent — re-indenting can silently edit
+  the contents of a multi-line template literal. Name every non-identical line in the PR; two out of
+  1,180 with a stated reason is a good exception, and "mostly identical" is not a claim.
 
 ---
 
