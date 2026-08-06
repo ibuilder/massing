@@ -16,7 +16,7 @@
     "build:desktop": "tsc --noEmit && vite build --mode desktop",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.ts\" capacitor.config.ts",
+    "lint": "eslint \"src/**/*.ts\" \"scripts/**/*.mjs\" capacitor.config.ts",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "lint:fast": "oxlint src",
     "test": "vitest run",
