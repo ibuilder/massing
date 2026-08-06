@@ -25,10 +25,19 @@ const PRIORITY: Record<SnapKind, number> = {
 /**
  * The best object-snap for `cursor` among `candidates`, or null if none is within `tol` (world units).
  * Ties on distance break by snap priority (a vertex beats a midpoint at the same range).
+ *
+ * `only` restricts the search to one snap kind — this is what a **one-shot override** is made of
+ * (AUTH-SNAP-OVERRIDE). It is a filter and never a preference: when nothing of that kind is in range
+ * the answer is `null`, *not* the nearest point of some other kind. Falling back would hand the
+ * drafter a midpoint while the HUD said "perpendicular", and a snap that lies about its kind is worse
+ * than no snap at all — the placed point carries a GlobalId and feeds schedules.
  */
-export function resolveSnap(cursor: Vec2, candidates: SnapCandidate[], tol: number): SnapResult | null {
+export function resolveSnap(
+  cursor: Vec2, candidates: SnapCandidate[], tol: number, only?: SnapKind | null,
+): SnapResult | null {
   let best: SnapResult | null = null;
   for (const c of candidates) {
+    if (only && c.kind !== only) continue;
     const d = Math.hypot(c.x - cursor.x, c.z - cursor.z);
     if (d > tol) continue;
     if (!best) { best = { x: c.x, z: c.z, kind: c.kind, dist: d }; continue; }
@@ -38,6 +47,56 @@ export function resolveSnap(cursor: Vec2, candidates: SnapCandidate[], tol: numb
     }
   }
   return best;
+}
+
+/** Parameter of the projection of `p` onto segment a→b, unclamped. Null for a degenerate segment. */
+function projectT(a: Vec2, b: Vec2, p: Vec2): number | null {
+  const dx = b.x - a.x, dz = b.z - a.z;
+  const len2 = dx * dx + dz * dz;
+  if (len2 < 1e-12) return null;
+  return ((p.x - a.x) * dx + (p.z - a.z) * dz) / len2;
+}
+
+/**
+ * Foot-of-perpendicular candidates: for each segment of `points`, the point where a line from `from`
+ * meets that segment at 90°. **Emitted only when the foot lies ON the segment** — a perpendicular
+ * that lands past the end of an edge is a perpendicular to that edge's *infinite line*, which is not
+ * a place on the model, so it is dropped rather than clamped. (Clamping would silently return the
+ * endpoint and label it "perpendicular".)
+ *
+ * `from` is the point being drawn *from* — the previous point of the run. Perpendicular is the one
+ * osnap that is meaningless without it, which is why it takes an argument the others do not.
+ */
+export function perpendicularSnaps(points: Vec2[], from: Vec2, closed = false): SnapCandidate[] {
+  const out: SnapCandidate[] = [];
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const j = i + 1;
+    if (j >= n && !closed) break;
+    const a = points[i]!, b = points[j % n]!;
+    const t = projectT(a, b, from);
+    if (t === null || t < -1e-9 || t > 1 + 1e-9) continue;
+    out.push({ x: a.x + t * (b.x - a.x), z: a.z + t * (b.z - a.z), kind: "perpendicular" });
+  }
+  return out;
+}
+
+/** Nearest-point-on-edge candidates ("nearest" osnap) — the projection of `cursor` onto each
+ *  segment, clamped to the segment's ends. Unlike perpendicular this always yields a point per
+ *  segment, because "nearest" makes no claim about the angle. */
+export function nearestSnaps(points: Vec2[], cursor: Vec2, closed = false): SnapCandidate[] {
+  const out: SnapCandidate[] = [];
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const j = i + 1;
+    if (j >= n && !closed) break;
+    const a = points[i]!, b = points[j % n]!;
+    const t = projectT(a, b, cursor);
+    if (t === null) continue;
+    const c = Math.min(1, Math.max(0, t));
+    out.push({ x: a.x + c * (b.x - a.x), z: a.z + c * (b.z - a.z), kind: "nearest" });
+  }
+  return out;
 }
 
 /** Endpoint + midpoint snap candidates for a polyline (open or closed). Used by the viewer to feed

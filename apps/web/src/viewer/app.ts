@@ -9,7 +9,10 @@ import { installCollabPresence } from "./collabPresence";
 import { installKeysDyn } from "./keysDyn";
 import { installEnvTools } from "./envTools";
 import { inferDirection } from "./inference";
-import { applyDynamicInput, polarConstrain } from "./snapEngine";
+import { applyDynamicInput, polarConstrain, resolveSnap } from "./snapEngine";
+import {
+  OVERRIDE_LABEL, createSnapOverride, overrideCandidates, type OverrideKind,
+} from "./snapOverride";
 import { parseDynConstraint } from "./dynInput";
 import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
@@ -774,14 +777,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // REL-4 leaf: the KEYS 2-letter shortcuts, the typed distance/angle constraint (dynamic input),
   // and the snap-glyph feedback live in keysDyn.ts; the handle exposes the dyn buffer for the draft
   // flow and Escape routes back through disarmDraft.
+  // AUTH-SNAP-OVERRIDE — one-shot osnap, armed by a two-letter code and spent by the next pick.
+  const snapOverride = createSnapOverride();
   const keysDyn = installKeysDyn({
     container, notify,
     isArmed: () => !!armed, armedPoints: () => armPts.length,
     draftHandle: () => draftHandle, onEscape: () => disarmDraft(),
+    snapOverride,
   });
   const setDynBuf = keysDyn.setDynBuf;
   const flashSnapGlyph = keysDyn.flashSnapGlyph;
-  function disarmDraft() { armed = null; armPts.length = 0; draftHistory.clear(); setDynBuf(""); draftHandle?.onArmCleared(); }
+  function disarmDraft() { armed = null; armPts.length = 0; draftHistory.clear(); setDynBuf(""); snapOverride.clear(); draftHandle?.onArmCleared(); }
   // A29-UNDO-LOCAL — Ctrl+Z pops the last clicked point of the IN-PROGRESS draft (Ctrl+Shift+Z
   // restores it); the server's versioned history stays the record for committed work. Registered on
   // window because the canvas never holds focus; consumed ONLY while a draft is armed, so committed-
@@ -954,14 +960,50 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     } catch { return null; }
   }
 
+  /** AUTH-SNAP-OVERRIDE — resolve ONE named snap kind against the picked element's plan footprint.
+   *
+   *  Null when the model has nothing of that kind to offer; the caller then keeps the raw cursor and
+   *  says so on the glyph. It deliberately does **not** fall back to another kind — the drafter named
+   *  one, and a point silently placed on a midpoint while the HUD said "perpendicular" carries a
+   *  GlobalId into the schedules.
+   *
+   *  No aperture. The automatic path uses a 0.4 m tolerance because it is guessing which of six kinds
+   *  the drafter meant; here the kind is stated and the candidates are the ≤4 points of the element
+   *  the drafter explicitly picked, so a distance cut would only make a stated intent fail. */
+  async function snapByOverride(raw: THREE.Vector3, hit: Hit | null, kind: OverrideKind,
+                                from: THREE.Vector3 | null): Promise<THREE.Vector3 | null> {
+    if (kind === "none" || !hit) return null;
+    try {
+      const boxes = await loader.fragments.getBBoxes({ [hit.fragments.modelId]: new Set([hit.localId]) });
+      const bx = boxes[0];
+      if (!bx) return null;
+      const cur = { x: raw.x, z: raw.z };
+      const cands = overrideCandidates(kind, { minX: bx.min.x, maxX: bx.max.x, minZ: bx.min.z, maxZ: bx.max.z },
+                                       cur, from ? { x: from.x, z: from.z } : null);
+      const r = resolveSnap(cur, cands, Number.POSITIVE_INFINITY, kind);
+      return r ? new THREE.Vector3(r.x, raw.y, r.z) : null;
+    } catch { return null; }
+  }
+
   // --- P0 Draft placement: parameter-driven (params baked into `armed.build`), no prompt() --------
   async function captureDraftPoint(e: MouseEvent, hit: Hit | null) {
     const spec = armed;
     if (!spec) return;
     const raw = hit?.point ?? screenToGround(e);
-    const geoSnap = raw ? await snapToGeometry(raw, hit) : null;   // hard endpoint/edge/vertex snap
-    let p = raw ? (geoSnap ?? snapPoint(raw)) : null;
-    if (geoSnap) flashSnapGlyph(e, "◻ snap");
+    // AUTH-SNAP-OVERRIDE — spent by THIS pick whether or not it resolves, so a miss never steers the
+    // click after it. While armed it replaces the automatic geometry snap and suppresses every
+    // automatic stage below (grid increment, grid overlay, axis inference, polar, Shift ortho): a
+    // stated "this pick, perpendicular" that then got re-snapped to a grid line is not an override.
+    // A TYPED constraint still wins, because exact numbers are the more specific statement of the two.
+    const ovr = snapOverride.consume();
+    const ovrFrom = armPts.length >= 1 ? armPts[armPts.length - 1]! : null;
+    const geoSnap = raw
+      ? (ovr ? await snapByOverride(raw, hit, ovr, ovrFrom) : await snapToGeometry(raw, hit))
+      : null;                                                      // hard endpoint/edge/vertex snap
+    let p = raw ? (geoSnap ?? (ovr ? raw.clone() : snapPoint(raw))) : null;
+    if (ovr === "none") flashSnapGlyph(e, "⊾ no snap");
+    else if (ovr) flashSnapGlyph(e, geoSnap ? `⊾ ${OVERRIDE_LABEL[ovr]}` : `⊾ no ${OVERRIDE_LABEL[ovr]} here`);
+    else if (geoSnap) flashSnapGlyph(e, "◻ snap");
     // SNAP-KIT phase 2 — a TYPED constraint beats every automatic snap: the drafter said exactly
     // what they want. Plan angles are CCW-from-east with North "up" = -z, while the snap engine's
     // +z axis points south — so the typed angle's sign flips on the way in.
@@ -974,11 +1016,11 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       showCoords(p);
       flashSnapGlyph(e, `⌨ ${keysDyn.dynBuf()}`);
       setDynBuf("");
-    } else if (p && e.shiftKey && armPts.length >= 1) {   // ortho lock from the previous point
+    } else if (p && e.shiftKey && armPts.length >= 1 && !ovr) {   // ortho lock from the previous point
       const a = armPts[armPts.length - 1]!; // safe: armPts.length >= 1 checked above
       if (Math.abs(p.x - a.x) >= Math.abs(p.z - a.z)) p = new THREE.Vector3(p.x, p.y, a.z);
       else p = new THREE.Vector3(a.x, p.y, p.z);
-    } else if (p && !geoSnap && armPts.length >= 1) {
+    } else if (p && !geoSnap && armPts.length >= 1 && !ovr) {
       // E1 — automatic on-axis / parallel inference (SketchUp-style): snap the point onto a world axis
       // or the previous edge's direction/perpendicular when the cursor is within ~6° of it. A hard
       // geometry-vertex snap (above) always wins; Shift is the manual hard ortho-lock.
@@ -998,7 +1040,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (!p) { notify("couldn't pick a point — click the floor or grid", "error"); return; }
     // snap to the nearest grid intersection when the grid overlay is loaded (plan E=x, N=-z) —
     // unless a TYPED constraint placed this point (explicit intent must not be re-snapped away)
-    if (gridOverlay.hasData && !dynC) {
+    if (gridOverlay.hasData && !dynC && !ovr) {
       const gs = gridOverlay.nearestSnap(p.x, -p.z, 0.6);
       if (gs) p = new THREE.Vector3(gs[0], p.y, -gs[1]);
     }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
-import { KEY_SHORTCUTS } from "../viewer/keysDyn";
+import { KEY_SHORTCUTS, SNAP_HELP } from "../viewer/keysDyn";
+import { OVERRIDE_CODES } from "../viewer/snapOverride";
 import { GLOBAL_KEYS, VIEWER_KEYS, keyContract, keysIn } from "./keys";
 
 /**
@@ -53,11 +56,65 @@ describe("the draw codes are not a second copy", () => {
   });
 });
 
+describe("AUTH-SNAP-OVERRIDE — the one-shot snap codes are not a second copy either", () => {
+  it("agrees with viewer/snapOverride in BOTH directions", () => {
+    const contract = keysIn(keyContract(KEY_SHORTCUTS, SNAP_HELP), "Snap for one pick");
+    expect([...contract].sort()).toEqual(Object.keys(OVERRIDE_CODES).sort());
+  });
+
+  it("publishes a human label per code, not the internal kind", () => {
+    const sect = keyContract(KEY_SHORTCUTS, SNAP_HELP).find((s) => s.title === "Snap for one pick")!;
+    expect(sect.entries.find((e) => e.keys === "PE")?.does).toBe("Perpendicular");
+    expect(sect.entries.find((e) => e.keys === "NO")?.does).toBe("No snap");
+  });
+
+  // The one thing a reader of this section most needs to know, because it is what makes it usable
+  // mid-draw and is the whole difference from a mode.
+  it("says it applies to one click and that Esc leaves the tool armed", () => {
+    const sect = keyContract(KEY_SHORTCUTS, SNAP_HELP).find((s) => s.title === "Snap for one pick")!;
+    expect(sect.note).toMatch(/that click only/i);
+    expect(sect.note).toMatch(/not a mode/i);
+    expect(sect.note).toMatch(/leaves the tool armed/i);
+  });
+});
+
+/**
+ * Both `?` handlers must publish the same sections.
+ *
+ * `main.ts` answers `?` globally and `viewer/keysDyn.ts` installs a second `?` listener once the 3D
+ * bundle is in memory, so with the viewer loaded BOTH run. That was harmless only while they passed
+ * identical arguments. This module's whole origin story is `?` giving two different answers depending
+ * on load state, and the cheapest way for it to come back is a new section added to one call site.
+ *
+ * Asserted against source text because the two call sites are in module top-level key handlers that
+ * cannot be invoked without standing up the shell and the viewer. Resolved from `process.cwd()`
+ * (= `apps/web`) — under happy-dom `import.meta.url` has no `file:` scheme.
+ */
+describe("the two `?` call sites publish the same sections", () => {
+  const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
+
+  it("main.ts passes the snap codes, not just the draw codes", () => {
+    const src = read("src/main.ts");
+    expect(src).toMatch(/SNAP_HELP/);
+    // and imports it from the same module it already takes KEY_SHORTCUTS from, rather than keeping
+    // a second copy of the table
+    expect(src).toMatch(/KEY_SHORTCUTS,\s*SNAP_HELP/);
+  });
+
+  it("keysDyn.ts passes both as well", () => {
+    expect(read("src/viewer/keysDyn.ts")).toMatch(/showKeyHelp\(KEY_SHORTCUTS,\s*SNAP_HELP\)/);
+  });
+});
+
 describe("the contract degrades honestly", () => {
   it("omits the Draw tools section entirely when the viewer has not loaded", () => {
     // Rather than showing fourteen codes that would do nothing if pressed.
     const titles = keyContract([]).map((s) => s.title);
     expect(titles).toEqual(["Anywhere", "In the 3D view"]);
+  });
+
+  it("omits the snap codes too — they need an armed draw tool, which needs the viewer", () => {
+    expect(keyContract(KEY_SHORTCUTS, []).map((s) => s.title)).not.toContain("Snap for one pick");
   });
 
   it("says the 3D keys need a model rather than letting the user find out", () => {

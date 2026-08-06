@@ -1738,8 +1738,15 @@ window.addEventListener("keydown", (e) => {
   // The draw codes are only offered once the viewer is in memory: importing them eagerly would pull
   // viewer code into the startup bundle to populate a list that cannot be used yet anyway.
   if (k === "?") {
+    // AUTH-SNAP-OVERRIDE — the one-shot snap codes ride along with the draw codes, and for the same
+    // reason they must: `keysDyn` installs its OWN `?` listener once the viewer is loaded, so both
+    // handlers answer this key. While they published the same list that was invisible; the moment one
+    // of them knows about a section the other does not, `?` gives two different answers again — which
+    // is the precise defect `ui/keys.ts` was written to end. Gated on `viewerApp` like the draw codes,
+    // because neither does anything without an armed tool.
     void import("./viewer/keysDyn")
-      .then(({ KEY_SHORTCUTS }) => showKeyHelp(viewerApp ? KEY_SHORTCUTS : []))
+      .then(({ KEY_SHORTCUTS, SNAP_HELP }) =>
+        showKeyHelp(viewerApp ? KEY_SHORTCUTS : [], viewerApp ? SNAP_HELP : []))
       .catch(() => showKeyHelp());
     return;
   }
