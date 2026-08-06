@@ -218,7 +218,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT *(SHIPPED v0.3.848)* · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **all SHIPPED and MERGED** (PRs #176/#178/#179 landed 2026-08-02); pending archive. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ *(ALREADY BUILT — checked 2026-08-06)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
@@ -1398,11 +1398,31 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
     ships (`planParams(storey)`, and the pane refetches only when the *cut* changes, so a selection
     change costs no round-trip). **Pan and zoom** ship (`overflow:auto` body; a client-side
     `zoomPct` that deliberately does *not* refetch, because zoom is presentation and a refetching
-    zoom would cost a bake per click). 14 tests. **The residue is live CURSOR sync** — nothing
-    mirrors the 3D cursor onto the plan; the only `cursor` in the file is a CSS pointer on a hit
-    target. That is what is left of this item, and it is smaller than the entry implies.
+    zoom would cost a bake per click). 14 tests. **The residue is live CURSOR sync, and it is BLOCKED** — checked
+    2026-08-06 and it is not client work at all. `plan_drawing_svg` computes
+    `T(x, y) = (ox + (x - mnx) * scale, oy + draw_h - (y - mny) * scale)` and then **discards every
+    term of it**: the root carries only `width`, `height` and `viewBox="0 0 W H"`, and the only
+    `data-` attributes anywhere are `data-guid` / `data-class` on polylines. **A client holding a
+    world position cannot find its pixel.** Blocked on **R38-PLAN-TRANSFORM ③** below.
+
+    *The tempting workaround is the one to refuse*: the transform could be back-solved from a
+    polyline whose element geometry is known, which would work in a demo and drift silently the
+    first time a cut differs from what the client thinks it is. That is the same shape as
+    R24-TRACE-UI's rejected plan — **inventing in the client a fact the server threw away**.
     Original text: the second viewport with **cursor, pan/zoom and storey sync**. Buildable today;
     needs no identity.
+  - **R38-PLAN-TRANSFORM ③** *(S, Lane D — prerequisite, found 2026-08-06)* — **emit the plan's
+    world-to-SVG transform instead of discarding it.** `plan_drawing_svg` derives `mn`, `scale`,
+    `ox`, `oy` and `draw_h` to place every polyline, then serialises none of them, so the drawing
+    knows where things are and the client cannot ask. Put them on the SVG root
+    (`data-plan-scale`, `data-plan-ox`, `data-plan-oy`, `data-plan-minx`, `data-plan-miny`,
+    `data-plan-drawh`) and the inverse is arithmetic.
+
+    **This is the same defect as R38-PLAN-IDENTITY, one field over**: a value the bake holds and
+    drops on the way out — *one discarded value, not new machinery*. It unblocks cursor sync, and
+    with it anything else that needs to point at a place rather than at an element: a measurement
+    echoed onto the plan, a pin dropped in 3D showing where it lands, a section line drawn in plan.
+
   - **R38-PLAN-IDENTITY ③** *(S, Lane D — prerequisite)* — carry the GUID through the bake:
     `(guid, cls, mesh)` and a `cut_baked_guided` variant, so each polyline names its source element.
     **This is one discarded value, not new machinery** — and it unlocks selection sync, click-a-wall-
