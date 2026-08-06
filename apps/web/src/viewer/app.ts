@@ -47,6 +47,7 @@ import { TransformGizmo } from "./draft/transformGizmo";
 import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
 import { PlanPane } from "./planPane";
 import { type PlanBounds, validatePlacement } from "./placeValid";
+import { planBoundsFromModels } from "./modelBounds";
 import { type SpatialElement, type SpatialScope, nextScope, scopeSelection } from "./spatialSelect";
 import { DraftPointHistory } from "./draftHistory";
 import { DEFAULT_RISE_M, runReadout } from "./draft/stairLive";
@@ -1097,11 +1098,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   /** A29-PLACE-VALID: the loaded model's plan extent, from the same mesh traversal fitToModels
    *  uses. Null when nothing is loaded — a blank model must never refuse its first element. */
   function modelPlanBounds(): PlanBounds | null {
-    const box = new THREE.Box3();
-    viewer.world.scene.three.traverse((o) => { if ((o as THREE.Mesh).isMesh) box.expandByObject(o); });
-    if (box.isEmpty()) return null;
-    // plan coords are E = world x, N = -world z, so the N range is the NEGATED world-z range.
-    return { minX: box.min.x, maxX: box.max.x, minZ: -box.max.z, maxZ: -box.min.z };
+    // The MODEL, not the scene. Walking the scene expanded over the 2000x2000 shadow-catcher plane
+    // `world.ts` adds in presentation mode, so the "model extent" became +/-1000 m and the mis-click
+    // refusal it feeds stopped refusing anything. See `modelBounds.ts` for why this is an allowlist.
+    return planBoundsFromModels(
+      [...loader.fragments.list].map(([, m]) => m as unknown as { object: THREE.Object3D }),
+    );
   }
 
   async function finishDraft() {
