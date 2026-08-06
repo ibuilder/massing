@@ -48,6 +48,7 @@ import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
 import { PlanPane } from "./planPane";
 import { type PlanBounds, validatePlacement } from "./placeValid";
 import { planBoundsFromModels } from "./modelBounds";
+import { GuideUnderlay, openUnderlayPanel } from "./guideUnderlay";
 import { type SpatialElement, type SpatialScope, nextScope, scopeSelection } from "./spatialSelect";
 import { DraftPointHistory } from "./draftHistory";
 import { DEFAULT_RISE_M, runReadout } from "./draft/stairLive";
@@ -714,6 +715,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   });
   // UX-4: "Script this" — make the scriptable recipe interface a first-class, discoverable resource.
   // Plain-English → the GUID-safe recipe plan it maps to (the same verbs the AI bar + sandbox use) → apply.
+  toolBtn("🖼", "Guide underlay — pin a scanned plan to this level and trace over it", () => {
+    openUnderlayPanel({
+      underlay: guideUnderlay, levelZ: () => activeStoreyZ, notify, showResult,
+    });
+  }, "edit");
+
   toolBtn("⌨", "Script this — see the GUID-safe recipe plan behind a plain-English command, then apply", () => {
     if (!connected || !projectId) { notify("open a project to script it", "error"); return; }
     showResult("Script this — the recipe interface", (body) => {
@@ -851,6 +858,9 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // P1 grid/level drafting refs: the grid overlay + snap, and the active storey/work-plane.
   const gridOverlay = new GridOverlay(viewer.world.scene.three);
   const logisticsOverlay = new LogisticsOverlay(viewer.world.scene.three);
+  // A29-GUIDE-UNDERLAY — a scanned plan pinned to the active level, to trace over. It owns its own
+  // panel (see `guideUnderlay.ts`) so this file stays out of it; app.ts is near its size ceiling.
+  const guideUnderlay = new GuideUnderlay(viewer.world.scene.three);
   const draftProxies = new DraftProxyLayer(viewer.world.scene.three);   // P6: optimistic placement feedback
   let activeStorey: string | null = null;       // name passed to Draft recipes; sets the work-plane Z
   let activeStoreyZ = 0;
