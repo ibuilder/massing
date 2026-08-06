@@ -95,6 +95,10 @@ export const TOOLS: ToolSpec[] = [
   { title: "Plan beside model", label: "Plan pane", group: "look" },
   { title: "Move selected element (E,N,Z metres)", label: "Move", group: "author", primary: onEditableSelection },
   { title: "Copy selected element (offset E,N,Z metres)", label: "Copy", group: "author", primary: onEditableSelection },
+  // A29-GUIDE-UNDERLAY. In `author` rather than `look` because it is not a way of viewing the model —
+  // it is a reference you draw ON TOP OF, so it belongs beside the verbs that draw.
+  { title: "Guide underlay — pin a scanned plan to this level and trace over it",
+    label: "Guide underlay", group: "author" },
   { title: "Rotate selected element (degrees about Z)", label: "Rotate", group: "author" },
   { title: "Delete selected element", label: "Delete", group: "author" },
   { title: "Edit a property on the selected element", label: "Property", group: "author" },
@@ -167,6 +171,7 @@ export function describe(spec: ToolSpec): string {
  * wearing a blank.
  */
 export const TOOL_ICON: Record<string, string> = {
+  "Guide underlay": "scan",     // A29-GUIDE-UNDERLAY — a scanned plan, traced over
   "Levels": "layers",
   "Show all": "eye",
   "Isolate": "focus",
