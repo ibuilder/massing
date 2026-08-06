@@ -47,6 +47,8 @@ const SECTION_SOURCES = [
   "src/viewer/app.ts",
   "src/viewer/tools/qaSection.ts",
   "src/viewer/tools/exportsSection.ts",
+  "src/viewer/tools/analyseSection.ts",
+  "src/viewer/tools/authoringSection.ts",
 ];
 const APP = () => SECTION_SOURCES.map(read).join("\n");
 
