@@ -164,6 +164,24 @@ So the marginal cost of an isolated session is a source checkout — tens of MB,
    `PYTHONPATH`, not `node_modules`.
 3. **Distinct dev-server ports per session.** `:8093` and `:5173` are singletons; tests are already
    headless (happy-dom, no browser) so only a live preview needs one.
+4. **Branch from `origin/main`, never `main`.** In a worktree `git checkout main` **cannot succeed** —
+   main is checked out in the primary clone and git refuses to have one branch in two working trees.
+   That refusal is one line on stderr and nothing else changes, so a `2>/dev/null` turns it into a
+   silent no-op and the next command inherits a state nobody chose. `git checkout -b <new> main` then
+   works fine and resolves `main` as a **ref**, pointing wherever the local ref last pointed — which
+   in a worktree is wherever it was when the session began.
+
+   Measured 2026-08-07: a branch created that way was **140 commits stale** and every command reported
+   success. It was caught only because `app.ts` measured 5,064 lines against a ratchet pinned at 3,751,
+   and a ratchet that only revises down cannot sit below the file it measures. **The contradiction
+   between two numbers was the entire signal.**
+
+   Two generalisations worth more than the command: **never `2>/dev/null` a state-changing git
+   command** — suppressing stderr on a query is untidy, suppressing it on `checkout` converts a
+   refusal into a silent no-op; and **a ref name is not a ref** — `main` and `origin/main` are
+   different objects that read identically in a command line.
+
+        git fetch -q origin main && git checkout -q -b <branch> origin/main
 
     git worktree add .claude/worktrees/<lane> -b <branch> origin/main
     cd .claude/worktrees/<lane>
