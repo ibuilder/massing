@@ -161,6 +161,13 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: `reserveStudy` mistake above. It was expected to drop by four and did; `clearBaseline` stays in
 //: the set deliberately, because deleting a captured baseline that an EOT claim rests on should not
 //: be one click, and an honest marker beats a fabricated caller.
+//:
+//:
+//: 127 -> 123 (FIN-GOV reach). The whole `/finance` route group — `financeLock`, `setFinanceLock`,
+//: `financeReconcile`, `financeImports` — had no caller at all, and it is the sharper form of this
+//: defect: the period lock is ENFORCED (every finance mutation dated into a closed month is refused
+//: with a 409) while the control to see or set it was unreachable. An unreachable feature is one
+//: nobody can use; an unreachable control over an enforced rule actively blocks people.
 const UNCALLED_CEILING = 128;
 
 describe("client methods the application actually calls", () => {

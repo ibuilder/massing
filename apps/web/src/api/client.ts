@@ -2130,11 +2130,20 @@ export class ApiClient extends withContracts(withAuth(withProforma(withDesignOpt
       `/projects/${pid}/finance/lock`,
       { method: "PUT", body: JSON.stringify({ lock_date: lockDate, note: note ?? "" }) });
   }
-  /** FIN-INGEST — budget ↔ actuals two-way reconciliation on the cost-code spine. */
+  /** FIN-INGEST — budget ↔ actuals two-way reconciliation on the cost-code spine.
+   *
+   *  The three buckets were typed `unknown[]`, which meant the first caller had to go read
+   *  `fin_ingest.reconcile` to render a row — so the type is now the shape the server actually
+   *  returns. All three carry the same slim row; they differ only in which side had a value, and
+   *  they are deliberately NOT netted against each other.
+   */
   financeReconcile(pid: string) {
-    return this.json<{ matched: unknown[]; budget_only: unknown[]; actuals_only: unknown[];
+    type Row = { cost_code: string | null; budget: number | null; committed: number | null;
+      actual: number | null; variance: number | null };
+    return this.json<{ matched: Row[]; budget_only: Row[]; actuals_only: Row[];
       uncoded: { module: string; ref: string; amount: number; vendor?: string }[];
-      counts: Record<string, number>; fully_reconciled: boolean }>(
+      counts: { matched: number; budget_only: number; actuals_only: number; uncoded: number };
+      fully_reconciled: boolean }>(
       `/projects/${pid}/finance/reconcile`);
   }
   /** FIN-INGEST — import lineage: the project's audit-logged import batches, newest first. */
