@@ -1620,7 +1620,7 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
 
 ## Reach sweep — Lane C/G/I *(2026-08-07)*
 
-**Measured, then acted on.** `UNCALLED_CEILING` **131 → 128**, the drop measured by re-running the
+**Measured, then acted on.** `UNCALLED_CEILING` **131 → 123**, the drop measured by re-running the
 scan rather than derived from what was wired.
 
 - `portfolioCompare` wired into the portfolio panel as a **returns spread**. The executive roll-up

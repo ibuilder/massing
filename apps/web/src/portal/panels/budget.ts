@@ -158,6 +158,10 @@ export async function renderBudget(ctx: PanelContext) {
         return;
       }
       const b = await ctx.host.api.estimateBoe(pid, { lines });
+      // Confidence runs on the SAME lines: documentation and confidence are two readings of one
+      // estimate, and putting them on separate screens is how a well-documented guess gets mistaken
+      // for a priced quote.
+      const conf = await ctx.host.api.estimateConfidence(pid, lines).catch(() => null);
       const pct = Math.round((b.ledger.pct_documented ?? 0) * 100);
       const tone = pct === 100 ? "var(--status-good)" : pct >= 70 ? "var(--status-warn)" : "var(--status-crit)";
       const bad = (b.ledger.undocumented ?? []).map((u) => `<tr><td>${esc(u.description || u.key)}</td><td class="meta">${esc((u.missing ?? []).join(", "))}</td></tr>`);
@@ -165,10 +169,34 @@ export async function renderBudget(ctx: PanelContext) {
         + (bad.length
           ? `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Line</th><th>Missing</th></tr></thead><tbody>${rows(bad)}</tbody></table></div>`
           : `<div class="meta">Every line carries a source and a basis date.</div>`)
+        + (conf
+          ? `<div class="meta" style="margin-top:4px"><b>Confidence</b> — ${Math.round(conf.pct_assumption_based)}% of cost is assumption-based`
+            + ` (${usd(conf.assumption_based_cost)}), average contingency ${conf.avg_contingency_pct}%.`
+            + ` A documented line is not the same as a confident one: a quote and an allowance can both`
+            + ` carry a source.</div>`
+          : "")
         + `<div class="meta" style="margin-top:4px">${esc(b.ledger.note ?? "")}</div>`);
     } catch (err) { fillEst(`<div class="meta">Basis of estimate unavailable: ${(err as Error).message}</div>`); }
   };
-  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, boeBtn, dxfLabel);
+  // WIP FROM THE MODEL — percent complete derived from installed quantities rather than from a
+  // typed percentage. `available:false` is reported as unavailable, never as 0% complete: a project
+  // whose model cannot yield progress has not built nothing.
+  const wipBtn = document.createElement("button"); wipBtn.className = "tool-btn";
+  wipBtn.textContent = "📈 Model progress";
+  wipBtn.title = "Percent complete derived from the model's installed quantities, for WIP";
+  wipBtn.onclick = async () => {
+    fillEst(`<div class="meta">Measuring model progress…</div>`);
+    try {
+      const w = await ctx.host.api.wipModelProgress(pid);
+      if (!w.available) {
+        fillEst(`<div class="meta">Model progress is not available for this project — that is not 0% complete. It needs a model with installed quantities to measure against.</div>`);
+        return;
+      }
+      fillEst(`<div style="font-weight:600">Model progress — method <b>${esc(w.method ?? "—")}</b></div>`
+        + `<div class="meta" style="margin-top:4px">${w.total_elements ?? 0} element(s) measured. Derived from installed quantity, not from a typed percentage.</div>`);
+    } catch (err) { fillEst(`<div class="meta">Model progress unavailable: ${(err as Error).message}</div>`); }
+  };
+  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, boeBtn, wipBtn, dxfLabel);
 
   // budget movement vs baseline (shown only if a baseline exists; 409 otherwise → ignored)
   const bvHolder = document.createElement("div"); ctx.root.appendChild(bvHolder);

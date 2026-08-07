@@ -115,6 +115,34 @@ export async function renderAiAssist(ctx: PanelContext) {
     rout.append(runBtn, routOut);
     root.appendChild(rout);
 
+    // A DESCRIBED SCOPE, PRICED. `aiEstimate` turns a plain-language scope note into estimate lines.
+    // It is a STARTING POINT and is labelled as one: an AI-priced line has no source, no quote ref
+    // and no basis date — precisely what the basis-of-estimate ledger flags as undefendable.
+    // Presenting it as a priced estimate is how a guess acquires the authority of a quote.
+    const aiEst = el("div", "dash-card"); aiEst.style.cssText = "margin-bottom:8px";
+    const aiIn = el("input", "portal-filter") as HTMLInputElement;
+    aiIn.placeholder = "Describe a scope — e.g. 'reroof 12,000 sf single-ply with tapered insulation'";
+    aiIn.style.cssText = "width:100%;margin:4px 0";
+    const aiBtn = el("button", "file-btn") as HTMLButtonElement; aiBtn.textContent = "💲 Price this scope";
+    const aiOut = el("div", "meta"); aiOut.style.marginTop = "4px";
+    aiBtn.onclick = async () => {
+      const q = aiIn.value.trim();
+      if (!q) { toast("Describe the scope first", "error"); return; }
+      aiBtn.disabled = true; aiOut.textContent = "pricing…";
+      try {
+        const r = await ctx.host.api.aiEstimate(pid, q);
+        aiOut.innerHTML = `<b>${r.lines.length}</b> line(s) — a starting point, not a basis of estimate: `
+          + `these carry no source, quote ref or basis date, which is exactly what the BoE ledger flags.`
+          + `<ul style="margin:4px 0 0 16px">`
+          + r.lines.slice(0, 12).map((l) => `<li>${esc(l.description)} — ${l.quantity} ${esc(l.unit)} @ ${cmoney(l.rate)}</li>`).join("")
+          + `</ul>`;
+      } catch (e) { aiOut.textContent = `pricing failed: ${(e as Error).message}`; }
+      aiBtn.disabled = false;
+    };
+    aiEst.innerHTML = `<b>Price a described scope</b> <span class="meta">plain language in, estimate lines out</span>`;
+    aiEst.append(aiIn, aiBtn, aiOut);
+    root.appendChild(aiEst);
+
     const tabs = el("div"); tabs.style.cssText = "display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap";
     const body = el("div"); root.append(tabs, body);
     const TABS: [string, string][] = [["rfi", "📝 Draft RFI"], ["scope", "📋 Draft scope"],
@@ -463,6 +491,33 @@ export async function renderAiAssist(ctx: PanelContext) {
         } catch (e) { toast(`Add failed: ${(e as Error).message}`, "error"); }
       };
       actions.appendChild(add); card.appendChild(actions); out.appendChild(card);
+    }
+
+    // WHAT THE PLAYBOOK SAYS ABOUT THESE FINDINGS. `reviewContractClauses` takes the findings just
+    // produced and returns the standard position and fallback for each clause — the difference
+    // between "this clause is unusual" and "here is what we normally accept instead", which is the
+    // half a negotiator needs. Runs on the findings already on screen rather than re-reviewing, so
+    // it cannot disagree with the list above it.
+    if (r.findings.length) {
+      const pb = document.createElement("button"); pb.className = "file-btn";
+      pb.textContent = "📕 Playbook positions";
+      pb.title = "Standard position and fallback for each flagged clause";
+      const pbOut = document.createElement("div"); pbOut.className = "meta"; pbOut.style.marginTop = "4px";
+      pb.onclick = async () => {
+        pb.disabled = true; pbOut.textContent = "reading the playbook…";
+        try {
+          const cp = await ctx.host.api.reviewContractClauses(pid, "subcontract", r.findings);
+          const rows = (cp.clauses ?? []).map((c: Record<string, unknown>) =>
+            `<li><b>${esc(String(c.clause ?? c.category ?? ""))}</b> — ${esc(String(c.position ?? c.standard ?? "no stated position"))}`
+            + (c.fallback ? ` <span class="meta">fallback: ${esc(String(c.fallback))}</span>` : "") + `</li>`);
+          pbOut.innerHTML = rows.length
+            ? `<ul style="margin:4px 0 0 16px">${rows.join("")}</ul>`
+            : "The playbook has no stated position for these clauses — which is a gap in the playbook, not agreement with the contract.";
+        } catch (e) { pbOut.textContent = `playbook unavailable: ${(e as Error).message}`; }
+        pb.disabled = false;
+      };
+      const wrap = document.createElement("div"); wrap.style.marginTop = "8px";
+      wrap.append(pb, pbOut); out.appendChild(wrap);
     }
   }
 
