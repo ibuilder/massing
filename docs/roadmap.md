@@ -846,9 +846,28 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   is null under happy-dom, which is **why the file had no tests at all** — the untestability and the
   defect had one cause.
 
-  **Still open, and genuinely unbuilt:** make FOV/FAR responsive by viewport class. The default BIM
-  pass is already off `MeshStandardMaterial` — every remaining use is GIS context, not the BIM pass —
-  so that clause needs no work.
+  **The FOV/FAR clause is now BUILT** (`apps/web/src/viewer/cameraProfile.ts`), and measuring it found
+  a second defect the clause did not describe. The library constructs the camera as
+  `PerspectiveCamera(60, aspect, 1, 1e3)` and nothing had revisited it:
+
+  - **A fixed VERTICAL fov gives a phone a third of the view a desktop gets** — horizontal fov is
+    derived from vertical and aspect, so portrait collapses it: **30°** on a phone against **85°** on
+    desktop. Now derived from a target horizontal angle and clamped, so a phone gets ~46°. The clamp
+    floor is 60° — today's value — deliberately: this can only ever *widen*, never narrow. A profile
+    that computed a "better" 51° for desktop would be a regression shipped as an improvement, and
+    nobody reports seeing less as a bug.
+  - **`near = 1 m` is wrong for the first-person walkthrough.** `apps/web/src/viewer/walkMode.ts` puts
+    the eye at 1.65 m and exists for close inspection — but everything within a metre of the eye was
+    clipped, so walking up to a wall or a column made it vanish before you reached it.
+
+  **Why the near plane moves only in walk mode, with the number that decides it.** Depth precision at
+  distance scales with `near`; for a 24-bit buffer the resolvable gap is about `z²/(near·2²⁴)`:
+  `near=1` gives 2.4 mm at 200 m, `near=0.1` gives **6.0 mm at 100 m**. `apps/web/src/viewer/guideUnderlay.ts`
+  lifts its plane 5 mm to avoid z-fighting, so a *global* change would make that underlay z-fight on
+  any model of real size — trading a walk-mode defect for a rendering one.
+
+  The `MeshStandardMaterial` clause needs no work — every remaining use is GIS context, not the BIM
+  pass.
 - **R23-SYMBOL-COUNT** *(M)* — deterministic template-match symbol counting in the **existing** pdf.js
   takeoff worker: mark one instance, normalised cross-correlation, non-maximum suppression.
   **Zero new dependencies**, offline, auditable — which matters for quantities that feed a bid.
