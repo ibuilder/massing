@@ -69,6 +69,13 @@ def _table(key: str) -> Table:
         Column("element_guids", JSON, nullable=True),  # referenced IFC GlobalIds
         Column("links", JSON, nullable=True),          # [{module,id,ref}] change-order chain
         Column("data", JSON),                          # module-defined fields
+        # R41-SCHEMA-STALE: the field shape `data` was written against, as "<epoch>:<signature>"
+        # (module_schema.schema_stamp). Nullable because every row written before this shipped has
+        # none, and a backfill would be a LIE — it would stamp historical rows with today's shape,
+        # asserting they were validated against a schema that did not exist when they were written.
+        # A null here means "unknown", which is the true answer; the payload checks in
+        # module_schema.schema_status need no stamp and are what catches a rename on those rows.
+        Column("schema_version", String, nullable=True),
         # composite index for the hot path: "records in this project in this state" (dashboard
         # rollups, list filters) — more selective than the single-column indexes alone.
         Index(f"ix_mod_{key}_proj_state", "project_id", "workflow_state"),

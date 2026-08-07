@@ -245,6 +245,9 @@ def create_record(db: Session, key: str, project_id: str, body: dict, actor: str
                                   *module_schema.guids_from_fields(data)})
                           or body.get("element_guids")),
         "links": body.get("links") or [], "data": data,
+        # R41-SCHEMA-STALE: record the shape these values were validated against, so a later
+        # rename/removal/retype is a fact about this row rather than a guess at read time.
+        "schema_version": module_schema.schema_stamp(mod),
     }
     db.execute(insert(t).values(**row))
     _log(db, project_id, key, rid, actor, party, "create", {"ref": row["ref"]})
@@ -278,7 +281,9 @@ def revise(db: Session, key: str, project_id: str, rid: str, actor: str, party: 
         workflow_state=mod.get("workflow", {}).get("initial", "open"),
         party_owner=party, assignee=src.get("assignee"), created_by=actor,
         created_at=_now(), modified_at=_now(), anchor=src.get("anchor"),
-        element_guids=src.get("element_guids"), links=[], data=data))
+        element_guids=src.get("element_guids"), links=[], data=data,
+        # a revision is a NEW record written now, so it carries today's shape — not the source's.
+        schema_version=module_schema.schema_stamp(mod)))
     superseded = dict(src.get("data") or {}); superseded["superseded_by"] = new_id
     db.execute(update(t).where(t.c.id == rid, t.c.project_id == project_id)
                .values(data=superseded, modified_at=_now()))
@@ -362,6 +367,11 @@ def get_record(db: Session, key: str, project_id: str, rid: str) -> dict:
             if b:
                 refs[f["name"]] = b
     rec["data_refs"] = refs
+    # R41-SCHEMA-STALE: does this record's payload still mean what the current schema says it means?
+    # Reported on every read rather than only when wrong, so a caller can tell "checked and fine"
+    # from "not checked" — a key that appears only on failure is indistinguishable from a key the
+    # server forgot to send, which is the shape of bug this whole item is about.
+    rec["schema"] = module_schema.schema_status(mod, rec.get("schema_version"), data)
     # revision chain (revisable modules): prior/next revision briefs + this record's number
     if data.get("revision") or data.get("revises") or data.get("superseded_by"):
         rec["revision"] = {
@@ -852,7 +862,11 @@ def update_record(db: Session, key: str, project_id: str, rid: str, data: dict,
     # Not a blind union. Subtract what this record's fields contributed BEFORE, then add what they
     # contribute now, so a correction moves the anchor while a GlobalId set by another route (a pin,
     # a BCF import, anchor-to-selection) is untouched — those were never ours to remove.
-    vals = {"data": merged, "modified_at": _now()}
+    # R41-SCHEMA-STALE: an edit re-validates the whole merged payload against today's schema, so the
+    # stamp advances to today's shape. Leaving the old stamp would keep flagging a record the user
+    # has just corrected — the flag has to be clearable BY the action that fixes it, or it is noise.
+    vals = {"data": merged, "modified_at": _now(),
+            "schema_version": module_schema.schema_stamp(get_module(key))}
     was, now = module_schema.guids_from_fields(rec.get("data") or {}), module_schema.guids_from_fields(merged)
     if was != now:
         col = (set(rec.get("element_guids") or []) - set(was)) | set(now)

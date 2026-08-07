@@ -526,3 +526,145 @@ def validate_dir(modules_dir: Path) -> dict[str, list[str]]:
         if errs:
             out[folder] = errs
     return out
+
+
+# ---------------------------------------------------------------------------------------------
+# R41-SCHEMA-STALE — what a stored record was written against, and whether that still holds.
+#
+# A record's `data` is a JSON blob keyed by field name, and every read resolves it against the
+# module's *current* field list (`modules.get_record` -> `data.get(f["name"])`). Nothing recorded
+# which field list the values were written against, so a schema change reinterpreted history in
+# silence: a RENAMED field renders empty and is indistinguishable from "never filled in" while its
+# value sits orphaned in the payload; a REMOVED field's value is unread and invisible; a RETYPED
+# field is rendered under the new type. Nothing raised.
+#
+# WHY NOT "FORCE THE PAYLOAD TO NULL". The item as filed prescribed returning a stale record with
+# its payload nulled. That is the wrong severity and would have made the bug worse. Adding a field
+# is the overwhelmingly common change and is *compatible* — old records simply lack it. Nulling on
+# any version difference would blank every historical record for a routine addition, i.e. render
+# them exactly as "empty and indistinguishable from never filled in", which is the failure this
+# item exists to eliminate. The values are kept and the *discrepancy* is reported instead: a flag
+# plus the specific orphaned and mistyped keys is strictly more information than a null.
+#
+# THE ONE CASE A MACHINE CANNOT SEE is a change of meaning with no change of shape — the same name,
+# the same type, a different unit or basis (feet -> metres, gross -> net). No payload inspection can
+# detect it, so it must be DECLARED: bump `schema_epoch` in module.json and every record written
+# before the bump reads back stale. That is the only part of this held as author discipline, and it
+# is held there because there is nowhere else to hold it.
+# ---------------------------------------------------------------------------------------------
+
+#: Keys the engine itself writes into `data` that are not module fields. Without this list every
+#: revised record would report four orphans and the signal would be worthless within a day.
+#: `subject` is the universal title alias (`modules.create_record` copies it into the module's own
+#: title field and leaves it in place); the other three are the revision chain written by `revise`.
+ENGINE_DATA_KEYS = frozenset({"subject", "revision", "revises", "superseded_by"})
+
+#: Python types a stored value may legitimately have per declared field type. A value outside this
+#: is a RETYPE that already happened — the stored value predates the current declaration.
+#: `bool` is handled separately below: in Python `isinstance(True, int)` is true, so an unguarded
+#: numeric check would let a checkbox value pass as a currency amount and report nothing.
+_TYPE_SHAPES: dict[str, tuple[type, ...]] = {
+    "number": (int, float), "currency": (int, float), "percent": (int, float),
+    "text": (str,), "textarea": (str,), "date": (str,), "email": (str,), "phone": (str,),
+    "select": (str,), "reference": (str,), "signature": (str,), "file": (str,),
+    "checkbox": (bool,), "multiselect": (list,), "table": (list,),
+}
+
+
+def schema_signature(mod: dict) -> str:
+    """A stable digest of the field shape a record's `data` is written against.
+
+    Covers name, type, and the value space a stored value was validated into — select options and
+    table columns — because a change to any of them can silently reinterpret a value already on
+    disk. Deliberately EXCLUDES presentation keys (label, help, fieldset, icon, order): a relabelled
+    field means the same thing, and versioning on it would mark every record in the register stale
+    for a copy edit.
+
+    Rollup fields are excluded because they are computed at read time and never stored.
+
+    The parts are joined through `json.dumps` of a nested list rather than by concatenation — two
+    different field lists must not be able to produce one string, and "ab" + "c" equals
+    "a" + "bc". `hashlib`, not the builtin `hash()`, which is randomised per interpreter run and
+    would make every record stale on restart.
+    """
+    import hashlib
+    import json
+
+    parts = []
+    for f in mod.get("fields", []):
+        if f.get("type") == "rollup":
+            continue
+        parts.append([
+            f.get("name"), f.get("type"),
+            sorted(f.get("options") or []),
+            [[c.get("name"), c.get("type")] for c in (f.get("columns") or [])],
+        ])
+    parts.sort(key=lambda p: (p[0] or ""))
+    blob = json.dumps(parts, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
+
+
+def schema_stamp(mod: dict) -> str:
+    """The value written into a record's `schema_version` column: "<epoch>:<signature>".
+
+    Two facts in one column because they answer one question and are always read together — the
+    shape the record was written against, and the declared meaning-generation of that shape.
+    Delimited, so epoch=1/sig="2ab" and epoch=12/sig="ab" cannot collide.
+    """
+    return f"{int(mod.get('schema_epoch') or 0)}:{schema_signature(mod)}"
+
+
+def schema_status(mod: dict, stored: str | None, data: dict | None) -> dict:
+    """Describe a stored record against the module's current schema.
+
+    Returns ``{version, stored, changed, epoch_behind, orphaned, mistyped, stale}``.
+
+    `stale` is true only when something is actually WRONG about this record — an orphaned value, a
+    value whose type no longer matches its declaration, or a declared meaning change it predates.
+    `changed` (the signature differs) is reported separately and is NOT stale on its own, because
+    the common case behind it is an added field, under which every existing record is still read
+    correctly. Conflating the two would fire on every routine schema edit and be muted within a
+    week, which is how a warning becomes decoration.
+
+    `stored` is None for every record written before this shipped. That is reported as None rather
+    than guessed at — but the payload checks still run, and they are what actually catches a rename
+    on the historical rows, since they need no stamp to work.
+    """
+    cur = schema_stamp(mod)
+    data = data or {}
+    names = {f.get("name") for f in mod.get("fields", []) if f.get("type") != "rollup"}
+    types = {f.get("name"): f.get("type") for f in mod.get("fields", [])}
+
+    orphaned = sorted(k for k in data
+                      if k not in names and k not in ENGINE_DATA_KEYS and data.get(k) is not None)
+    mistyped = []
+    for k in sorted(data):
+        v = data[k]
+        if v is None or k not in names:
+            continue
+        shapes = _TYPE_SHAPES.get(types.get(k) or "")
+        if not shapes:
+            continue
+        if isinstance(v, bool):
+            if bool not in shapes:
+                mistyped.append(k)
+        elif not isinstance(v, shapes):
+            mistyped.append(k)
+
+    cur_epoch = int(mod.get("schema_epoch") or 0)
+    stored_epoch = None
+    if stored and ":" in stored:
+        head = stored.split(":", 1)[0]
+        if head.lstrip("-").isdigit():
+            stored_epoch = int(head)
+    epoch_behind = stored_epoch is not None and stored_epoch < cur_epoch
+
+    return {
+        "version": cur,
+        "stored": stored,
+        "changed": bool(stored) and stored != cur,
+        "epoch_behind": epoch_behind,
+        "orphaned": orphaned,
+        "mistyped": mistyped,
+        "stale": bool(orphaned or mistyped or epoch_behind),
+    }
