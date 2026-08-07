@@ -3,6 +3,7 @@ import type { ModelIdMap } from "../modelIds";
 import { askText } from "../../ui/prompt";
 import { confirmModal, promptModal } from "../../ui/modal";
 import { kvTable, resultNote, showResult } from "../../ui/result";
+import { guidsFromSample } from "../warningSample";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { LayerManager } from "../../tools/layers";
 import { ModelLoader } from "../loader";
@@ -102,6 +103,44 @@ export function buildQaSection(d: QaDeps): void {
             const phased = Object.entries(d!.phasing).filter(([k, v]) => v && k !== "UNSET");
             if (phased.length) body.appendChild(resultNote(`<b>Phasing</b> — ` + phased.map(([k, v]) => `${v} ${k.toLowerCase()}`).join(", "), ""));
             if (d!.hygiene.issues) body.appendChild(resultNote(`<b>${d!.hygiene.issues}</b> model-hygiene issue(s) — see Model Health.`, "bad"));
+          });
+        })));
+        // WARN-1 — the punch list BEHIND the health badge. `modelHealth` above scores the model and
+        // says "warn"; until now nothing could answer "warn about what, and where?". The feed's own
+        // words: "Where the model-CI badge says pass/warn/fail, this is the actionable list behind
+        // it." It shipped with no client caller at all.
+        b.appendChild(toolBtn2("⚠ Warnings (the punch list behind the score)", () => withLoading(container, "Collecting warnings", async () => {
+          let r;
+          try { r = await api.modelWarnings(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = r.clean ? "no warnings" : `${r.total} warning(s)`;
+          const sev: Record<string, string> = { fail: "🔴", warn: "🟡", info: "⚪" };
+          showResult("Model warnings", (body) => {
+            body.appendChild(resultNote(r!.clean
+              ? "No hygiene or conformance defects found."
+              : `<b>${r!.by_severity.fail}</b> fail · <b>${r!.by_severity.warn}</b> warn · `
+                + `<b>${r!.by_severity.info}</b> info — worst first.`, r!.clean ? "ok" : r!.by_severity.fail ? "bad" : ""));
+            for (const w of r!.warnings) {
+              const guids = guidsFromSample(w.sample);
+              const row = document.createElement("div");
+              row.className = "meta";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle)";
+              row.innerHTML = `${sev[w.severity] || "⚪"} <b>${escapeHtml(w.label)}</b> · ${w.count}`
+                + (w.note ? ` <span class="meta">${escapeHtml(w.note)}</span>` : "");
+              // Only rows that CAN be zoomed to get the affordance. `overlapping_duplicates` groups
+              // are keyed by class+location and carry no GUID, so a blanket click handler there would
+              // be a control that does nothing — the silent-failure shape, in a panel about defects.
+              if (guids.length) {
+                row.style.cursor = "pointer";
+                row.title = `Select ${guids.length} offending element(s)`;
+                // `sets.fromGuids` is async. The first version of this line cast the Promise away
+                // with `as never` to satisfy tsc — which is how a type error becomes a runtime one.
+                row.onclick = async () => { await selectMap(await sets.fromGuids(guids.slice(0, 200))); };
+              } else {
+                row.title = "This check identifies groups by location, not by element — nothing to select";
+              }
+              body.appendChild(row);
+            }
           });
         })));
         b.appendChild(toolBtn2("🩺 Model Health (all checks, one score)", () => withLoading(container, "Scoring model health", async () => {
