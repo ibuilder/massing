@@ -116,7 +116,7 @@ def subcontract_agreement(db: Session, key: str, pid: str, rid: str, clause_ids:
                    f"<b>{ctx['value']}</b>, subject to {ctx['retainage']} retainage and the terms below.", ss["Body"]),
          Paragraph("Article 3 — Conditions", ss["H"])]
     for c in sl.clauses_by_ids([x for x in sl.default_ids(ctx.get("trade")) if x not in
-                                {s["id"] for s in sl.CLAUSES if s["category"] == "Scope"}]):
+                                {s["id"] for s in sl.CLAUSES if s["category"] in sl.EXHIBIT_CATEGORIES}]):
         f.append(Paragraph(sl.merge(c["title"], ctx), ss["H"]))
         f.append(Paragraph(sl.merge(c["body"], ctx), ss["Body"]))
     f += _signature_block(ss, [("General Contractor", "GC"), ("Subcontractor", "Subcontractor")], (d.get("signatures") or []))
@@ -138,7 +138,7 @@ def prime_contract(db: Session, key: str, pid: str, rid: str, clause_ids: list[s
                    f"subject to {ctx['retainage']} retainage.", ss["Body"]),
          Paragraph("Article 2 — General Conditions", ss["H"])]
     for c in sl.clauses_by_ids([x for x in sl.default_ids(None) if x not in
-                                {s["id"] for s in sl.CLAUSES if s["category"] == "Scope"}]):
+                                {s["id"] for s in sl.CLAUSES if s["category"] in sl.EXHIBIT_CATEGORIES}]):
         f.append(Paragraph(sl.merge(c["title"], ctx), ss["H"]))
         f.append(Paragraph(sl.merge(c["body"], ctx), ss["Body"]))
     f += _signature_block(ss, [("Owner", "Owner"), ("General Contractor", "GC")], (d.get("signatures") or []))
