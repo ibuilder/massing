@@ -111,6 +111,81 @@ export function buildQaSection(d: QaDeps): void {
             if (d!.hygiene.issues) body.appendChild(resultNote(`<b>${d!.hygiene.issues}</b> model-hygiene issue(s) — see Model Health.`, "bad"));
           });
         })));
+        // FILL-MATRIX — property completeness by class, with the worst gaps named. The data-quality
+        // question every IDS / COBie handover turns on, computed and unreachable.
+        b.appendChild(toolBtn2("📊 Property fill matrix (completeness by class)", () => withLoading(container, "Measuring property fill", async () => {
+          let r;
+          try { r = await api.modelFillMatrix(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${r.class_count} class(es) · ${r.element_count} element(s)`;
+          showResult("Property fill matrix", (body) => {
+            body.appendChild(resultNote(`<b>${r!.element_count}</b> element(s) across <b>${r!.class_count}</b> class(es).`
+              + (r!.note ? ` ${escapeHtml(r!.note)}` : ""), ""));
+            if (r!.worst_gaps.length) {
+              // Worst gaps first: a fill matrix nobody can act on is a spreadsheet. The gaps are the
+              // actionable end of it.
+              body.appendChild(resultNote("<b>Worst gaps</b> — lowest fill rate first:", ""));
+              body.appendChild(kvTable(r!.worst_gaps.slice(0, 25).map((g) => ({
+                k: `${escapeHtml(g.ifc_class)} · ${escapeHtml(g.pset)}.${escapeHtml(g.prop)}`,
+                v: `${Math.round(g.fill_rate * 100)}% filled · ${g.blank} blank`,
+              }))));
+            } else {
+              body.appendChild(resultNote("No property gaps at the reporting threshold.", "ok"));
+            }
+          });
+        })));
+
+        // SPLIT-PLAN — how this model would federate by storey, and what is UNASSIGNED. The
+        // unassigned list is the point: an element in no storey is invisible to every storey filter.
+        b.appendChild(toolBtn2("🗂 Split plan (federation by storey)", () => withLoading(container, "Planning split", async () => {
+          let r;
+          try { r = await api.modelSplitPlan(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${Object.keys(r.counts).length} storey(s) · ${r.unassigned_count} unassigned`;
+          showResult("Split plan", (body) => {
+            body.appendChild(resultNote(r!.unassigned_count
+              ? `<b>${r!.unassigned_count}</b> element(s) belong to no storey — they are invisible to every storey filter.`
+              : "Every element is assigned to a storey.", r!.unassigned_count ? "" : "ok"));
+            body.appendChild(kvTable(Object.entries(r!.counts).map(([st, n]) => ({ k: escapeHtml(st), v: `${n} element(s)` }))));
+            if (r!.unassigned.length) {
+              const row = document.createElement("div");
+              row.className = "meta"; row.style.cssText = "margin-top:4px;cursor:pointer";
+              row.innerHTML = `<b>Select the ${r!.unassigned.length} unassigned</b>`;
+              row.onclick = async () => { await selectMap(await sets.fromGuids(r!.unassigned.slice(0, 200))); };
+              body.appendChild(row);
+            }
+            if (r!.note) body.appendChild(resultNote(escapeHtml(r!.note), ""));
+          });
+        })));
+
+        // CONNECTIONS — the authored connection graph plus its size. Two endpoints, one readout:
+        // the stats alone (nodes/edges) answer nothing a person asks, but they frame the list.
+        b.appendChild(toolBtn2("🧩 Connections (authored joins + graph size)", () => withLoading(container, "Reading connections", async () => {
+          let r, g;
+          try { [r, g] = await Promise.all([api.elementConnections(pid), api.modelGraphStats(pid)]); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${r.count} connection(s)`;
+          showResult("Connections", (body) => {
+            body.appendChild(resultNote(`<b>${r!.count}</b> authored connection(s) across `
+              + `<b>${r!.elements_connected}</b> element(s); busiest element has <b>${r!.max_degree}</b>. `
+              + `Model graph: ${g!.nodes} node(s), ${g!.edges} edge(s).`, ""));
+            if (Object.keys(g!.by_rel).length) {
+              body.appendChild(resultNote("<b>Relationships by kind</b>", ""));
+              body.appendChild(kvTable(Object.entries(g!.by_rel).map(([k, v]) => ({ k: escapeHtml(k), v: String(v) }))));
+            }
+            for (const c of r!.connections.slice(0, 50)) {
+              const row = document.createElement("div");
+              row.className = "meta";
+              row.style.cssText = "padding:2px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer";
+              row.innerHTML = `${escapeHtml(c.a_class)} ↔ ${escapeHtml(c.b_class)}`
+                + (c.description ? ` · ${escapeHtml(c.description)}` : "");
+              row.title = "Select both ends";
+              row.onclick = async () => { await selectMap(await sets.fromGuids([c.a, c.b])); };
+              body.appendChild(row);
+            }
+          });
+        })));
+
         // INTEROP-RT — the round-trip verdict, which nothing could show. It serialises the model,
         // re-parses it and compares GUID stability, class, name, containment, type and psets.
         // **GUID stability is a project non-negotiable** and the whole edit-recipe architecture rests
