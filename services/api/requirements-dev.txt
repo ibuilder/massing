@@ -16,7 +16,7 @@ bandit>=1.7          # security static analysis (report-only in CI; run before s
 # dev machine a different encoder from Linux CI. 1.7.0 is the newest with manylinux wheels.
 # To ship it in the API image: add to requirements.in and re-run the Lockfile workflow (it must be
 # compiled in the py3.12 Linux container, and the gate fails on any drift between the two).
-DracoPy==1.7.0       # Apache-2.0
+DracoPy==2.0.0       # Apache-2.0
 
 # coverage: the test gate's opt-in COVERAGE=1 mode (run_tests.py) — shards + combined + xml
 coverage>=7.6
