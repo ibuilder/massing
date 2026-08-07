@@ -1665,14 +1665,20 @@ export class RegisterUI {
   };
 
   /**
-   * EST-REACH — the estimate register's line items had three analyses built for them and no way in.
+   * EST-REACH — the estimate register's line items had analyses built for them and no way in.
    *
    * `line_items` carries `code · description · qty · unit · unit_cost · amount · source · quote_ref
    * · basis_date`, and its `source` options are `allowance / parametric / historical / quote` —
-   * every one a key in the confidence scorer's source table. `estimateBoe`'s line type is nearly
-   * column-for-column the same, `quote_ref` and `basis_date` included. The data model and the
-   * endpoints were built for each other; only the UI between them was missing, which is why
-   * `estimateConfidence` and `estimateBoe` sat in the uncalled set with live routes behind them.
+   * every one a key in the confidence scorer's own source table. The data model and the endpoints
+   * were built for each other; only the UI between them was missing.
+   *
+   * **A Basis-of-Estimate view was here and was deliberately removed.** `budget.ts` already reads
+   * every estimate record project-wide and calls `estimateBoe`, mapping `code -> cost_code` and
+   * `amount -> total` — the seam `commercial_drift.ESTIMATE_TO_BOE` documents server-side. Adding a
+   * per-record view meant a SECOND copy of that mapping on the client, and a duplicated mapping is
+   * the defect this whole ring exists to remove, not a feature. "Is *this* estimate defensible" is a
+   * real and different question from "is our estimating defensible", but if it earns a view it
+   * should call that same seam rather than re-derive it.
    *
    * Deliberately reads the record's OWN line items rather than offering a paste box. A caller that
    * needs the user to hand-assemble its input is a caller in name only.
@@ -1709,10 +1715,6 @@ export class RegisterUI {
     btn("◎ Confidence", "Score each line's maturity from its source and the estimate basis — and how much of the budget is still assumption-based", () => {
       if (!guard()) return;
       void this.estimateConfidenceView(pid, lines, basis, phase);
-    });
-    btn("⛁ Basis of Estimate", "The BoE assumption ledger and documentation completeness for these lines", () => {
-      if (!guard()) return;
-      void this.estimateBoeView(pid, lines);
     });
     // Priced from the space-program register, not from this record's lines — a concept budget exists
     // precisely for the stage BEFORE there are line items, so it must not be gated on `guard()`.
@@ -1851,45 +1853,6 @@ export class RegisterUI {
     }
   }
 
-  /** The BoE assumption ledger + documentation completeness for the record's lines. */
-  private async estimateBoeView(pid: string, lines: Record<string, unknown>[]) {
-    let b;
-    try { b = await this.ctx.host.api.estimateBoe(pid, { lines }); }
-    catch (e) { toast(`basis of estimate failed: ${(e as Error).message}`, "error"); return; }
-    const { card } = modalShell("Basis of Estimate", 480);
-    // No cast. `estimateBoe`'s declared type already describes `ledger` exactly — an earlier draft
-    // here used `as unknown as {...}` with hand-written field names, two of which were wrong
-    // (`documented_pct` for `pct_documented`, and `weakest` for `worst_lines` next door). The cast is
-    // what allowed them: it switches off the one check that would have said so at compile time.
-    const led = b.ledger;
-    const head = document.createElement("div"); head.className = "meta";
-    head.style.fontWeight = "600";
-    // `pct_documented` is a FRACTION (0.5 for one of two), the same trap as `pct_assumption_based`.
-    head.textContent = `${Math.round(led.pct_documented * 100)}% of lines carry a documented basis `
-      + `(${led.documented} of ${led.line_count})`;
-    card.appendChild(head);
-
-    // What is MISSING is the point of a BoE — an undocumented line is the one that gets argued.
-    const gaps = led.undocumented;
-    if (gaps.length) {
-      const g = document.createElement("div"); g.className = "meta";
-      g.style.cssText = "margin-top:4px;color:var(--muted)";
-      const worst = gaps.slice(0, 3).map((u) => `${u.description || u.key} (${u.missing.join(", ")})`);
-      g.textContent = `${gaps.length} undocumented: ${worst.join(" · ")}${gaps.length > 3 ? " …" : ""}`;
-      card.appendChild(g);
-    }
-    for (const l of led.lines.slice(0, 25)) {
-      const row = document.createElement("div"); row.className = "meta";
-      row.style.cssText = "display:flex;gap:8px;border-top:1px solid var(--line);padding:4px 0";
-      row.append(
-        Object.assign(document.createElement("span"), { textContent: l.description || "(no description)", style: "flex:1" }),
-        Object.assign(document.createElement("span"), { textContent: l.source ?? "unspecified" }),
-        Object.assign(document.createElement("span"), { textContent: l.quote_ref ? `ref ${l.quote_ref}` : "no ref" }),
-        Object.assign(document.createElement("span"), { textContent: l.total != null ? usd(l.total) : "—" }),
-      );
-      card.appendChild(row);
-    }
-  }
 
   private async composeExhibit(m: ModuleDef, r: ModuleRecord, rid: string) {
     const pid = this.ctx.host.projectId()!;
