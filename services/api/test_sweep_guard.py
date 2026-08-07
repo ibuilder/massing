@@ -92,6 +92,53 @@ try:
     check("keep is compared as RESOLVED paths",
           rt._db_snapshot(dirs) == {q.resolve() for q in rt._db_snapshot(dirs)},
           "Path('./x.db') != Path('/abs/x.db') — an unresolved keep set protects nothing")
+    # --- the assertion that would have caught the blocking defect in review -----------------------
+    #
+    # Everything above exercises `_sweep_leftovers`, which is safe BY CONSTRUCTION: a diff cannot name
+    # a file that predates the run. `_sweep_owned` is the other half and has a DIFFERENT property — it
+    # deletes BY NAME, so it is only ever as safe as the name. The guard covered the safer half and
+    # called the job done, which is this repo's recurring defect wearing my own initials.
+    #
+    # What it missed: `_owned_dbs` matched the DSN anywhere in a test's source, including a COMMENT in
+    # `test_stepup_race.py` warning that `sqlite:///./aec.db` is the developer's dev database. The
+    # first green run of that test would have unlinked it — 5 MB, read out of the sentence warning
+    # about it. Found by Subagent 3 in review, not by this file.
+    #
+    # So: over EVERY registered test, the owned set must be disjoint from what exists before a run.
+    # One assertion, whole population, and it fails on a prose mention rather than on a name anyone
+    # thought to list.
+    # The same property against a DETERMINISTIC population first, because the live-files version
+    # below is vacuous in a clean tree — it passed here reporting "0 live files", which proves
+    # nothing at all. PROTECTED is nine fixed names, so this one cannot be satisfied by an empty
+    # directory, and it is the check that actually holds in CI.
+    named = []
+    for t, home in [(x, rt.HERE) for x in rt.TESTS] + [(x, rt.DATA_DIR) for x in rt.DATA_TESTS]:
+        for q in rt._owned_dbs(t, home):
+            if q.name in PROTECTED:
+                named.append(f"{t} -> {q.name}")
+    check("no test's owned set NAMES a protected database", not named,
+          "; ".join(sorted(named)[:5]) if named
+          else f"{len(rt.TESTS) + len(rt.DATA_TESTS)} tests vs {len(PROTECTED)} protected names")
+
+    live = rt._db_snapshot()
+    offenders = []
+    for t in rt.TESTS:
+        for q in rt._owned_dbs(t, rt.HERE) & live:
+            offenders.append(f"{t} -> {q.name}")
+    for t in rt.DATA_TESTS:
+        for q in rt._owned_dbs(t, rt.DATA_DIR) & live:
+            offenders.append(f"{t} -> {q.name}")
+    check("no test CLAIMS a database that already exists", not offenders,
+          "; ".join(sorted(offenders)[:5]) if offenders
+          else f"{len(rt.TESTS) + len(rt.DATA_TESTS)} tests checked against {len(live)} live files")
+
+    # and the belt, asserted directly: even a bad name cannot delete a pre-existing file
+    keeper = tmp / "aec.db"
+    keeper.write_text("the developer's dev database")
+    rt._sweep_owned("test_alpha", tmp, frozenset({keeper.resolve()}))
+    check("a pre-run file survives _sweep_owned even when the population names it",
+          keeper.exists(), "the `before` guard is what makes a bad name inert")
+
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

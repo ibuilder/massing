@@ -155,7 +155,8 @@ def manifest_problems(tests: list[str] | None = None,
     return problems
 
 
-def _run_one(t: str, base: dict, cwd: Path = HERE) -> tuple[str, bool, float, str]:
+def _run_one(t: str, base: dict, cwd: Path = HERE,
+             before: frozenset[Path] = frozenset()) -> tuple[str, bool, float, str]:
     """Run a single test_*.py as an isolated subprocess (own SQLite db + storage dir) and return
     (name, ok, seconds, captured-output). Safe to run concurrently — each test's db/storage is
     unique. `cwd` selects the suite's home dir (services/api for TESTS, services/data for DATA_TESTS);
@@ -188,11 +189,17 @@ def _run_one(t: str, base: dict, cwd: Path = HERE) -> tuple[str, bool, float, st
     # KEEP_TEST_DB=1 keeps everything, for diagnosing a test that PASSES and still leaves state
     # behind — the case where the sweep working correctly is what hides the thing you are hunting.
     if ok and os.environ.get("KEEP_TEST_DB") != "1":
-        _sweep_owned(t, cwd)
+        _sweep_owned(t, cwd, before)
     return t, ok, time.time() - t0, (proc.stdout or "") + (proc.stderr or "")
 
 
-_DB_LITERAL = re.compile(r"sqlite:///\./([A-Za-z0-9_.\-]+\.db)")
+#: Anchored on the ASSIGNMENT, not on any occurrence of the DSN. An unanchored pattern matched
+#: `sqlite:///./aec.db` inside a COMMENT in test_stepup_race.py — a comment warning that that file
+#: is the developer's dev database — and would have unlinked 5 MB of their data the first time that
+#: test passed. A comment is not code; `registerOwnership.test.ts` hit the same trap and its first
+#: run failed on the sentence explaining what a door is.
+_DB_LITERAL = re.compile(r"""DATABASE_URL["']\]\s*=\s*["']sqlite:///\./([^"']+)["']""")
+_COMMENT = re.compile(r"^\s*#.*$", re.M)
 
 
 def _owned_dbs(t: str, cwd: Path) -> set[Path]:
@@ -209,18 +216,30 @@ def _owned_dbs(t: str, cwd: Path) -> set[Path]:
     """
     names = {f"_{t}.db"}
     try:
-        names |= set(_DB_LITERAL.findall((cwd / f"{t}.py").read_text(encoding="utf-8", errors="replace")))
+        src = _COMMENT.sub("", (cwd / f"{t}.py").read_text(encoding="utf-8", errors="replace"))
+        names |= set(_DB_LITERAL.findall(src))
     except OSError:
         pass                                   # unreadable source: fall back to the runner's own name
     out: set[Path] = set()
     for n in names:
-        out |= {(cwd / n).resolve(), (cwd / f"{n}-wal").resolve(), (cwd / f"{n}-shm").resolve()}
+        out |= {(cwd / n).resolve()}
+        #: `-journal` is SQLite's default rollback sibling and the only one this suite produces
+        #: (measured: journal=2, wal=0, shm=0). `-wal`/`-shm` need WAL mode, which it does not use —
+        #: the first set was derived from what SQLite CAN write rather than what it DOES write here.
+        out |= {(cwd / f"{n}{sfx}").resolve() for sfx in ("-journal", "-wal", "-shm")}
     return out
 
 
-def _sweep_owned(t: str, cwd: Path) -> None:
-    """Remove the databases test `t` owns. Only ever called for a test that PASSED."""
-    for q in _owned_dbs(t, cwd):
+def _sweep_owned(t: str, cwd: Path, before: frozenset[Path] = frozenset()) -> None:
+    """Remove the databases test `t` owns. Only ever called for a test that PASSED.
+
+    `before` is the pre-run snapshot, and it is the belt to the anchored-regex braces. The two
+    halves of this sweep have DIFFERENT safety properties: `_sweep_leftovers` is safe by
+    construction because a diff cannot name a pre-existing file, while this one deletes BY NAME and
+    so is only as safe as the name. Honouring `before` here makes a bad name inert rather than
+    destructive, and makes the protected-file property hold for both halves instead of one.
+    """
+    for q in _owned_dbs(t, cwd) - set(before):
         try:
             q.unlink(missing_ok=True)
         except OSError:
@@ -236,7 +255,7 @@ def _db_snapshot(dirs: tuple[Path, ...] | None = None) -> set[Path]:
     is this file's own defect shape inverted: not a cleanup that removes nothing, but a guard that
     protects nothing, and both look identical from outside.
     """
-    return {q.resolve() for d in (dirs or (HERE, DATA_DIR)) for q in d.glob("*.db")}
+    return {q.resolve() for d in (dirs or (HERE, DATA_DIR)) for q in d.glob("*.db*")}
 
 
 def _sweep_leftovers(before: set[Path], keep: set[Path],
@@ -285,7 +304,7 @@ def main() -> int:
     dbs_before = _db_snapshot()
     t_start = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
-        for t, ok, dt, out in ex.map(lambda tc: _run_one(tc[0], base, tc[1]), tests):
+        for t, ok, dt, out in ex.map(lambda tc: _run_one(tc[0], base, tc[1], frozenset(dbs_before)), tests):
             results.append((t, ok, dt))
             print(f"{'PASS' if ok else 'FAIL'}  {t}  ({dt:.1f}s)", flush=True)
             if not ok:
