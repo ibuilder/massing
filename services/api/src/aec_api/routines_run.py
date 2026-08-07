@@ -84,10 +84,23 @@ def run_due(db, project_id: str, now: datetime | None = None,
             job = jobs.enqueue(db, kind, project_id, {"routine_id": row.get("id"),
                                                       "window_start": row.get("window_start")},
                                actor=actor)
-        except ValueError as e:
+        except ValueError:
             # One misconfigured routine must not stop the others from running.
+            #
+            # The reason is REBUILT from the registry rather than echoed from the exception. The
+            # previous version passed the caught exception's text straight onto a viewer-reachable
+            # response, which CodeQL flags as py/stack-trace-exposure. The text of an exception is
+            # not a contract: the next `raise ValueError` added inside `jobs.enqueue` would start
+            # leaking whatever it happened to say, with nothing here to notice.
+            #
+            # Nothing is lost. `kind` is caller data already sitting in this same dict, and
+            # `jobs.KINDS` is a server constant, so a reader still gets the bad name AND the valid
+            # ones — the message is character-identical to what enqueue raises today, sourced from
+            # the registry instead of from the traceback.
             refused.append({"routine_id": row.get("id"), "kind": kind,
-                            "status": STATUS_UNKNOWN_KIND, "reason": str(e)})
+                            "status": STATUS_UNKNOWN_KIND,
+                            "reason": f"unknown job kind {kind!r}; "
+                                      f"registered: {sorted(jobs.KINDS)}"})
             continue
         # The window is consumed here, not on success — see the module docstring.
         stamp = (now or routines.utc_now())
