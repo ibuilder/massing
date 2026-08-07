@@ -1425,12 +1425,27 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
     is server-only today — the same shape the reachability gate exists to catch, and it is not in
     `KNOWN_UNCALLED`, so it slipped past on the last-static-segment rule.
 
-  **So the remaining work is UI and wiring, not solving.** The one real constraint is in that route's
-  own words: *"pure computation over caller-supplied values — it neither reads nor writes the model."*
-  A UI must therefore gather variables from the selection, call solve, and **apply the result back
-  through an edit recipe**. That write-back is where "multi-element parameter edits do not exist yet"
-  actually bites — which is why within-element first is the right order: one element's parameters can
-  be written with the edit path that already exists.
+  **So the solving is done; the work is UI plus a write-back.** The route says so itself: *"pure
+  computation over caller-supplied values — it neither reads nor writes the model."* A UI must gather
+  variables from the selection, call solve, and apply the result back through an edit recipe.
+
+  **CORRECTED 2026-08-07 — the write path does NOT already exist, and this entry said it did.** The
+  first version of this note claimed "one element's parameters can be written with the edit path that
+  already exists", and the decision to do within-element first was taken partly on that. Checked
+  against the recipes rather than assumed:
+
+  - `edit_type_params` operates on a **type** (`edit_type_params(model, type_guid, …)` in
+    `services/data/src/aec_data/families.py`), so writing through it moves **every instance of that
+    type** — the opposite of a single-element lock.
+  - `set_pset_on_class` writes across a whole IFC class; `set_storey_elevation` is storey-specific.
+  - `services/data/src/aec_data/instance_props.py` can *read* effective properties and *reset* one to
+    its type, but cannot set an instance value.
+
+  **There is no single-instance dimensional write path at all.** So within-element is still the
+  smaller build — one element, no multi-select semantics, no cross-element identity — but it is not
+  free of a prerequisite: it needs a new instance-level parameter recipe, and that lives in **Lane D**
+  (`services/data/src/aec_data/`), not Lane E. The read/solve half is Lane E and can proceed
+  independently; the apply half must be sequenced with D.
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
