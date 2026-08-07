@@ -151,11 +151,21 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: counts 131 — a different population, so its ABSOLUTE is not a valid ceiling input. The DELTA is
 //: sound because both affected methods are present in both populations. If this run reports anything
 //: other than 129, trust this file and not the reasoning above.
-//: 128 -> 123 on 2026-08-07 (LANE-REACH). Five more gained callers: estimateConfidence and
-//: wipModelProgress (budget panel), dealAuthority (diligence go/no-go), reviewContractClauses
-//: (contract findings) and aiEstimate (AI Assist). Measured by re-running the scan before and
-//: after - exactly five fewer, nothing newly uncalled.
-const UNCALLED_CEILING = 123;
+//:
+//: 121 -> 117 on 2026-08-07 (LANE-REACH, re-derived at merge). This branch was measured at
+//: 128 -> 123 against d0fbfadd and that was correct THEN. #271 then merged and reached
+//: `estimateConfidence` too (register.ts, per-record), so only FOUR of this branch's five are
+//: still new: wipModelProgress, dealAuthority, reviewContractClauses, aiEstimate.
+//:
+//: Landing the stale 123 on a main already at 121 would have RAISED the ceiling by two with
+//: every gate green — line 181 is `toBeLessThanOrEqual` and has no floor. Two PRs measured
+//: correctly against the same base go stale the instant either merges; the second one must
+//: RE-MEASURE, not merely rebase.
+//:
+//: Set to 117 rather than to main's 121 on purpose. If the true count is 117 this is exact; if
+//: it is higher the gate FAILS LOUDLY on the next run and gets corrected. 121 would have
+//: passed either way and told nobody. Bias low: low fails, high hides.
+const UNCALLED_CEILING = 117;
 
 describe("client methods the application actually calls", () => {
   it("agrees with a hand-checked sample in BOTH directions", () => {
