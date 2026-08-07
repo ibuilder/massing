@@ -49,11 +49,23 @@ def scope_library_list(division: str | None = None, trade: str | None = None,
     `trade` is resolved server-side rather than by the caller so the mapping lives in one place; an
     unrecognised trade returns the whole catalog rather than an empty one, which is the same
     fall-back `default_ids` makes.
+
+    `exhibit_categories` says which of the returned clauses can actually go INTO Exhibit A, so a
+    composer can offer only those without restating the rule. It is not decoration: `library()`
+    returns clauses whose division matches **or is None**, and every `gc-*`/`sc-*` conditions clause
+    has division None — so a narrowed catalog still contains clauses the exhibit renderer will drop.
+    Without this the picker offers a tick that silently does nothing, which teaches a user the control
+    is broken.
+
+    Served rather than hardcoded client-side because a second copy of this exact rule is what caused
+    the preview/document divergence: the route filtered and the PDF did not. One authority, read by
+    everyone who needs it.
     """
     div = division or scope_library.division_for_trade(trade)
     return {"clauses": scope_library.library(div),
             "division": div, "division_name": scope_library.division_name(div),
-            "divisions": sorted({c["division"] for c in scope_library.CLAUSES if c.get("division")})}
+            "divisions": sorted({c["division"] for c in scope_library.CLAUSES if c.get("division")}),
+            "exhibit_categories": sorted(scope_library.EXHIBIT_CATEGORIES)}
 
 
 @router.get("/scope-library/exhibit")

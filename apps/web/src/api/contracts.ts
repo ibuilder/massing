@@ -50,6 +50,11 @@ export function withContracts<TBase extends Ctor<HttpCore>>(Base: TBase) {
       clauses: { id: string; category: string; title: string; trade?: string | null;
                  division?: string | null; default: boolean }[];
       division: string | null; division_name: string | null; divisions: string[];
+      /** Which of the returned categories may go into Exhibit A. Filter the picker by THIS rather
+       *  than by a client-side literal — a narrowed catalog still contains conditions clauses
+       *  (`library()` matches division-or-None and every `gc-*`/`sc-*` has None), and the exhibit
+       *  renderer drops them. A second copy of this rule is what caused the preview/PDF divergence. */
+      exhibit_categories: string[];
     }>(`/scope-library${q ? `?${q}` : ""}`);
   }
   /** The assembled Exhibit A — numbered clauses WITH bodies, plus per-category counts.

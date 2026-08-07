@@ -1662,10 +1662,22 @@ export class RegisterUI {
     } catch { toast("couldn't load scope library", "error"); return; }
 
     const { card } = modalShell("Compose Exhibit A — Scope of Work", 460);
+    // OFFER ONLY WHAT EXHIBIT A CAN HOLD, using the server's own definition.
+    //
+    // `library(division)` returns clauses whose division matches **or is None**, and every `gc-*` /
+    // `sc-*` conditions clause has division None — so even a narrowed catalog contains clauses the
+    // exhibit renderer drops. Listing them gives the user a tick that silently does nothing, which is
+    // a worse failure than a wrong document: it teaches them the control is broken.
+    //
+    // Filtered by `lib.exhibit_categories` rather than a literal here. Hardcoding
+    // {"Scope","Exclusions","Clarifications"} would be a second copy of the rule, and a second copy
+    // of *this exact rule* is what let the preview and the PDF disagree by 20 clauses.
+    const offerable = lib.clauses.filter((c) => lib.exhibit_categories.includes(c.category));
+
     const scope = document.createElement("div"); scope.className = "meta";
     scope.textContent = lib.division
-      ? `${lib.clauses.length} clauses · Division ${lib.division} — ${lib.division_name ?? ""} (from trade “${trade}”)`
-      : `${lib.clauses.length} clauses · whole catalog — no division for ${trade ? `trade “${trade}”` : "an unset trade"}`;
+      ? `${offerable.length} clauses · Division ${lib.division} — ${lib.division_name ?? ""} (from trade “${trade}”)`
+      : `${offerable.length} clauses · whole catalog — no division for ${trade ? `trade “${trade}”` : "an unset trade"}`;
     card.appendChild(scope);
 
     const preselected = new Set(def.clauses.map((c) => c.id));
@@ -1673,9 +1685,10 @@ export class RegisterUI {
     const list = document.createElement("div");
     list.style.cssText = "max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:2px;margin:6px 0";
 
+
     // Grouped, with Exclusions given the same standing as Scope rather than being buried mid-list.
     const byCat = new Map<string, typeof lib.clauses>();
-    for (const cl of lib.clauses) {
+    for (const cl of offerable) {
       const bucket = byCat.get(cl.category);
       if (bucket) bucket.push(cl); else byCat.set(cl.category, [cl]);
     }
