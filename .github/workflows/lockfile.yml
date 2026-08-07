@@ -51,7 +51,7 @@ jobs:
       # Always publish the freshly-compiled lock so a human can download + commit it (bootstrap /
       # manual refresh path).
       - name: Upload compiled lock
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: requirements-lock
           path: services/api/requirements.lock
