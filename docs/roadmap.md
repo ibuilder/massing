@@ -72,24 +72,6 @@ the reserve/benchmarking/proforma sweep) — its full record is in
 sweep rather than by a failing test, which is the reason they rank first: **nothing in the suite can
 currently fail if either regresses.**
 
-- ✅ **R35-PIDLOCK-XPROC** *(M — Lane C, SHIPPED `2b332674`; **body corrected 2026-08-05**)* — the
-  paragraph below described the problem in the present tense long after the fix landed, so a ✅ item
-  read as open work. It said `pid_lock` serialises "within one process only"; since `2b332674` it
-  takes a **Postgres session advisory lock** as well. **The one true residue, now enforced rather
-  than narrated:** on any non-Postgres backend there is no advisory lock, so serialisation really is
-  in-process only — and v0.3.869's worker split made that reachable in a new way, since a dedicated
-  worker is a second writer by definition. v0.3.872 closes it: `services/api/src/aec_api/worker.py` refuses to start there,
-  and the boot guard counts **writer processes** rather than uvicorn workers. Historical description
-  follows. — `pid_lock.mutating(pid)` serialises the sidecar
-  read-modify-write (docmanager index, edit history) **within one process only**, and the module said
-  so plainly. Under `uvicorn --workers > 1` two workers can interleave load→save on the same project
-  and the first writer's entry is silently lost — no error, no duplicate, just an index that forgot
-  something. The v0.3.817 sweep fixed the two seams that had a *database* to arbitrate them (ref
-  counter, job claim); this one writes to object storage, so it needs either a DB advisory lock or a
-  storage CAS. **Keep the `mutating(pid)` interface** so no caller changes.
-  *Until it lands, single-writer-per-project is the supported deployment shape — that is a real
-  constraint on the product, not a note.*
-
 - ◧ **SEC-PLUGIN-SANDBOX** *(M — Lane **D**, not C: `sandbox.py` lives in `services/data/src/aec_data/`)*
   — **the binding half SHIPPED v0.3.864; the `setrlimit` half is REFUSED as specified, see below.**
   The attribute check is now an allowlist rather than a denylist: IFC entity attributes are CamelCase
@@ -234,16 +216,16 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · R24-TOOLS-SPLIT *(SHIPPED v0.3.848)* · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R36-RAIL-SCOPE · R40-RIBBON ② |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-EMPTY-STATE *(SHIPPED v0.3.849, pending archive)* · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-OPTION-OBJECT · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · R22-PHOTO-CV · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-RATE ② · PERF-THREADS ③ · R35-PIDLOCK-XPROC · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · R41-SCHEMA-STALE |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R28-ICDD ③ · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R23-STOREY-LOD · R28-UNIFY ① · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-PLACE-VALID ② · A29-SPATIAL-SELECT ② · A29-UNDO-LOCAL ③ *(all three SHIPPED v0.3.831–833, pending archive)* · A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · AUTH-SNAP-OVERRIDE *(SHIPPED PR #192, pending archive)* · RAIL-DRAG *(SHIPPED PR #197, pending archive)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · UX-AR · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R36-AUTHOR-MENU *(SHIPPED v0.3.836–843: the More menu is gone, not reorganised)* · R38-NODE-SLIDERS ③ *(ALREADY BUILT — checked 2026-08-06)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R40-RIBBON ② |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · R41-SCHEMA-STALE |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
-| **H · Registers** | `services/api/modules/*/module.json` | R22-PM-CONTRACTS *(SHIPPED 2026-08-06 — `pm_contract`; pending archive)* — lane now empty |
+| **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑧ |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* · R41-GATE-SUBSTANCE *(SHIPPED 2026-08-06 — `test_doc_substance.py`; pending archive)* · R41-DELETE-RATCHET · R41-TEST-RESIDUE · R41-LICENCE-GATE *(SHIPPED 2026-08-06 — `check-licences.mjs`; pending archive)* · R41-BUNDLER-SPLIT |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* · R41-DELETE-RATCHET · R41-TEST-RESIDUE · R41-BUNDLER-SPLIT |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -622,23 +604,6 @@ stakes we are missing.
   and a leg reading `no_data` because nobody filled it in is a different problem from having nowhere
   to put it. A store of answered claims is the remaining schema change.
 
-- ✅ **R22-OPTION-OBJECT** *(S/M — done)* — option as the primary object: geometry + unit mix + cost +
-  carbon + IRR as one comparable record, so no massing is ever evaluated without its returns.
-  `option_object.py`, served at `GET /projects/{pid}/design/options/record`. **Band 3 outcome: all
-  four engines already existed and were good — nothing joined them**, so a reader compared schemes
-  across three screens by eye, which is the failure the entry's own sentence describes. The join
-  re-derives nothing; each number comes from the engine that owns it, and each engine's `basis`
-  (declared / benchmark / derived / unlinked) is carried through rather than flattened. It refuses
-  twice: a missing axis is `absent`, never a zero (`option_score` once coerced a missing `cost_per_sf`
-  to 0.0 and scored it **100** on a lower-is-better axis), and it does **not** rank — `option_score`
-  owns that. `comparable_count` is the number to read.
-  *The defect worth remembering was in the seam, not the logic:* the first join read `total_cost`,
-  `equity_irr` and `carbon_intensity_kgco2e_m2`, **none of which any engine emits**. It returned all
-  five axes absent for a fully-populated project while its unit test passed, because the fixture was
-  invented alongside the code — both sides of the join were wrong in the same way and agreed
-  perfectly. A test that supplies both sides of a join cannot see the only defect that matters;
-  `test_option_object_route.py` supplies neither and asserts every axis equals what its owning route
-  serves.
 - **R22-REPORT-BUILDER** *(M)* — **RESCOPED 2026-07-31; the original premise was false.** The entry
   read "132 modules of structured data with **no end-user query surface**". There is one, and it is
   good: per-field filtering with operators (`?f.discipline=Structural&f.amount.gte=1000`, capped at
@@ -680,49 +645,6 @@ stakes we are missing.
   is a funnel, not a project.
 - ◧ **R22-ROUTINES** *(S — `routines.py` + migration shipped)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
   scan) rather than on-demand only. Turns AI from a tool you remember to use into infrastructure.
-- ✅ **R22-PM-CONTRACTS** *(M — Lane H, SHIPPED 2026-08-06)* — **preventative-maintenance contracts
-  from turnover data.** The COBie asset register, warranties and service intervals become billable
-  recurring PM contracts. Extends past turnover without breaking the mission.
-
-  **Premise-checked first, and the entry was half wrong — in the direction that wastes work rather
-  than causing a defect.** Read as written, this item sounds like PM capability is missing. It is
-  not: `pm_schedule`, `warranty`, `asset_register`, `work_order`, `equipment_log` and `cmms.py` were
-  all already here, and `pm_schedule` even carries `frequency_days`/`next_due` and a
-  "Generate PM work orders" tool. What did **not** exist is the item's actual noun — a *billable
-  recurring service agreement*. The four contract-shaped registers are all **construction** contracts
-  (`prime_contract`, `subcontract`, `owner_invoice`, `sub_invoice`); not one models a term, a billing
-  frequency, an escalation, a renewal notice or a response SLA. So the gap was real and much narrower
-  than an M implies: one register, not a subsystem. *Recorded rather than deleted, because "checked,
-  and here is what was actually missing" is what stops the next agent re-running the check.*
-
-  **Shipped:** `services/api/modules/pm_contract/module.json` — 18 fields in four contiguous
-  fieldsets (Agreement / Coverage / Term / Commercial), referencing `company`, `asset_register`,
-  `pm_schedule` and `warranty`, with a six-state workflow carrying the renewal path
-  (`draft → active → expiring → renewed → active`, plus lapse and terminate). `PMC` prefix verified
-  free against all 135 pre-existing registers. Alembic revision `a7e3b9c04d15` chained to head,
-  **including the Postgres FTS GIN tail** — the part that reads as boilerplate and is the reason a
-  post-baseline module silently loses full-text search on Postgres while passing every SQLite test.
-
-  **A gate caught me writing a commercial term nobody agreed to.** The first draft defaulted
-  `billing_frequency` to "Quarterly" and `coverage` to "Labour only" — helpful-looking, and exactly
-  what `test_field_attrs.py` forbids: it caps defaults across every register at eight and requires
-  each to be a fact about the **record** (a daily report is filed today), never a **policy**. On a
-  contract register that rule is at its sharpest: a defaulted billing frequency is a *term*, and it
-  would have been recorded as though someone had chosen it, invisibly, because a default looks
-  deliberate. Both removed. Worth noting that this is a **ceiling, not a floor** — the only such
-  assertion in the module gates, because here the risk runs toward adding rather than omitting.
-
-  **The `starts_after_warranty` flag is the join the item was actually asking for.** A PM contract
-  that begins while the equipment warranty still runs is money paid twice for the same obligation;
-  the field, plus the `warranty` reference, is what lets turnover data drive the contract start date
-  rather than a guess.
-
-  **Reachability measured over HTTP, not inferred:** `GET /modules` returns **136 (was 135)** with
-  `pm_contract` present and a key-shape identical to `pm_schedule`, including the derived `room`.
-  Worth recording how the first probe lied: it reported `/modules` → 200 with **0 modules**, which
-  reads as an empty registry and was the instrument — `TestClient(app)` outside a `with` block never
-  runs startup, so the registry never loaded. The route had been answering 200 the whole time.
-  (`/modules/{key}` 404s for `pm_schedule` too; that route shape does not exist.)
 - ◧ **R22-PUBLIC-VIEWER** — *(sized **M**, not S; see the Band 2 entry, which is the live one — its premise was corrected 2026-08-06: the scoped, revocable token and the routes honouring it ALREADY EXIST.)* This
   line is the original scan's one-sentence estimate. It called the item S because it counted the
   viewer, which exists; the Band 2 entry counted the **scoped revocable token and a route that
@@ -765,15 +687,6 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   licence list — a ~60–100 KB prebuilt wheel, and already a transitive dependency of matplotlib, so
   it adds a *declaration* rather than new surface area. Trivially reversible. Proceeding on the
   standing delegation; flagged here so it can be objected to in one line.
-- ✅ **R23-STOREY-LOD** *(L — SHIPPED, PR #176/#178/#179)* — server-side coarse proxies per storey (extruded footprint / AABB) for
-  small parts, MEP and furniture, swapping to real fragments on demand. Server-side keeps it
-  deterministic, offline and $0. **Blocker retired by measurement 2026-08-02:** the recorded
-  "no Fragments writer" blocker blocks *direct encoding* of a `.frag` in Python, not *production* of
-  one — a proxy authored as IFC runs through the converter this repo already ships (measured end to
-  end: 3 storeys → proxy IFC in 5.6 s → 3,817-byte frag in 6.4 s, zero new dependencies). The same
-  sentence genuinely does still block **viewer-side** LOD; the two differ by one process boundary we
-  own. *`docs/internal/archive/phase2-large-models.md` claims no custom LOD is needed and is
-  itself marked superseded — that claim is the thing to retire (still unverified).*
 - ⛔️ **R23-PICKING** *(M)* — **CLOSED UNBUILT 2026-07-31, on a measurement. Do not reopen without a
   new one.** Raycast latency was measured directly on `loader.fragments.raycast()` against a generated
   **35,030-element** fixture (19× the densest sample), 300 samples after a discarded warm-up:
@@ -1027,10 +940,6 @@ refute one, so this goes first even though it is the least visible.
   open and click through. Making it a *scheduled deliverable* — assembled on a date, sent to a
   recipient, with a record that it went — is the larger half and wants `routers/jobs.py` (now wired
   to the UI by R24-JOB-TRAY) plus a delivery surface. That is a real feature, not a grouping change.
-- ✅ **R24-TOOLS-SPLIT** *(SHIPPED v0.3.848)* — authoring verbs act instantly; analyses produce an
-  artifact after a wait. The `qa` section is cut in two and Analyse is a rail item of its own; see the
-  record below. The item's second half — giving those analyses a *history* rather than a modal — is
-  `R24-RUNS-INBOX` and stays open.
 - **R24-TERMS** *(S)* · **R24-MONO-DATA** *(S)* · **R24-DENSITY ②** *(M)* — the remaining long tail.
 
 **Explicitly NOT in scope: the audit's visual identity** (ink canvas `#080C12`, IBM Plex Sans/Mono,
@@ -1195,23 +1104,10 @@ latched itself permanently empty. Both were repaired at the symptom. The cause i
 "model" are two states the app keeps having to re-marry, and every feature built on top inherits the
 seam.
 
-* ✅ **R28-UNIFY ①** *(marker added 2026-08-06 — the lane table already said SHIPPED and MERGED, and `apps/web/src/shell/openUnify.ts` declares it in its opening line; only the marker was missing)* — **one open, one save.** Opening any model creates or attaches a project (with its
-  API data if it exists); opening a project ensures a model exists — **a blank authorable one if
-  there is none**, so a user can start drawing immediately rather than meeting an empty viewer. This
-  is the item that removes the class of bug, not the two instances of it.
 * **R28-BUNDLE ② — make `.mmproj` legible.** It already carries the data; nothing says so. Name it in
   the UI, show what a bundle contains before import, and state on export what was included and what
   was **left out** (`_SKIP_TABLES` drops users, audit log, settings and connections — correct, and
   currently silent). The same unknown ≠ none rule the engines follow.
-* ✅ **R28-ICDD ③ — a standards-conformant envelope.** Emit and read ISO 21597 containers, with our
-  payloads as documents and the GlobalId-keyed relationships as RDF linksets. `.mass` can then simply
-  **be** an ICDD container with our extension — the branding without the lock-in.
-  ✅ **`rdflib` (BSD-3) is APPROVED** *(user, 2026-07-26)* — no longer gated. Licensing is recorded in
-  [ATTRIBUTIONS.md](ATTRIBUTIONS.md), which also states that the container is implemented from the
-  **published standard** and that no ISO specification text is redistributed. The dependency is pinned
-  in `requirements.in` **in the change that first uses it**, with `requirements.lock` regenerated in the
-  same commit — the lockfile gate fails any push that leaves the two out of step, and a dependency
-  carried ahead of its code is supply-chain surface for no benefit.
 * **R28-VIEWER ④** — the future viewer opens a **container**, not a file. **This is now live and
   external**: the kernel rebuild is `MassingCloud/massingifc` (private), first commit 2026-07-26 —
   a framework-agnostic kernel + plugin host with **all fourteen capability families still contracts
@@ -1246,17 +1142,6 @@ fix does not get made later from the same report.
   finding ③ contradicts its finding ①. The real options are a bounded **shared** cache (a loader
   process or Redis-backed handle), or worker affinity so one model lives in one worker. Sizing is the
   last lever, not the first.
-* ✅ **PERF-RATE ② — DONE, verified 2026-08-06; the entry described behaviour that changed in
-  v0.3.721.** It now **refuses to start**: `_rate_limit_is_per_worker()` appends to `problems`, and
-  `_production_guard` raises *"refusing to start a production deployment with an unsafe
-  configuration"*. The prescription below — *"Refuse to start, or drop to one worker"* — was carried
-  out; only the entry lagged. `main.py`'s own comment records the change: *"Until v0.3.721 this logged
-  CRITICAL and then started anyway: the loudest possible message, followed by the exact behaviour it
-  warned about."* Original text: **the rate limit is per-worker and only warns.** Verified at `main.py:155-162`: with
-  `AEC_RATE_LIMIT_RPM>0`, multiple workers and no `AEC_REDIS_URL`, each worker counts independently, so
-  the effective limit is N× the configured one. It logs `CRITICAL` and **starts anyway**. A security
-  control that announces it is not working and then runs is worse than one that is absent, because the
-  operator believes it is on. Refuse to start, or drop to one worker.
 * **PERF-THREADS ③ — cap the pool, but the stated mechanism is wrong.** The claim was "unbounded
   threads → resource exhaustion". Starlette/anyio's default pool is **40 threads, not unbounded**. The
   genuine risk is different and worth fixing: 40 concurrent *IFC* operations at hundreds of MB each is
@@ -1298,68 +1183,6 @@ those repos closes a capability gap. What the 221-skill corpus *is* good for is 
 construction teams actually automate**, at a granularity nobody publishes otherwise. Read as a
 coverage checklist against our 130 modules it is a gap-analysis input, not an import.
 
-
-* ✅ **R22-PHOTO-CV Tier 1 — SHIPPED v0.3.851.** `services/api/src/aec_api/photo_cv.py`, wired into
-  `services/api/src/aec_api/routers/verification.py`. The gap was never a model, it was a **consumer**:
-  that route had been attaching photos to GlobalIds for months and nothing ever read one.
-
-  Tier 1 is classical image processing with **no new dependency** — numpy and pillow were already in
-  both lockfiles. A quality gate (Laplacian-variance focus + exposure clipping) **flags** a photo that
-  carries no evidence, a perceptual hash catches the same shot uploaded against thirty elements to
-  clear a checklist, and a normalised comparison screens the incoming photo against the outgoing one
-  at upload — the only moment both exist, since `photo_key` is a single column.
-
-  **The gate FLAGS, it does not REFUSE — corrected in v0.3.852, and the distinction was bought the
-  hard way.** As first shipped it returned a 400 for anything it could not decode. That reddened main,
-  and the red build was the lesser problem: **iPhones shoot HEIC by default and Pillow cannot decode
-  HEIC without `pillow-heif`**, which is not a dependency here, so the gate would have rejected the
-  most likely genuine field photo on the platform most field engineers carry. Silent data loss wearing
-  the costume of a safety check — and one CI could never catch, because no fixture is a real phone
-  photo. It also contradicted its own docstring one paragraph up, which argues a blurred frame must be
-  kept because the engineer may have no better shot. An undecodable upload is now stored with
-  `quality.analysed = False`: **between discarding real evidence and keeping something unreadable,
-  keeping is the recoverable error.**
-
-  **A second defect rode in on that fix (v0.3.853).** The decoder's exception was interpolated into
-  the response, leaking `<_io.BytesIO object at 0x7f…>`; CodeQL flagged `py/stack-trace-exposure` on
-  the exact line, taking open alerts 0 → 1 on the fixing commit. Detail now goes to the log and the
-  caller gets a fixed sentence. Both behaviours are mutation-checked in
-  `services/api/test_verification.py` — restoring either defect reds the suite.
-
-  **The API states its own confidence, because the mathematics is asymmetric.** `near_identical=True`
-  is a strong claim; a high `change_score` is a screening signal only, and a camera move scores higher
-  than most real change. That asymmetry is asserted in `services/api/test_photo_cv.py`, whose
-  load-bearing case is that an *exposure* shift must NOT read as change — a test that failed on first
-  run and corrected the design: dHash is not exposure-invariant where highlights clip, so it cannot
-  veto the two measures that are invariant by construction.
-
-* ✅ **R22-PHOTO-CV Tier 2 — pretrained detection** *(M — decided 2026-08-03: site logistics first)*.
-  Torch + torchvision (**both BSD-3**) for training/export only; the API service gets **onnxruntime**
-  (MIT, ~50 MB) so the training framework never enters the deployed image. Per the dependency rule
-  above, neither is pinned until the code that uses it lands. First target is COCO-pretrained
-  detection — people, vehicles, plant — which needs **zero labelling** and proves the pipeline end to
-  end on real photos before anyone labels anything. `photo_cv.photo_quality` becomes the pre-filter:
-  feeding a blurred frame to a detector produces confident nonsense.
-
-  **The licence objection recorded here until 2026-08-03 was wrong and is retracted.** It read "a CV
-  model is a new dependency and probably a large one… licences must be MIT/BSD/Apache", implying the
-  frameworks were the problem. They are not: torch, torchvision, scikit-image and scikit-learn are
-  BSD-3 and OpenCV is Apache-2.0. **The actual trap is Ultralytics YOLO, which is AGPL** — and it is
-  what nearly every tutorial reaches for, so name it rather than the category.
-
-* ✅ **R22-PHOTO-CV Tier 2 — VALIDATED on a real photograph, 2026-08-04.** The claim the unit suite
-  is structurally unable to make is now settled by observation. Against a CC BY 3.0 construction
-  photo from Wikimedia Commons ("A day's work done, Hitchin railway flyover workers go home"),
-  `scripts/try_detect.py` returned **5 people and 1 car in 1.18 s**, scores 0.58–0.99.
-
-  **The box geometry is what makes it convincing, not the count.** People came back 40–62 px wide by
-  135–160 px tall — roughly 1:2.6, the human aspect ratio — clustered together, while the car was
-  104×44, wide and short, elsewhere in the frame. A miswired preprocessing step produces plausible
-  *counts* but not correct *proportions*; this is the check that would have caught the CHW/NCHW bug
-  fixed in v0.3.857 had a photo been available then.
-
-  The test photo is **not committed** — it is third-party CC BY content and the repo has no need of
-  it. `scripts/try_detect.py` points at any local image, which is the reusable half.
 
 * ⛔ **R22-PHOTO-CV defect detection — REFUSED IN PLACE**, the way semantic search was. Not a
   scheduling problem: a defect classifier needs labelled construction photos and this project has
@@ -1447,16 +1270,6 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
   question for the user, not a build:** are locks meant to be *within* an element (hold depth, drive
   width, keep area) or *across* elements (align these walls, hold this offset)? Across-elements is
   the CAD-familiar meaning and needs multi-element parameter edits, which do not exist yet.
-- ✅ **R38-NODE-SLIDERS ③** *(S, Lane E — **checked 2026-08-06 and found ALREADY BUILT**, not
-  started)* — `apps/web/src/viewer/nodeSliders.ts` declares itself this item's implementation in its
-  opening line, exports `sliderSpecs` / `applySlider`, and carries 9 tests.
-  `apps/web/src/viewer/nodeCanvas.ts` wires it: a **🎚 Sliders** button opens a side rail holding
-  every numeric parameter across the graph as a named slider (`n2 · recipe`), scrubbed with the
-  mouse, with run-on-release. Reachable from `apps/web/src/viewer/app.ts` via `openNodeCanvas`.
-  The textarea stays the single source of truth — a slider reads the JSON and writes the JSON, so
-  hand-edits and scrubs interleave without two copies drifting. Original text: node-canvas inputs
-  exposed as named room-level sliders. Unblocked and small; the node graph already stores its
-  inputs. Lowest risk of the three.
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
@@ -1781,40 +1594,6 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   language caught it: the scan returned the same count with the probes present. *Word-bounding is the
   right default for a symbol search and the wrong one for a name-fragment search* — and a filter that
   excludes its own subject produces a clean bill of health.
-- ✅ **R41-GATE-SUBSTANCE** *(S — Lane J, SHIPPED 2026-08-06)* —
-  **`services/api/test_claude_md_gates.py` proves a cited path resolves; it does not prove the file
-  still says anything.** A path can resolve to a twelve-byte stub. Shipped as
-  `services/api/test_doc_substance.py` over eight artefacts.
-
-  **A floor is not a ratchet, and writing it like one would have been wrong.** `test_file_sizes.py`
-  sets per-file *ceilings* at the exact current value, because the direction of travel is down and
-  slack makes them decorative. **A floor is the mirror image, and the same reasoning gives the
-  opposite answer:** these artefacts legitimately *lose* content — the roadmap sheds items into
-  `docs/roadmap-completed.md`, the README gets tightened, a demo corpus is regenerated smaller. A
-  floor at today's value fails on every honest deletion, and a gate that goes red when you do the
-  right thing is one people switch off. So the floors sit clearly below current and far above a stub:
-  they catch **truncation, not shrinkage.**
-
-  **Bytes alone are a poor proxy and the mutation test proved it.** A file of repeated whitespace
-  passes a byte floor — so markdown is measured by **headings** as well, and the two data catalogues
-  by **entry count**. `apps/web/src/demo/demoData.json` is minified to a single line, so a
-  line-count floor reads **zero** for a healthy 1.4 MB file; that is why this is its own gate rather
-  than another map inside the line-count one. *The unit that detects a stub differs per artefact.*
-
-  Covered: `docs/roadmap.md` (226 KB / 61 headings) · `docs/roadmap-directions.md` ·
-  `docs/roadmap-completed.md` — deliberately **not** citation-gated, so nothing else would notice it
-  emptying · `README.md` · `CLAUDE.md` · `LICENSE-NOTES.md` ·
-  `services/data/families/external/manifest.json` (the family shelf: 57 `packs`) ·
-  `apps/web/src/demo/demoData.json` (1,249 endpoint keys).
-
-  Mutation-checked in all three modes: truncate the roadmap to ten bytes → red; 240 KB of newlines
-  with **zero headings** → red; the shelf reduced to 3 packs but padded to 214 KB → red. The last two
-  are the ones a byte floor alone would have passed.
-
-  **The rate tables named in the original entry were deliberately left out.** `equipment_rate`,
-  `labor_rate` and `material_rate` are `module.json` *schemas*, not data files, and
-  `module_schema.py` already rejects a malformed one — a size floor there would guard something that
-  is guarded, while implying the rate *data* is covered when it lives in the database.
 - ◧ **R41-DELETE-RATCHET** *(S — Lane J; the FILE half SHIPPED 2026-08-06, the symbol half deliberately
   not attempted)* — **assert in CI that removed things stay removed.** Shipped as
   `apps/web/src/tooling/deleteRatchet.test.ts` over eight deleted documents.
@@ -1895,50 +1674,6 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   sessions' worktrees, and the `git worktree remove --force` incident is precisely why a measurement
   gets reported and someone who owns the tree does the deleting.*
 
-- ✅ **R41-LICENCE-GATE** *(S — Lane J, SHIPPED 2026-08-06)* — **enforce the licence allowlist in CI
-  instead of by reading.** This scan found three repositories whose actual LICENSE differs from their
-  README or badge, two of them forbidding exactly our use.
-
-  **Premise-checked, and the gate half-existed.** `services/api/test_license_gate.py` already fails
-  the build on a GPL/AGPL dependency — so the item as written ("enforce it in CI instead of by
-  reading") was already true. What was *not* true was its scope, in two ways that matter and that the
-  entry did not distinguish:
-
-  1. **It walks Python distributions only.** The npm tree — **638 packages**, including `three`,
-     `web-ifc` and the whole That Open stack — was never in its population.
-  2. **It reads DECLARED metadata** (Trove classifiers, the `License` field, the SPDX expression).
-     *That is the badge.* **A declaration cannot catch a lying declaration**, which is the exact
-     defect the item was filed about.
-
-  So `apps/web/scripts/check-licences.mjs` reads each package's **LICENSE file** and cross-checks it
-  against the declaration — two independent statements about one fact, disagreement is the signal,
-  the same shape as the roadmap self-consistency gate on a different artefact. It runs in the **web**
-  CI job, because that is the job that runs `npm ci`; in the API gate `node_modules` does not exist
-  and the scan would have passed by finding nothing.
-
-  **It found the defect in our own docs.** `LICENSE-NOTES.md` listed *"That Open Engine
-  (`@thatopen/*`, web-ifc) | MIT-style | Permissive"*. The `@thatopen/*` packages are MIT; **`web-ifc`
-  is MPL-2.0** — weak, file-level copyleft with a real obligation attached to modifying it. Corrected,
-  and the table now says it is checked rather than merely written.
-
-  **The false positive it almost shipped with is the reusable part.** The first classifier tested
-  licence names in *precedence* order, GPL before MPL, and reported three contradictions — one being
-  `web-ifc` "declared MPL-2.0 but actually GPL", a core dependency named in the non-negotiables.
-  Wrong: **MPL-2.0 defines "Secondary License" by naming the GNU GPL, LGPL and AGPL**, so every
-  MPL-2.0 file contains the string. The fix is not a longer exclusion list but a different rule —
-  **the earliest title wins**, because a licence names itself at the top and every later mention is
-  prose about a different licence. *An alarming result should raise the bar on the instrument, not
-  lower it*: three hits including a core dependency was the moment to doubt the classifier.
-
-  Current state: 638 packages, **0 forbidden**, 3 weak-copyleft reported (`web-ifc` + two
-  `lightningcss` builds, all MPL), 8 unclassified held as a down-only ratchet. Mutation-checked with a
-  planted package declaring MIT over an AGPL file → `CONTRADICTION`, and declaring AGPL outright →
-  `FORBIDDEN`.
-
-  **Still open from this entry, deliberately not done here:** the filesystem CVE scan and the
-  Dockerfile linter. Both are separate tools with their own populations; folding them into a licence
-  gate would repeat the scope confusion this item just corrected.
-
 - **R41-BUNDLER-SPLIT** *(S — Lane J)* — **the suite never exercises the bundler that ships.** The app
   is *built* with **Vite 8 / rolldown** (pinned in `apps/web/package.json`, installed nested at
   `apps/web/node_modules/vite`) and *tested* under **Vite 6 / rollup**, because `vitest@4.1.10`
@@ -2010,87 +1745,6 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   **Still open beside it:** `npm run budget` is absent from `.github/workflows/pages.yml` entirely, so
   the public build has neither guard. Being fixed as a follow-up.
 
-- ✅ **R39-WORKER-SAFE** *(shipped v0.3.872 — the guard whose population I widened without widening
-  the guard)* — `_production_guard` refused to boot a deployment that could not serialise sidecar
-  writes across workers, testing `_worker_count() > 1`. That was **one route** to having two writer
-  processes. R39-WORKER-SPLIT added a second, independent one: `AEC_JOB_WORKER=off` moves the job
-  worker into its own process, so `UVICORN_WORKERS=1` plus a dedicated worker container is two
-  writers and sailed straight through. On anything but Postgres, `pid_lock` degrades to a
-  `threading.RLock` that two processes cannot share, and a mutating job interleaving with an API edit
-  drops a sidecar entry **with nothing raised**.
-
-  The guard was correct when written and became wrong when the product grew a new way to do the thing
-  it forbids. That is the failure mode of any check that enumerates *causes* rather than measuring the
-  *condition* — it cannot know about a cause invented later, and it keeps reporting green.
-
-  Closed on both sides: the boot guard now counts writer processes and names which second writer it
-  found, and `services/api/src/aec_api/worker.py` refuses to start where the lock cannot span
-  processes —
-  `AEC_WORKER_ALLOW_UNSAFE_LOCK=1` accepts the risk explicitly and still warns. **A guard that runs
-  where the risk is beats one that runs where the config is**: the API's guard is production-scoped
-  and the worker can be pointed at a database the API never saw. The dialect is read from
-  `DATABASE_URL`, not from a live session, for the reason `main.py` already documented one file over
-  — a connection blip must not permanently refuse a good deployment.
-
-- ✅ **R39-STALL-VISIBLE** *(shipped v0.3.870 — the hole R39-WORKER-SPLIT opened, closed)* — once the
-  worker can live in another container, **nothing the API can see changes when it dies.** The API is
-  healthy (it does not run jobs), the worker container may be up and wedged, and every enqueue keeps
-  succeeding. The only difference between a stalled queue and a healthy idle one is that a stalled
-  queue has an *old job at its head*.
-
-  So `/metrics` now exposes `aec_jobs_oldest_queued_seconds` — the age of the head — plus
-  `aec_jobs_by_state`, `aec_jobs_worker_inline` and `aec_jobs_stats_ok`. Three choices carry the
-  whole design, each one a way the metric could have read as reassuring while being useless:
-
-  · **the age series is OMITTED on an empty queue, never 0.** Zero says "the head is brand new" when
-    the truth is "there is no head", and it would make a `> 600` rule both permanently quiet on a
-    stall and permanently healthy-looking. Absence is the Prometheus idiom for an unmeasured value.
-  · **`aec_jobs_stats_ok` is always emitted** — it is the gauge that says whether the others mean
-    anything. Without it a database the scrape cannot reach and a perfectly empty queue produce
-    identical output, and an operator will read the reassuring one.
-  · **age is the alarm, depth is not.** A deep queue draining fast is healthy; one job wedged for six
-    hours never crosses a depth threshold. Depth is exported to *scale* on, not to page on.
-
-  `services/api/test_job_stall.py` asserts all three, plus that the block actually comes out of the
-  `/metrics` route rather than only out of the function — a perfect metric no endpoint serves is the
-  same defect as a tested module behind no route. Four mutations tried, four caught.
-
-- ✅ **R39-WORKER-SPLIT** *(shipped v0.3.869 — the platform's real scaling ceiling)* — the durable
-  job queue ran as a **daemon thread inside the API process**, so the heavy kinds (full-model COBie,
-  bundle generation, generative runs — all CPU- and memory-bound IFC parses) competed with every HTTP
-  request the same container was serving. The symptom was never an error: one person converting a
-  large model made the whole application slower for everyone, which reads as "the product is slow"
-  rather than "a job is running".
-
-  **Two things had already landed that made the split safe, and a stale comment hid both.**
-  `jobs._claim_next` is a compare-and-swap (`UPDATE … WHERE id = :id AND state = 'queued'`) that is
-  already correct across processes and hosts, and `pid_lock` became cross-process in
-  R35-PIDLOCK-XPROC. But the `jobs.py` docstring still read *"the in-process claim is safe for the
-  supported single-writer deployment; multi-worker deployments would add a DB row-lock claim
-  (SELECT … FOR UPDATE SKIP LOCKED)"* — **both halves false**, and `FOR UPDATE` is a silent no-op on
-  SQLite besides. A comment that talks the reader out of a capability the code already has is worse
-  than no comment: it would have stopped exactly this change, and it was written by the same effort
-  that built the CAS.
-
-  Shipped: `AEC_JOB_WORKER` (`inline` default, `off` to serve requests only), the
-  `python -m aec_api.worker` entrypoint in `services/api/src/aec_api/worker.py`, and a `worker`
-  service in both compose files sharing the API's image and environment by YAML anchor. Scale it with
-  `--scale worker=N`.
-
-  **The failure mode this creates, and how it is held closed.** Setting `off` without running a
-  worker means every enqueue succeeds, every row is written, every caller is told the work is under
-  way, and nothing ever runs — no exception, no failed healthcheck, because the API is genuinely
-  fine. `services/api/test_worker_split.py` therefore checks the flag *through a started app* in both
-  directions (asserting only the `off` case would pass on a build where the worker never starts at
-  all), drives a real job through `run_forever()`, and fails the build if any compose file sets `off`
-  without a service that runs the worker. All four mutations were tried and all four fail the gate.
-
-  The original text: the per-endpoint throttles in
-  `services/api/src/aec_api/throttle.py` keep in-process counters, so behind N workers every limit is
-  silently N× its configured value — the exact defect the rate-limit boot guard refuses for
-  `AEC_RATE_LIMIT_RPM`, one file over. Back the counters with Redis when `AEC_REDIS_URL` is set (the
-  seam the rate limiter already uses), and fold "endpoint throttles are per-worker" into the same
-  production-guard warning so the operator is told instead of protected-in-name-only.
 - ◧ **R39-UPLOAD-CAP-APP ①** *(S, Lane C — **premise corrected 2026-08-06: an app-level cap DOES
   exist**, so the item is not "add one" but "make the existing one measure rather than trust")* —
   the entry said the cap lives only in nginx (`client_max_body_size`) and that a deployment exposing
@@ -2254,22 +1908,6 @@ the screen stops waiting for it.
 > why a filename-based check would also have missed it). Widening that gate to the web tree is filed
 > as ROADMAP-GATE-TS.
 
-* ✅ **A29-PLACE-VALID ②** — **SHIPPED v0.3.831** — *say no before the round-trip, not after.* Pascal's spatial grid answers
-  `canPlaceOnFloor` / `canPlaceOnWall` / `getSlabElevationAt` before a placement commits. We validate
-  server-side, so an invalid placement costs a full round-trip to be told no. Reuse the existing
-  `inference.ts` maths; this is a pure function and belongs beside it, unit-tested the same way.
-
-* ✅ **A29-SPATIAL-SELECT ②** — **SHIPPED v0.3.832** — *click depth, not just objects.* Their selection walks Site → Building →
-  Level → Zone → Item. That hierarchy is **IfcSite → IfcBuilding → IfcBuildingStorey → IfcSpace →
-  element** — we hold the real one and navigate it as a flat list. This is the item where being
-  IFC-native makes the feature *better* for us than for them, because their tree is a convention and
-  ours is the model.
-
-* ✅ **A29-UNDO-LOCAL ③** — **SHIPPED v0.3.833** — *undo the stroke, not the commit.* We version on the server; they keep a
-  50-step in-browser history. Both are right for different questions — "undo my last three drags"
-  should not require three republishes. Scope: the in-progress draft only, discarded on commit, with
-  the server history unchanged as the record.
-
 * 🟡 **A29-GUIDE-UNDERLAY ③** *(in flight, PR #199)* — *trace over a plan.* A 2D reference image
   pinned to a level and scaled, for redrawing an existing building from a scan or a PDF. Small,
   self-contained, and the one place their `Guide` node maps onto something we do not have.
@@ -2347,28 +1985,6 @@ removed. Remaining, in priority order:
 
 - **UX-DUP-DESTINATIONS** *(S — **checked 2026-08-06 and still genuinely OPEN**; recorded so the next
   reader does not re-check)* — all three destinations are still present and distinct in the tree:
-- ✅ **UX-AR** *(S — **checked 2026-08-06: ALREADY BUILT, and built better than this asked**)* —
-  Sent→Approved→Paid manual status pipeline on invoices/bills (no payment rails).
-  `services/api/modules/owner_invoice/module.json` and
-  `services/api/modules/sub_invoice/module.json` both carry a real **workflow state machine**, not
-  the manual status field this asked for: owner invoices run `draft → submitted → approved →
-  rejected → paid` with transitions gated by **party**, sub invoices run `submitted → approved →
-  paid → rejected`. The "(no payment rails)" constraint also still holds — there is no payment
-  integration anywhere in `services/api/src`.
-
-  **Two things about this entry are worth more than the tick.**
-
-  *The ID is misleading and the lane follows the ID.* `UX-AR` sits in **Lane E · Authoring feel &
-  viewer**, between `R28-VIEWER ④`, `R22-PUBLIC-VIEWER` and `R36-VIEWER-SUBAPP`. Read there, "AR"
-  is **augmented reality**. It is **accounts receivable** — Billing. Its implementation is
-  `services/api/modules/*/module.json`, which is **Lane H · Registers**. *Not moved here: the lane
-  table is mid-restructure and belongs to the release holder — flagged for that pass.*
-
-  *This is the ID-collision class `apps/web/src/shell/roadmapStale.test.ts` says it deliberately
-  cannot catch* — "two different items sharing a name … detecting the next one needs a human reading
-  two entries, not a regex". Here it is not two items sharing a name but **one name reading as two
-  different things depending on which lane you meet it in**, which is worse: nothing is ambiguous
-  until you notice, and a viewer session would have skipped it forever as somebody else's AR work.
 - **UX-3 library depth** — thumbnails · drag-to-place · pick-host→auto-build · appendable IFC
   libraries · CC0 seed/H1. **UX-4** one-shell layout (a11y/mobile pass).
 
@@ -2570,10 +2186,6 @@ Shipped 2026-08-01:
 
 Open:
 
-- ✅ **R35-PIDLOCK-XPROC** *(M — SHIPPED `2b332674`)* — `pid_lock` serialises sidecar read-modify-write **in-process only**
-  and says so honestly; `uvicorn --workers > 1` needs a shared lock (DB advisory lock or storage
-  CAS). Until then single-writer-per-project is the supported shape. The item is the DB advisory
-  lock, behind the same `mutating(pid)` interface so callers do not change.
 - ◧ **R35-DEAL-MEMORY** *(M — `deal_memory.py` shipped)* — the platform's own closed deals as a comp database: when underwriting
   a new deal, surface this portfolio's realised outcomes (exit cap achieved vs assumed, actual
   lease-up months, cost/SF by vintage) beside the assumption being entered. External research
@@ -2714,73 +2326,6 @@ footing the July study stood on when CADCMD was written.
 
 ### What is actually left, and it is small
 
-- ✅ **AUTH-SNAP-OVERRIDE** *(S — Lane E; **SHIPPED — PR #192, merged `b9e4303f`**. Premise corrected
-  2026-08-06 — the original text below described a mode that does not exist)* — a one-shot snap override for a single
-  pick. Codes `EN` `MI` `CE` `PE` `NE` `NO` typed into the same two-letter buffer that arms the draw
-  tools, spent by the next click, Escape cancels it and leaves the tool armed.
-  `apps/web/src/viewer/snapOverride.ts` holds the table, the one-shot state machine and a
-  single-kind candidate producer; `apps/web/src/viewer/snapEngine.ts` gains `perpendicularSnaps`,
-  `nearestSnaps` and a kind filter on `resolveSnap`.
-
-  **⚠️ The premise was wrong in two ways, and the second one is the interesting one.**
-
-  *First:* there is **no modal snap preference to change.** The only snap setting in the app is
-  `getSettings().snap`, a grid **increment** — a number. Object-snap is entirely automatic with a
-  fixed precedence (typed constraint → Shift ortho → geometry snap → axis inference → polar → grid)
-  and no part of it can be aimed. The gap was never "the mode is inconvenient to flip"; a drafter
-  **could not ask for a snap kind at all, ever**. An entry describing a mode nobody built would have
-  sent the next reader looking for it.
-
-  *Second — this belongs in the built-but-unreachable tally, not in the authoring-feel ring.*
-  `resolveSnap` and `segmentSnaps` in `apps/web/src/viewer/snapEngine.ts` — the priority-ordered
-  resolver, the half that knows what a snap *kind* is — had **zero callers**. Only `polarConstrain`
-  and `applyDynamicInput` were wired. `perpendicular` sat in the `SnapKind` union the whole time with
-  nothing anywhere able to produce a candidate of that kind. Built, tested, correct, unreachable.
-
-  **And no gate could have seen it.** `apps/web/src/shell/roadmapStale.test.ts` catches exactly this
-  shape — an open item whose module already declares itself the implementation — but its population is
-  `services/api/src` and `services/data/src`, **Python only**. A capability built in the web tree is
-  structurally outside what it scans, so it stays "open" on this list with nothing to notice. Same
-  hole `test_reachable.py` leaves on the other side: it asks whether a *module* is reachable from a
-  route, never whether a *capability* is reachable from the product. Filed here as evidence that the
-  population of any such gate has to cover `apps/web/src/` too, alongside the API-side instances found
-  the same day (`/proforma/renovation`, `/proforma/rollover`, `/proforma/income-basis` with no
-  frontend caller; `suggestion_clears_horizon` and `nothing_renovated` emitted and unrendered).
-
-  Original text, kept because the chord suggestion still stands: a one-shot snap override for a single
-  pick (theirs is Shift+right-click; Shift is already ortho lock here, so pick a free chord). The
-  genuine gap: today a snap preference is modal, and needing *this one pick* to take a perpendicular
-  means changing a mode and changing it back.
-- ✅ **RAIL-DRAG** *(M — Lane E; **SHIPPED PR #197**)* — the palette rows in
-  `apps/web/src/viewer/draft/draftPanel.ts` are drag sources; `apps/web/src/viewer/railDrag.ts` owns
-  the payload rules and the one-drop-is-one-point verdict; `apps/web/src/viewer/app.ts` makes the
-  canvas a drop target that hands the `DragEvent` straight to `captureDraftPoint`. One pipeline, two
-  gestures, as the entry required.
-
-  **Two findings worth keeping, because neither is about dragging.**
-
-  *A drop is one point, and the catalog is not.* `draftCatalog` elements are `points: 1 | 2 | "poly"`,
-  so a drop can only *finish* a `points: 1` element; a wall or a slab gets its **first** point and
-  stays armed. The entry did not say this and it is the whole shape of the interaction. It is
-  asserted as a partition over the real catalog rather than over examples, so a fourth arity added
-  later fails a build instead of silently telling the user to double-click something that cannot be
-  closed.
-
-  *The browser hides the payload exactly where you need it.* During `dragover` the DataTransfer is in
-  **protected mode** — `getData()` returns `""` and only `types` is exposed. Deciding "is this ours?"
-  by reading the value means never calling `preventDefault()`, and the browser then refuses the drop
-  **silently, with no error**. The feature does nothing and nothing reports why. Worse, **happy-dom's
-  DataTransfer does not model protected mode**, so a test written against it passes while every real
-  drop is refused — the suite would have actively vouched for the broken build. The stub in
-  `apps/web/src/viewer/railDrag.test.ts` models it deliberately.
-
-  Original text: drag from the Library palette into the canvas. Justification is
-  **discovery, not parity**: dragging a door onto a wall is a better first-run mental model than
-  arm-then-click. It must resolve through the existing `captureDraftPoint` + `placeValid` path so
-  there is one authoring pipeline with two gestures, never two pipelines. Safe to build *because* the
-  snap suite already exists underneath — drag without snapping places a wall at 4.03 m and calls it
-  4.00 m, which for a GlobalId-bearing element that feeds schedules is worse than not placing it.
-
 ## 🔪 R24-TOOLS-SPLIT — cut *(measured 2026-08-03, shipped v0.3.848)*
 
 RAIL-SPLIT routed tool-groups to rail panels by their `data-tool` key, which worked for every group
@@ -2845,23 +2390,6 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 - ⭐ **R36-DRAWINGS-RETURN** *(S — Lane A)* — a back affordance from drawings/specs to Design, and
   the room tabs visibly present in those workspaces. The cheapest real defect in the ring; ship it
   first and alone.
-- ✅ **R36-RAIL-SCOPE** *(SHIPPED v0.3.828–835)* — the rail shows only the current room's group, and
-  `rooms.py` gained the allocation the audit was missing: Work went from **0 registers to 28**, and
-  Closeout moved to Operate. The room table is the single source; `roomNames.test.ts` gates the
-  duplicate in `spine.ts`.
-- ✅ **R36-AUTHOR-MENU** *(SHIPPED v0.3.836–843; the item under-scoped what was needed)* — the plan
-  said "split Author into four groups and promote the proven More tools". Measured live first, the
-  panel held **182 buttons and 11 inputs under 7 headings**, doing about ten unrelated jobs — 154 of
-  them there before the toolbox arrived. "Tools" was not a category; it was where a control went when
-  nobody decided, the same failure `rooms.py` records about the retired "Engineering" section.
-  So the split went further than promotion: **28 viewer tools left the floating bar entirely** (the
-  bar hid 23 of 28 behind **More**, and covered the model it acts on), the rail became 14 job-scoped
-  items across 4 clusters, and `panel-tools` fell from 182 controls to 9. Context now **dims rather
-  than hides** — a tool that relocates itself is a defect this repo shipped twice.
-  Follow-on work the split itself created, all closed in v0.3.843: persona allowlists still named the
-  deleted key, panels stacked duplicates on every persona switch, a saved ribbon tab could empty a
-  panel permanently, and Clash was orphaned. `railKeys.test.ts` now holds all of it — **no rail key
-  may be named that no item defines, and no panel may be unreachable.**
 - ⭐ **R36-VIEWER-SUBAPP** *(L — Lane E; slice before starting)* — **now the top item in this ring**,
   because the rail work above cleared its way: the tools no longer float over the canvas, so the
   canvas is free to change what it renders. Drawings + specs + model as one subapp with a mode switch
@@ -2872,39 +2400,6 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   not a later concern.** Today 2D has a real path (plan SVG → sheet → PDF) while 3D only captures a
   hero image, so the two are not yet peers and the mode switch would expose that immediately. Slice
   the print path first. Per the non-negotiables the interface speaks GlobalId only, never viewer ids.
-- ✅ **R36-AUTHOR-MENU** — **SHIPPED v0.3.836–843; see the resolved entry in this ring above.** This
-  was the original plan text ("split Author into four groups, promote the proven More tools") and it
-  outlived the work: the shipped split went considerably further, because measuring the panel first
-  found 182 buttons rather than the handful the plan assumed. Kept as a pointer rather than deleted so
-  the under-scoping is visible, and marked ✅ so it can never again read as open work — it sat
-  unmarked, four days after shipping, one screen below its own resolution.
-- ✅ **R36-EMPTY-STATE** *(S — Lane B — **SHIPPED v0.3.849**)* — **a register with no rows is indistinguishable from a broken
-  one, and was reported as exactly that.** The trigger: "something is wrong with specs". Specs was
-  fine — the module rendered in full, toolbar, filters, saved views, templates, import — but the
-  project held **zero** `spec_section` records, and so did every other design register. A full surface
-  around an empty table reads as a failure of the surface.
-  Every register needs an empty state that says which of three things is true: *nothing has been
-  created yet* (with the create action), *a filter is hiding everything* (with a clear-filters
-  action), or *the fetch failed*. Today all three render identically. The distinction is the whole
-  value — the first is an invitation, the second is a mistake the user made, the third is an outage.
-  **Extend `ui/empty.ts` rather than starting one**: it already owns this job for the adjacent case
-  ("no project open", demo-aware, 17 adopters) and already ships the `.empty-state` class. A second
-  empty-state vocabulary beside it is how the icon set ended up with two languages.
-  *Premise-check before building*: confirm the register renderer can distinguish an empty result from
-  a filtered-to-nothing one — if it cannot, that plumbing is the real item and the copy is trivial.
-
-  **Checked, and the premise held — the plumbing was the item, in two ways.** The branch tested
-  `filter.q || filter.state`, which is half the filter vocabulary: `filter.fields` (the ⧧ Filter
-  panel, and the control most likely to narrow a register to nothing) was invisible to it, so a
-  filtered-out register claimed nothing had ever been created *and* offered curated advice about
-  where those records come from. And the third case did not exist at all — the records fetch was the
-  only unguarded `await` in `openModule`, so a failure left the "Loading …" skeleton up permanently
-  and the rejection escaped through the `void openModule(...)` call sites. Both fixed in v0.3.849;
-  the vocabulary went into `apps/web/src/ui/empty.ts` as directed, and the states are marked in the
-  DOM with `data-empty` so a check can assert *which* was decided rather than that something
-  rendered. Gates: `apps/web/src/ui/empty.test.ts` (the partition) and
-  `apps/web/src/portal/registerEmpty.test.ts` (the renderer reaching all three, driven rather than
-  grepped — a source regex passes on a branch that is present and never taken).
 
 - **R36-ROOM-BRIEFS** *(M — Lane B; one room per release)* — per-room, per-role landing priority:
   each room opens with the three answers its primary role needs (superintendent in Schedule: today's
