@@ -131,11 +131,29 @@ export async function renderAiAssist(ctx: PanelContext) {
       aiBtn.disabled = true; aiOut.textContent = "pricing…";
       try {
         const r = await ctx.host.api.aiEstimate(pid, q);
+        // AI SWITCHED OFF IS NOT AN EMPTY ESTIMATE. With no Anthropic key configured — the default
+        // state — this endpoint returns `ai_enabled: false` and a `message` saying exactly how to
+        // turn it on. Rendering `lines.length` regardless printed "0 line(s) — a starting point,
+        // not a basis of estimate" at somebody who had simply never set a key: a confident empty
+        // answer whose cause was sitting in the response and was thrown away.
+        //
+        // The model-progress button twenty lines below already makes this exact distinction
+        // ("that is not 0% complete"), which is what marks this as a slip rather than a judgement.
+        //
+        // if/else rather than an early return ON PURPOSE: `aiBtn.disabled = false` runs after the
+        // try/catch, not in a `finally`, so returning from inside the try would leave the button
+        // permanently dead — a second defect on top of the one being fixed.
+        if (!r.ai_enabled) {
+          aiOut.innerHTML = `<b>AI estimating is off.</b> <span class="meta">`
+            + esc(r.message ?? "Set an Anthropic API key in Settings to draft a bill of quantities from a description.")
+            + `</span>`;
+        } else {
         aiOut.innerHTML = `<b>${r.lines.length}</b> line(s) — a starting point, not a basis of estimate: `
           + `these carry no source, quote ref or basis date, which is exactly what the BoE ledger flags.`
           + `<ul style="margin:4px 0 0 16px">`
           + r.lines.slice(0, 12).map((l) => `<li>${esc(l.description)} — ${l.quantity} ${esc(l.unit)} @ ${cmoney(l.rate)}</li>`).join("")
           + `</ul>`;
+        }
       } catch (e) { aiOut.textContent = `pricing failed: ${(e as Error).message}`; }
       aiBtn.disabled = false;
     };
