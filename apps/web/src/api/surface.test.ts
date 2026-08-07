@@ -108,8 +108,20 @@ describe("the API client's public surface", () => {
   });
 
   it("keeps the methods the rest of the app actually calls", () => {
-    // Sampled across the domains the extraction touches, one per seam, chosen because each has real
-    // call sites in the shell, the viewer or the portal. A regression here is a broken screen.
+    // Sampled across the domains the extraction touches, one per seam. A regression here is a
+    // broken screen — for the ones that HAVE a screen.
+    //
+    // CORRECTED 2026-08-07. This said "chosen because each has real call sites in the shell, the
+    // viewer or the portal", and that was false for the three ⑧ entries below: `proformaRenovation`,
+    // `proformaRollover` and `proformaIncomeBasis` have no caller anywhere except this list. They
+    // were added to give server endpoints a client caller, which made the ENDPOINT reachable and
+    // left the SCREEN as absent as before — so the sentence claimed a property nothing checked, in
+    // a file whose whole job is to check properties.
+    //
+    // The claim now has an owner: `clientCallers.test.ts` distinguishes "the method exists" from
+    // "something outside src/api calls it", and holds the count of the second kind under a ratchet.
+    // This list stays as it is — losing any of these names should still fail — but it no longer
+    // asserts anything about reachability.
     for (const k of [
       "modules", "moduleRecords", "createModuleRecord", "updateModuleRecord",  // CRUD — used everywhere
       "topicsBoard", "createTopic", "viewpoints",                   // BCF coordination
