@@ -1620,7 +1620,7 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
 
 ## Reach sweep — Lane C/G/I *(2026-08-07)*
 
-**Measured, then acted on.** `UNCALLED_CEILING` **131 → 129**, the drop measured by re-running the
+**Measured, then acted on.** `UNCALLED_CEILING` **131 → 128**, the drop measured by re-running the
 scan rather than derived from what was wired.
 
 - `portfolioCompare` wired into the portfolio panel as a **returns spread**. The executive roll-up
@@ -1630,6 +1630,12 @@ scan rather than derived from what was wired.
   solved scenario has not returned zero, and a fabricated zero would take the "worst" slot from a deal
   that genuinely holds it. **This is the R22-PIPELINE finding landing** — capability present, reach
   absent — folded into the sweep rather than re-listed as new work.
+- `estimateBoe` wired as **Basis of estimate** on the budget panel. This closes a loop opened by
+  R22-PROVENANCE: that work gave `estimate` line items `source` / `quote_ref` / `basis_date`, and
+  `boe_ledger` checks them, but nothing showed the result — an estimate you cannot defend
+  line-by-line is what a claim attacks first. The screen maps `code → cost_code` and `amount →
+  total`, **the same seam `commercial_drift.ESTIMATE_TO_BOE` documents server-side**: handing the
+  rows over unmapped does not raise, it silently produces a full, plausible, wrongly-keyed ledger.
 - `clearBaseline` → `KNOWN_UNCALLED`, **with an expiry condition**. It deletes a captured schedule
   baseline, and R40-EOT ② has just made the *named* baseline the auditable input to an extension-of-
   time figure that ends up in arbitration. A one-click destroy beside that is a footgun, and "it has

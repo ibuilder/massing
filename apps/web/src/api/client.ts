@@ -6,6 +6,7 @@ import { withCost } from "./cost";
 import { withRoutines } from "./routines";
 import { withContracts } from "./contracts";
 import { withDesignOptions } from "./designOptions";
+import { withFinance } from "./finance";
 import { withLibrary } from "./library";
 import { HttpCore, type LiveStream } from "./httpCore";
 import { withModel } from "./model";
@@ -38,7 +39,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))) {
+export class ApiClient extends withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -2091,29 +2092,6 @@ export class ApiClient extends withContracts(withAuth(withProforma(withDesignOpt
       `/projects/${pid}/propmap/plan`, { method: "POST", body: JSON.stringify({ rules }) });
   }
 
-  // real-estate development finance (Proforma)
-  /** FIN-GOV — the project's locked reporting period (books closed through lock_date, or null). */
-  financeLock(pid: string) {
-    return this.json<{ lock_date: string | null; set_by?: string; set_at?: string; note?: string }>(
-      `/projects/${pid}/finance/lock`);
-  }
-  setFinanceLock(pid: string, lockDate: string | null, note?: string) {
-    return this.json<{ lock_date: string | null; set_by: string; note: string }>(
-      `/projects/${pid}/finance/lock`,
-      { method: "PUT", body: JSON.stringify({ lock_date: lockDate, note: note ?? "" }) });
-  }
-  /** FIN-INGEST — budget ↔ actuals two-way reconciliation on the cost-code spine. */
-  financeReconcile(pid: string) {
-    return this.json<{ matched: unknown[]; budget_only: unknown[]; actuals_only: unknown[];
-      uncoded: { module: string; ref: string; amount: number; vendor?: string }[];
-      counts: Record<string, number>; fully_reconciled: boolean }>(
-      `/projects/${pid}/finance/reconcile`);
-  }
-  /** FIN-INGEST — import lineage: the project's audit-logged import batches, newest first. */
-  financeImports(pid: string) {
-    return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
-      imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
-  }
   /** CRE-HOLDSELL — hold vs sell: incremental hold-year IRRs against the proceeds declined today. */
   holdSell(pid: string, inputs: unknown, hurdleRate = 0.12, maxYears = 10) {
     return this.json<{ computable: boolean; reason?: string;
