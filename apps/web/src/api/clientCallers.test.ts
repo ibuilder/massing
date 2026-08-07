@@ -147,7 +147,14 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: counts 131 — a different population, so its ABSOLUTE is not a valid ceiling input. The DELTA is
 //: sound because both affected methods are present in both populations. If this run reports anything
 //: other than 129, trust this file and not the reasoning above.
-const UNCALLED_CEILING = 129;
+//:
+//: 129 -> 128 on 2026-08-07: NOT a reach change. This branch adds `commercialDrift` together
+//: with its screen, so the countable set is unchanged — but it was cut before #272 landed and
+//: carried 129 while main had already moved to 128. Merging it would have RAISED the ceiling
+//: by one with every gate green, because line 181 asserts only `measured <= ceiling` and has
+//: no floor. Set to main's value rather than kept at this branch's: a ceiling that is too LOW
+//: fails loudly and immediately, one that is too high fails never.
+const UNCALLED_CEILING = 128;
 
 describe("client methods the application actually calls", () => {
   it("agrees with a hand-checked sample in BOTH directions", () => {
