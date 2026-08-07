@@ -52,6 +52,21 @@ export default tseslint.config(
       // the initializer removed, which is the independent confirmation that they were unreachable.
       // "error", not "warn": the whole point is that it cannot silently accumulate again.
       "no-useless-assignment": "error",
+      // The other two rules `@eslint/js` 10 adds to `recommended`, adopted here so the dependency
+      // bump (#236) carries no behaviour change with it. The full delta 9.39.5 -> 10.0.1 is exactly
+      // three added rules and none removed: the one above, plus these. Both measure **0 findings**
+      // across `src/**/*.ts`, `scripts/**/*.mjs` and `capacitor.config.ts`.
+      //
+      // A zero is the result least worth trusting, so both were mutation-checked: a planted
+      // never-assigned `let` and a planted `catch (e) { throw new Error(...) }` are each reported.
+      // The rules are armed and the codebase genuinely has none — as opposed to a flag that quietly
+      // did nothing, which reads identically in the output.
+      //
+      // Worth recording why the bump was low-risk: the ESLint **engine** is already 10.8.0, so
+      // v10's breaking changes are live today. `@eslint/js` only supplies `configs.recommended`, so
+      // #236 moves which rules that preset turns on and nothing else.
+      "no-unassigned-vars": "error",
+      "preserve-caught-error": "error",
       "no-constant-condition": ["error", { checkLoops: false }],
     },
   },
