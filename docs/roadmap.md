@@ -1779,7 +1779,18 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   `auth_test.db`). So the runner unlinked a file nothing ever creates while the real one persisted —
   **a cleanup that ran, succeeded, and removed nothing**, which is indistinguishable from one that
   works. The 187 tests that *do* use the runner's name were cleaned correctly the whole time, which
-  is exactly why nobody noticed. A full `run_tests.py`
+  is exactly why nobody noticed.
+
+  **Fixed with two refinements from a second session, both better than the first design.** The sweep
+  runs **per test as each finishes** rather than after the pool — with the disk at ~96% an end-sweep
+  still peaked at ~1.4 GB held open at once. And **a failing test keeps its database**, because that
+  file is the evidence for the failure and sweeping it destroys what someone needs at 3am.
+
+  Per-test cleanup is **name-scoped from the test's own source**, not a snapshot diff: tests run
+  concurrently, so "everything that appeared while I ran" also contains databases other tests are
+  still using. The end-of-run backstop *does* use snapshot-diff, where no name is available — a
+  `glob("test_*.db")` there would have its safety depend on which filenames happen to exist, and
+  `preview.db` (the dev API's live database) shares that directory. A full `run_tests.py`
   writes a SQLite file per test module into `services/api/`, and no run removes what the last one
   wrote. Measured across the shared clone that day:
 
