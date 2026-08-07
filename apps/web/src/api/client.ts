@@ -2,6 +2,7 @@
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
 import { withAuth } from "./auth";
 import { withAuthoring } from "./authoring";
+import { withContracts } from "./contracts";
 import { withDesignOptions } from "./designOptions";
 import { withLibrary } from "./library";
 import { HttpCore, type LiveStream } from "./httpCore";
@@ -35,7 +36,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))) {
+export class ApiClient extends withContracts(withAuth(withProforma(withDesignOptions(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -753,26 +754,6 @@ export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcu
       { method: "POST", body: JSON.stringify({ companies }) });
   }
 
-  // --- contract documents (generate / scope library / sign) -----------------
-  /** URL of a generated contract document — doc = agreement | prime | co | exhibit. */
-  contractDocUrl(pid: string, key: string, rid: string, doc: string, clauses?: string, attach = false) {
-    const q = new URLSearchParams({ doc, ...(clauses ? { clauses } : {}), ...(attach ? { attach: "1" } : {}) }).toString();
-    return this.url(`/projects/${pid}/contracts/${key}/${rid}/document.pdf?${q}`);
-  }
-  /** Scope-of-work clause library for composing Exhibit A. */
-  scopeLibrary() {
-    return this.json<{ clauses: { id: string; category: string; title: string; trade?: string | null }[] }>(`/scope-library`);
-  }
-  /** Record a party's signature (typed name) on a contract / change order. */
-  signContract(pid: string, key: string, rid: string, party: string, name: string) {
-    return this.json<{ signatures: { party: string; name: string; signed_at: string; method: string }[] }>(
-      `/projects/${pid}/contracts/${key}/${rid}/sign`, { method: "POST", body: JSON.stringify({ party, name }) });
-  }
-  /** Apply a certificate-based PAdES digital signature to the contract document (tamper-evident). */
-  digitalSignContract(pid: string, key: string, rid: string) {
-    return this.json<{ signed: boolean; fingerprint: string; kind: string }>(
-      `/projects/${pid}/contracts/${key}/${rid}/digital-sign`, { method: "POST", body: "{}" });
-  }
   /** Whether server-side E57 → .xyz point-cloud conversion is available (needs optional pye57). */
   e57Status() {
     return this.json<{ available: boolean; max_points: number; message: string }>(`/convert/e57/status`);
@@ -783,19 +764,6 @@ export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcu
     const res = await fetch(this.url(`/convert`), { method: "POST", headers: this.authHeaders(), body: fd });
     if (!res.ok) throw new Error((await res.text()) || `convert failed (${res.status})`);
     return res.blob();
-  }
-  /** Digital-signature capability — built-in PAdES + the optional 3rd-party bridge (DocuSeal etc.). */
-  esignStatus() {
-    return this.json<{ pades: { available: boolean; kind: string };
-      bridge: { enabled: boolean; provider: string | null; implemented: boolean; message: string } }>(
-      `/esign/status`);
-  }
-  /** Route a contract/CO through the configured 3rd-party e-signature provider (DocuSeal etc.). */
-  sendForSignature(pid: string, key: string, rid: string, signers: { email: string; name?: string; party?: string }[]) {
-    return this.json<{ provider: string; submission_id: number | string | null;
-      signers: { email: string; role: string; url: string | null }[]; status: string }>(
-      `/projects/${pid}/contracts/${key}/${rid}/send-for-signature`,
-      { method: "POST", body: JSON.stringify({ signers }) });
   }
   /** Triage an RFI (AI): category / discipline / urgency / ball-in-court + a draft response. */
   triageRfi(pid: string, rid: string) {

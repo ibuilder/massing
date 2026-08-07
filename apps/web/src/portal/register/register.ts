@@ -1622,31 +1622,143 @@ export class RegisterUI {
     }
   }
 
+  /**
+   * Compose Exhibit A — pick clauses, preview the assembled exhibit, then generate the PDF.
+   *
+   * NARROW BY TRADE, BECAUSE THE CATALOG OUTGREW THE PICKER
+   *     The library is 249 clauses across 21 MasterFormat divisions. This used to load all of them
+   *     into one flat 300px-tall checkbox list, which asks somebody to assemble a plumbing
+   *     subcontract from a list where the overwhelming majority of entries belong to other trades.
+   *     Passing the record's trade narrows it server-side — 249 -> 85 for plumbing — and the header
+   *     says which division it narrowed to, so a wrong trade on the record is visible rather than
+   *     silently producing a short exhibit.
+   *
+   * THE INITIAL SELECTION COMES FROM THE SERVER, WHICH IS THE BUG THIS REPLACES
+   *     The previous default was computed here:
+   *         `cb.checked = cl.category !== "Scope" || !trade || (cl.trade ?? "").toLowerCase() === trade`
+   *     The imported clauses carry no `trade` key at all — only body/category/default/division/id/
+   *     position/title — so that comparison was false for every one of the 242 imported clauses. The
+   *     dialog therefore opened with **every exclusion and every conditions clause ticked and almost
+   *     no scope clauses**, which is close to the opposite of a sensible subcontract exhibit. It was
+   *     a second selection rule that disagreed with the server's `default_ids`. Now there is one
+   *     rule: `scopeExhibit({trade})` returns the default selection and the boxes start there.
+   *
+   * EXCLUSIONS ARE AS PROMINENT AS INCLUSIONS
+   *     The point of the library gaining exclusions (69 of them) is that a subcontract can state what
+   *     is NOT included — that is where scope gaps come from. So the picker groups by category rather
+   *     than running them together, and the preview leads with the counts.
+   */
   private async composeExhibit(m: ModuleDef, r: ModuleRecord, rid: string) {
     const pid = this.ctx.host.projectId()!;
-    let lib;
-    try { lib = (await this.ctx.host.api.scopeLibrary()).clauses; } catch { toast("couldn't load scope library", "error"); return; }
-    const { card } = modalShell("Compose Exhibit A — Scope of Work", 360);
-    card.append(Object.assign(document.createElement("div"), { className: "meta", textContent: "Select clauses to include:" }));
-    const trade = (r.data?.trade as string | undefined)?.toLowerCase();
+    const api = this.ctx.host.api;
+    const trade = (r.data?.trade as string | undefined)?.trim() || undefined;
+
+    let lib: Awaited<ReturnType<typeof api.scopeLibrary>>;
+    let def: Awaited<ReturnType<typeof api.scopeExhibit>>;
+    try {
+      // Both narrowed by the same trade. The catalog fills the picker; the exhibit supplies which
+      // boxes start ticked, so the default cannot disagree with what the document would render.
+      [lib, def] = await Promise.all([api.scopeLibrary({ trade }), api.scopeExhibit({ trade })]);
+    } catch { toast("couldn't load scope library", "error"); return; }
+
+    const { card } = modalShell("Compose Exhibit A — Scope of Work", 460);
+    // OFFER ONLY WHAT EXHIBIT A CAN HOLD, using the server's own definition.
+    //
+    // `library(division)` returns clauses whose division matches **or is None**, and every `gc-*` /
+    // `sc-*` conditions clause has division None — so even a narrowed catalog contains clauses the
+    // exhibit renderer drops. Listing them gives the user a tick that silently does nothing, which is
+    // a worse failure than a wrong document: it teaches them the control is broken.
+    //
+    // Filtered by `lib.exhibit_categories` rather than a literal here. Hardcoding
+    // {"Scope","Exclusions","Clarifications"} would be a second copy of the rule, and a second copy
+    // of *this exact rule* is what let the preview and the PDF disagree by 20 clauses.
+    const offerable = lib.clauses.filter((c) => lib.exhibit_categories.includes(c.category));
+
+    const scope = document.createElement("div"); scope.className = "meta";
+    scope.textContent = lib.division
+      ? `${offerable.length} clauses · Division ${lib.division} — ${lib.division_name ?? ""} (from trade “${trade}”)`
+      : `${offerable.length} clauses · whole catalog — no division for ${trade ? `trade “${trade}”` : "an unset trade"}`;
+    card.appendChild(scope);
+
+    const preselected = new Set(def.clauses.map((c) => c.id));
     const boxes: Record<string, HTMLInputElement> = {};
-    const list = document.createElement("div"); list.style.cssText = "max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:3px;margin:6px 0";
-    for (const cl of lib) {
-      const row = document.createElement("label"); row.style.cssText = "display:flex;gap:6px;align-items:center;font-size:12.5px";
-      const cb = document.createElement("input"); cb.type = "checkbox";
-      cb.checked = cl.category !== "Scope" || !trade || (cl.trade ?? "").toLowerCase() === trade;
-      boxes[cl.id] = cb;
-      row.append(cb, Object.assign(document.createElement("span"), { textContent: `${cl.title} · ${cl.category}` }));
-      list.appendChild(row);
+    const list = document.createElement("div");
+    list.style.cssText = "max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:2px;margin:6px 0";
+
+
+    // Grouped, with Exclusions given the same standing as Scope rather than being buried mid-list.
+    const byCat = new Map<string, typeof lib.clauses>();
+    for (const cl of offerable) {
+      const bucket = byCat.get(cl.category);
+      if (bucket) bucket.push(cl); else byCat.set(cl.category, [cl]);
+    }
+    const CAT_ORDER = ["Scope", "Exclusions", "Clarifications"];
+    const cats = [...byCat.keys()].sort((a, b) => {
+      const ia = CAT_ORDER.indexOf(a), ib = CAT_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+    });
+    for (const cat of cats) {
+      const items = byCat.get(cat)!;
+      const head = document.createElement("div");
+      head.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:6px;font-weight:600;font-size:12px";
+      const all = document.createElement("input"); all.type = "checkbox"; all.title = `Select all ${cat}`;
+      head.append(all, Object.assign(document.createElement("span"), { textContent: `${cat} (${items.length})` }));
+      list.appendChild(head);
+      const mine: HTMLInputElement[] = [];
+      for (const cl of items) {
+        const row = document.createElement("label");
+        row.style.cssText = "display:flex;gap:6px;align-items:flex-start;font-size:12.5px;padding-left:14px";
+        const cb = document.createElement("input"); cb.type = "checkbox";
+        cb.checked = preselected.has(cl.id);
+        boxes[cl.id] = cb; mine.push(cb);
+        row.append(cb, Object.assign(document.createElement("span"), { textContent: cl.title }));
+        list.appendChild(row);
+      }
+      const sync = () => { all.checked = mine.every((c) => c.checked); all.indeterminate = !all.checked && mine.some((c) => c.checked); };
+      all.onclick = () => { for (const c of mine) c.checked = all.checked; };
+      for (const c of mine) c.addEventListener("change", sync);
+      sync();
     }
     card.appendChild(list);
-    const open = document.createElement("button"); open.className = "file-btn"; open.textContent = "View Exhibit A"; open.style.alignSelf = "flex-start";
-    open.onclick = () => {
-      const ids = Object.entries(boxes).filter(([, b]) => b.checked).map(([id]) => id);
+
+    const picked = () => Object.entries(boxes).filter(([, b]) => b.checked).map(([id]) => id);
+    const out = document.createElement("div");
+    out.style.cssText = "max-height:260px;overflow:auto;border-top:1px solid var(--line);margin-top:6px;padding-top:6px;display:none";
+    const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;margin-top:4px";
+
+    const prev = document.createElement("button"); prev.className = "file-btn"; prev.textContent = "Preview exhibit";
+    prev.onclick = async () => {
+      const ids = picked();
       if (!ids.length) { toast("select at least one clause", "error"); return; }
-      window.open(this.ctx.host.api.contractDocUrl(pid, m.key, rid, "exhibit", ids.join(",")), "_blank");
+      let ex: Awaited<ReturnType<typeof api.scopeExhibit>>;
+      try { ex = await api.scopeExhibit({ trade, clauses: ids }); }
+      catch (e) { toast(`preview failed: ${(e as Error).message}`, "error"); return; }
+      out.textContent = ""; out.style.display = "block";
+      const counts = document.createElement("div"); counts.className = "meta"; counts.style.marginBottom = "4px";
+      // Exclusions called out by name: "12 clauses" hides whether any exclusion survived the picking.
+      counts.textContent = Object.entries(ex.counts).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(" · ")
+        || "nothing to render";
+      counts.style.fontWeight = "600";
+      out.appendChild(counts);
+      for (const c of ex.clauses) {
+        const h = document.createElement("div");
+        h.style.cssText = "font-weight:600;font-size:12.5px;margin-top:6px";
+        h.textContent = `${c.number} ${c.title}`;
+        const b = document.createElement("div");
+        b.style.cssText = "font-size:12px;white-space:pre-wrap;color:var(--muted)";
+        b.textContent = c.body;
+        out.append(h, b);
+      }
     };
-    card.appendChild(open);
+
+    const open = document.createElement("button"); open.className = "file-btn"; open.textContent = "Generate PDF";
+    open.onclick = () => {
+      const ids = picked();
+      if (!ids.length) { toast("select at least one clause", "error"); return; }
+      window.open(api.contractDocUrl(pid, m.key, rid, "exhibit", ids.join(",")), "_blank");
+    };
+    row.append(prev, open);
+    card.append(row, out);
   }
 
   private async signContract(m: ModuleDef, r: ModuleRecord, rid: string) {

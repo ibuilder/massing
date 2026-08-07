@@ -222,6 +222,33 @@ with TestClient(app) as client:
           == len(all_clauses),
           "an empty composer reads as 'no clauses exist' rather than 'we could not map that trade'")
 
+    # --- the catalog says which of its own clauses Exhibit A can actually hold -------------------
+    #
+    # A narrowed catalog still contains clauses the exhibit renderer DROPS: `library()` matches
+    # division-or-None and every `gc-*`/`sc-*` conditions clause has division None. For Plumbing that
+    # is 20 of 85. A composer that offers them gives the user a tick that silently does nothing —
+    # worse than a wrong document, because it teaches them the control is broken.
+    #
+    # Served rather than hardcoded in the client, and asserted equal to the authority here, because a
+    # SECOND COPY OF THIS EXACT RULE is what let the preview and the PDF disagree by 20 clauses.
+    check("/scope-library says which categories may enter Exhibit A",
+          set(full.json().get("exhibit_categories", [])) == set(sl.EXHIBIT_CATEGORIES),
+          f"served {full.json().get('exhibit_categories')} vs {sorted(sl.EXHIBIT_CATEGORIES)} — a "
+          f"client filtering by the served list would offer the wrong clauses")
+    _offerable = [c for c in narrowed["clauses"] if c["category"] in narrowed["exhibit_categories"]]
+    check("...and it genuinely excludes part of the narrowed catalog",
+          0 < len(_offerable) < len(narrowed["clauses"]),
+          f"{len(_offerable)} of {len(narrowed['clauses'])} offerable — if these were equal the field "
+          f"would be decorative, and a client filtering by it would change nothing")
+    # Asserted against what the EXHIBIT ROUTE actually returns for those ids, not against a local
+    # re-application of the same filter — a re-implementation would agree with itself by construction
+    # and prove nothing about the renderer.
+    _ids = [c["id"] for c in _offerable]
+    _kept = client.get("/scope-library/exhibit", params={"clauses": ",".join(_ids)}).json()["clauses"]
+    check("...so nothing a composer offers is silently dropped downstream",
+          {c["id"] for c in _kept} == set(_ids),
+          f"offered {len(_ids)}, exhibit kept {len(_kept)} — the difference is a tick that does nothing")
+
     ex = client.get("/scope-library/exhibit", params={"trade": "Plumbing"})
     check("GET /scope-library/exhibit answers", ex.status_code == 200,
           f"{ex.status_code} {ex.text[:120]}")

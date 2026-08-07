@@ -60,7 +60,13 @@ CEILING = 5_200
 #: post-⑦ the answer is usually yes. Raising an entry is therefore a deliberate act that should be
 #: argued for in the commit message — the direction of travel is down.
 PER_FILE = {
-    "apps/web/src/api/client.ts": 3_780,   # design/options -> designOptions.ts; ⑧ 3,796; ⑦ 3,871;    before ⑦ 3,967
+    #: ⑨ contracts/scope-library/esign -> contracts.ts. This entry had ZERO headroom — the file
+    #: measured exactly its 3,780 cap and the check is `measured > cap`, so a single added line
+    #: failed the build. Three lanes hit that wall the same day; two routed their new methods into
+    #: other modules and one got a field in only by appending to an existing line. That is the
+    #: friction this ratchet is for, and it asked the intended question — the contract documents had
+    #: a whole domain to leave with, so the number goes DOWN by 32 instead of up by one.
+    "apps/web/src/api/client.ts": 3_748,   # ⑨ contracts -> contracts.ts; ⑧ 3,796; ⑦ 3,871; before ⑦ 3,967
     #: R39-DECOMP-VIEWER. Pinned at its CURRENT size before any extraction, deliberately.
     #:
     #: `app.ts` had no per-file entry, so it lived under the 5,200 global — which it also *set*, being
