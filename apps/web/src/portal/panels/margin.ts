@@ -142,6 +142,43 @@ export async function renderMargin(ctx: PanelContext) {
     });
     wrap.appendChild(t);
     body.appendChild(wrap);
+
+    // COMMERCIAL DRIFT — per DOCUMENT, beside the per-code table it cannot be derived from.
+    // The table above adds before it compares: two subcontracts can net to the right code total
+    // while one award drifted up and another down. This walks bid -> executed contract -> invoiced
+    // along references the registers already carry, so the individual award is visible.
+    // Change orders are NOT drift here (they are money somebody signed for) and a hop missing a
+    // figure on either side is `incomparable`, which is not a zero-dollar difference.
+    void ctx.host.api.commercialDrift(pid).then((cd) => {
+      if (!cd.subcontract_count) return;
+      const drifted = cd.rows.filter((r) => r.hops.some((h) => h.status === "compared" && h.delta));
+      if (!drifted.length && !cd.hops_incomparable) return;
+      const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
+      const dt = document.createElement("table"); dt.className = "portal-table"; dt.style.fontSize = "11px";
+      dt.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Subcontract</th>`
+        + `<th scope="col" style="text-align:left">Hop</th><th scope="col" style="text-align:right">From</th>`
+        + `<th scope="col" style="text-align:right">To</th><th scope="col" style="text-align:right">Drift</th></tr></thead>`;
+      const tb = document.createElement("tbody");
+      for (const r of drifted.slice(0, 25)) {
+        for (const h of r.hops) {
+          if (h.status !== "compared" || !h.delta) continue;
+          const col = (h.delta ?? 0) > 0 ? "var(--status-crit)" : "var(--status-good)";
+          tb.innerHTML += `<tr><td>${esc(r.vendor)}</td><td class="meta">${esc(h.hop.replace(/_/g, " "))}</td>`
+            + `<td style="text-align:right">${h.from == null ? "—" : usd(h.from)}</td>`
+            + `<td style="text-align:right">${h.to == null ? "—" : usd(h.to)}</td>`
+            + `<td style="text-align:right;color:${col}">${usd(h.delta)}`
+            + (h.drift_pct == null ? "" : ` <span class="meta">${h.drift_pct > 0 ? "+" : ""}${h.drift_pct}%</span>`)
+            + `</td></tr>`;
+        }
+      }
+      dt.appendChild(tb);
+      card.innerHTML = `<b>Commercial drift</b> <span class="meta">per document, along bid → contract → invoiced`
+        + (cd.total_change_orders ? ` · ${usd(cd.total_change_orders)} in change orders, counted as agreed and NOT as drift` : "")
+        + (cd.hops_incomparable ? ` · ${cd.hops_incomparable} hop(s) incomparable — a figure is missing on one side, which is not a zero difference` : "")
+        + `</span>`;
+      card.appendChild(dt);
+      body.appendChild(card);
+    }).catch(() => { /* drift is best-effort; the per-code table stands on its own */ });
   } catch (e) {
     body.innerHTML = `<div class="meta">Cost-code margin unavailable: ${esc((e as Error).message)}</div>`;
   }

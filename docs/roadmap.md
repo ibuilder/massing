@@ -1811,12 +1811,126 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   groups rather than forming them, and reported a clean pass. **An applied mutation that alters no
   behaviour reads exactly like a gate that cannot fail**; the measured numbers coming back identical
   is what caught it.
-- **R41-COMMERCIAL-DRIFT** *(M — Lane C)* — **diff the money across documents, not across our own
+- ◧ **R41-COMMERCIAL-DRIFT** *(M → S/M — Lane C; the document walker SHIPPED 2026-08-07, the PO hop remains)* — **diff the money across documents, not across our own
   estimates.** R25-ESTIMATE-DIFF compares two of *our* numbers. The gap is the chain **bid → executed
   contract → purchase order → invoice**, each hop diffed against the one before it with findings ranked
   by dollar impact: scope added between bid and contract, invoice lines drifting from a locked buyout
   price. This is where subcontractors actually lose money, and it sits on top of cost and document
   control we already have.
+
+  **Walker SHIPPED — `commercial_drift.py`, `GET /projects/{pid}/commercial-drift`.** Premise-checked
+  first and the item was smaller than written: three of the four hops already existed **and were
+  already referentially wired** (`subcontract.awarded_from → bid_submission`,
+  `sub_invoice.subcontract → subcontract`), so bid → contract → invoiced needed no schema change.
+  **Why the existing engines could not do it.** `margin.py` and `cost_spine.py` both measure per cost
+  code, and **a roll-up adds before it compares** — two subcontracts can net to the right code total
+  while one award drifted +15% and another −15%. There is a test for exactly that: both are reported
+  here and the per-code view sees nothing.
+  **Two agreed numbers are deliberately NOT called drift**, which is the whole design:
+  *a change order is money somebody signed for* — `subcontract.change_orders` sums `cor.amount`, so it
+  belongs to the contract→invoiced hop as part of the agreed sum and never to bid→contract; counting
+  it as drift would flag every project that has a CO, which is every project. And *an unaccepted
+  alternate was never bought* — `bid_submission` carries `amount`, `base_bid` and an `alternates`
+  table with an `accepted` flag, so the comparable award figure is base bid + **accepted** alternates,
+  with the row stating its basis. Comparing `amount` blindly buys the rejected ones; comparing
+  `base_bid` alone makes the accepted ones look like scope from nowhere.
+  A hop missing a figure on either side is `incomparable` and counted separately — not a zero-dollar
+  difference. All three refusals mutation-checked (4 / 6 / 2 named FAILs).
+  **Remaining: the PO hop.** `purchase_order` still does not exist and `procurement_package` carries
+  `est_cost`/`award_amount` with **zero reference fields** — an island nothing can walk into or out
+  of. That register plus one more hop closes the entry.
+
+  **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
+  the cost-code axis of this diff is done. The item is much smaller than written.**
+  Registers present: `bid_submission` (`amount`, `unit_prices`), `bid_package`, `prime_contract`
+  (`value`, `sov_value`), `subcontract` (`value`), `owner_invoice` (`amount`, `retainage_total`,
+  `architect_certified_amount`), `sub_invoice` (`amount`). **The chain is already referentially
+  wired**: `subcontract.awarded_from → bid_submission` and `sub_invoice.subcontract → subcontract`,
+  so bid → contract → invoice can be walked today without a schema change.
+  **And the diff partly exists, along a different axis than the entry assumes.** `margin.py`
+  (MARGIN-CBS) already totals budget / committed / actual / billed per cost code, and `cost_spine.py`
+  already asks the harder question — whether one cost code carries the *same scope* from estimate
+  through budget, commitment and invoice, because a code appearing at one stage and not the next
+  produces a row that looks fine. That is document drift measured **per cost code**.
+  **What is actually missing is two things, not four:**
+  1. **the PO hop has no register.** `purchase_order` does not exist; `procurement_package` carries
+     `est_cost` and `award_amount` but has **zero reference fields** — it is an island, so nothing can
+     walk into or out of it. This is the one genuine schema gap;
+  2. **nothing diffs amounts document-to-document along the references that already exist** — bid
+     `amount` vs the `subcontract.value` it was awarded into, contract value vs the sum of its
+     `sub_invoice.amount`. The per-code roll-up cannot see this: two documents can net to the right
+     code total while the individual award drifted.
+  Sized on evidence rather than the entry's wording, this is **S/M** — one register plus one walker
+  over existing references — not the M implied by "build a four-hop diff".
+
+  **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
+  the cost-code axis of this diff is done. The item is much smaller than written.**
+  Registers present: `bid_submission` (`amount`, `unit_prices`), `bid_package`, `prime_contract`
+  (`value`, `sov_value`), `subcontract` (`value`), `owner_invoice` (`amount`, `retainage_total`,
+  `architect_certified_amount`), `sub_invoice` (`amount`). **The chain is already referentially
+  wired**: `subcontract.awarded_from → bid_submission` and `sub_invoice.subcontract → subcontract`,
+  so bid → contract → invoice can be walked today without a schema change.
+  **And the diff partly exists, along a different axis than the entry assumes.** `margin.py`
+  (MARGIN-CBS) already totals budget / committed / actual / billed per cost code, and `cost_spine.py`
+  already asks the harder question — whether one cost code carries the *same scope* from estimate
+  through budget, commitment and invoice, because a code appearing at one stage and not the next
+  produces a row that looks fine. That is document drift measured **per cost code**.
+  **What is actually missing is two things, not four:**
+  1. **the PO hop has no register.** `purchase_order` does not exist; `procurement_package` carries
+     `est_cost` and `award_amount` but has **zero reference fields** — it is an island, so nothing can
+     walk into or out of it. This is the one genuine schema gap;
+  2. **nothing diffs amounts document-to-document along the references that already exist** — bid
+     `amount` vs the `subcontract.value` it was awarded into, contract value vs the sum of its
+     `sub_invoice.amount`. The per-code roll-up cannot see this: two documents can net to the right
+     code total while the individual award drifted.
+  Sized on evidence rather than the entry's wording, this is **S/M** — one register plus one walker
+  over existing references — not the M implied by "build a four-hop diff".
+
+  **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
+  the cost-code axis of this diff is done. The item is much smaller than written.**
+  Registers present: `bid_submission` (`amount`, `unit_prices`), `bid_package`, `prime_contract`
+  (`value`, `sov_value`), `subcontract` (`value`), `owner_invoice` (`amount`, `retainage_total`,
+  `architect_certified_amount`), `sub_invoice` (`amount`). **The chain is already referentially
+  wired**: `subcontract.awarded_from → bid_submission` and `sub_invoice.subcontract → subcontract`,
+  so bid → contract → invoice can be walked today without a schema change.
+  **And the diff partly exists, along a different axis than the entry assumes.** `margin.py`
+  (MARGIN-CBS) already totals budget / committed / actual / billed per cost code, and `cost_spine.py`
+  already asks the harder question — whether one cost code carries the *same scope* from estimate
+  through budget, commitment and invoice, because a code appearing at one stage and not the next
+  produces a row that looks fine. That is document drift measured **per cost code**.
+  **What is actually missing is two things, not four:**
+  1. **the PO hop has no register.** `purchase_order` does not exist; `procurement_package` carries
+     `est_cost` and `award_amount` but has **zero reference fields** — it is an island, so nothing can
+     walk into or out of it. This is the one genuine schema gap;
+  2. **nothing diffs amounts document-to-document along the references that already exist** — bid
+     `amount` vs the `subcontract.value` it was awarded into, contract value vs the sum of its
+     `sub_invoice.amount`. The per-code roll-up cannot see this: two documents can net to the right
+     code total while the individual award drifted.
+  Sized on evidence rather than the entry's wording, this is **S/M** — one register plus one walker
+  over existing references — not the M implied by "build a four-hop diff".
+
+  **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
+  the cost-code axis of this diff is done. The item is much smaller than written.**
+  Registers present: `bid_submission` (`amount`, `unit_prices`), `bid_package`, `prime_contract`
+  (`value`, `sov_value`), `subcontract` (`value`), `owner_invoice` (`amount`, `retainage_total`,
+  `architect_certified_amount`), `sub_invoice` (`amount`). **The chain is already referentially
+  wired**: `subcontract.awarded_from → bid_submission` and `sub_invoice.subcontract → subcontract`,
+  so bid → contract → invoice can be walked today without a schema change.
+  **And the diff partly exists, along a different axis than the entry assumes.** `margin.py`
+  (MARGIN-CBS) already totals budget / committed / actual / billed per cost code, and `cost_spine.py`
+  already asks the harder question — whether one cost code carries the *same scope* from estimate
+  through budget, commitment and invoice, because a code appearing at one stage and not the next
+  produces a row that looks fine. That is document drift measured **per cost code**.
+  **What is actually missing is two things, not four:**
+  1. **the PO hop has no register.** `purchase_order` does not exist; `procurement_package` carries
+     `est_cost` and `award_amount` but has **zero reference fields** — it is an island, so nothing can
+     walk into or out of it. This is the one genuine schema gap;
+  2. **nothing diffs amounts document-to-document along the references that already exist** — bid
+     `amount` vs the `subcontract.value` it was awarded into, contract value vs the sum of its
+     `sub_invoice.amount`. The per-code roll-up cannot see this: two documents can net to the right
+     code total while the individual award drifted.
+  Sized on evidence rather than the entry's wording, this is **S/M** — one register plus one walker
+  over existing references — not the M implied by "build a four-hop diff".
 
   **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
   the cost-code axis of this diff is done. The item is much smaller than written.**

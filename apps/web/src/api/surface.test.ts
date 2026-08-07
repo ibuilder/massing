@@ -107,7 +107,7 @@ describe("the API client's public surface", () => {
     // different numbers from two different instruments, neither of them this one. Take the number
     // from the reader that enforces it: raising the floor to force a high estimate green, or leaving
     // it slack under a hand-rolled one, both defeat the gate in the same direction.
-    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(705);
+    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(706);
   });
 
   it("keeps the transport primitives the domain methods are built on", () => {
