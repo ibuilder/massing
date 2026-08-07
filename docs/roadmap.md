@@ -815,9 +815,40 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   1500 ms timeout fallback. Replacing a prose performance claim with a number is precisely what this
   ring exists to do. If the number comes back single-digit ms, **close the item unbuilt** and keep the
   measurement.
-- **R23-BATCH-OVERLAYS** *(S)* — app-authored overlays (pins, grid, snap markers, dimensions, clash
-  markers) use **zero** instancing; `three@0.184.0` has `BatchedMesh`. Keep the default BIM pass off
-  `MeshStandardMaterial` (presentation mode only); make FOV/FAR responsive by viewport class.
+- ◧ **R23-BATCH-OVERLAYS** *(S)* — **the instancing clause is CLOSED UNBUILT, with the measurement,
+  and the sweep found a different defect in the same place.** Following the precedent set by the item
+  directly above: replace the prose claim with a number, and if the number does not justify the work,
+  keep the number.
+
+  The premise was "app-authored overlays use **zero** instancing", which is true and turns out not to
+  matter, because **there is almost no population to instance.** Enumerated every scene-object
+  construction in app code — 31 sites across 11 files, all forms, not a sample — and of the five
+  families named above:
+
+  | named family | what it actually is | instanceable? |
+  |---|---|---|
+  | pins | **DOM `<div>`s** projected per frame (`apps/web/src/pins/pins.ts`) | no — `BatchedMesh` cannot batch DOM |
+  | grid | 1 `Line` + 1 `Sprite` per axis (`apps/web/src/viewer/draft/gridOverlay.ts`) | **the only real population** |
+  | snap markers · dimensions · clash markers | no mesh overlay exists | nothing to batch |
+  | (unnamed) GIS context | **already hand-merged** into 3 objects (`apps/web/src/viewer/gis.ts`) | already optimal |
+
+  Everything else — peer cursors, reference models, the guide underlay, the gizmos — is O(1) or
+  O(peers). And where the population *is* real, `BatchedMesh` is still the wrong tool: each grid
+  bubble carries its **own 64×64 `CanvasTexture` and material**, and `BatchedMesh` requires a shared
+  one. The correct fix there is a texture atlas or a cache, not instancing.
+
+  **What the measurement did find, in `gridOverlay.ts`:** `set()` rebuilds on every work-plane move,
+  and `clearMeshes` disposed geometry and material but not the texture — in three.js
+  `Material.dispose()` does **not** release `material.map`. Measured `AXES=8 → 8 textures made → 8
+  leaked after ONE rebuild`, i.e. a GPU leak proportional to axes × elevation changes during ordinary
+  authoring. Fixed by caching bubbles by tag (which also removes the re-rasterisation churn) and
+  moving ownership to `dispose()`. A third bug fell out: `getContext("2d")!` asserted a context that
+  is null under happy-dom, which is **why the file had no tests at all** — the untestability and the
+  defect had one cause.
+
+  **Still open, and genuinely unbuilt:** make FOV/FAR responsive by viewport class. The default BIM
+  pass is already off `MeshStandardMaterial` — every remaining use is GIS context, not the BIM pass —
+  so that clause needs no work.
 - **R23-SYMBOL-COUNT** *(M)* — deterministic template-match symbol counting in the **existing** pdf.js
   takeoff worker: mark one instance, normalised cross-correlation, non-maximum suppression.
   **Zero new dependencies**, offline, auditable — which matters for quantities that feed a bid.
