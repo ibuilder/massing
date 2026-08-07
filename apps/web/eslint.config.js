@@ -43,6 +43,15 @@ export default tseslint.config(
       "@typescript-eslint/ban-ts-comment": "warn",
       "no-empty": ["warn", { allowEmptyCatch: true }],
       "prefer-const": "warn",
+      // A value written and then provably overwritten before any read. Enabled 2026-08-07 after it
+      // found 14 of them — every one the same shape: `let x = <default>;` immediately followed by a
+      // `try { x = await … } catch { …; return; }`, where the catch returns and the default is
+      // therefore never observed. Harmless individually, but each one is a lie about the code's
+      // states: it claims a fallback exists on a path that cannot reach it, so a reader reasoning
+      // about "what if the load fails" gets the wrong answer. `tsc --noEmit` accepts every site with
+      // the initializer removed, which is the independent confirmation that they were unreachable.
+      // "error", not "warn": the whole point is that it cannot silently accumulate again.
+      "no-useless-assignment": "error",
       "no-constant-condition": ["error", { checkLoops: false }],
     },
   },

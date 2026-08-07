@@ -347,7 +347,7 @@ export class DrawingsUI {
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".svg,.pdf";
     inp.onchange = async () => {
       const f = inp.files?.[0]; if (!f) return;
-      let src: string | null = null;
+      let src: string;
       try {
         if (/\.pdf$/i.test(f.name)) {                      // rasterize page 1 via the bundled pdf.js
           const pdfjs = await import("pdfjs-dist");
@@ -398,7 +398,7 @@ export class DrawingsUI {
   private async showMarkupGrid() {
     const pid = this.host_.projectId();
     if (!pid) return;
-    let rows: DrawingMarkupItem[] = [];
+    let rows: DrawingMarkupItem[];
     try { rows = await this.host_.api.drawingMarkup(pid); }
     catch { this.host_.setStatus("couldn't load markups"); return; }
     const ov = document.createElement("div");

@@ -966,7 +966,7 @@ const SETTINGS_DEFAULTS: Settings = {
 };
 // A corrupted stored value must never brick the app at boot (this runs at module top level) —
 // fall back to defaults instead of throwing during module evaluation.
-let savedSettings: Partial<Settings> = {};
+let savedSettings: Partial<Settings>;
 try { savedSettings = JSON.parse(localStorage.getItem("aec-settings") || "{}"); } catch { savedSettings = {}; }
 const settings: Settings = { ...SETTINGS_DEFAULTS, ...savedSettings };
 let savedTimer: number | undefined;
@@ -1759,9 +1759,8 @@ async function startup() {
   // (api routes them via IS_DEMO), so treat it as "connected" to load the sample project + panels.
   const demo = !!import.meta.env.VITE_PAGES;
   connected = demo ? true : await api.health();
-  let projects: { id: string; name: string; model_kind?: string | null }[] = [];
   if (connected) {
-    projects = await api.projects();
+    const projects = await api.projects();
     const wanted = new URLSearchParams(location.search).get("project");
     const chosen = projects.find((p) => p.id === wanted) ?? projects[0];
     projectId = chosen?.id ?? null;

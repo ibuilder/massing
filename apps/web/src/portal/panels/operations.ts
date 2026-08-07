@@ -25,7 +25,7 @@ export async function renderOperations(ctx: PanelContext) {
     const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
     const load = async () => {
       body.innerHTML = "";
-      let k; let wos; let cachedNote = "";
+      let k; let wos; let cachedNote: string;
       try {
         k = await ctx.host.api.cmmsKpis(pid);
         // CACHE-JSON — the work-order list is a whole-list read someone opens repeatedly, which is

@@ -93,7 +93,7 @@ export async function renderLedger(ctx: PanelContext) {
       catch (e) { toast((e as Error).message, "error"); }
     };
     batches.append(newBtn);
-    let recs; let cachedNote = "";
+    let recs; let cachedNote: string;
     try {
       // A register the user reopens constantly — show the last answer at once, revalidate behind.
       const { freshnessLabel } = await import("../../api/recordCache");
