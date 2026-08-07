@@ -96,9 +96,29 @@ def validate_key(key: str) -> str:
     keys are server-composed as `{pid}/…` at the callers, and a key naming another project is a
     routing/authz question, not a storage one. Raises ValueError.
     """
-    if (not key or "\x00" in key or key.startswith(("/", "\\"))
+    if (not key or key.startswith(("/", "\\"))
             or ".." in key.replace("\\", "/").split("/")):
         raise ValueError(f"unsafe storage key: {key!r}")
+    # Every C0 control character, not just NUL. NUL was singled out because it truncates a C string
+    # at the syscall boundary, but the rest of the range is no more legitimate in a key and several
+    # are actively dangerous downstream: \r and \n forge lines in any log or manifest that lists
+    # keys, and \t and the escape character misalign anything that renders them.
+    #
+    # THIS IS THE SAME BACKEND DIVERGENCE THE DOCSTRING ABOVE DESCRIBES, found the same way. Reverting
+    # this check to the old NUL-only rule leaks exactly ONE key of the thirty-three: `\x7f`. The other
+    # C0 characters appear to be refused — but by NTFS rejecting an invalid filename, not by us. S3
+    # has no such filesystem and would have stored every one of them, so the two backends disagreed
+    # about thirty-one keys and the local one's accident hid it. An implementation detail standing in
+    # for a guard is exactly what moved `..` out of `LocalBackend._p` in the first place.
+    #
+    # Additive on purpose. Tightening this to an allowlist like `safe_seg`'s
+    # `[A-Za-z0-9._-]` is the change that suggests itself here and it CANNOT be made: attachment
+    # keys carry a user-supplied filename, so spaces, parentheses and non-ASCII are all legitimate
+    # today and an allowlist would reject uploads that work now — a contract change for every
+    # caller, dressed as a hardening. No real filename contains a control character, so this
+    # rejects nothing that currently succeeds.
+    if any(ch < " " or ch == "\x7f" for ch in key):
+        raise ValueError(f"unsafe storage key (control character): {key!r}")
     return key
 
 

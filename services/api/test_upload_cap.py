@@ -222,6 +222,12 @@ TRAVERSAL = [
     "../escape.bin", "../../escape.bin", "a/../../escape.bin", "a/b/../../../escape.bin",
     "/etc/passwd", "\\windows\\system32\\x", "..\\..\\escape.bin", "a\\..\\..\\escape.bin",
     "", "with\x00nul.bin",
+    # Every C0 control character plus DEL, not only NUL. NUL was singled out originally because it
+    # truncates a C string at the syscall boundary; the rest are no more legitimate in a key and
+    # several are actively dangerous downstream — \r and \n forge lines in any log or manifest that
+    # lists keys. Enumerated as a FAMILY rather than sampled, because a guard that rejects one
+    # control character and passes the other thirty looks identical from a single probe.
+    *[f"ctl{chr(c)}.bin" for c in [*range(0x20), 0x7f]],
 ]
 leaked_stream, leaked_put = [], []
 for bad in TRAVERSAL:
