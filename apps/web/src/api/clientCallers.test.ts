@@ -152,7 +152,6 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: sound because both affected methods are present in both populations. If this run reports anything
 //: other than 129, trust this file and not the reasoning above.
 //:
-//:
 //: 131 -> 127 (EST-REACH). Four endpoints that were built and had no way in:
 //: `estimateConfidence`, `estimateBoe` and `estimateConceptBudget` now hang off the `estimate`
 //: register's record actions, and `clearXer` sits beside the P6 import it undoes.
@@ -162,27 +161,17 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: the set deliberately, because deleting a captured baseline that an EOT claim rests on should not
 //: be one click, and an honest marker beats a fabricated caller.
 //:
-//:
 //: 127 -> 123 (FIN-GOV reach). The whole `/finance` route group — `financeLock`, `setFinanceLock`,
 //: `financeReconcile`, `financeImports` — had no caller at all, and it is the sharper form of this
 //: defect: the period lock is ENFORCED (every finance mutation dated into a closed month is refused
 //: with a 409) while the control to see or set it was unreachable. An unreachable feature is one
 //: nobody can use; an unreachable control over an enforced rule actively blocks people.
 //:
-//:
 //: 129 -> 121 after rebasing EST-REACH + FIN-GOV onto UNCALLED-SWEEP. Both sides of that conflict
 //: lowered this number for different reasons, so taking either would have discarded the other's
 //: reach. Resolved by MEASURING rather than by arithmetic: the gate's own reader reports 121
 //: countable (122 raw, less `clearBaseline` which the sweep moved into KNOWN_UNCALLED). That it
 //: also equals 129 - 8 is a check on the measurement, not the source of it.
-//:
-//: 128 -> 121 after rebasing EST-REACH + FIN-GOV + ⑩ onto BOE-REACH/ROUTINES. MEASURED from this
-//: gate's own reader, not computed: it reports 121 countable.
-//:
-//: The arithmetic only agrees once you notice the overlap — this PR reaches EIGHT methods but SEVEN
-//: are new, because #272 wired `estimateBoe` first. 128 - 8 = 120 would have been wrong and would
-//: have failed the gate; 128 - 7 = 121 matches. Two PRs reaching the same method is exactly the
-//: case a scalar ceiling cannot express, and the reason the number is read rather than derived.
 const UNCALLED_CEILING = 121;
 
 describe("client methods the application actually calls", () => {
