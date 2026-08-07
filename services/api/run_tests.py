@@ -92,7 +92,7 @@ TESTS = ["test_provenance_report", "test_provenance_estimate_leg", "test_proform
          # public docs are a shipped surface: competitor names for interop only, never comparison:
          "test_no_comparative_names",
          # this list is itself hand-maintained, so it gets a test of its own:
-         "test_no_secrets", "test_rate_shared", "test_race_conditions", "test_lock_satisfies_requirements", "test_manifest",
+         "test_no_secrets", "test_rate_shared", "test_race_conditions", "test_lock_satisfies_requirements", "test_manifest", "test_alembic_single_head",
          # 2026-08-02 merge-train repair: the eleven-PR merge dropped these six registrations while
          # landing their files — the packed-line hazard, fifth direction. Registered from a disk diff
          # (manifest_problems named them), each run locally first: four green; preflight_covers_settings
