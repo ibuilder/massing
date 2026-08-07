@@ -50,7 +50,7 @@
     "web-ifc": "0.0.77"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.4.2",
+    "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.4.2",
     "@capacitor/ios": "^8.4.2",
