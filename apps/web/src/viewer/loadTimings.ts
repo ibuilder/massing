@@ -32,22 +32,9 @@ export type LoadOutcome =
   | "stalled"     // no first frame within the budget; the row exists BECAUSE the load did not finish
   | "failed";     // the loader rejected the bytes (corrupt / not a .frag)
 
-export interface LoadTimingPayload {
-  /** The model's stable id. Never a transient viewer id — see the GUID non-negotiable. */
-  modelId: string;
-  bytes: number;
-  /** Coarse size band, so p50/p95 is askable per band without the server re-deriving it. */
-  bucket: string;
-  outcome: LoadOutcome;
-  /** Phase durations in ms. `parseMs`/`firstFrameMs` are null when the load never got that far. */
-  fetchMs: number | null;
-  parseMs: number | null;
-  firstFrameMs: number | null;
-  totalMs: number;
-  /** Canvas size at first frame — the arrived-vs-seen discriminator. Null on a stall. */
-  canvasW: number | null;
-  canvasH: number | null;
-}
+/** The wire shape, defined once in `api/types.ts` — see the note there on why not here. */
+export type { ViewerLoadTiming as LoadTimingPayload } from "../api/types";
+import type { ViewerLoadTiming as LoadTimingPayload } from "../api/types";
 
 type Send = (p: LoadTimingPayload) => void;
 

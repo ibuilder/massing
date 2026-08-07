@@ -17,6 +17,7 @@ import { canAcceptDraftDrag, dropCompletion, readDraftDragKey } from "./railDrag
 import { parseDynConstraint } from "./dynInput";
 import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
+import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
 import { buildElementProps, buildRawProps } from "./propsView";
 import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
 import { buildLifecycleStrip } from "../ui/lifecycleStrip";
@@ -61,7 +62,7 @@ import { markupPlugin, reloadMarkup } from "../kernel/markupPlugin";
 import type { ModulePin } from "../api/types";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type DisciplineTree, type ElementProps, type Topic } from "../api/client";
-import { escapeHtml, fetchArrayBufferWithProgress, setLoadingLabel, toast, withLoading } from "../ui/feedback";
+import { escapeHtml, toast, withLoading } from "../ui/feedback";
 import { showResult, kvTable, resultNote } from "../ui/result";
 
 /** View options the settings bar owns (in main) and the viewer applies. */
@@ -1189,51 +1190,14 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     return "running";
   }
   async function loadProjectModel(): Promise<boolean> {
-    if (!projectId) return false;
-    return (await withLoading(container, "loading model", async () => {
-      const mb = (n: number) => (n / 1048576).toFixed(1);
-      let buffer: ArrayBuffer;
-      try {
-        buffer = await fetchArrayBufferWithProgress(
-          api.url(`/projects/${projectId}/model.frag`), { headers: api.authHeaders() },
-          (loaded, total) => setLoadingLabel(container,
-            `downloading model ${Math.round(loaded / total * 100)}% (${mb(loaded)}/${mb(total)} MB)`));
-      } catch { return false; }                 // 404 / no published model yet — fall through to no-model
-      // A metadata-only project (property index uploaded, geometry never published) has no .frag, so the
-      // request 404s above. Guard the degenerate variants too: an empty body, or a non-.frag payload
-      // (e.g. a proxy / SPA host that rewrites a 404 into a 200 HTML page) would otherwise reach the
-      // Fragments worker, which can *hang* — not reject — on input it can't parse, leaving the
-      // "loading model" overlay up forever. Fail open to the same graceful no-model state a brand-new
-      // project already takes.
-      if (buffer.byteLength === 0) return false;
-      await loader.disposeAll();
-      modelLabels.clear();
-      const id = `project-${projectId}`;
-      modelLabels.set(id, ctx.projectName || "project");
-      setLoadingLabel(container, "preparing geometry…");
-      try {
-        await loader.loadFragments(buffer, id);
-      } catch { modelLabels.delete(id); return false; }   // corrupt / non-.frag bytes — fall through
-      refreshFederation();
-      await fitToModels();
-      // COLLAB-1: we now hold the latest published model — sync the known version + clear any reload
-      // banner, so this client's own publish never re-nags us to reload.
-      await collab.resync();
-      // E7: tell the paper views (Drawings workspace plans + schedules) the model changed — an open
-      // sheet re-renders itself against the new geometry.
-      window.dispatchEvent(new CustomEvent("aec:model-published"));
-      // PROFORMA-LIVE: the finance numbers follow the model — after every (re)load, surface the
-      // takeoff-priced cost + budget delta in the status line (server-cached per version; best-effort)
-      if (projectId) {
-        void api.proformaLive(projectId).then((pl) => {
-          const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
-          const delta = pl.delta_vs_budget != null
-            ? ` · ${pl.delta_vs_budget >= 0 ? "▲" : "▼"} ${money(Math.abs(pl.delta_vs_budget))} vs budget` : "";
-          setStatus(`model cost ${money(pl.est_construction_cost)} · GFA ${pl.gfa_m2} m²${delta}`);
-        }).catch(() => { /* no source IFC / offline — the readout is optional */ });
-      }
-      return true;
-    })) ?? false;
+    // R39-DECOMP-VIEWER ⑥ — body extracted to ./loadProjectModel.ts, which is also where
+    // R39-VIEWER-OBS instruments the load journey. Every dependency below was `const` here.
+    return loadProjectModelImpl({
+      api, projectId, projectName: ctx.projectName, container, loader, modelLabels,
+      refreshFederation, fitToModels, collabResync: () => collab.resync(), setStatus,
+      canvas: () => viewer.world.renderer?.three.domElement ?? null,
+      timings: { send: (p) => { if (projectId) void api.reportViewerLoad(projectId, p); } },
+    });
   }
   function screenToGround(e: MouseEvent): THREE.Vector3 | null {
     const dom = viewer.world.renderer!.three.domElement;
