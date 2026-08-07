@@ -14,22 +14,45 @@ export interface GridData {
   note?: string;
 }
 
-function bubbleSprite(text: string): THREE.Sprite {
+/**
+ * Draw one grid bubble. Returns null when there is no 2D context to draw into.
+ *
+ * The `!` that used to be on `getContext("2d")` asserted a context that is genuinely absent in some
+ * environments — it is null under happy-dom, which is why this file had no tests at all. A null
+ * context made `g.fillStyle = ...` throw a TypeError out of overlay construction, and per
+ * `kernel/markupPlugin.ts` a throw on an overlay path takes the caller's remaining work with it.
+ * A missing label is a far better outcome than a dead draft grid.
+ */
+function bubbleTexture(text: string): THREE.CanvasTexture | null {
   const c = document.createElement("canvas"); c.width = 64; c.height = 64;
-  const g = c.getContext("2d")!;
+  const g = c.getContext("2d");
+  if (!g) return null;
   g.fillStyle = "#1e88e5"; g.beginPath(); g.arc(32, 32, 28, 0, Math.PI * 2); g.fill();
   g.fillStyle = "#fff"; g.font = "bold 30px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
   g.fillText(text.slice(0, 3), 32, 34);
-  const tex = new THREE.CanvasTexture(c);
-  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-  spr.scale.set(1.2, 1.2, 1.2);
-  return spr;
+  return new THREE.CanvasTexture(c);
 }
 
 export class GridOverlay {
   readonly group = new THREE.Group();
   private snaps: THREE.Vector2[] = [];   // plan [E, N] intersection points
   data: GridData | null = null;
+  /**
+   * Bubble textures, cached by tag and owned by this overlay rather than by the sprites.
+   *
+   * `set()` runs on every work-plane move, and each run used to build a fresh canvas + texture per
+   * axis. Two problems, and the second is the one that matters:
+   *
+   *  - CHURN: a 20-axis grid re-rasterised 20 canvases and uploaded 20 textures every time the
+   *    elevation changed, to draw exactly the same bubbles.
+   *  - A LEAK, measured: `clearMeshes` disposed geometry and material, and in three.js
+   *    `Material.dispose()` does NOT dispose `material.map`. So every rebuild orphaned one GPU
+   *    texture per axis — 8 axes, 8 textures, 8 leaked after a single rebuild when measured.
+   *
+   * Caching fixes both at once: identical tags reuse one texture, so a rebuild allocates nothing,
+   * and ownership moves here where `dispose()` can actually release them.
+   */
+  private bubbles = new Map<string, THREE.CanvasTexture>();
 
   constructor(private scene: THREE.Scene) { this.group.name = "draft-grid"; this.group.visible = false; }
 
@@ -49,9 +72,17 @@ export class GridOverlay {
       // bubble at the "start" end (extended a touch past the axis for legibility)
       const dx = e1 - e2, dz = -n1 - (-n2);
       const len = Math.hypot(dx, dz) || 1;
-      const b = bubbleSprite(ax.tag);
-      b.position.set(e1 + (dx / len) * 0.9, y, -n1 + (dz / len) * 0.9);
-      this.group.add(b);
+      let tex = this.bubbles.get(ax.tag);
+      if (tex === undefined) {
+        tex = bubbleTexture(ax.tag) ?? undefined;
+        if (tex) this.bubbles.set(ax.tag, tex);
+      }
+      if (tex) {
+        const b = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+        b.scale.set(1.2, 1.2, 1.2);
+        b.position.set(e1 + (dx / len) * 0.9, y, -n1 + (dz / len) * 0.9);
+        this.group.add(b);
+      }
     }
     if (!this.group.parent) this.scene.add(this.group);
   }
@@ -70,6 +101,11 @@ export class GridOverlay {
   set visible(v: boolean) { this.group.visible = v; }
   get hasData(): boolean { return !!this.data && this.data.axes.length > 0; }
 
+  /**
+   * Tear down the scene objects. Textures are deliberately NOT disposed here — they are cached and
+   * reused by the next `set()`, and disposing one would leave the cache handing out a dead texture.
+   * They are released in `dispose()`, which is where this overlay's lifetime actually ends.
+   */
   private clearMeshes(): void {
     for (const o of [...this.group.children]) {
       this.group.remove(o);
@@ -80,5 +116,11 @@ export class GridOverlay {
     }
   }
 
-  dispose(): void { this.clearMeshes(); this.scene.remove(this.group); this.data = null; this.snaps = []; }
+  dispose(): void {
+    this.clearMeshes();
+    for (const t of this.bubbles.values()) t.dispose();
+    this.bubbles.clear();
+    this.scene.remove(this.group);
+    this.data = null; this.snaps = [];
+  }
 }
