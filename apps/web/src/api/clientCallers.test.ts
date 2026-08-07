@@ -151,6 +151,16 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: counts 131 — a different population, so its ABSOLUTE is not a valid ceiling input. The DELTA is
 //: sound because both affected methods are present in both populations. If this run reports anything
 //: other than 129, trust this file and not the reasoning above.
+//:
+//:
+//: 131 -> 127 (EST-REACH). Four endpoints that were built and had no way in:
+//: `estimateConfidence`, `estimateBoe` and `estimateConceptBudget` now hang off the `estimate`
+//: register's record actions, and `clearXer` sits beside the P6 import it undoes.
+//:
+//: Measured, not derived from what the wiring touched — the same discipline that caught the
+//: `reserveStudy` mistake above. It was expected to drop by four and did; `clearBaseline` stays in
+//: the set deliberately, because deleting a captured baseline that an EOT claim rests on should not
+//: be one click, and an honest marker beats a fabricated caller.
 const UNCALLED_CEILING = 128;
 
 describe("client methods the application actually calls", () => {

@@ -41,6 +41,26 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     } catch (e) { toast(`P6/MSP import failed: ${(e as Error).message}`, "error"); xerLabel.textContent = "⇪ Import P6/MSP (.xer/.xml)"; }
     finally { xerInput.value = ""; }
   };
+  // The undo for the import above. It existed server-side with no way to reach it, so a bad import
+  // could only be unwound by deleting activities by hand — which is also how somebody deletes the
+  // hand-entered ones by mistake. Scoped precisely: the route removes only the records THIS import
+  // created, via its code→id index, and leaves hand-entered activities alone. The confirm says so,
+  // because "clear the imported schedule" is otherwise indistinguishable from "clear the schedule".
+  const xerClearBtn = document.createElement("button");
+  xerClearBtn.className = "tool-btn"; xerClearBtn.dataset.cap = "edit";
+  xerClearBtn.textContent = "⌫ Clear import";
+  xerClearBtn.title = "Remove the activities created by the last P6/MSP import — hand-entered activities are untouched";
+  xerClearBtn.onclick = async () => {
+    if (!(await confirmModal(
+      "Remove the activities created by the last P6/MSP import? Hand-entered activities are NOT affected. "
+      + "Re-import the file to restore them.", ""))) return;
+    try {
+      await ctx.host.api.clearXer(pid);
+      toast("imported schedule cleared", "success");
+      void renderScheduleViews(ctx, m);
+    } catch (e) { toast(`clear failed: ${(e as Error).message}`, "error"); }
+  };
+
   const alertBtn = document.createElement("button"); alertBtn.className = "tool-btn"; alertBtn.textContent = "🔔 Alerts";
   alertBtn.title = "Predictive schedule alerts: overdue, late-start, at-risk predecessor, SPI, procurement";
   const esBtn = document.createElement("button"); esBtn.className = "tool-btn"; esBtn.textContent = "⏱ Earned schedule";
@@ -76,7 +96,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   xerOut.onclick = doExport("xer"); mspOut.onclick = doExport("msp");
   const note = document.createElement("span"); note.className = "meta";
   note.innerHTML = "One relational schedule — these views + the 3D <b>4D sequence</b> (Model → ⏱ 4D) share the same activities.";
-  intro.append(listBtn, xerLabel, xerOut, mspOut, alertBtn, esBtn, baseBtn, lvlBtn, note);
+  intro.append(listBtn, xerLabel, xerClearBtn, xerOut, mspOut, alertBtn, esBtn, baseBtn, lvlBtn, note);
   ctx.root.appendChild(intro);
 
   // a collapsible drawer the alerts / earned-schedule buttons fill on demand (kept out of the way)

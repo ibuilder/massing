@@ -1,5 +1,6 @@
 import type { ModuleDef, ModuleRecord, RecordBrief } from "../../api/client";
 import type { ModuleFilterOp } from "../../api/types";
+import { money as usd } from "../../ui/charts";
 import { statusChip } from "../../ui/chips";
 import { type RegisterEmptyKind, registerEmptyEl } from "../../ui/empty";
 import { emptyHint } from "../../ui/emptyGuide";
@@ -1648,6 +1649,248 @@ export class RegisterUI {
    *     is NOT included — that is where scope gaps come from. So the picker groups by category rather
    *     than running them together, and the preview leads with the counts.
    */
+  /**
+   * `estimate.basis` -> the phase key `est_confidence._PHASE_CONF` scores against.
+   *
+   * **Explicit, because lowercasing is wrong for two of the five and wrong in the flattering
+   * direction.** The register offers `Conceptual · Schematic · DD · CD · GMP`; the scorer keys on
+   * `concept · sd · dd · cd · gmp`. `DD`/`CD`/`GMP` survive a `.toLowerCase()`, but `"conceptual"`
+   * and `"schematic"` match nothing and fall to the unspecified default of **0.6** — which scores a
+   * concept estimate (0.45) as *more* confident than a schematic one (0.6), and rates the roughest
+   * estimates in the system above what they are. A silent default that flatters is worse than one
+   * that fails.
+   */
+  private static PHASE_FROM_BASIS: Record<string, string> = {
+    Conceptual: "concept", Schematic: "sd", DD: "dd", CD: "cd", GMP: "gmp",
+  };
+
+  /**
+   * EST-REACH — the estimate register's line items had three analyses built for them and no way in.
+   *
+   * `line_items` carries `code · description · qty · unit · unit_cost · amount · source · quote_ref
+   * · basis_date`, and its `source` options are `allowance / parametric / historical / quote` —
+   * every one a key in the confidence scorer's source table. `estimateBoe`'s line type is nearly
+   * column-for-column the same, `quote_ref` and `basis_date` included. The data model and the
+   * endpoints were built for each other; only the UI between them was missing, which is why
+   * `estimateConfidence` and `estimateBoe` sat in the uncalled set with live routes behind them.
+   *
+   * Deliberately reads the record's OWN line items rather than offering a paste box. A caller that
+   * needs the user to hand-assemble its input is a caller in name only.
+   */
+  private estimateActions(m: ModuleDef, r: ModuleRecord, tools: HTMLElement) {
+    if (m.key !== "estimate") return;
+    const pid = this.ctx.host.projectId()!;
+    const api = this.ctx.host.api;
+    const rows = (r.data?.line_items as Record<string, unknown>[] | undefined) ?? [];
+    const basis = String(r.data?.basis ?? "");
+    const phase = RegisterUI.PHASE_FROM_BASIS[basis] ?? "";
+
+    // Column names to what the endpoints read. `amount` is the table's total column, and the scorer
+    // takes `cost` OR `total` OR qty x unit_cost — sending both names costs nothing and means a row
+    // with only a computed amount is still weighted rather than silently counting as zero.
+    const lines = rows.map((row) => ({
+      cost_code: row.code ?? null, description: row.description ?? "",
+      qty: row.qty ?? null, unit: row.unit ?? null, unit_cost: row.unit_cost ?? null,
+      cost: row.amount ?? null, total: row.amount ?? null,
+      source: row.source ?? "", phase,
+      quote_ref: row.quote_ref ?? null, basis_date: row.basis_date ?? null,
+    }));
+
+    const btn = (label: string, title: string, fn: () => void) => {
+      const b = document.createElement("button");
+      b.className = "tool-btn"; b.textContent = label; b.title = title; b.onclick = fn;
+      tools.appendChild(b);
+    };
+    const guard = () => {
+      if (!lines.length) { toast("this estimate has no line items yet", "error"); return false; }
+      return true;
+    };
+
+    btn("◎ Confidence", "Score each line's maturity from its source and the estimate basis — and how much of the budget is still assumption-based", () => {
+      if (!guard()) return;
+      void this.estimateConfidenceView(pid, lines, basis, phase);
+    });
+    btn("⛁ Basis of Estimate", "The BoE assumption ledger and documentation completeness for these lines", () => {
+      if (!guard()) return;
+      void this.estimateBoeView(pid, lines);
+    });
+    // Priced from the space-program register, not from this record's lines — a concept budget exists
+    // precisely for the stage BEFORE there are line items, so it must not be gated on `guard()`.
+    btn("◫ Concept budget", "Price the space program by use against a $/area rate — before there are line items", () => {
+      void this.conceptBudgetView(pid);
+    });
+    void api;      // the views resolve the client off `this.ctx.host.api` themselves
+  }
+
+  /**
+   * Concept budget: the space-program register priced by use.
+   *
+   * The endpoint wants `program: [{use, gfa, stories?}]`, and the `space_program` register already
+   * holds exactly that in another shape — `space_type` with `target_area_sf` per unit and a
+   * `quantity`. Aggregating by type is the whole mapping; there was never any missing data, only a
+   * missing path between two registers.
+   *
+   * `history` is deliberately not sent. The endpoint derives per-type rates from a firm's completed
+   * projects, and this codebase has no completed-project cost history to draw on — inventing one to
+   * make the call look richer would price a real budget off fabricated comparables. Without it the
+   * endpoint prices at `default_rate` and **surfaces what it could not price rather than guessing**,
+   * which is the honest behaviour and the one worth surfacing in the UI.
+   */
+  private async conceptBudgetView(pid: string) {
+    let recs;
+    try { recs = await this.ctx.host.api.moduleRecords(pid, "space_program"); }
+    catch (e) { toast(`could not read the space program: ${(e as Error).message}`, "error"); return; }
+    const byUse = new Map<string, number>();
+    for (const rec of recs) {
+      const d = (rec.data ?? {}) as Record<string, unknown>;
+      const use = String(d.space_type ?? "").trim();
+      if (!use) continue;
+      const each = Number(d.target_area_sf ?? 0) || 0;
+      const qty = Number(d.quantity ?? 1) || 1;
+      if (each <= 0) continue;
+      byUse.set(use, (byUse.get(use) ?? 0) + each * qty);
+    }
+    const program = [...byUse].map(([use, gfa]) => ({ use, gfa }));
+    if (!program.length) {
+      toast("the space program register has no sized spaces yet — add Type and Target Area", "error");
+      return;
+    }
+    const v = await promptModal("Concept budget", [
+      { name: "rate", label: `$/sf where a use has no rate (${program.length} uses, ${usd([...byUse.values()].reduce((a, b) => a + b, 0))} sf)`, required: true },
+      { name: "contingency", label: "Contingency %" },
+    ], "Price");
+    if (!v) return;
+    const rate = Number(v.rate);
+    if (!Number.isFinite(rate) || rate <= 0) { toast("rate must be a positive number", "error"); return; }
+    let b;
+    try {
+      b = await this.ctx.host.api.estimateConceptBudget(pid, {
+        program, default_rate: rate, contingency_pct: Number(v.contingency) || 0,
+      });
+    } catch (e) { toast(`concept budget failed: ${(e as Error).message}`, "error"); return; }
+
+    const { card } = modalShell("Concept budget", 480);
+    const head = document.createElement("div");
+    head.style.cssText = "font-weight:600;font-size:14px";
+    head.textContent = usd(b.total);
+    const sub = document.createElement("div"); sub.className = "meta";
+    sub.textContent = `${b.line_count} uses · subtotal ${usd(b.subtotal)}`
+      + (b.contingency ? ` + ${b.contingency_pct}% contingency ${usd(b.contingency)}` : "");
+    card.append(head, sub);
+
+    // `unpriced` is a COUNT, and it is the number that matters: a total computed over a program the
+    // endpoint could not fully price is not a budget, it is a partial one, and it must not read as
+    // complete. Verified against the endpoint — with no default rate all three lines come back
+    // unpriced with `total = 0`, which would otherwise render as a confident "$0".
+    if (b.unpriced > 0) {
+      const warn = document.createElement("div"); warn.className = "meta";
+      warn.style.cssText = "margin-top:4px;font-weight:600";
+      warn.textContent = `${b.unpriced} of ${b.line_count} uses could not be priced — the total below excludes them`;
+      card.appendChild(warn);
+    }
+
+    for (const l of b.lines) {
+      const row = document.createElement("div"); row.className = "meta";
+      row.style.cssText = "display:flex;gap:8px;border-top:1px solid var(--line);padding:4px 0";
+      row.append(
+        Object.assign(document.createElement("span"), { textContent: l.use, style: "flex:1" }),
+        Object.assign(document.createElement("span"), { textContent: `${Math.round(l.gfa).toLocaleString()} sf` }),
+        // The endpoint says WHY a line is unpriced; passing that through beats rendering a blank.
+        Object.assign(document.createElement("span"), { textContent: l.source, style: "flex:1;text-align:right" }),
+        Object.assign(document.createElement("span"), {
+          textContent: l.cost == null ? "—" : usd(l.cost),
+          style: l.cost == null ? "color:var(--muted)" : "",
+        }),
+      );
+      card.appendChild(row);
+    }
+  }
+
+  /** Confidence rollup: project score, how much is still assumption-based, and the softest lines. */
+  private async estimateConfidenceView(pid: string, lines: Record<string, unknown>[], basis: string, phase: string) {
+    let c;
+    try { c = await this.ctx.host.api.estimateConfidence(pid, lines); }
+    catch (e) { toast(`confidence failed: ${(e as Error).message}`, "error"); return; }
+    const { card } = modalShell("Estimate confidence", 460);
+    const head = document.createElement("div");
+    head.style.cssText = "font-weight:600;font-size:14px";
+    head.textContent = `${Math.round(c.confidence * 100)}% confidence · ${c.band}`;
+    const sub = document.createElement("div"); sub.className = "meta";
+    // The phase is stated, not assumed. An unmapped basis scores against the scorer's neutral
+    // default, and saying so is the difference between a number and a number you can act on.
+    sub.textContent = `${c.line_count} lines · ${usd(c.total_cost)} · `
+      + (phase ? `basis “${basis}” → phase ${phase}` : `basis “${basis || "unset"}” — phase unspecified, scored at the neutral default`);
+    card.append(head, sub);
+
+    const kpi = document.createElement("div"); kpi.className = "meta"; kpi.style.marginTop = "6px";
+    // UNITS ARE NOT CONSISTENT ACROSS THIS ONE RESPONSE, and both were verified against the running
+    // scorer rather than read off the field names. `pct_assumption_based` is a FRACTION (0.715 for a
+    // set that is 72% assumption-based) while `avg_contingency_pct` is already a PERCENTAGE (10.63).
+    // Rounding the first without scaling renders "1%" for a budget that is 72% unsupported — a
+    // plausible number, badly wrong, in the reassuring direction. `confidence` is a fraction too.
+    kpi.innerHTML = `<b>${Math.round(c.pct_assumption_based * 100)}%</b> of budget still assumption-based `
+      + `(${esc(usd(c.assumption_based_cost))}) · avg contingency ${Math.round(c.avg_contingency_pct)}%`;
+    card.appendChild(kpi);
+
+    const soft = c.worst_lines;
+    if (soft.length) {
+      const h = document.createElement("div");
+      h.style.cssText = "font-weight:600;margin-top:8px;font-size:12.5px";
+      h.textContent = "Least grounded, by value";
+      card.appendChild(h);
+      for (const l of soft.slice(0, 10)) {
+        const row = document.createElement("div"); row.className = "meta";
+        row.style.cssText = "display:flex;gap:8px;border-top:1px solid var(--line);padding:4px 0";
+        row.append(
+          Object.assign(document.createElement("span"), { textContent: l.description || "(no description)", style: "flex:1" }),
+          Object.assign(document.createElement("span"), { textContent: l.source }),
+          Object.assign(document.createElement("span"), { textContent: usd(l.cost) }),
+        );
+        card.appendChild(row);
+      }
+    }
+  }
+
+  /** The BoE assumption ledger + documentation completeness for the record's lines. */
+  private async estimateBoeView(pid: string, lines: Record<string, unknown>[]) {
+    let b;
+    try { b = await this.ctx.host.api.estimateBoe(pid, { lines }); }
+    catch (e) { toast(`basis of estimate failed: ${(e as Error).message}`, "error"); return; }
+    const { card } = modalShell("Basis of Estimate", 480);
+    // No cast. `estimateBoe`'s declared type already describes `ledger` exactly — an earlier draft
+    // here used `as unknown as {...}` with hand-written field names, two of which were wrong
+    // (`documented_pct` for `pct_documented`, and `weakest` for `worst_lines` next door). The cast is
+    // what allowed them: it switches off the one check that would have said so at compile time.
+    const led = b.ledger;
+    const head = document.createElement("div"); head.className = "meta";
+    head.style.fontWeight = "600";
+    // `pct_documented` is a FRACTION (0.5 for one of two), the same trap as `pct_assumption_based`.
+    head.textContent = `${Math.round(led.pct_documented * 100)}% of lines carry a documented basis `
+      + `(${led.documented} of ${led.line_count})`;
+    card.appendChild(head);
+
+    // What is MISSING is the point of a BoE — an undocumented line is the one that gets argued.
+    const gaps = led.undocumented;
+    if (gaps.length) {
+      const g = document.createElement("div"); g.className = "meta";
+      g.style.cssText = "margin-top:4px;color:var(--muted)";
+      const worst = gaps.slice(0, 3).map((u) => `${u.description || u.key} (${u.missing.join(", ")})`);
+      g.textContent = `${gaps.length} undocumented: ${worst.join(" · ")}${gaps.length > 3 ? " …" : ""}`;
+      card.appendChild(g);
+    }
+    for (const l of led.lines.slice(0, 25)) {
+      const row = document.createElement("div"); row.className = "meta";
+      row.style.cssText = "display:flex;gap:8px;border-top:1px solid var(--line);padding:4px 0";
+      row.append(
+        Object.assign(document.createElement("span"), { textContent: l.description || "(no description)", style: "flex:1" }),
+        Object.assign(document.createElement("span"), { textContent: l.source ?? "unspecified" }),
+        Object.assign(document.createElement("span"), { textContent: l.quote_ref ? `ref ${l.quote_ref}` : "no ref" }),
+        Object.assign(document.createElement("span"), { textContent: l.total != null ? usd(l.total) : "—" }),
+      );
+      card.appendChild(row);
+    }
+  }
+
   private async composeExhibit(m: ModuleDef, r: ModuleRecord, rid: string) {
     const pid = this.ctx.host.projectId()!;
     const api = this.ctx.host.api;
@@ -1930,6 +2173,7 @@ export class RegisterUI {
       tools.append(cb);
     }
     this.contractActions(m, r, rid, tools);
+    this.estimateActions(m, r, tools);
     if (m.key === "rfi") {
       const tb = document.createElement("button");
       tb.className = "tool-btn"; tb.textContent = "✨ Triage (AI)"; tb.title = "AI: categorize + ball-in-court + draft response";
