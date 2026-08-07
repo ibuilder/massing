@@ -1545,12 +1545,39 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
   glyphs, and its tests are mostly about *nothing disappearing* and only then about the bar being
   short. A ribbon inherits that gate — `unlaidTitles()` staying empty matters more than any tab
   layout. Design question before build.
-- ◧ **R40-EOT ②** *(M–L, Lane C — `eot.py` shipped)* — extension-of-time entitlement, with its method stated. Every input
+- ◧ **R40-EOT ②** *(M–L, Lane C — `eot.py` shipped; the SOURCED path shipped 2026-08-07)* — extension-of-time entitlement, with its method stated. Every input
   exists (`schedule_cpm.compute` gives ES/EF/LS/LF and free float, with total float derivable as
   LS−ES; `schedule_baselines` gives named baselines and per-activity variance; `notice_clock`
   already types weather/constructive-change/suspension delay events). What is missing is the step
   from baseline + as-built + events to a defensible entitlement: EOT days, excusable /
   non-excusable / compensable, per-event time impact. **The refusal IS the feature:** forensic delay
+  **Premise-checked: every refusal the entry asks for is already in `eot.py`** — the four methods as a
+  closed set, `method_required`, concurrency named rather than apportioned, absorbed float reported as
+  absorbed. **What had no provenance were its inputs.** `POST /schedule/eot` took `baseline_finish`,
+  `actual_finish` and the whole event list from the request body, while `schedule_baselines` (named
+  captured baselines + per-activity variance) and `notice_clock` (typed weather / constructive-change
+  / suspension events, each carrying its source record) sat wired to nothing. On the number the entry
+  itself says ends up in arbitration, that is the wrong place to leave provenance: two people can
+  produce different EOTs from one project by typing different dates, and every careful refusal sits
+  downstream of an input nobody can audit.
+  `services/api/src/aec_api/eot_sourced.py` + `POST /projects/{pid}/schedule/eot/sourced` joins them.
+  **The design follows from what the two sources actually give**, which is not the same thing:
+  `variance()` gives **quantum** (`finish_var` per activity vs a *named* baseline); `notice_clock`
+  gives **cause** and carries **no `days` field at all** — detection establishes that an event
+  occurred, never what it cost. So the gap is reported rather than filled, twice:
+  *an event with no stated duration is `needs_duration`*, listed and excluded from the figure rather
+  than handed the slip it sits near; and **slip with no matching cause is `unattributed`, never
+  `non_excusable`** — defaulting unexplained slip to contractor risk hands one party an entitlement
+  finding nobody demonstrated. Matching is by explicit `activity_id` only: proximity is not causation,
+  and causation is the contested half of every claim. All three mutation-checked (5 / 2 / 6 named
+  FAILs); no baseline returns `baseline_required` **with the available baselines** rather than falling
+  back to a typed date.
+  *Two of my own assumptions were wrong and caught by reading the engine rather than trusting the
+  name:* `compute_variance` rows key on `ref` (there is no `id`), and its `summary` carries slip counts
+  and `max_slip_days` but **no project finish dates** — so `baseline_finish`/`actual_finish` are passed
+  through from the caller and NOT derived here, because inventing a completion date would fabricate
+  the very input this exists to make auditable.
+
   analysis has a published method taxonomy (AACE 29R-03, SCL Protocol 2nd ed) and **the same facts
   give different answers under different methods** — as-planned-vs-as-built, windows and time-impact
   are not interchangeable, and concurrent-delay apportionment is openly contested. The engine states
