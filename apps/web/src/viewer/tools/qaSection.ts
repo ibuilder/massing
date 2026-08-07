@@ -111,6 +111,72 @@ export function buildQaSection(d: QaDeps): void {
             if (d!.hygiene.issues) body.appendChild(resultNote(`<b>${d!.hygiene.issues}</b> model-hygiene issue(s) — see Model Health.`, "bad"));
           });
         })));
+        // INTEROP-RT — the round-trip verdict, which nothing could show. It serialises the model,
+        // re-parses it and compares GUID stability, class, name, containment, type and psets.
+        // **GUID stability is a project non-negotiable** and the whole edit-recipe architecture rests
+        // on it; this endpoint checks it and had no client caller, so the promise was unverifiable
+        // from the product. Distinct from `roundtripDiff`, which compares a file YOU bring back —
+        // this one asks whether OUR OWN export is lossless.
+        b.appendChild(toolBtn2("🔁 Round-trip fidelity (is our export lossless?)", () => withLoading(container, "Serialising and re-parsing", async () => {
+          let r;
+          try { r = await api.modelRoundtrip(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = r.fidelity_ok ? "round-trip clean" : `${r.counts.missing + r.counts.added + r.counts.changed} discrepancy(ies)`;
+          showResult("Round-trip fidelity", (body) => {
+            body.appendChild(resultNote(r!.fidelity_ok
+              ? `<b>Lossless</b> — all ${r!.element_count} elements survived serialise → re-parse with GUID, class, name, containment, type and psets intact.`
+              : `<b>Not lossless</b> — ${r!.counts.missing} missing · ${r!.counts.added} added · ${r!.counts.changed} changed, of ${r!.element_count} elements.`,
+              r!.fidelity_ok ? "ok" : "bad"));
+            // MISSING is the one that matters most: an element that does not survive our own export
+            // is data loss, and GUID stability is what every recipe and every pin depends on.
+            for (const [label, guids] of [["Missing after round-trip", r!.missing], ["Appeared after round-trip", r!.added]] as const) {
+              if (!guids.length) continue;
+              const row = document.createElement("div");
+              row.className = "meta"; row.style.cssText = "margin-top:4px;cursor:pointer";
+              row.innerHTML = `<b>${label}</b>: ${guids.length}`;
+              row.title = "Select these elements";
+              row.onclick = async () => { await selectMap(await sets.fromGuids(guids.slice(0, 200))); };
+              body.appendChild(row);
+            }
+            if (r!.changed.length) {
+              body.appendChild(resultNote("<b>Changed</b> — survived, but an aspect differs:", ""));
+              body.appendChild(kvTable(r!.changed.slice(0, 50).map((c) => ({
+                k: escapeHtml(c.class), v: escapeHtml(c.aspects.join(", ")),
+              }))));
+            }
+          });
+        })));
+
+        // AUTH-CONSTRAINTS — the model's OWN constraint graph: broken RelVoids/RelFills hosts,
+        // dangling fills, storey-containment disagreements. Errors and warnings on the model's
+        // internal consistency, with no way to see them until now.
+        b.appendChild(toolBtn2("🔗 Constraint graph (hosts, fills, containment)", () => withLoading(container, "Validating constraint graph", async () => {
+          let r;
+          try { r = await api.modelConstraints(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = r.issue_count ? `${r.errors} error(s) · ${r.warnings} warning(s)` : "constraint graph clean";
+          showResult("Constraint graph", (body) => {
+            body.appendChild(resultNote(r!.issue_count
+              ? `<b>${r!.errors}</b> error(s) · <b>${r!.warnings}</b> warning(s) across `
+                + `${r!.checked.openings} opening(s), ${r!.checked.elements_level_checked} element(s), ${r!.checked.storeys} storey(s).`
+              : `No broken hosts, dangling fills or containment disagreements — `
+                + `${r!.checked.openings} opening(s) and ${r!.checked.storeys} storey(s) checked.`,
+              r!.errors ? "bad" : r!.warnings ? "" : "ok"));
+            // The note carries what was SKIPPED as unmeasurable. Dropping it would turn "we could not
+            // check these" into "these are fine", which is the difference the route is careful about.
+            if (r!.note) body.appendChild(resultNote(escapeHtml(r!.note), ""));
+            for (const i of r!.issues.slice(0, 100)) {
+              const row = document.createElement("div");
+              row.className = "meta";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer";
+              row.innerHTML = `${i.severity === "error" ? "🔴" : "🟡"} <b>${escapeHtml(i.name || i.guid)}</b> `
+                + `· ${escapeHtml(i.ifc_class)} — ${escapeHtml(i.detail)}`;
+              row.title = "Select this element";
+              row.onclick = () => { void selectByGuid(i.guid, true); };
+              body.appendChild(row);
+            }
+          });
+        })));
         // SOURCES-1 — what governs the selected element. `elementSources` had no client caller, so
         // the answer to "why is this wall like this?" existed server-side and nowhere else.
         b.appendChild(toolBtn2("🔎 Element sources (what governs this?)", () => withLoading(container, "Reading provenance", async () => {
