@@ -38,7 +38,10 @@ def upgrade() -> None:
     op.create_table(
         "viewer_load_timing",
         sa.Column("id", sa.String(), primary_key=True),
-        sa.Column("ts", sa.DateTime(timezone=True), nullable=True),
+        # NOT NULL to match `Mapped[datetime]` on the model — non-Optional there means NOT NULL, and
+        # `alembic check` on Postgres compares the two. A row with no timestamp is useless anyway:
+        # every read of this table filters by time. The Python-side `default=_now` fills it.
+        sa.Column("ts", sa.DateTime(timezone=True), nullable=False),
         sa.Column("project_id", sa.String(), nullable=True),
         sa.Column("model_id", sa.String(), nullable=True),
         sa.Column("actor", sa.String(), nullable=True),
