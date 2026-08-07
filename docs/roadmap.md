@@ -751,8 +751,31 @@ stakes we are missing.
   the `department` matches in `rooms.py` and `scope_clauses.py` are incidental rather than resourcing.
   So this is not an M of backend work. Size the resourcing engine on its own and route the two
   visualisation items to the lane that owns them.
-- ◧ **R22-ROUTINES** *(S — `routines.py` + migration shipped)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
+- ✅ **R22-ROUTINES** *(S — `routines.py` + migration shipped; the SWEEP shipped 2026-08-07)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
   scan) rather than on-demand only. Turns AI from a tool you remember to use into infrastructure.
+
+  **The deciding half existed and nothing acted on it.** `routines.due()` already refuses well — an
+  unknown cadence is refused rather than treated as due, `draft`/`retired` are never fired, missed
+  windows fire ONCE for the current window (`catch_up_suppressed`) — and `jobs.enqueue` already
+  rejects an unregistered kind, and `worker.py` already runs the queue. But both `/routines/due`
+  endpoints are read-only, so "what should run now" was computed, returned and dropped: exactly the
+  entry's own complaint.
+  `services/api/src/aec_api/routines_run.py` + `POST /projects/{pid}/routines/run-due` closes it.
+  **The defect that made this more than plumbing was latent**: `routines.from_project(db, pid, now,
+  in_flight)` takes `in_flight` as a parameter and **no caller supplied one**, so the single refusal in
+  the chain that needs outside knowledge — "the previous run has not finished" — could never fire. With
+  the default empty set, a monthly report taking an hour is re-enqueued on every sweep for that hour.
+  The sweep derives it from the jobs table instead.
+  Three refusals, all mutation-checked: in-flight derived rather than assumed (3 named FAILs); a
+  routine naming an unregistered kind is `refused` and **does not abort the sweep** for the ones beside
+  it (2); and **the window is consumed at enqueue, not at success**, with the `job_id` recorded —
+  consuming it on success would re-fire a failing routine every sweep until it passed, a retry storm
+  dressed as a schedule.
+  *Two shape assumptions were caught by reading rather than trusting a name*: `update_record` takes
+  `actor` and `party` as **required positionals** (omitting them is a TypeError only the write path
+  surfaces), and `me.TABLES[key]` is a Core `Table`, so columns are `t.c.*`. The register also had to
+  be loaded explicitly outside the app lifespan — the same trap as a `TestClient` built outside a
+  `with` block, where every module reads as absent and the failure looks like a missing feature.
 - ◧ **R22-PUBLIC-VIEWER** — *(sized **M**, not S; see the Band 2 entry, which is the live one — its premise was corrected 2026-08-06: the scoped, revocable token and the routes honouring it ALREADY EXIST.)* This
   line is the original scan's one-sentence estimate. It called the item S because it counted the
   viewer, which exists; the Band 2 entry counted the **scoped revocable token and a route that
