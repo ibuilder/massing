@@ -124,7 +124,11 @@ export function buildAuthoringSection(d: AuthoringDeps): void {
         // AUTH-VS: open the visual node-authoring canvas (chain recipes as a graph, run in one pass)
         const nodeBtn = toolBtn2("🕸 Visual node authoring", () => {
           openNodeCanvas({
-            recipes: ["add_wall", "add_column", "add_beam", "add_slab", "add_base_plate", "add_curtain_wall", "derive_analytical"],
+            // Seven of these were offered; four more exist in the server's RECIPES registry and were
+            // reachable by nothing at all. `nodegraph.run` validates against that same registry, so
+            // this list was the only gate.
+            recipes: ["add_wall", "add_column", "add_beam", "add_slab", "add_base_plate", "add_curtain_wall", "derive_analytical",
+                      "array_element", "create_type", "edit_type_params", "connect_elements"],
             runGraph: async (graph) => {
               const r = await api.editGraph(pid, graph, { publish: true });
               const state = await waitForPublish(pid);

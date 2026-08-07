@@ -33,6 +33,17 @@ const STARTER: Record<string, Record<string, unknown>> = {
   add_base_plate: { column_guid: { $from: "n1" }, width: 0.5 },
   add_curtain_wall: { start: [0, 0], end: [6, 0], height: 3.5 },
   derive_analytical: {},
+  // Added 2026-08-07 (reach sweep). These four recipes existed in the server's RECIPES registry and
+  // were reachable by NOTHING: the canvas offered seven names and `nodegraph.run` dispatches against
+  // the same registry, so the list here was the only thing standing between the user and them.
+  //
+  // Param names taken from `RECIPES` in `services/data/src/aec_data/edit.py`, not from the client
+  // wrappers — a starter that does not match the recipe is worse than a blank one, because it looks
+  // authoritative and fails at run time.
+  array_element: { guid: "", nx: 2, ny: 1, dx: 1, dy: 0, dz: 0 },
+  create_type: { ifc_class: "IfcWallType", name: "New type", dims: [0.2, 3, 1] },
+  edit_type_params: { type_guid: "", name: "Renamed type" },
+  connect_elements: { guid_a: "", guid_b: "", description: "" },
 };
 
 export function openNodeCanvas(opts: NodeCanvasOpts): void {
