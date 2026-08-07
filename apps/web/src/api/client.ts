@@ -2914,7 +2914,7 @@ export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcu
       events: { year: number; item: string; cost: number; cost_escalated: number; source: string; ref: string }[];
       schedule: { year: number; outflows: number; contribution: number; balance: number }[];
       total_outflows: number; first_underfunded_year: number | null; adequately_funded: boolean;
-      suggested_level_contribution: number; note: string }>(
+      suggested_level_contribution: number; suggestion_clears_horizon?: boolean; note: string }>(
       `/projects/${pid}/reserves/study${qs ? `?${qs}` : ""}`);
   }
   camReconciliation(pid: string, opts: { year?: number; grossUpToPct?: number; buildingSf?: number } = {}) {
