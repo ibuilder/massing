@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { applyCameraProfile } from "./world";
 
 /** WALK-MODE (R17 Sprint B) — first-person walkthrough over the loaded model: WASD + pointer-lock at
  *  eye height, the coordination-review move that orbit cameras hide. The math lives in a headless
@@ -62,7 +63,7 @@ export class WalkController {
 }
 
 export interface WalkModeDeps {
-  viewer: { world: { camera: { controls: { getPosition(v: THREE.Vector3): void; getTarget(v: THREE.Vector3): void; setLookAt(px: number, py: number, pz: number, tx: number, ty: number, tz: number, transition?: boolean): void } } } };
+  viewer: { world: { camera: { three?: unknown; controls: { getPosition(v: THREE.Vector3): void; getTarget(v: THREE.Vector3): void; setLookAt(px: number, py: number, pz: number, tx: number, ty: number, tz: number, transition?: boolean): void } } } };
   canvas: HTMLElement;
   toolBtn: (icon: string, title: string, onClick: (b: HTMLButtonElement) => void, cap?: "edit" | "review") => HTMLButtonElement;
   setStatus: (m: string) => void;
@@ -71,6 +72,19 @@ export interface WalkModeDeps {
 /** Install the 🚶 walk-mode toggle. Enter = pointer-lock + WASD from the current camera position;
  *  Esc (or the button) exits and the orbit camera resumes exactly where the walk ended. */
 export function installWalkMode(d: WalkModeDeps): { walking: () => boolean; exit: () => void } {
+  /**
+   * Swap the camera between the orbit and walk depth ranges.
+   *
+   * Restoring on exit is not tidiness. The walk range is `near 0.1 / far 200`, and leaving it on an
+   * orbit camera would z-fight `guideUnderlay`'s 5 mm plane lift past ~100 m and clip any model
+   * wider than 200 m — a rendering bug in a mode the user has already left, which is close to
+   * impossible to attribute back to walk mode.
+   */
+  const setWalkCamera = (walk: boolean) => {
+    const el = d.canvas as HTMLCanvasElement;
+    applyCameraProfile(d.viewer.world, el.clientWidth || el.width, el.clientHeight || el.height, walk);
+  };
+
   const ctl = new WalkController();
   let walking = false;
   let raf = 0;
@@ -106,6 +120,10 @@ export function installWalkMode(d: WalkModeDeps): { walking: () => boolean; exit
     const horiz = Math.hypot(t.x - p.x, t.z - p.z);
     ctl.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, Math.atan2(t.y - p.y, horiz || 1e-6)));
     walking = true;
+    // R23-CAMERA-CLASS — drop the near plane so you can actually approach a surface. At the library
+    // default of 1 m, everything within a metre of the eye is clipped, so walking up to a wall makes
+    // it vanish: the mode exists for close inspection and could not do it.
+    setWalkCamera(true);
     last = performance.now();
     document.addEventListener("keydown", keyDown, true);
     document.addEventListener("keyup", keyUp, true);
@@ -120,6 +138,7 @@ export function installWalkMode(d: WalkModeDeps): { walking: () => boolean; exit
   function exit() {
     if (!walking) return;
     walking = false;
+    setWalkCamera(false);          // restore the orbit near/far — see setWalkCamera on why it matters
     cancelAnimationFrame(raf);
     ctl.clearKeys();
     document.removeEventListener("keydown", keyDown, true);
