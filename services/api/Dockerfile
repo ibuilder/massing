@@ -8,7 +8,7 @@
 # Node 24 LTS, same pinned digest as apps/web/Dockerfile — one Node runtime across the product.
 # The previous pin was node:25-slim, an EOL major: no security patches, and a converter runtime out
 # of step with the supported web runtime (both manifests declare engines.node >= 24, CI runs 24).
-FROM node:24-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS converter
+FROM node:25-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370 AS converter
 WORKDIR /conv
 ARG FRAGMENTS_VERSION=3.4.5
 ARG WEBIFC_VERSION=0.0.77
