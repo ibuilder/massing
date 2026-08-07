@@ -73,7 +73,13 @@ export function buildQaSection(d: QaDeps): void {
   const { section, toolBtn2, api, pid, projectId, notify, selectMap, sets, layerMgr, loader,
           nextId, refreshIssues, container, reloadModelPins, selectByGuid, waitForPublish,
           refreshFederation, authorAndReload, fitToModels, loadProjectModel } = d;
-  const selectedGuid = d.selectedGuid();
+  // NOT `const selectedGuid = d.selectedGuid()`. That is what this file used to do, and it is the
+  // exact bug the docstring above says is impossible by construction: the accessor was threaded
+  // correctly through the seam and then collapsed to a value on arrival. The panel is built at app
+  // init, before anything is selected, so the captured value was `null` FOREVER — "Related elements"
+  // and the layer override button answered "select an element in 3D first" no matter what was
+  // selected. Two dead tools, on main, under a comment explaining why they could not be.
+  const selectedGuid = () => d.selectedGuid();
         const b = section("qa", "Analyze & Coordinate · clash / QA", { requires: "sourceIfc", tool: true });
         if (!b) return;
         const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "4px";
@@ -103,6 +109,57 @@ export function buildQaSection(d: QaDeps): void {
             const phased = Object.entries(d!.phasing).filter(([k, v]) => v && k !== "UNSET");
             if (phased.length) body.appendChild(resultNote(`<b>Phasing</b> — ` + phased.map(([k, v]) => `${v} ${k.toLowerCase()}`).join(", "), ""));
             if (d!.hygiene.issues) body.appendChild(resultNote(`<b>${d!.hygiene.issues}</b> model-hygiene issue(s) — see Model Health.`, "bad"));
+          });
+        })));
+        // SOURCES-1 — what governs the selected element. `elementSources` had no client caller, so
+        // the answer to "why is this wall like this?" existed server-side and nowhere else.
+        b.appendChild(toolBtn2("🔎 Element sources (what governs this?)", () => withLoading(container, "Reading provenance", async () => {
+          const guid = selectedGuid();
+          if (!guid) { toast("Select an element first", "info"); return; }
+          let r;
+          try { r = await api.elementSources(pid, guid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          // `found: false` is a real answer and not an empty one. Rendering blank sections for an
+          // element the graph has never heard of reads as "nothing governs this", which is a
+          // different claim from "this element is not in the document graph".
+          if (!r.found) {
+            out.textContent = "no provenance";
+            showResult("Element sources", (body) => body.appendChild(resultNote(
+              "This element is not in the document graph — no spec sections, documents or "
+              + "container are recorded for it. That is not the same as nothing governing it.", "")));
+            return;
+          }
+          out.textContent = `${r.citations.length} citation(s)`;
+          showResult("Element sources", (body) => {
+            body.appendChild(resultNote(`<b>${escapeHtml(r!.name || guid)}</b>`
+              + (r!.class ? ` · ${escapeHtml(r!.class)}` : ""), ""));
+            const specs = r!.spec_sections || [];
+            const docs = r!.documents || [];
+            if (specs.length) {
+              body.appendChild(resultNote("<b>Governing spec sections</b>", ""));
+              body.appendChild(kvTable(specs.map((x) => ({
+                k: `${x.system ? escapeHtml(x.system) + " " : ""}${escapeHtml(x.code)}`, v: escapeHtml(x.title),
+              }))));
+            }
+            if (docs.length) {
+              body.appendChild(resultNote("<b>Attached documents</b>", ""));
+              body.appendChild(kvTable(docs.map((x) => ({ k: escapeHtml(x.name), v: x.sheet ? `sheet ${escapeHtml(x.sheet)}` : "" }))));
+            }
+            if (r!.container) {
+              const c = r!.container;
+              const row = document.createElement("div");
+              row.className = "meta"; row.style.cssText = "margin-top:4px";
+              row.innerHTML = `Container: <b>${escapeHtml(c.name || c.guid || "—")}</b> · ${escapeHtml(c.class)}`;
+              // Only offer the jump when there is somewhere to jump to.
+              if (c.guid) {
+                row.style.cursor = "pointer"; row.title = "Select the container";
+                row.onclick = () => { void selectByGuid(c.guid!, true); };
+              }
+              body.appendChild(row);
+            }
+            if (!specs.length && !docs.length && !r!.container) {
+              body.appendChild(resultNote("In the graph, but nothing cites it yet.", ""));
+            }
           });
         })));
         // GEOREF-1 — the survey basis, which nothing could show. `georef.py` reports a BSI LoGeoRef
@@ -576,8 +633,8 @@ export function buildQaSection(d: QaDeps): void {
           });
         })));
         b.appendChild(toolBtn2("🕸 Related elements (model graph)", () => withLoading(container, "Building model graph", async () => {
-          if (!selectedGuid) { notify("select an element in 3D first", "error"); return; }
-          const guid = selectedGuid;
+          const guid = selectedGuid();
+          if (!guid) { notify("select an element in 3D first", "error"); return; }
           let r;
           try { r = await api.graphNeighbors(pid, guid, 2); }
           catch { toast("Needs a source IFC", "error"); return; }
@@ -630,11 +687,12 @@ export function buildQaSection(d: QaDeps): void {
             const drawSel = () => { layerSel.innerHTML = ""; stack.forEach((L, i) => { const o = document.createElement("option"); o.value = String(i); o.textContent = L.name; layerSel.appendChild(o); }); };
             const addOv = document.createElement("button"); addOv.className = "mini-btn"; addOv.textContent = "＋ override (selected element)";
             addOv.onclick = () => {
-              if (!selectedGuid) { notify("select an element in 3D first", "error"); return; }
+              const g = selectedGuid();
+              if (!g) { notify("select an element in 3D first", "error"); return; }
               if (!psetI.value.trim() || !propI.value.trim() || !stack.length) { notify("need a layer + Pset + Prop", "error"); return; }
               const L = stack[Number(layerSel.value) || 0]; if (!L) { notify("add a layer first", "error"); return; }
-              L.overrides.push({ guid: selectedGuid, pset: psetI.value.trim(), prop: propI.value.trim(), value: valI.value });
-              propI.value = ""; valI.value = ""; draw(); status.textContent = `added override on ${selectedGuid.slice(0, 8)}… to “${L.name}”`;
+              L.overrides.push({ guid: g, pset: psetI.value.trim(), prop: propI.value.trim(), value: valI.value });
+              propI.value = ""; valI.value = ""; draw(); status.textContent = `added override on ${g.slice(0, 8)}… to “${L.name}”`;
             };
             addL.onclick = async () => { const n = await askText("New layer", { label: "Layer name (e.g. Fire coordination):", value: "" }); if (!n) return; stack.push({ name: n, enabled: true, overrides: [] }); draw(); drawSel(); };
             drawSel();

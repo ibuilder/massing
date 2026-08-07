@@ -40,7 +40,11 @@ export interface AuthoringDeps {
 
 export function buildAuthoringSection(d: AuthoringDeps): void {
   const { section, toolBtn2, api, pid, notify, panel, waitForPublish, loadProjectModel } = d;
-  const lastPoint = d.lastPoint();
+  // NOT a value. `d.lastPoint()` here would pin the point to whatever was current when the panel was
+  // BUILT — which is null, because the panel is built before the user has clicked anything. Caught by
+  // tools/accessorNotCollapsed.test.ts, which found this in three sections at once, each under a
+  // docstring explaining why it could not happen.
+  const lastPoint = () => d.lastPoint();
         const b = section("authoring", "Build · Advanced authoring, annotate & library", { requires: "sourceIfc", tool: true });
         const group = panel.querySelector('.tool-group[data-tool="authoring"]') as HTMLElement | null;
         if (group) group.dataset.cap = "edit";   // whole section hidden for non-editors
@@ -87,7 +91,8 @@ export function buildAuthoringSection(d: AuthoringDeps): void {
           const key = sel.value;
           if (!key) { out.textContent = "pick a family first"; return; }
           const label = sel.options[sel.selectedIndex]?.text ?? key;
-          const pos: [number, number] | null = lastPoint ? [lastPoint.x, -lastPoint.z] : null;
+          const lp = lastPoint();
+          const pos: [number, number] | null = lp ? [lp.x, -lp.z] : null;
           out.textContent = `adding ${label}…`;
           await api.addFamily(pid, key, pos);
           out.textContent = `${label} added · converting…`;
