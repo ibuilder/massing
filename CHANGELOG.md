@@ -4,6 +4,76 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.875 — eighty-four commits that were never tagged, and the reason
+
+**This release exists because the previous two did not.** `v0.3.873` was tagged and no release was
+ever created; `v0.3.874` was tagged, its notes written, its release object created — and left as a
+**draft**, which renders in the tag list exactly like a published one until you read the state field.
+Eighty-four commits accumulated behind that. The lesson is the one this file keeps re-learning in new
+costume: *a step that half-completes looks identical to a step that completed*, and the only defence
+is to assert the end state rather than the action.
+
+### An unauthenticated read of another project's financials
+
+`POST /test-fit/optimize` accepted a project id **in the request body** and seeded its economics from
+that project's `purchase_price` and hard $/sf — with no gate of any kind. Four independent mechanisms
+existed and not one could see it. `require_role` resolves its `pid` from the path or query, so a body
+field is structurally unreachable to it. The route-authz walker covers `/projects/{pid}` routes only.
+The RBAC middleware's prefix list does not contain `/test-fit`. And the global-authz test had the
+route in its **frozen baseline**, filed under "stateless compute — no stored state" beside four
+genuine calculators — it was the only one of the five that takes a database session.
+
+That fourth point is the one worth keeping. The exemption list had not overlooked the route; it had
+*examined* it and judged it safe by association with its neighbours. **A frozen baseline preserves
+the reasoning of the day it was written, including the parts that were wrong.** The predicate that
+isolates it is not "has no authz" — 34 routes qualify, mostly fine — but **"has no authz AND takes a
+DB session"**: a route that cannot read stored data cannot leak it. The fix is a dependency, not a
+body check, so the walker can see it; the no-`pid` calculator stays open, because closing it would
+have broken the feature to fix the leak.
+
+`pdfjs-dist` moved 6.0.227 → 6.2.108, closing a path by which a malicious PDF could execute
+JavaScript in a shipped surface.
+
+### The section box clipped nothing and every storey grid was 21× too large
+
+Both tools sized themselves by walking `scene.three` and expanding a box over everything they found —
+including the ground plane. On the demo tower that turned a 31.5 m clip volume into 700 m (clipping
+nothing at all) and a 104.5 m storey grid into 2,200 m. The viewer already excluded that mesh in two
+places; the bounds walk was the third site and did not. **N−1 correct sites prove nothing about the
+Nth.** Both callers now derive from `modelBox3`, which sees loaded models and nothing else, and the
+test asserts the consequence — the clip distance and the grid extent — rather than the code path. The
+same shape appeared separately in the mis-click guard, defeated by the same ground plane.
+
+### CI stopped paying for suites nobody reads
+
+Neither `ci.yml` nor `codeql.yml` had concurrency control, so every rebase left its predecessor
+running to completion and CodeQL alone reached 15 of 28 queued jobs. Queue saturation is the failure
+mode that costs the most to diagnose, because a **cancelled** job reports `fail` from `gh pr checks`,
+`failure` as the run conclusion, and `failure` as the job conclusion — only the failed *step name*
+distinguishes infrastructure from defect. Pull requests now share a group keyed on the head ref and
+supersede themselves; pushes key on the run id so main commits never cancel each other. CodeQL
+additionally scopes its language matrix to what the diff touches, failing toward more. The Pages
+workflow no longer redeploys the site for a roadmap edit.
+
+### Gates that were measuring almost nothing
+
+The licence gate — the one enforcing the MIT/BSD/Apache/ISC-only rule — **scanned one package out of
+434**, and was caught by its own vacuity floor rather than by anyone reading it. It now reads the
+LICENSE file itself, because a declaration cannot catch a lying declaration. A companion check asserts
+that a cited path which *resolves* also *says something*. The delete ratchet gained its file half:
+removed documents stay removed. Route reachability became a ratchet with its blind spot written down.
+
+### Also in this release
+
+`app.ts` shed five sections (project browser, analyse, authoring, exports, clash/QA), 3,953 → 3,751
+lines with the builders map now empty. A29-GUIDE-UNDERLAY pins a scanned plan to a level to trace
+over. R22 gained the option as one comparable record, the provenance estimate leg, agent packs that
+record the identity the transport actually sent, and the PM agreement register. The demo generator
+now produces a non-empty demo for every room, and stopped double-seeding 72 registers behind a
+swallowed error. A preflight refuses to build under the wrong Vite, because that build *succeeds* and
+ships a 19.7× eager shell. Twenty-four completed items moved to the archive and Band 1 was
+re-prioritised on what was measured rather than on what the entries claimed.
+
 ## v0.3.874 — a build that succeeds and ships the wrong bundle
 
 **`vite build` from a git worktree exits 0 and emits a 19.7× eager shell.** One commit, two checkouts:
