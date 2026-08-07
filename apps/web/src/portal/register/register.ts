@@ -1757,7 +1757,20 @@ export class RegisterUI {
       if (!ids.length) { toast("select at least one clause", "error"); return; }
       window.open(api.contractDocUrl(pid, m.key, rid, "exhibit", ids.join(",")), "_blank");
     };
-    row.append(prev, open);
+    // The Word copy sits beside the PDF because they are two halves of one exchange, not two
+    // features: the PDF is the instrument you sign, the .docx is the one a subcontractor strikes
+    // through and sends back. Offering only the PDF pushes the sub into retyping the exhibit, which
+    // is where clauses go missing.
+    const docx = document.createElement("button");
+    docx.className = "file-btn";
+    docx.textContent = "Word copy";
+    docx.title = "Exhibit A as an editable .docx — the copy a subcontractor redlines and returns";
+    docx.onclick = () => {
+      const ids = picked();
+      if (!ids.length) { toast("select at least one clause", "error"); return; }
+      window.open(api.exhibitDocxUrl(pid, m.key, rid, ids.join(",")), "_blank");
+    };
+    row.append(prev, open, docx);
     card.append(row, out);
   }
 

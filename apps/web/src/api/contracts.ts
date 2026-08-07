@@ -35,6 +35,17 @@ export function withContracts<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const q = new URLSearchParams({ doc, ...(clauses ? { clauses } : {}), ...(attach ? { attach: "1" } : {}) }).toString();
     return this.url(`/projects/${pid}/contracts/${key}/${rid}/document.pdf?${q}`);
   }
+
+  /** Exhibit A as an editable Word document — the copy a subcontractor redlines and sends back.
+   *
+   *  Same clause selection and merge context as `contractDocUrl(..., "exhibit")`; only the container
+   *  differs. A separate path rather than a `?fmt=` on the PDF one, because the extension is what a
+   *  browser, a mail client and a document-management system key on — a `.pdf` URL returning a Word
+   *  file reaches a subcontractor as something their machine refuses to open. */
+  exhibitDocxUrl(pid: string, key: string, rid: string, clauses?: string) {
+    const q = new URLSearchParams(clauses ? { clauses } : {}).toString();
+    return this.url(`/projects/${pid}/contracts/${key}/${rid}/exhibit.docx${q ? `?${q}` : ""}`);
+  }
   /** Scope-of-work clause library for composing Exhibit A (ids + titles, no bodies).
    *
    * `trade` or `division` narrows the catalog. Pass one whenever the record has a trade: the library
