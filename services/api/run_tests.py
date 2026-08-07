@@ -180,6 +180,41 @@ def _run_one(t: str, base: dict, cwd: Path = HERE) -> tuple[str, bool, float, st
     return t, proc.returncode == 0, time.time() - t0, (proc.stdout or "") + (proc.stderr or "")
 
 
+def _db_snapshot() -> set[Path]:
+    """Every `*.db` sitting in the two suite homes right now."""
+    return {q for d in (HERE, DATA_DIR) for q in d.glob("*.db")}
+
+
+def _sweep_run_dbs(before: set[Path]) -> tuple[int, int]:
+    """Remove the SQLite files THIS run created; return (removed, still_there).
+
+    **Why snapshot-and-diff rather than a glob.** The obvious sweep is `glob("test_*.db")`, and it is
+    wrong in a way that costs someone their afternoon: `preview.db` — the dev API's database — lives
+    in this directory, as does anything a developer left mid-debug. A pattern one character too greedy
+    deletes a running dev server's state. Diffing against a snapshot taken before the run can only
+    remove files that appeared *during* it, which is the property actually wanted and the only one
+    that stays true when someone adds a test with an unusual name.
+
+    **Why this is needed at all — and the real story is better than "nothing cleaned up".** `_run_one`
+    sets `DATABASE_URL=sqlite:///./_{t}.db` and unlinks exactly that. But **351 of 538 test files
+    overwrite `DATABASE_URL` at import** with a name of their own (`test_absorption.db`,
+    `auth_test.db`). So the runner was unlinking a file nothing creates while the real one persisted:
+    **a cleanup that ran, succeeded, and removed nothing** — indistinguishable from one that works.
+    It reached 2.8 GB of residue across worktrees and manufactured `disk I/O error` plus timeouts that
+    read as flaky tests in files with nothing to do with it. The 187 tests that DO use the runner's
+    name were cleaned correctly throughout, which is exactly why nobody noticed.
+    """
+    removed = 0
+    for q in sorted(_db_snapshot() - before):
+        try:
+            q.unlink()
+            removed += 1
+        except OSError:
+            pass                      # a live handle — counted as leftover below, never pretended away
+    return removed, len(_db_snapshot() - before)
+
+
+
 def main() -> int:
     if problems := manifest_problems():
         for p in problems:
@@ -199,6 +234,7 @@ def main() -> int:
     jobs = int(os.environ.get("TEST_JOBS") or 0) or max(1, (os.cpu_count() or 2) - 1)
     jobs = max(1, min(jobs, len(tests)))
     results: list[tuple[str, bool, float]] = []
+    dbs_before = _db_snapshot()
     t_start = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
         for t, ok, dt, out in ex.map(lambda tc: _run_one(tc[0], base, tc[1]), tests):
@@ -209,6 +245,16 @@ def main() -> int:
 
     passed = sum(1 for _, ok, _ in results if ok)
     print(f"\n{passed}/{len(results)} suites passed  ({jobs} parallel, {time.time() - t_start:.0f}s wall)")
+
+    # R41-TEST-RESIDUE. Sweep, then ASSERT the sweep worked — two different checks, and this very
+    # defect is why: a sweep that removes nothing looks exactly like a clean tree. Reporting the
+    # count is what makes a regression visible instead of silent.
+    removed, leftover = _sweep_run_dbs(dbs_before)
+    print(f"test databases: {removed} removed, {leftover} left behind")
+    if leftover:
+        print(f"FAIL  run_tests residue: {leftover} test database(s) survived the sweep — "
+              f"each full run leaks ~1.4 GB when this regresses")
+        return 1
     if os.environ.get("COVERAGE") == "1":
         # merge the per-subprocess shards and emit coverage.xml (Repowise / CI-artifact upload).
         # Runs even on a red suite: partial coverage of a failing run is still real data.
