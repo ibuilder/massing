@@ -663,3 +663,25 @@ export interface OptionRecordSet {
   project_id?: string;
   note: string;
 }
+
+/**
+ * R39-VIEWER-OBS — one viewer model-load, as it goes over the wire.
+ *
+ * Defined here rather than in `viewer/loadTimings.ts` so there is exactly one definition: the
+ * producer and the client method would otherwise hold structurally-identical copies that compile
+ * happily while drifting apart, which is the read/write-symmetry failure this repo has been bitten
+ * by before. The viewer module imports this and aliases it.
+ */
+export interface ViewerLoadTiming {
+  modelId: string;
+  bytes: number;
+  bucket: string;
+  /** `ok` | `invisible` (drawn into a zero-sized canvas) | `stalled` | `failed`. */
+  outcome: string;
+  fetchMs: number | null;
+  parseMs: number | null;
+  firstFrameMs: number | null;
+  totalMs: number;
+  canvasW: number | null;
+  canvasH: number | null;
+}

@@ -77,8 +77,16 @@ PER_FILE = {
     #:   ② clash/QA (851) 5,114 -> 4,272
     #:   ③ analyse (238) + ④ authoring (91)  4,272 -> 3,953
     #:   ⑤ project-browser panel (216)      3,953 -> 3,751
+    #:   ⑥ loadProjectModel (37)            3,751 -> 3,715
     #: The whole `builders` map is now out of app.ts. Ratcheted each time, never reset.
-    "apps/web/src/viewer/app.ts": 3_751,
+    #:
+    #: ⑥ is worth recording because the ratchet CAUSED it rather than merely permitting it.
+    #: R39-VIEWER-OBS needed ~5 lines of instrumentation inside `loadProjectModel`, and this entry had
+    #: zero headroom, so the choice was to raise the pin or move the routine. The comment above says
+    #: the friction is the point and that the question it should force is "should this live in a
+    #: domain module instead?" — for a self-contained fetch/parse/show sequence the answer was plainly
+    #: yes. The instrumentation went into the new module and app.ts came DOWN 36 lines instead of up.
+    "apps/web/src/viewer/app.ts": 3_715,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.
