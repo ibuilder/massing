@@ -25,7 +25,7 @@ def _now() -> datetime:
 
 
 def create_token(db: Session, pid: str, label: str | None, actor: str | None,
-                 show_payments: bool = False) -> dict[str, Any]:
+                 show_payments: bool = False, show_model: bool = False) -> dict[str, Any]:
     """Mint a new read-only share token for a project. Bounded per project. `show_payments` is the
     explicit OPT-IN that lets THIS token's digest carry the owner-invoice payment schedule — the default
     digest exposes no financials."""
@@ -38,7 +38,7 @@ def create_token(db: Session, pid: str, label: str | None, actor: str | None,
     tok = secrets.token_urlsafe(_TOKEN_BYTES)
     row = ShareToken(token=tok, project_id=pid, label=(label or "").strip()[:120] or None,
                      revoked=False, created_by=actor, created_at=_now(), view_count=0,
-                     show_payments=bool(show_payments))
+                     show_payments=bool(show_payments), show_model=bool(show_model))
     db.add(row)
     db.commit()
     return _public_row(row)
@@ -92,6 +92,46 @@ def revoke(db: Session, pid: str, token: str) -> bool:
     row.revoked = True
     db.commit()
     return True
+
+
+def model_fragment(db: Session, token: str) -> tuple[str, bytes]:
+    """Resolve a token -> its project's GEOMETRY FRAGMENT. Returns `(project_id, frag_bytes)`.
+
+    Raises `KeyError` for an unknown or revoked token, for a token without the `show_model` opt-in,
+    and for a project with no published fragment. The public route maps every one of those to the
+    same 404: distinguishing them would tell an attacker whether a token exists, whether it is
+    revoked, and whether a project has a model — three enumeration signals for no user benefit. The
+    existing token routes already behave this way and this must not be the one that differs.
+
+    WHAT IS SERVED, stated narrowly on purpose. `{pid}/model.frag` — the converted geometry: shapes
+    and placements. **Not** `{pid}/source.ifc`, which carries every property set, classification and
+    GlobalId in the model. "Share the model" is ambiguous between those two, and a reader who assumes
+    the wider one would be assuming a much larger disclosure than was approved. The narrow key is
+    read here and nowhere else in this module.
+
+    OPT-IN, NOT DEFAULT. `show_model` mirrors `show_payments` deliberately: the PORTAL-TXN precedent
+    is that widening a token's reach is a per-token decision taken when the token is minted, never a
+    capability that appears on tokens somebody already handed out. Tokens minted before this column
+    existed default to False and therefore cannot serve geometry — which is the correct behaviour for
+    a link whose recipient was promised a readiness digest.
+
+    Records a view, like the digest does, so `view_count` and `last_viewed_at` stay honest about what
+    the link has actually been used for.
+    """
+    from . import storage
+    from .models import ShareToken
+
+    row = db.get(ShareToken, token)
+    if row is None or row.revoked or not getattr(row, "show_model", False):
+        raise KeyError("invalid, revoked, or not model-enabled token")
+    key = f"{storage.safe_seg(row.project_id)}/model.frag"
+    if not storage.exists(key):
+        raise KeyError("no published model fragment for this project")
+    data = storage.get(key)
+    row.view_count = (row.view_count or 0) + 1
+    row.last_viewed_at = _now()
+    db.commit()
+    return row.project_id, data
 
 
 def digest(db: Session, token: str) -> dict[str, Any]:
@@ -376,6 +416,7 @@ def _payments_html(ps: dict, esc) -> str:
 def _public_row(r) -> dict[str, Any]:
     return {"token": r.token, "label": r.label, "revoked": bool(r.revoked),
             "show_payments": bool(getattr(r, "show_payments", False)),
+            "show_model": bool(getattr(r, "show_model", False)),
             "created_at": r.created_at.isoformat() if r.created_at else None,
             "created_by": r.created_by, "view_count": r.view_count or 0,
             "last_viewed_at": r.last_viewed_at.isoformat() if r.last_viewed_at else None,
