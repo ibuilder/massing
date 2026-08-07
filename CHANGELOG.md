@@ -4,6 +4,78 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.878–881 — thirteen PRs land, and a ratchet that was quietly not one
+
+### The reach ring: 131 → 117 uncalled client methods
+
+Thirteen PRs merged in one batch. `UNCALLED_CEILING` — the count of client methods with a live
+server route and no path to them in the product — fell from **131 to 117**, with one lane still to
+land. Every step was measured by re-running the gate, never derived from what the wiring touched.
+
+The sharpest find in the batch was not a count. **The finance period lock was enforced and its
+control was unreachable**: every mutation dated into a closed month refused with a 409, while the
+screen to see or reopen the lock had no path in the UI. A user hit refusals with nothing explaining
+why and no way to act. That is a different severity from ordinary unreachable capability — an
+unreachable *feature* is one nobody can use; an unreachable *control over an enforced rule* actively
+blocks people — and it is now how reach work is prioritised.
+
+### v0.3.878 — a share token may serve model geometry, as a per-token opt-in
+
+`R22-PUBLIC-VIEWER` was filed for weeks as missing code. It was not. The token was already
+project-scoped, revocable and audited, and four routes already honoured one. What was missing was a
+**decision**, and a roadmap entry had it recorded as a build.
+
+Answered: yes, **per-token, never a default**, following the payments precedent. The flag defaults
+false, so no link already in someone's inbox was widened retroactively. The token serves the
+converted fragment and **never the source IFC** — "share the model" reads as either, and the wide
+reading discloses every property set, classification and GlobalId in the project. Unknown token,
+revoked token, missing opt-in and no-model-published all return an identical 404, so none of them is
+an enumeration oracle.
+
+### v0.3.879 — one implementation of the estimate→BoE mapping
+
+Two client-side copies of the same cost-code mapping, where the seam already exists server-side. One
+removed; the reasoning kept in the docstring rather than deleted with the code, so it does not get
+re-added by someone asking a reasonable question.
+
+It nearly did not land at all. It was authored on a branch **after** that branch had squash-merged,
+so it sat on a ref no PR pointed at, while the session that wrote it correctly reported it pushed. A
+`git grep` on main still showed two callers. **After a PR squash-merges, its branch is a dead ref.**
+
+### v0.3.880 — the routine sweep echoed an exception's text onto a response
+
+The repo's only open CodeQL alert. A caught `ValueError` had its message placed into a refusal
+returned to any viewer-role caller. The message is now rebuilt from the job registry — identical
+text, sourced from a server constant instead of from a traceback, so the next exception added
+upstream cannot start leaking whatever it happens to say.
+
+### v0.3.881 — the roadmap reconciled, and three findings booked
+
+`R22-PUBLIC-VIEWER` moved to the completed archive. Three new entries, each from something that
+actually happened during the batch rather than from a survey:
+
+**QTO-TRADE.** The four procurement methods cannot be wired at all. The engine skips any quantity
+line lacking an item, description or material, and both model-derived sources supply none of them —
+so a buyout screen over today's inputs renders "0 packages", which reads as *this model has nothing
+to buy out* rather than *this input is incompatible*. Two agents reached this independently from
+different directions. It also corrects a premise the whole ring rested on: the sweep proved every
+parseable client method has a live route, and reachability was allowed to follow from that. **Route
+existence and input adequacy are different questions.**
+
+**RATCHET-SET.** The uncalled ceiling asserts only `measured <= ceiling` — there is no floor, so a
+*higher* literal always passes. Five PRs lowered that one line from four different bases during this
+batch and two stale-high literals were caught only by hand, each of which would have loosened the
+ratchet with every gate green. Merge sequencing does not fix it: it decides which number lands, not
+whether it is true. Two PRs measured against one base are both right until either merges, and then
+the second is wrong — it must **re-measure**, not rebase. The fix is to commit the set of uncalled
+names rather than a count.
+
+**BOE-MAPPING-DEDUP.** The second copy of that mapping, booked rather than paid under time pressure.
+
+### Also
+
+Thirteen merged branches deleted. They are dead refs, and one had already swallowed a real commit.
+
 ## v0.3.877 — a contract, a control character, and a gate that relied on its neighbour
 
 ### The sandbox gets the contract isolation needs
