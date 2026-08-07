@@ -110,7 +110,12 @@ const uncalled = surface.filter((m) => !NOT_ENDPOINTS.has(m) && !reached(m));
 //: CEILING — only ever revised DOWN. The measured value on 2026-08-07, so the set cannot grow
 //: quietly. Wiring a method to a screen lowers it; adding an unreachable endpoint raises it and has
 //: to say so out loud in the commit message.
-const UNCALLED_CEILING = 132;
+//:
+//: 132 -> 131 when PULSE-FINDINGS wired `proformaRenovation` into the home pulse. It was expected to
+//: drop by TWO, for `reserveStudy` as well — that was wrong, and the number is why it was caught:
+//: `reserveStudy` already had a caller in `src/proforma/proforma.ts`, so it was never in this set.
+//: Measured by probing rather than derived from what the wiring touched.
+const UNCALLED_CEILING = 131;
 
 describe("client methods the application actually calls", () => {
   it("agrees with a hand-checked sample in BOTH directions", () => {
@@ -148,8 +153,22 @@ describe("client methods the application actually calls", () => {
     // `surface.test.ts` lists these under "the methods the rest of the app actually calls".
     // That was false when written. This records which of them is still true, so wiring one up
     // fails here and forces the list to be corrected rather than left to rot.
+    //
+    // It did exactly that: PULSE-FINDINGS wired `proformaRenovation` into the home pulse and this
+    // assertion went red on the same run, which is the whole reason it names them individually
+    // instead of counting them.
     const trio = ["proformaRenovation", "proformaRollover", "proformaIncomeBasis"];
     const stillUncalled = trio.filter((m) => uncalled.includes(m));
-    expect(stillUncalled.sort()).toEqual([...trio].sort());
+    expect(stillUncalled.sort()).toEqual(["proformaIncomeBasis", "proformaRollover"]);
+  });
+
+  it("proformaRenovation is reached from a SCREEN, not from another api module", () => {
+    // The pairing that makes the line above mean something. Moving a call into `src/api` would also
+    // take a method out of `uncalled` without any human ever seeing its result — so assert the thing
+    // that was actually wanted: a file outside `src/api` calls it.
+    expect(uncalled.includes("proformaRenovation")).toBe(false);
+    const callers = appFiles.filter((f) => /proformaRenovation/.test(readFileSync(f, "utf8")));
+    expect(callers.length, "no screen calls it — it left `uncalled` for the wrong reason")
+      .toBeGreaterThan(0);
   });
 });

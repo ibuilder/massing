@@ -825,8 +825,12 @@ export class PortalUI {
         if (typeof api[name] !== "function") return null;
         try { return await api[name]!(pid); } catch { return null; }
       };
-      const [model, cost, sched, work, deal] = await Promise.all(
-        ["modelHealth", "costSummary", "scheduleVariance", "workQueue", "proformaLive"].map(call));
+      // `reserveStudy(pid, opts = {})` and `proformaRenovation(pid)` both fit this single-argument
+      // fan-out unchanged — checked against the signatures, not the descriptions. A required second
+      // argument would have meant breaking the `.map` or changing a signature.
+      const [model, cost, sched, work, deal, reserve, renov] = await Promise.all(
+        ["modelHealth", "costSummary", "scheduleVariance", "workQueue", "proformaLive",
+         "reserveStudy", "proformaRenovation"].map(call));
 
       const n = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
       const g = (o: unknown, k: string): unknown => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined);
@@ -840,7 +844,19 @@ export class PortalUI {
           mine: n(g(work, "mine")),
           overdue: Array.isArray(g(work, "overdue")) ? (g(work, "overdue") as string[]).slice(0, 3) : null,
         } : null,
-        deal: deal ? { irrPct: n(g(deal, "irr")) } : null,
+        // Both findings hang off the deal card because both are BOOLEANS with no chart to sit in.
+        // Read strictly: `=== false` and `=== true`, never truthiness. A missing field is "the engine
+        // did not answer", which must not read as "the suggestion fails" — inventing a risk line from
+        // an absent field is worse than showing none, because a false alarm here costs trust in every
+        // other line on the card.
+        deal: deal || reserve || renov ? {
+          irrPct: n(g(deal, "irr")),
+          reserveSuggestionFails: g(reserve, "suggestion_clears_horizon") === false,
+          nothingRenovated: g(renov, "nothing_renovated") === true
+            ? (typeof g(renov, "nothing_renovated_why") === "string"
+              ? g(renov, "nothing_renovated_why") as string : "no unit completed a start")
+            : null,
+        } : null,
       });
 
       const rail = pulseRailEl(cards);
