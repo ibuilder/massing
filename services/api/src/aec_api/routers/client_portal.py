@@ -22,12 +22,17 @@ def create_share_token(pid: str, body: dict = Body(default={}), db: Session = De
     """Mint a revocable, read-only share token for the project (owner/editor only). The returned token
     string is the shareable credential — anyone with it can read the project's readiness digest.
     `show_payments: true` is the explicit OPT-IN for THIS token's digest to carry the owner-invoice
-    payment schedule (display only); the default digest exposes no financials."""
+    payment schedule (display only); the default digest exposes no financials.
+
+    `show_model: true` is the separate OPT-IN that lets THIS token fetch the project's geometry
+    fragment. Both default to false, and they are independent: a token may carry payments, or
+    geometry, or neither, and granting one never implies the other."""
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     try:
         return client_portal.create_token(db, pid, body.get("label"), actor,
-                                          show_payments=bool(body.get("show_payments")))
+                                          show_payments=bool(body.get("show_payments")),
+                                          show_model=bool(body.get("show_model")))
     except ValueError as e:
         raise HTTPException(409, str(e)) from None
 
@@ -88,6 +93,32 @@ def shared_comment(token: str, body: dict = Body(...), db: Session = Depends(get
         raise HTTPException(404, "not found") from None
     except ValueError as e:
         raise HTTPException(409 if "limit" in str(e) else 422, str(e)) from None
+
+
+@router.get("/shared/{token}/model.frag")
+def shared_model(token: str, db: Session = Depends(get_db)):
+    """R22-PUBLIC-VIEWER — the project's geometry fragment, for a token minted with `show_model`.
+
+    Serves `{pid}/model.frag`: shapes and placements. It does NOT serve the source IFC, which carries
+    every property set, classification and GlobalId — a different and much larger disclosure that
+    "share the model" is easily read as including.
+
+    Unknown token, revoked token, token without the opt-in, and project with no fragment ALL return
+    the same 404. Distinguishing them would reveal whether a token exists, whether it was revoked, and
+    whether a project has a model — three enumeration signals for no benefit to a legitimate viewer.
+
+    No auth dependency by design: the token IS the credential, exactly as for the digest. Revoking
+    stops this immediately, because the check is on the row and not on anything cached.
+    """
+    try:
+        pid, data = client_portal.model_fragment(db, token)
+    except KeyError:
+        raise HTTPException(404, "not found") from None
+    return Response(data, media_type="application/octet-stream",
+                    headers={"Content-Disposition": f'inline; filename="{pid}.frag"',
+                             # A share link is handed to people outside the org; caching geometry in a
+                             # shared proxy would outlive a revocation the row-level check enforces.
+                             "Cache-Control": "private, no-store"})
 
 
 @router.get("/shared/{token}/digest")

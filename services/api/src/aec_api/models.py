@@ -606,6 +606,17 @@ class ShareToken(Base):
     # PORTAL-TXN phase 2: OPT-IN per token — the default digest exposes NO financials; only a token
     # minted with show_payments=True carries the owner-invoice payment schedule (amounts/status).
     show_payments: Mapped[bool] = mapped_column(Boolean, default=False)
+    # R22-PUBLIC-VIEWER: OPT-IN per token, same shape as show_payments and for the same reason. Only a
+    # token minted with show_model=True can fetch `{pid}/model.frag`; the default token cannot see
+    # geometry at all.
+    #
+    # WHAT THIS DOES AND DOES NOT GRANT, because this is the sentence that gets misread later. It
+    # serves the converted **geometry fragment** — shapes and placements. It does NOT serve
+    # `{pid}/source.ifc`, which carries every property set, classification and GlobalId in the model
+    # and is a different disclosure entirely. "Share the model" is ambiguous between those two and the
+    # ambiguity is the risk, so the column is named for the narrow one and the route reads only that
+    # key.
+    show_model: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class ClientDecision(Base):
