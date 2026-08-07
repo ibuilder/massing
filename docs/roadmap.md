@@ -129,26 +129,24 @@ currently fail if either regresses.**
   table, so it still needed an Alembic revision or it would have passed on SQLite and failed on
   every deployed Postgres.
 
-- **Promoted, and it is one mechanism across two entries** — R39-UPLOAD-CAP-APP ① and R41-UPLOAD-WARK. **Neither closes it alone.**
-  Cross-referenced 2026-08-06 after two lanes found the halves independently. The app-level cap
-  **exists** (`_MAX_UPLOAD_BYTES`, 413 from the security middleware), so the entry's claim that the
-  cap "lives only in nginx" is false — but the guard reads `content-length`, and when that header is
-  absent the condition short-circuits and the body is **never measured**. Chunked transfer-encoding
-  is the ordinary HTTP/1.1 case with no `Content-Length`. Meanwhile `storage.py` exposes only
-  `put(key, data: bytes)` with **no streaming variant**, and 36 call sites across 15 routers do
-  `await file.read()` — so the same request is *unmeasured* **and** *fully materialised in memory*.
-  **Bound it from the front (count as chunks arrive) and from the back (a chunked put) or the memory
-  stays open either way.** DoS-shaped, therefore tracked engineering work rather than an incident —
-  recorded so the next reader neither panics nor dismisses it. Reachability detail is in
-  `docs/internal/`, not here: the repo is public.
+- ◧ **PARTLY SHIPPED v0.3.876 (2026-08-07)** — R39-UPLOAD-CAP-APP ① and R41-UPLOAD-WARK. **The
+  front half is closed; the back half has its primitive and no adopters.** The cap existed and
+  decided from `Content-Length`, so a chunked body — the ordinary HTTP/1.1 way to send a body of
+  unknown length — short-circuited the condition and was **never measured at all**.
+  `bodycap.MaxBodySizeMiddleware` now counts bytes on the ASGI `receive` channel, which bounds every
+  route at once rather than a hand-listed set that would be stale the day it was written.
+  `storage.put_stream` is the back half's missing primitive (local `.part`+rename, S3 multipart, both
+  cleaning up on refusal). **What remains: no `await file.read()` call site has been converted**, so
+  a request under the cap is still materialised whole. That is the rest of R41-UPLOAD-WARK.
 
-- **Promoted because the ground moved under it** — R39-THROTTLE-SHARED ① *(M, Lane C)*, re-ranked
-  2026-08-06. `throttle.py` keeps `_HITS` as a plain in-process `dict`, so every worker enforces its
-  own limit and the effective rate is the configured one times the worker count. That was a rounding
-  error when one process served everything; **R39-WORKER-SPLIT (v0.3.869) made a second writer
-  process the supported deployment**, which is precisely the change that turns this from theoretical
-  into arithmetic. An item can become urgent without being edited.
-
+- ✅ **SHIPPED v0.3.876 (2026-08-07)** — R39-THROTTLE-SHARED ①. `throttle.py`'s per-endpoint caps
+  now count through `ratecount`, shared across workers when `AEC_REDIS_URL` is set. The counter is
+  `main.py`'s existing implementation extracted rather than a second one written beside it, which
+  also fixed a real defect by construction: the old bound was a wholesale `clear()` at 10k keys, so
+  a scanner cycling through callers could wipe the limiter's state for every caller it was
+  legitimately throttling. **The lesson is the guard, not the counter** — a boot guard naming
+  `AEC_RATE_LIMIT_RPM` read as covering rate limiting in general, and was silent about the
+  always-on limiter capping `POST /auth/stepup` at 10/min. A generic-sounding gate hid a missing one.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
 
@@ -250,7 +248,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -1551,7 +1549,7 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   plainly: *"We already validate models against an IDS; this is the upstream half."* Closing as
   already built. **The "openBIM gaps complete except the IFC5/IFCX write-path" claim survives this
   test** — IDS was the suspected second gap and it is not one.
-- **R41-UPLOAD-WARK** *(M — Lane C)* — **content-addressed resumable upload in front of object
+- ◨ **R41-UPLOAD-WARK** *(M — Lane C; **the byte-bound half SHIPPED v0.3.876** — `services/api/src/aec_api/bodycap.py` measures the request body instead of trusting `Content-Length`, and `storage.put_stream` gives callers a way to write without holding the object. **The resumable handshake below is untouched, and no upload route has been converted to the streaming write yet** — that is what is left)* — **content-addressed resumable upload in front of object
   storage.** Technique from an MIT-licensed file server (verified from its LICENSE); reimplement the
   handshake rather than adopt the server. Three parts: chunk size chosen so the **chunk *count* stays
   bounded**, keeping the handshake manifest roughly constant regardless of file size — a fixed part
@@ -1734,7 +1732,9 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   **Still open beside it:** `npm run budget` is absent from `.github/workflows/pages.yml` entirely, so
   the public build has neither guard. Being fixed as a follow-up.
 
-- ◧ **R39-UPLOAD-CAP-APP ①** *(S, Lane C — **premise corrected 2026-08-06: an app-level cap DOES
+- ◧ **R39-UPLOAD-CAP-APP ①** *(S, Lane C — **FRONT HALF SHIPPED v0.3.876; the conversion of the
+  36+ `await file.read()` call sites onto `storage.put_stream` remains, and is the rest of
+  R41-UPLOAD-WARK.** premise corrected 2026-08-06: an app-level cap DOES
   exist**, so the item is not "add one" but "make the existing one measure rather than trust")* —
   the entry said the cap lives only in nginx (`client_max_body_size`) and that a deployment exposing
   the API directly has **no cap at all**. That is wrong: `services/api/src/aec_api/main.py` defines
@@ -1767,7 +1767,7 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   end. **Two entries, one mechanism** — fix either in isolation and the other still holds the memory
   open.
 
-- **R39-THROTTLE-SHARED ①** *(M, Lane C — **checked 2026-08-06: accurate and genuinely open**;
+- ✅ **R39-THROTTLE-SHARED ①** *(M, Lane C — **SHIPPED v0.3.876**; checked 2026-08-06: accurate and genuinely open**;
   recorded so the next reader does not re-verify)* — `throttle.py` keeps `_HITS` as a plain
   in-process `dict`, so the per-worker multiplication the entry describes is real and unchanged.
 - **R39-A11Y-JOURNEYS ②** *(M, Lane B)* — keyboard-only acceptance journeys for the seven rooms,

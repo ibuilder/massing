@@ -4,6 +4,70 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.876 — three limits that were not limits
+
+Every fix in this release has the same shape: a guard that existed, ran, and returned a confident
+answer about something it had never looked at.
+
+### The upload cap asked the client how big the body was
+
+`main.security` did reject an oversized upload with a 413 — the roadmap's claim that the cap "lives
+only in nginx" was simply wrong. It decided from a header:
+
+```py
+cl = request.headers.get("content-length")
+if cl and cl.isdigit() and int(cl) > _MAX_UPLOAD_BYTES:
+```
+
+Every term is a way to skip the check, and the first one is the one that mattered: **with no such
+header the expression short-circuits and the body is never measured at all.** `Transfer-Encoding:
+chunked` is the ordinary HTTP/1.1 way to send a body of unknown length — what `curl -T`, most
+streaming clients and any generated-on-the-fly upload do — and it carries no `Content-Length` by
+definition. The guard covered the polite case and nothing else. `cl.isdigit()` is the same hole in
+miniature: a malformed length silently disabled it too.
+
+The bound now counts bytes as they arrive, on the ASGI `receive` channel. That placement is the
+point: it sits below `BaseHTTPMiddleware` (which hands you a request whose body is consumed
+downstream), and it covers **every** route at once — the 36+ `await file.read()` sites span fifteen
+routers, and any hand-listed set of them would have been stale the day it was written. The declared
+length is kept as a fast path but never as the measurement, so a lying or absent header now changes
+only how early a request is refused.
+
+`storage.put_stream` is the other half: writing an object from an iterable of chunks, local via a
+`.part` file renamed at the end, S3 via multipart. Both clean up on refusal, because a truncated
+object at the real key is worse than no object — `exists()` reports it and `size()` returns a
+plausible number. No call site has been converted yet; that work is tracked and the item stays open.
+
+### Two rate limiters, and the boot guard covered one
+
+`throttle.py`'s always-on per-endpoint caps kept a plain in-process dict, so on a multi-worker
+deployment every one of them was silently multiplied by the worker count — including `POST
+/auth/stepup` at 10/min, which is brute-force protection on a human step-up assertion. The per-IP
+limiter beside it already had both a shared Redis counter and a boot guard refusing exactly this
+misconfiguration.
+
+**A boot guard naming `AEC_RATE_LIMIT_RPM` reads as "rate limiting is protected against the
+multi-worker mistake".** It was not; it covered the opt-in limiter and was silent about the
+always-on one. The new guard names throttle buckets explicitly, and the test asserts the two are
+separate checks — if the old guard had ever covered this case, the item was never a gap.
+
+Nothing about this became urgent because it was edited. R39-WORKER-SPLIT (v0.3.869) made a second
+writer process the supported deployment, which turned a rounding error into the deployed
+configuration.
+
+The counter is the existing implementation *extracted*, not a second one written beside it — and
+that fixed a real defect by construction. `throttle.py` bounded memory with a wholesale `clear()`
+at ten thousand keys, so a scanner cycling through callers could wipe the limiter's state for
+everyone it was legitimately throttling. The shared counter evicts the oldest keys instead.
+
+### A record that predates a schema change
+
+Shipped in v0.3.875 and completed here: module records now carry the field shape they were written
+against, and a read reports orphaned and mistyped values instead of rendering them as empty fields.
+The filed prescription — null the payload on any version difference — would have blanked every
+historical record the first time anyone *added* a field, reproducing the exact bug it was meant to
+fix. Severity now derives from the payload, not the version.
+
 ## v0.3.875 — eighty-four commits that were never tagged, and the reason
 
 **This release exists because the previous two did not.** `v0.3.873` was tagged and no release was
