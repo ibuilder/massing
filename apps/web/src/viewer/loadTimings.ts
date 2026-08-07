@@ -29,7 +29,8 @@
 export type LoadOutcome =
   | "ok"          // first frame drawn into a canvas with real dimensions
   | "invisible"   // first frame drawn into a zero-sized canvas — geometry arrived, nobody saw it
-  | "stalled";    // no first frame within the budget; the row exists BECAUSE the load did not finish
+  | "stalled"     // no first frame within the budget; the row exists BECAUSE the load did not finish
+  | "failed";     // the loader rejected the bytes (corrupt / not a .frag)
 
 export interface LoadTimingPayload {
   /** The model's stable id. Never a transient viewer id — see the GUID non-negotiable. */
@@ -89,13 +90,18 @@ export interface TrackerDeps {
  * is what makes the resulting table countable: rows-per-load is 1, so a missing row means a load that
  * never started rather than one that went badly.
  */
-export function trackModelLoad(modelId: string, bytes: number, deps: TrackerDeps) {
+export function trackModelLoad(modelId: string, deps: TrackerDeps) {
   const { send, now } = deps;
   const setTimer = deps.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
   const clearTimer = deps.clearTimer ?? ((h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>));
   const budget = deps.stallBudgetMs ?? STALL_BUDGET_MS;
 
   const t0 = now();
+  // Learned at `fetched()`, not at construction. The tracker has to be armed BEFORE the fetch — a
+  // load that dies downloading is one of the failures this exists to catch — and at that moment
+  // nobody knows the size yet. Hence the `unknown` bucket, which is load-bearing rather than
+  // defensive: it is what a load that never got its bytes is honestly filed under.
+  let bytes = Number.NaN;
   let tFetched: number | null = null;
   let tParsed: number | null = null;
   let done = false;
@@ -125,8 +131,8 @@ export function trackModelLoad(modelId: string, bytes: number, deps: TrackerDeps
   const handle = setTimer(() => emit("stalled", null, null), budget);
 
   return {
-    /** Bytes are on the wire. */
-    fetched() { if (!done && tFetched === null) tFetched = now(); },
+    /** Bytes are on the wire; `n` is how many. */
+    fetched(n: number) { if (!done && tFetched === null) { tFetched = now(); bytes = n; } },
     /** The worker has produced meshes. */
     parsed() { if (!done && tParsed === null) tParsed = now(); },
     /**
@@ -136,7 +142,13 @@ export function trackModelLoad(modelId: string, bytes: number, deps: TrackerDeps
     firstFrame(canvasW: number, canvasH: number) {
       emit(canvasW > 0 && canvasH > 0 ? "ok" : "invisible", canvasW, canvasH);
     },
-    /** Abandoned before finishing (navigated away, load cancelled) — drop it, don't report a stall. */
+    /** The loader rejected the bytes. Distinct from a stall: this one ended, badly and quickly. */
+    failed() { emit("failed", null, null); },
+    /**
+     * Abandoned before finishing — navigated away, or there was no model to load in the first place
+     * (a metadata-only project 404s by design). Drop it: reporting these as stalls would fill the
+     * table with rows about projects that have no geometry.
+     */
     cancel() { done = true; clearTimer(handle); },
   };
 }

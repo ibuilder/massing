@@ -67,8 +67,8 @@ describe("size buckets", () => {
 describe("the happy path", () => {
   it("records each phase as a duration, not a timestamp", () => {
     const h = harness();
-    const tr = trackModelLoad("M1", 5_000_000, h.deps);
-    h.advance(300); tr.fetched();
+    const tr = trackModelLoad("M1", h.deps);
+    h.advance(300); tr.fetched(5_000_000);
     h.advance(700); tr.parsed();
     h.advance(50); tr.firstFrame(800, 600);
 
@@ -82,9 +82,9 @@ describe("the happy path", () => {
 
   it("disarms the stall timer once the frame lands", () => {
     const h = harness();
-    const tr = trackModelLoad("M1", 1_000, h.deps);
+    const tr = trackModelLoad("M1", h.deps);
     expect(h.armed, "the stall timer must be armed before any phase completes").toBe(true);
-    tr.fetched(); tr.parsed(); tr.firstFrame(800, 600);
+    tr.fetched(1_000); tr.parsed(); tr.firstFrame(800, 600);
     expect(h.armed).toBe(false);
     h.advance(10_000);
     expect(h.sent, "a disarmed timer must not add a second row later").toHaveLength(1);
@@ -97,8 +97,8 @@ describe("arrived is not the same as seen", () => {
     // upstream succeeded. A timer that only asked "did a frame happen?" reported it as healthy for
     // weeks, which is why the canvas dimensions are part of the row.
     const h = harness();
-    const tr = trackModelLoad("M1", 2_000_000, h.deps);
-    h.advance(100); tr.fetched();
+    const tr = trackModelLoad("M1", h.deps);
+    h.advance(100); tr.fetched(2_000_000);
     h.advance(100); tr.parsed();
     h.advance(10); tr.firstFrame(0, 493);
 
@@ -112,8 +112,8 @@ describe("arrived is not the same as seen", () => {
     // The positive control. Without it, `outcome === "invisible"` could be true for every load and
     // the test above would still pass.
     const h = harness();
-    const tr = trackModelLoad("M1", 2_000_000, h.deps);
-    tr.fetched(); tr.parsed(); tr.firstFrame(830, 493);
+    const tr = trackModelLoad("M1", h.deps);
+    tr.fetched(2_000_000); tr.parsed(); tr.firstFrame(830, 493);
     expect(h.sent[0]!.outcome).toBe("ok");
   });
 });
@@ -121,8 +121,8 @@ describe("arrived is not the same as seen", () => {
 describe("a load that never finishes still reports", () => {
   it("emits a `stalled` row when no frame arrives within the budget", () => {
     const h = harness(1_000);
-    const tr = trackModelLoad("M1", 100_000_000, h.deps);
-    tr.fetched(); tr.parsed();
+    const tr = trackModelLoad("M1", h.deps);
+    tr.fetched(100_000_000); tr.parsed();
     expect(h.sent, "nothing should be reported before the budget expires").toHaveLength(0);
 
     h.advance(1_000);
@@ -137,26 +137,45 @@ describe("a load that never finishes still reports", () => {
     // Armed before any phase, deliberately: a load that dies mid-fetch is still a stall, and arming
     // the timer at `parsed()` would have missed the earliest failures entirely.
     const h = harness(1_000);
-    trackModelLoad("M1", 5_000, h.deps);
+    trackModelLoad("M1", h.deps);
     h.advance(1_000);
     expect(h.sent).toHaveLength(1);
-    expect(h.sent[0]).toMatchObject({ outcome: "stalled", fetchMs: null, parseMs: null });
+    expect(h.sent[0]).toMatchObject({
+      outcome: "stalled", fetchMs: null, parseMs: null,
+      // The load died before anyone knew the size. Filing it under "<1MB" would drop an unmeasured
+      // load into the fastest band and quietly improve that band's percentiles — so `unknown` is
+      // the honest answer, and this is the case that makes that branch reachable.
+      bucket: "unknown",
+    });
   });
 
   it("a frame arriving after the stall does not add a second row", () => {
     const h = harness(1_000);
-    const tr = trackModelLoad("M1", 5_000, h.deps);
+    const tr = trackModelLoad("M1", h.deps);
     h.advance(1_000);
     tr.firstFrame(800, 600);
     expect(h.sent, "exactly one row per load is what makes the table countable").toHaveLength(1);
     expect(h.sent[0]!.outcome).toBe("stalled");
   });
 
+  it("a rejected .frag is `failed`, not `stalled` — it ended, badly and quickly", () => {
+    // app.ts distinguishes these: corrupt bytes make loadFragments throw, but the same comment notes
+    // the worker can *hang* on unparseable input instead. Those are different failures and conflating
+    // them would hide which one is happening.
+    const h = harness(1_000);
+    const tr = trackModelLoad("M1", h.deps);
+    tr.fetched(9_000); 
+    tr.failed();
+    expect(h.sent[0]!.outcome).toBe("failed");
+    h.advance(10_000);
+    expect(h.sent, "a failure must disarm the stall timer").toHaveLength(1);
+  });
+
   it("cancelling reports nothing at all", () => {
     // An abandoned load is not a stall. Recording one would put navigation noise into the tail of
     // every percentile.
     const h = harness(1_000);
-    const tr = trackModelLoad("M1", 5_000, h.deps);
+    const tr = trackModelLoad("M1", h.deps);
     tr.cancel();
     h.advance(10_000);
     expect(h.sent).toHaveLength(0);
@@ -166,7 +185,7 @@ describe("a load that never finishes still reports", () => {
 describe("best-effort", () => {
   it("a reporter that throws does not break the load", () => {
     const send = vi.fn(() => { throw new Error("network down"); });
-    const tr = trackModelLoad("M1", 1_000, { send, now: () => 0, stallBudgetMs: 1_000 });
+    const tr = trackModelLoad("M1", { send, now: () => 0, stallBudgetMs: 1_000 });
     expect(() => tr.firstFrame(800, 600)).not.toThrow();
     expect(send).toHaveBeenCalledOnce();
   });
