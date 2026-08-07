@@ -105,7 +105,26 @@ function reached(m: string): boolean {
   return false;
 }
 
+/**
+ * Methods that should NOT have a screen, with the condition under which that stops being true.
+ *
+ * This is deliberately not a suppression list for work nobody has got to yet — those belong in the
+ * ceiling, where they stay visible and countable. An entry here is a positive argument that wiring
+ * the method would be a mistake, and it carries the condition that would retire the entry, so it
+ * cannot quietly become permanent.
+ */
+const KNOWN_UNCALLED: Record<string, string> = {
+  // Deletes a captured schedule baseline. R40-EOT ② has just made the NAMED baseline the auditable
+  // input to an extension-of-time figure that ends up in arbitration — slip is measured against it,
+  // and the whole point of sourcing it from the record was that a typed date is unauditable. A
+  // one-click destroy beside that is a footgun, and "it has no caller" is not a reason to give it
+  // one. EXPIRY: wire it once baseline deletion is behind a confirm-and-audit step.
+  clearBaseline: "until baseline deletion is behind a confirm-and-audit step",
+};
+
 const uncalled = surface.filter((m) => !NOT_ENDPOINTS.has(m) && !reached(m));
+/** The countable set: deliberate exclusions are held separately so they cannot pad the ceiling. */
+const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 
 //: CEILING — only ever revised DOWN. The measured value on 2026-08-07, so the set cannot grow
 //: quietly. Wiring a method to a screen lowers it; adding an unreachable endpoint raises it and has
@@ -115,7 +134,20 @@ const uncalled = surface.filter((m) => !NOT_ENDPOINTS.has(m) && !reached(m));
 //: drop by TWO, for `reserveStudy` as well — that was wrong, and the number is why it was caught:
 //: `reserveStudy` already had a caller in `src/proforma/proforma.ts`, so it was never in this set.
 //: Measured by probing rather than derived from what the wiring touched.
-const UNCALLED_CEILING = 131;
+//: 131 -> 129 on 2026-08-07 (UNCALLED-SWEEP, Lane C/G/I). The drop is TWO and was MEASURED by
+//: re-running the reachability scan before and after, not derived from what was wired — the
+//: `reserveStudy` note above is exactly why. `portfolioCompare` gained a caller (the returns spread
+//: on the portfolio panel) and `clearBaseline` moved into KNOWN_UNCALLED, which the countable set
+//: now excludes. Nothing became newly uncalled.
+//:
+//: HOW THIS NUMBER WAS OBTAINED, because it matters for trusting it: `vitest` is not installed in
+//: `apps/web` and the shared clone's `src/api` differs from `origin/main` by ~795 deletions, so this
+//: file could not be executed to produce it. The delta was measured with a static reproduction of
+//: the same predicate against a clean `origin/main` worktree, which counts ~127 where this file
+//: counts 131 — a different population, so its ABSOLUTE is not a valid ceiling input. The DELTA is
+//: sound because both affected methods are present in both populations. If this run reports anything
+//: other than 129, trust this file and not the reasoning above.
+const UNCALLED_CEILING = 129;
 
 describe("client methods the application actually calls", () => {
   it("agrees with a hand-checked sample in BOTH directions", () => {
@@ -142,10 +174,10 @@ describe("client methods the application actually calls", () => {
   });
 
   it("does not grow the set of client methods no screen can reach", () => {
-    expect(uncalled.length,
-      `${uncalled.length} client methods have no caller outside src/api and tests. ` +
+    expect(uncalledCountable.length,
+      `${uncalledCountable.length} client methods have no caller outside src/api and tests. ` +
       `Wire one to a screen (lowers the ceiling) or say in the commit why another unreachable ` +
-      `endpoint is worth shipping. First 25: ${uncalled.slice(0, 25).join(", ")}`)
+      `endpoint is worth shipping. First 25: ${uncalledCountable.slice(0, 25).join(", ")}`)
       .toBeLessThanOrEqual(UNCALLED_CEILING);
   });
 

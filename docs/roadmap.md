@@ -1588,6 +1588,36 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
   dashboard: multi-project KPI strip, cross-project Gantt, EVM PV/EV/AC + SPI/CPI, risk heat map,
   milestone tracking, resource allocation by department, cost-by-project).
 
+## Reach sweep — Lane C/G/I *(2026-08-07)*
+
+**Measured, then acted on.** `UNCALLED_CEILING` **131 → 129**, the drop measured by re-running the
+scan rather than derived from what was wired.
+
+- `portfolioCompare` wired into the portfolio panel as a **returns spread**. The executive roll-up
+  gives a *blended* equity IRR — one number for the whole book, which cannot show that a single deal
+  is carrying it. This gives per-project IRR / multiple / yield-on-cost from each project's latest
+  solved scenario plus best-and-worst. An absent return renders em-dash, never 0%: a project with no
+  solved scenario has not returned zero, and a fabricated zero would take the "worst" slot from a deal
+  that genuinely holds it. **This is the R22-PIPELINE finding landing** — capability present, reach
+  absent — folded into the sweep rather than re-listed as new work.
+- `clearBaseline` → `KNOWN_UNCALLED`, **with an expiry condition**. It deletes a captured schedule
+  baseline, and R40-EOT ② has just made the *named* baseline the auditable input to an extension-of-
+  time figure that ends up in arbitration. A one-click destroy beside that is a footgun, and "it has
+  no caller" is not a reason to give it one. Retires when baseline deletion is behind a
+  confirm-and-audit step.
+
+**The procurement cluster is NOT a missing screen, and this is the correction worth carrying.** The
+sweep's premise is that every uncalled method has a live server route, so the remedy is uniformly
+"build the screen" — verified true for 110 of them. **A live route is not an available input.**
+`buyoutPackages`, `buyoutSchedule`, `procurementLevel` and `procurementLevelQuotes` are POST endpoints
+whose QTO lines must carry `{item, qty, unit, trade}`; the engine **skips any line without an `item`**
+and falls back to a single `"General"` package without a grouping key. Both model-derived sources
+(`qtoByFloor`, `estimateFromModel`) return `{ifc_class, count, unit, quantity, rate, amount}` — **no
+`item`, no trade/csi/material_class/discipline**. Nothing in the client surface returns a
+procurement-shaped line. A screen built on today's sources would render one package called "General"
+and read as "this project has no scope". **These four need a trade classification on QTO lines
+first**; that is the blocking item, not a panel.
+
 ## 🔬 R41 — EXTERNAL SCAN *(27 sources, 2026-08-06; licences read from the LICENSE file, not the README)*
 
 **Why this ring reads differently from the others.** Three of the six code repositories examined carry
