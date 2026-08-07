@@ -137,4 +137,139 @@ export async function renderLedger(ctx: PanelContext) {
     }
   };
   await loadBatches();
+  await renderFinanceGovernance(ctx, pid, root, el);
+}
+
+/**
+ * FIN-GOV / FIN-INGEST — period close, two-way reconciliation, and import lineage.
+ *
+ * WHY THIS IS WORSE THAN AN ORDINARY MISSING SCREEN
+ *     The period lock is not advisory. `PUT /projects/{pid}/finance/lock` closes the books through a
+ *     month, and from then on **every finance-module mutation dated into a closed month is refused
+ *     with a 409** — routes, imports and internal flows alike. That enforcement shipped and worked.
+ *     What never shipped was any way to see the lock or set it.
+ *
+ *     So the constraint was live and its control was invisible: a user posting a cost into a closed
+ *     month got a 409 with nothing in the interface that would explain why, and no way to open the
+ *     period. An unreachable feature is a feature nobody can use; an unreachable *control over an
+ *     enforced rule* is a feature that actively blocks people. That is the sharper end of the same
+ *     defect, and the reason this group was worth taking first.
+ *
+ * All four `/finance` client methods were in the uncalled set — the whole domain had no path in.
+ */
+async function renderFinanceGovernance(
+  ctx: PanelContext, pid: string, root: HTMLElement,
+  el: (t: string, c?: string) => HTMLElement,
+) {
+  const api = ctx.host.api;
+  const head = el("div"); head.style.cssText = "margin-top:14px;font-weight:600";
+  head.textContent = "Period close & reconciliation";
+  root.appendChild(head);
+
+  // --- the lock ---------------------------------------------------------------------------------
+  const lockRow = el("div", "meta");
+  lockRow.style.cssText = "display:flex;gap:8px;align-items:center;margin:4px 0 8px;flex-wrap:wrap";
+  root.appendChild(lockRow);
+  const paintLock = async () => {
+    lockRow.textContent = "";
+    let lock;
+    try { lock = await api.financeLock(pid); }
+    catch (e) { lockRow.textContent = `lock status unavailable: ${(e as Error).message}`; return; }
+    const state = el("span");
+    state.style.fontWeight = "600";
+    // Says what it MEANS, not just the date: "closed through 2026-06" is only actionable if you know
+    // that postings into it will be refused.
+    state.textContent = lock.lock_date
+      ? `Books closed through ${lock.lock_date} — postings dated on or before it are refused`
+      : "Books open — no period is closed";
+    lockRow.append(state);
+    if (lock.lock_date && (lock.set_by || lock.note)) {
+      const who = el("span"); who.className = "meta";
+      who.textContent = `set by ${lock.set_by ?? "?"}${lock.note ? ` · ${lock.note}` : ""}`;
+      lockRow.append(who);
+    }
+    const set = el("button", "file-btn"); set.textContent = lock.lock_date ? "Change close date" : "Close a period";
+    set.onclick = async () => {
+      const v = await promptModal("Close the books", [
+        { name: "date", label: "Close through (YYYY-MM or YYYY-MM-DD)", required: true },
+        { name: "note", label: "Note (why)" },
+      ], "Close");
+      if (!v) return;
+      try {
+        await api.setFinanceLock(pid, (v.date ?? "").trim(), v.note ?? "");
+        toast("period closed", "success"); await paintLock();
+      } catch (e) { toast(`could not close: ${(e as Error).message}`, "error"); }
+    };
+    lockRow.append(set);
+    if (lock.lock_date) {
+      const clear = el("button", "file-btn"); clear.textContent = "Reopen";
+      clear.title = "Clear the lock so postings into the closed period are accepted again";
+      clear.onclick = async () => {
+        try { await api.setFinanceLock(pid, null, "reopened"); toast("period reopened", "success"); await paintLock(); }
+        catch (e) { toast(`could not reopen: ${(e as Error).message}`, "error"); }
+      };
+      lockRow.append(clear);
+    }
+  };
+  await paintLock();
+
+  // --- reconciliation ---------------------------------------------------------------------------
+  const rec = el("div"); root.appendChild(rec);
+  try {
+    const r = await api.financeReconcile(pid);
+    const c = r.counts;
+    const line = el("div", "meta");
+    // The counts are reported separately on purpose. The server matches budget and actuals BOTH ways
+    // and never nets them, because a budget line with no actual and an actual with no budget are
+    // different problems — netting them to one variance hides both.
+    line.innerHTML = `<b>${c.matched}</b> matched · <b>${c.budget_only}</b> budget with no actual · `
+      + `<b>${c.actuals_only}</b> actual with no budget · <b>${c.uncoded}</b> uncoded`
+      + (r.fully_reconciled ? " — fully reconciled" : "");
+    rec.appendChild(line);
+    // Actuals with no budget and uncoded actuals are the two that cost money; show those, highest
+    // value first (the server already sorts them that way).
+    for (const row of r.actuals_only.slice(0, 6)) {
+      const d = el("div", "meta");
+      d.style.cssText = "display:flex;gap:8px;border-top:1px solid var(--line);padding:3px 0";
+      d.append(
+        Object.assign(document.createElement("span"), { textContent: row.cost_code ?? "(no cost code)", style: "flex:1" }),
+        Object.assign(document.createElement("span"), { textContent: "no budget" }),
+        Object.assign(document.createElement("span"), { textContent: cmoney(row.actual ?? 0) }),
+      );
+      rec.appendChild(d);
+    }
+    for (const u of r.uncoded.slice(0, 6)) {
+      const d = el("div", "meta");
+      d.style.cssText = "display:flex;gap:8px;border-top:1px solid var(--line);padding:3px 0";
+      d.append(
+        Object.assign(document.createElement("span"), { textContent: `${u.ref ?? u.module} — uncoded`, style: "flex:1" }),
+        Object.assign(document.createElement("span"), { textContent: esc(u.vendor ?? "") }),
+        Object.assign(document.createElement("span"), { textContent: cmoney(u.amount ?? 0) }),
+      );
+      rec.appendChild(d);
+    }
+  } catch (e) {
+    rec.innerHTML = `<div class="meta">reconciliation unavailable: ${esc((e as Error).message)}</div>`;
+  }
+
+  // --- where the numbers came from --------------------------------------------------------------
+  try {
+    const imports = await api.financeImports(pid);
+    if (imports.length) {
+      const h = el("div"); h.style.cssText = "margin-top:10px;font-weight:600;font-size:12.5px";
+      h.textContent = "Import lineage";
+      root.appendChild(h);
+      for (const b of imports.slice(0, 8)) {
+        const d = el("div", "meta");
+        d.style.cssText = "display:flex;gap:8px;border-top:1px solid var(--line);padding:3px 0";
+        d.append(
+          Object.assign(document.createElement("span"), { textContent: b.filename || "(no file)", style: "flex:1" }),
+          Object.assign(document.createElement("span"), { textContent: b.module }),
+          Object.assign(document.createElement("span"), { textContent: `${b.imported} rows${b.error_count ? ` · ${b.error_count} errors` : ""}` }),
+          Object.assign(document.createElement("span"), { textContent: `${b.actor ?? "?"} ${b.ts ?? ""}` }),
+        );
+        root.appendChild(d);
+      }
+    }
+  } catch { /* lineage is context, not a blocker — a project with no imports has none */ }
 }
