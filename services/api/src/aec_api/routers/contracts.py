@@ -31,9 +31,48 @@ def esign_status(_: str = Depends(current_user)):
 
 
 @router.get("/scope-library")
-def scope_library_list(_: str = Depends(current_user)):
-    """The scope-of-work clause library used to compose Exhibit A (ids + titles, grouped by category)."""
-    return {"clauses": scope_library.library()}
+def scope_library_list(division: str | None = None, trade: str | None = None,
+                       _: str = Depends(current_user)):
+    """The scope-of-work clause library used to compose Exhibit A (ids + titles, no bodies).
+
+    `division` (a CSI MasterFormat key) or `trade` (which resolves to one) narrows the catalog to that
+    division plus the universal clauses. The filter is not a nicety: the library carries 249 clauses
+    across 21 divisions, and an unnarrowed composer asks somebody to pick a subcontract exhibit out of
+    a list where 95% of the entries belong to other trades.
+
+    `trade` is resolved server-side rather than by the caller so the mapping lives in one place; an
+    unrecognised trade returns the whole catalog rather than an empty one, which is the same
+    fall-back `default_ids` makes.
+    """
+    div = division or scope_library.division_for_trade(trade)
+    return {"clauses": scope_library.library(div),
+            "division": div, "division_name": scope_library.division_name(div),
+            "divisions": sorted({c["division"] for c in scope_library.CLAUSES if c.get("division")})}
+
+
+@router.get("/scope-library/exhibit")
+def scope_library_exhibit(trade: str | None = None, clauses: str | None = None,
+                          _: str = Depends(current_user)):
+    """Assemble a scope of work: the clauses that would go into Exhibit A, numbered, with bodies.
+
+    This is the read-only half of the exhibit that `document.pdf?doc=exhibit` renders, and it exists
+    so the composer can show what it is about to produce **before** a PDF is generated and attached to
+    a record. It takes the same `clauses` override and the same trade default, so what is previewed
+    here and what is signed there come from one code path rather than two that drift.
+
+    Only exhibit categories are returned — inclusions, exclusions, clarifications. The conditions
+    clauses belong to the agreement body, not to Exhibit A, and returning them here would invite a
+    caller to render them twice in one contract package.
+    """
+    ids = [c for c in (clauses or "").split(",") if c] or scope_library.default_ids(trade)
+    picked = [c for c in scope_library.clauses_by_ids(ids)
+              if c["category"] in scope_library.EXHIBIT_CATEGORIES]
+    return {"trade": trade,
+            "division": (div := scope_library.division_for_trade(trade)),
+            "division_name": scope_library.division_name(div),
+            "clauses": scope_library.numbered(picked),
+            "counts": {cat: sum(1 for c in picked if c["category"] == cat)
+                       for cat in sorted({c["category"] for c in picked})}}
 
 
 @router.get("/projects/{pid}/contracts/{key}/{rid}/document.pdf")

@@ -25,10 +25,18 @@ THE THREE WAYS THIS COULD BREAK QUIETLY, each asserted below:
 
 Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_scope_library.py
 """
+import os
 import sys
 
-from aec_api import scope_library as sl
-from aec_data.disciplines import MF_DIVISIONS
+os.environ["DATABASE_URL"] = "sqlite:///./test_scope_library.db"
+os.environ["STORAGE_DIR"] = "./test_storage_scope_library"
+os.environ.pop("AEC_RBAC", None)
+for _f in ("./test_scope_library.db",):
+    if os.path.exists(_f):
+        os.remove(_f)
+
+from aec_api import scope_library as sl  # noqa: E402
+from aec_data.disciplines import MF_DIVISIONS  # noqa: E402
 
 failures: list[str] = []
 
@@ -132,6 +140,76 @@ check("numbering preserves the order it was given",
 check("...and numbered() does not mutate the clauses it was handed",
       all("number" not in c for c in _given),
       "the shared library dicts were written through — every later caller inherits stale numbers")
+
+# --- the routes, over HTTP -----------------------------------------------------------------------
+# Asserted through TestClient and `/openapi.json` rather than by walking `app.routes`: this app builds
+# its routers lazily, so `app.routes` reports wrapper objects with no real paths and a live route
+# reads as missing. The generated schema is what a client actually sees.
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
+
+with TestClient(app) as client:
+    paths = client.get("/openapi.json").json()["paths"]
+    check("both scope routes are published in the schema",
+          {"/scope-library", "/scope-library/exhibit"} <= set(paths),
+          f"missing {sorted({'/scope-library', '/scope-library/exhibit'} - set(paths))}")
+
+    full = client.get("/scope-library")
+    check("GET /scope-library answers", full.status_code == 200, f"{full.status_code} {full.text[:120]}")
+    all_clauses = full.json()["clauses"]
+    check("...with the whole catalog when unfiltered", len(all_clauses) > 200, f"{len(all_clauses)}")
+    check("...and reports the divisions available to filter by",
+          len(full.json()["divisions"]) >= 15, str(full.json()["divisions"])[:80])
+
+    narrowed = client.get("/scope-library", params={"trade": "Plumbing"}).json()
+    # The property is "no OTHER trade's clauses", not a ratio. An earlier version of this asserted
+    # `< 1/3 of the catalog` and failed at 85/249 — the code was right and the bar was invented. The
+    # universal clauses (62) and the curated conditions (13) are deliberately offered alongside every
+    # division, so a correct narrowing is still most of what a composer shows.
+    other_div = sorted({c["division"] for c in narrowed["clauses"]
+                        if c.get("division") and c["division"] != "22"})
+    check("?trade= excludes every other division's clauses", not other_div,
+          f"pulled divisions {other_div} into a plumbing composer")
+    check("...and is meaningfully smaller than the whole catalog",
+          len(narrowed["clauses"]) < len(all_clauses),
+          f"{len(narrowed['clauses'])} of {len(all_clauses)} — the filter did nothing")
+    check("...while still offering the universal clauses that apply to every trade",
+          sum(1 for c in narrowed["clauses"] if not c.get("division")) > 30,
+          "narrowing dropped the general requirements a subcontract still needs")
+    check("...and resolves the trade to its division for the caller",
+          narrowed["division"] == "22" and narrowed["division_name"] == MF_DIVISIONS["22"],
+          f"{narrowed['division']!r}/{narrowed['division_name']!r}")
+    check("an UNKNOWN trade returns the full catalog rather than an empty one",
+          len(client.get("/scope-library", params={"trade": "Basketweaving"}).json()["clauses"])
+          == len(all_clauses),
+          "an empty composer reads as 'no clauses exist' rather than 'we could not map that trade'")
+
+    ex = client.get("/scope-library/exhibit", params={"trade": "Plumbing"})
+    check("GET /scope-library/exhibit answers", ex.status_code == 200,
+          f"{ex.status_code} {ex.text[:120]}")
+    body = ex.json()
+    check("the exhibit is assembled and numbered",
+          body["clauses"] and all(c.get("number") for c in body["clauses"]),
+          f"{len(body.get('clauses', []))} clauses")
+    check("...carries bodies, so the composer can preview what will be signed",
+          all(c.get("body", "").strip() for c in body["clauses"]))
+    check("...contains ONLY exhibit categories — conditions belong to the agreement body",
+          {c["category"] for c in body["clauses"]} <= sl.EXHIBIT_CATEGORIES,
+          f"{sorted({c['category'] for c in body['clauses']})} — a caller would render these twice "
+          f"in one contract package")
+    check("...and says what is NOT included, not just what is",
+          body["counts"].get("Exclusions", 0) > 0, str(body["counts"]))
+    # Derived from the library rather than hand-picked: a literal id here would silently stop
+    # exercising the override the day that clause is renamed, and the check would still pass.
+    _two = [c["id"] for c in sl.CLAUSES if c["category"] in sl.EXHIBIT_CATEGORIES][:2]
+    picked = client.get("/scope-library/exhibit", params={"clauses": ",".join(_two)}).json()
+    check("an explicit clause list overrides the trade default",
+          [c["id"] for c in picked["clauses"]] == _two,
+          f"asked for {_two}, got {[c['id'] for c in picked['clauses']]}")
+    check("...and the preview path is the same one the signed PDF renders from",
+          set(sl.default_ids("Plumbing")) >= {c["id"] for c in body["clauses"]},
+          "the preview showed clauses document.pdf would not — two code paths that can drift")
 
 print(f"\ntest_scope_library {'OK' if not failures else 'FAILED: ' + ', '.join(failures)}")
 sys.exit(1 if failures else 0)
