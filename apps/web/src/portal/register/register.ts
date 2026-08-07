@@ -8,6 +8,7 @@ import { confirmModal, modalShell, promptModal } from "../../ui/modal";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "../offlineQueue";
 import type { PanelContext } from "../panelContext";
 import { pushRecent } from "../prefs";
+import { schemaStaleBanner } from "./schemaStale";
 
 /**
  * How many records of a referenced module are fetched to build the id→label map for a table.
@@ -1747,6 +1748,12 @@ export class RegisterUI {
       link("superseded by", r.revision.superseded_by);
       head.appendChild(rev);
     }
+    // R41-SCHEMA-STALE: this record's payload no longer means what the register's current schema
+    // says. Named here rather than left to the field list, because the field list is exactly where
+    // the failure HIDES — an orphaned value renders as an empty field, indistinguishable from one
+    // nobody filled in. The banner itself is a pure function so it can be tested on its rendering.
+    const staleWarn = schemaStaleBanner(r.schema, r.data);
+    if (staleWarn) head.appendChild(staleWarn);
     this.ctx.root.appendChild(head);
 
     const tools = document.createElement("div"); tools.style.cssText = "display:flex;gap:6px;margin:4px 0;flex-wrap:wrap";

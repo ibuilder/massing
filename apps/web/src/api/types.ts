@@ -336,6 +336,16 @@ export interface ModuleRecord {
   data: Record<string, unknown>;
   data_refs?: Record<string, RecordBrief>;   // resolved reference fields
   revision?: { number: number; revises: RecordBrief | null; superseded_by: RecordBrief | null };
+  //: R41-SCHEMA-STALE. Sent on EVERY read, not only when something is wrong — a key that appears
+  //: only on failure is indistinguishable from a key the server forgot to send. `stale` means this
+  //: record's payload no longer means what the current schema says: `orphaned` values belong to
+  //: fields that were renamed or removed (unreachable from the form), `mistyped` ones no longer
+  //: match their declared type. `changed` alone is NOT stale — an added field leaves old records
+  //: correct, and flagging those would train everyone to ignore the badge.
+  schema?: {
+    version: string; stored: string | null; changed: boolean; epoch_behind: boolean;
+    orphaned: string[]; mistyped: string[]; stale: boolean;
+  };
   attachments?: RecordAttachmentMeta[];
   activity?: { ts: string; actor: string; party: string; action: string; detail: unknown }[];
   comments?: { author: string | null; text: string; created_at: string }[];

@@ -1051,6 +1051,18 @@ body.embed #workspaces { display: none; }
 .insp-warn { margin-top: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
   background: var(--panel2); }
 
+/* R41-SCHEMA-STALE — a record whose stored values no longer match the register's current fields.
+   Uses --status-warn rather than --status-crit on purpose: nothing is broken and no data is lost,
+   but a value is unreachable from the form and the reader has to be told, because the alternative
+   rendering is an empty field that looks like one nobody filled in. Left-rule rather than a filled
+   panel so it sits under the title without competing with the workflow badge beside it. */
+.portal-schema-stale { margin-top: 8px; padding: 7px 10px; border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--status-warn) 40%, var(--line));
+  border-left: 3px solid var(--status-warn); background: var(--panel2); font-size: 12px; }
+.portal-schema-stale ul { margin: 4px 0 0 0; padding-left: 18px; }
+.portal-schema-stale code { font-size: 11px; }
+.portal-schema-stale .meta { margin-top: 5px; }
+
 /* The way back to the five-room project home from any workspace that is not it. Sits in the tab
    strip so it reads as navigation rather than an alert — nothing is wrong, you are just somewhere
    else. Muted until hovered: it must be findable without competing with the workspace you chose. */
