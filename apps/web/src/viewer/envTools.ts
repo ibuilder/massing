@@ -161,7 +161,7 @@ export function installEnvTools(d: EnvToolsDeps): { isRenderOn: () => boolean } 
     if (levelObjs.length) { for (const o of levelObjs) d.viewer.world.scene.three.remove(o); levelObjs.length = 0; b.classList.remove("on"); void d.loader.fragments.core.update(true); return; }
     const pid = d.projectId();
     if (!pid) { d.notify("connect a project for storey levels", "error"); return; }
-    let storeys: { name: string | null; elevation: number; guid: string }[] = [];
+    let storeys: { name: string | null; elevation: number; guid: string }[];
     try { storeys = await d.api.drawingStoreys(pid); } catch { d.notify("no storeys (needs source IFC)", "error"); return; }
     // The MODEL, not the scene. Walking the scene expanded over the 2000x2000 shadow-catcher plane
     // `world.ts` adds in presentation mode, so every storey grid was sized ~2200 m across a building
