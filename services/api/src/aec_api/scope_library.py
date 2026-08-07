@@ -145,6 +145,26 @@ def clauses_by_ids(ids: list[str]) -> list[dict[str, Any]]:
     return [_BY_ID[i] for i in ids if i in _BY_ID]
 
 
+def exhibit_clauses(clause_ids: list[str] | None, trade: str | None) -> list[dict[str, Any]]:
+    """The clauses that belong in Exhibit A. **The** authority — every renderer reads this one.
+
+    Extracted when the third caller appeared, which was the agreed trigger: the PDF and the preview
+    route each applied this filter inline, and the DOCX export would have been a third copy. Two
+    copies is how the original defect happened — the route filtered, `_exhibit_flowables` did not, and
+    a plumbing subcontract printed 31 clauses into a signed PDF against 11 in the preview, with 20 of
+    them duplicated from Article 3.
+
+    The filter is unconditional, including over an explicitly supplied `clause_ids`: a caller chooses
+    *which* clauses, never which document a category belongs in. Exhibit A owns Scope, Exclusions and
+    Clarifications; the agreement body owns the conditions; neither owns both.
+
+    Order is `default_ids`' order, or the caller's if they supplied one — this selects, it does not
+    sort, because a renumbered exhibit invalidates clause references already cited in negotiation.
+    """
+    ids = clause_ids or default_ids(trade)
+    return [c for c in clauses_by_ids(ids) if c["category"] in EXHIBIT_CATEGORIES]
+
+
 def numbered(clauses: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Attach a stable `number` (`1.`, `1.1`, `1.2`, `2.`, ...) grouped by category.
 

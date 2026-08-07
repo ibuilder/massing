@@ -87,7 +87,6 @@ def _signature_block(ss, parties: list[tuple[str, str]], signatures: list[dict])
 # --- documents ---------------------------------------------------------------
 def _exhibit_flowables(ss, ctx: dict, clause_ids: list[str] | None):
     from reportlab.platypus import Paragraph, Spacer
-    ids = clause_ids or sl.default_ids(ctx.get("trade"))
     # Exhibit A owns scope, exclusions and clarifications; Article 3 of the agreement owns the
     # conditions. Without this filter the exhibit rendered EVERYTHING in `ids`, which produced two
     # defects at once for a plumbing subcontract: 31 clauses in the signed PDF against 11 in the
@@ -98,7 +97,7 @@ def _exhibit_flowables(ss, ctx: dict, clause_ids: list[str] | None):
     # `clause_ids`: one authority decides what belongs in an exhibit, not the caller.
     out = [Paragraph("Exhibit A — Scope of Work", ss["DocTitle"]),
            Paragraph(f"{ctx['project']} · {ctx['vendor']}", ss["Sub"])]
-    for c in (x for x in sl.clauses_by_ids(ids) if x["category"] in sl.EXHIBIT_CATEGORIES):
+    for c in sl.exhibit_clauses(clause_ids, ctx.get("trade")):
         out.append(Paragraph(sl.merge(c["title"], ctx), ss["H"]))
         out.append(Paragraph(sl.merge(c["body"], ctx), ss["Body"]))
     if len(out) <= 2:
@@ -187,6 +186,19 @@ def change_order(db: Session, key: str, pid: str, rid: str, clause_ids: list[str
 def exhibit(db: Session, key: str, pid: str, rid: str, clause_ids: list[str] | None = None) -> bytes:
     _, _, ctx = _context(db, key, pid, rid)
     return _build(_exhibit_flowables(_styles(), ctx, clause_ids))
+
+
+def exhibit_docx(db: Session, key: str, pid: str, rid: str,
+                 clause_ids: list[str] | None = None) -> bytes:
+    """Exhibit A as an editable Word document — the copy a subcontractor redlines and returns.
+
+    Shares `_context` with the PDF, so the merge fields resolve identically. A clause whose wording
+    differs between the Word copy and the signed PDF is a dispute waiting to happen, and one context
+    builder is the only thing that prevents it.
+    """
+    from . import scope_docx  # noqa: PLC0415 — only this doc needs it
+    _, _, ctx = _context(db, key, pid, rid)
+    return scope_docx.build(ctx, clause_ids)
 
 
 def asi_instruction(db: Session, key: str, pid: str, rid: str, clause_ids: list[str] | None = None) -> bytes:
