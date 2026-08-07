@@ -1429,23 +1429,27 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
   computation over caller-supplied values — it neither reads nor writes the model."* A UI must gather
   variables from the selection, call solve, and apply the result back through an edit recipe.
 
-  **CORRECTED 2026-08-07 — the write path does NOT already exist, and this entry said it did.** The
-  first version of this note claimed "one element's parameters can be written with the edit path that
-  already exists", and the decision to do within-element first was taken partly on that. Checked
-  against the recipes rather than assumed:
+  **The instance-level write path DOES exist** — `services/data/src/aec_data/edit.py`'s `RECIPES`
+  table has **14 entries keyed by `p["guid"]`**, a single element rather than a type. The relevant
+  ones: `set_extrusion_depth(guid, depth)`, `set_wall_thickness(guid, thickness)`,
+  `set_wall_slope(guid, start_height, end_height)`, `move_element(guid, dx, dy, dz)` and
+  `set_element_pset(guid, pset, prop, value, dtype)`.
 
-  - `edit_type_params` operates on a **type** (`edit_type_params(model, type_guid, …)` in
-    `services/data/src/aec_data/families.py`), so writing through it moves **every instance of that
-    type** — the opposite of a single-element lock.
-  - `set_pset_on_class` writes across a whole IFC class; `set_storey_elevation` is storey-specific.
-  - `services/data/src/aec_data/instance_props.py` can *read* effective properties and *reset* one to
-    its type, but cannot set an instance value.
+  *This entry claimed the opposite for one revision, and the way it went wrong is the reusable part.*
+  The functions that ARE the wrong granularity are easy to find by name — `edit_type_params` (type),
+  `set_pset_on_class` (class), `set_storey_elevation` (storey), `instance_props` (read + reset only) —
+  and a grep for guessed setter names finds exactly those and stops. The guid-keyed writes live in a
+  **dispatch table**, not under names anyone would guess. **If a claim is load-bearing, enumerate the
+  whole table rather than the functions you can name.**
 
-  **There is no single-instance dimensional write path at all.** So within-element is still the
-  smaller build — one element, no multi-select semantics, no cross-element identity — but it is not
-  free of a prerequisite: it needs a new instance-level parameter recipe, and that lives in **Lane D**
-  (`services/data/src/aec_data/`), not Lane E. The read/solve half is Lane E and can proceed
-  independently; the apply half must be sequenced with D.
+  **So the remaining work is a MAPPING, not a capability.** `solve()` returns named scalars, and
+  something must decide that `thickness` on a wall writes through `set_wall_thickness(guid, …)` while
+  `depth` on a column writes through `set_extrusion_depth(guid, …)`. That mapping is the substance of
+  Apply; it is Lane E/C work and needs no new recipe.
+
+  **Where a variable has no recipe, refuse that one BY NAME and apply the rest.** A partial apply that
+  says which locks it could not write is honest; one that silently drops them is the
+  `suggestion_clears_horizon` failure in a new place — a result that looks complete and is not.
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
