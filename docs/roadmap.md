@@ -201,28 +201,76 @@ instances:
   *Recorded as unreachable in the module's own header so it cannot be mistaken for shipped
   capability — the mistake this band exists to catch.*
 
-- ◧ **R22-PUBLIC-VIEWER** *(M — Lane E; **premise corrected 2026-08-06, and it was wrong on both
-  halves**)* — a share link that opens the model read-only for someone with no account.
+- ✅ **R22-PUBLIC-VIEWER — SHIPPED v0.3.878 (#270).** The decision this entry was waiting on was
+  taken 2026-08-07: **a share token may serve model geometry, as a per-token opt-in, never a
+  default** — following the `show_payments` precedent exactly. `ShareToken.show_model` defaults
+  false, so no link already sent was widened retroactively.
 
-  The entry said *"what is missing is the scoped, revocable token and a route that honours it"*.
-  **Both exist.** `services/api/src/aec_api/models.py` defines `ShareToken` — project-scoped, soft
-  **revocable** (`revoked`, and revoking stops access immediately), audited
-  (`last_viewed_at`, `view_count`), with the token string itself as the credential. And
-  `services/api/src/aec_api/routers/client_portal.py` already has `create_share_token`,
-  `list_share_tokens`, `revoke_share_token`, plus **four routes that honour a token**:
-  `shared_decision`, `shared_comment`, `shared_digest`, `shared_page`.
+  The scope line that mattered: the token serves the converted **fragment**, never the source IFC.
+  "Share the model" reads as either, and the wide reading discloses every property set,
+  classification and GlobalId in the project — a much larger disclosure than was approved. There is
+  a test that fails if the source IFC ever becomes reachable through a token.
 
-  **What is actually missing is smaller in code and larger in decision.** No token route serves
-  **model geometry** — the `.frag` path is not reachable behind a token. And the token's scope is
-  deliberately *"a curated project digest (readiness only; no record-level data)"*, so serving the
-  model through it is **not a route, it is a scope change**: a model is record-level data by any
-  reading of that sentence, and the `PORTAL-TXN` precedent is that widening a token's reach is
-  **opt-in per token**, not a default.
+  All four refusals — unknown token, revoked token, token without the opt-in, project with no
+  published fragment — return an identical 404 body. Distinguishing them would tell an attacker
+  whether a token exists, whether it was revoked, and whether a project has a model.
 
-  So the residue is: **(1) a decision** on whether a share token may expose model geometry at all,
-  and if so under what per-token opt-in — *this is the user's or the release holder's call, not a
-  build*; **(2) then** a `shared_model` route and a viewer entry that runs read-only from a token.
-  Sized M on the old premise; the build half is nearer S once the decision exists.
+- ◧ **QTO-TRADE — the four procurement methods cannot be wired at all, and this is why.** *(backend;
+  blocks `buyoutPackages`, `procurementLevel`, `procurementLevelQuotes` and their sibling)*
+
+  **Two agents reached this independently, from different directions, on 2026-08-07** — one from the
+  input shape, one from the bid-submission side — and both refused to guess. That convergence is
+  what promotes it from a wiring backlog item to a backend finding.
+
+  `services/api/src/aec_api/procurement.py` resolves a line's identity as
+  item-or-description-or-material and **skips any line where all three are absent**. Both
+  model-derived QTO sources return ifc_class / count / unit / quantity / rate / amount — none of
+  those three, and no grouping key. Feeding the engine the exact shape the by-floor QTO produces
+  returns zero packages and zero cost. A screen over today's inputs would render
+  **"Buyout — 0 packages"**, which reads as *this model has nothing to buy out* rather than
+  *this input is incompatible*.
+
+  **The generalisation matters more than the fix:** the reach sweep proved 110 of 110 parseable
+  client methods have live server routes, and reachability was allowed to follow from that. It does
+  not. **Route existence and input adequacy are different questions**, and the sweep only ever
+  measured the first. The blocking work is a trade classification for QTO lines — backend, not UI.
+
+- ◧ **RATCHET-SET — the uncalled ceiling is a scalar with no floor, and it loosened silently today.**
+  *(S; `apps/web/src/api/clientCallers.test.ts`)*
+
+  The assertion is measured-less-than-or-equal-to-ceiling. **Nothing asserts the ceiling is tight**,
+  so a *higher* literal always passes. On 2026-08-07 five PRs lowered that one line from four
+  different bases; two live instances were caught only by hand: #254 carried 129 onto a main at 128,
+  and #273 carried 123 onto a main at 117 — each would have raised the ceiling with every gate green
+  and nobody able to see it.
+
+  **Merge sequencing does not fix this.** It decides *which* number lands, not whether it is true:
+  two PRs measured against one base are both correct until either merges, and then the second is
+  wrong. The second must **re-measure**, not rebase.
+
+  Replace the scalar with the committed **set of uncalled method names**, asserted equal. Tight by
+  construction (set equality has no loose direction); merge-friendly (two PRs reaching different
+  methods delete different lines instead of fighting over one); and strictly more informative — a
+  method moving into the known-uncalled exclusion becomes a visible line move rather than an
+  invisible population change.
+
+  **It does not fix the deeper problem and should not be sold as doing so.** A name leaving the list
+  still only proves a call site appeared, not that the feature works — a caller wired to an
+  incompatible input lowers the number while every gate stays green. That needs a second check:
+  a reach PR should show its endpoint returning real data with the arguments its own caller sends.
+
+- ◧ **BOE-MAPPING-DEDUP — the estimate-to-BoE mapping has more than one implementation.** *(S)*
+
+  The cost-code and total mappings are re-derived client-side where the seam already exists
+  server-side in `services/api/src/aec_api/commercial_drift.py`. One duplicate was removed in
+  v0.3.879 (the per-record BoE view in `apps/web/src/portal/register/register.ts`); a second remains
+  for the confidence reading, now called from both the register and
+  `apps/web/src/portal/panels/budget.ts`. Panels should call the seam rather than re-derive it.
+
+  Booked deliberately rather than paid under time pressure: both copies were already merged when the
+  duplication was diagnosed, and cutting one mid-flight would have moved the reach ceiling again on
+  the files that batch was already fighting over.
+
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
@@ -282,7 +330,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
@@ -783,7 +831,7 @@ stakes we are missing.
   surfaces), and `me.TABLES[key]` is a Core `Table`, so columns are `t.c.*`. The register also had to
   be loaded explicitly outside the app lifespan — the same trap as a `TestClient` built outside a
   `with` block, where every module reads as absent and the failure looks like a missing feature.
-- ◧ **R22-PUBLIC-VIEWER** — *(sized **M**, not S; see the Band 2 entry, which is the live one — its premise was corrected 2026-08-06: the scoped, revocable token and the routes honouring it ALREADY EXIST.)* This
+- ✅ **R22-PUBLIC-VIEWER — SHIPPED v0.3.878 (#270)**, per-token opt-in; see the Band 2 record. *(was sized **M**, not S; see the Band 2 entry, which is the live one — its premise was corrected 2026-08-06: the scoped, revocable token and the routes honouring it ALREADY EXIST.)* This
   line is the original scan's one-sentence estimate. It called the item S because it counted the
   viewer, which exists; the Band 2 entry counted the **scoped revocable token and a route that
   honours it**, which do not. Two sizes for one ID is a prioritisation bug, not a rounding
