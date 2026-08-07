@@ -15,7 +15,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import errorlog, metrics, otel, sentry
+from . import errorlog, metrics, otel, ratecount, sentry
 from .bodycap import MaxBodySizeMiddleware
 from .db import SessionLocal, init_db
 from .routers import (
@@ -148,6 +148,36 @@ def _rate_limit_is_per_worker() -> bool:
     return rpm > 0 and _worker_count() > 1 and not os.environ.get("AEC_REDIS_URL", "").strip()
 
 
+def _tuned_throttle_buckets() -> list[str]:
+    """Buckets whose cap an operator has SET explicitly, via AEC_THROTTLE_<BUCKET>_RPM.
+
+    R39-THROTTLE-SHARED. `throttle.py`'s per-endpoint caps are always on, and until v0.3.876 they
+    were counted per process — so on a multi-worker deployment every one of them was silently N x
+    its stated value. The guard above covers `AEC_RATE_LIMIT_RPM` only, which is exactly how this
+    stayed invisible: **a boot guard about "the rate limit" reads as covering rate limiting.**
+
+    Scoped to buckets the operator TUNED rather than to every bucket, and that is a judgement worth
+    stating. The precedent this follows (PERF-RATE, v0.3.721) refuses to boot because *a number the
+    operator set* is being silently multiplied — the harm is the belief, not the looseness. A
+    built-in default that ends up 4x on a four-worker box is looser than intended but was never
+    promised to the operator, and refusing every multi-worker deployment that has not deployed Redis
+    would turn "we ship sane defaults" into "you must run Redis". Tuned buckets get the refusal;
+    untuned ones get the warning below, and the shared counter fixes both the moment Redis is set.
+    """
+    if _worker_count() <= 1 or os.environ.get("AEC_REDIS_URL", "").strip():
+        return []
+    out = []
+    for name, raw in os.environ.items():
+        if not (name.startswith("AEC_THROTTLE_") and name.endswith("_RPM")):
+            continue
+        try:                                # a bucket explicitly disabled (0) cannot be multiplied
+            if int(raw) > 0:
+                out.append(name)
+        except ValueError:
+            continue
+    return sorted(out)
+
+
 def _production_guard() -> None:
     """Fail-fast on the misconfigurations that silently ship an open platform.
 
@@ -187,6 +217,16 @@ def _production_guard() -> None:
             problems.append(
                 f"AEC_RATE_LIMIT_RPM is set with {n} workers and no AEC_REDIS_URL — each worker "
                 f"counts independently, so the effective limit is {n}x what you configured. Set "
+                "AEC_REDIS_URL for a shared counter, or run a single worker.")
+        # R39-THROTTLE-SHARED — the SAME failure, for the other limiter. The check above names
+        # AEC_RATE_LIMIT_RPM and so reads as covering rate limiting; it never saw `throttle.py`'s
+        # per-endpoint caps, which are always on and were counted per process. A generic-sounding
+        # gate hid a missing one until R39-WORKER-SPLIT made two writer processes the norm.
+        if (tuned := _tuned_throttle_buckets()):
+            n = _worker_count()
+            problems.append(
+                f"{', '.join(tuned)} set with {n} workers and no AEC_REDIS_URL — each worker "
+                f"counts independently, so those caps are {n}x what you configured. Set "
                 "AEC_REDIS_URL for a shared counter, or run a single worker.")
         # R35-PIDLOCK-XPROC — the sidecar indexes (docmanager, edit_history) are read-modify-write on
         # a JSON blob in object storage, so nothing but a shared lock arbitrates two workers. On
@@ -235,6 +275,16 @@ def _production_guard() -> None:
         # but a warning is the honest level: nobody is relying on it to hold back the internet.
         log.warning("AEC_RATE_LIMIT_RPM is per-worker with %s workers and no AEC_REDIS_URL — the "
                     "effective limit is %sx the configured one.", _worker_count(), _worker_count())
+    # R39-THROTTLE-SHARED — the per-endpoint caps in `throttle.py` are ALWAYS on, so unlike the
+    # limiter above there is no "configured" condition to gate this on. Untuned buckets get a
+    # warning rather than a refusal (see `_tuned_throttle_buckets` for why), but they get one
+    # unconditionally, because "nothing was said" is what let the per-worker multiplication survive
+    # R39-WORKER-SPLIT unnoticed. Runs whether or not the production guard did.
+    if _worker_count() > 1 and not os.environ.get("AEC_REDIS_URL", "").strip():
+        log.warning("throttle.py's per-endpoint caps are counted per process: with %s workers and "
+                    "no AEC_REDIS_URL every bucket (including stepup at 10/min) is effectively %sx "
+                    "its stated limit. Set AEC_REDIS_URL for a shared counter.",
+                    _worker_count(), _worker_count())
 
 
 @asynccontextmanager
@@ -402,41 +452,16 @@ app.add_middleware(
 _RATE_RPM = int(os.environ.get("AEC_RATE_LIMIT_RPM", "0") or "0")
 _REDIS_URL = os.environ.get("AEC_REDIS_URL", "").strip()
 if _RATE_RPM > 0:
-    _rl_buckets: dict[str, list[int]] = {}      # ip -> [window_minute, count] (in-process fallback)
-    _rl_redis = None
-    if _REDIS_URL:
-        try:                                    # lazy: redis is only a dependency when REDIS_URL is set
-            import redis.asyncio as _aioredis
-            _rl_redis = _aioredis.from_url(_REDIS_URL, socket_timeout=0.25, socket_connect_timeout=0.25)
-        except Exception:                        # noqa: BLE001 — redis not installed / bad URL → in-process
-            _rl_redis = None
-
-    def _rl_local(ip: str, win: int) -> int:
-        b = _rl_buckets.get(ip)
-        if not b or b[0] != win:
-            b = [win, 0]
-            # bound memory under IP churn by evicting the OLDEST buckets (LRU-ish via dict insertion
-            # order), never clear() — a bulk clear would reset every active counter at once and let a
-            # scanning botnet erase the limiter's state for legitimate throttling.
-            while len(_rl_buckets) > 10_000:
-                _rl_buckets.pop(next(iter(_rl_buckets)), None)
-            _rl_buckets[ip] = b
-        b[1] += 1
-        return b[1]
 
     async def _rl_count(ip: str, win: int) -> int:
-        """Hits for (ip, window). Shared via Redis when configured; fail-open to in-process on error."""
-        if _rl_redis is not None:
-            try:
-                key = f"rl:{ip}:{win}"
-                async with _rl_redis.pipeline(transaction=True) as pipe:
-                    pipe.incr(key)
-                    pipe.expire(key, 65)         # auto-drop one window after it closes
-                    count, _ = await pipe.execute()
-                return int(count)
-            except Exception:                    # noqa: BLE001 — Redis hiccup must not throttle/break requests
-                pass
-        return _rl_local(ip, win)
+        """Hits for (ip, window). Shared via Redis when configured; fail-open to in-process on error.
+
+        R39-THROTTLE-SHARED: the implementation moved to `ratecount`, unchanged, so the per-endpoint
+        limiter in `throttle.py` can use the same counter instead of a second one. That limiter kept
+        its own in-process dict — and the boot guard below, which covers THIS limiter, read to anyone
+        checking as though rate limiting in general were protected against the multi-worker mistake.
+        """
+        return await ratecount.count("rl", ip, win)
 
     @app.middleware("http")
     async def _rate_limit(request: Request, call_next):
