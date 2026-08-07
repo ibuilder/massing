@@ -2,6 +2,7 @@
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
 import { withAuth } from "./auth";
 import { withAuthoring } from "./authoring";
+import { withCost } from "./cost";
 import { withRoutines } from "./routines";
 import { withContracts } from "./contracts";
 import { withDesignOptions } from "./designOptions";
@@ -37,7 +38,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))) {
+export class ApiClient extends withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -1772,35 +1773,6 @@ export class ApiClient extends withContracts(withAuth(withProforma(withDesignOpt
   }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
-  /** MARGIN-CBS — per-cost-code reconciliation: budget vs committed vs actual vs billed → buyout margin. */
-  marginByCostCode(pid: string) {
-    type Row = { cost_code: string; budget: number; committed: number; actual: number; billed: number;
-      buyout_margin: number; variance: number; pct_committed: number | null; pct_spent: number | null;
-      over_committed: boolean; over_budget: boolean; actions: ResolveAction[] };
-    return this.json<{
-      code_count: number; total_budget: number; total_committed: number; total_actual: number;
-      total_billed: number; total_buyout_margin: number; total_variance: number;
-      pct_committed: number | null; pct_spent: number | null;
-      over_committed_codes: number; over_budget_codes: number; rows: Row[]; note: string;
-    }>(`/projects/${pid}/margin/by-costcode`);
-  }
-  /** COST-SPINE — does one cost code carry the same scope across budget → commitment → actual →
-   *  invoice? Reports presence, not just amounts; `traceability_pct` is the share of committed+actual
-   *  money on a budgeted code, which is the coverage the margin report above inherits. */
-  costSpine(pid: string) {
-    type SpineRow = { cost_code: string; code: string; ref: string;
-      budget: number; committed: number; actual: number; billed: number;
-      counts: Record<string, number>; stages_present: string[]; stage_count: number;
-      first_break: string | null; traceable: boolean; flags: string[]; actions: ResolveAction[] };
-    return this.json<{
-      rows: SpineRow[]; code_count: number; stages: string[];
-      unassigned: Record<string, { amount: number; count: number }>;
-      unassigned_total: number; unassigned_count: number;
-      codes_not_in_register: string[]; unused_register_codes: string[];
-      traceability_pct: number | null; traceable_spend: number; total_spend: number;
-      broken: string[]; note: string;
-    }>(`/projects/${pid}/cost-spine`);
-  }
   /** SELECTIONS — owner selections & allowances rollup (allowance vs actual → change-order candidates). */
   selectionsSummary(pid: string) {
     type Cat = { category: string; count: number; allowance: number; actual: number; delta: number };
