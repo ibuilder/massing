@@ -131,7 +131,44 @@ export async function renderBudget(ctx: PanelContext) {
     } catch (err) { fillEst(`<div class="meta">DXF takeoff failed: ${(err as Error).message}</div>`); }
     finally { dxfInput.value = ""; }
   };
-  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, dxfLabel);
+  // BASIS OF ESTIMATE — the documentation half of the estimate, from the register rather than the
+  // model. R22-PROVENANCE gave `estimate` line items `source` / `quote_ref` / `basis_date`; the
+  // `boe_ledger` engine checks them and `estimateBoe` exposes it, and nothing showed the result. An
+  // estimate you cannot defend line-by-line is the thing a claim attacks first.
+  //
+  // The register writes `code` and `amount`; the ledger reads `cost_code` and `total`. That mapping
+  // is the same seam `commercial_drift.ESTIMATE_TO_BOE` documents server-side — handing the rows over
+  // unmapped does not raise, it silently produces a full, plausible, wrongly-keyed ledger.
+  const boeBtn = document.createElement("button"); boeBtn.className = "tool-btn";
+  boeBtn.textContent = "📑 Basis of estimate";
+  boeBtn.title = "Which estimate lines carry a source, a quote reference and a basis date — and which cannot be defended";
+  boeBtn.onclick = async () => {
+    fillEst(`<div class="meta">Reading the estimate register…</div>`);
+    try {
+      const recs = await ctx.host.api.moduleRecords(pid, "estimate");
+      const lines: Record<string, unknown>[] = [];
+      for (const r of recs) {
+        const d = (r.data ?? {}) as Record<string, unknown>;
+        for (const ln of ((d.line_items as Record<string, unknown>[]) ?? [])) {
+          lines.push({ ...ln, cost_code: ln.cost_code ?? ln.code, total: ln.total ?? ln.amount });
+        }
+      }
+      if (!lines.length) {
+        fillEst(`<div class="meta">No estimate line items recorded yet. Add an estimate with line items — each carrying a source, quote ref and basis date — and its defensibility shows here.</div>`);
+        return;
+      }
+      const b = await ctx.host.api.estimateBoe(pid, { lines });
+      const pct = Math.round((b.pct_documented ?? 0) * 100);
+      const tone = pct === 100 ? "var(--status-good)" : pct >= 70 ? "var(--status-warn)" : "var(--status-crit)";
+      const bad = (b.undocumented ?? []).map((u) => `<tr><td>${esc(u.description || u.key)}</td><td class="meta">${esc((u.missing ?? []).join(", "))}</td></tr>`);
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">Basis of estimate — <b style="color:${tone}">${b.documented}/${b.line_count}</b> lines documented (${pct}%)</div>`
+        + (bad.length
+          ? `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Line</th><th>Missing</th></tr></thead><tbody>${rows(bad)}</tbody></table></div>`
+          : `<div class="meta">Every line carries a source and a basis date.</div>`)
+        + `<div class="meta" style="margin-top:4px">${esc(b.note ?? "")}</div>`);
+    } catch (err) { fillEst(`<div class="meta">Basis of estimate unavailable: ${(err as Error).message}</div>`); }
+  };
+  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, boeBtn, dxfLabel);
 
   // budget movement vs baseline (shown only if a baseline exists; 409 otherwise → ignored)
   const bvHolder = document.createElement("div"); ctx.root.appendChild(bvHolder);
