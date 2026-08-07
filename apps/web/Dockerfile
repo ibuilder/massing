@@ -1,6 +1,6 @@
 # Build the Vite app, then serve the static bundle with nginx.
 # Build context = repo root (this is an npm workspace: the only lockfile is the root package-lock.json).
-FROM node:24-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS build
+FROM node:25-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370 AS build
 WORKDIR /repo
 # Manifests + lockfile first, so `npm ci` is a reproducible, cache-friendly layer that only re-runs when
 # deps change — not on every source edit. `npm ci` (vs `npm install`) installs EXACTLY the locked tree
