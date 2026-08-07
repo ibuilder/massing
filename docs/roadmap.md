@@ -90,6 +90,13 @@ currently fail if either regresses.**
   is unchanged and stated in `services/data/src/aec_data/sandbox.py`: a native call reached through
   an allowed binding is bounded by that library, not by the trace hook.
 
+  **STEP 1 SHIPPED v0.3.877 — the contract exists; the isolation does not yet.**
+  `services/data/src/aec_data/sandbox.py` gains `execute_ifc_bytes`: bytes-in/bytes-out over the same
+  sandbox. It runs **in-process and is NOT isolated**, and that is not claimed. What it removes is
+  the reason isolation could not be built — with a `bytes -> bytes` callee, moving execution into a
+  subprocess or a container becomes a change to one function body instead of to every call site.
+  Remaining: adopt it in `services/data/src/aec_data/edit.py`, then the isolation itself.
+
   **⚠️ PREMISE CORRECTED 2026-08-06 — the stated blocker is wrong, and the real one is bigger.**
   This says isolation is "Parked pending a deployment-shape decision". That decision is settled: the
   repo ships `docker-compose.prod.yml`, and R39-WORKER-SPLIT (v0.3.869) built the working precedent

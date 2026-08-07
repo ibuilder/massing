@@ -4,6 +4,59 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.877 — a contract, a control character, and a gate that relied on its neighbour
+
+### The sandbox gets the contract isolation needs
+
+`SEC-PLUGIN-SANDBOX`'s remaining half has been filed for weeks as "Parked pending a deployment-shape
+decision". That decision was already settled — the repo ships a production compose file and
+`R39-WORKER-SPLIT` built the precedent for a second compose-launched process. The obstacle was never
+deployment. It was this signature:
+
+```py
+execute_ifc_code(model, code)   # a live ifcopenshell.file, mutated IN PLACE
+```
+
+The caller keeps using that same object afterwards. A child process cannot share an in-memory
+object, so running the snippet anywhere else means serialise → run → serialise back → reload — which
+hands the caller a **new** object and breaks every one of them. That is an API contract change at the
+call site, not a deployment choice, and building the isolation first would have run straight into it.
+
+So the contract moves first and the execution stays put. `execute_ifc_bytes` is bytes-in/bytes-out
+over the same sandbox. It runs in-process and **is not isolated** — that is not claimed. What it buys
+is that the middle can be replaced without touching a caller.
+
+The test for it found something worth keeping. Deleting the feature-flag check from the new function
+*still* raises `PermissionError`, because the inner call checks the flag too — an equivalent mutant.
+The two arrangements differ in *when*: without the outer check the input is parsed before the flag is
+consulted, so unreadable bytes with the flag off fail as a parse error instead of a refusal. Once
+execution moves out of process that inner check is running somewhere else, and a door that relies on
+its callee's gate has none of its own.
+
+### Storage keys: every control character, and NTFS was hiding the rest
+
+`validate_key` rejected NUL. Reverting the new check to that rule leaks exactly one key of the
+thirty-three the test now drives: ``. The other C0 characters *look* refused — by NTFS rejecting
+an invalid filename, not by us. S3 has no filesystem and would have stored every one of them, so the
+two backends disagreed about thirty-one keys and the local backend's accident hid it. That is the
+same shape that moved `..` out of the local backend and into the shared validator in the first place.
+
+The stronger change is deliberately not made: tightening to an `[A-Za-z0-9._-]` allowlist would reject
+attachment keys, which carry user-supplied filenames — a contract change for every caller dressed as
+a hardening.
+
+Two CodeQL `py/path-injection` alerts were raised against the file the moment it changed, and are now
+dismissed as false positives with the evidence attached: the barrier resolves and compares rather than
+inspecting strings, 43 hostile keys are refused through both write paths, and a filesystem check
+confirms nothing landed outside the root.
+
+### Also
+
+`R31-CITE-HIGHLIGHT`'s data-model blocker is cleared — a PDF ingest used to run the text extractor and
+then throw the PDF away, so even when a real document existed nothing could open it. And `main` was red
+for three commits over a single wrong quadrant character (`◨` for `◧`), which stopped a bullet being
+parsed as an item and made its body fold into the entry above it.
+
 ## v0.3.876 — three limits that were not limits
 
 Every fix in this release has the same shape: a guard that existed, ran, and returned a confident
