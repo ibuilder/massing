@@ -168,3 +168,63 @@ describe("renderTestFit (characterization)", () => {
     expect(host.textContent).toContain("mix Σ 110%");        // round-tripped through localStorage
   });
 });
+
+/**
+ * RESERVE-SUGGESTION-UNVERIFIED — the banner must not present an unverified figure as a target.
+ *
+ * `reserve.py` solves the level contribution and then RE-RUNS it against the schedule to confirm it
+ * clears; `suggestion_clears_horizon` is that second answer. This banner printed the number in bold
+ * as a recommendation and never read the flag, so a figure that failed verification looked exactly
+ * like one that passed — at the moment a user would act on it.
+ *
+ * Read as `=== false`. The field is optional, and an older server that omits it means "not checked",
+ * which must not render as "does not work".
+ */
+const STUDY = {
+  horizon: { from: 2026, to: 2051 }, components: 12, components_missing_data: 0,
+  events: [], schedule: [], total_outflows: 900_000,
+  first_underfunded_year: 2033, adequately_funded: false,
+  suggested_level_contribution: 42_000, note: "",
+};
+
+describe("reserve study — an unverified suggestion says so", () => {
+  const mountAsset = async (study: Record<string, unknown>) => {
+    const { root, ui } = mount({ reserveStudy: vi.fn(async () => study) }, "P1");
+    const host = document.createElement("div"); root.appendChild(host);
+    await (ui as unknown as { renderAssetMgmt(h: HTMLElement): Promise<void> }).renderAssetMgmt(host);
+    await flush(); await flush();
+    return host;
+  };
+
+  it("warns when the solved figure did not clear the horizon", async () => {
+    const host = await mountAsset({ ...STUDY, suggestion_clears_horizon: false });
+    expect(host.textContent).toContain("did not clear the horizon when re-run");
+    expect(host.textContent, "the figure is still shown — it is unreliable, not absent")
+      .toContain("42,000");
+  });
+
+  it("stays silent when the figure verified — the paired control", async () => {
+    // Without this the assertion above could pass with the warning rendered unconditionally.
+    const host = await mountAsset({ ...STUDY, suggestion_clears_horizon: true });
+    expect(host.textContent).toContain("42,000");
+    expect(host.textContent).not.toContain("did not clear the horizon");
+  });
+
+  it("stays silent when the server did not answer — absent is not failed", async () => {
+    // An older server omits the field. Inventing a warning from a missing value is its own wrong
+    // answer, and one false alarm here costs trust in the figure every other time it is right.
+    const host = await mountAsset(STUDY);
+    expect(host.textContent).toContain("42,000");
+    expect(host.textContent).not.toContain("did not clear the horizon");
+  });
+
+  it("says only what the flag licenses — no invented cause", async () => {
+    // The first draft read "No flat contribution does; the shortfall needs a higher opening
+    // balance...". That is FALSE: `need` is the exact closed-form minimum, so a failed verification
+    // means the solved figure disagreed with the schedule, not that the horizon is unclearable.
+    // Explaining a cause it cannot know is the same defect this banner exists to fix.
+    const host = await mountAsset({ ...STUDY, suggestion_clears_horizon: false });
+    expect(host.textContent).not.toContain("No flat contribution");
+    expect(host.textContent).toContain("unreliable");
+  });
+});
