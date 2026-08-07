@@ -12,6 +12,12 @@ simplification. Someone will read the diff and think `glob("test_*.db")` is tidi
 this repo's gates is that a property nobody checks is a property that drifts, so the construction is
 asserted rather than trusted.
 
+**Which layer protects you.** The anchored regex alone already excludes the `aec.db` mentioned in
+`test_stepup_race.py`'s comment — verified with comments left intact. Stripping comments is defence
+in depth, not the mechanism, and it only removes WHOLE-LINE comments: a trailing `# ...` would
+survive it. So if someone ever loosens the regex, the strip will not save them. Worth knowing
+before editing either.
+
 **What is actually at stake.** `preview.db` is the database `.claude/launch.json` configures for the
 dev API server. A sweep one character too greedy deletes a running dev server's state mid-session,
 and the person it happens to will not connect it to a test-cleanup change. The other names here are
@@ -131,6 +137,28 @@ try:
     check("no test CLAIMS a database that already exists", not offenders,
           "; ".join(sorted(offenders)[:5]) if offenders
           else f"{len(rt.TESTS) + len(rt.DATA_TESTS)} tests checked against {len(live)} live files")
+
+    # --- the invariant that makes per-test sweeping concurrency-safe -----------------------------
+    #
+    # `_sweep_owned` deletes a test's databases the moment that test finishes, while 500+ others are
+    # still running. That is safe ONLY because no two tests claim the same database name. Nothing
+    # asserted it, and it is exactly the kind of property a copy-pasted new test breaks — which is
+    # how tests arrive.
+    #
+    # The failure it would cause is this item's own signature, reintroduced by its own fix: the first
+    # test to finish sweeps a database the second is still writing to, and the symptom is a failure
+    # in an unrelated file that passes on re-run.
+    #
+    # Reads sources, not the filesystem, so it cannot pass vacuously against an empty directory.
+    claims: dict[str, list[str]] = {}
+    for t, home in [(x, rt.HERE) for x in rt.TESTS] + [(x, rt.DATA_DIR) for x in rt.DATA_TESTS]:
+        for q in rt._owned_dbs(t, home):
+            if q.name.endswith(".db"):
+                claims.setdefault(q.name, []).append(t)
+    shared = {n: ts for n, ts in claims.items() if len(ts) > 1}
+    check("no database name is claimed by more than one test", not shared,
+          "; ".join(f"{n} <- {', '.join(ts)}" for n, ts in sorted(shared.items())[:3]) if shared
+          else f"{len(claims)} distinct names across {len(rt.TESTS) + len(rt.DATA_TESTS)} tests, none shared")
 
     # and the belt, asserted directly: even a bad name cannot delete a pre-existing file
     keeper = tmp / "aec.db"
