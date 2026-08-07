@@ -37,22 +37,43 @@ describe("the library client", () => {
   });
 });
 
-/** Source of `main.ts`, for the wiring assertions below. */
+/**
+ * Sources of `main.ts` and the viewer, read ONCE at module scope.
+ *
+ * WHY NOT LAZILY INSIDE THE TESTS, WHICH IS WHERE THEY USED TO BE
+ *     `?raw` makes Vite transform the whole file, and `main.ts` and `viewer/app.ts` are two of the
+ *     largest in the repo. Imported from inside a test, that cost lands entirely in **whichever test
+ *     happens to call it first** — an ordering artifact, not a property of the assertion. Measured
+ *     idle: the first caller took 160 ms while every other test in this file took 0–3 ms.
+ *
+ *     Under a loaded suite that one test is the one that dies. It timed out at vitest's 5 s default
+ *     on 2026-08-07 while the other ten passed, which reads as "that assertion is slow" and is really
+ *     "that assertion drew the short straw". Several sessions run suites in this clone, so contention
+ *     is the normal condition, not an edge case.
+ *
+ *     At module scope the transform happens during collection, outside the per-test budget, and no
+ *     single test inherits it. This is the same remedy `tooling/deleteRatchet.test.ts` settled on for
+ *     a different cause — there the per-test cost was a `git log` walk, here it is a Vite transform.
+ *     The shared rule is that **fixture cost does not belong inside a per-test timeout**, and the
+ *     shared anti-pattern is raising the timeout, which keeps the cliff and moves it somewhere less
+ *     predictable.
+ *
+ * The vacuity guards stay: a `?raw` that silently resolved to undefined would make every assertion
+ * below pass against an empty string.
+ */
+const MAIN_SRC = ((await import("../main.ts?raw")) as { default: string }).default;
+const VIEWER_SRC = ((await import("../viewer/app.ts?raw")) as { default: string }).default;
+
 async function mainSource(): Promise<string> {
-  const mod = await import("../main.ts?raw");
-  const src = (mod as { default: string }).default;
-  expect(typeof src, "?raw did not resolve — the assertions below would be vacuous").toBe("string");
-  expect(src.length).toBeGreaterThan(1000);
-  return src;
+  expect(typeof MAIN_SRC, "?raw did not resolve — the assertions below would be vacuous").toBe("string");
+  expect(MAIN_SRC.length).toBeGreaterThan(1000);
+  return MAIN_SRC;
 }
 
-/** Source of the viewer, which held the same filenames one file away from the check below. */
 async function viewerSource(): Promise<string> {
-  const mod = await import("../viewer/app.ts?raw");
-  const src = (mod as { default: string }).default;
-  expect(typeof src, "?raw did not resolve — the assertions below would be vacuous").toBe("string");
-  expect(src.length).toBeGreaterThan(1000);
-  return src;
+  expect(typeof VIEWER_SRC, "?raw did not resolve — the assertions below would be vacuous").toBe("string");
+  expect(VIEWER_SRC.length).toBeGreaterThan(1000);
+  return VIEWER_SRC;
 }
 
 describe("the Open menu uses the library, not a hard-coded list", () => {
