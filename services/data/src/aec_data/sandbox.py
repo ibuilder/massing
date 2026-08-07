@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import ast
 import os
+import shutil
 import sys
 import time
 from typing import Any
@@ -235,3 +236,71 @@ def execute_ifc_code(model, code: str) -> dict[str, Any]:
     return {"ok": True, "created": max(0, after - before), "deleted": max(0, before - after),
             "entities_before": before, "entities_after": after,
             "message": f"ran ok — net entity change {after - before:+d}"}
+
+
+def execute_ifc_bytes(ifc_bytes: bytes, code: str) -> tuple[bytes, dict[str, Any]]:
+    """Run `code` against a **serialised** model and return the new serialisation plus the delta.
+
+    SEC-PLUGIN-SANDBOX, step one of three. This is the same execution as `execute_ifc_code` behind a
+    different *contract*, and the contract is the whole point.
+
+    **Why isolation was not buildable, which nobody had written down.** `execute_ifc_code(model,
+    code)` takes a live in-memory `ifcopenshell.file` and the snippet mutates it **in place**; the
+    caller goes on using that same object afterwards. A child process cannot share an in-memory
+    object, so running the snippet anywhere else means serialise → run → serialise back → reload —
+    which hands the caller a NEW object and breaks every one of them. That is an API contract change
+    at the call site, not a deployment choice, and it is why R35-SANDBOX-ISOLATION kept being filed
+    as "needs a decision about deployment shape" when the actual blocker was here.
+
+    So the contract moves first, while the execution stays exactly where it is. Today this runs
+    in-process and is no more isolated than the function above — it is not claimed to be. What it
+    buys is that **the middle can be replaced without touching a caller**: once a callee is
+    `bytes -> bytes`, running it in a subprocess, a container, or on another host is a change to one
+    function body. Building isolation first and retrofitting the contract is the order that fails.
+
+    Deliberately NOT a path-in/path-out signature. A caller holding a path would be free to hand in
+    a path inside the source tree or a container's read-only mount, and the temp files are this
+    function's business rather than its interface. Bytes also make the eventual process boundary
+    obvious: they are already what would cross it.
+    """
+    import tempfile
+
+    import ifcopenshell
+
+    if not enabled():                       # checked here too: this is a public entry point of its
+        raise PermissionError(              # own, and a gate that only one door carries is not a gate
+            "execute_ifc_code is disabled — set AEC_ALLOW_IFC_CODE=1 to enable (accepts "
+            "the arbitrary-code risk of this gated, editor-only escape hatch)")
+    if not ifc_bytes:
+        raise SandboxError("no model supplied")
+
+    # `tempfile.mkdtemp` rather than anywhere under the source tree or STORAGE_DIR: the API container
+    # mounts /app read-only, and scratch written beside the code is the failure already recorded as
+    # "container read-only /app tmp".
+    tmp = tempfile.mkdtemp(prefix="ifc_sandbox_")
+    src_path = os.path.join(tmp, "in.ifc")
+    try:
+        with open(src_path, "wb") as fh:
+            fh.write(ifc_bytes)
+        try:
+            model = ifcopenshell.open(src_path)
+        except Exception as e:              # noqa: BLE001 — an unparseable model is the caller's error
+            raise SandboxError(f"could not read the model: {type(e).__name__}: {e}") from e
+
+        result = execute_ifc_code(model, code)
+
+        out_path = os.path.join(tmp, "out.ifc")
+        model.write(out_path)
+        with open(out_path, "rb") as fh:
+            out = fh.read()
+    finally:
+        # Always, including when the snippet raised. A sandbox that leaves the model it was given
+        # lying in a temp directory has undone part of the point of having one.
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # Stated rather than assumed: the round-trip is a REWRITE, so byte-identical output is not
+    # expected even for a no-op snippet (ifcopenshell renumbers instance ids and rewrites the
+    # header). Callers comparing bytes to detect "did anything change" must use the delta instead,
+    # which is why it is returned rather than left for them to recompute.
+    result = {**result, "round_tripped": True, "bytes_in": len(ifc_bytes), "bytes_out": len(out)}
+    return out, result
