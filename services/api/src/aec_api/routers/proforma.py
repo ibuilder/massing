@@ -1036,7 +1036,11 @@ def portfolio_compare(db: Session = Depends(get_db), user: str = Depends(current
             "yield_on_cost": r.get("yield_on_cost"), "npv": r.get("npv"),
             "total_uses": su.get("total_uses"),
         })
-    rows.sort(key=lambda x: -(x["equity_irr"] or -9e9))
+    # `or` treats a 0.0 IRR as MISSING, and it is not: a break-even deal has a result and
+    # belongs in rank order, not among the unsolved rows. The spread six lines below already
+    # filters on `is not None`, so these two lines disagreed about what 0.0 meant. Sort the
+    # genuinely-absent ones last explicitly rather than leaning on falsiness.
+    rows.sort(key=lambda x: (x["equity_irr"] is None, -(x["equity_irr"] or 0.0)))
     spread = {}
     for metric in ("equity_irr", "equity_multiple", "yield_on_cost"):
         vals = [(x[metric], x["project_name"]) for x in rows if x[metric] is not None]
