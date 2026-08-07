@@ -433,6 +433,41 @@ class ErrorLog(Base):
     detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
+class ViewerLoadTiming(Base):
+    """R39-VIEWER-OBS — one row per viewer model-load, so "the viewer loads slowly" becomes a number.
+
+    **Its own table rather than a level on ErrorLog, and the reason is retention.** `errorlog.prune`
+    trims to the newest `max_rows` GLOBALLY, not per source. Timings are emitted on every load while
+    errors are rare, so sharing the table would mean a busy afternoon in the viewer silently evicting
+    real errors from the operator's feed — the observability channel degrading the thing it shares a
+    store with.
+
+    `outcome` is the column that earns the table. A load can arrive without being SEEN: in the
+    CANVAS-RESIZE bug the fetch returned 200, the worker parsed and the meshes existed while the
+    canvas was 0x493, so nothing appeared. `invisible` is that case, `stalled` is a load that never
+    produced a frame at all, and both are rows rather than absences — an instrument that only records
+    successes is survivorship-biased against exactly the loads worth investigating.
+    """
+    __tablename__ = "viewer_load_timing"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    project_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    model_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    actor: Mapped[str | None] = mapped_column(String, nullable=True)
+    #: ok | invisible | stalled | failed
+    outcome: Mapped[str] = mapped_column(String, nullable=False, default="ok", index=True)
+    #: Coarse size band ("<1MB" … ">200MB", or "unknown" when the load died before the size was known).
+    #: Indexed because the question this table exists to answer is always "p95 for THIS band".
+    bucket: Mapped[str] = mapped_column(String, nullable=False, default="unknown", index=True)
+    bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fetch_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    parse_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    first_frame_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    canvas_w: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    canvas_h: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
 class AppSetting(Base):
     """Admin-configured server settings (integration keys for AI / email / SSO). A value here
     overrides the matching env var. Secrets are write-only over the API. See settings_store."""
