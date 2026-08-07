@@ -85,7 +85,7 @@ TESTS = ["test_provenance_report", "test_provenance_estimate_leg", "test_proform
          # R23-DIGEST — the deterministic model digest and its two routes:
          "test_model_digest", "test_digest_route",
          # observability (error alerting + distributed tracing) — env-gated, no-op when unconfigured:
-         "test_sentry", "test_otel", "test_docs_module_schema", "test_schema_stale", "test_schema_strictness",
+         "test_sentry", "test_otel", "test_doctext_source", "test_docs_module_schema", "test_schema_stale", "test_schema_strictness",
          # public docs are a shipped surface: competitor names for interop only, never comparison:
          "test_no_comparative_names",
          # this list is itself hand-maintained, so it gets a test of its own:
