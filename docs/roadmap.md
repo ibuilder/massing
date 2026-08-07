@@ -731,8 +731,26 @@ stakes we are missing.
   give `SavedView.config` a schema, and let a view be shared. **Building the entry as written would
   have rebuilt working filtering.** Items 3 and 4 land in `models.py`/`routers/modules.py` — check the
   lane table before starting, that is not lane C's to take unilaterally.
-- ◧ **R22-PIPELINE** *(M — `deal_funnel.py` + migration shipped)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
+- ◧ **R22-PIPELINE** *(M → S — premise-checked 2026-08-07; the backend is built, the remainder is mostly viz)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
   is a funnel, not a project.
+
+  **PREMISE-CHECKED (no build). Both halves the entry describes already exist.**
+  The acquisition funnel is `deal_funnel.py` — stage conversion, weighted value, cycle times, and a
+  `data_quality` guard that refuses to report a conversion rate off too few closed samples. The
+  roll-up *above the project workspace* is `GET /portfolio/executive`: cross-project SPI, % complete,
+  lookahead, late milestones, GMP / EAC / variance-at-completion, an overall status per project,
+  portfolio totals and a status tally, plus the latest solved scenario's IRR/EM per project.
+  `/portfolio/construction`, `/portfolio/prioritization`, `/wip/portfolio` and `/fca/portfolio` sit
+  beside it.
+  Against the spec reference this entry cites, that already covers **multi-project KPI strip, EVM
+  SPI/CPI, milestone tracking and cost-by-project**.
+  **Genuinely missing is three items, and two of them are not Lane C:** a *cross-project* Gantt
+  (`schedule_viz.py` is per-project), a portfolio **risk heat map**, and **resource allocation by
+  department**. The near-misses were checked rather than counted: the "heat" matches in
+  `element_5d.py` and `scan_deviation.py` are different domains (5D element heat, scan deviation), and
+  the `department` matches in `rooms.py` and `scope_clauses.py` are incidental rather than resourcing.
+  So this is not an M of backend work. Size the resourcing engine on its own and route the two
+  visualisation items to the lane that owns them.
 - ◧ **R22-ROUTINES** *(S — `routines.py` + migration shipped)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
   scan) rather than on-demand only. Turns AI from a tool you remember to use into infrastructure.
 - ◧ **R22-PUBLIC-VIEWER** — *(sized **M**, not S; see the Band 2 entry, which is the live one — its premise was corrected 2026-08-06: the scoped, revocable token and the routes honouring it ALREADY EXIST.)* This
