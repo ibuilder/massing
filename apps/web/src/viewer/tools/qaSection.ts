@@ -111,6 +111,106 @@ export function buildQaSection(d: QaDeps): void {
             if (d!.hygiene.issues) body.appendChild(resultNote(`<b>${d!.hygiene.issues}</b> model-hygiene issue(s) — see Model Health.`, "bad"));
           });
         })));
+        // ENVELOPE-R — assembly build-ups with R/U values. Each assembly carries its GUIDs, so the
+        // list selects; a thermal report you cannot point at in the model is a spreadsheet.
+        b.appendChild(toolBtn2("🧱 Envelope assemblies (R / U values)", () => withLoading(container, "Reading assemblies", async () => {
+          let r;
+          try { r = await api.modelAssemblyThermal(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          const list = r.assemblies || [];
+          out.textContent = `${list.length} assembly(ies)`;
+          showResult("Envelope assemblies", (body) => {
+            if (!list.length) { body.appendChild(resultNote("No layered assemblies found in this model.", "")); return; }
+            for (const a of list) {
+              const row = document.createElement("div");
+              row.className = "meta";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle)";
+              row.innerHTML = `<b>${escapeHtml(a.name || "unnamed")}</b> · ${a.element_count} element(s) · `
+                + `${a.thickness_m}m · R ${a.r_value} (${a.r_value_imperial} imp)`;
+              if (a.guids?.length) {
+                row.style.cursor = "pointer"; row.title = `Select ${a.guids.length} element(s)`;
+                row.onclick = async () => { await selectMap(await sets.fromGuids(a.guids.slice(0, 200))); };
+              }
+              body.appendChild(row);
+              if (a.layers?.length) {
+                body.appendChild(kvTable(a.layers.map((l) => ({
+                  k: `· ${escapeHtml(l.name)}`, v: `${l.thickness_m}m · R ${l.r_value}`,
+                }))));
+              }
+            }
+          });
+        })));
+
+        // SHARED-PARAMS — the project's shared parameter definitions. A standards convention the
+        // model is authored against, with no way to see what it actually is.
+        b.appendChild(toolBtn2("📐 Shared parameters (project standard)", () => withLoading(container, "Reading shared parameters", async () => {
+          let r;
+          try { r = await api.sharedParams(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${r.params.length} parameter(s)`;
+          showResult("Shared parameters", (body) => {
+            if (!r!.params.length) {
+              body.appendChild(resultNote("No shared parameters defined for this project.", ""));
+              return;
+            }
+            body.appendChild(resultNote(`<b>${r!.params.length}</b> of a maximum ${r!.max}.`, ""));
+            body.appendChild(kvTable(r!.params.map((x) => ({
+              k: `${escapeHtml(x.pset)}.${escapeHtml(x.name)}`,
+              v: `${escapeHtml(x.ptype)} · ${escapeHtml(x.applies_to)}${x.description ? " — " + escapeHtml(x.description) : ""}`,
+            }))));
+          });
+        })));
+
+        // WIP-PROGRESS — installed vs total. `available` is a real answer: without verified progress
+        // there is nothing to report, and rendering 0% would assert that nothing is installed.
+        b.appendChild(toolBtn2("📈 Model progress (installed vs total)", () => withLoading(container, "Reading progress", async () => {
+          let r;
+          try { r = await api.wipModelProgress(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          if (!r.available) {
+            out.textContent = "no progress data";
+            showResult("Model progress", (body) => body.appendChild(resultNote(
+              escapeHtml(r!.note || "No verified progress recorded yet.")
+              + " — that is not the same as 0% complete.", "")));
+            return;
+          }
+          out.textContent = `${r.percent_complete ?? r.percent_complete_count ?? 0}% complete`;
+          showResult("Model progress", (body) => {
+            body.appendChild(resultNote(`<b>${r!.installed_elements ?? 0}</b> of <b>${r!.total_elements ?? 0}</b> `
+              + `element(s) installed · <b>${r!.percent_complete_count ?? 0}%</b> by count`
+              + (r!.method ? ` · method: ${escapeHtml(r!.method)}` : ""), ""));
+            if (r!.quantity) {
+              body.appendChild(kvTable([
+                { k: "Quantity basis", v: escapeHtml(r!.quantity) },
+                { k: "Elements with quantity", v: String(r!.elements_with_quantity ?? 0) },
+                { k: "Installed / total", v: `${r!.installed_quantity ?? 0} / ${r!.total_quantity ?? 0}` },
+                { k: "Percent by quantity", v: `${r!.percent_complete_quantity ?? 0}%` },
+              ]));
+            }
+            if (r!.note) body.appendChild(resultNote(escapeHtml(r!.note), ""));
+          });
+        })));
+
+        // FEDERATION-LIST — the models registered SERVER-side, beside the existing upload. The
+        // viewer's own federation list shows what is loaded in this session; this shows what the
+        // project actually holds, which is a different question and the one an upload answers to.
+        b.appendChild(toolBtn2("🗃 Registered models (server-side federation)", () => withLoading(container, "Listing models", async () => {
+          let r;
+          try { r = await api.projectModels(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${r.length} registered model(s)`;
+          showResult("Registered models", (body) => {
+            if (!r!.length) {
+              body.appendChild(resultNote("No discipline models registered for this project yet.", ""));
+              return;
+            }
+            body.appendChild(kvTable(r!.map((m) => ({
+              k: escapeHtml(m.discipline || "(no discipline)"),
+              v: `${escapeHtml(m.id)}${m.created_at ? " · " + escapeHtml(m.created_at.slice(0, 10)) : ""}`,
+            }))));
+          });
+        })));
+
         // FILL-MATRIX — property completeness by class, with the worst gaps named. The data-quality
         // question every IDS / COBie handover turns on, computed and unreachable.
         b.appendChild(toolBtn2("📊 Property fill matrix (completeness by class)", () => withLoading(container, "Measuring property fill", async () => {
