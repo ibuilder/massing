@@ -39,7 +39,17 @@ export interface PulseInput {
   cost?: { variancePct?: number | null; unpricedChanges?: number | null; exposurePct?: number | null } | null;
   schedule?: { floatDays?: number | null; atRisk?: string | null } | null;
   work?: { open?: number | null; mine?: number | null; overdue?: string[] | null } | null;
-  deal?: { irrPct?: number | null; band?: [number, number] | null; staleSince?: string | null } | null;
+  deal?: {
+    irrPct?: number | null; band?: [number, number] | null; staleSince?: string | null;
+    /**
+     * `reserve.suggestion_clears_horizon === false` — the suggested level contribution was solved,
+     * re-run against the schedule, and does NOT clear it. The number is still displayed elsewhere,
+     * which is the hazard: an unverified suggestion looks exactly like a verified one.
+     */
+    reserveSuggestionFails?: boolean | null;
+    /** `renovation.nothing_renovated_why` — carried verbatim; the server phrases it with the pace. */
+    nothingRenovated?: string | null;
+  } | null;
 }
 
 const pct = (n: number, dp = 1) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(dp)}%`;
@@ -105,14 +115,38 @@ function workCard(w: NonNullable<PulseInput["work"]>): PulseCard | null {
   };
 }
 
+/**
+ * Two findings ride this card rather than getting panels of their own, and the reason is that they
+ * are **booleans**. Neither has a chart to sit in: "the pace you chose renovates nothing across the
+ * entire hold" is a sentence, not a metric. Pulse's contract is that a card says what would move the
+ * number, which is exactly the shape of both.
+ *
+ * They are also both **silent-wrong-answer** findings, which is why they are risk lines rather than
+ * anything softer. A reserve suggestion that does not clear the horizon renders identically to one
+ * that does; a renovation programme that completes no unit returns a perfectly well-formed schedule.
+ * The failure mode in each case is a plausible number, not a missing one.
+ *
+ * KNOWN LIMIT, stated rather than discovered later: both ride the deal card, so they are invisible on
+ * a project with no IRR. That follows the panel's existing rule — no proforma means no deal position,
+ * and a card with no number cannot be rendered — but it does mean a reserve finding on a project that
+ * never had a proforma has nowhere to appear. Asserted below so it is a decision, not a surprise.
+ */
 function dealCard(d: NonNullable<PulseInput["deal"]>): PulseCard | null {
   if (d.irrPct == null) return null;
   const inBand = d.band ? d.irrPct >= d.band[0] && d.irrPct <= d.band[1] : null;
+  // Ordered worst-first: a suggestion that does not clear invalidates the funding plan outright,
+  // where a stale forecast only ages it.
+  const risks = [
+    d.reserveSuggestionFails ? "Suggested reserve contribution does not clear the horizon." : null,
+    d.nothingRenovated ? `Renovation renovates nothing — ${d.nothingRenovated}.` : null,
+    d.staleSince ? `Re-forecast from ${d.staleSince} actuals.` : null,
+  ].filter((x): x is string => x !== null);
   return {
     key: "deal", label: "Deal", value: `${d.irrPct.toFixed(1)}%`,
-    tone: inBand === false ? "risk" : d.staleSince ? "watch" : "good",
+    tone: inBand === false || d.reserveSuggestionFails || d.nothingRenovated ? "risk"
+      : d.staleSince ? "watch" : "good",
     headline: inBand == null ? "IRR current." : inBand ? "IRR inside market band." : "IRR outside market band.",
-    risk: d.staleSince ? `Re-forecast from ${d.staleSince} actuals.` : null,
+    risk: risks.length ? risks.join(" ") : null,
   };
 }
 

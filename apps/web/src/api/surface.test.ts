@@ -127,7 +127,10 @@ describe("the API client's public surface", () => {
       "topicsBoard", "createTopic", "viewpoints",                   // BCF coordination
       "elementEffectiveProps", "elementCosts", "costSummary",       // model + 5D
       "solveProforma", "proformaLive", "portfolioCompare",           // ⑧ moved — spread over 4 regions
-      "proformaRenovation", "proformaRollover", "proformaIncomeBasis",  // ⑧ new — were unreachable
+      // ⑧ new — added unreachable; `proformaRenovation` now has a screen (PULSE-FINDINGS, 2026-08-07)
+      // and the other two still do not. Corrected here rather than left as "were unreachable", which
+      // had already stopped being true for one of the three.
+      "proformaRenovation", "proformaRollover", "proformaIncomeBasis",
       "schedule4d", "scheduleCpm", "evm",                           // 4D + earned value
       "estimateFromModel", "qtoByFloor", "sovFromBudget",           // estimating
       "drawingMarkup", "promoteDrawingMarkup",                      // 2D markup -> RFI
