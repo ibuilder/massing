@@ -151,7 +151,11 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: counts 131 — a different population, so its ABSOLUTE is not a valid ceiling input. The DELTA is
 //: sound because both affected methods are present in both populations. If this run reports anything
 //: other than 129, trust this file and not the reasoning above.
-const UNCALLED_CEILING = 128;
+//: 128 -> 123 on 2026-08-07 (LANE-REACH). Five more gained callers: estimateConfidence and
+//: wipModelProgress (budget panel), dealAuthority (diligence go/no-go), reviewContractClauses
+//: (contract findings) and aiEstimate (AI Assist). Measured by re-running the scan before and
+//: after - exactly five fewer, nothing newly uncalled.
+const UNCALLED_CEILING = 123;
 
 describe("client methods the application actually calls", () => {
   it("agrees with a hand-checked sample in BOTH directions", () => {

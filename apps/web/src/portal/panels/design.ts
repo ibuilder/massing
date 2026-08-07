@@ -173,6 +173,30 @@ export async function renderDiligence(ctx: PanelContext) {
       + `<div class="meta">Due diligence: ${dd.cleared}/${dd.total} cleared · ${dd.flagged} flagged · `
       + `Entitlements: ${en.approved} approved · ${en.pending} pending · ${en.denied} denied</div>`;
     body.append(banner);
+
+    // AUTHORITY OF THE FACTS THE GO/NO-GO RESTS ON. The banner above says whether diligence cleared;
+    // this says whether the documents it cleared against are still current. A GO computed from a
+    // superseded title report or a survey two years stale is a confident answer to the wrong
+    // question — and `superseded_still_active` is the case nobody looks for, because the document
+    // exists and reads fine. Loaded separately so a slow authority check never blocks the banner.
+    void ctx.host.api.dealAuthority(pid).then((au) => {
+      const g = au.gate;
+      const card = el("div", "dash-card");
+      card.style.cssText = `border-left:3px solid ${g.passes ? "var(--status-good)" : "var(--status-crit)"};margin-bottom:8px`;
+      const bits: string[] = [];
+      if (au.missing.length) bits.push(`<b>${au.missing.length} missing</b>: ${au.missing.map((m) => esc(m.label)).join(", ")}`);
+      if (au.stale.length) bits.push(`<b>${au.stale.length} stale</b>: ${au.stale.map((x) => `${esc(x.fact_type)} (+${x.days_over}d)`).join(", ")}`);
+      if (au.superseded_still_active.length) bits.push(`<b style="color:var(--status-crit)">${au.superseded_still_active.length} superseded but still relied on</b>: `
+        + au.superseded_still_active.map((x) => `${esc(x.fact_type)} — ${esc(x.issue)}`).join("; "));
+      card.innerHTML = `<b>${g.passes ? "Source facts current" : "Source facts NOT current"}</b>`
+        + `<div class="meta" style="margin-top:2px">${au.table.length} fact(s) tracked. `
+        + (bits.length ? bits.join(" · ") : "Every required fact is present and within its freshness window.")
+        + `</div>`
+        + (g.blocking.length
+          ? `<div class="meta" style="margin-top:2px">Blocking: ${g.blocking.map((b) => `${esc(b.fact_type)} — ${esc(b.why)}`).join("; ")}</div>`
+          : "");
+      body.insertBefore(card, body.firstChild?.nextSibling ?? null);
+    }).catch(() => { /* authority is best-effort; the diligence banner stands on its own */ });
     // high-risk flags
     if (dd.high_risk.length) {
       const hr = el("div", "dash-card"); hr.style.cssText = "border-left:3px solid var(--status-crit);margin:6px 0";
