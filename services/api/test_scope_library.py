@@ -105,6 +105,43 @@ check("...and the agreement body is not empty either", len(agreement) > 3,
 check("Scope and Exclusions are both exhibit categories",
       {"Scope", "Exclusions"} <= sl.EXHIBIT_CATEGORIES, str(sorted(sl.EXHIBIT_CATEGORIES)))
 
+# --- the SAME invariant from the other side, which is how the defect got through ------------------
+#
+# The assertion above guards one direction: nothing from Exhibit A reaches the agreement body. Nothing
+# guarded the exhibit itself, and `_exhibit_flowables` rendered every id it was given. For a plumbing
+# subcontract that meant 31 clauses in the signed PDF against 11 in the preview, and the 20 conditions
+# clauses printed TWICE in one document — Article 3 and Exhibit A both.
+#
+# A one-directional check on a two-directional invariant is exactly as convincing as a correct one and
+# covers half the ground. So: assert the partition, both ways, against the renderer's own selection.
+from aec_api import contracts as _contracts  # noqa: E402
+
+_ids = sl.default_ids("plumbing")
+_exhibit = [c for c in sl.clauses_by_ids(_ids) if c["category"] in sl.EXHIBIT_CATEGORIES]
+_body = [c for c in sl.clauses_by_ids(_ids) if c["category"] not in sl.EXHIBIT_CATEGORIES]
+
+check("the exhibit and the agreement body are disjoint",
+      not ({c["id"] for c in _exhibit} & {c["id"] for c in _body}),
+      "a clause printed in both is printed twice in one signed subcontract")
+check("...and together they account for every selected clause",
+      len(_exhibit) + len(_body) == len(sl.clauses_by_ids(_ids)),
+      "a partition that loses clauses silently drops them from the document")
+
+# The renderer, not a re-implementation of it: count the Paragraph flowables it actually emits. Two
+# are the title and subtitle, then two per clause (heading + body).
+try:
+    _flow = _contracts._exhibit_flowables(_contracts._styles(), {
+        "project": "P", "vendor": "V", "trade": "plumbing"}, None)
+    _rendered = (len([f for f in _flow if type(f).__name__ == "Paragraph"]) - 2) // 2
+    check("the PDF exhibit renders exactly what the preview returns",
+          _rendered == len(_exhibit),
+          f"PDF renders {_rendered}, preview returns {len(_exhibit)} — what is signed is not what "
+          f"was shown")
+except AttributeError as e:  # pragma: no cover — the helper was renamed
+    check("the PDF exhibit renders exactly what the preview returns", False,
+          f"could not reach the renderer: {e}. This check must be repaired, not deleted — it is the "
+          f"only thing tying the signed document to the preview.")
+
 # --- the API contracts.py depends on is unchanged in shape ---------------------------------------
 sample = sl.clauses_by_ids(sl.default_ids("Concrete"))
 check("clauses_by_ids returns renderable clauses", sample

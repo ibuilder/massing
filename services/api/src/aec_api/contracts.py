@@ -88,9 +88,17 @@ def _signature_block(ss, parties: list[tuple[str, str]], signatures: list[dict])
 def _exhibit_flowables(ss, ctx: dict, clause_ids: list[str] | None):
     from reportlab.platypus import Paragraph, Spacer
     ids = clause_ids or sl.default_ids(ctx.get("trade"))
+    # Exhibit A owns scope, exclusions and clarifications; Article 3 of the agreement owns the
+    # conditions. Without this filter the exhibit rendered EVERYTHING in `ids`, which produced two
+    # defects at once for a plumbing subcontract: 31 clauses in the signed PDF against 11 in the
+    # `/scope-library/exhibit` preview, and the 20 conditions clauses printed **twice in one document**
+    # — once in Article 3 and again here. The duplication is older than the preview (7 clauses with
+    # the pre-import library); the preview↔document drift arrived with the filtered route, which is
+    # what makes this the fix for both. Applied unconditionally, including to an explicit
+    # `clause_ids`: one authority decides what belongs in an exhibit, not the caller.
     out = [Paragraph("Exhibit A — Scope of Work", ss["DocTitle"]),
            Paragraph(f"{ctx['project']} · {ctx['vendor']}", ss["Sub"])]
-    for c in sl.clauses_by_ids(ids):
+    for c in (x for x in sl.clauses_by_ids(ids) if x["category"] in sl.EXHIBIT_CATEGORIES):
         out.append(Paragraph(sl.merge(c["title"], ctx), ss["H"]))
         out.append(Paragraph(sl.merge(c["body"], ctx), ss["Body"]))
     if len(out) <= 2:
