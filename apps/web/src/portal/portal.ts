@@ -1381,6 +1381,40 @@ export class PortalUI {
         pc.appendChild(pt);
         this.root.appendChild(pc);
       }).catch(() => { /* prioritization is best-effort */ });
+
+      // RETURNS SPREAD — the executive roll-up above gives a BLENDED equity IRR, which is one number
+      // for the whole book and cannot show that one deal is carrying it. `/proforma/portfolio/compare`
+      // gives per-project IRR / equity multiple / yield-on-cost from each project's latest solved
+      // scenario, plus the best-and-worst spread. An `absent` return renders as em-dash, never 0%:
+      // a project with no solved scenario has not returned zero, and on a spread a fabricated zero
+      // would take the "worst" slot away from a deal that genuinely holds it.
+      void this.host.api.portfolioCompare().then((pc2) => {
+        if (!pc2.rows.length) return;
+        const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
+        const num = (v: number | null, f: (n: number) => string) => v == null ? "—" : f(v);
+        const ct = document.createElement("table"); ct.className = "portal-table"; ct.style.fontSize = "11px";
+        ct.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Project</th><th scope="col" style="text-align:left">Scenario</th>`
+          + `<th scope="col" style="text-align:right">Equity IRR</th><th scope="col" style="text-align:right">Multiple</th>`
+          + `<th scope="col" style="text-align:right">Yield on cost</th><th scope="col" style="text-align:right">Total uses</th></tr></thead>`;
+        const cb = document.createElement("tbody");
+        for (const r of pc2.rows) {
+          const tr = document.createElement("tr"); tr.className = "kpi-click";
+          tr.innerHTML = `<td>${esc(r.project_name)}</td><td class="meta">${esc(r.scenario_name)}</td>`
+            + `<td style="text-align:right">${num(r.equity_irr, (n) => `${(n * 100).toFixed(1)}%`)}</td>`
+            + `<td style="text-align:right">${num(r.equity_multiple, (n) => `${n.toFixed(2)}x`)}</td>`
+            + `<td style="text-align:right">${num(r.yield_on_cost, (n) => `${(n * 100).toFixed(2)}%`)}</td>`
+            + `<td style="text-align:right">${num(r.total_uses, usd)}</td>`;
+          tr.onclick = () => { if (r.project_id !== here) window.location.search = `?project=${r.project_id}`; };
+          cb.appendChild(tr);
+        }
+        ct.appendChild(cb);
+        const sp = pc2.spread?.equity_irr;
+        card.innerHTML = `<b>Returns spread</b> <span class="meta">${pc2.project_count} project(s), each from its latest solved scenario`
+          + (sp && sp.best ? ` · best ${esc(sp.best)} · worst ${esc(sp.worst ?? "—")}` : "")
+          + `</span>`;
+        card.appendChild(ct);
+        this.root.appendChild(card);
+      }).catch(() => { /* returns spread is best-effort; the roll-up above stands on its own */ });
     }).catch(() => { status.className = "empty-state"; status.innerHTML = `Portfolio unavailable<span class="es-hint">Needs at least one project with schedule/budget data.</span>`; });
   }
 

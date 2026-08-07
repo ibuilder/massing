@@ -197,6 +197,31 @@ is a *development* boundary and is orthogonal to that.
 workspace command), and the temp-index pattern remains the right way to land a commit when you are
 *not* in your own tree.
 
+### Two races the gates do NOT close, named so they are not assumed away
+
+**1. A migration fork is invisible to both branches.** On 2026-08-07 two PRs each added a migration
+chained off the same `down_revision`. **Both were individually green and both were correct** — each
+branch had exactly one head; the second head exists only in the *union*. Main then could not
+`alembic upgrade head` at all.
+
+Detection already exists (`services/api/test_alembic_migrations.py` calls `command.upgrade(cfg, "head")`,
+which raises `Multiple head revisions are present`), and CI runs on `pull_request`, so it tests the
+**merge result**. What no gate can do is re-test PR B when PR A lands afterwards: B's green was
+computed against a merge result that predates A, and it stays green and stays mergeable.
+
+`required_status_checks.strict: true` would force every branch to be up to date before merging and
+would catch it — **the user chose `strict: false` on 2026-08-07, deliberately**, because with three or
+more sessions merging it means near-continuous rebasing and that defeats the release cadence. So the
+risk is accepted, not solved.
+
+**The mitigation that costs nothing is coordination, because no local check can see unpushed work:**
+a branch carrying a migration **announces its parent revision when it opens**, so the next one chains
+onto it rather than onto the shared ancestor.
+
+**2. `enforce_admins: false` makes the protection advisory for whoever can bypass it.** Direct pushes
+to `main` still work, which is load-bearing for the cadence. **The ability to bypass a gate is not
+permission to** — hold yourself to it.
+
 ### Resolving a conflict
 
 When a conflict is **additive on both sides**, "keep both" is right about the semantics and unreliable

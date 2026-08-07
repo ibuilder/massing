@@ -3,6 +3,21 @@ import { FALLBACK_ROOMS, ROOM_HOME, ROOM_IDS, destRoom, orderRooms, preselectedR
 import type { RoomDef } from "../api/types";
 
 /**
+ * Modules this file inspects, imported ONCE at module scope rather than inside the tests.
+ *
+ * Each was a lazy `await import()` in the test that used it, so the first caller paid the
+ * transform inside its own 5 s budget. This file timed out under a loaded suite on 2026-08-07 —
+ * least dramatically of the three that did, its slowest test measuring 14 ms idle, which is
+ * precisely why it is worth hoisting: a cost small enough to look safe is still a cost sitting
+ * inside a timeout, and that margin is a property of the machine, not of the assertion.
+ *
+ * Same remedy as `api/library.test.ts` and `drawings/pdfVendor.test.ts`, from the same cause.
+ */
+const SPINE_MOD = await import("./spine") as Record<string, unknown>;
+const PARITY_SRC = await import("./parity.test?raw") as { default: string };
+const DESTS_MOD = await import("./destinations");
+
+/**
  * R26-SHELL. The audit found seven workspaces carrying four different left-rail taxonomies, so
  * nothing learned in one transferred to the next. The spine is one constant structure for every role.
  * What is tested here is the property that distinguishes a spine from another mode switch: a
@@ -53,7 +68,7 @@ describe("the shell has no opt-out — there is one front door (v0.3.779)", () =
     // change, two places a bug can hide, and — as this repo actually managed — a render audit whose
     // verdict depends on which one it happened to measure. Asserting the exports are GONE is what
     // stops the flag being quietly reintroduced by a revert.
-    const mod = await import("./spine") as Record<string, unknown>;
+    const mod = SPINE_MOD;
     expect(mod.spineEnabled, "spineEnabled must not come back").toBeUndefined();
     expect(mod.SPINE_FLAG, "the storage key must not come back").toBeUndefined();
   });
@@ -62,7 +77,7 @@ describe("the shell has no opt-out — there is one front door (v0.3.779)", () =
     // Deleting the comparison must not delete the property it protected. `parity.test` asserts the
     // room rail reaches every destination the lifecycle-stage catalog lists — that is what "nothing
     // became unreachable" now rests on, and it survives the shell that motivated it.
-    const parity = await import("./parity.test?raw") as { default: string };
+    const parity = PARITY_SRC;
     expect(parity.default).toMatch(/unroomed|DEST_ROOM|destRoom/);
   });
 });
@@ -144,7 +159,7 @@ describe("every room opens onto something", () => {
     // exactly the defect the room work set out to kill: the tab lit, the marker said Underwriting,
     // and the content pane still showed Budget. Every gate passed, because the rationale forbidding
     // it lived in a COMMENT. It lives here now.
-    const { ALL_DESTS } = await import("./destinations");
+    const { ALL_DESTS } = DESTS_MOD;
     const goto = new Set(ALL_DESTS.filter((d) => d.goto).map((d) => d.key));
     expect(goto.size, "if no destination hops workspaces this test is vacuous").toBeGreaterThan(0);
     for (const [room, home] of Object.entries(ROOM_HOME)) {

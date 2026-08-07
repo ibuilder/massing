@@ -738,8 +738,26 @@ stakes we are missing.
   give `SavedView.config` a schema, and let a view be shared. **Building the entry as written would
   have rebuilt working filtering.** Items 3 and 4 land in `models.py`/`routers/modules.py` — check the
   lane table before starting, that is not lane C's to take unilaterally.
-- ◧ **R22-PIPELINE** *(M — `deal_funnel.py` + migration shipped)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
+- ◧ **R22-PIPELINE** *(M → S — premise-checked 2026-08-07; the backend is built, the remainder is mostly viz)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
   is a funnel, not a project.
+
+  **PREMISE-CHECKED (no build). Both halves the entry describes already exist.**
+  The acquisition funnel is `deal_funnel.py` — stage conversion, weighted value, cycle times, and a
+  `data_quality` guard that refuses to report a conversion rate off too few closed samples. The
+  roll-up *above the project workspace* is `GET /portfolio/executive`: cross-project SPI, % complete,
+  lookahead, late milestones, GMP / EAC / variance-at-completion, an overall status per project,
+  portfolio totals and a status tally, plus the latest solved scenario's IRR/EM per project.
+  `/portfolio/construction`, `/portfolio/prioritization`, `/wip/portfolio` and `/fca/portfolio` sit
+  beside it.
+  Against the spec reference this entry cites, that already covers **multi-project KPI strip, EVM
+  SPI/CPI, milestone tracking and cost-by-project**.
+  **Genuinely missing is three items, and two of them are not Lane C:** a *cross-project* Gantt
+  (`schedule_viz.py` is per-project), a portfolio **risk heat map**, and **resource allocation by
+  department**. The near-misses were checked rather than counted: the "heat" matches in
+  `element_5d.py` and `scan_deviation.py` are different domains (5D element heat, scan deviation), and
+  the `department` matches in `rooms.py` and `scope_clauses.py` are incidental rather than resourcing.
+  So this is not an M of backend work. Size the resourcing engine on its own and route the two
+  visualisation items to the lane that owns them.
 - ◧ **R22-ROUTINES** *(S — `routines.py` + migration shipped)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
   scan) rather than on-demand only. Turns AI from a tool you remember to use into infrastructure.
 - ◧ **R22-PUBLIC-VIEWER** — *(sized **M**, not S; see the Band 2 entry, which is the live one — its premise was corrected 2026-08-06: the scoped, revocable token and the routes honouring it ALREADY EXIST.)* This
@@ -1411,12 +1429,52 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
   therefore nothing to re-edit; changing a count today means deleting copies by hand. **Prerequisite:
   persist the array definition** (an IfcGroup or pset carrying nx/ny/dx/dy/dz plus its member GUIDs)
   and a `set_array_params` recipe that adds/removes members to match. Viewer half is then small.
-- **R38-SOLVER-LOCKS ③** *(M, needs a decision first)* — the R23 dimensional locks as UI. The solver
-  (`services/data/src/aec_data/dim_constraints.py`) reconciles a *system*; with three parameters on
-  a single element there is nothing to reconcile unless the user can state a relationship. **Open
-  question for the user, not a build:** are locks meant to be *within* an element (hold depth, drive
-  width, keep area) or *across* elements (align these walls, hold this offset)? Across-elements is
-  the CAD-familiar meaning and needs multi-element parameter edits, which do not exist yet.
+- **R38-SOLVER-LOCKS ③** *(M — **DECIDED 2026-08-07: both, within-element first**)* — the R23
+  dimensional locks as UI.
+
+  **The user's call:** ship *within*-element locks (hold depth, drive width, keep area) against the
+  existing solver now, and treat *across*-elements (align these walls, hold this offset) as a separate
+  later item once multi-element parameter edits exist. That gets a usable feature out without
+  committing to the larger build up front.
+
+  **Premise-checked 2026-08-07, and the entry's framing was wrong in a way that makes this cheaper
+  than it reads.** The question was posed as though the solver constrained the answer. It does not:
+
+  - `services/data/src/aec_data/dim_constraints.py` exposes `solve(variables, constraints)` over a
+    **flat dict of named scalars**. It has no concept of an element, so within-element and
+    across-element are the same call with different variable names. Its own docstring's example —
+    *"keep a wall 3000 from a grid"* — is an **across**-element relationship, so the general case is
+    what shipped.
+  - **The route already exists**: `POST /projects/{pid}/constraints/solve` in
+    `services/api/src/aec_api/routers/analysis.py`. It has **no client caller**, so the whole feature
+    is server-only today — the same shape the reachability gate exists to catch, and it is not in
+    `KNOWN_UNCALLED`, so it slipped past on the last-static-segment rule.
+
+  **So the solving is done; the work is UI plus a write-back.** The route says so itself: *"pure
+  computation over caller-supplied values — it neither reads nor writes the model."* A UI must gather
+  variables from the selection, call solve, and apply the result back through an edit recipe.
+
+  **The instance-level write path DOES exist** — `services/data/src/aec_data/edit.py`'s `RECIPES`
+  table has **14 entries keyed by `p["guid"]`**, a single element rather than a type. The relevant
+  ones: `set_extrusion_depth(guid, depth)`, `set_wall_thickness(guid, thickness)`,
+  `set_wall_slope(guid, start_height, end_height)`, `move_element(guid, dx, dy, dz)` and
+  `set_element_pset(guid, pset, prop, value, dtype)`.
+
+  *This entry claimed the opposite for one revision, and the way it went wrong is the reusable part.*
+  The functions that ARE the wrong granularity are easy to find by name — `edit_type_params` (type),
+  `set_pset_on_class` (class), `set_storey_elevation` (storey), `instance_props` (read + reset only) —
+  and a grep for guessed setter names finds exactly those and stops. The guid-keyed writes live in a
+  **dispatch table**, not under names anyone would guess. **If a claim is load-bearing, enumerate the
+  whole table rather than the functions you can name.**
+
+  **So the remaining work is a MAPPING, not a capability.** `solve()` returns named scalars, and
+  something must decide that `thickness` on a wall writes through `set_wall_thickness(guid, …)` while
+  `depth` on a column writes through `set_extrusion_depth(guid, …)`. That mapping is the substance of
+  Apply; it is Lane E/C work and needs no new recipe.
+
+  **Where a variable has no recipe, refuse that one BY NAME and apply the rest.** A partial apply that
+  says which locks it could not write is honest; one that silently drops them is the
+  `suggestion_clears_horizon` failure in a new place — a result that looks complete and is not.
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
@@ -1494,12 +1552,39 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
   glyphs, and its tests are mostly about *nothing disappearing* and only then about the bar being
   short. A ribbon inherits that gate — `unlaidTitles()` staying empty matters more than any tab
   layout. Design question before build.
-- ◧ **R40-EOT ②** *(M–L, Lane C — `eot.py` shipped)* — extension-of-time entitlement, with its method stated. Every input
+- ◧ **R40-EOT ②** *(M–L, Lane C — `eot.py` shipped; the SOURCED path shipped 2026-08-07)* — extension-of-time entitlement, with its method stated. Every input
   exists (`schedule_cpm.compute` gives ES/EF/LS/LF and free float, with total float derivable as
   LS−ES; `schedule_baselines` gives named baselines and per-activity variance; `notice_clock`
   already types weather/constructive-change/suspension delay events). What is missing is the step
   from baseline + as-built + events to a defensible entitlement: EOT days, excusable /
   non-excusable / compensable, per-event time impact. **The refusal IS the feature:** forensic delay
+  **Premise-checked: every refusal the entry asks for is already in `eot.py`** — the four methods as a
+  closed set, `method_required`, concurrency named rather than apportioned, absorbed float reported as
+  absorbed. **What had no provenance were its inputs.** `POST /schedule/eot` took `baseline_finish`,
+  `actual_finish` and the whole event list from the request body, while `schedule_baselines` (named
+  captured baselines + per-activity variance) and `notice_clock` (typed weather / constructive-change
+  / suspension events, each carrying its source record) sat wired to nothing. On the number the entry
+  itself says ends up in arbitration, that is the wrong place to leave provenance: two people can
+  produce different EOTs from one project by typing different dates, and every careful refusal sits
+  downstream of an input nobody can audit.
+  `services/api/src/aec_api/eot_sourced.py` + `POST /projects/{pid}/schedule/eot/sourced` joins them.
+  **The design follows from what the two sources actually give**, which is not the same thing:
+  `variance()` gives **quantum** (`finish_var` per activity vs a *named* baseline); `notice_clock`
+  gives **cause** and carries **no `days` field at all** — detection establishes that an event
+  occurred, never what it cost. So the gap is reported rather than filled, twice:
+  *an event with no stated duration is `needs_duration`*, listed and excluded from the figure rather
+  than handed the slip it sits near; and **slip with no matching cause is `unattributed`, never
+  `non_excusable`** — defaulting unexplained slip to contractor risk hands one party an entitlement
+  finding nobody demonstrated. Matching is by explicit `activity_id` only: proximity is not causation,
+  and causation is the contested half of every claim. All three mutation-checked (5 / 2 / 6 named
+  FAILs); no baseline returns `baseline_required` **with the available baselines** rather than falling
+  back to a typed date.
+  *Two of my own assumptions were wrong and caught by reading the engine rather than trusting the
+  name:* `compute_variance` rows key on `ref` (there is no `id`), and its `summary` carries slip counts
+  and `max_slip_days` but **no project finish dates** — so `baseline_finish`/`actual_finish` are passed
+  through from the caller and NOT derived here, because inventing a completion date would fabricate
+  the very input this exists to make auditable.
+
   analysis has a published method taxonomy (AACE 29R-03, SCL Protocol 2nd ed) and **the same facts
   give different answers under different methods** — as-planned-vs-as-built, windows and time-impact
   are not interchangeable, and concurrent-delay apportionment is openly contested. The engine states
@@ -1509,6 +1594,36 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
 - ◧ **R22-PIPELINE** — no rewrite needed; a **spec reference now exists** from the same drop (portfolio
   dashboard: multi-project KPI strip, cross-project Gantt, EVM PV/EV/AC + SPI/CPI, risk heat map,
   milestone tracking, resource allocation by department, cost-by-project).
+
+## Reach sweep — Lane C/G/I *(2026-08-07)*
+
+**Measured, then acted on.** `UNCALLED_CEILING` **131 → 129**, the drop measured by re-running the
+scan rather than derived from what was wired.
+
+- `portfolioCompare` wired into the portfolio panel as a **returns spread**. The executive roll-up
+  gives a *blended* equity IRR — one number for the whole book, which cannot show that a single deal
+  is carrying it. This gives per-project IRR / multiple / yield-on-cost from each project's latest
+  solved scenario plus best-and-worst. An absent return renders em-dash, never 0%: a project with no
+  solved scenario has not returned zero, and a fabricated zero would take the "worst" slot from a deal
+  that genuinely holds it. **This is the R22-PIPELINE finding landing** — capability present, reach
+  absent — folded into the sweep rather than re-listed as new work.
+- `clearBaseline` → `KNOWN_UNCALLED`, **with an expiry condition**. It deletes a captured schedule
+  baseline, and R40-EOT ② has just made the *named* baseline the auditable input to an extension-of-
+  time figure that ends up in arbitration. A one-click destroy beside that is a footgun, and "it has
+  no caller" is not a reason to give it one. Retires when baseline deletion is behind a
+  confirm-and-audit step.
+
+**The procurement cluster is NOT a missing screen, and this is the correction worth carrying.** The
+sweep's premise is that every uncalled method has a live server route, so the remedy is uniformly
+"build the screen" — verified true for 110 of them. **A live route is not an available input.**
+`buyoutPackages`, `buyoutSchedule`, `procurementLevel` and `procurementLevelQuotes` are POST endpoints
+whose QTO lines must carry `{item, qty, unit, trade}`; the engine **skips any line without an `item`**
+and falls back to a single `"General"` package without a grouping key. Both model-derived sources
+(`qtoByFloor`, `estimateFromModel`) return `{ifc_class, count, unit, quantity, rate, amount}` — **no
+`item`, no trade/csi/material_class/discipline**. Nothing in the client surface returns a
+procurement-shaped line. A screen built on today's sources would render one package called "General"
+and read as "this project has no scope". **These four need a trade classification on QTO lines
+first**; that is the blocking item, not a panel.
 
 ## 🔬 R41 — EXTERNAL SCAN *(27 sources, 2026-08-06; licences read from the LICENSE file, not the README)*
 

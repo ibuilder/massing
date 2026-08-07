@@ -27,6 +27,7 @@ Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_sandbox_bytes.
 """
 import glob
 import os
+import shutil
 import sys
 import tempfile
 
@@ -154,6 +155,29 @@ for hostile, label in [
 # --------------------------------------------------------------------------------------------
 # 5) No temp residue — including on the failure path.
 # --------------------------------------------------------------------------------------------
+# THE POPULATION HAS TO BE THIS TEST'S OWN DIRECTORIES, not every `ifc_sandbox_*` on the machine.
+#
+# This globbed the SHARED temp dir, which was survivable while `execute_ifc_bytes` ran in-process and
+# held its directory for milliseconds. Step three moved execution into a child, so each call now holds
+# one for ~0.7s (interpreter start + ifcopenshell import) — and `run_tests.py` runs three suites in
+# parallel, five of which use the sandbox. Instrumenting a single call observed **19** live
+# `ifc_sandbox_*` directories at once, all belonging to other suites.
+#
+# The `before` snapshot does not save it: a sibling's directory created AFTER that snapshot and still
+# alive at the end appears in `new` and fails a test whose own cleanup was perfect. That is the same
+# defect `test_sweep_guard` was cut down for — an assertion whose answer depends on scheduling — and it
+# is worth noticing that isolation did not introduce the race, it made a latent one observable by
+# widening the window a thousandfold.
+#
+# So: point `tempfile` at a private root for this section. `mkdtemp` inside the sandbox reads
+# `tempfile.gettempdir()`, so the sandbox's own directories land here and nobody else's do. The
+# assertion then means what it says — *this* test leaked nothing — rather than "no suite anywhere is
+# mid-flight".
+_shared_tmp = tempfile.tempdir
+_own_tmp = tempfile.mkdtemp(prefix="sandbox_bytes_residue_")
+tempfile.tempdir = _own_tmp
+
+
 def leftovers() -> list[str]:
     return glob.glob(os.path.join(tempfile.gettempdir(), "ifc_sandbox_*"))
 
@@ -171,6 +195,14 @@ except sandbox.SandboxError:
 new = set(leftovers()) - before
 check("no temp directory survives a success, a raising snippet, or an unreadable model",
       not new, f"left behind: {sorted(new)}")
+# Non-vacuity: if the private root were never used, `leftovers()` would be empty for a reason that has
+# nothing to do with cleanup, and the check above would pass on an empty directory forever. Assert the
+# sandbox actually wrote here — a residue check that cannot see the residue is not a check.
+check("...and the sandbox really did use this test's private temp root",
+      os.path.isdir(_own_tmp) and _shared_tmp != _own_tmp,
+      f"private root {_own_tmp!r} — the residue assertion above would be vacuous")
+tempfile.tempdir = _shared_tmp
+shutil.rmtree(_own_tmp, ignore_errors=True)
 
 print(f"\ntest_sandbox_bytes {'OK' if not failures else 'FAILED: ' + ', '.join(failures)}")
 sys.exit(1 if failures else 0)

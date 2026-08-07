@@ -765,6 +765,39 @@ def milestones(pid: str, db: Session = Depends(get_db), _: str = Depends(require
     summary = {k: sum(1 for m in out if m["status"] == k) for k in ("met", "late", "due_soon", "upcoming")}
     return {"count": len(out), "summary": summary, "milestones": out}
 
+@router.post("/projects/{pid}/schedule/eot/sourced")
+def schedule_eot_sourced(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
+                         _: str = Depends(require_role("viewer"))):
+    """R40-EOT ② — the same entitlement, built from the project's OWN baseline and events.
+
+    Body: `{method, baseline_id?, events?, baseline_finish?, actual_finish?}`. The sibling endpoint
+    above takes `baseline_finish` and the whole event list from the caller; **the baseline is the most
+    contested input in a delay claim, and as a typed parameter it is unauditable** — two people can
+    produce different EOTs from one project by typing different dates, with every careful refusal in
+    the engine resting on an input nobody can check.
+
+    Slip is measured against a **named, captured baseline** (`schedule_baselines`), so the quantum is
+    re-derivable and attributable to an artefact. Causes come from `notice_clock` detection, which
+    carries the record each event came from.
+
+    Two gaps between those sources are REPORTED rather than filled:
+
+    * **a detected event is not a quantified delay.** Detection establishes that an event occurred and
+      carries no duration at all. Events without stated days are `needs_duration`, listed, and left
+      out of the figure rather than handed the slip they sit near.
+    * **slip with no matching cause is `unattributed`, never `non_excusable`.** Defaulting unexplained
+      slip to contractor risk would hand one party an entitlement finding nobody demonstrated.
+
+    Matching is by explicit `activity_id` only — proximity is not causation, and causation is the
+    contested half of every claim. Returns `baseline_required` with the available baselines when none
+    is captured, rather than falling back to a typed date."""
+    from .. import eot_sourced
+    return eot_sourced.for_project(
+        db, pid, method=body.get("method"), baseline_id=body.get("baseline_id"),
+        events=body.get("events"), baseline_finish=body.get("baseline_finish"),
+        actual_finish=body.get("actual_finish"))
+
+
 @router.post("/projects/{pid}/schedule/eot")
 def schedule_eot(pid: str, body: dict = Body(default={}), db: Session = Depends(get_db),
                  _: str = Depends(require_role("viewer"))):
