@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import errorlog, metrics, otel, sentry
+from .bodycap import MaxBodySizeMiddleware
 from .db import SessionLocal, init_db
 from .routers import (
     accounting,
@@ -370,6 +371,19 @@ if _hosts:
 # localhost and 127.0.0.1 forms of the Vite origin — they are distinct CORS origins, and the web
 # app's own default API URL is the 127.0.0.1 form (apps/web/.env.local), so a dev opening the app at
 # http://127.0.0.1:5173 would otherwise be blocked even with the API running.
+_MAX_UPLOAD_BYTES = int(os.environ.get("AEC_MAX_UPLOAD_MB", "1024")) * 1024 * 1024  # default 1 GB
+
+# R39-UPLOAD-CAP-APP / R41-UPLOAD-WARK — MEASURE the body, do not take its word for it. The
+# Content-Length check in `security` below is kept as a cheap early refusal, but it is not the
+# bound: with no such header (chunked transfer-encoding, the ordinary HTTP/1.1 case) that condition
+# short-circuits and the body was never measured at all. See `bodycap` for why this has to sit on
+# the ASGI `receive` rather than inside a BaseHTTPMiddleware.
+#
+# Registered BEFORE CORS on purpose. Starlette makes the LAST-added middleware the outermost, so
+# adding this first leaves CORS outside it — which is what lets a cross-origin uploader read the
+# 413 instead of seeing an opaque CORS failure with no explanation.
+app.add_middleware(MaxBodySizeMiddleware, max_bytes=_MAX_UPLOAD_BYTES)
+
 _cors = os.environ.get("AEC_CORS_ORIGINS",
                        "http://localhost:5173,http://127.0.0.1:5173")
 app.add_middleware(
@@ -521,7 +535,10 @@ async def observe_requests(request: Request, call_next):
 
 
 # --- security hardening: body-size cap · RBAC gate · response headers ---------
-_MAX_UPLOAD_BYTES = int(os.environ.get("AEC_MAX_UPLOAD_MB", "1024")) * 1024 * 1024  # default 1 GB
+# `_MAX_UPLOAD_BYTES` is defined above, beside the MaxBodySizeMiddleware registration that is
+# the real bound. It was declared here, next to the Content-Length check that reads it — which
+# is exactly why that check read as the cap: the constant and the only visible use of it sat
+# together, and nothing in view said the pair covered only requests that declare a length.
 _HSTS = os.environ.get("AEC_HSTS") == "1"   # only when served over HTTPS
 # Content-Security-Policy. Default is framing-only (safe everywhere — never restricts resource loads).
 # AEC_CSP=1 turns on a strict resource policy tuned for the production bundle (external same-origin

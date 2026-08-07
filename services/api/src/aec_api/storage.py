@@ -14,6 +14,19 @@ from typing import Protocol
 
 _SAFE_SEG = re.compile(r"^[A-Za-z0-9._-]+$")
 
+#: S3 requires every multipart part except the last to be >= 5 MiB. The streaming writer buffers to
+#: this floor before flushing a part, so peak memory during an upload is one part, not one object.
+_PART_SIZE = 8 * 1024 * 1024
+
+
+class TooLarge(Exception):
+    """A streamed upload passed the caller's byte budget.
+
+    Raised by `put_stream` rather than returned, so a caller that ignores the return value cannot
+    end up having stored an object it meant to refuse. Both backends clean up before it propagates:
+    the local one deletes its `.part` file, the S3 one aborts the multipart upload.
+    """
+
 
 def safe_seg(seg: str) -> str:
     """Validate a single path segment (e.g. a project id / model id) before it's used to build a
@@ -91,6 +104,7 @@ def validate_key(key: str) -> str:
 
 class Backend(Protocol):
     def put(self, key: str, data: bytes) -> str: ...
+    def put_stream(self, key: str, chunks, max_bytes: int | None = None) -> int: ...
     def get(self, key: str) -> bytes: ...
     def exists(self, key: str) -> bool: ...
     def delete(self, key: str) -> None: ...
@@ -118,6 +132,33 @@ class LocalBackend:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
         return key
+
+    def put_stream(self, key: str, chunks, max_bytes: int | None = None) -> int:
+        """Write an iterable of byte chunks without holding the whole object. Returns bytes written.
+
+        Written to a `.part` file and renamed at the end, so a refusal or a crash mid-write cannot
+        leave a TRUNCATED object at the real key. A half-written file at the final key is worse than
+        no file: `exists()` reports it, `size()` reports a plausible number, and every reader
+        downstream treats it as a complete upload.
+        """
+        dest = self._p(key)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        part = dest.with_name(dest.name + ".part")
+        written = 0
+        try:
+            with open(part, "wb") as fh:
+                for chunk in chunks:
+                    if not chunk:
+                        continue
+                    written += len(chunk)
+                    if max_bytes is not None and written > max_bytes:
+                        raise TooLarge(f"upload exceeds {max_bytes} bytes")
+                    fh.write(chunk)
+            part.replace(dest)
+        except BaseException:
+            part.unlink(missing_ok=True)
+            raise
+        return written
 
     def get(self, key: str) -> bytes:
         return self._p(key).read_bytes()
@@ -178,6 +219,57 @@ class S3Backend:
         validate_key(key)
         self.client.put_object(Bucket=self.bucket, Key=key, Body=data)
         return key
+
+    def put_stream(self, key: str, chunks, max_bytes: int | None = None) -> int:
+        """Multipart upload from an iterable of chunks. Returns bytes written.
+
+        Multipart rather than buffering into one `put_object` because buffering here would defeat
+        the entire purpose — the object would be whole in memory again at the moment it is sent.
+        S3 requires every part except the last to be at least 5 MiB, so chunks are accumulated to
+        that floor before a part is flushed; the buffer is bounded by `_PART_SIZE`, not by the
+        object.
+
+        On any failure the upload is ABORTED, not left open: an abandoned multipart upload is
+        invisible to `list_objects` and to `exists()` while still being billed and still holding
+        the parts. That is the S3 form of the truncated-file problem the local backend avoids with
+        a `.part` rename.
+        """
+        validate_key(key)
+        buf = bytearray()
+        parts: list[dict] = []
+        written = 0
+        up = self.client.create_multipart_upload(Bucket=self.bucket, Key=key)
+        uid = up["UploadId"]
+
+        def flush() -> None:
+            n = len(parts) + 1
+            r = self.client.upload_part(Bucket=self.bucket, Key=key, UploadId=uid,
+                                        PartNumber=n, Body=bytes(buf))
+            parts.append({"ETag": r["ETag"], "PartNumber": n})
+            buf.clear()
+
+        try:
+            for chunk in chunks:
+                if not chunk:
+                    continue
+                written += len(chunk)
+                if max_bytes is not None and written > max_bytes:
+                    raise TooLarge(f"upload exceeds {max_bytes} bytes")
+                buf.extend(chunk)
+                if len(buf) >= _PART_SIZE:
+                    flush()
+            if buf or not parts:      # a zero-byte object still needs one (empty) part
+                flush()
+            self.client.complete_multipart_upload(
+                Bucket=self.bucket, Key=key, UploadId=uid,
+                MultipartUpload={"Parts": parts})
+        except BaseException:
+            try:
+                self.client.abort_multipart_upload(Bucket=self.bucket, Key=key, UploadId=uid)
+            except Exception:
+                pass                  # the original failure is the one worth raising
+            raise
+        return written
 
     def get(self, key: str) -> bytes:
         validate_key(key)
@@ -247,6 +339,23 @@ def backend() -> Backend:
 # module-level convenience (back-compat with existing callers)
 def put(key: str, data: bytes) -> str:
     return backend().put(key, data)
+
+
+def put_stream(key: str, chunks, max_bytes: int | None = None) -> int:
+    """Store an object from an iterable of chunks without materialising it. Returns bytes written.
+
+    The back half of R39-UPLOAD-CAP-APP / R41-UPLOAD-WARK. `put(key, data: bytes)` was the only
+    write, so every one of the 36+ `await file.read()` call sites had no alternative to holding the
+    whole upload in memory — the API offered no other shape. Bounding the request body (see
+    `bodycap.MaxBodySizeMiddleware`) stops the *unbounded* case; this is what lets a caller stop
+    holding even a bounded one.
+
+    `max_bytes` is a second, independent bound at the point of storage. It is not redundant with
+    the middleware: the middleware limits one REQUEST, while a handler may write several objects
+    from one request, and some callers (imports, generated exports) produce bytes that never came
+    from a request at all.
+    """
+    return backend().put_stream(key, chunks, max_bytes)
 
 
 def get(key: str) -> bytes:
