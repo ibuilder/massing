@@ -175,7 +175,15 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: reach. Resolved by MEASURING rather than by arithmetic: the gate's own reader reports 121
 //: countable (122 raw, less `clearBaseline` which the sweep moved into KNOWN_UNCALLED). That it
 //: also equals 129 - 8 is a check on the measurement, not the source of it.
-const UNCALLED_CEILING = 128;
+//:
+//: 128 -> 121 after rebasing EST-REACH + FIN-GOV + ⑩ onto BOE-REACH/ROUTINES. MEASURED from this
+//: gate's own reader, not computed: it reports 121 countable.
+//:
+//: The arithmetic only agrees once you notice the overlap — this PR reaches EIGHT methods but SEVEN
+//: are new, because #272 wired `estimateBoe` first. 128 - 8 = 120 would have been wrong and would
+//: have failed the gate; 128 - 7 = 121 matches. Two PRs reaching the same method is exactly the
+//: case a scalar ceiling cannot express, and the reason the number is read rather than derived.
+const UNCALLED_CEILING = 121;
 
 describe("client methods the application actually calls", () => {
   it("agrees with a hand-checked sample in BOTH directions", () => {
