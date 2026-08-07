@@ -118,27 +118,16 @@ currently fail if either regresses.**
   reach, and add `setrlimit` CPU/memory caps around the existing timeout.
 
 
-- ⭐ **Promoted to Band 1** — R41-SCHEMA-STALE *(S, Lane C)*: **a stored record that predates a semantics change reads
-  back QUIETLY WRONG, not visibly broken.** Promoted into Band 1 on 2026-08-06 after the audit came
-  back positive: no `schema_version`, or any equivalent stamp, exists on any persisted record. Reads
-  resolve `data.get(field)` against the **current** schema, so a renamed field renders **empty and
-  indistinguishable from "never filled in"** while its value sits orphaned in the payload; a removed
-  field's value is unread and invisible; a retyped field is rendered under the new type. Nothing
-  raises.
-
-  It ranks here because of the *category*, not the size. Every other Band 1 entry is a wrong answer a
-  user can eventually see. This one is a wrong answer that **looks like an empty form** — the failure
-  mode this file keeps naming, applied to customer data rather than to a gate.
-
-  **Do not confuse it with the `stale_write` 409**, which is optimistic concurrency over two
-  simultaneous edits. That guard sounds like this problem and is not it — a point worth keeping,
-  because its existence is why nobody looked.
-
-  Scope is the good news: **135+ registers share one table shape**, so it is one column plus one
-  read-path branch, not 135 changes. Stamp the writing schema version on every row; on read, a row at
-  any other version returns with its payload forced to null and a stale flag set, so the caller
-  degrades where a user can see and fix it. While in there, grep for composite keys built by bare
-  string concatenation — `"abc" + "d"` equals `"abcd" + ""` — and give them an explicit delimiter.
+- ✅ **SHIPPED v0.3.875 (2026-08-07) — R41-SCHEMA-STALE**, both halves. Full record archived in
+  [`docs/roadmap-completed.md`](roadmap-completed.md); the two points worth carrying forward are that **the prescription in the entry was wrong and the scope
+  claim was right for the wrong reason**. "Force the payload to null on any version difference"
+  would have blanked every historical record the first time anyone *added* a field — i.e. rendered
+  them as empty and indistinguishable from never-filled-in, which is the exact failure the item
+  exists to remove. Severity now derives from the payload (orphaned / mistyped keys), not from the
+  version alone. And "135+ registers share one table shape" was true of the *factory*, not of the
+  deployed database: one `_table()` declares the column, but `create_all` never alters an existing
+  table, so it still needed an Alembic revision or it would have passed on SQLite and failed on
+  every deployed Postgres.
 
 - **Promoted, and it is one mechanism across two entries** — R39-UPLOAD-CAP-APP ① and R41-UPLOAD-WARK. **Neither closes it alone.**
   Cross-referenced 2026-08-06 after two lanes found the halves independently. The app-level cap
@@ -261,7 +250,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · R41-SCHEMA-STALE |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-THROTTLE-SHARED ① · R39-UPLOAD-CAP-APP ① · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -1594,49 +1583,6 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
 
 ### Gate and process items
 
-- **R41-SCHEMA-STALE** *(S — Lane C; **checked 2026-08-06: genuinely unbuilt** — no `schema_version` or equivalent stamp exists on any persisted record)* — **a stored record that predates a semantics change must read
-  back visibly broken, never plausibly wrong.** Stamp a schema version on every persisted record; on
-  read, a record at any other version returns with its payload **forced to null and a stale flag set**,
-  so the caller degrades in a way a user can see and fix. We have 135+ registers plus BCF pins, saved
-  views, origin data and module records. **Audit them against one question: when a stored record
-  predates a change, does it read back as broken or as quietly wrong?** Related grep while in there —
-  any composite cache or dedup key built by bare string concatenation collides, since `"abc" + "d"`
-  equals `"abcd" + ""`; use an explicit delimiter.
-
-  **AUDITED 2026-08-06. The answer is QUIETLY WRONG — the data-integrity category, not the UX one.**
-
-  **There is no schema version to check.** The `mod_*` tables carry fourteen columns — `id`,
-  `project_id`, `ref`, `title`, `workflow_state`, `party_owner`, `assignee`, `created_by`,
-  `created_at`, `modified_at`, `anchor`, `element_guids`, `links`, `data` — and **not one of them
-  records which version of the `module.json` wrote the row**. The only "stale" handling in
-  `services/api/src/aec_api/modules.py` is a `stale_write` 409, which is optimistic concurrency on
-  *simultaneous edits* and says nothing about a record predating a schema change.
-
-  **Reads are keyed by the CURRENT schema's field names** — `data.get(f["name"])` — so drift degrades
-  silently and in three distinct ways, none of which raises:
-
-  * a **renamed** field leaves the old key orphaned in `data` and the new key absent, so the value
-    renders **empty and indistinguishable from "never filled in"** — the worst case, because the data
-    is still there and the UI says it never existed;
-  * a **removed** field's value stays in `data`, unread and invisible;
-  * a **retyped** field is rendered under the new type.
-
-  So the entry's prescription stands unchanged and its urgency is confirmed: this is silent data loss
-  in appearance, not a crash. **135+ registers share this one table shape**, so the fix is one column
-  and one read-path branch rather than 135 changes.
-
-  **The composite-key grep found nothing, and the instrument is the finding.** A scan of all 1,388
-  tracked `.ts`/`.py` files for two interpolations with no delimiter between them
-  (`` `${a}${b}` `` / `f"{a}{b}"`) returns **18 hits, none of them an identity**: every one is display
-  text where the second interpolation is a conditional suffix, or a URL where it is a query string.
-  **Zero genuine collisions.**
-
-  That negative is only worth stating because the first version of the scan was **worthless and
-  confident**. Its filter was `\b(key|cache|…)\b` — word-bounded — which **cannot match `cacheKey` or
-  `cache_key`**, the two most likely real names. A self-test planting a real collision in each
-  language caught it: the scan returned the same count with the probes present. *Word-bounding is the
-  right default for a symbol search and the wrong one for a name-fragment search* — and a filter that
-  excludes its own subject produces a clean bill of health.
 - ◧ **R41-DELETE-RATCHET** *(S — Lane J; the FILE half SHIPPED 2026-08-06, the symbol half deliberately
   not attempted)* — **assert in CI that removed things stay removed.** Shipped as
   `apps/web/src/tooling/deleteRatchet.test.ts` over eight deleted documents.

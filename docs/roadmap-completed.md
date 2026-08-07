@@ -4766,3 +4766,87 @@ while the suite ran 112 commits behind; and a lockfile copied from that same sta
   rendered. Gates: `apps/web/src/ui/empty.test.ts` (the partition) and
   `apps/web/src/portal/registerEmpty.test.ts` (the renderer reaching all three, driven rather than
   grepped — a source regex passes on a branch that is present and never taken).
+
+---
+
+## ✅ R41-SCHEMA-STALE — a record that predates a schema change no longer reads back quietly wrong *(2026-08-07, v0.3.875)*
+
+Shipped in two commits: the engine + Alembic revision + backend test, then the reader's banner.
+
+**Three things the filed entry got wrong, kept because each was reasonable and each was still wrong.**
+
+1. **"Force the payload to null on any version difference"** would have made the bug worse. Adding a
+   field is the common change and is compatible — old rows simply lack it — so nulling on any
+   difference blanks every historical record for a routine addition, rendering them as *empty and
+   indistinguishable from never filled in*, which is the exact failure the item existed to remove.
+   Severity now derives from the payload: `stale` fires on an orphaned key, a mistyped value, or a
+   declared epoch bump; a bare signature change is reported as `changed` and is not stale.
+2. **"135+ registers share one table shape, so it is one column"** was right about the factory and
+   wrong about the database. One `_table()` declares the column, but `create_all` only creates
+   MISSING tables and never alters an existing one — so without an Alembic revision the column would
+   have appeared on a fresh SQLite test database and been absent from every deployed Postgres. The
+   revision discovers its tables from the live database rather than the Python registry, because a
+   table left behind by a renamed module is exactly the one whose rows are most likely to be stale.
+3. **Existing rows are not backfilled.** Stamping them with today's signature would assert they were
+   validated against a schema that may not have existed when they were written. NULL is the honest
+   answer, and the payload checks need no stamp, so historical rows still get the detection.
+
+**Verified.** Backend: four mutations, each confirmed applied and compiled, all four killed —
+dropping the create stamp, forcing `stale` False, conflating `changed` with `stale`, and removing the
+bool/int guard that stops `isinstance(True, int)` letting a checkbox pass as a currency amount. A
+corpus sweep creates a record through the real engine in **135 of 136 registers** and asserts none
+reports stale, with the reach asserted beside the verdict so a shrunken sweep cannot pass as a clean
+one. Reader: 10 vitest checks, four mutations, all killed.
+
+**One known blind spot, asserted so it stays known.** `subject` is the universal title alias and is
+left in `data`, so renaming a module whose title_field *is* `subject` leaves an orphan nothing can
+distinguish from alias residue. Undecidable from the record alone.
+
+**The composite-key grep that came with the item found nothing, and the instrument was the finding**
+— preserved in the original entry below.
+
+### The entry as filed, with its 2026-08-06 audit
+
+- **R41-SCHEMA-STALE** *(S — Lane C; **checked 2026-08-06: genuinely unbuilt** — no `schema_version` or equivalent stamp exists on any persisted record)* — **a stored record that predates a semantics change must read
+  back visibly broken, never plausibly wrong.** Stamp a schema version on every persisted record; on
+  read, a record at any other version returns with its payload **forced to null and a stale flag set**,
+  so the caller degrades in a way a user can see and fix. We have 135+ registers plus BCF pins, saved
+  views, origin data and module records. **Audit them against one question: when a stored record
+  predates a change, does it read back as broken or as quietly wrong?** Related grep while in there —
+  any composite cache or dedup key built by bare string concatenation collides, since `"abc" + "d"`
+  equals `"abcd" + ""`; use an explicit delimiter.
+
+  **AUDITED 2026-08-06. The answer is QUIETLY WRONG — the data-integrity category, not the UX one.**
+
+  **There is no schema version to check.** The `mod_*` tables carry fourteen columns — `id`,
+  `project_id`, `ref`, `title`, `workflow_state`, `party_owner`, `assignee`, `created_by`,
+  `created_at`, `modified_at`, `anchor`, `element_guids`, `links`, `data` — and **not one of them
+  records which version of the `module.json` wrote the row**. The only "stale" handling in
+  `services/api/src/aec_api/modules.py` is a `stale_write` 409, which is optimistic concurrency on
+  *simultaneous edits* and says nothing about a record predating a schema change.
+
+  **Reads are keyed by the CURRENT schema's field names** — `data.get(f["name"])` — so drift degrades
+  silently and in three distinct ways, none of which raises:
+
+  * a **renamed** field leaves the old key orphaned in `data` and the new key absent, so the value
+    renders **empty and indistinguishable from "never filled in"** — the worst case, because the data
+    is still there and the UI says it never existed;
+  * a **removed** field's value stays in `data`, unread and invisible;
+  * a **retyped** field is rendered under the new type.
+
+  So the entry's prescription stands unchanged and its urgency is confirmed: this is silent data loss
+  in appearance, not a crash. **135+ registers share this one table shape**, so the fix is one column
+  and one read-path branch rather than 135 changes.
+
+  **The composite-key grep found nothing, and the instrument is the finding.** A scan of all 1,388
+  tracked `.ts`/`.py` files for two interpolations with no delimiter between them
+  (`` `${a}${b}` `` / `f"{a}{b}"`) returns **18 hits, none of them an identity**: every one is display
+  text where the second interpolation is a conditional suffix, or a URL where it is a query string.
+  **Zero genuine collisions.**
+
+  That negative is only worth stating because the first version of the scan was **worthless and
+  confident**. Its filter was `\b(key|cache|…)\b` — word-bounded — which **cannot match `cacheKey` or
+  `cache_key`**, the two most likely real names. A self-test planting a real collision in each
+  language caught it: the scan returned the same count with the probes present. *Word-bounding is the
+  right default for a symbol search and the wrong one for a name-fragment search* — and a filter that
+  excludes its own subject produces a clean bill of health.
