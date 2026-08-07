@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { resolve, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -350,5 +350,91 @@ describe("the roadmap lane table", () => {
       }
     }
     expect(dupes, "an item in two lanes puts two sessions on one job").toEqual([]);
+  });
+});
+
+/**
+ * LANE-COVERAGE — the question the disjointness check above cannot ask.
+ *
+ * That check asserts no two lanes claim the same path, and it is right to. But **disjointness and
+ * coverage are two different claims, and only the first was tested.** A lane table that is perfectly
+ * disjoint and owns 62% of the tree passes every assertion above, and the remaining 38% is invisible:
+ * not contested, simply unclaimed.
+ *
+ * That is not theoretical. The table's own note records Lane J being created on 2026-08-06 after
+ * "three sessions in one day flagged a path belonging to no lane... Each flagged it correctly and
+ * then had to edit it anyway", and concludes: **"An unowned shared path is not neutral ground; it is
+ * a collision nobody is watching for."** The measurement that prompted this check found 152 of 390
+ * tracked files under `apps/web/src` unowned — 56 once vendored code is set aside — including
+ * `proforma/`, where a defect was fixed the same day under a one-change lane assignment because
+ * there was no row to point at.
+ *
+ * A RATCHET, not a wall. Requiring zero today would ship a red test, and a red test everyone learns
+ * to ignore protects nothing. The number only ever goes down, and it goes down by adding a row to the
+ * table — which is the actual work.
+ */
+function walk(dir: string, out: string[] = []): string[] {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = `${dir}/${e.name}`;
+    if (e.isDirectory()) walk(p, out); else out.push(p);
+  }
+  return out;
+}
+
+/** Not lanes: vendored copies re-synced by overwrite, and ambient type declarations. */
+const NOT_A_LANE = (rel: string) =>
+  rel.startsWith("apps/web/src/vendor/") || rel.endsWith(".d.ts");
+
+//: Measured 2026-08-07 BY THIS READER. Only ever revised DOWN, and the way down is a new row in the
+//: lane table rather than a bigger number here.
+//:
+//: 53, not the 56 my own probe reported. The gap is exactly the three `.d.ts` files this gate exempts
+//: by name and that probe did not — both counts are right for their own exclusions, and a threshold
+//: taken from a different reader is a threshold for a different question. `surface.test.ts` records
+//: being bitten by precisely this (698 from a probe vs 696 from the gate), so the number is read back
+//: out of the assertion that enforces it.
+const UNOWNED_CEILING = 53;
+
+describe("the lane table covers the tree it governs", () => {
+  const WEB = resolve(REPO, "apps/web/src");
+  const ROOT = resolve(REPO).split(sep).join("/");
+  const all = walk(WEB).map((p) => p.split(sep).join("/").slice(ROOT.length + 1));
+  // The table mixes notations: `apps/web/src/shell/` alongside bare `main.ts`, `portal/panels/`,
+  // `field/`. The bare ones are relative to `apps/web/src/`. Resolving them is not cosmetic — my
+  // first version filtered on `startsWith("apps/web/")` and reported 90 unowned instead of 56,
+  // because it silently dropped every relative claim. A population error, in the gate written to
+  // catch population errors.
+  //
+  // Worth flagging separately: the DISJOINTNESS check above compares these strings raw, so two lanes
+  // claiming the same directory in different notations — `field/` and `apps/web/src/field/` — would
+  // read as disjoint. That is a live gap in that check, not this one.
+  const claimed = LANES.flatMap((l) => l.paths)
+    .filter((p) => !p.startsWith("!") && !p.startsWith("services/") && !p.startsWith("docs/") && p !== "README.md")
+    .map((p) => (p.startsWith("apps/") ? p : `apps/web/src/${p}`))
+    .filter((p) => p.startsWith("apps/web/src/"));
+  const unowned = all.filter((f) => !NOT_A_LANE(f) && !claimed.some((p) => f === p || f.startsWith(p)));
+
+  it("can see the tree and the claims — else every count below is vacuous", () => {
+    // Both halves. An empty file list reports zero unowned and looks like total coverage; an empty
+    // claim list reports everything unowned and looks like a catastrophe. Neither is a measurement.
+    expect(all.length, "no web source files found — the walk is broken, not the table").toBeGreaterThan(200);
+    expect(claimed.length, "no lane claims any apps/web path — the table parse is broken").toBeGreaterThan(5);
+  });
+
+  it("does not grow the set of files no lane owns", () => {
+    const byDir = [...new Set(unowned.map((f) => f.split("/").slice(0, 4).join("/")))].sort();
+    expect(unowned.length,
+      `${unowned.length} file(s) under apps/web/src belong to no lane. Add a row to the lane table ` +
+      `in docs/roadmap.md rather than raising this number. Locations: ${byDir.join(", ")}`)
+      .toBeLessThanOrEqual(UNOWNED_CEILING);
+  });
+
+  it("names a path the table genuinely does not claim — so the checker is not always empty", () => {
+    // The paired control. A matcher that is too loose returns zero unowned for any table at all,
+    // which is indistinguishable from full coverage. `vendor/` is excluded by name above, so use a
+    // real unclaimed source path: this must be found, and it must stop being found once a row lands.
+    expect(unowned.some((f) => f.startsWith("apps/web/src/proforma/")),
+      "proforma/ is unclaimed today — if this fails, either a row was added (update this test) " +
+      "or the matcher stopped working").toBe(true);
   });
 });

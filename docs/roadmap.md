@@ -294,6 +294,34 @@ nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · 
 R24-IDENTITY · R32-TAXONOMY-LIFECYCLE (all five need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
 it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the **actual deploy overlay** in CI — still needs a decision on where the deploy env template lives. **Split 2026-08-02:** the half that needs NO decision — smoke the validator against a *synthetic* safe posture → exit 0 and an unsafe one → exit 1, catching a validator crash, a check regressed to a no-op, or a FAIL demoted — is unparked as a ~10-line CI step; the security session has claimed it).
 
+**A fourth was wrong until 2026-08-07, and it is wrong in the way the table could not see.**
+`roadmapLanes.test.ts` asserts the rows are **disjoint** — no two lanes claim the same path — and it
+is right to. But **disjointness and coverage are two different claims, and only the first was
+tested.** A table that is perfectly disjoint and owns 62% of the tree passes every assertion, and the
+rest is invisible: not contested, simply unclaimed.
+
+Measured: **152 of 390 tracked files under `apps/web/src` belonged to no lane — 53 once vendored code
+and ambient type declarations are set aside.** The unowned set includes `proforma/`, `drawings/`,
+`kernel/`, `pins/`, `studio/`, `tools/`, `tree/`, `connections/`, `account/`, `deploy/`, and the loose
+files in `portal/` that are neither `portal.ts` (A) nor `panels/`/`register/` (B) — `offlineQueue.ts`,
+`prefs.ts`, `panelContext.ts`, sitting between the two lanes least likely to be watching each other.
+That is the same shape as the 2026-07-30 nested overlap, one level up.
+
+This is not theoretical: Lane J's own note records three sessions in one day hitting a path belonging
+to no lane, and on 2026-08-07 a real defect in `apps/web/src/proforma/proforma.ts` — a reserve
+contribution presented as a recommendation without reading the flag that says whether it verified —
+had to be fixed under a one-change lane assignment because there was no row to point at.
+
+**It is now a ratchet rather than a proposal.** `roadmapLanes.test.ts` counts unowned files against a
+ceiling that only ever goes down, and the way down is adding a row here. Rows still to agree:
+`proforma/` · `drawings/` · `kernel/` · `pins/` · `studio/` · `tools/` · `tree/` · the loose `portal/`
+files · `tooling/` + `dev/` (probably J) · `account/` · `connections/` · `deploy/`.
+
+**One live gap in the disjointness check itself, found while measuring.** The table mixes notations —
+`apps/web/src/shell/` alongside bare `main.ts`, `portal/panels/`, `field/` — and that check compares
+the strings raw. Two lanes claiming the same directory in different notations (`field/` and
+`apps/web/src/field/`) would read as disjoint. Not fixed here; recorded so it is not re-discovered.
+
 **Two lane boundaries were wrong until 2026-07-30 and are worth naming.** Lane A used to own
 `apps/web/src/portal/` *wholesale* while B owned `portal/panels/` — a nested overlap, so the two lanes
 least likely to notice each other shared a directory. And `routers/` sat inside C's path with no owner
