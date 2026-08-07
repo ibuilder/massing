@@ -111,6 +111,70 @@ export function buildQaSection(d: QaDeps): void {
             if (d!.hygiene.issues) body.appendChild(resultNote(`<b>${d!.hygiene.issues}</b> model-hygiene issue(s) — see Model Health.`, "bad"));
           });
         })));
+        // VIEW-TEMPLATES — saved view definitions, listed and APPLIED. Both halves were unreachable:
+        // `viewTemplates` (the list) and `resolveViewTemplate` (what it resolves to on THIS model).
+        // A saved view nobody can apply is a stored preference with no effect.
+        //
+        // Applying is reversible — it isolates and colours, it does not edit the model — which is why
+        // this is safe to wire without a confirmation step, unlike the template WRITE endpoints.
+        b.appendChild(toolBtn2("👁 View templates (apply a saved view)", () => withLoading(container, "Reading view templates", async () => {
+          let r;
+          try { r = await api.viewTemplates(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${r.templates.length} template(s)`;
+          showResult("View templates", (body) => {
+            if (!r!.templates.length) {
+              body.appendChild(resultNote("No view templates saved for this project.", ""));
+              return;
+            }
+            for (const t of r!.templates) {
+              const row = document.createElement("div");
+              row.className = "meta";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer";
+              row.innerHTML = `<b>${escapeHtml(t.name)}</b>`
+                + (t.isolate ? ` · isolate ${escapeHtml(t.isolate)}` : "")
+                + (t.hide_classes?.length ? ` · hides ${t.hide_classes.length}` : "")
+                + (t.rules?.length ? ` · ${t.rules.length} colour rule(s)` : "");
+              row.title = "Resolve against this model and apply";
+              row.onclick = async () => {
+                let v;
+                try { v = await api.resolveViewTemplate(pid, t.id); }
+                catch (e) { toast((e as Error).message, "error"); return; }
+                // Resolve first, report second, apply third. A template that resolves to NOTHING on
+                // this model would otherwise isolate an empty set and read as "the model vanished".
+                if (!v.visible.length) {
+                  notify(`"${t.name}" matches no elements in this model — nothing applied`, "info");
+                  return;
+                }
+                await layerMgr.isolateGuids(v.visible.slice(0, 5000));
+                notify(`Applied "${t.name}" — ${v.visible_count} visible, ${v.hidden_count} hidden`
+                  + (v.colored_count ? `, ${v.colored_count} coloured` : ""), "success");
+              };
+              body.appendChild(row);
+            }
+            body.appendChild(resultNote("Applying isolates and colours — it does not change the model.", ""));
+          });
+        })));
+
+        // CLASH-IMPORT — bring in clash results authored elsewhere (Navisworks and friends). Additive:
+        // it imports findings, it does not modify geometry.
+        const clashXml = document.createElement("input");
+        clashXml.type = "file"; clashXml.accept = ".xml"; clashXml.style.display = "none";
+        clashXml.onchange = async () => {
+          const f = clashXml.files?.[0];
+          if (!f) return;
+          await withLoading(container, "Importing clash XML", async () => {
+            try {
+              const res = await api.importClashXml(pid, f);
+              notify(`Imported ${res.imported ?? 0} clash result(s) from ${f.name}`, "success");
+              await refreshIssues();
+            } catch (e) { toast((e as Error).message, "error"); }
+          });
+          clashXml.value = "";        // so re-picking the same file fires change again
+        };
+        b.appendChild(clashXml);
+        b.appendChild(toolBtn2("📥 Import clash XML (from another tool)", () => clashXml.click()));
+
         // ENVELOPE-R — assembly build-ups with R/U values. Each assembly carries its GUIDs, so the
         // list selects; a thermal report you cannot point at in the model is a spreadsheet.
         b.appendChild(toolBtn2("🧱 Envelope assemblies (R / U values)", () => withLoading(container, "Reading assemblies", async () => {

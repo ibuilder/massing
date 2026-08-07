@@ -282,7 +282,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R41-REACH-WRITES · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
@@ -2162,6 +2162,28 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   *Filed by the session that found it rather than fixed on the spot: the files belonged to other
   sessions' worktrees, and the `git worktree remove --force` incident is precisely why a measurement
   gets reported and someone who owns the tree does the deleting.*
+
+- **R41-REACH-WRITES** *(M — Lane E — **split out of the reach sweep 2026-08-07, deliberately not
+  built**)* — the write-side endpoints that have no screen, held back because **each one needs a
+  confirmation or recovery step designed rather than bolted on**. The read-side sweep took
+  `UNCALLED_CEILING` from 131 to 104 by wiring seventeen capabilities; these four were left because
+  wiring them the same way would ship a control that can lose work.
+
+  | method | why it is not a read-side wiring job |
+  |---|---|
+  | `deleteProjectModel` | **destructive.** Removes a registered discipline model. Needs a named confirmation ("type the discipline"), and an answer to what happens to pins, clash results and issues that reference it. |
+  | `saveSharedParams` | **`PUT` replaces the whole list.** A partial save silently wipes the project standard every other model is authored against. Needs edit-in-place semantics, or a diff-and-confirm. |
+  | `reviewModelVersion` | a **state transition** (`submit`/`approve`/`reject`). Approval is an assertion a person makes; the seal work already established that a bearer token is a session, not a person. Needs the same step-up thinking. |
+  | `deleteView` | destructive, same shape as the first row and cheaper — probably lands with it. |
+
+  **What is already done and should not be redone:** the read/apply halves are wired.
+  `viewTemplates` + `resolveViewTemplate` apply a saved view (isolate + colour, reversible),
+  `importClashXml` imports findings additively, and `sharedParams` displays the standard read-only.
+  So each row above is *"add the write to an existing screen"*, not *"build a screen"*.
+
+  **The general rule this item exists to hold:** a reach sweep is allowed to wire anything that
+  cannot lose work, and must stop at anything that can. Wiring a destructive endpoint with the same
+  three lines as a read-only one is how a ratchet's progress starts costing more than it buys.
 
 - **R41-BUNDLER-SPLIT** *(S — Lane J)* — **the suite never exercises the bundler that ships.** The app
   is *built* with **Vite 8 / rolldown** (pinned in `apps/web/package.json`, installed nested at
