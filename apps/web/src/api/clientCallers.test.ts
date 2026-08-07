@@ -168,6 +168,13 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: defect: the period lock is ENFORCED (every finance mutation dated into a closed month is refused
 //: with a 409) while the control to see or set it was unreachable. An unreachable feature is one
 //: nobody can use; an unreachable control over an enforced rule actively blocks people.
+//:
+//:
+//: 129 -> 121 after rebasing EST-REACH + FIN-GOV onto UNCALLED-SWEEP. Both sides of that conflict
+//: lowered this number for different reasons, so taking either would have discarded the other's
+//: reach. Resolved by MEASURING rather than by arithmetic: the gate's own reader reports 121
+//: countable (122 raw, less `clearBaseline` which the sweep moved into KNOWN_UNCALLED). That it
+//: also equals 129 - 8 is a check on the measurement, not the source of it.
 const UNCALLED_CEILING = 128;
 
 describe("client methods the application actually calls", () => {
