@@ -89,10 +89,25 @@ _DENIED_ATTRS = frozenset({
 _ALLOWED_LOWER_ATTRS = frozenset({
     # the authoring facade the snippet is actually here to use
     "api", "run", "guid", "new", "create_entity",
-    # ifcopenshell.file read surface
+    # ifcopenshell.file / entity read surface.
+    #
+    # `get_info` is the one a real snippet reaches for first — it is how you look at an entity's
+    # attributes as a dict — and leaving it out made ordinary read-only inspection fail against a
+    # sandbox whose stated intent is to be "deliberately generous". A tightening that refuses the
+    # commonest legitimate call gets the feature flag switched off, which is the outcome this
+    # allowlist exists to avoid. `get_info` returns a dict of the entity's own attributes and nested
+    # entities: no module, no callable, nothing that widens the reachable graph.
     "by_type", "by_id", "by_guid", "get_inverse", "traverse", "schema", "types", "is_a", "id",
+    # `to_string` is the READ direction of the serialiser and is safe; `from_string` remains DENIED,
+    # because that one builds a model out of attacker-supplied text. Adding a name near a denied one
+    # deserves the check: these two differ by direction, not by degree.
+    #
+    # Deliberately NOT added while adding these: `file` (an entity's back-reference to the model —
+    # `model` is already in scope, so it buys nothing and widens the graph) and anything resembling
+    # `wrapped_data`, which is one of the escapes the red-team suite exists to catch.
+    "get_info", "to_string",
     # ordinary value manipulation
-    "append", "extend", "insert", "index", "count", "sort", "reverse", "copy",
+    "append", "extend", "insert", "index", "count", "sort", "reverse", "copy", "remove",
     "keys", "values", "items", "get", "add", "update", "pop",
     "strip", "lstrip", "rstrip", "lower", "upper", "title", "split", "rsplit", "join",
     "replace", "startswith", "endswith", "find", "isdigit", "isalpha", "zfill", "ljust", "rjust",

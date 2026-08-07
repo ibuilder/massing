@@ -111,6 +111,11 @@ services:
       <<: *api-env
       AEC_JOB_WORKER: "inline"      # this process IS the worker; never `off` or it does nothing at all
     command: ["python", "-m", "aec_api.worker"]
+    # The image bakes a HEALTHCHECK that curls localhost:8000/health. This service binds no port and
+    # serves nothing, so that probe can never pass and the container sits permanently `unhealthy` —
+    # which is worse than no signal, because it trains whoever is watching to ignore the column. The
+    # comment above claimed there was no healthcheck; there was, inherited from the image.
+    healthcheck: { disable: true }
     volumes: ["ifc-data:/app/ifc"]   # same uploaded-IFC volume as the API — jobs re-parse those files
     profiles: ["full"]
     # deploy:                        # opt-in cap — size for your host; this is where the heavy parses

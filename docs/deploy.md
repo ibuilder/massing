@@ -4,11 +4,16 @@
 - `postgres` — primary store (projects/members/topics/comments/viewpoints/attachments/audit).
 - `minio` — object storage (source IFC, `.frag` tiles, `props.json`, attachments).
 - `api` — FastAPI; image bundles `services/data` so exports/clash/validate/drawings work.
+- `worker` — the durable job queue, in its own process (`python -m aec_api.worker`). **Not optional
+  under this compose file**: it sets `AEC_JOB_WORKER=off` on the API, so with no worker running every
+  enqueue succeeds, every row is written, every caller is told the work is under way, and none of it
+  happens. Nothing raises. Scale it independently — `--scale worker=3` — when conversions back up.
+  Serves nothing, so it binds no port and its healthcheck is disabled.
 - `web` — Vite build served by nginx (COOP/COEP headers for web-ifc threading).
 - `converter` — Node IFC→Fragments, run as a job (`docker compose run`).
 
 ```bash
-# core stack (api + web + postgres + minio)
+# core stack (api + worker + web + postgres + minio)
 docker compose --profile full up --build
 #   web → http://localhost:8080    api → http://localhost:8000    minio console → :9001
 

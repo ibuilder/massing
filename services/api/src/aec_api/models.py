@@ -383,6 +383,19 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: JOB-WORKER-SCALE — last sign of life from the process running this job.
+    #:
+    #: Orphan recovery re-queued EVERY `running` row in the database, which was correct while exactly
+    #: one process ever ran the queue. `docker compose --scale worker=3` is now documented in the
+    #: compose file, and under it a booting worker re-queued jobs its siblings were mid-execution on,
+    #: so the same mutating job ran in two processes at once. The compare-and-swap in `_claim_next`
+    #: cannot help: it arbitrates who claims a `queued` row, and a row reset to `queued` underneath a
+    #: live worker is exactly what it hands out.
+    #:
+    #: A claim stamps this; the running worker refreshes it. A row whose heartbeat has stopped is an
+    #: orphan, one whose heartbeat is current belongs to somebody — that is the distinction recovery
+    #: needs and had no way to make.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AuditLog(Base):
