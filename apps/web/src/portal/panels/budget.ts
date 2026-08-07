@@ -158,14 +158,14 @@ export async function renderBudget(ctx: PanelContext) {
         return;
       }
       const b = await ctx.host.api.estimateBoe(pid, { lines });
-      const pct = Math.round((b.pct_documented ?? 0) * 100);
+      const pct = Math.round((b.ledger.pct_documented ?? 0) * 100);
       const tone = pct === 100 ? "var(--status-good)" : pct >= 70 ? "var(--status-warn)" : "var(--status-crit)";
-      const bad = (b.undocumented ?? []).map((u) => `<tr><td>${esc(u.description || u.key)}</td><td class="meta">${esc((u.missing ?? []).join(", "))}</td></tr>`);
-      fillEst(`<div style="font-weight:600;margin-bottom:4px">Basis of estimate — <b style="color:${tone}">${b.documented}/${b.line_count}</b> lines documented (${pct}%)</div>`
+      const bad = (b.ledger.undocumented ?? []).map((u) => `<tr><td>${esc(u.description || u.key)}</td><td class="meta">${esc((u.missing ?? []).join(", "))}</td></tr>`);
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">Basis of estimate — <b style="color:${tone}">${b.ledger.documented}/${b.ledger.line_count}</b> lines documented (${pct}%)</div>`
         + (bad.length
           ? `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Line</th><th>Missing</th></tr></thead><tbody>${rows(bad)}</tbody></table></div>`
           : `<div class="meta">Every line carries a source and a basis date.</div>`)
-        + `<div class="meta" style="margin-top:4px">${esc(b.note ?? "")}</div>`);
+        + `<div class="meta" style="margin-top:4px">${esc(b.ledger.note ?? "")}</div>`);
     } catch (err) { fillEst(`<div class="meta">Basis of estimate unavailable: ${(err as Error).message}</div>`); }
   };
   estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, boeBtn, dxfLabel);
