@@ -1768,8 +1768,29 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   hard half — the population is the moved code *named*, the matcher is asserted to find real names,
   comments are stripped, and the legitimate crossings are enumerated as doors. The symbol ratchet is
   the harder second version and should extract that helper rather than re-derive it.
-- **R41-TEST-RESIDUE** *(S — Lane J; found 2026-08-06 by tracing a flaky suite to its cause)* —
-  **the backend suite leaves its databases behind, and nothing sweeps them.** A full `run_tests.py`
+- ✅ **R41-TEST-RESIDUE** *(S — Lane J; found 2026-08-06 by tracing a flaky suite to its cause,
+  **and my own filed premise was wrong** — corrected below)* —
+  **the backend suite leaves its databases behind, and the sweep that should have caught it was
+  removing a filename nothing creates.**
+
+  *Filed as "nothing sweeps them". That is false and the truth is more interesting.* `run_tests.py`
+  sets `DATABASE_URL=sqlite:///./_{t}.db` per test and unlinks exactly that. But **351 of 538 test
+  files overwrite `DATABASE_URL` at import** with a name of their own (`test_absorption.db`,
+  `auth_test.db`). So the runner unlinked a file nothing ever creates while the real one persisted —
+  **a cleanup that ran, succeeded, and removed nothing**, which is indistinguishable from one that
+  works. The 187 tests that *do* use the runner's name were cleaned correctly the whole time, which
+  is exactly why nobody noticed.
+
+  **Fixed with two refinements from a second session, both better than the first design.** The sweep
+  runs **per test as each finishes** rather than after the pool — with the disk at ~96% an end-sweep
+  still peaked at ~1.4 GB held open at once. And **a failing test keeps its database**, because that
+  file is the evidence for the failure and sweeping it destroys what someone needs at 3am.
+
+  Per-test cleanup is **name-scoped from the test's own source**, not a snapshot diff: tests run
+  concurrently, so "everything that appeared while I ran" also contains databases other tests are
+  still using. The end-of-run backstop *does* use snapshot-diff, where no name is available — a
+  `glob("test_*.db")` there would have its safety depend on which filenames happen to exist, and
+  `preview.db` (the dev API's live database) shares that directory. A full `run_tests.py`
   writes a SQLite file per test module into `services/api/`, and no run removes what the last one
   wrote. Measured across the shared clone that day:
 
