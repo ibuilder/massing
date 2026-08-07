@@ -1404,12 +1404,33 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
   therefore nothing to re-edit; changing a count today means deleting copies by hand. **Prerequisite:
   persist the array definition** (an IfcGroup or pset carrying nx/ny/dx/dy/dz plus its member GUIDs)
   and a `set_array_params` recipe that adds/removes members to match. Viewer half is then small.
-- **R38-SOLVER-LOCKS ③** *(M, needs a decision first)* — the R23 dimensional locks as UI. The solver
-  (`services/data/src/aec_data/dim_constraints.py`) reconciles a *system*; with three parameters on
-  a single element there is nothing to reconcile unless the user can state a relationship. **Open
-  question for the user, not a build:** are locks meant to be *within* an element (hold depth, drive
-  width, keep area) or *across* elements (align these walls, hold this offset)? Across-elements is
-  the CAD-familiar meaning and needs multi-element parameter edits, which do not exist yet.
+- **R38-SOLVER-LOCKS ③** *(M — **DECIDED 2026-08-07: both, within-element first**)* — the R23
+  dimensional locks as UI.
+
+  **The user's call:** ship *within*-element locks (hold depth, drive width, keep area) against the
+  existing solver now, and treat *across*-elements (align these walls, hold this offset) as a separate
+  later item once multi-element parameter edits exist. That gets a usable feature out without
+  committing to the larger build up front.
+
+  **Premise-checked 2026-08-07, and the entry's framing was wrong in a way that makes this cheaper
+  than it reads.** The question was posed as though the solver constrained the answer. It does not:
+
+  - `services/data/src/aec_data/dim_constraints.py` exposes `solve(variables, constraints)` over a
+    **flat dict of named scalars**. It has no concept of an element, so within-element and
+    across-element are the same call with different variable names. Its own docstring's example —
+    *"keep a wall 3000 from a grid"* — is an **across**-element relationship, so the general case is
+    what shipped.
+  - **The route already exists**: `POST /projects/{pid}/constraints/solve` in
+    `services/api/src/aec_api/routers/analysis.py`. It has **no client caller**, so the whole feature
+    is server-only today — the same shape the reachability gate exists to catch, and it is not in
+    `KNOWN_UNCALLED`, so it slipped past on the last-static-segment rule.
+
+  **So the remaining work is UI and wiring, not solving.** The one real constraint is in that route's
+  own words: *"pure computation over caller-supplied values — it neither reads nor writes the model."*
+  A UI must therefore gather variables from the selection, call solve, and **apply the result back
+  through an edit recipe**. That write-back is where "multi-element parameter edits do not exist yet"
+  actually bites — which is why within-element first is the right order: one element's parameters can
+  be written with the edit path that already exists.
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
