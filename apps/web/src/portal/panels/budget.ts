@@ -117,6 +117,34 @@ export async function renderBudget(ctx: PanelContext) {
         + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Storey</th><th style="text-align:right">Elements</th><th style="text-align:right">Cost</th></tr></thead><tbody>${rows(st)}</tbody></table></div>`);
     } catch (err) { fillEst(`<div class="meta">By-floor QTO unavailable: ${(err as Error).message}</div>`); }
   };
+  // BUYOUT-REACH — `buyoutPackages` had no caller, and its input was already one button away: the
+  // by-floor QTO's `by_discipline` lines are exactly the `qtoLines` it groups. Nothing was missing
+  // but the wiring between two things sitting in the same panel.
+  const buyBtn = document.createElement("button"); buyBtn.className = "tool-btn"; buyBtn.textContent = "◲ Buyout packages";
+  buyBtn.title = "Group the model takeoff into RFQ packages by trade — package count, estimated value, and the scope each RFQ would carry";
+  buyBtn.onclick = async () => {
+    fillEst(`<div class="meta">Grouping the takeoff into packages…</div>`);
+    try {
+      const q = await ctx.host.api.qtoByFloor(pid);
+      if (!q.by_discipline.length) {
+        fillEst(`<div class="meta">No takeoff lines yet — the model has nothing to package.</div>`);
+        return;
+      }
+      const b = await ctx.host.api.buyoutPackages(pid, q.by_discipline as unknown as Record<string, unknown>[]);
+      const rws = b.packages.map((p) =>
+        `<tr><td>${esc(p.package)}</td><td style="text-align:right">${p.line_count}</td>`
+        + `<td style="text-align:right">${usd(p.est_cost)}</td>`
+        + `<td class="meta">${esc(p.rfq_scope.slice(0, 3).map((s) => s.item).join(", "))}`
+        + `${p.rfq_scope.length > 3 ? ` +${p.rfq_scope.length - 3}` : ""}</td></tr>`);
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">Buyout — <b>${b.package_count}</b> packages `
+        + `· ${usd(b.total_est_cost)} grouped by ${esc(b.grouped_by)}</div>`
+        + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Package</th>`
+        + `<th style="text-align:right">Lines</th><th style="text-align:right">Est. value</th><th>RFQ scope</th>`
+        + `</tr></thead><tbody>${rows(rws)}</tbody></table></div>`
+        + `<div class="meta" style="margin-top:4px">${esc(b.note)}</div>`);
+    } catch (err) { fillEst(`<div class="meta">Buyout packaging unavailable: ${(err as Error).message}</div>`); }
+  };
+
   const dxfLabel = document.createElement("label"); dxfLabel.className = "tool-btn"; dxfLabel.style.cursor = "pointer";
   dxfLabel.textContent = "⬒ Takeoff a DXF"; dxfLabel.title = "2D CAD quantity takeoff — linear metres, enclosed area and block counts per layer";
   const dxfInput = document.createElement("input"); dxfInput.type = "file"; dxfInput.accept = ".dxf"; dxfInput.style.display = "none"; dxfLabel.appendChild(dxfInput);
@@ -131,7 +159,7 @@ export async function renderBudget(ctx: PanelContext) {
     } catch (err) { fillEst(`<div class="meta">DXF takeoff failed: ${(err as Error).message}</div>`); }
     finally { dxfInput.value = ""; }
   };
-  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, dxfLabel);
+  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, buyBtn, dxfLabel);
 
   // budget movement vs baseline (shown only if a baseline exists; 409 otherwise → ignored)
   const bvHolder = document.createElement("div"); ctx.root.appendChild(bvHolder);
