@@ -3348,7 +3348,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       // R39-DECOMP-VIEWER ④ — moved verbatim to `tools/authoringSection.ts`.
       authoring: () => buildAuthoringSection({
         section, toolBtn2, api, pid, notify, panel, waitForPublish, loadProjectModel,
-        lastPoint: () => lastPoint,
+        lastPoint: () => lastPoint, selectedGuid: () => selectedGuid,
       }),
     };
     for (const key of order) builders[key]?.();
