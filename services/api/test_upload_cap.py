@@ -210,11 +210,38 @@ check("a refused overwrite leaves the ORIGINAL object untouched",
       "the previous object was destroyed by a write that was refused")
 
 # The traversal guard applies to the streaming path too — a new write door must not be a new hole.
-try:
-    storage.put_stream("../escape.bin", (b"x",))
-    check("put_stream honours the key guard", False, "a traversal key was accepted")
-except Exception:
-    check("put_stream honours the key guard", True)
+#
+# Enumerated rather than probed with one string. CodeQL raised `py/path-injection` (HIGH) against
+# this file's write sinks the moment it changed, and "I added a write path" is exactly when a
+# containment guard deserves to be re-proved rather than assumed — the repo's own note is that a
+# barrier must RESOLVE and compare, not inspect the string. `validate_key` rejects empty / NUL /
+# absolute / any `..` segment, and `LocalBackend._p` then resolves and requires the result to sit
+# under the root, which is the second bar and the one that survives symlinks and drive-relative
+# oddities. Both doors — `put` and `put_stream` — are held to the same set.
+TRAVERSAL = [
+    "../escape.bin", "../../escape.bin", "a/../../escape.bin", "a/b/../../../escape.bin",
+    "/etc/passwd", "\\windows\\system32\\x", "..\\..\\escape.bin", "a\\..\\..\\escape.bin",
+    "", "with\x00nul.bin",
+]
+leaked_stream, leaked_put = [], []
+for bad in TRAVERSAL:
+    try:
+        storage.put_stream(bad, (b"x",))
+        leaked_stream.append(bad)
+    except Exception:                       # noqa: BLE001 — any refusal is a refusal
+        pass
+    try:
+        storage.put(bad, b"x")
+        leaked_put.append(bad)
+    except Exception:                       # noqa: BLE001
+        pass
+check(f"put_stream refuses all {len(TRAVERSAL)} traversal keys", not leaked_stream,
+      f"accepted: {leaked_stream}")
+check("put refuses the same set — the two doors agree", not leaked_put,
+      f"accepted: {leaked_put}")
+# And nothing escaped onto the filesystem, which is the claim the status codes only imply.
+outside = os.path.abspath(os.path.join("./test_storage_upload_cap", "..", "escape.bin"))
+check("no file was written outside the storage root", not os.path.exists(outside), outside)
 
 print(f"\ntest_upload_cap {'OK' if not failures else 'FAILED: ' + ', '.join(failures)}")
 sys.exit(1 if failures else 0)
