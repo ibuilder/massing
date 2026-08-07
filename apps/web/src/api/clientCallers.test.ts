@@ -134,6 +134,10 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: drop by TWO, for `reserveStudy` as well — that was wrong, and the number is why it was caught:
 //: `reserveStudy` already had a caller in `src/proforma/proforma.ts`, so it was never in this set.
 //: Measured by probing rather than derived from what the wiring touched.
+//: 129 -> 128 on 2026-08-07 (BOE-REACH): `estimateBoe` gained a caller — Basis of estimate on the
+//: budget panel. Measured by re-running the scan, which reports exactly one fewer; nothing became
+//: newly uncalled.
+//:
 //: 131 -> 129 on 2026-08-07 (UNCALLED-SWEEP, Lane C/G/I). The drop is TWO and was MEASURED by
 //: re-running the reachability scan before and after, not derived from what was wired — the
 //: `reserveStudy` note above is exactly why. `portfolioCompare` gained a caller (the returns spread
@@ -147,7 +151,7 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: counts 131 — a different population, so its ABSOLUTE is not a valid ceiling input. The DELTA is
 //: sound because both affected methods are present in both populations. If this run reports anything
 //: other than 129, trust this file and not the reasoning above.
-const UNCALLED_CEILING = 129;
+const UNCALLED_CEILING = 128;
 
 describe("client methods the application actually calls", () => {
   it("agrees with a hand-checked sample in BOTH directions", () => {
