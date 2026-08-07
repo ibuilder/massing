@@ -1463,7 +1463,7 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
 
 ### Capability items
 
-- **R41-FDD-INGEST** *(M — Lane C)* — **consume fault findings; do not build a historian.** The operate
+- ✅ **R41-FDD-INGEST** *(M — Lane C/H; `fault_finding` register shipped 2026-08-07)* — **consume fault findings; do not build a historian.** The operate
   phase has a real hole: FCA/FCI, work orders, PM schedules, asset registers and warranties all exist,
   but **nothing consumes time-series building-automation telemetry**, so condition is surveyed by a
   person rather than measured continuously. The tempting answer — build fault detection ourselves —
@@ -1472,6 +1472,26 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   `fault_finding` register keyed to IFC GlobalId, populated from an external system's MCP or REST
   surface**, feeding the FCI and work-order modules we already have. Public ASHRAE Guideline 36 fault
   identifiers are a stable vocabulary to key against.
+
+  **Premise held — genuinely unbuilt**, unlike most of this ring: `asset_register`, `fca_element`,
+  `work_order` and `warranty` all existed and nothing consumed telemetry findings.
+  `fault_finding` (FDD, 16 fields, four contiguous fieldsets: Fault / Provenance / Asset /
+  Consequence) takes the cheap path the entry prescribes and **does not** build a historian.
+  The design point is that we CONSUME rather than detect, so provenance is a fieldset rather than a
+  footnote: `source_system` + `external_id` + `first_seen`/`last_seen`/`occurrences`. A finding with
+  no source is not ours to assert, and a telemetry fault is an interval that recurs, not an instant —
+  which is why `cleared → reported` ("recurred") is a real transition: **a fault that stops reporting
+  is not necessarily fixed, and one that returns is not new.** `dismissed` is separate from `cleared`
+  for the same reason.
+  G36 identifiers FC1–FC15 are the `g36_id` vocabulary, plus an explicit "Other (not a G36 fault)" so
+  an unmapped fault is recorded as unmapped instead of forced into the nearest code.
+  **No defaults at all** — `test_field_attrs.py` caps them and requires each to be a fact about the
+  record rather than a policy, and on a register fed by someone else's system every default would be
+  an assertion about *their* data.
+  Verified over HTTP with startup actually running: `GET /modules` → **137** (was 136), key-shape
+  identical to `pm_contract`, room derived as `operate`, `POST` → 201 `FDD-001`.
+  *The registry validator earned its keep*: the first draft wrote reference fields as `ref:` when the
+  schema wants `module:`, and it named all four rather than failing silently.
 
   **CHECKED 2026-08-06 — the premise HOLDS, which is worth recording because most have not.** The
   modules the entry says exist do: `fca_element` + `services/api/src/aec_api/fca.py`, `work_order`,

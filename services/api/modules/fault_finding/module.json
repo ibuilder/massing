@@ -1,0 +1,211 @@
+{
+  "key": "fault_finding",
+  "name": "Fault Findings",
+  "section": "Condition & Capital",
+  "icon": "📉",
+  "ref_prefix": "FDD",
+  "title_field": "fault_name",
+  "pinnable": true,
+  "fields": [
+    {
+      "name": "fault_name",
+      "label": "Fault",
+      "type": "text",
+      "fieldset": "Fault"
+    },
+    {
+      "name": "g36_id",
+      "label": "ASHRAE G36 fault",
+      "type": "select",
+      "options": [
+        "FC1 low duct static",
+        "FC2 mixed air too low",
+        "FC3 mixed air too high",
+        "FC4 excessive mode changes",
+        "FC5 supply/return temp mismatch",
+        "FC6 outside air fraction off",
+        "FC7 heating valve saturated",
+        "FC8 economizer temp mismatch",
+        "FC9 free cooling unavailable",
+        "FC10 mixed air vs outside air",
+        "FC11 outside air vs supply",
+        "FC12 mixed air above supply",
+        "FC13 cooling valve saturated",
+        "FC14 coil delta-T low",
+        "FC15 coil delta-T high",
+        "Other (not a G36 fault)"
+      ],
+      "fieldset": "Fault"
+    },
+    {
+      "name": "severity",
+      "label": "Severity",
+      "type": "select",
+      "options": [
+        "Critical",
+        "High",
+        "Medium",
+        "Low"
+      ],
+      "fieldset": "Fault"
+    },
+    {
+      "name": "description",
+      "label": "What the system reported",
+      "type": "textarea",
+      "fieldset": "Fault"
+    },
+    {
+      "name": "source_system",
+      "label": "Source system",
+      "type": "text",
+      "fieldset": "Provenance"
+    },
+    {
+      "name": "external_id",
+      "label": "Fault ID in that system",
+      "type": "text",
+      "fieldset": "Provenance"
+    },
+    {
+      "name": "first_seen",
+      "label": "First seen",
+      "type": "date",
+      "fieldset": "Provenance"
+    },
+    {
+      "name": "last_seen",
+      "label": "Last seen",
+      "type": "date",
+      "fieldset": "Provenance"
+    },
+    {
+      "name": "occurrences",
+      "label": "Occurrences",
+      "type": "number",
+      "fieldset": "Provenance"
+    },
+    {
+      "name": "asset",
+      "label": "Asset",
+      "type": "reference",
+      "module": "asset_register",
+      "fieldset": "Asset"
+    },
+    {
+      "name": "equipment_tag",
+      "label": "Equipment tag",
+      "type": "text",
+      "fieldset": "Asset"
+    },
+    {
+      "name": "location_loc",
+      "label": "Location (linked)",
+      "type": "reference",
+      "module": "location",
+      "fieldset": "Asset"
+    },
+    {
+      "name": "condition_impact",
+      "label": "Condition impact",
+      "type": "select",
+      "options": [
+        "Suspected deficiency",
+        "Confirmed deficiency",
+        "No condition impact",
+        "Not assessed"
+      ],
+      "fieldset": "Consequence"
+    },
+    {
+      "name": "fca_element",
+      "label": "Condition record",
+      "type": "reference",
+      "module": "fca_element",
+      "fieldset": "Consequence"
+    },
+    {
+      "name": "work_order",
+      "label": "Work order",
+      "type": "reference",
+      "module": "work_order",
+      "fieldset": "Consequence"
+    },
+    {
+      "name": "energy_cost_annual",
+      "label": "Est. annual energy cost",
+      "type": "currency",
+      "fieldset": "Consequence"
+    }
+  ],
+  "workflow": {
+    "initial": "reported",
+    "states": [
+      "reported",
+      "triaged",
+      "actioned",
+      "cleared",
+      "dismissed"
+    ],
+    "transitions": [
+      {
+        "from": "reported",
+        "to": "triaged",
+        "action": "triage",
+        "party": [
+          "Owner",
+          "OwnersRep",
+          "Engineer",
+          "Consultant"
+        ]
+      },
+      {
+        "from": "triaged",
+        "to": "actioned",
+        "action": "raise work order",
+        "party": [
+          "Owner",
+          "OwnersRep",
+          "GC"
+        ]
+      },
+      {
+        "from": "actioned",
+        "to": "cleared",
+        "action": "clear",
+        "party": [
+          "Owner",
+          "OwnersRep",
+          "GC"
+        ]
+      },
+      {
+        "from": "cleared",
+        "to": "reported",
+        "action": "recurred",
+        "party": [
+          "Owner",
+          "OwnersRep",
+          "Engineer"
+        ]
+      },
+      {
+        "from": "triaged",
+        "to": "dismissed",
+        "action": "dismiss",
+        "party": [
+          "Owner",
+          "OwnersRep",
+          "Engineer"
+        ]
+      }
+    ]
+  },
+  "list_columns": [
+    "g36_id",
+    "severity",
+    "source_system",
+    "last_seen"
+  ],
+  "workspace": "construction|developer"
+}
