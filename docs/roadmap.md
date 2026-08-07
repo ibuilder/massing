@@ -154,9 +154,19 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
-- ◧ **R31-CITE-HIGHLIGHT** *(NOT S — re-scoped 2026-08-04 after a premise check; snippet display
-  shipped v0.3.868, the highlight is BLOCKED on a data-model gap)* — **the citation cannot be
-  resolved to anything openable, so "make it a control" has nothing to click through to.**
+- ◧ **R31-CITE-HIGHLIGHT** *(NOT S — snippet display shipped v0.3.868; **the data-model blocker is
+  CLEARED as of v0.3.877** — the remaining work is the viewer `PageWords` bridge)* — **the citation
+  could not be resolved to anything openable, so "make it a control" had nothing to click through
+  to.**
+
+  **CLEARED 2026-08-07.** The blocker was smaller and dumber than this entry knew: `ingest` ran
+  `extract_pdf_text` and then **discarded the PDF**, so even when a real document existed nothing
+  afterwards could open it. The index entry now carries `source` / `source_kind`, a posted PDF is
+  stored beside its chunks, `GET /projects/{pid}/doctext/{doc_id}/source` serves it, and every
+  citation reports `openable` as a value. A text-only ingest reports `openable: false` — there is no
+  document behind it and there never was, so that is an answer rather than a gap. **What remains is
+  only the viewer half**: `citeLocate.ts` is written against a structural interface and still needs
+  something to supply `PageWords`.
 
   `doc_text.py` derives `doc_id` as a **slug of the document's name**, and the doctext index stores
   `{doc_id, name, chunks, sections, ingested_at}` — no file id, no path. `ingest(pid, name, text=None,
@@ -1549,7 +1559,7 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   plainly: *"We already validate models against an IDS; this is the upstream half."* Closing as
   already built. **The "openBIM gaps complete except the IFC5/IFCX write-path" claim survives this
   test** — IDS was the suspected second gap and it is not one.
-- ◨ **R41-UPLOAD-WARK** *(M — Lane C; **the byte-bound half SHIPPED v0.3.876** — `services/api/src/aec_api/bodycap.py` measures the request body instead of trusting `Content-Length`, and `storage.put_stream` gives callers a way to write without holding the object. **The resumable handshake below is untouched, and no upload route has been converted to the streaming write yet** — that is what is left)* — **content-addressed resumable upload in front of object
+- ◧ **R41-UPLOAD-WARK** *(M — Lane C; **the byte-bound half SHIPPED v0.3.876** — `services/api/src/aec_api/bodycap.py` measures the request body instead of trusting `Content-Length`, and `storage.put_stream` gives callers a way to write without holding the object. **The resumable handshake below is untouched, and no upload route has been converted to the streaming write yet** — that is what is left)* — **content-addressed resumable upload in front of object
   storage.** Technique from an MIT-licensed file server (verified from its LICENSE); reimplement the
   handshake rather than adopt the server. Three parts: chunk size chosen so the **chunk *count* stays
   bounded**, keeping the handshake manifest roughly constant regardless of file size — a fixed part
