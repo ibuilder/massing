@@ -1489,7 +1489,18 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   federation and is *not* the same problem as our standing set-origin note. Two techniques, both
   reimplement-from-description — the reference source carries an object-code-only header despite an MIT
   root, so **do not paste it**:
-  **(a) a yaw-only oriented bounding box** fitted to drawn geometry (2D convex hull of the footprint,
+  **(a) a yaw-only oriented bounding box** fitted to drawn geometry
+  *[PREMISE-CHECKED 2026-08-06: HOLDS — nothing aligns anything today — but (a) is substantially
+  cheaper than written. `georef.py` exposes one function, `georeferencing(model)`, which **reads** and
+  returns; there is no yaw fitting, no unit-mismatch handling and no alignment anywhere in `services/`.
+  What lowers the cost: **shapely is already a declared dependency** (`services/data/requirements.txt`,
+  `>=2.1.2`, pulled in for trimesh planar paths) and `drawings.py` already uses `MultiPoint(...)
+  .convex_hull`. Shapely ships `minimum_rotated_rectangle`, verified in the pinned version — so the
+  hull-and-fit half is a call, not an implementation, and needs no new dependency and no pasted
+  reference code. **What must still be written by hand is the part the entry says is valuable**: the
+  ≥20% area-saving acceptance threshold that buys a *wall-parallel* rectangle rather than a *smallest*
+  one. The geometry is small; the acceptance rule and the "never touch the source file" guarantee are
+  the work.]* (2D convex hull of the footprint,
   minimum-area rectangle), accepted **only when it saves at least 20% area**. The reasoning is the
   valuable part: a true minimum-area rectangle sat **37° off a building's own walls to buy 14%**, which
   reads as broken. The threshold buys *wall-parallel* rather than *smallest*. Their measured gap was a
@@ -1557,10 +1568,47 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   by dollar impact: scope added between bid and contract, invoice lines drifting from a locked buyout
   price. This is where subcontractors actually lose money, and it sits on top of cost and document
   control we already have.
-- **R41-IDS-VALIDATE** *(M — Lane D)* — **buildingSMART IDS: author an Information Delivery
+
+  **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
+  the cost-code axis of this diff is done. The item is much smaller than written.**
+  Registers present: `bid_submission` (`amount`, `unit_prices`), `bid_package`, `prime_contract`
+  (`value`, `sov_value`), `subcontract` (`value`), `owner_invoice` (`amount`, `retainage_total`,
+  `architect_certified_amount`), `sub_invoice` (`amount`). **The chain is already referentially
+  wired**: `subcontract.awarded_from → bid_submission` and `sub_invoice.subcontract → subcontract`,
+  so bid → contract → invoice can be walked today without a schema change.
+  **And the diff partly exists, along a different axis than the entry assumes.** `margin.py`
+  (MARGIN-CBS) already totals budget / committed / actual / billed per cost code, and `cost_spine.py`
+  already asks the harder question — whether one cost code carries the *same scope* from estimate
+  through budget, commitment and invoice, because a code appearing at one stage and not the next
+  produces a row that looks fine. That is document drift measured **per cost code**.
+  **What is actually missing is two things, not four:**
+  1. **the PO hop has no register.** `purchase_order` does not exist; `procurement_package` carries
+     `est_cost` and `award_amount` but has **zero reference fields** — it is an island, so nothing can
+     walk into or out of it. This is the one genuine schema gap;
+  2. **nothing diffs amounts document-to-document along the references that already exist** — bid
+     `amount` vs the `subcontract.value` it was awarded into, contract value vs the sum of its
+     `sub_invoice.amount`. The per-code roll-up cannot see this: two documents can net to the right
+     code total while the individual award drifted.
+  Sized on evidence rather than the entry's wording, this is **S/M** — one register plus one walker
+  over existing references — not the M implied by "build a four-hop diff".
+- ✅ **R41-IDS-VALIDATE** *(M — Lane D; DISSOLVED on premise-check 2026-08-06 — already built end to end)* — **buildingSMART IDS: author an Information Delivery
   Specification, run it against a model, read the report.** Conspicuously absent for a product whose
   thesis is IFC-native, and a likely second gap in the "openBIM gaps complete except the IFC5/IFCX
   write-path" claim. **Verify that claim against the tree before sizing this.**
+
+  **Verified, and the entry is the thing that was wrong — the openBIM claim was right.** All three
+  verbs exist and the loop is closed, including into the UI:
+  *author* — `services/api/src/aec_api/ids_authoring.py` ships a starter template library keyed by
+  element group (Pset_*Common properties per IFC class), builds a standards-valid buildingSMART **IDS
+  1.0** file through `ifctester`, and generates an EIR contract document;
+  *run* — `services/data/src/aec_data/validate.py` validates an IFC against an IDS with `ifctester`,
+  taking an uploaded `.ids` or falling back to a default QA spec set;
+  *read the report* — `POST /projects/{pid}/validate`, with `PUT`/`GET`/`DELETE /projects/{pid}/ids`
+  storing the project's spec, and **all of it already called from `apps/web/src/api/client.ts`** —
+  which makes it the rare feature that is not merely built but reachable.
+  So "conspicuously absent" described a feature that was complete, wired and shipping. **The entry's
+  own instruction is what caught it**, and that is the argument for writing entries that say what to
+  verify: a sentence naming the check costs one grep and saved an M-sized build here.
 
   ✅ **VERIFIED 2026-08-06 — the premise is wrong and the claim HOLDS. This is already built,
   end-to-end and reachable.** All three parts the entry asks for exist:
@@ -1589,7 +1637,24 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   `hash(salt + filesize + chunk hashes)` so **resumption is not a special code path** (re-handshake,
   receive the still-needed list) and deduplication falls out for free; and per-chunk hashes catching
   corruption **before** IFC-to-Fragments conversion runs. **IFC revisions are large and mostly
-  identical between uploads**, so an unchanged re-upload currently costs a full transfer. Their
+  identical between uploads**, so an unchanged re-upload currently costs a full transfer.
+
+  **PREMISE-CHECKED 2026-08-06; the hazard it surfaced is now FIXED and half the mechanism landed.**
+  The premise holds — nothing is chunked, resumable or content-addressed — but two things changed the
+  shape of it.
+  *The hazard, and it was worse than the version I first wrote.* I flagged that a chunked upload would
+  defeat `AEC_MAX_UPLOAD_MB` because the guard reads `content-length` on a single request and N small
+  chunks each pass. The real mechanism was simpler and already live: **with no `content-length` header
+  at all the condition short-circuited and the body was never measured** — so the cap was defeatable
+  without chunking anything. Fixed in v0.3.876 by `bodycap.MaxBodySizeMiddleware`, which counts bytes
+  on the ASGI `receive` channel. Recorded because the correction matters: I reasoned to the right
+  conclusion from the wrong mechanism, and a guard that *fails open on a missing header* is a
+  different class of bug from one that is out-scoped by chunking.
+  *The other half stands and has moved.* `storage.put(key, data: bytes)` was whole-bytes on both
+  backends; `put_stream` now exists (local `.part`+rename, S3 multipart) — but **no call site is
+  converted**, verified in the tree. So the remaining work is the conversion plus the content-addressed
+  handshake itself, and whatever lands must still cap the *assembled* size at the handshake rather
+  than trusting a declared filesize. Their
   sparse-file capability check is this codebase's own house style expressed in a network protocol: on a
   mismatch it **refuses loudly**, naming file, chunk index and offset, rather than silently writing a
   corrupt file.
