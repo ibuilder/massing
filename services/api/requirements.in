@@ -25,6 +25,21 @@ ifctester>=0.8
 trimesh>=4.0
 manifold3d>=2.0
 scipy>=1.18.0
+# DO NOT REMOVE — it looks unused and is not. Nothing under `services/` writes `import networkx`,
+# so a grep for import sites says "zero" and the line reads like dead weight. It is the ONLY thing
+# installing networkx: both consumers declare it as an *optional extra* (`trimesh[easy]`,
+# `ifcopenshell[advanced]`) and we install neither extra, so dropping this line drops the package.
+#
+# It is load-bearing for plan/section drawings. `aec_data/drawings.py` cuts geometry with
+# `mesh.section(...)` and then reads `sec.discrete`, and that attribute walks the path graph through
+# networkx. Verified by blocking the import: `.section()` still returns a Path3D, and `.discrete`
+# raises ImportError.
+#
+# The failure would also have been quiet. `drawings.py` wraps the cut in
+# `except Exception  # noqa: BLE001 — one unsectionable mesh must not kill the cut`, so the
+# ImportError is swallowed once per mesh and every plan and section renders BLANK rather than
+# erroring. `test_sections.py` is what actually catches it — it asserts the SVG contains drawn
+# geometry, so it goes red instead of the drawings going empty.
 networkx>=3.6.1
 shapely>=2.0
 reportlab>=5.0.0
