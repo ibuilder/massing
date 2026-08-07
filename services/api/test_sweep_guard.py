@@ -126,17 +126,25 @@ try:
           "; ".join(sorted(named)[:5]) if named
           else f"{len(rt.TESTS) + len(rt.DATA_TESTS)} tests vs {len(PROTECTED)} protected names")
 
-    live = rt._db_snapshot()
-    offenders = []
-    for t in rt.TESTS:
-        for q in rt._owned_dbs(t, rt.HERE) & live:
-            offenders.append(f"{t} -> {q.name}")
-    for t in rt.DATA_TESTS:
-        for q in rt._owned_dbs(t, rt.DATA_DIR) & live:
-            offenders.append(f"{t} -> {q.name}")
-    check("no test CLAIMS a database that already exists", not offenders,
-          "; ".join(sorted(offenders)[:5]) if offenders
-          else f"{len(rt.TESTS) + len(rt.DATA_TESTS)} tests checked against {len(live)} live files")
+    # A live-files version of the same question USED to sit here — snapshot `*.db*` in `services/api`
+    # and flag any test whose owned set intersects it. CI failed on it:
+    #
+    #     FAIL  no test CLAIMS a database that already exists
+    #           test_jobs -> _test_jobs.db; test_worker_split -> _test_worker_split.db
+    #
+    # Neither is a defect. This suite runs INSIDE the pool it is inspecting, so `_test_jobs.db` exists
+    # for the entirely correct reason that `test_jobs` is running at that moment. The check cannot be
+    # made reliable in a directory where 543 tests execute concurrently — its answer depends on
+    # scheduling.
+    #
+    # It is deleted rather than fixed, because the deterministic check above already covers the hazard
+    # it was reaching for, and this one only ever added flakiness. Two things worth keeping:
+    #
+    #  - It was VACUOUS locally (a clean tree, "0 live files") and WRONG in CI. Both readings were
+    #    useless and they failed in opposite directions, which is why a green local run said nothing.
+    #  - The comment directly above already said the deterministic version "is the check that actually
+    #    holds in CI" — the reasoning was written down and the racy check was shipped underneath it
+    #    anyway. Knowing the rule is not the same as applying it.
 
     # --- the invariant that makes per-test sweeping concurrency-safe -----------------------------
     #
