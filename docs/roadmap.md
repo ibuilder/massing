@@ -1678,9 +1678,10 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
 
 ### Gate and process items
 
-- ◧ **R41-DELETE-RATCHET** *(S — Lane J; the FILE half SHIPPED 2026-08-06, the symbol half deliberately
-  not attempted)* — **assert in CI that removed things stay removed.** Shipped as
-  `apps/web/src/tooling/deleteRatchet.test.ts` over eight deleted documents.
+- ✅ **R41-DELETE-RATCHET** *(S — Lane J; FILE half + SYMBOL half both SHIPPED 2026-08-06)* —
+  **assert in CI that removed things stay removed.** Shipped as
+  `apps/web/src/tooling/deleteRatchet.test.ts` over eight deleted documents, and
+  `services/api/test_delete_ratchet.py` over the API method surface.
 
   **The entry says "a negative assertion is three lines". It is — and the population is the whole
   problem.** Three plausible candidates were tested and all three failed, in three different ways:
@@ -1699,6 +1700,26 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   problem; a path has none of them — prior existence is provable from history, current absence is one
   `git ls-files`, and it needs no comment-stripping, no word boundaries, and no matcher that can agree
   with everything.
+
+  **The symbol half then became tractable — by not searching for a name.** Every failure above is a
+  *string-matching* problem, so `services/api/test_delete_ratchet.py` does no string matching: it
+  parses **definition sites** (`^  name(` at class indent, across `apps/web/src/api/*.ts`) and asserts
+  a derived property over whatever it finds — **no API method is defined in two files**. That inverts
+  all three traps at once. There is no list to guess wrong (`renderRegister` could not have been
+  invented here, because nothing is named in advance); prose cannot match a definition site, so the
+  gate cannot fire on the documentation of its own rule; and a word with a legitimate other life is
+  irrelevant, because a second *definition* is the defect whatever else the word means elsewhere.
+  **The failure it catches is invisible to the size ratchet.** Re-adding one method to `client.ts`
+  while the mixin still defines it costs a few lines, clears the 3,780 pin comfortably, and produces a
+  **shadow** — two definitions, the winner decided by composition order in
+  `withAuth(withProforma(withDesignOptions(...)))`. Every call site resolves, nothing fails to compile,
+  and the extraction is silently undone. 638 methods across 10 files, zero duplicates, **no exemption
+  list**. Mutation-checked by re-adding `designOptionsRecord` to `client.ts`: 3 named FAILs naming the
+  symbol and both owning files.
+  *Scope worth stating so neither half is over-read:* no `.py`/`.ts`/`.tsx` file has ever been deleted
+  on `main` (`git log --diff-filter=D`, 400 commits, **zero**) — which is exactly why the path ratchet
+  lives over `docs/` and the source-side one is about definitions rather than deletions. In source,
+  things here get *extracted*, not removed.
 
   **The eight are load-bearing because `docs/` IS the Pages web root.** Re-adding any one republishes
   a superseded planning document as a live public page. Two of them are competitive analyses, which a
