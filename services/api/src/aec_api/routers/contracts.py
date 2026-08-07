@@ -82,9 +82,7 @@ def scope_library_exhibit(trade: str | None = None, clauses: str | None = None,
     clauses belong to the agreement body, not to Exhibit A, and returning them here would invite a
     caller to render them twice in one contract package.
     """
-    ids = [c for c in (clauses or "").split(",") if c] or scope_library.default_ids(trade)
-    picked = [c for c in scope_library.clauses_by_ids(ids)
-              if c["category"] in scope_library.EXHIBIT_CATEGORIES]
+    picked = scope_library.exhibit_clauses([c for c in (clauses or "").split(",") if c] or None, trade)
     return {"trade": trade,
             "division": (div := scope_library.division_for_trade(trade)),
             "division_name": scope_library.division_name(div),
@@ -112,6 +110,35 @@ def contract_document(pid: str, key: str, rid: str, doc: str = "agreement",
         me.add_attachment(db, key, pid, rid, f"{doc}-{rid}.pdf", "application/pdf", pdf, user)
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{doc}-{rid}.pdf"'})
+
+
+@router.get("/projects/{pid}/contracts/{key}/{rid}/exhibit.docx")
+def contract_exhibit_docx(pid: str, key: str, rid: str, clauses: str | None = None,
+                          attach: bool = False, db: Session = Depends(get_db),
+                          user: str = Depends(require_role("viewer"))):
+    """Exhibit A as an editable Word document — the copy a subcontractor redlines and sends back.
+
+    Same clause selection and same merge context as `document.pdf?doc=exhibit`; only the container
+    differs. The PDF is the signed instrument, this is the negotiating copy, and scope negotiation is
+    redlining — a PDF is the wrong object to hand somebody who has to strike what they do not hold.
+
+    A separate path rather than `document.pdf?fmt=docx` because the extension is what a browser, a
+    mail client and a document management system all key on; a `.pdf` URL that returns a Word file is
+    the kind of thing that arrives at a subcontractor as a file their machine refuses to open.
+    """
+    clause_ids = [c for c in (clauses or "").split(",") if c] or None
+    try:
+        blob = contracts.exhibit_docx(db, key, pid, rid, clause_ids)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except HTTPException:
+        raise
+    name = f"exhibit-a-{rid}.docx"
+    mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    if attach:
+        me.add_attachment(db, key, pid, rid, name, mime, blob, user)
+    return Response(blob, media_type=mime,
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @router.post("/projects/{pid}/contracts/{key}/{rid}/sign")

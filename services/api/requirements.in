@@ -82,3 +82,18 @@ rdflib>=7.1
 # 200 MB+ against onnxruntime's ~50 MB, and the service never trains. Detection stays inert without
 # a model file (AEC_PHOTO_MODEL), so installing this does not by itself turn anything on.
 onnxruntime>=1.23
+
+# --- SCOPE-DOCX: Exhibit A as an editable Word document (scope_docx.py) ---
+# MIT, recorded in docs/ATTRIBUTIONS.md, approved by the user 2026-08-07. Pinned in the change that
+# FIRST USES it, per the roadmap rule: a dependency carried ahead of its code is supply-chain surface
+# for no benefit.
+#
+# Marginal cost is ONE package, not three: both of its requirements are already in the lock and both
+# floors are already satisfied — lxml 6.1.1 (needs >=3.1.0) and typing-extensions 4.16.0 (needs
+# >=4.9.0). Checked before adding rather than assumed.
+#
+# Why a library rather than hand-rolled OOXML: a .docx is a zip of XML and the exhibit is only
+# headings and paragraphs, so writing it directly is tempting. It is refused because this is a
+# CONTRACT document — a malformed part that Word declines to open is a far worse failure than a
+# dependency, and the failure would land on a subcontractor rather than on us.
+python-docx>=1.2
