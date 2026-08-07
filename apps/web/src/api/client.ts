@@ -759,9 +759,40 @@ export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcu
     const q = new URLSearchParams({ doc, ...(clauses ? { clauses } : {}), ...(attach ? { attach: "1" } : {}) }).toString();
     return this.url(`/projects/${pid}/contracts/${key}/${rid}/document.pdf?${q}`);
   }
-  /** Scope-of-work clause library for composing Exhibit A. */
-  scopeLibrary() {
-    return this.json<{ clauses: { id: string; category: string; title: string; trade?: string | null }[] }>(`/scope-library`);
+  /** Scope-of-work clause library for composing Exhibit A (ids + titles, no bodies).
+   *
+   * `trade` or `division` narrows the catalog. Pass one whenever the record has a trade: the library
+   * carries 249 clauses across 21 MasterFormat divisions, and unnarrowed it asks somebody to pick a
+   * plumbing subcontract out of a list where 95% of the entries belong to other trades. `trade`
+   * resolves to a division server-side so the mapping stays in one place; an unrecognised trade
+   * returns the whole catalog rather than an empty one.
+   */
+  scopeLibrary(opts: { trade?: string; division?: string } = {}) {
+    const q = new URLSearchParams({ ...(opts.trade ? { trade: opts.trade } : {}),
+                                    ...(opts.division ? { division: opts.division } : {}) }).toString();
+    return this.json<{
+      clauses: { id: string; category: string; title: string; trade?: string | null;
+                 division?: string | null; default: boolean }[];
+      division: string | null; division_name: string | null; divisions: string[];
+    }>(`/scope-library${q ? `?${q}` : ""}`);
+  }
+  /** The assembled Exhibit A — numbered clauses WITH bodies, plus per-category counts.
+   *
+   * This is the read-only half of what `contractDocUrl(..., "exhibit", ids)` renders, and it exists so
+   * a composer can show what it is about to produce before a PDF is generated and attached to a
+   * record. Omitting `clauses` yields the server's default selection for the trade, which is the same
+   * `default_ids` path the document uses — so the preview and the signed document come from one code
+   * path rather than two that drift.
+   */
+  scopeExhibit(opts: { trade?: string; clauses?: string[] } = {}) {
+    const q = new URLSearchParams({ ...(opts.trade ? { trade: opts.trade } : {}),
+                                    ...(opts.clauses?.length ? { clauses: opts.clauses.join(",") } : {}) }).toString();
+    return this.json<{
+      trade: string | null; division: string | null; division_name: string | null;
+      clauses: { id: string; category: string; title: string; body: string;
+                 number: string; section: string }[];
+      counts: Record<string, number>;
+    }>(`/scope-library/exhibit${q ? `?${q}` : ""}`);
   }
   /** Record a party's signature (typed name) on a contract / change order. */
   signContract(pid: string, key: string, rid: string, party: string, name: string) {
