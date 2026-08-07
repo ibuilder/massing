@@ -226,22 +226,37 @@ instances:
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
-The previous five all closed without a build — the record is in
-[`roadmap-completed.md`](roadmap-completed.md), and the band's thesis held: **check the premise before
-you build, because most of them are already true.** Three fresh candidates, each phrased so the check
-itself is the deliverable:
+**All three checked 2026-08-07. Two were real, one closed for free — the band's thesis held for the
+eighth time running.** The record is below; the previous five are in
+[`roadmap-completed.md`](roadmap-completed.md).
 
-- **Does anything read `suggestion_clears_horizon`?** v0.3.814 added it to the reserve study so the
-  suggested contribution proves itself. If no panel surfaces it, an operator still cannot see the
-  difference between a verified suggestion and an unverified one — the number is honest and invisible.
-- **Is `nothing_renovated` shown anywhere?** Same shape, from v0.3.813: the renovation schedule now
-  says explicitly when a pace renovates nothing across the whole hold. A field nobody renders is a
-  field nobody reads.
-- **Do the seven rooms all have a non-empty demo?** v0.3.818 proved `/vitals`, `/work-queue`, `/jobs`
-  and `/presence` had never been captured. `demoData.test.ts` now gates those four; the check is
-  whether every ROOM (not just every endpoint) has enough seeded data to look like a product on the
-  public demo, `work` especially.
+- ✅ **CLOSED FOR FREE — do the seven rooms all have a non-empty demo?** They do. Every module in
+  every room has at least one seeded record: cost 18/18 (65 records), deal 9/9 (17), design 32/32
+  (70), operate 15/15 (51), planning 26/26 (50), schedule 7/7 (24), and **work 28/28 (48)** — the one
+  the check singled out. No build needed.
 
+  *The measurement was wrong twice before it was right, which is the part worth keeping.* The first
+  pass matched `/modules/{key}/records` and reported **zero records in all seven rooms** — a
+  spectacular finding that was purely a wrong key shape; the list endpoint is `/modules/{key}`. A
+  gap-check that reports total absence should be suspected of measuring the wrong thing before it is
+  believed.
+
+- ⚠️ **REAL — nothing reads `suggestion_clears_horizon`.** `services/api/src/aec_api/reserve.py`
+  computes it and `services/api/test_reserves_cam.py` asserts it, but no panel calls `reserveStudy`
+  at all. An operator still cannot tell a verified suggested contribution from an unverified one.
+
+- ⚠️ **REAL — nothing renders `nothing_renovated`.** `services/api/src/aec_api/proforma/renovation.py`
+  computes it and `apps/web/src/api/proforma.ts` *types* it — its own comment says callers "should
+  surface it prominently" — but the only caller of `proformaRenovation` is a test.
+
+  **Chasing that one turned up something larger, and it is now gated.**
+  `apps/web/src/api/surface.test.ts` introduced a list with *"the methods the rest of the app
+  actually calls … each has real call sites in the shell, the viewer or the portal"*, and three names
+  under it had no caller but that list. Adding a client method makes the *endpoint* reachable and
+  leaves the *screen* as absent as before. `apps/web/src/api/clientCallers.test.ts` now separates the
+  two questions and ratchets the second: **132 of 703 client methods have no caller outside
+  `src/api` and tests.** Wiring these two fields to a screen is the remaining work, and it lowers
+  that number.
 
 ## ▶ NOW — parallel lanes *(rebuilt 2026-07-29 at v0.3.785; bands re-seated 2026-08-01 at v0.3.818)*
 
