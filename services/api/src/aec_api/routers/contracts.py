@@ -36,9 +36,15 @@ def scope_library_list(division: str | None = None, trade: str | None = None,
     """The scope-of-work clause library used to compose Exhibit A (ids + titles, no bodies).
 
     `division` (a CSI MasterFormat key) or `trade` (which resolves to one) narrows the catalog to that
-    division plus the universal clauses. The filter is not a nicety: the library carries 249 clauses
-    across 21 divisions, and an unnarrowed composer asks somebody to pick a subcontract exhibit out of
-    a list where 95% of the entries belong to other trades.
+    division plus the universal clauses. The filter is not a nicety: the library spans every
+    MasterFormat division, and an unnarrowed composer asks somebody to pick a subcontract exhibit out
+    of a list where most entries belong to other trades. The response carries `divisions` so a caller
+    can offer the filter without knowing the catalog.
+
+    No clause count is quoted here on purpose. This docstring is published into `/openapi.json`, so a
+    number in it is a live claim to every API consumer that nothing re-checks — the same reason the
+    web standards stopped quoting a test count. `GET /scope-library` with no filter returns the
+    current catalog; that is the number, and it cannot drift from itself.
 
     `trade` is resolved server-side rather than by the caller so the mapping lives in one place; an
     unrecognised trade returns the whole catalog rather than an empty one, which is the same
