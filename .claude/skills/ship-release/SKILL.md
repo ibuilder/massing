@@ -15,7 +15,7 @@ description: The Massing release discipline — how to ship a verified, CI-green
   cd services/api && python -m ruff check src/ ../data/src/
   ```
   A file-level `ruff check <file>` from elsewhere does NOT pick up `services/api/ruff.toml` (isort/I001) and gives false "passed". Prefer `ruff check --fix` to auto-sort imports; put third-party imports in their own group after stdlib.
-- **Web (apps/web):** `export PATH="/c/Program Files/nodejs:$PATH"` then `npm run typecheck && npm run lint && npm run build` (Node 20; Node 18 breaks the build). Run `npx vitest run <path>` if unit tests cover the change.
+- **Web (apps/web):** `export PATH="/c/Program Files/nodejs:$PATH"` then `npm run typecheck && npm run lint && npm run build` (Node 24; Node 18 breaks the build). Run `npx vitest run <path>` if unit tests cover the change.
 - **Frontend UI:** the dev-preview geometry loader stalls at "preparing geometry", so verify rail UI via the `verify-frontend` skill (force `buildToolsPanel` by dispatching `aec:persona`), and flag any flow you couldn't exercise end-to-end.
 
 ## 2. Bump the version — THREE files, and the third is not edited by hand
