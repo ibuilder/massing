@@ -84,6 +84,37 @@ export async function renderAiAssist(ctx: PanelContext) {
     intro.textContent = "Turn a note or a PDF into an editable draft, and level bids apples-to-apples. "
       + "Works offline; set an Anthropic key in Settings for full AI output. Nothing is created until you click Create.";
     intro.style.marginBottom = "8px"; root.appendChild(intro);
+    // SCHEDULED ROUTINES — the sweep, surfaced. `routines.due()` decided correctly and nothing acted
+    // on it; this is the button that makes the schedule happen. One job per DUE routine, never one
+    // per missed window: a routine dormant for a year fires once with its missed count reported,
+    // rather than flooding the queue on the day it is switched back on. Routines whose kind already
+    // has queued or running work are skipped as in-flight, and one naming an unregistered kind is
+    // listed as refused rather than aborting the sweep for the others.
+    const rout = el("div", "dash-card"); rout.style.cssText = "margin-bottom:8px";
+    const runBtn = el("button", "file-btn") as HTMLButtonElement;
+    runBtn.textContent = "⏱ Run due routines";
+    runBtn.title = "Enqueue every scheduled routine that is due now";
+    const routOut = el("div", "meta"); routOut.style.marginTop = "4px";
+    runBtn.onclick = async () => {
+      runBtn.disabled = true; routOut.textContent = "sweeping…";
+      try {
+        const r = await ctx.host.api.routinesRunDue(pid);
+        const bits: string[] = [];
+        bits.push(r.enqueued_count
+          ? `${r.enqueued_count} enqueued: ` + r.enqueued.map((e) => esc(e.kind)
+              + ((e.missed_windows ?? 0) > 0 ? ` (${e.missed_windows} window(s) missed, fired once)` : "")).join(", ")
+          : "nothing was due");
+        if (r.in_flight_kinds.length) bits.push(`waiting on ${r.in_flight_kinds.map(esc).join(", ")} — already running`);
+        if (r.refused.length) bits.push(`<span style="color:var(--status-crit)">${r.refused.length} refused: `
+          + r.refused.map((f) => `${esc(f.routine_id)} names unknown kind ${esc(f.kind)}`).join("; ") + `</span>`);
+        routOut.innerHTML = bits.join(" · ");
+      } catch (e) { routOut.textContent = `sweep failed: ${(e as Error).message}`; }
+      runBtn.disabled = false;
+    };
+    rout.innerHTML = `<b>Scheduled routines</b> <span class="meta">recurring runs — monthly progress, weekly schedule-risk — rather than on-demand only</span>`;
+    rout.append(runBtn, routOut);
+    root.appendChild(rout);
+
     const tabs = el("div"); tabs.style.cssText = "display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap";
     const body = el("div"); root.append(tabs, body);
     const TABS: [string, string][] = [["rfi", "📝 Draft RFI"], ["scope", "📋 Draft scope"],

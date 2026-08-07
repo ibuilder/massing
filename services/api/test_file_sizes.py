@@ -56,6 +56,12 @@ CEILING = 5_200
 #: narrower than its claim.
 #:
 #: A new endpoint added straight to `client.ts` will fail this, and that friction is the point rather
+#: 2026-08-07: raised by ONE line, and the exception is stated rather than quietly taken. The
+#: line is `import { withRoutines } from "./routines";` — the *mechanism* of an extraction,
+#: not an endpoint. The endpoint itself went into `api/routines.ts`, which is what this ratchet
+#: asks for. A mixin cannot be composed without one import line, so a file sitting exactly on
+#: its pin can never gain one otherwise. If this climbs again for the same reason, the pin is
+#: measuring the wrong thing and should count endpoints.
 #: than a side effect: the question it forces is "should this live in a domain module instead?", and
 #: post-⑦ the answer is usually yes. Raising an entry is therefore a deliberate act that should be
 #: argued for in the commit message — the direction of travel is down.
@@ -66,7 +72,7 @@ PER_FILE = {
     #: other modules and one got a field in only by appending to an existing line. That is the
     #: friction this ratchet is for, and it asked the intended question — the contract documents had
     #: a whole domain to leave with, so the number goes DOWN by 32 instead of up by one.
-    "apps/web/src/api/client.ts": 3_748,   # ⑨ contracts -> contracts.ts; ⑧ 3,796; ⑦ 3,871; before ⑦ 3,967
+    "apps/web/src/api/client.ts": 3_749,   # +1 = the withRoutines IMPORT, not an endpoint:   # ⑨ contracts -> contracts.ts; ⑧ 3,796; ⑦ 3,871; before ⑦ 3,967
     #: R39-DECOMP-VIEWER. Pinned at its CURRENT size before any extraction, deliberately.
     #:
     #: `app.ts` had no per-file entry, so it lived under the 5,200 global — which it also *set*, being
