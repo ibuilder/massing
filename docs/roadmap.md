@@ -118,6 +118,49 @@ currently fail if either regresses.**
   reach, and add `setrlimit` CPU/memory caps around the existing timeout.
 
 
+- ⭐ **Promoted to Band 1** — R41-SCHEMA-STALE *(S, Lane C)*: **a stored record that predates a semantics change reads
+  back QUIETLY WRONG, not visibly broken.** Promoted into Band 1 on 2026-08-06 after the audit came
+  back positive: no `schema_version`, or any equivalent stamp, exists on any persisted record. Reads
+  resolve `data.get(field)` against the **current** schema, so a renamed field renders **empty and
+  indistinguishable from "never filled in"** while its value sits orphaned in the payload; a removed
+  field's value is unread and invisible; a retyped field is rendered under the new type. Nothing
+  raises.
+
+  It ranks here because of the *category*, not the size. Every other Band 1 entry is a wrong answer a
+  user can eventually see. This one is a wrong answer that **looks like an empty form** — the failure
+  mode this file keeps naming, applied to customer data rather than to a gate.
+
+  **Do not confuse it with the `stale_write` 409**, which is optimistic concurrency over two
+  simultaneous edits. That guard sounds like this problem and is not it — a point worth keeping,
+  because its existence is why nobody looked.
+
+  Scope is the good news: **135+ registers share one table shape**, so it is one column plus one
+  read-path branch, not 135 changes. Stamp the writing schema version on every row; on read, a row at
+  any other version returns with its payload forced to null and a stale flag set, so the caller
+  degrades where a user can see and fix it. While in there, grep for composite keys built by bare
+  string concatenation — `"abc" + "d"` equals `"abcd" + ""` — and give them an explicit delimiter.
+
+- **Promoted, and it is one mechanism across two entries** — R39-UPLOAD-CAP-APP ① and R41-UPLOAD-WARK. **Neither closes it alone.**
+  Cross-referenced 2026-08-06 after two lanes found the halves independently. The app-level cap
+  **exists** (`_MAX_UPLOAD_BYTES`, 413 from the security middleware), so the entry's claim that the
+  cap "lives only in nginx" is false — but the guard reads `content-length`, and when that header is
+  absent the condition short-circuits and the body is **never measured**. Chunked transfer-encoding
+  is the ordinary HTTP/1.1 case with no `Content-Length`. Meanwhile `storage.py` exposes only
+  `put(key, data: bytes)` with **no streaming variant**, and 36 call sites across 15 routers do
+  `await file.read()` — so the same request is *unmeasured* **and** *fully materialised in memory*.
+  **Bound it from the front (count as chunks arrive) and from the back (a chunked put) or the memory
+  stays open either way.** DoS-shaped, therefore tracked engineering work rather than an incident —
+  recorded so the next reader neither panics nor dismisses it. Reachability detail is in
+  `docs/internal/`, not here: the repo is public.
+
+- **Promoted because the ground moved under it** — R39-THROTTLE-SHARED ① *(M, Lane C)*, re-ranked
+  2026-08-06. `throttle.py` keeps `_HITS` as a plain in-process `dict`, so every worker enforces its
+  own limit and the effective rate is the configured one times the worker count. That was a rounding
+  error when one process served everything; **R39-WORKER-SPLIT (v0.3.869) made a second writer
+  process the supported deployment**, which is precisely the change that turns this from theoretical
+  into arithmetic. An item can become urgent without being edited.
+
+
 ### Band 2 — built but unreachable (cheapest real value in the file)
 
 Seven of eleven engines once shipped with no route. The R32 filing-spine entries that occupied this
