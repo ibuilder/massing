@@ -94,11 +94,11 @@ currently fail if either regresses.**
   a refusal that just says "no" leaves nothing to satisfy.
 
   v0.3.884 closed the last hazard, found by security review rather than by a gate: the snippet was
-  written as `code.py` into a workdir the child puts on `sys.path[0]`, **shadowing the stdlib `code`
+  written as "code.py" into a workdir the child puts on `sys.path[0]`, **shadowing the stdlib `code`
   module** for everything the child imports. Not exploitable — nothing in the child's import chain
   (`ifcopenshell`, `.api`, `.guid`) reaches it — but one unrelated transitive import away from
   letting a submitted snippet execute as an *import*, outside the AST allowlist entirely, where the
-  allowlist would never see it. Renamed to `snippet.py`.
+  allowlist would never see it. Renamed to "snippet.py".
 
   Residual risk, unchanged and still stated in `services/data/src/aec_data/sandbox.py`: a native call
   reached through an allowed binding is bounded by that library, not by the trace hook.
