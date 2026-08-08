@@ -839,15 +839,18 @@ async def add_attachment(pid: str, tid: str, kind: str = Form("file"),
                          file: UploadFile = File(...), db: Session = Depends(get_db),
                          _: str = Depends(require_role("reviewer"))):
     _topic(db, pid, tid)
-    data = await file.read()
     # the stored key must never carry path separators / traversal from the client filename; keep the
     # original name for display only. (storage._p also guards containment as a backstop.)
     safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "file")).lstrip(".") or "file"
     safe_name = safe_name.replace("..", "_")     # belt: no traversal sequences even inside the name
     key = f"{pid}/{tid}/{safe_name}"
-    await run_in_threadpool(storage.put, key, data)   # MinIO put off the event loop (PERF-1 pattern)
+    # R41-UPLOAD-WARK: streamed straight to storage — this route needs no local working copy, so
+    # there is nothing to read the bytes FOR. `size` now comes from what was actually written
+    # rather than from `len(data)`, which is strictly better: it is the length of the object that
+    # exists, not the length of what we intended to write.
+    size = await run_in_threadpool(storage.put_stream, key, storage.upload_chunks(file))
     a = Attachment(topic_id=tid, filename=file.filename, content_type=file.content_type,
-                   size=len(data), kind=kind, storage_key=key)
+                   size=size, kind=kind, storage_key=key)
     db.add(a)
     audit.record(db, action="attachment.create", method="POST", topic_id=tid,
                  path=f"/projects/{pid}/topics/{tid}/attachments", detail={"filename": file.filename})

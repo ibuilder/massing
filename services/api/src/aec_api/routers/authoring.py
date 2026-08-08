@@ -1116,21 +1116,30 @@ async def upload_source_ifc(pid: str, file: UploadFile = File(...), publish: boo
         from .. import licensing
         licensing.require("api_access", "Programmatic publish (REST API)")
     from starlette.concurrency import run_in_threadpool
-    data = await file.read()
     _ifc_path(pid).mkdir(parents=True, exist_ok=True)
     ifc_path = _ifc_path(pid, "source.ifc")
 
-    # PERF-1: the local write + MinIO network put of a multi-hundred-MB IFC runs off the event loop
-    def _persist() -> None:
-        ifc_path.write_bytes(data)
-        storage.put(f"{storage.safe_seg(pid)}/source.ifc", data)      # durable copy
-    await run_in_threadpool(_persist)
+    # R41-UPLOAD-WARK: streamed, not read whole. This is the LARGEST object the product accepts —
+    # a real project IFC is routinely hundreds of MB — and the old shape held it three times over:
+    # once in the `bytes` from `.read()`, once in the buffer `write_bytes` hands the OS, and once
+    # again inside the storage put. Peak is now one chunk, and the source of those bytes was always
+    # a spooled file on disk, so nothing was gained by having them in memory in the first place.
+    #
+    # PERF-1 still applies: the local write + the MinIO network put both run off the event loop.
+    def _persist() -> int:
+        n = storage.stream_to_path(ifc_path, storage.upload_chunks(file))
+        # Re-read from the local copy rather than rewinding the upload: the local file is now the
+        # authoritative one (the converter opens it by path), so the durable copy is a copy OF IT
+        # and cannot silently differ from what the converter will read.
+        storage.put_stream(f"{storage.safe_seg(pid)}/source.ifc", storage.file_chunks(ifc_path))
+        return n
+    size = await run_in_threadpool(_persist)
     p.source_ifc = str(ifc_path)
     db.commit()
     audit.record(db, action="ifc.upload", actor=actor, method="POST",
                  path=f"/projects/{pid}/source-ifc")
     db.commit()
-    out: dict = {"source_ifc": str(ifc_path), "size": len(data)}
+    out: dict = {"source_ifc": str(ifc_path), "size": size}
     if publish:                       # convert off-thread; client polls publish/status
         _publish_bg(pid)
         out["publish"] = "running"
@@ -1153,23 +1162,25 @@ async def add_project_model(pid: str, file: UploadFile = File(...), discipline: 
     from starlette.concurrency import run_in_threadpool
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
-    data = await file.read()
     mid = uuid.uuid4().hex
     _ifc_path(pid, "models").mkdir(parents=True, exist_ok=True)
     ifc_path = _ifc_path(pid, "models", f"{mid}.ifc")
 
-    # PERF-1: local write + MinIO put off the event loop
-    def _persist() -> None:
-        ifc_path.write_bytes(data)
-        storage.put(f"{storage.safe_seg(pid)}/models/{mid}.ifc", data)      # durable copy
-    await run_in_threadpool(_persist)
+    # R41-UPLOAD-WARK: streamed, same shape as `upload_source_ifc` above and for the same reason —
+    # a discipline model is the same size class as the source IFC, and federated clash means a
+    # project may take several of them. PERF-1 still holds: both writes are off the event loop.
+    def _persist() -> int:
+        n = storage.stream_to_path(ifc_path, storage.upload_chunks(file))
+        storage.put_stream(f"{storage.safe_seg(pid)}/models/{mid}.ifc", storage.file_chunks(ifc_path))
+        return n
+    size = await run_in_threadpool(_persist)
     m = ProjectModel(id=mid, project_id=pid, discipline=(discipline or "Model").strip() or "Model",
                      ifc_path=str(ifc_path))
     db.add(m)
     audit.record(db, action="model.append", actor=actor, method="POST",
                  path=f"/projects/{pid}/models", detail={"discipline": m.discipline})
     db.commit()
-    return {"id": m.id, "discipline": m.discipline, "size": len(data)}
+    return {"id": m.id, "discipline": m.discipline, "size": size}
 
 
 @router.post("/projects/{pid}/raise-plan")
