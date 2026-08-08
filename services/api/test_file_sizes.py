@@ -103,7 +103,12 @@ PER_FILE = {
     # lands in and reached 1,373 lines while unpinned - the same accumulation app.ts and client.ts
     # already have entries for. Pinned before it needs splitting rather than after: a ratchet added
     # at the point of pain only ratifies the pain.
-    "apps/web/src/viewer/tools/qaSection.ts": 1_373,
+    # 1_373 -> 1_360: the shared-parameter read + retire moved out to sharedParamsPanel.ts. The pin
+    # fired on the commit that added the retire flow (1,439 > 1,373) and the answer was to extract,
+    # not to raise - the same call the /finance extraction made earlier the same day. Re-tightened
+    # to the new exact count rather than left at 1_373, because 13 lines of slack is 13 lines the
+    # next addition spends without anyone deciding to.
+    "apps/web/src/viewer/tools/qaSection.ts": 1_345,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.

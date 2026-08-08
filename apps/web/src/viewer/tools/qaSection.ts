@@ -1,9 +1,12 @@
 import { type ApiClient, type PropLayer, type PropMapRule } from "../../api/client";
+
 import type { ModelIdMap } from "../modelIds";
 import { askText } from "../../ui/prompt";
 import { confirmModal, promptModal } from "../../ui/modal";
 import { kvTable, resultNote, showResult } from "../../ui/result";
 import { guidsFromSample } from "../warningSample";
+import { sharedParamsButton } from "./sharedParamsPanel";
+import { projectModelsButton } from "./projectModelsPanel";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { LayerManager } from "../../tools/layers";
 import { ModelLoader } from "../loader";
@@ -205,25 +208,9 @@ export function buildQaSection(d: QaDeps): void {
           });
         })));
 
-        // SHARED-PARAMS — the project's shared parameter definitions. A standards convention the
-        // model is authored against, with no way to see what it actually is.
-        b.appendChild(toolBtn2("📐 Shared parameters (project standard)", () => withLoading(container, "Reading shared parameters", async () => {
-          let r;
-          try { r = await api.sharedParams(pid); }
-          catch (e) { toast((e as Error).message, "error"); return; }
-          out.textContent = `${r.params.length} parameter(s)`;
-          showResult("Shared parameters", (body) => {
-            if (!r!.params.length) {
-              body.appendChild(resultNote("No shared parameters defined for this project.", ""));
-              return;
-            }
-            body.appendChild(resultNote(`<b>${r!.params.length}</b> of a maximum ${r!.max}.`, ""));
-            body.appendChild(kvTable(r!.params.map((x) => ({
-              k: `${escapeHtml(x.pset)}.${escapeHtml(x.name)}`,
-              v: `${escapeHtml(x.ptype)} · ${escapeHtml(x.applies_to)}${x.description ? " — " + escapeHtml(x.description) : ""}`,
-            }))));
-          });
-        })));
+        // Shared parameters live in their own module: the retire flow is a PUT that replaces the
+        // whole registry, and it took this file past the size pin that exists to force that move.
+        b.appendChild(sharedParamsButton({ api, pid, out, container, toolBtn2 }));
 
         // WIP-PROGRESS — installed vs total. `available` is a real answer: without verified progress
         // there is nothing to report, and rendering 0% would assert that nothing is installed.
@@ -255,25 +242,9 @@ export function buildQaSection(d: QaDeps): void {
           });
         })));
 
-        // FEDERATION-LIST — the models registered SERVER-side, beside the existing upload. The
-        // viewer's own federation list shows what is loaded in this session; this shows what the
-        // project actually holds, which is a different question and the one an upload answers to.
-        b.appendChild(toolBtn2("🗃 Registered models (server-side federation)", () => withLoading(container, "Listing models", async () => {
-          let r;
-          try { r = await api.projectModels(pid); }
-          catch (e) { toast((e as Error).message, "error"); return; }
-          out.textContent = `${r.length} registered model(s)`;
-          showResult("Registered models", (body) => {
-            if (!r!.length) {
-              body.appendChild(resultNote("No discipline models registered for this project yet.", ""));
-              return;
-            }
-            body.appendChild(kvTable(r!.map((m) => ({
-              k: escapeHtml(m.discipline || "(no discipline)"),
-              v: `${escapeHtml(m.id)}${m.created_at ? " · " + escapeHtml(m.created_at.slice(0, 10)) : ""}`,
-            }))));
-          });
-        })));
+        // Registered models live in their own module: the remove flow is destructive and its
+        // confirmation has to predict whether federated clash survives, which is real logic.
+        b.appendChild(projectModelsButton({ api, pid, out, container, toolBtn2 }));
 
         // FILL-MATRIX — property completeness by class, with the worst gaps named. The data-quality
         // question every IDS / COBie handover turns on, computed and unreachable.
