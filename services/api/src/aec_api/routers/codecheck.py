@@ -2,11 +2,11 @@
 computed occupancy-load + egress-capacity pre-check over the model (W9-2)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from .. import audit, codecheck
+from .. import audit, codecheck, storage
 from ..db import get_db
 from ..models import Project, Topic
 from ..rbac import current_user, require_role
@@ -296,14 +296,20 @@ async def doctext_ingest(pid: str, request: Request, db: Session = Depends(get_d
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     name = request.query_params.get("name", "")
+    # R31-CITE-HIGHLIGHT: `?source=` names a document already in the system, so a citation opens the
+    # record everyone else sees instead of a second copy. Optional — without it a posted PDF is
+    # stored beside its chunks, and a text-only ingest honestly has no document at all.
+    source = request.query_params.get("source") or None
     ctype = (request.headers.get("content-type") or "").lower()
     try:
         if "application/pdf" in ctype:
-            entry = doc_text.ingest(pid, name or "document.pdf", pdf_bytes=await request.body())
+            entry = doc_text.ingest(pid, name or "document.pdf", pdf_bytes=await request.body(),
+                                    source=source)
         else:
             body = await request.json()
             entry = doc_text.ingest(pid, str(body.get("name") or name or ""),
-                                    text=str(body.get("text") or ""))
+                                    text=str(body.get("text") or ""),
+                                    source=str(body.get("source") or "") or source)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     except Exception as e:  # noqa: BLE001 — an unreadable PDF is a clean 400, not a 500
@@ -323,6 +329,39 @@ def doctext_catalog(pid: str, db: Session = Depends(get_db),
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     return doc_text.catalog(pid)
+
+
+@router.get("/projects/{pid}/doctext/{doc_id}/source")
+def doctext_source(pid: str, doc_id: str, db: Session = Depends(get_db),
+                   _: str = Depends(require_role("viewer"))):
+    """R31-CITE-HIGHLIGHT — fetch the document a citation cites, so the citation can be a link.
+
+    Serves only the copy this module stored (`source_kind == "doctext-pdf"`). A `file` source is a
+    key into the document manager and is served by ITS route with ITS permissions — resolving one
+    here would be a second door onto the same object with a gate this router maintains separately,
+    which is the shape that has produced authz drift twice in this repo. A text-only ingest has no
+    document and gets a 404 that says so rather than an empty PDF.
+    """
+    from .. import doc_text
+
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    entry = next((e for e in doc_text.catalog(pid)["documents"]
+                  if e.get("doc_id") == doc_id), None)
+    if not entry:
+        raise HTTPException(404, "no such ingested document")
+    kind, key = entry.get("source_kind"), entry.get("source")
+    if kind is None:
+        raise HTTPException(404, "this document was ingested as text — there is no source file")
+    if kind != "doctext-pdf":
+        raise HTTPException(409, {"error": "source_elsewhere", "source_kind": kind, "source": key,
+                                  "message": "the source is a stored file — fetch it from the "
+                                             "document route that owns it"})
+    if not key or not storage.exists(key):
+        raise HTTPException(404, "the stored source is missing")
+    return Response(content=storage.get(key), media_type="application/pdf",
+                    headers={"Content-Disposition":
+                             f'inline; filename="{doc_id}.pdf"'})
 
 
 @router.get("/projects/{pid}/doctext/search")

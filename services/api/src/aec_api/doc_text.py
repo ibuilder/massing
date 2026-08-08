@@ -99,8 +99,29 @@ def _load_index(pid: str) -> list[dict]:
         return []
 
 
-def ingest(pid: str, name: str, text: str | None = None, pdf_bytes: bytes | None = None) -> dict:
-    """Ingest one document (plain text, or a PDF via pypdf). Re-ingesting a name replaces it."""
+def ingest(pid: str, name: str, text: str | None = None, pdf_bytes: bytes | None = None,
+           source: str | None = None) -> dict:
+    """Ingest one document (plain text, or a PDF via pypdf). Re-ingesting a name replaces it.
+
+    R31-CITE-HIGHLIGHT — **the citation had nothing to resolve to.** `doc_id` is a slug of the
+    document's *name*, and the index recorded only `{doc_id, name, chunks, sections, ingested_at}`.
+    Nothing on that entry named a file, so "open the document this cites" had no answer, and a
+    v0.3.810 change describing `doc_id` as "the RESOLVABLE identifier" moved the dead end rather
+    than closing it. The index entry now carries a `source`.
+
+    **A PDF ingest used to discard the bytes.** `extract_pdf_text` ran and the PDF was dropped on
+    the floor — so even when a real document existed, nothing afterwards could open it. The bytes
+    are now stored beside the chunks, which is what makes the citation openable at all.
+
+    Three source kinds, and the third is deliberately an admission:
+      * ``file`` — the caller named a document already in the system (`source=` its storage key or
+        file id). Preferred: no second copy, and the citation opens the record everyone else sees.
+      * ``doctext-pdf`` — a raw PDF was posted with no such id, so the bytes are stored here and the
+        citation opens this copy.
+      * ``None`` — a text-only ingest. **There is no document**, and this says so rather than
+        implying one. `ingest(pid, name, text=...)` never had a file behind it; a citation into it
+        can be shown but can never be opened, and that is a property of the data, not a gap to fix.
+    """
     if pdf_bytes is not None:
         text = extract_pdf_text(pdf_bytes)
     if not (text or "").strip():
@@ -111,10 +132,22 @@ def ingest(pid: str, name: str, text: str | None = None, pdf_bytes: bytes | None
     chunks = chunk_text(text or "")
     if not chunks:
         raise ValueError("the document produced no usable text chunks")
+
+    source_kind: str | None = None
+    if source:
+        source_kind = "file"
+    elif pdf_bytes is not None:
+        source = _key(pid, f"{doc_id}.pdf")
+        storage.put(source, pdf_bytes)
+        source_kind = "doctext-pdf"
+
     storage.put(_key(pid, f"{doc_id}.json"), json.dumps(chunks).encode())
     entries = [e for e in _load_index(pid) if e.get("doc_id") != doc_id]
     entry = {"doc_id": doc_id, "name": name.strip(), "chunks": len(chunks),
              "sections": sum(1 for c in chunks if c.get("section")),
+             # Written even when None, so a reader can tell "no document" from "a field this build
+             # does not set" — the distinction an entry that simply omitted the key would lose.
+             "source": source, "source_kind": source_kind,
              "ingested_at": datetime.now(timezone.utc).isoformat()}
     entries.append(entry)
     storage.put(_key(pid, "index.json"), json.dumps(entries).encode())
@@ -145,6 +178,10 @@ def search(pid: str, query: str, k: int = 5) -> list[dict]:
             if score > 0:
                 hits.append({"doc": e["name"], "doc_id": e["doc_id"], "section": c.get("section"),
                              "title": c.get("title"), "page": c.get("page"), "score": score,
+                             # R31-CITE-HIGHLIGHT: carried from the index entry, so a caller can tell
+                             # an openable citation from one that never had a document behind it
+                             # WITHOUT a second round-trip to the catalog.
+                             "source_kind": e.get("source_kind"),
                              "snippet": c["text"][:500]})
     hits.sort(key=lambda h: -h["score"])
     return hits[:max(1, k)]
@@ -170,8 +207,11 @@ def answer(pid: str, question: str) -> dict:
             # identifier** — and a citation you cannot resolve back to a document cannot be opened, let
             # alone highlighted inside. Two documents may legitimately share a name; only the id is the
             # answer to "which file".
+            # `openable` is the answer to the question the UI actually asks — "should this citation
+            # be a link?" — computed here rather than left to each caller to re-derive from
+            # `source_kind`. Three callers deriving the same predicate is three chances to disagree.
             "citations": [{"doc": h["doc"], "doc_id": h.get("doc_id"), "section": h["section"],
-                           "title": h.get("title"),
+                           "title": h.get("title"), "openable": bool(h.get("source_kind")),
                            "page": h["page"], "snippet": h["snippet"][:200]} for h in hits],
             "note": "extractive — the answer is the document's own text (deterministic retrieval, "
                     "no paraphrase)"}

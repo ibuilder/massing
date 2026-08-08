@@ -53,7 +53,11 @@ export interface AnalyseDeps {
 export function buildAnalyseSection(d: AnalyseDeps): void {
   const { section, toolBtn2, api, pid, projectId, notify, container, logisticsOverlay,
           layerMgr, refreshIssues, fourD } = d;
-  const lastPoint = d.lastPoint();
+  // NOT a value. `d.lastPoint()` here would pin the point to whatever was current when the panel was
+  // BUILT — which is null, because the panel is built before the user has clicked anything. Caught by
+  // tools/accessorNotCollapsed.test.ts, which found this in three sections at once, each under a
+  // docstring explaining why it could not happen.
+  const lastPoint = () => d.lastPoint();
         const b = section("analyse", "Analyze & Coordinate · code, cost & 4D", { requires: "sourceIfc", tool: true });
         if (!b) return;
         const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "4px";
@@ -88,9 +92,10 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
             const label = mk("label"); const startI = mk("start YYYY-MM-DD"); const endI = mk("end YYYY-MM-DD");
             const add = document.createElement("button"); add.className = "mini-btn"; add.textContent = "＋ at last point";
             add.onclick = () => {
-              if (!lastPoint) { notify("click a point in the model first", "error"); return; }
+              const lp = lastPoint();
+              if (!lp) { notify("click a point in the model first", "error"); return; }
               const id = `r${Date.now().toString(36)}`;
-              const e = lastPoint.x, n = -lastPoint.z;   // world (E, y, -N) → E, N
+              const e = lp.x, n = -lp.z;                 // world (E, y, -N) → E, N
               const r: LogisticsResource = { id, kind: kind.value, label: label.value.trim() || kind.value, position: [e, 0, n], start: startI.value.trim() || undefined, end: endI.value.trim() || undefined };
               if (kind.value === "crane") r.radius = 25;
               resources.push(r); logisticsOverlay.render(resources); label.value = ""; draw();

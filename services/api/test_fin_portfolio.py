@@ -68,6 +68,36 @@ with TestClient(app) as c:
     pdf = c.get(f"/projects/{p1}/reports/investor_pack.pdf")
     assert pdf.status_code == 200 and pdf.content[:4] == b"%PDF"
 
+    # ---- a 0.0 IRR is a RESULT, not a missing value ------------------------------------------
+    # The row sort keyed on `-(x["equity_irr"] or -9e9)`, and 0.0 is falsy — so a break-even deal
+    # took the sort key reserved for a project whose scenario never solved, and sank to the bottom
+    # of a returns table among the blanks. The spread six lines below already filtered on
+    # `is not None`. Two lines in one function disagreed about what 0.0 meant, and that
+    # disagreement is the evidence: read alone, neither looks wrong.
+    #
+    # THE FIXTURE IS SHAPED SO THE OLD CODE FAILS DETERMINISTICALLY. Under the bug a break-even
+    # deal and an unsolved one BOTH key to 9e9, and Python's sort is stable — comparing those two
+    # would pass or fail on insertion order, which is a coin toss dressed as a test. Comparing
+    # against a LOSS-MAKING deal breaks the tie: with the bug -0.05 keys to +0.05 and sorts above
+    # break-even's 9e9; with the fix break-even outranks it. It is also the claim worth asserting —
+    # breaking even beats losing money, and a returns table that says otherwise is lying.
+    from aec_api.db import SessionLocal
+    from aec_api.models import Scenario
+    p_zero = c.post("/projects", json={"name": "Break Even"}).json()["id"]
+    p_loss = c.post("/projects", json={"name": "Loss Maker"}).json()["id"]
+    with SessionLocal() as db:
+        db.add(Scenario(name="zero", project_id=p_zero, assumptions={},
+                        result={"returns": {"equity_irr": 0.0}}))
+        db.add(Scenario(name="loss", project_id=p_loss, assumptions={},
+                        result={"returns": {"equity_irr": -0.05}}))
+        db.commit()
+    cmp2 = c.get("/proforma/portfolio/compare").json()
+    order = [r["project_name"] for r in cmp2["rows"]]
+    assert order.index("Break Even") < order.index("Loss Maker"), (
+        f"a 0% deal ranked below a loss-making one — 0.0 was read as 'no result': {order}")
+    sp0 = cmp2["spread"]["equity_irr"]
+    assert sp0["worst"] == "Loss Maker" and sp0["min"] == -0.05, sp0
+
 print("FIN-PORTFOLIO OK - /proforma/portfolio/compare lays the two towers side by side (published "
       "vs draft governance state rides each row, the richer-rent deal wins equity IRR, the spread "
       "names Tower B best); the investor_pack Report-Center preset builds (return KPIs + Sources & "

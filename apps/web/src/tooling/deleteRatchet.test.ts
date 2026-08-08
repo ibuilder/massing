@@ -94,6 +94,39 @@ const REMOVED: Record<string, string> = {
 const TRACKED = new Set(git("ls-files").split("\n").map((s) => s.trim()).filter(Boolean));
 const SHALLOW = git("rev-parse", "--is-shallow-repository").trim() === "true";
 
+/**
+ * Every path ever ADDED under `docs/`, in any commit on any branch — or null on a shallow clone,
+ * where history is not available to walk. Used by the enrollment assertion below.
+ *
+ * THIS RUNS AT MODULE SCOPE ON PURPOSE, AND IT IS THE SECOND FIX TO THE SAME TIMEOUT
+ *     The first version ran `git log --all` once per entry — eight walks, 4.7 s — and timed out at
+ *     vitest's 5 s default. That was fixed by doing the work once: a single walk over `docs/`
+ *     measures 1.2 s, and the comment recorded it as "3.8x faster and clear of the limit".
+ *
+ *     **It timed out again on 2026-08-07**, at 1.2 s of work against a 5 s budget. Nothing about
+ *     the walk had changed; the machine was busier. A full-suite run under contention took 50 s
+ *     where an idle one takes 21 s, and this test went from 3.4 s standalone to over 5 s inside it.
+ *
+ *     So "1.2 s is clear of 5 s" was never a property of the test — it was a property of an idle
+ *     machine, measured once and written down as if it were fixed. With several sessions running
+ *     suites in one clone, that assumption is the thing that is actually false.
+ *
+ *     Raising the timeout was rejected last time for a reason that no longer applies: the objection
+ *     was that it "keeps the same eight walks and moves the cliff somewhere less predictable". There
+ *     is one walk now, and it is already minimal — the residual variance is scheduling, not work.
+ *     But the better answer is that **the per-test budget is the wrong instrument for this cost.**
+ *     `git ls-files` and `rev-parse` above have always run out here, untimed, because they are
+ *     fixture setup. The history walk is the same kind of thing and belongs beside them. Moving it
+ *     removes the cliff rather than relocating it, and needs no number that a future load will
+ *     falsify.
+ */
+const EVER_ADDED_UNDER_DOCS = SHALLOW ? null : new Set(
+  // `--all` so a file deleted on a branch that later merged is still found; `--diff-filter=A` lists
+  // additions; `--name-only --format=` prints just the paths.
+  git("log", "--all", "--diff-filter=A", "--name-only", "--format=", "--", "docs/")
+    .split("\n").map((s) => s.trim().replace(/\\/g, "/")).filter(Boolean),
+);
+
 describe("deliberately removed files stay removed", () => {
   it("has a non-empty population — an empty list passes forever", () => {
     // The vacuity guard. Without it, emptying REMOVED turns every assertion below green.
@@ -134,19 +167,9 @@ describe("deliberately removed files stay removed", () => {
       expect(SHALLOW).toBe(true);
       return;
     }
-    // ONE history walk, not one per entry. The first version ran `git log --all` eight times and
-    // **timed out at vitest's 5 s default** — 4.7 s measured, which passes alone and fails under a
-    // loaded suite. That is the same load-sensitive threshold `shell/roadmapStale.test.ts` hit today,
-    // and the fix is the one it settled on: **do the work once, do not raise the timeout.** A single
-    // walk over `docs/` measures 1.2 s, 3.8x faster and clear of the limit. Raising the timeout keeps
-    // the same eight walks and moves the cliff somewhere less predictable.
-    //
-    // `--all` so a file deleted on a branch that later merged is still found; `--diff-filter=A` lists
-    // additions; `--name-only --format=` prints just the paths.
-    const everAdded = new Set(
-      git("log", "--all", "--diff-filter=A", "--name-only", "--format=", "--", "docs/")
-        .split("\n").map((s) => s.trim().replace(/\\/g, "/")).filter(Boolean),
-    );
+    // The walk itself runs at module scope — see EVER_ADDED_UNDER_DOCS for why. The SHALLOW guard
+    // above is what makes this non-null here.
+    const everAdded = EVER_ADDED_UNDER_DOCS!;
     expect(everAdded.size, "the history walk returned nothing — this check would pass vacuously")
       .toBeGreaterThan(20);
     const never = Object.keys(REMOVED).filter((p) => !everAdded.has(p));

@@ -26,7 +26,10 @@ library routine is bounded only by that routine, not by the hook.
 from __future__ import annotations
 
 import ast
+import json
 import os
+import pathlib
+import shutil
 import sys
 import time
 from typing import Any
@@ -88,10 +91,25 @@ _DENIED_ATTRS = frozenset({
 _ALLOWED_LOWER_ATTRS = frozenset({
     # the authoring facade the snippet is actually here to use
     "api", "run", "guid", "new", "create_entity",
-    # ifcopenshell.file read surface
+    # ifcopenshell.file / entity read surface.
+    #
+    # `get_info` is the one a real snippet reaches for first — it is how you look at an entity's
+    # attributes as a dict — and leaving it out made ordinary read-only inspection fail against a
+    # sandbox whose stated intent is to be "deliberately generous". A tightening that refuses the
+    # commonest legitimate call gets the feature flag switched off, which is the outcome this
+    # allowlist exists to avoid. `get_info` returns a dict of the entity's own attributes and nested
+    # entities: no module, no callable, nothing that widens the reachable graph.
     "by_type", "by_id", "by_guid", "get_inverse", "traverse", "schema", "types", "is_a", "id",
+    # `to_string` is the READ direction of the serialiser and is safe; `from_string` remains DENIED,
+    # because that one builds a model out of attacker-supplied text. Adding a name near a denied one
+    # deserves the check: these two differ by direction, not by degree.
+    #
+    # Deliberately NOT added while adding these: `file` (an entity's back-reference to the model —
+    # `model` is already in scope, so it buys nothing and widens the graph) and anything resembling
+    # `wrapped_data`, which is one of the escapes the red-team suite exists to catch.
+    "get_info", "to_string",
     # ordinary value manipulation
-    "append", "extend", "insert", "index", "count", "sort", "reverse", "copy",
+    "append", "extend", "insert", "index", "count", "sort", "reverse", "copy", "remove",
     "keys", "values", "items", "get", "add", "update", "pop",
     "strip", "lstrip", "rstrip", "lower", "upper", "title", "split", "rsplit", "join",
     "replace", "startswith", "endswith", "find", "isdigit", "isalpha", "zfill", "ljust", "rjust",
@@ -235,3 +253,165 @@ def execute_ifc_code(model, code: str) -> dict[str, Any]:
     return {"ok": True, "created": max(0, after - before), "deleted": max(0, before - after),
             "entities_before": before, "entities_after": after,
             "message": f"ran ok — net entity change {after - before:+d}"}
+
+
+#: Isolation is ON unless explicitly disabled. The opposite default would be the built-but-unreachable
+#: shape: a security control shipped, defaulted off, and therefore never exercised by anyone. The
+#: escape hatch exists because a host that cannot spawn a child would otherwise lose the feature
+#: entirely — but it has to be *chosen*, and choosing it is recorded in the result.
+INPROC_ENV = "AEC_SANDBOX_INPROC"
+
+#: Seconds the parent allows for the child to exist *before* the snippet's own deadline applies —
+#: interpreter start plus the ifcopenshell import.
+#:
+#: Measured at **0.85s on an idle machine**, and deliberately NOT set from that. A contended run in
+#: this repo takes roughly 3x its idle time (a suite measured at 21s idle and 50–64s under load), and
+#: a margin derived from one idle measurement is the defect that has now bitten a timeout in this repo
+#: twice: "1.2s is clear of 5s" was written down as a property of the test when it was a property of
+#: the machine, and it failed later at the same 1.2s of work. 30s is generous on purpose — this is a
+#: kill-switch for a runaway child, not a latency budget. What bounds normal operation is the
+#: snippet's own `AEC_IFC_CODE_TIMEOUT` deadline inside the child, which is unchanged.
+_CHILD_STARTUP_ALLOWANCE = float(os.environ.get("AEC_SANDBOX_STARTUP_SECONDS", "30"))
+
+
+def isolate() -> bool:
+    """Should the snippet run in a child process? Default yes."""
+    return os.environ.get(INPROC_ENV) != "1"
+
+
+def _run_isolated(work: str, code: str) -> dict[str, Any]:
+    """Run `code` against `work/in.ifc` in a child, leaving `work/out.ifc`. Returns the delta.
+
+    FAILS CLOSED. If the child cannot be launched, this raises rather than quietly running the snippet
+    in this process. A sandbox that degrades to no sandbox when something goes wrong is worse than
+    having none, because the caller's error handling never learns the boundary disappeared — and the
+    condition that breaks the spawn (an exhausted host, a locked-down container) is exactly the
+    condition under which you least want arbitrary code in the API worker.
+
+    The wall-clock deadline here is the parent's half of the pair; the child sets the CPU and memory
+    ceilings, which only mean anything in a process that exists to run one snippet. A snippet blocked
+    on nothing burns no CPU, so the CPU limit alone would never fire on a sleep; a spin loop on a busy
+    machine can outlast a generous wall clock. Neither limit subsumes the other.
+    """
+    import subprocess  # noqa: PLC0415 — only the isolated path needs it
+
+    # NAMED snippet.py, NOT code.py. The child runs `python -m` with `cwd=work`, which puts the
+    # workdir on sys.path[0] - so a file called code.py there SHADOWS THE STDLIB `code` MODULE for
+    # everything the child imports. Nothing in the current import chain (ifcopenshell, .api, .guid)
+    # pulls in `code`, `codeop` or `pdb`, so it was not exploitable - but it sat one unrelated
+    # transitive import away from letting a submitted snippet execute OUTSIDE the AST allowlist,
+    # as an import rather than as sandboxed code. The rename costs nothing and removes the class.
+    pathlib.Path(work, "snippet.py").write_text(code, encoding="utf-8")
+
+    # The child must import `aec_data`. Derive the path from THIS module's location rather than
+    # inheriting PYTHONPATH: the API process may have been started with a different one, and a child
+    # that silently imports a different `aec_data` than its parent is the worst kind of drift.
+    pkg_parent = str(pathlib.Path(__file__).resolve().parent.parent)
+    env = {
+        **{k: v for k, v in os.environ.items()
+           if k in ("PATH", "SYSTEMROOT", "TEMP", "TMP", "LANG", "LC_ALL", "PYTHONUTF8",
+                    "AEC_ALLOW_IFC_CODE", "AEC_IFC_CODE_TIMEOUT",
+                    "AEC_IFC_CODE_CPU_SECONDS", "AEC_IFC_CODE_MEMORY_MB")},
+        "PYTHONPATH": pkg_parent,
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+
+    deadline = _MAX_SECONDS + _CHILD_STARTUP_ALLOWANCE
+    try:
+        proc = subprocess.run(                              # noqa: S603 — fixed argv, no shell
+            [sys.executable, "-m", "aec_data.sandbox_child", work],
+            capture_output=True, text=True, env=env,
+            timeout=deadline, check=False, cwd=work)
+    except subprocess.TimeoutExpired as e:
+        raise SandboxError(
+            f"the snippet exceeded the {deadline:.0f}s wall-clock deadline and its process was "
+            "killed") from e
+    except OSError as e:
+        raise SandboxError(
+            f"could not start the sandbox child process ({type(e).__name__}: {e}). Refusing to run "
+            f"the snippet in this process instead — set {INPROC_ENV}=1 to accept that risk "
+            "explicitly.") from e
+
+    err = (proc.stderr or "").strip()
+    if proc.returncode == 4:                                # the flag is off in the child
+        raise PermissionError(err or "execute_ifc_code is disabled")
+    if proc.returncode == 3:
+        raise SandboxError(err or "could not read the model")
+    if proc.returncode != 0:
+        raise SandboxError(err or f"sandbox child exited {proc.returncode}")
+
+    out = pathlib.Path(work, "result.json")
+    if not out.is_file() or not pathlib.Path(work, "out.ifc").is_file():
+        raise SandboxError("the sandbox child exited 0 without producing a result")
+    return {**json.loads(out.read_text(encoding="utf-8")), "isolated": True}
+
+
+def execute_ifc_bytes(ifc_bytes: bytes, code: str) -> tuple[bytes, dict[str, Any]]:
+    """Run `code` against a **serialised** model and return the new serialisation plus the delta.
+
+    SEC-PLUGIN-SANDBOX, step one of three. This is the same execution as `execute_ifc_code` behind a
+    different *contract*, and the contract is the whole point.
+
+    **Why isolation was not buildable, which nobody had written down.** `execute_ifc_code(model,
+    code)` takes a live in-memory `ifcopenshell.file` and the snippet mutates it **in place**; the
+    caller goes on using that same object afterwards. A child process cannot share an in-memory
+    object, so running the snippet anywhere else means serialise → run → serialise back → reload —
+    which hands the caller a NEW object and breaks every one of them. That is an API contract change
+    at the call site, not a deployment choice, and it is why R35-SANDBOX-ISOLATION kept being filed
+    as "needs a decision about deployment shape" when the actual blocker was here.
+
+    So the contract moves first, while the execution stays exactly where it is. Today this runs
+    in-process and is no more isolated than the function above — it is not claimed to be. What it
+    buys is that **the middle can be replaced without touching a caller**: once a callee is
+    `bytes -> bytes`, running it in a subprocess, a container, or on another host is a change to one
+    function body. Building isolation first and retrofitting the contract is the order that fails.
+
+    Deliberately NOT a path-in/path-out signature. A caller holding a path would be free to hand in
+    a path inside the source tree or a container's read-only mount, and the temp files are this
+    function's business rather than its interface. Bytes also make the eventual process boundary
+    obvious: they are already what would cross it.
+    """
+    import tempfile
+
+    import ifcopenshell
+
+    if not enabled():                       # checked here too: this is a public entry point of its
+        raise PermissionError(              # own, and a gate that only one door carries is not a gate
+            "execute_ifc_code is disabled — set AEC_ALLOW_IFC_CODE=1 to enable (accepts "
+            "the arbitrary-code risk of this gated, editor-only escape hatch)")
+    if not ifc_bytes:
+        raise SandboxError("no model supplied")
+
+    # `tempfile.mkdtemp` rather than anywhere under the source tree or STORAGE_DIR: the API container
+    # mounts /app read-only, and scratch written beside the code is the failure already recorded as
+    # "container read-only /app tmp".
+    tmp = tempfile.mkdtemp(prefix="ifc_sandbox_")
+    src_path = os.path.join(tmp, "in.ifc")
+    try:
+        with open(src_path, "wb") as fh:
+            fh.write(ifc_bytes)
+
+        if isolate():
+            result = _run_isolated(tmp, code)
+        else:
+            try:
+                model = ifcopenshell.open(src_path)
+            except Exception as e:          # noqa: BLE001 — an unparseable model is the caller's error
+                raise SandboxError(f"could not read the model: {type(e).__name__}: {e}") from e
+            result = execute_ifc_code(model, code)
+            model.write(os.path.join(tmp, "out.ifc"))
+
+        out_path = os.path.join(tmp, "out.ifc")
+        with open(out_path, "rb") as fh:
+            out = fh.read()
+    finally:
+        # Always, including when the snippet raised. A sandbox that leaves the model it was given
+        # lying in a temp directory has undone part of the point of having one.
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # Stated rather than assumed: the round-trip is a REWRITE, so byte-identical output is not
+    # expected even for a no-op snippet (ifcopenshell renumbers instance ids and rewrites the
+    # header). Callers comparing bytes to detect "did anything change" must use the delta instead,
+    # which is why it is returned rather than left for them to recompute.
+    result = {**result, "round_tripped": True, "bytes_in": len(ifc_bytes), "bytes_out": len(out)}
+    return out, result

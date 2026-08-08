@@ -1,5 +1,6 @@
 import type { ModuleDef, ModuleRecord, RecordBrief } from "../../api/client";
 import type { ModuleFilterOp } from "../../api/types";
+import { money as usd } from "../../ui/charts";
 import { statusChip } from "../../ui/chips";
 import { type RegisterEmptyKind, registerEmptyEl } from "../../ui/empty";
 import { emptyHint } from "../../ui/emptyGuide";
@@ -1622,31 +1623,361 @@ export class RegisterUI {
     }
   }
 
+  /**
+   * Compose Exhibit A — pick clauses, preview the assembled exhibit, then generate the PDF.
+   *
+   * NARROW BY TRADE, BECAUSE THE CATALOG OUTGREW THE PICKER
+   *     The library is 249 clauses across 21 MasterFormat divisions. This used to load all of them
+   *     into one flat 300px-tall checkbox list, which asks somebody to assemble a plumbing
+   *     subcontract from a list where the overwhelming majority of entries belong to other trades.
+   *     Passing the record's trade narrows it server-side — 249 -> 85 for plumbing — and the header
+   *     says which division it narrowed to, so a wrong trade on the record is visible rather than
+   *     silently producing a short exhibit.
+   *
+   * THE INITIAL SELECTION COMES FROM THE SERVER, WHICH IS THE BUG THIS REPLACES
+   *     The previous default was computed here:
+   *         `cb.checked = cl.category !== "Scope" || !trade || (cl.trade ?? "").toLowerCase() === trade`
+   *     The imported clauses carry no `trade` key at all — only body/category/default/division/id/
+   *     position/title — so that comparison was false for every one of the 242 imported clauses. The
+   *     dialog therefore opened with **every exclusion and every conditions clause ticked and almost
+   *     no scope clauses**, which is close to the opposite of a sensible subcontract exhibit. It was
+   *     a second selection rule that disagreed with the server's `default_ids`. Now there is one
+   *     rule: `scopeExhibit({trade})` returns the default selection and the boxes start there.
+   *
+   * EXCLUSIONS ARE AS PROMINENT AS INCLUSIONS
+   *     The point of the library gaining exclusions (69 of them) is that a subcontract can state what
+   *     is NOT included — that is where scope gaps come from. So the picker groups by category rather
+   *     than running them together, and the preview leads with the counts.
+   */
+  /**
+   * `estimate.basis` -> the phase key `est_confidence._PHASE_CONF` scores against.
+   *
+   * **Explicit, because lowercasing is wrong for two of the five and wrong in the flattering
+   * direction.** The register offers `Conceptual · Schematic · DD · CD · GMP`; the scorer keys on
+   * `concept · sd · dd · cd · gmp`. `DD`/`CD`/`GMP` survive a `.toLowerCase()`, but `"conceptual"`
+   * and `"schematic"` match nothing and fall to the unspecified default of **0.6** — which scores a
+   * concept estimate (0.45) as *more* confident than a schematic one (0.6), and rates the roughest
+   * estimates in the system above what they are. A silent default that flatters is worse than one
+   * that fails.
+   */
+  private static PHASE_FROM_BASIS: Record<string, string> = {
+    Conceptual: "concept", Schematic: "sd", DD: "dd", CD: "cd", GMP: "gmp",
+  };
+
+  /**
+   * EST-REACH — the estimate register's line items had analyses built for them and no way in.
+   *
+   * `line_items` carries `code · description · qty · unit · unit_cost · amount · source · quote_ref
+   * · basis_date`, and its `source` options are `allowance / parametric / historical / quote` —
+   * every one a key in the confidence scorer's own source table. The data model and the endpoints
+   * were built for each other; only the UI between them was missing.
+   *
+   * **A Basis-of-Estimate view was here and was deliberately removed.** `budget.ts` already reads
+   * every estimate record project-wide and calls `estimateBoe`, mapping `code -> cost_code` and
+   * `amount -> total` — the seam `commercial_drift.ESTIMATE_TO_BOE` documents server-side. Adding a
+   * per-record view meant a SECOND copy of that mapping on the client, and a duplicated mapping is
+   * the defect this whole ring exists to remove, not a feature. "Is *this* estimate defensible" is a
+   * real and different question from "is our estimating defensible", but if it earns a view it
+   * should call that same seam rather than re-derive it.
+   *
+   * Deliberately reads the record's OWN line items rather than offering a paste box. A caller that
+   * needs the user to hand-assemble its input is a caller in name only.
+   */
+  private estimateActions(m: ModuleDef, r: ModuleRecord, tools: HTMLElement) {
+    if (m.key !== "estimate") return;
+    const pid = this.ctx.host.projectId()!;
+    const api = this.ctx.host.api;
+    const rows = (r.data?.line_items as Record<string, unknown>[] | undefined) ?? [];
+    const basis = String(r.data?.basis ?? "");
+    const phase = RegisterUI.PHASE_FROM_BASIS[basis] ?? "";
+
+    // Column names to what the endpoints read. `amount` is the table's total column, and the scorer
+    // takes `cost` OR `total` OR qty x unit_cost — sending both names costs nothing and means a row
+    // with only a computed amount is still weighted rather than silently counting as zero.
+    const lines = rows.map((row) => ({
+      cost_code: row.code ?? null, description: row.description ?? "",
+      qty: row.qty ?? null, unit: row.unit ?? null, unit_cost: row.unit_cost ?? null,
+      cost: row.amount ?? null, total: row.amount ?? null,
+      source: row.source ?? "", phase,
+      quote_ref: row.quote_ref ?? null, basis_date: row.basis_date ?? null,
+    }));
+
+    const btn = (label: string, title: string, fn: () => void) => {
+      const b = document.createElement("button");
+      b.className = "tool-btn"; b.textContent = label; b.title = title; b.onclick = fn;
+      tools.appendChild(b);
+    };
+    const guard = () => {
+      if (!lines.length) { toast("this estimate has no line items yet", "error"); return false; }
+      return true;
+    };
+
+    btn("◎ Confidence", "Score each line's maturity from its source and the estimate basis — and how much of the budget is still assumption-based", () => {
+      if (!guard()) return;
+      void this.estimateConfidenceView(pid, lines, basis, phase);
+    });
+    // Priced from the space-program register, not from this record's lines — a concept budget exists
+    // precisely for the stage BEFORE there are line items, so it must not be gated on `guard()`.
+    btn("◫ Concept budget", "Price the space program by use against a $/area rate — before there are line items", () => {
+      void this.conceptBudgetView(pid);
+    });
+    void api;      // the views resolve the client off `this.ctx.host.api` themselves
+  }
+
+  /**
+   * Concept budget: the space-program register priced by use.
+   *
+   * The endpoint wants `program: [{use, gfa, stories?}]`, and the `space_program` register already
+   * holds exactly that in another shape — `space_type` with `target_area_sf` per unit and a
+   * `quantity`. Aggregating by type is the whole mapping; there was never any missing data, only a
+   * missing path between two registers.
+   *
+   * `history` is deliberately not sent. The endpoint derives per-type rates from a firm's completed
+   * projects, and this codebase has no completed-project cost history to draw on — inventing one to
+   * make the call look richer would price a real budget off fabricated comparables. Without it the
+   * endpoint prices at `default_rate` and **surfaces what it could not price rather than guessing**,
+   * which is the honest behaviour and the one worth surfacing in the UI.
+   */
+  private async conceptBudgetView(pid: string) {
+    let recs;
+    try { recs = await this.ctx.host.api.moduleRecords(pid, "space_program"); }
+    catch (e) { toast(`could not read the space program: ${(e as Error).message}`, "error"); return; }
+    const byUse = new Map<string, number>();
+    for (const rec of recs) {
+      const d = (rec.data ?? {}) as Record<string, unknown>;
+      const use = String(d.space_type ?? "").trim();
+      if (!use) continue;
+      const each = Number(d.target_area_sf ?? 0) || 0;
+      const qty = Number(d.quantity ?? 1) || 1;
+      if (each <= 0) continue;
+      byUse.set(use, (byUse.get(use) ?? 0) + each * qty);
+    }
+    const program = [...byUse].map(([use, gfa]) => ({ use, gfa }));
+    if (!program.length) {
+      toast("the space program register has no sized spaces yet — add Type and Target Area", "error");
+      return;
+    }
+    const v = await promptModal("Concept budget", [
+      { name: "rate", label: `$/sf where a use has no rate (${program.length} uses, ${usd([...byUse.values()].reduce((a, b) => a + b, 0))} sf)`, required: true },
+      { name: "contingency", label: "Contingency %" },
+    ], "Price");
+    if (!v) return;
+    const rate = Number(v.rate);
+    if (!Number.isFinite(rate) || rate <= 0) { toast("rate must be a positive number", "error"); return; }
+    let b;
+    try {
+      b = await this.ctx.host.api.estimateConceptBudget(pid, {
+        program, default_rate: rate, contingency_pct: Number(v.contingency) || 0,
+      });
+    } catch (e) { toast(`concept budget failed: ${(e as Error).message}`, "error"); return; }
+
+    const { card } = modalShell("Concept budget", 480);
+    const head = document.createElement("div");
+    head.style.cssText = "font-weight:600;font-size:14px";
+    head.textContent = usd(b.total);
+    const sub = document.createElement("div"); sub.className = "meta";
+    sub.textContent = `${b.line_count} uses · subtotal ${usd(b.subtotal)}`
+      + (b.contingency ? ` + ${b.contingency_pct}% contingency ${usd(b.contingency)}` : "");
+    card.append(head, sub);
+
+    // `unpriced` is a COUNT, and it is the number that matters: a total computed over a program the
+    // endpoint could not fully price is not a budget, it is a partial one, and it must not read as
+    // complete. Verified against the endpoint — with no default rate all three lines come back
+    // unpriced with `total = 0`, which would otherwise render as a confident "$0".
+    if (b.unpriced > 0) {
+      const warn = document.createElement("div"); warn.className = "meta";
+      warn.style.cssText = "margin-top:4px;font-weight:600";
+      warn.textContent = `${b.unpriced} of ${b.line_count} uses could not be priced — the total below excludes them`;
+      card.appendChild(warn);
+    }
+
+    for (const l of b.lines) {
+      const row = document.createElement("div"); row.className = "meta";
+      row.style.cssText = "display:flex;gap:8px;border-top:1px solid var(--line);padding:4px 0";
+      row.append(
+        Object.assign(document.createElement("span"), { textContent: l.use, style: "flex:1" }),
+        Object.assign(document.createElement("span"), { textContent: `${Math.round(l.gfa).toLocaleString()} sf` }),
+        // The endpoint says WHY a line is unpriced; passing that through beats rendering a blank.
+        Object.assign(document.createElement("span"), { textContent: l.source, style: "flex:1;text-align:right" }),
+        Object.assign(document.createElement("span"), {
+          textContent: l.cost == null ? "—" : usd(l.cost),
+          style: l.cost == null ? "color:var(--muted)" : "",
+        }),
+      );
+      card.appendChild(row);
+    }
+  }
+
+  /** Confidence rollup: project score, how much is still assumption-based, and the softest lines. */
+  private async estimateConfidenceView(pid: string, lines: Record<string, unknown>[], basis: string, phase: string) {
+    let c;
+    try { c = await this.ctx.host.api.estimateConfidence(pid, lines); }
+    catch (e) { toast(`confidence failed: ${(e as Error).message}`, "error"); return; }
+    const { card } = modalShell("Estimate confidence", 460);
+    const head = document.createElement("div");
+    head.style.cssText = "font-weight:600;font-size:14px";
+    head.textContent = `${Math.round(c.confidence * 100)}% confidence · ${c.band}`;
+    const sub = document.createElement("div"); sub.className = "meta";
+    // The phase is stated, not assumed. An unmapped basis scores against the scorer's neutral
+    // default, and saying so is the difference between a number and a number you can act on.
+    sub.textContent = `${c.line_count} lines · ${usd(c.total_cost)} · `
+      + (phase ? `basis “${basis}” → phase ${phase}` : `basis “${basis || "unset"}” — phase unspecified, scored at the neutral default`);
+    card.append(head, sub);
+
+    const kpi = document.createElement("div"); kpi.className = "meta"; kpi.style.marginTop = "6px";
+    // UNITS ARE NOT CONSISTENT ACROSS THIS ONE RESPONSE, and both were verified against the running
+    // scorer rather than read off the field names. `pct_assumption_based` is a FRACTION (0.715 for a
+    // set that is 72% assumption-based) while `avg_contingency_pct` is already a PERCENTAGE (10.63).
+    // Rounding the first without scaling renders "1%" for a budget that is 72% unsupported — a
+    // plausible number, badly wrong, in the reassuring direction. `confidence` is a fraction too.
+    kpi.innerHTML = `<b>${Math.round(c.pct_assumption_based * 100)}%</b> of budget still assumption-based `
+      + `(${esc(usd(c.assumption_based_cost))}) · avg contingency ${Math.round(c.avg_contingency_pct)}%`;
+    card.appendChild(kpi);
+
+    const soft = c.worst_lines;
+    if (soft.length) {
+      const h = document.createElement("div");
+      h.style.cssText = "font-weight:600;margin-top:8px;font-size:12.5px";
+      h.textContent = "Least grounded, by value";
+      card.appendChild(h);
+      for (const l of soft.slice(0, 10)) {
+        const row = document.createElement("div"); row.className = "meta";
+        row.style.cssText = "display:flex;gap:8px;border-top:1px solid var(--line);padding:4px 0";
+        row.append(
+          Object.assign(document.createElement("span"), { textContent: l.description || "(no description)", style: "flex:1" }),
+          Object.assign(document.createElement("span"), { textContent: l.source }),
+          Object.assign(document.createElement("span"), { textContent: usd(l.cost) }),
+        );
+        card.appendChild(row);
+      }
+    }
+  }
+
+
   private async composeExhibit(m: ModuleDef, r: ModuleRecord, rid: string) {
     const pid = this.ctx.host.projectId()!;
-    let lib;
-    try { lib = (await this.ctx.host.api.scopeLibrary()).clauses; } catch { toast("couldn't load scope library", "error"); return; }
-    const { card } = modalShell("Compose Exhibit A — Scope of Work", 360);
-    card.append(Object.assign(document.createElement("div"), { className: "meta", textContent: "Select clauses to include:" }));
-    const trade = (r.data?.trade as string | undefined)?.toLowerCase();
+    const api = this.ctx.host.api;
+    const trade = (r.data?.trade as string | undefined)?.trim() || undefined;
+
+    let lib: Awaited<ReturnType<typeof api.scopeLibrary>>;
+    let def: Awaited<ReturnType<typeof api.scopeExhibit>>;
+    try {
+      // Both narrowed by the same trade. The catalog fills the picker; the exhibit supplies which
+      // boxes start ticked, so the default cannot disagree with what the document would render.
+      [lib, def] = await Promise.all([api.scopeLibrary({ trade }), api.scopeExhibit({ trade })]);
+    } catch { toast("couldn't load scope library", "error"); return; }
+
+    const { card } = modalShell("Compose Exhibit A — Scope of Work", 460);
+    // OFFER ONLY WHAT EXHIBIT A CAN HOLD, using the server's own definition.
+    //
+    // `library(division)` returns clauses whose division matches **or is None**, and every `gc-*` /
+    // `sc-*` conditions clause has division None — so even a narrowed catalog contains clauses the
+    // exhibit renderer drops. Listing them gives the user a tick that silently does nothing, which is
+    // a worse failure than a wrong document: it teaches them the control is broken.
+    //
+    // Filtered by `lib.exhibit_categories` rather than a literal here. Hardcoding
+    // {"Scope","Exclusions","Clarifications"} would be a second copy of the rule, and a second copy
+    // of *this exact rule* is what let the preview and the PDF disagree by 20 clauses.
+    const offerable = lib.clauses.filter((c) => lib.exhibit_categories.includes(c.category));
+
+    const scope = document.createElement("div"); scope.className = "meta";
+    scope.textContent = lib.division
+      ? `${offerable.length} clauses · Division ${lib.division} — ${lib.division_name ?? ""} (from trade “${trade}”)`
+      : `${offerable.length} clauses · whole catalog — no division for ${trade ? `trade “${trade}”` : "an unset trade"}`;
+    card.appendChild(scope);
+
+    const preselected = new Set(def.clauses.map((c) => c.id));
     const boxes: Record<string, HTMLInputElement> = {};
-    const list = document.createElement("div"); list.style.cssText = "max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:3px;margin:6px 0";
-    for (const cl of lib) {
-      const row = document.createElement("label"); row.style.cssText = "display:flex;gap:6px;align-items:center;font-size:12.5px";
-      const cb = document.createElement("input"); cb.type = "checkbox";
-      cb.checked = cl.category !== "Scope" || !trade || (cl.trade ?? "").toLowerCase() === trade;
-      boxes[cl.id] = cb;
-      row.append(cb, Object.assign(document.createElement("span"), { textContent: `${cl.title} · ${cl.category}` }));
-      list.appendChild(row);
+    const list = document.createElement("div");
+    list.style.cssText = "max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:2px;margin:6px 0";
+
+
+    // Grouped, with Exclusions given the same standing as Scope rather than being buried mid-list.
+    const byCat = new Map<string, typeof lib.clauses>();
+    for (const cl of offerable) {
+      const bucket = byCat.get(cl.category);
+      if (bucket) bucket.push(cl); else byCat.set(cl.category, [cl]);
+    }
+    const CAT_ORDER = ["Scope", "Exclusions", "Clarifications"];
+    const cats = [...byCat.keys()].sort((a, b) => {
+      const ia = CAT_ORDER.indexOf(a), ib = CAT_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+    });
+    for (const cat of cats) {
+      const items = byCat.get(cat)!;
+      const head = document.createElement("div");
+      head.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:6px;font-weight:600;font-size:12px";
+      const all = document.createElement("input"); all.type = "checkbox"; all.title = `Select all ${cat}`;
+      head.append(all, Object.assign(document.createElement("span"), { textContent: `${cat} (${items.length})` }));
+      list.appendChild(head);
+      const mine: HTMLInputElement[] = [];
+      for (const cl of items) {
+        const row = document.createElement("label");
+        row.style.cssText = "display:flex;gap:6px;align-items:flex-start;font-size:12.5px;padding-left:14px";
+        const cb = document.createElement("input"); cb.type = "checkbox";
+        cb.checked = preselected.has(cl.id);
+        boxes[cl.id] = cb; mine.push(cb);
+        row.append(cb, Object.assign(document.createElement("span"), { textContent: cl.title }));
+        list.appendChild(row);
+      }
+      const sync = () => { all.checked = mine.every((c) => c.checked); all.indeterminate = !all.checked && mine.some((c) => c.checked); };
+      all.onclick = () => { for (const c of mine) c.checked = all.checked; };
+      for (const c of mine) c.addEventListener("change", sync);
+      sync();
     }
     card.appendChild(list);
-    const open = document.createElement("button"); open.className = "file-btn"; open.textContent = "View Exhibit A"; open.style.alignSelf = "flex-start";
-    open.onclick = () => {
-      const ids = Object.entries(boxes).filter(([, b]) => b.checked).map(([id]) => id);
+
+    const picked = () => Object.entries(boxes).filter(([, b]) => b.checked).map(([id]) => id);
+    const out = document.createElement("div");
+    out.style.cssText = "max-height:260px;overflow:auto;border-top:1px solid var(--line);margin-top:6px;padding-top:6px;display:none";
+    const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;margin-top:4px";
+
+    const prev = document.createElement("button"); prev.className = "file-btn"; prev.textContent = "Preview exhibit";
+    prev.onclick = async () => {
+      const ids = picked();
       if (!ids.length) { toast("select at least one clause", "error"); return; }
-      window.open(this.ctx.host.api.contractDocUrl(pid, m.key, rid, "exhibit", ids.join(",")), "_blank");
+      let ex: Awaited<ReturnType<typeof api.scopeExhibit>>;
+      try { ex = await api.scopeExhibit({ trade, clauses: ids }); }
+      catch (e) { toast(`preview failed: ${(e as Error).message}`, "error"); return; }
+      out.textContent = ""; out.style.display = "block";
+      const counts = document.createElement("div"); counts.className = "meta"; counts.style.marginBottom = "4px";
+      // Exclusions called out by name: "12 clauses" hides whether any exclusion survived the picking.
+      counts.textContent = Object.entries(ex.counts).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(" · ")
+        || "nothing to render";
+      counts.style.fontWeight = "600";
+      out.appendChild(counts);
+      for (const c of ex.clauses) {
+        const h = document.createElement("div");
+        h.style.cssText = "font-weight:600;font-size:12.5px;margin-top:6px";
+        h.textContent = `${c.number} ${c.title}`;
+        const b = document.createElement("div");
+        b.style.cssText = "font-size:12px;white-space:pre-wrap;color:var(--muted)";
+        b.textContent = c.body;
+        out.append(h, b);
+      }
     };
-    card.appendChild(open);
+
+    const open = document.createElement("button"); open.className = "file-btn"; open.textContent = "Generate PDF";
+    open.onclick = () => {
+      const ids = picked();
+      if (!ids.length) { toast("select at least one clause", "error"); return; }
+      window.open(api.contractDocUrl(pid, m.key, rid, "exhibit", ids.join(",")), "_blank");
+    };
+    // The Word copy sits beside the PDF because they are two halves of one exchange, not two
+    // features: the PDF is the instrument you sign, the .docx is the one a subcontractor strikes
+    // through and sends back. Offering only the PDF pushes the sub into retyping the exhibit, which
+    // is where clauses go missing.
+    const docx = document.createElement("button");
+    docx.className = "file-btn";
+    docx.textContent = "Word copy";
+    docx.title = "Exhibit A as an editable .docx — the copy a subcontractor redlines and returns";
+    docx.onclick = () => {
+      const ids = picked();
+      if (!ids.length) { toast("select at least one clause", "error"); return; }
+      window.open(api.exhibitDocxUrl(pid, m.key, rid, ids.join(",")), "_blank");
+    };
+    row.append(prev, open, docx);
+    card.append(row, out);
   }
 
   private async signContract(m: ModuleDef, r: ModuleRecord, rid: string) {
@@ -1805,6 +2136,7 @@ export class RegisterUI {
       tools.append(cb);
     }
     this.contractActions(m, r, rid, tools);
+    this.estimateActions(m, r, tools);
     if (m.key === "rfi") {
       const tb = document.createElement("button");
       tb.className = "tool-btn"; tb.textContent = "✨ Triage (AI)"; tb.title = "AI: categorize + ball-in-court + draft response";

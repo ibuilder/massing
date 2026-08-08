@@ -164,6 +164,24 @@ So the marginal cost of an isolated session is a source checkout — tens of MB,
    `PYTHONPATH`, not `node_modules`.
 3. **Distinct dev-server ports per session.** `:8093` and `:5173` are singletons; tests are already
    headless (happy-dom, no browser) so only a live preview needs one.
+4. **Branch from `origin/main`, never `main`.** In a worktree `git checkout main` **cannot succeed** —
+   main is checked out in the primary clone and git refuses to have one branch in two working trees.
+   That refusal is one line on stderr and nothing else changes, so a `2>/dev/null` turns it into a
+   silent no-op and the next command inherits a state nobody chose. `git checkout -b <new> main` then
+   works fine and resolves `main` as a **ref**, pointing wherever the local ref last pointed — which
+   in a worktree is wherever it was when the session began.
+
+   Measured 2026-08-07: a branch created that way was **140 commits stale** and every command reported
+   success. It was caught only because `app.ts` measured 5,064 lines against a ratchet pinned at 3,751,
+   and a ratchet that only revises down cannot sit below the file it measures. **The contradiction
+   between two numbers was the entire signal.**
+
+   Two generalisations worth more than the command: **never `2>/dev/null` a state-changing git
+   command** — suppressing stderr on a query is untidy, suppressing it on `checkout` converts a
+   refusal into a silent no-op; and **a ref name is not a ref** — `main` and `origin/main` are
+   different objects that read identically in a command line.
+
+        git fetch -q origin main && git checkout -q -b <branch> origin/main
 
     git worktree add .claude/worktrees/<lane> -b <branch> origin/main
     cd .claude/worktrees/<lane>
@@ -178,6 +196,31 @@ is a *development* boundary and is orthogonal to that.
 **Still true in a worktree:** hazard 7 (a root-scoped runner collects every worktree — use the
 workspace command), and the temp-index pattern remains the right way to land a commit when you are
 *not* in your own tree.
+
+### Two races the gates do NOT close, named so they are not assumed away
+
+**1. A migration fork is invisible to both branches.** On 2026-08-07 two PRs each added a migration
+chained off the same `down_revision`. **Both were individually green and both were correct** — each
+branch had exactly one head; the second head exists only in the *union*. Main then could not
+`alembic upgrade head` at all.
+
+Detection already exists (`services/api/test_alembic_migrations.py` calls `command.upgrade(cfg, "head")`,
+which raises `Multiple head revisions are present`), and CI runs on `pull_request`, so it tests the
+**merge result**. What no gate can do is re-test PR B when PR A lands afterwards: B's green was
+computed against a merge result that predates A, and it stays green and stays mergeable.
+
+`required_status_checks.strict: true` would force every branch to be up to date before merging and
+would catch it — **the user chose `strict: false` on 2026-08-07, deliberately**, because with three or
+more sessions merging it means near-continuous rebasing and that defeats the release cadence. So the
+risk is accepted, not solved.
+
+**The mitigation that costs nothing is coordination, because no local check can see unpushed work:**
+a branch carrying a migration **announces its parent revision when it opens**, so the next one chains
+onto it rather than onto the shared ancestor.
+
+**2. `enforce_admins: false` makes the protection advisory for whoever can bypass it.** Direct pushes
+to `main` still work, which is load-bearing for the cadence. **The ability to bypass a gate is not
+permission to** — hold yourself to it.
 
 ### Resolving a conflict
 

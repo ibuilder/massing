@@ -6,7 +6,15 @@ shells out / hits a paid cloud translation — so they get their own, always-on,
 cap regardless of the global limiter. In-process sliding window keyed by (bucket, caller); good enough
 for a single/few-worker deployment and, unlike the global limiter, protects even when AEC_RATE_LIMIT_RPM
 is unset. Defaults are generous enough for tests/interactive use; tune or disable per bucket via env
-(AEC_THROTTLE_<BUCKET>_RPM; 0 disables)."""
+(AEC_THROTTLE_<BUCKET>_RPM; 0 disables).
+
+R39-THROTTLE-SHARED (2026-08-07). The count now goes through `ratecount`, so it is SHARED across
+worker processes when `AEC_REDIS_URL` is set. Until then this kept its own in-process dict, and the
+line above about "a single/few-worker deployment" had quietly stopped being true: R39-WORKER-SPLIT
+(v0.3.869) made a second writer process the supported deployment, which multiplies every cap here by
+the worker count. That matters most for the tightest buckets, which are the security-relevant ones —
+`stepup` at 10/min guards a human step-up assertion.
+"""
 from __future__ import annotations
 
 import os
@@ -14,8 +22,7 @@ import time
 
 from fastapi import HTTPException, Request
 
-# bucket -> { caller -> [window_minute, count] }
-_HITS: dict[str, dict[str, list[int]]] = {}
+from . import ratecount
 
 
 def _limit(bucket: str, default: int) -> int:
@@ -43,22 +50,23 @@ def rate_limited(bucket: str, default_rpm: int):
     """FastAPI dependency factory: allow at most N calls/minute to `bucket` per caller.
 
     `default_rpm` is the built-in cap; override with AEC_THROTTLE_<BUCKET>_RPM (0 disables). Raises
-    429 with a Retry-After header when exceeded."""
-    def _dep(request: Request) -> None:
+    429 with a Retry-After header when exceeded.
+
+    ASYNC since R39-THROTTLE-SHARED, because the shared counter is an awaited Redis round-trip.
+    FastAPI resolves sync and async dependencies alike, so no call site changes — but a caller that
+    invoked `_dep(request)` directly would now get a coroutine, which is why `test_throttle` drives
+    it through a real app rather than by hand.
+    """
+    async def _dep(request: Request) -> None:
         limit = _limit(bucket, default_rpm)
         if limit <= 0:
             return
         win = int(time.time() // 60)
-        who = _caller(request)
-        b = _HITS.setdefault(bucket, {})
-        rec = b.get(who)
-        if not rec or rec[0] != win:
-            rec = [win, 0]
-            if len(b) > 10_000:                 # bound memory: drop stale windows wholesale
-                b.clear()
-            b[who] = rec
-        rec[1] += 1
-        if rec[1] > limit:
+        # The bucket is the NAMESPACE and the caller is the key, so two buckets can never share a
+        # counter — under the old dict that separation was structural; under a flat Redis keyspace
+        # it has to be spelled out.
+        n = await ratecount.count(f"throttle:{bucket}", _caller(request), win)
+        if n > limit:
             raise HTTPException(429, f"rate limit exceeded for {bucket} (max {limit}/min)",
                                 headers={"Retry-After": "60"})
     return _dep

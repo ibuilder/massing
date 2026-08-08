@@ -29,11 +29,20 @@
 
 ## Tooling & gates
 
-- **Node 20 from Program Files locally** (`export PATH="/c/Program Files/nodejs:$PATH"` — the PATH
-  Node 18 breaks the build); CI runs Node 22.
-- Gate per release: `npm run typecheck` + `npm run lint` (eslint pinned 9.39.5 until the local Node
-  bump) + `npx vitest run` (128 tests) + `npm run build`. `lint:fast` (oxlint) is an additive
-  pre-lint in CI.
+- **Node 24 from Program Files locally** (`export PATH="/c/Program Files/nodejs:$PATH"` — the PATH
+  Node 18 breaks the build); CI runs Node 24. Both manifests declare `"engines": {"node": ">=24"}`.
+- Gate per release: `npm run typecheck` + `npm run lint` (eslint 10.8.0 — the 9.x pin was lifted once
+  the local Node reached 24; `@eslint/js` is a *different* package and still on 9.x) + `npx vitest
+  run` + `npm run build`. `lint:fast` (oxlint) is an additive pre-lint in CI.
+  <!-- The versions in these two bullets are asserted against the manifests by
+       apps/web/src/shell/toolchainDocs.test.ts. Both were wrong for weeks — an eslint major and a
+       Node major behind — and nothing failed, because nothing reads prose. Change a manifest and
+       this prose must follow. This note deliberately does NOT quote the old values: the gate cannot
+       tell a historical example from a live claim, and quoting them here failed the gate on the very
+       commit that added it. Same shape as the backtick rule in CLAUDE.md — an illustration written
+       in the citation's own syntax IS a citation. -->
+- Test counts are deliberately **not** quoted here. This bullet claimed "128 tests" long after the
+  suite passed a thousand; an unattached number in prose is a claim nothing checks.
 - Headless logic that can be unit-tested is extracted and vitest-covered (the `WalkController`
   pattern); DOM-coupled behavior is verified live where the preview allows, honestly flagged where
   the geometry stall prevents it (see the `verify-frontend` skill).

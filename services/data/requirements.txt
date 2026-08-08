@@ -3,7 +3,15 @@ ifcopenshell>=0.8.5,<0.9
 openpyxl>=3.1          # XLSX export
 numpy>=2.5.1           # geometry-derived quantities, AABB clash
 ifctester>=0.8        # IDS / openBIM model validation
-trimesh>=4.12.2          # clash narrow phase (mesh booleans) + 2D section cuts
+# Held at 4.12.2, which is what `services/api/requirements.lock` pins and therefore what the
+# container actually runs — this file is NOT installed anywhere (the API image installs only that
+# lock, and CI installs it too). Dependabot raised this to >=5.0.0 in #229 and every check went
+# green, because nothing had ever compared this file against the lock; the image kept shipping
+# 4.12.2 while this line claimed 5.0.0 was required. Raising it again means regenerating the lock
+# AND validating trimesh 5 against the paths below — it drives mesh booleans (with manifold3d, at
+# 3.5.2) and 2D section cuts, so a major move there is not free. `test_lock_satisfies_requirements.py`
+# now reads this file, so the two can no longer disagree silently.
+trimesh>=4.12.2         # clash narrow phase (mesh booleans) + 2D section cuts
 manifold3d>=2.0       # boolean intersection engine for trimesh
 scipy>=1.18.0           # trimesh path assembly (section drawings)
 networkx>=3.6.1         # trimesh path traversal (section drawings)
@@ -13,4 +21,4 @@ pillow>=12.3.0        # reportlab's image dep — floor over 8 CVEs in 12.2.x (P
 defusedxml>=0.7       # XXE-safe parser for untrusted P6 (PMXML) schedule uploads — schedule.py
 # svglib (SVG→PNG for docs gallery) is a dev-only tool — it pulls pycairo/cairo and is not
 # needed at runtime (the API serves SVG directly). Install ad hoc when regenerating docs/img.
-rdflib>=7.1            # R28-ICDD — ISO 21597 container linksets (BSD-3)
+rdflib>=7.6.0            # R28-ICDD — ISO 21597 container linksets (BSD-3)

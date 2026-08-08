@@ -48,9 +48,11 @@ import os
 import threading
 import traceback
 from collections.abc import Callable
-from datetime import timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sqlalchemy import and_ as sa_and
+from sqlalchemy import or_ as sa_or
 from sqlalchemy import select
 from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
@@ -128,13 +130,68 @@ def _claim_next(db: Session) -> Job | None:
             return None
         won = db.execute(
             sa_update(Job).where(Job.id == j.id, Job.state == "queued")
-            .values(state="running", started_at=utc_now())
+            # JOB-WORKER-SCALE: stamp the heartbeat in the SAME statement that wins the row. Setting
+            # it afterwards would leave a window in which the job is `running` with no sign of life,
+            # and a sibling worker booting inside that window would read it as an orphan and re-queue
+            # a job this process is about to start.
+            .values(state="running", started_at=utc_now(), heartbeat_at=utc_now())
         ).rowcount
         db.commit()
         if won:
             db.refresh(j)
             return j
         db.expire_all()          # the loser's snapshot of j is stale; drop it before re-selecting
+
+
+#: How often a running job re-stamps `heartbeat_at`, and how long a silence means "orphan".
+#:
+#: The stale window is deliberately several intervals wide. It is the only thing standing between a
+#: momentarily slow database and a live job being handed to a second worker, and re-queueing a job
+#: that is genuinely running is the expensive mistake here — the cheap one is leaving a truly dead
+#: job queued for a few minutes longer.
+_HEARTBEAT_SECONDS = float(os.environ.get("AEC_JOB_HEARTBEAT_SECONDS", "20"))
+_STALE_AFTER_SECONDS = float(os.environ.get("AEC_JOB_ORPHAN_AFTER_SECONDS",
+                                            str(max(120.0, _HEARTBEAT_SECONDS * 6))))
+
+
+class _Heartbeat:
+    """Keeps one running job's `heartbeat_at` current for as long as its handler is executing.
+
+    A separate thread and a separate SESSION, both on purpose. The handler owns `db` for the whole of
+    a long IFC parse and may be inside a transaction; writing the heartbeat on that session would
+    either block behind it or interleave with the handler's own writes. And it must be a thread
+    rather than a between-steps call because the handlers this exists for are single blocking calls
+    lasting minutes — there is no "between steps" to hook.
+    """
+
+    def __init__(self, SessionLocal, job_id: str):
+        self._SessionLocal, self._job_id = SessionLocal, job_id
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def __enter__(self) -> _Heartbeat:
+        self._thread = threading.Thread(target=self._beat, daemon=True,
+                                        name=f"aec-job-heartbeat-{self._job_id[:8]}")
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=5.0)
+
+    def _beat(self) -> None:
+        while not self._stop.wait(_HEARTBEAT_SECONDS):
+            try:
+                with self._SessionLocal() as hb:
+                    # Scoped to `running`: once the job finishes, this must not resurrect a heartbeat
+                    # on a done/error row, which would make a finished job look alive to `queue_stats`.
+                    hb.execute(sa_update(Job)
+                               .where(Job.id == self._job_id, Job.state == "running")
+                               .values(heartbeat_at=utc_now()))
+                    hb.commit()
+            except Exception:  # noqa: BLE001 — a missed beat must never kill the job it is watching
+                log.debug("job %s: heartbeat failed", self._job_id, exc_info=True)
 
 
 def _run_one(SessionLocal) -> bool:
@@ -148,12 +205,16 @@ def _run_one(SessionLocal) -> bool:
         try:
             if fn is None:                           # kind vanished across a restart (plugin removed)
                 raise ValueError(f"job kind {j.kind!r} is no longer registered")
-            if j.kind in _MUTATING_KINDS and j.project_id:
-                from . import pid_lock
-                with pid_lock.mutating(j.project_id):   # serialize against concurrent edits/jobs
+            # JOB-WORKER-SCALE: hold the claim alive for the whole handler. Without this a job that
+            # runs longer than the stale window is re-queued by the next worker to boot and then runs
+            # twice — and the jobs this queue exists for are precisely the long ones.
+            with _Heartbeat(SessionLocal, j.id):
+                if j.kind in _MUTATING_KINDS and j.project_id:
+                    from . import pid_lock
+                    with pid_lock.mutating(j.project_id):   # serialize against concurrent edits/jobs
+                        result = fn(db, j.params or {})
+                else:
                     result = fn(db, j.params or {})
-            else:
-                result = fn(db, j.params or {})
             j.result = result if isinstance(result, (dict, list)) else {"value": result}
             j.state = "done"
         except Exception as e:  # noqa: BLE001 — the job row carries the failure; the worker never dies
@@ -178,22 +239,59 @@ def _worker(SessionLocal) -> None:
         _WAKE.clear()
 
 
+def recover_orphans(db: Session, now: datetime | None = None) -> list[str]:
+    """Re-queue jobs left `running` by a process that is no longer alive. Returns the ids re-queued.
+
+    **This re-queued EVERY `running` row in the database**, which was right while exactly one process
+    ever ran the queue and became wrong the moment `docker compose --scale worker=N` was documented.
+    Under it, a worker booting re-queued the jobs its siblings were mid-execution on, and each of
+    those then ran in two processes at once — for a mutating kind, two writers in one project.
+
+    The compare-and-swap in `_claim_next` does not help and it is worth being precise about why: it
+    arbitrates who may take a row that is *already* `queued`. A row reset to `queued` underneath a
+    live worker is not a race it can see — it is the CAS faithfully handing out a job somebody is
+    still running.
+
+    So recovery now asks whether anyone is still working the row, using the heartbeat the claim
+    stamps and the running worker refreshes. Silence beyond `_STALE_AFTER_SECONDS` means the process
+    is gone.
+
+    `heartbeat_at IS NULL` counts as stale only when `started_at` is ALSO older than the window. Rows
+    claimed by a build that predates the column have no heartbeat and would otherwise be immortal;
+    the `started_at` clause recovers them without also catching a row claimed microseconds ago by a
+    sibling running new code, whose claim stamps both fields in one statement.
+    """
+    now = now or utc_now()
+    cutoff = now - timedelta(seconds=_STALE_AFTER_SECONDS)
+    rows = list(db.scalars(
+        select(Job).where(
+            Job.state == "running",
+            sa_or(Job.heartbeat_at < cutoff,
+                  sa_and(Job.heartbeat_at.is_(None),
+                         sa_or(Job.started_at.is_(None), Job.started_at < cutoff))),
+        )))
+    for j in rows:
+        j.state = "queued"
+        j.started_at = None
+        j.heartbeat_at = None
+    if rows:
+        db.commit()
+    return [j.id for j in rows]
+
+
 def start_worker() -> None:
-    """Start the per-process worker (idempotent) and recover orphans: any job left `running` by a
-    crashed process is re-queued — handlers are idempotent by contract, so a re-run is safe."""
+    """Start the per-process worker (idempotent) and recover orphans: a job left `running` by a
+    crashed process is re-queued — handlers are idempotent by contract, so a re-run is safe. A job
+    a LIVE sibling worker is running is left alone; see `recover_orphans`."""
     global _THREAD
     from .db import SessionLocal
     with _LOCK:
         db = SessionLocal()
         try:
-            orphans = list(db.scalars(select(Job).where(Job.state == "running")))
-            for j in orphans:
-                j.state = "queued"
-                j.started_at = None
-            if orphans:
-                db.commit()
+            requeued = recover_orphans(db)
+            if requeued:
                 log.warning("job queue: re-queued %d orphaned running job(s) from a previous process",
-                            len(orphans))
+                            len(requeued))
         finally:
             db.close()
         if _THREAD is not None and _THREAD.is_alive():

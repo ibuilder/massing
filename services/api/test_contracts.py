@@ -10,9 +10,10 @@ for f in ("./test_contracts.db",):
     if os.path.exists(f):
         os.remove(f)
 
-import pypdf                                                  # noqa: E402
-from fastapi.testclient import TestClient                    # noqa: E402
-from aec_api.main import app                                 # noqa: E402
+import pypdf  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 
 def mk(c, pid, key, data):
@@ -43,9 +44,26 @@ with TestClient(app) as c:
     assert "Subcontract Agreement" in agr and "ACME Concrete" in agr, agr[:300]
     assert "Exhibit A" in agr and "$4,800,000" in agr, agr[:300]
 
-    # Exhibit A from selected clauses — merged project name + the chosen scope
+    # Exhibit A from selected clauses — merged project name + the chosen scope.
+    #
+    # `sc-warranty` is requested EXPLICITLY here and must NOT render. This assertion used to require
+    # the opposite ("Warranty" in exb) and it was correct until 2026-08-07, when `_exhibit_flowables`
+    # began filtering to `EXHIBIT_CATEGORIES` — unconditionally, including an explicit `clauses` list.
+    #
+    # The rule that filter encodes: **a caller chooses which clauses, not which document a category
+    # belongs in.** Exhibit A owns Scope / Exclusions / Clarifications; Article 3 owns the conditions;
+    # no clause appears in both. `sc-warranty` is Supplementary Conditions, so asking for it inside an
+    # exhibit is asking for something the document structure does not have — the agreement body
+    # already prints it, and honouring the request here is how the same clause got printed twice in
+    # one subcontract.
+    #
+    # Kept as a POSITIVE assertion on `div03-concrete` alongside the negative one, so this cannot
+    # start passing because the exhibit rendered nothing at all.
     exb = text_of(c.get(f"/projects/{pid}/contracts/subcontract/{sc}/document.pdf?doc=exhibit&clauses=div03-concrete,sc-warranty").content)
-    assert "Division 03" in exb and "Tower A" in exb and "Warranty" in exb, exb[:300]
+    assert "Division 03" in exb and "Tower A" in exb, exb[:300]
+    assert "Warranty" not in exb, (
+        "a Supplementary Conditions clause reached Exhibit A even though it was filtered out of the "
+        "preview — the composer promises 'what you see is what gets signed'")
 
     # change order — original → revised contract sum
     cor = mk(c, pid, "cor", {"subject": "Added steel at grid C4", "amount": 92_500, "schedule_days": 5,

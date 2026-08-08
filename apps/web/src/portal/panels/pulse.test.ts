@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { type ActionCandidate, buildPulse, nextBestAction } from "./pulse";
@@ -216,4 +218,95 @@ describe("the portal actually calls it", () => {
     expect(src).toMatch(/from "\.\/panels\/pulse"/);
     expect(src, "defined but never called is the orphan case").toMatch(/this\.renderPulse\(/);
   }, 15_000);
+});
+
+/**
+ * PULSE-FINDINGS — the two engine findings that ride the deal card.
+ *
+ * Both are SILENT-WRONG-ANSWER findings, which is what makes them worth a risk line rather than a
+ * footnote. A reserve suggestion that does not clear the horizon renders identically to one that
+ * does — `proforma.ts` prints "Suggested level contribution: $X/yr" in bold either way — and a
+ * renovation pace that completes no unit returns a perfectly well-formed schedule. In both cases the
+ * failure is a plausible number, not a missing one, so nothing on screen looks wrong.
+ *
+ * Read STRICTLY in `portal.ts`: `=== false` and `=== true`, never truthiness. A missing field means
+ * the engine did not answer, and inventing a risk line from an absent field is worse than showing
+ * none — one false alarm costs trust in every other line on the card.
+ */
+describe("PULSE-FINDINGS — reserve + renovation findings on the deal card", () => {
+  it("an unverified reserve suggestion turns the card to risk and says so", () => {
+    const [c] = buildPulse({ deal: { irrPct: 18.2, band: [15, 22], reserveSuggestionFails: true } });
+    expect(c!.tone, "an IRR inside its band is not good news if the funding plan does not hold")
+      .toBe("risk");
+    expect(c!.risk).toContain("does not clear the horizon");
+  });
+
+  it("the same card without the finding is good — so the assertion above is not vacuous", () => {
+    const [c] = buildPulse({ deal: { irrPct: 18.2, band: [15, 22], reserveSuggestionFails: false } });
+    expect(c!.tone).toBe("good");
+    expect(c!.risk).toBeNull();
+  });
+
+  it("carries the server's own words for a renovation that renovates nothing", () => {
+    // The reason is phrased server-side with the actual pace ("pace is 0 unit(s)/month over 60
+    // month(s)"). Re-deriving it here would produce a second, drifting explanation of one fact.
+    const why = "pace is 0 unit(s)/month over 60 month(s) — no unit completed a start";
+    const [c] = buildPulse({ deal: { irrPct: 12, nothingRenovated: why } });
+    expect(c!.tone).toBe("risk");
+    expect(c!.risk).toContain(why);
+  });
+
+  it("shows both findings at once, worst first", () => {
+    const [c] = buildPulse({ deal: {
+      irrPct: 12, staleSince: "pay app #7",
+      reserveSuggestionFails: true, nothingRenovated: "no unit completed a start",
+    } });
+    const r = c!.risk!;
+    expect(r).toContain("does not clear the horizon");
+    expect(r).toContain("renovates nothing");
+    expect(r).toContain("pay app #7");
+    // A suggestion that does not clear invalidates the funding plan; a stale forecast only ages it.
+    expect(r.indexOf("does not clear")).toBeLessThan(r.indexOf("pay app #7"));
+  });
+
+  it("KNOWN LIMIT: with no IRR there is no deal card, so the findings have nowhere to appear", () => {
+    // Asserted so it is a decision rather than something discovered later. It follows the panel's
+    // existing rule — no proforma means no deal position, and a card needs a number — but it does
+    // mean a reserve finding on a project that never had a proforma is invisible here.
+    expect(buildPulse({ deal: { irrPct: null, reserveSuggestionFails: true } })).toEqual([]);
+  });
+});
+
+/**
+ * The half the tests above cannot see.
+ *
+ * Everything above exercises `buildPulse`, which is pure and takes the findings already decoded. The
+ * DECODING lives in `portal.ts`, and that is where the strictness matters. Verified by mutation:
+ * replacing `=== false` with `!value` — which fires a false alarm on every project whose engine did
+ * not answer — passed all 77 portal tests. Nothing was guarding it.
+ *
+ * `renderPulse` needs a live api and a mounted DOM, so source is the reader available, exactly as
+ * `viewer/tools/projectPanel.test.ts` does for its own call site.
+ */
+describe("portal.ts decodes the findings strictly", () => {
+  const src = readFileSync(resolve(process.cwd(), "src/portal/portal.ts"), "utf8");
+
+  it("found the mapping — not vacuously green", () => {
+    expect(src).toContain("suggestion_clears_horizon");
+    expect(src).toContain("nothing_renovated");
+  });
+
+  it("compares against false/true, never truthiness", () => {
+    // `!clears` treats "the engine did not answer" as "the suggestion fails" — a fabricated risk
+    // line, which costs trust in every other line on the card.
+    expect(src, "a missing field must not read as a failing suggestion")
+      .toMatch(/g\(reserve, "suggestion_clears_horizon"\)\s*===\s*false/);
+    expect(src, "a missing field must not read as a stalled renovation")
+      .toMatch(/g\(renov, "nothing_renovated"\)\s*===\s*true/);
+  });
+
+  it("asks for both engines in the pulse fan-out", () => {
+    expect(src).toMatch(/"reserveStudy"/);
+    expect(src).toMatch(/"proformaRenovation"/);
+  });
 });

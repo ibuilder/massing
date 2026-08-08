@@ -131,6 +131,21 @@ def main() -> int:
     if message:
         log.warning("%s", message)
 
+    # The schema. The API creates it in its FastAPI lifespan, which this process does not run — so on
+    # a fresh volume the worker died with an unhandled `OperationalError: no such table: jobs` before
+    # doing anything, and the base compose gives it no `restart:` policy, so it stayed dead while
+    # enqueues piled up silently. Even against an already-migrated database the two can race on first
+    # boot, and "the worker happens to start second" is not a guarantee compose makes.
+    #
+    # Idempotent and the same call the API makes, so this is not a second schema authority: it
+    # creates what is missing and does nothing when the tables are there.
+    from .db import init_db
+    try:
+        init_db()
+    except Exception as e:  # noqa: BLE001 — a schema failure must be a logged refusal, not a traceback
+        log.error("could not initialise the database schema: %s: %s", type(e).__name__, e)
+        return 4
+
     log.info("starting dedicated job worker (%d kinds)", len(jobs.KINDS))
     jobs.run_forever()
     return 0

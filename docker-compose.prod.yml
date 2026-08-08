@@ -85,6 +85,7 @@ services:
   # the memory limit to, because after the split it is where the large IFC parses actually happen.
   worker:
     restart: unless-stopped
+    healthcheck: { disable: true }   # inherited from the API image; this service binds no port
     environment:
       <<: *prod-datastore
       AEC_JOB_WORKER: "inline"       # this process IS the worker

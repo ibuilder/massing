@@ -825,8 +825,12 @@ export class PortalUI {
         if (typeof api[name] !== "function") return null;
         try { return await api[name]!(pid); } catch { return null; }
       };
-      const [model, cost, sched, work, deal] = await Promise.all(
-        ["modelHealth", "costSummary", "scheduleVariance", "workQueue", "proformaLive"].map(call));
+      // `reserveStudy(pid, opts = {})` and `proformaRenovation(pid)` both fit this single-argument
+      // fan-out unchanged — checked against the signatures, not the descriptions. A required second
+      // argument would have meant breaking the `.map` or changing a signature.
+      const [model, cost, sched, work, deal, reserve, renov] = await Promise.all(
+        ["modelHealth", "costSummary", "scheduleVariance", "workQueue", "proformaLive",
+         "reserveStudy", "proformaRenovation"].map(call));
 
       const n = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
       const g = (o: unknown, k: string): unknown => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined);
@@ -840,7 +844,19 @@ export class PortalUI {
           mine: n(g(work, "mine")),
           overdue: Array.isArray(g(work, "overdue")) ? (g(work, "overdue") as string[]).slice(0, 3) : null,
         } : null,
-        deal: deal ? { irrPct: n(g(deal, "irr")) } : null,
+        // Both findings hang off the deal card because both are BOOLEANS with no chart to sit in.
+        // Read strictly: `=== false` and `=== true`, never truthiness. A missing field is "the engine
+        // did not answer", which must not read as "the suggestion fails" — inventing a risk line from
+        // an absent field is worse than showing none, because a false alarm here costs trust in every
+        // other line on the card.
+        deal: deal || reserve || renov ? {
+          irrPct: n(g(deal, "irr")),
+          reserveSuggestionFails: g(reserve, "suggestion_clears_horizon") === false,
+          nothingRenovated: g(renov, "nothing_renovated") === true
+            ? (typeof g(renov, "nothing_renovated_why") === "string"
+              ? g(renov, "nothing_renovated_why") as string : "no unit completed a start")
+            : null,
+        } : null,
       });
 
       const rail = pulseRailEl(cards);
@@ -1365,6 +1381,40 @@ export class PortalUI {
         pc.appendChild(pt);
         this.root.appendChild(pc);
       }).catch(() => { /* prioritization is best-effort */ });
+
+      // RETURNS SPREAD — the executive roll-up above gives a BLENDED equity IRR, which is one number
+      // for the whole book and cannot show that one deal is carrying it. `/proforma/portfolio/compare`
+      // gives per-project IRR / equity multiple / yield-on-cost from each project's latest solved
+      // scenario, plus the best-and-worst spread. An `absent` return renders as em-dash, never 0%:
+      // a project with no solved scenario has not returned zero, and on a spread a fabricated zero
+      // would take the "worst" slot away from a deal that genuinely holds it.
+      void this.host.api.portfolioCompare().then((pc2) => {
+        if (!pc2.rows.length) return;
+        const card = document.createElement("div"); card.className = "dash-card"; card.style.marginTop = "10px";
+        const num = (v: number | null, f: (n: number) => string) => v == null ? "—" : f(v);
+        const ct = document.createElement("table"); ct.className = "portal-table"; ct.style.fontSize = "11px";
+        ct.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Project</th><th scope="col" style="text-align:left">Scenario</th>`
+          + `<th scope="col" style="text-align:right">Equity IRR</th><th scope="col" style="text-align:right">Multiple</th>`
+          + `<th scope="col" style="text-align:right">Yield on cost</th><th scope="col" style="text-align:right">Total uses</th></tr></thead>`;
+        const cb = document.createElement("tbody");
+        for (const r of pc2.rows) {
+          const tr = document.createElement("tr"); tr.className = "kpi-click";
+          tr.innerHTML = `<td>${esc(r.project_name)}</td><td class="meta">${esc(r.scenario_name)}</td>`
+            + `<td style="text-align:right">${num(r.equity_irr, (n) => `${(n * 100).toFixed(1)}%`)}</td>`
+            + `<td style="text-align:right">${num(r.equity_multiple, (n) => `${n.toFixed(2)}x`)}</td>`
+            + `<td style="text-align:right">${num(r.yield_on_cost, (n) => `${(n * 100).toFixed(2)}%`)}</td>`
+            + `<td style="text-align:right">${num(r.total_uses, usd)}</td>`;
+          tr.onclick = () => { if (r.project_id !== here) window.location.search = `?project=${r.project_id}`; };
+          cb.appendChild(tr);
+        }
+        ct.appendChild(cb);
+        const sp = pc2.spread?.equity_irr;
+        card.innerHTML = `<b>Returns spread</b> <span class="meta">${pc2.project_count} project(s), each from its latest solved scenario`
+          + (sp && sp.best ? ` · best ${esc(sp.best)} · worst ${esc(sp.worst ?? "—")}` : "")
+          + `</span>`;
+        card.appendChild(ct);
+        this.root.appendChild(card);
+      }).catch(() => { /* returns spread is best-effort; the roll-up above stands on its own */ });
     }).catch(() => { status.className = "empty-state"; status.innerHTML = `Portfolio unavailable<span class="es-hint">Needs at least one project with schedule/budget data.</span>`; });
   }
 

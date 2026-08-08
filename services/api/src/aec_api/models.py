@@ -383,6 +383,19 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: JOB-WORKER-SCALE — last sign of life from the process running this job.
+    #:
+    #: Orphan recovery re-queued EVERY `running` row in the database, which was correct while exactly
+    #: one process ever ran the queue. `docker compose --scale worker=3` is now documented in the
+    #: compose file, and under it a booting worker re-queued jobs its siblings were mid-execution on,
+    #: so the same mutating job ran in two processes at once. The compare-and-swap in `_claim_next`
+    #: cannot help: it arbitrates who claims a `queued` row, and a row reset to `queued` underneath a
+    #: live worker is exactly what it hands out.
+    #:
+    #: A claim stamps this; the running worker refreshes it. A row whose heartbeat has stopped is an
+    #: orphan, one whose heartbeat is current belongs to somebody — that is the distinction recovery
+    #: needs and had no way to make.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AuditLog(Base):
@@ -418,6 +431,41 @@ class ErrorLog(Base):
     request_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     traceback: Mapped[str | None] = mapped_column(Text, nullable=True)
     detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class ViewerLoadTiming(Base):
+    """R39-VIEWER-OBS — one row per viewer model-load, so "the viewer loads slowly" becomes a number.
+
+    **Its own table rather than a level on ErrorLog, and the reason is retention.** `errorlog.prune`
+    trims to the newest `max_rows` GLOBALLY, not per source. Timings are emitted on every load while
+    errors are rare, so sharing the table would mean a busy afternoon in the viewer silently evicting
+    real errors from the operator's feed — the observability channel degrading the thing it shares a
+    store with.
+
+    `outcome` is the column that earns the table. A load can arrive without being SEEN: in the
+    CANVAS-RESIZE bug the fetch returned 200, the worker parsed and the meshes existed while the
+    canvas was 0x493, so nothing appeared. `invisible` is that case, `stalled` is a load that never
+    produced a frame at all, and both are rows rather than absences — an instrument that only records
+    successes is survivorship-biased against exactly the loads worth investigating.
+    """
+    __tablename__ = "viewer_load_timing"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    project_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    model_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    actor: Mapped[str | None] = mapped_column(String, nullable=True)
+    #: ok | invisible | stalled | failed
+    outcome: Mapped[str] = mapped_column(String, nullable=False, default="ok", index=True)
+    #: Coarse size band ("<1MB" … ">200MB", or "unknown" when the load died before the size was known).
+    #: Indexed because the question this table exists to answer is always "p95 for THIS band".
+    bucket: Mapped[str] = mapped_column(String, nullable=False, default="unknown", index=True)
+    bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fetch_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    parse_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    first_frame_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    canvas_w: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    canvas_h: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class AppSetting(Base):
@@ -558,6 +606,17 @@ class ShareToken(Base):
     # PORTAL-TXN phase 2: OPT-IN per token — the default digest exposes NO financials; only a token
     # minted with show_payments=True carries the owner-invoice payment schedule (amounts/status).
     show_payments: Mapped[bool] = mapped_column(Boolean, default=False)
+    # R22-PUBLIC-VIEWER: OPT-IN per token, same shape as show_payments and for the same reason. Only a
+    # token minted with show_model=True can fetch `{pid}/model.frag`; the default token cannot see
+    # geometry at all.
+    #
+    # WHAT THIS DOES AND DOES NOT GRANT, because this is the sentence that gets misread later. It
+    # serves the converted **geometry fragment** — shapes and placements. It does NOT serve
+    # `{pid}/source.ifc`, which carries every property set, classification and GlobalId in the model
+    # and is a different disclosure entirely. "Share the model" is ambiguous between those two and the
+    # ambiguity is the risk, so the column is named for the narrow one and the route reads only that
+    # key.
+    show_model: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class ClientDecision(Base):

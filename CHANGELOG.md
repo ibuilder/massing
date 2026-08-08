@@ -4,6 +4,195 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.878–881 — thirteen PRs land, and a ratchet that was quietly not one
+
+### The reach ring: 131 → 117 uncalled client methods
+
+Thirteen PRs merged in one batch. `UNCALLED_CEILING` — the count of client methods with a live
+server route and no path to them in the product — fell from **131 to 117**, with one lane still to
+land. Every step was measured by re-running the gate, never derived from what the wiring touched.
+
+The sharpest find in the batch was not a count. **The finance period lock was enforced and its
+control was unreachable**: every mutation dated into a closed month refused with a 409, while the
+screen to see or reopen the lock had no path in the UI. A user hit refusals with nothing explaining
+why and no way to act. That is a different severity from ordinary unreachable capability — an
+unreachable *feature* is one nobody can use; an unreachable *control over an enforced rule* actively
+blocks people — and it is now how reach work is prioritised.
+
+### v0.3.878 — a share token may serve model geometry, as a per-token opt-in
+
+`R22-PUBLIC-VIEWER` was filed for weeks as missing code. It was not. The token was already
+project-scoped, revocable and audited, and four routes already honoured one. What was missing was a
+**decision**, and a roadmap entry had it recorded as a build.
+
+Answered: yes, **per-token, never a default**, following the payments precedent. The flag defaults
+false, so no link already in someone's inbox was widened retroactively. The token serves the
+converted fragment and **never the source IFC** — "share the model" reads as either, and the wide
+reading discloses every property set, classification and GlobalId in the project. Unknown token,
+revoked token, missing opt-in and no-model-published all return an identical 404, so none of them is
+an enumeration oracle.
+
+### v0.3.879 — one implementation of the estimate→BoE mapping
+
+Two client-side copies of the same cost-code mapping, where the seam already exists server-side. One
+removed; the reasoning kept in the docstring rather than deleted with the code, so it does not get
+re-added by someone asking a reasonable question.
+
+It nearly did not land at all. It was authored on a branch **after** that branch had squash-merged,
+so it sat on a ref no PR pointed at, while the session that wrote it correctly reported it pushed. A
+`git grep` on main still showed two callers. **After a PR squash-merges, its branch is a dead ref.**
+
+### v0.3.880 — the routine sweep echoed an exception's text onto a response
+
+The repo's only open CodeQL alert. A caught `ValueError` had its message placed into a refusal
+returned to any viewer-role caller. The message is now rebuilt from the job registry — identical
+text, sourced from a server constant instead of from a traceback, so the next exception added
+upstream cannot start leaking whatever it happens to say.
+
+### v0.3.881 — the roadmap reconciled, and three findings booked
+
+`R22-PUBLIC-VIEWER` moved to the completed archive. Three new entries, each from something that
+actually happened during the batch rather than from a survey:
+
+**QTO-TRADE.** The four procurement methods cannot be wired at all. The engine skips any quantity
+line lacking an item, description or material, and both model-derived sources supply none of them —
+so a buyout screen over today's inputs renders "0 packages", which reads as *this model has nothing
+to buy out* rather than *this input is incompatible*. Two agents reached this independently from
+different directions. It also corrects a premise the whole ring rested on: the sweep proved every
+parseable client method has a live route, and reachability was allowed to follow from that. **Route
+existence and input adequacy are different questions.**
+
+**RATCHET-SET.** The uncalled ceiling asserts only `measured <= ceiling` — there is no floor, so a
+*higher* literal always passes. Five PRs lowered that one line from four different bases during this
+batch and two stale-high literals were caught only by hand, each of which would have loosened the
+ratchet with every gate green. Merge sequencing does not fix it: it decides which number lands, not
+whether it is true. Two PRs measured against one base are both right until either merges, and then
+the second is wrong — it must **re-measure**, not rebase. The fix is to commit the set of uncalled
+names rather than a count.
+
+**BOE-MAPPING-DEDUP.** The second copy of that mapping, booked rather than paid under time pressure.
+
+### Also
+
+Thirteen merged branches deleted. They are dead refs, and one had already swallowed a real commit.
+
+## v0.3.877 — a contract, a control character, and a gate that relied on its neighbour
+
+### The sandbox gets the contract isolation needs
+
+`SEC-PLUGIN-SANDBOX`'s remaining half has been filed for weeks as "Parked pending a deployment-shape
+decision". That decision was already settled — the repo ships a production compose file and
+`R39-WORKER-SPLIT` built the precedent for a second compose-launched process. The obstacle was never
+deployment. It was this signature:
+
+```py
+execute_ifc_code(model, code)   # a live ifcopenshell.file, mutated IN PLACE
+```
+
+The caller keeps using that same object afterwards. A child process cannot share an in-memory
+object, so running the snippet anywhere else means serialise → run → serialise back → reload — which
+hands the caller a **new** object and breaks every one of them. That is an API contract change at the
+call site, not a deployment choice, and building the isolation first would have run straight into it.
+
+So the contract moves first and the execution stays put. `execute_ifc_bytes` is bytes-in/bytes-out
+over the same sandbox. It runs in-process and **is not isolated** — that is not claimed. What it buys
+is that the middle can be replaced without touching a caller.
+
+The test for it found something worth keeping. Deleting the feature-flag check from the new function
+*still* raises `PermissionError`, because the inner call checks the flag too — an equivalent mutant.
+The two arrangements differ in *when*: without the outer check the input is parsed before the flag is
+consulted, so unreadable bytes with the flag off fail as a parse error instead of a refusal. Once
+execution moves out of process that inner check is running somewhere else, and a door that relies on
+its callee's gate has none of its own.
+
+### Storage keys: every control character, and NTFS was hiding the rest
+
+`validate_key` rejected NUL. Reverting the new check to that rule leaks exactly one key of the
+thirty-three the test now drives: ``. The other C0 characters *look* refused — by NTFS rejecting
+an invalid filename, not by us. S3 has no filesystem and would have stored every one of them, so the
+two backends disagreed about thirty-one keys and the local backend's accident hid it. That is the
+same shape that moved `..` out of the local backend and into the shared validator in the first place.
+
+The stronger change is deliberately not made: tightening to an `[A-Za-z0-9._-]` allowlist would reject
+attachment keys, which carry user-supplied filenames — a contract change for every caller dressed as
+a hardening.
+
+Two CodeQL `py/path-injection` alerts were raised against the file the moment it changed, and are now
+dismissed as false positives with the evidence attached: the barrier resolves and compares rather than
+inspecting strings, 43 hostile keys are refused through both write paths, and a filesystem check
+confirms nothing landed outside the root.
+
+### Also
+
+`R31-CITE-HIGHLIGHT`'s data-model blocker is cleared — a PDF ingest used to run the text extractor and
+then throw the PDF away, so even when a real document existed nothing could open it. And `main` was red
+for three commits over a single wrong quadrant character (`◨` for `◧`), which stopped a bullet being
+parsed as an item and made its body fold into the entry above it.
+
+## v0.3.876 — three limits that were not limits
+
+Every fix in this release has the same shape: a guard that existed, ran, and returned a confident
+answer about something it had never looked at.
+
+### The upload cap asked the client how big the body was
+
+`main.security` did reject an oversized upload with a 413 — the roadmap's claim that the cap "lives
+only in nginx" was simply wrong. It decided from a header:
+
+```py
+cl = request.headers.get("content-length")
+if cl and cl.isdigit() and int(cl) > _MAX_UPLOAD_BYTES:
+```
+
+Every term is a way to skip the check, and the first one is the one that mattered: **with no such
+header the expression short-circuits and the body is never measured at all.** `Transfer-Encoding:
+chunked` is the ordinary HTTP/1.1 way to send a body of unknown length — what `curl -T`, most
+streaming clients and any generated-on-the-fly upload do — and it carries no `Content-Length` by
+definition. The guard covered the polite case and nothing else. `cl.isdigit()` is the same hole in
+miniature: a malformed length silently disabled it too.
+
+The bound now counts bytes as they arrive, on the ASGI `receive` channel. That placement is the
+point: it sits below `BaseHTTPMiddleware` (which hands you a request whose body is consumed
+downstream), and it covers **every** route at once — the 36+ `await file.read()` sites span fifteen
+routers, and any hand-listed set of them would have been stale the day it was written. The declared
+length is kept as a fast path but never as the measurement, so a lying or absent header now changes
+only how early a request is refused.
+
+`storage.put_stream` is the other half: writing an object from an iterable of chunks, local via a
+`.part` file renamed at the end, S3 via multipart. Both clean up on refusal, because a truncated
+object at the real key is worse than no object — `exists()` reports it and `size()` returns a
+plausible number. No call site has been converted yet; that work is tracked and the item stays open.
+
+### Two rate limiters, and the boot guard covered one
+
+`throttle.py`'s always-on per-endpoint caps kept a plain in-process dict, so on a multi-worker
+deployment every one of them was silently multiplied by the worker count — including `POST
+/auth/stepup` at 10/min, which is brute-force protection on a human step-up assertion. The per-IP
+limiter beside it already had both a shared Redis counter and a boot guard refusing exactly this
+misconfiguration.
+
+**A boot guard naming `AEC_RATE_LIMIT_RPM` reads as "rate limiting is protected against the
+multi-worker mistake".** It was not; it covered the opt-in limiter and was silent about the
+always-on one. The new guard names throttle buckets explicitly, and the test asserts the two are
+separate checks — if the old guard had ever covered this case, the item was never a gap.
+
+Nothing about this became urgent because it was edited. R39-WORKER-SPLIT (v0.3.869) made a second
+writer process the supported deployment, which turned a rounding error into the deployed
+configuration.
+
+The counter is the existing implementation *extracted*, not a second one written beside it — and
+that fixed a real defect by construction. `throttle.py` bounded memory with a wholesale `clear()`
+at ten thousand keys, so a scanner cycling through callers could wipe the limiter's state for
+everyone it was legitimately throttling. The shared counter evicts the oldest keys instead.
+
+### A record that predates a schema change
+
+Shipped in v0.3.875 and completed here: module records now carry the field shape they were written
+against, and a read reports orphaned and mistyped values instead of rendering them as empty fields.
+The filed prescription — null the payload on any version difference — would have blanked every
+historical record the first time anyone *added* a field, reproducing the exact bug it was meant to
+fix. Severity now derives from the payload, not the version.
+
 ## v0.3.875 — eighty-four commits that were never tagged, and the reason
 
 **This release exists because the previous two did not.** `v0.3.873` was tagged and no release was

@@ -28,10 +28,26 @@ WHY THE EXISTING WORKFLOW DID NOT CATCH IT
     but it can compare what the lock PINS against what the input REQUIRES, in the normal suite,
     on every run. The workflow stays the authority on resolution; this stays the tripwire.
 
+IT HAPPENED AGAIN ON 2026-08-07, THROUGH THE HALF THIS SCOPE PARAGRAPH LEFT OUT
+    The paragraph below used to end "only the direct constraints in `requirements.in` are checked".
+    That was a deliberate, reasonable scope — and it was **not the whole population**.
+    `services/data/requirements.txt` declares floors too, and the API image runs that code: the
+    Dockerfile copies `services/data/src` in and puts it on `PYTHONPATH`, and 59 files under
+    `services/api/src` import `aec_data`. But pip installs only `services/api/requirements.lock`.
+
+    So when Dependabot raised `trimesh>=4.12.2` to `>=5.0.0` there (#229), this test **passed** —
+    `requirements.in` still said `trimesh>=4.0`, which the pinned 4.12.2 satisfies. The image kept
+    shipping 4.12.2 while a manifest in the repo said 5.0.0 was required. Same failure as
+    2026-08-01, one file to the left, four days later, past a gate written for exactly it.
+
+    **A gate's population is part of its claim, and a second input file inherits none of the
+    protection the first one has.** `SOURCES` below is now the population, and a missing entry fails
+    loudly rather than shrinking the checked set in silence.
+
 WHAT IS DELIBERATELY NOT ASSERTED
     That the lock is a *complete* or *minimal* resolution — that needs a real resolver. Only the
-    direct constraints in `requirements.in` are checked, because those are the ones a human wrote
-    on purpose and the ones Dependabot edits.
+    direct constraints in the files listed in `SOURCES` are checked, because those are the ones a
+    human wrote on purpose and the ones Dependabot edits.
 
 Run: PYTHONPATH=src ./.venv/Scripts/python.exe test_lock_satisfies_requirements.py
 """
@@ -92,8 +108,40 @@ for path in (IN_PATH, LOCK_PATH):
         print(f"FAIL  missing {path}")
         sys.exit(1)
 
-with open(IN_PATH, encoding="utf-8") as fh:
-    in_lines = fh.read().splitlines()
+#: Every file whose floors the API lock must satisfy, tagged with the name used in failure messages.
+#:
+#: **`services/data/requirements.txt` is here because the API image RUNS that code.** The Dockerfile
+#: copies `services/data/src` into the image and puts it on `PYTHONPATH`, and 59 files under
+#: `services/api/src` import `aec_data` — but the only thing pip installs is
+#: `services/api/requirements.lock`. So a floor raised in the data service's requirements is a
+#: promise the container never keeps.
+#:
+#: That is not hypothetical. Dependabot raised `trimesh>=4.12.2` to `>=5.0.0` there on 2026-08-07
+#: (#229) and this test **passed**, because its population was `requirements.in` alone and
+#: `requirements.in` still said `trimesh>=4.0`, which the pinned 4.12.2 satisfies. The image kept
+#: shipping 4.12.2 while the manifest said 5.0.0 was required — *truthfully and ineffectively*, which
+#: is the sentence this file's own docstring already uses about the 2026-08-01 incident.
+#:
+#: **The gate was correct and its claim was narrower than it read.** The 2026-08-01 lesson was
+#: "compare what the lock pins against what the input requires"; what went unstated was *which*
+#: inputs. A second requirements file appeared later and inherited none of the protection.
+SOURCES = [
+    (IN_PATH, "requirements.in"),
+    (os.path.join(HERE, "..", "data", "requirements.txt"), "services/data/requirements.txt"),
+]
+
+in_lines: list[tuple[str, str]] = []          # (line, source-label) so a failure names its file
+for _path, _label in SOURCES:
+    if not os.path.exists(_path):
+        # Loud rather than skipped: a renamed or moved requirements file must not silently shrink
+        # this test's population back to where it was when #229 slipped through. Verified by
+        # mutation — pointing this at a missing file drops the floors from 48 to 35 and FAILS,
+        # rather than passing on the smaller set.
+        print(f"FAIL  requirements source missing: {_label} ({_path})")
+        FAILED.append("requirements source missing")
+        continue
+    with open(_path, encoding="utf-8") as fh:
+        in_lines += [(ln, _label) for ln in fh.read().splitlines()]
 with open(LOCK_PATH, encoding="utf-8") as fh:
     lock_text = fh.read()
 
@@ -122,11 +170,14 @@ check("the lock parses and pins a realistic number of packages", len(pinned) > 5
 REQ = re.compile(r"^([A-Za-z0-9._-]+)\s*(?:\[[^\]]*\])?\s*(>=|==|~=|>)\s*([0-9][^\s,;#]*)")
 NAME_ONLY = re.compile(r"^([A-Za-z0-9._-]+)\s*(?:\[[^\]]*\])?\s*(?:[;#].*)?$")
 
-floors: list[tuple[str, str, int]] = []
+floors: list[tuple[str, str, str]] = []   # (name, floor, "<file>:<line>")
 unversioned: list[str] = []
 unparsed: list[str] = []
 requirement_lines = 0
-for i, raw in enumerate(in_lines, 1):
+_line_no: dict[str, int] = {}                 # per-source numbering, so citations stay honest
+for raw, _src in in_lines:
+    _line_no[_src] = _line_no.get(_src, 0) + 1
+    i = f"{_src}:{_line_no[_src]}"
     line = raw.split("#")[0].strip()
     if not line or line.startswith("-"):
         continue
@@ -138,9 +189,9 @@ for i, raw in enumerate(in_lines, 1):
         # because nothing in the file uses `>`, and inventing the rule now would be untested.
         floors.append((_norm(m.group(1)), m.group(3), i))
     elif NAME_ONLY.match(line):
-        unversioned.append(f"{line} (line {i})")     # legitimately unconstrained — nothing to check
+        unversioned.append(f"{line} ({i})")     # legitimately unconstrained — nothing to check
     else:
-        unparsed.append(f"{line} (line {i})")
+        unparsed.append(f"{line} ({i})")
 
 check("every requirement line is either checked or explicitly accounted for",
       not unparsed,
@@ -148,7 +199,7 @@ check("every requirement line is either checked or explicitly accounted for",
       f"{requirement_lines} requirement lines = {len(floors)} with a version floor "
       f"+ {len(unversioned)} deliberately unconstrained")
 
-check("requirements.in declares floors this test can check", len(floors) >= 5,
+check("the requirements sources declare floors this test can check", len(floors) >= 5,
       f"{len(floors)} version constraints found")
 
 # --- every floor must be satisfied by the pin ---------------------------------------------------
@@ -158,15 +209,15 @@ for name, floor, lineno in floors:
     got = pinned.get(name)
     if got is None:
         # A required package absent from the lock would not install at all.
-        unpinned.append(f"{name} (requirements.in:{lineno})")
+        unpinned.append(f"{name} ({lineno})")
         continue
     if _version_key(got) < _version_key(floor):
-        violations.append(f"{name}: lock pins {got}, requirements.in:{lineno} requires >={floor}")
+        violations.append(f"{name}: lock pins {got}, {lineno} requires >={floor}")
 
-check("every package required by requirements.in is present in the lock",
+check("every package the requirements sources require is present in the lock",
       not unpinned, "; ".join(unpinned[:5]))
 
-check("the lock satisfies every floor requirements.in declares",
+check("the lock satisfies every floor the requirements sources declare",
       not violations,
       "\n        " + "\n        ".join(violations)
       + "\n        -> regenerate: run the 'Lockfile (pip-compile)' workflow, download the"

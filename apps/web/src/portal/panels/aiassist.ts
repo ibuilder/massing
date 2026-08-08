@@ -84,6 +84,83 @@ export async function renderAiAssist(ctx: PanelContext) {
     intro.textContent = "Turn a note or a PDF into an editable draft, and level bids apples-to-apples. "
       + "Works offline; set an Anthropic key in Settings for full AI output. Nothing is created until you click Create.";
     intro.style.marginBottom = "8px"; root.appendChild(intro);
+    // SCHEDULED ROUTINES — the sweep, surfaced. `routines.due()` decided correctly and nothing acted
+    // on it; this is the button that makes the schedule happen. One job per DUE routine, never one
+    // per missed window: a routine dormant for a year fires once with its missed count reported,
+    // rather than flooding the queue on the day it is switched back on. Routines whose kind already
+    // has queued or running work are skipped as in-flight, and one naming an unregistered kind is
+    // listed as refused rather than aborting the sweep for the others.
+    const rout = el("div", "dash-card"); rout.style.cssText = "margin-bottom:8px";
+    const runBtn = el("button", "file-btn") as HTMLButtonElement;
+    runBtn.textContent = "⏱ Run due routines";
+    runBtn.title = "Enqueue every scheduled routine that is due now";
+    const routOut = el("div", "meta"); routOut.style.marginTop = "4px";
+    runBtn.onclick = async () => {
+      runBtn.disabled = true; routOut.textContent = "sweeping…";
+      try {
+        const r = await ctx.host.api.routinesRunDue(pid);
+        const bits: string[] = [];
+        bits.push(r.enqueued_count
+          ? `${r.enqueued_count} enqueued: ` + r.enqueued.map((e) => esc(e.kind)
+              + ((e.missed_windows ?? 0) > 0 ? ` (${e.missed_windows} window(s) missed, fired once)` : "")).join(", ")
+          : "nothing was due");
+        if (r.in_flight_kinds.length) bits.push(`waiting on ${r.in_flight_kinds.map(esc).join(", ")} — already running`);
+        if (r.refused.length) bits.push(`<span style="color:var(--status-crit)">${r.refused.length} refused: `
+          + r.refused.map((f) => `${esc(f.routine_id)} names unknown kind ${esc(f.kind)}`).join("; ") + `</span>`);
+        routOut.innerHTML = bits.join(" · ");
+      } catch (e) { routOut.textContent = `sweep failed: ${(e as Error).message}`; }
+      runBtn.disabled = false;
+    };
+    rout.innerHTML = `<b>Scheduled routines</b> <span class="meta">recurring runs — monthly progress, weekly schedule-risk — rather than on-demand only</span>`;
+    rout.append(runBtn, routOut);
+    root.appendChild(rout);
+
+    // A DESCRIBED SCOPE, PRICED. `aiEstimate` turns a plain-language scope note into estimate lines.
+    // It is a STARTING POINT and is labelled as one: an AI-priced line has no source, no quote ref
+    // and no basis date — precisely what the basis-of-estimate ledger flags as undefendable.
+    // Presenting it as a priced estimate is how a guess acquires the authority of a quote.
+    const aiEst = el("div", "dash-card"); aiEst.style.cssText = "margin-bottom:8px";
+    const aiIn = el("input", "portal-filter") as HTMLInputElement;
+    aiIn.placeholder = "Describe a scope — e.g. 'reroof 12,000 sf single-ply with tapered insulation'";
+    aiIn.style.cssText = "width:100%;margin:4px 0";
+    const aiBtn = el("button", "file-btn") as HTMLButtonElement; aiBtn.textContent = "💲 Price this scope";
+    const aiOut = el("div", "meta"); aiOut.style.marginTop = "4px";
+    aiBtn.onclick = async () => {
+      const q = aiIn.value.trim();
+      if (!q) { toast("Describe the scope first", "error"); return; }
+      aiBtn.disabled = true; aiOut.textContent = "pricing…";
+      try {
+        const r = await ctx.host.api.aiEstimate(pid, q);
+        // AI SWITCHED OFF IS NOT AN EMPTY ESTIMATE. With no Anthropic key configured — the default
+        // state — this endpoint returns `ai_enabled: false` and a `message` saying exactly how to
+        // turn it on. Rendering `lines.length` regardless printed "0 line(s) — a starting point,
+        // not a basis of estimate" at somebody who had simply never set a key: a confident empty
+        // answer whose cause was sitting in the response and was thrown away.
+        //
+        // The model-progress button twenty lines below already makes this exact distinction
+        // ("that is not 0% complete"), which is what marks this as a slip rather than a judgement.
+        //
+        // if/else rather than an early return ON PURPOSE: `aiBtn.disabled = false` runs after the
+        // try/catch, not in a `finally`, so returning from inside the try would leave the button
+        // permanently dead — a second defect on top of the one being fixed.
+        if (!r.ai_enabled) {
+          aiOut.innerHTML = `<b>AI estimating is off.</b> <span class="meta">`
+            + esc(r.message ?? "Set an Anthropic API key in Settings to draft a bill of quantities from a description.")
+            + `</span>`;
+        } else {
+        aiOut.innerHTML = `<b>${r.lines.length}</b> line(s) — a starting point, not a basis of estimate: `
+          + `these carry no source, quote ref or basis date, which is exactly what the BoE ledger flags.`
+          + `<ul style="margin:4px 0 0 16px">`
+          + r.lines.slice(0, 12).map((l) => `<li>${esc(l.description)} — ${l.quantity} ${esc(l.unit)} @ ${cmoney(l.rate)}</li>`).join("")
+          + `</ul>`;
+        }
+      } catch (e) { aiOut.textContent = `pricing failed: ${(e as Error).message}`; }
+      aiBtn.disabled = false;
+    };
+    aiEst.innerHTML = `<b>Price a described scope</b> <span class="meta">plain language in, estimate lines out</span>`;
+    aiEst.append(aiIn, aiBtn, aiOut);
+    root.appendChild(aiEst);
+
     const tabs = el("div"); tabs.style.cssText = "display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap";
     const body = el("div"); root.append(tabs, body);
     const TABS: [string, string][] = [["rfi", "📝 Draft RFI"], ["scope", "📋 Draft scope"],
@@ -432,6 +509,33 @@ export async function renderAiAssist(ctx: PanelContext) {
         } catch (e) { toast(`Add failed: ${(e as Error).message}`, "error"); }
       };
       actions.appendChild(add); card.appendChild(actions); out.appendChild(card);
+    }
+
+    // WHAT THE PLAYBOOK SAYS ABOUT THESE FINDINGS. `reviewContractClauses` takes the findings just
+    // produced and returns the standard position and fallback for each clause — the difference
+    // between "this clause is unusual" and "here is what we normally accept instead", which is the
+    // half a negotiator needs. Runs on the findings already on screen rather than re-reviewing, so
+    // it cannot disagree with the list above it.
+    if (r.findings.length) {
+      const pb = document.createElement("button"); pb.className = "file-btn";
+      pb.textContent = "📕 Playbook positions";
+      pb.title = "Standard position and fallback for each flagged clause";
+      const pbOut = document.createElement("div"); pbOut.className = "meta"; pbOut.style.marginTop = "4px";
+      pb.onclick = async () => {
+        pb.disabled = true; pbOut.textContent = "reading the playbook…";
+        try {
+          const cp = await ctx.host.api.reviewContractClauses(pid, "subcontract", r.findings);
+          const rows = (cp.clauses ?? []).map((c: Record<string, unknown>) =>
+            `<li><b>${esc(String(c.clause ?? c.category ?? ""))}</b> — ${esc(String(c.position ?? c.standard ?? "no stated position"))}`
+            + (c.fallback ? ` <span class="meta">fallback: ${esc(String(c.fallback))}</span>` : "") + `</li>`);
+          pbOut.innerHTML = rows.length
+            ? `<ul style="margin:4px 0 0 16px">${rows.join("")}</ul>`
+            : "The playbook has no stated position for these clauses — which is a gap in the playbook, not agreement with the contract.";
+        } catch (e) { pbOut.textContent = `playbook unavailable: ${(e as Error).message}`; }
+        pb.disabled = false;
+      };
+      const wrap = document.createElement("div"); wrap.style.marginTop = "8px";
+      wrap.append(pb, pbOut); out.appendChild(wrap);
     }
   }
 
