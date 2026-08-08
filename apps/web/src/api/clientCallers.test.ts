@@ -181,7 +181,35 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: So: rebase, set this to 0, run, read the number the assertion prints, restore, land that. And
 //: when two candidates are both defensible, take the smaller — a ceiling set too low fails loudly on
 //: the next run and gets fixed; one set too high never fails at all.
-const UNCALLED_CEILING = 101;
+//: ---------------------------------------------------------------------------------------------
+//: RATCHET-SET (2026-08-07): the count above became a SET, and the history above is why.
+//:
+//: Every note in this block records the same class of near-miss: a literal measured correctly
+//: against one base, gone stale the moment another PR merged, and passing anyway because
+//: `toBeLessThanOrEqual` HAS NO FLOOR. A higher number always passes. On 2026-08-07 five PRs lowered
+//: this one line from four different bases and two stale-high literals were caught BY HAND — #254
+//: carried 129 onto a main at 128, #273 carried 123 onto a main at 117. Nothing would have failed.
+//:
+//: A set fixes the three problems the count could not:
+//:   * TIGHT BY CONSTRUCTION — set equality has no loose direction, so there is no "too high".
+//:   * MERGE-FRIENDLY — two PRs reaching different methods delete different lines instead of
+//:     fighting over one number. Only two PRs reaching the SAME method conflict, which is a real
+//:     conflict worth surfacing.
+//:   * HONEST ABOUT POPULATION — a method moving into KNOWN_UNCALLED becomes a visible line move
+//:     rather than an invisible change to what the number counts. That ambiguity is exactly what
+//:     made 129 - 8 and 117 - 14 both wrong.
+//:
+//: WHAT IT STILL DOES NOT DO, so nobody mistakes this for the whole fix: a name leaving this list
+//: proves a call site appeared, NOT that the feature works. `buyoutPackages` was wired to an
+//: incompatible input and returned `packages: []` with every gate green; `aiEstimate` rendered
+//: "0 line(s)" when the API key was simply unset. Both lowered the number. The complementary check
+//: is to call the endpoint with the arguments the caller actually sends and look at the response.
+//:
+//: HOW TO CHANGE THIS LIST. Wire a method to a screen, then DELETE its line. If you delete the
+//: wrong one the gate says so by name. Do not add a line without saying in the commit why another
+//: unreachable endpoint is worth shipping.
+const UNCALLED: readonly string[] = [
+];
 
 describe("client methods the application actually calls", () => {
   it("agrees with a hand-checked sample in BOTH directions", () => {
@@ -207,12 +235,29 @@ describe("client methods the application actually calls", () => {
       .toBeLessThan(surface.length);
   });
 
-  it("does not grow the set of client methods no screen can reach", () => {
-    expect(uncalledCountable.length,
-      `${uncalledCountable.length} client methods have no caller outside src/api and tests. ` +
-      `Wire one to a screen (lowers the ceiling) or say in the commit why another unreachable ` +
-      `endpoint is worth shipping. First 25: ${uncalledCountable.slice(0, 25).join(", ")}`)
-      .toBeLessThanOrEqual(UNCALLED_CEILING);
+  it("the set of unreachable client methods is exactly the committed one", () => {
+    const measured = [...uncalledCountable].sort();
+    const committed = [...UNCALLED].sort();
+
+    // TWO ASSERTIONS, NOT ONE, because the two directions mean opposite things and a single
+    // `toEqual` would report them as one indistinguishable diff.
+    const appeared = measured.filter((m) => !committed.includes(m));
+    const wired = committed.filter((m) => !measured.includes(m));
+
+    expect(appeared,
+      `${appeared.length} client method(s) became unreachable: ${appeared.join(", ")}\n` +
+      `Wire each to a screen, or add it to UNCALLED and say in the commit why shipping another ` +
+      `endpoint nobody can reach is worth it.`)
+      .toEqual([]);
+
+    // Down is NOT automatically fine here, unlike the innerHTML baseline. This list is the RECORD
+    // of what cannot be reached; leaving a wired method in it makes the record lie, and the next
+    // reader budgets against slack that is not there. The fix is one deletion and the gate names it.
+    expect(wired,
+      `${wired.length} method(s) in UNCALLED now HAVE a caller: ${wired.join(", ")}\n` +
+      `Good - delete those line(s) from UNCALLED. The list must stay exact, because a stale entry ` +
+      `is slack the next person spends without knowing.`)
+      .toEqual([]);
   });
 
   it("names the three that prompted this check, so their status cannot drift silently", () => {
