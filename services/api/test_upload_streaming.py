@@ -26,9 +26,16 @@ Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_upload_streami
 """
 import os
 import sys
+import tempfile
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_upload_streaming.db"
 os.environ["STORAGE_DIR"] = "./test_storage_upload_streaming"
+# `authoring._IFC_DIR` defaults to `/app/ifc` and is read AT IMPORT, so this must be set first.
+# On the Linux CI runner `/app` is read-only and the source-ifc route fails with PermissionError; on
+# Windows the same default resolves to a writable `C:\app\ifc`, so a local pass proves nothing about
+# the CI path. `test_approvability.py` carries this same line with the same comment — copying the
+# neighbour's TEST SHAPE without its environment is what broke the gate the first time.
+os.environ["IFC_DIR"] = tempfile.mkdtemp(prefix="upload_streaming_ifc_")
 for _f in ("./test_upload_streaming.db",):
     if os.path.exists(_f):
         os.remove(_f)
