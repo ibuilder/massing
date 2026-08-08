@@ -10,6 +10,55 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## ✅ R41-REACH-WRITES — all four write endpoints wired, each with the step it needed *(2026-08-08, v0.3.890–895)*
+
+The four write-side endpoints the reach sweep deliberately left alone, "because each one needs a
+confirmation or recovery step designed rather than bolted on". All four are in. **The rule held: not
+one of them turned out to be a three-line wiring job, and two of them were sitting on server defects
+that only surfaced because the research came before the button.**
+
+- **`saveSharedParams`** *(v0.3.890)* — the write is a `PUT` that REPLACES the whole registry, so the
+  obvious implementation (save the rows this form is holding) silently deletes every definition it
+  does not know about, on a standard every model in the project is authored against. The payload is
+  therefore always the full list the dialog just read, minus exactly one entry; if `pset`+`name` does
+  not identify a single row it refuses rather than guessing, and the count shown afterwards comes
+  from a re-read rather than from arithmetic. Extracted to
+  [`sharedParamsPanel.ts`](../apps/web/src/viewer/tools/sharedParamsPanel.ts) — the size ratchet fired
+  on the commit that added it, which is the friction working on its author.
+- **`deleteProjectModel`** *(v0.3.891)* — removing a discipline model does not degrade federated
+  clash, it **turns it off**: `analysis.py` needs ≥2 accessible models, so deleting the
+  second-to-last one produces a 409 the next time somebody runs clash, not an error at the moment of
+  deletion. The confirmation computes that from the same two inputs the server uses and says so
+  plainly. [`projectModelsPanel.ts`](../apps/web/src/viewer/tools/projectModelsPanel.ts).
+- **`deleteView`** *(server v0.3.892–893, UI v0.3.894)* — **the research found a security defect
+  before the button existed.** `return {"deleted": bool(v)}` was truthy whenever the row EXISTED, so
+  deleting another user's saved view answered `deleted: true` with the view intact. Worse, the
+  mutation check showed the route never compared `project_id`: a view id from a different project was
+  **actually deleted** through this project's path. No test covered the route at all.
+  [`test_view_delete.py`](../services/api/test_view_delete.py) closes it with 13 paired assertions.
+  v0.3.893 then fixed the half missed the first time — neither this route nor its sibling
+  `mark_view_seen` checked `module == key`, so the module segment of the URL was decorative. The UI
+  (register toolbar) reads the `deleted` flag rather than assuming, which is only safe *because* the
+  flag became honest first.
+- **`reviewModelVersion`** *(v0.3.895)* — the state transition, and the entry was right that it
+  needed the seal work's thinking without needing its mechanism. `approved` is **terminal** (no
+  reopen, no revoke), so the confirmation says the words "cannot be undone" and names the account it
+  will be recorded against; and the server refuses `approve` from the `api-key` identity in
+  multi-user mode, because `reviewed_by` is a permanent answer to "who approved this" and a machine
+  credential is not a who. A full password step-up was considered and **rejected with a reason**: a
+  seal is a per-document legal attestation, this is an internal QA record, and mandating
+  re-authentication would be a contract change for every human caller in exchange for a smaller
+  claim. Second finding, unrelated to the write: `ApiClient.modelVersions` declared 4 of the 8 keys
+  the server had been sending since R18, so the review state was **invisible** before it was
+  unwritable. [`modelReviewPanel.ts`](../apps/web/src/viewer/tools/modelReviewPanel.ts),
+  [`test_version_approve_identity.py`](../services/api/test_version_approve_identity.py).
+
+**What to carry forward.** The entry's general rule — *a reach sweep may wire anything that cannot
+lose work and must stop at anything that can* — paid for itself twice over. Two of the four endpoints
+were **broken in ways a three-line wiring would have shipped straight to users**, and both were found
+by reading the endpoint before writing the caller. The cost of the discipline was four small releases
+instead of one; the thing it bought was not the confirmations, it was the two defects.
+
 ## ✅ R38 Wave 1 — the first ten minutes, three of four shipped *(2026-08-02, v0.3.819–820)*
 
 Two sessions, two lanes, one interface message — the server half and the draw-tool half of the same
