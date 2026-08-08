@@ -14,7 +14,8 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from . import classification, modules as me
+from . import classification
+from . import modules as me
 
 
 def _num(v) -> float:
