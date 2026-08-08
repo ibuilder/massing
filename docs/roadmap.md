@@ -72,59 +72,36 @@ the reserve/benchmarking/proforma sweep) — its full record is in
 sweep rather than by a failing test, which is the reason they rank first: **nothing in the suite can
 currently fail if either regresses.**
 
-- ◧ **SEC-PLUGIN-SANDBOX** *(M — Lane **D**, not C: `sandbox.py` lives in `services/data/src/aec_data/`)*
-  — **the binding half SHIPPED v0.3.864; the `setrlimit` half is REFUSED as specified, see below.**
-  The attribute check is now an allowlist rather than a denylist: IFC entity attributes are CamelCase
-  by schema and the dangerous stdlib surface is lowercase, so CamelCase passes and every lowercase
-  name must be explicitly exposed. Each red-team escape in `services/api/test_sandbox.py`
-  (`ifcopenshell.os.system`, `.express.subprocess`, `.api.importlib`, `format_map`, `wrapped_data`)
-  was a lowercase attribute somebody had to think of first; the ones nobody thinks of are now closed
-  by default.
+- ✅ **SEC-PLUGIN-SANDBOX — COMPLETE as of v0.3.884.** Every part of this entry has shipped,
+  including the half it recorded as refused. Full record in
+  [`roadmap-completed.md`](roadmap-completed.md).
 
-  **`setrlimit` cannot be added correctly in-process, and adding it would be worse than not.**
-  `RLIMIT_CPU` bounds *cumulative process CPU since start*, not one call — so it would kill a healthy
-  API worker after enough ordinary traffic, and when it fires it delivers `SIGXCPU` to the whole
-  process, taking every concurrent request with it. `RLIMIT_AS` is process-wide too, so a snippet's
-  memory ceiling would constrain unrelated threads. Both need a child process to be meaningful, which
-  is exactly **R35-SANDBOX-ISOLATION**, Parked pending a deployment-shape decision. The residual risk
-  is unchanged and stated in `services/data/src/aec_data/sandbox.py`: a native call reached through
-  an allowed binding is bounded by that library, not by the trace hook.
+  The binding half landed v0.3.864 (an attribute **allowlist** rather than a denylist — IFC entity
+  attributes are CamelCase by schema and the dangerous stdlib surface is lowercase, so the names
+  nobody thinks of are closed by default). The bytes contract landed v0.3.877. The two things this
+  entry listed as *"Remaining: adopt it in `edit.py`, then the isolation itself"* are both in:
+  `services/data/src/aec_data/edit.py` rebinds the model through `REPLACING_RECIPES`, and
+  `services/data/src/aec_data/sandbox_child.py` runs the snippet in a child process with a fixed
+  argv, an environment allowlist, and a fail-closed spawn.
 
-  **STEP 1 SHIPPED v0.3.877 — the contract exists; the isolation does not yet.**
-  `services/data/src/aec_data/sandbox.py` gains `execute_ifc_bytes`: bytes-in/bytes-out over the same
-  sandbox. It runs **in-process and is NOT isolated**, and that is not claimed. What it removes is
-  the reason isolation could not be built — with a `bytes -> bytes` callee, moving execution into a
-  subprocess or a container becomes a change to one function body instead of to every call site.
-  Remaining: adopt it in `services/data/src/aec_data/edit.py`, then the isolation itself.
+  **The `setrlimit` refusal was resolved rather than overridden, and that is the part worth keeping.**
+  This entry argued at length that `RLIMIT_CPU` and `RLIMIT_AS` *cannot be added correctly
+  in-process*: they bound cumulative process CPU and process-wide memory, so they would kill a
+  healthy API worker after enough ordinary traffic and take every concurrent request down with it.
+  That reasoning was correct, and the answer was never to add them anyway — it was to build the child
+  the limits could live in. They are set in `sandbox_child.py` now, where their scope is exactly one
+  snippet. **A refusal that names its precondition is how the precondition eventually gets built**;
+  a refusal that just says "no" leaves nothing to satisfy.
 
-  **⚠️ PREMISE CORRECTED 2026-08-06 — the stated blocker is wrong, and the real one is bigger.**
-  This says isolation is "Parked pending a deployment-shape decision". That decision is settled: the
-  repo ships `docker-compose.prod.yml`, and R39-WORKER-SPLIT (v0.3.869) built the working precedent
-  for a second process launched by compose. **Isolation is still not buildable, for a reason nobody
-  had written down:** `execute_ifc_code(model, code)` takes a **live in-memory `ifcopenshell.file`**
-  and the snippet mutates it *in place*; the caller keeps using that same object. A child process
-  cannot share it, so isolation means serialise → run → serialise back → reload, which returns a NEW
-  object and breaks every caller. **That is an API contract change at the call site, not a deployment
-  choice** — file-in/file-out first, then the recipe at `services/data/src/aec_data/edit.py`, then
-  isolation. Re-estimate M→L before starting.
+  v0.3.884 closed the last hazard, found by security review rather than by a gate: the snippet was
+  written as `code.py` into a workdir the child puts on `sys.path[0]`, **shadowing the stdlib `code`
+  module** for everything the child imports. Not exploitable — nothing in the child's import chain
+  (`ifcopenshell`, `.api`, `.guid`) reaches it — but one unrelated transitive import away from
+  letting a submitted snippet execute as an *import*, outside the AST allowlist entirely, where the
+  allowlist would never see it. Renamed to `snippet.py`.
 
-  *Also recorded because it nearly became a wrong finding:* the sandbox looks unreachable from the
-  routers — the only `sandbox.` reference in `routers/` reports a boolean capability. It is not.
-  `apps/web/src/viewer/app.ts` calls `editIfc(pid, "execute_ifc_code", …)`, which resolves through the
-  **edit-recipe registry**. A grep of the route layer cannot see registry indirection, and any
-  reachability gate built on direct route references will report confident false positives for the
-  same reason.
-
-  Original text: the external audit's one legitimate High. `sandbox.py`
-  executes snippets in-process behind AST checks and a trace-hook timeout; the AST layer is genuinely
-  strong, but a native call reached through an allowed binding can block uninterruptibly, and
-  in-process means the snippet shares the API's file descriptors and environment. Execution is
-  already opt-in (`AEC_ALLOW_IFC_CODE`), which is why this is High and not Critical.
-  Process/container isolation is **Parked as R35-SANDBOX-ISOLATION** because it is a deployment-shape
-  decision; this item is the part that does not need one — tighten what the bound callables can
-  reach, and add `setrlimit` CPU/memory caps around the existing timeout.
-
-
+  Residual risk, unchanged and still stated in `services/data/src/aec_data/sandbox.py`: a native call
+  reached through an allowed binding is bounded by that library, not by the trace hook.
 - ✅ **SHIPPED v0.3.875 (2026-08-07) — R41-SCHEMA-STALE**, both halves. Full record archived in
   [`docs/roadmap-completed.md`](roadmap-completed.md); the two points worth carrying forward are that **the prescription in the entry was wrong and the scope
   claim was right for the wrong reason**. "Force the payload to null on any version difference"

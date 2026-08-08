@@ -99,6 +99,11 @@ PER_FILE = {
     #: domain module instead?" — for a self-contained fetch/parse/show sequence the answer was plainly
     #: yes. The instrumentation went into the new module and app.ts came DOWN 36 lines instead of up.
     "apps/web/src/viewer/app.ts": 3_715,
+    # Pinned at its EXACT measured size, not above it. qaSection.ts became the file every reach fix
+    # lands in and reached 1,373 lines while unpinned - the same accumulation app.ts and client.ts
+    # already have entries for. Pinned before it needs splitting rather than after: a ratchet added
+    # at the point of pain only ratifies the pain.
+    "apps/web/src/viewer/tools/qaSection.ts": 1_373,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.
