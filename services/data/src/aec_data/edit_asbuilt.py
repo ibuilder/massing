@@ -149,16 +149,34 @@ _VERIFY_METHODS = {"field-measure", "laser-scan", "total-station", "photo", "sub
 
 
 def verify_asbuilt(model: ifcopenshell.file, guids, verified_by: str = "",
-                   method: str = "field-measure", note: str = "", date: str | None = None) -> int:
+                   method: str = "field-measure", note: str = "", date: str | None = None,
+                   loa_level: str = "", tolerance_mm: float | None = None) -> int:
     """G1: stamp elements as **field-verified as-built** — the reliability attribute BIMForum actually
     defines as LOD 500 (LOD 500 has NO geometric requirement; it's verified-as-built *data*). Writes
     `Massing_AsBuilt` (Status=VERIFIED + VerifiedBy / VerifiedDate / Method / Note provenance) on each
     element so the model can report LOD-500 readiness and it round-trips as a Pset. GUID-stable; a bad
-    GUID never aborts the batch. Returns the count verified."""
+    GUID never aborts the batch. Returns the count verified.
+
+    LOD-500-LOA: `loa_level` + `tolerance_mm` record the *level of accuracy* the definition requires
+    to be noted on the element. Written to `Massing_AsBuiltDim` beside the measured dimensions, and
+    written ONLY AS A PAIR — a label with no tolerance is a name a receiving system cannot resolve,
+    and a tolerance with no label has no provenance. The level is free text because the project's
+    BEP names its own scale; nothing here interprets it into a number, which is why the number has
+    to be supplied."""
     meth = (method or "field-measure").strip().lower()
     if meth not in _VERIFY_METHODS:
         meth = "field-measure"
     stamp = (date or "").strip() or _today_iso()
+    # Normalised together so a half-supplied pair writes NEITHER. Recording a level without its
+    # tolerance would satisfy every "is an LOA recorded?" check while leaving the accuracy as
+    # unstated as before — a gate passed by a value that carries no information.
+    lvl = (loa_level or "").strip()[:40]
+    try:
+        tol = float(tolerance_mm) if tolerance_mm is not None else 0.0
+    except (TypeError, ValueError):
+        tol = 0.0
+    if tol <= 0 or not lvl:
+        lvl, tol = "", 0.0
     n = 0
     for g in guids or []:
         try:
@@ -168,6 +186,9 @@ def verify_asbuilt(model: ifcopenshell.file, guids, verified_by: str = "",
             set_element_pset(model, g, "Massing_AsBuilt", "Method", meth, "str")
             if note:
                 set_element_pset(model, g, "Massing_AsBuilt", "Note", str(note), "str")
+            if lvl and tol:
+                set_element_pset(model, g, "Massing_AsBuiltDim", "LOA", lvl, "str")
+                set_element_pset(model, g, "Massing_AsBuiltDim", "Tolerance_mm", tol, "float")
             n += 1
         except Exception:  # noqa: BLE001 — skip stale/unknown GUIDs, keep verifying the rest
             pass

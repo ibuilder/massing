@@ -82,21 +82,53 @@ ASBUILT_DIM_PSET = "Massing_AsBuiltDim"
 def verification(e: dict) -> dict[str, Any]:
     """Read one element's as-built verification from the served index.
 
-    `accuracy_stated` is the BIMForum requirement above: a measurement method that carries a
-    tolerance or a recorded deviation states its accuracy; a bare "VERIFIED" flag does not.
+    Two readings of accuracy, deliberately separate. `accuracy_stated` is the weaker one that
+    callers already depend on: a recorded measurement is evidence of accuracy for the dimension it
+    measured, and a bare "VERIFIED" flag is not. `accuracy_grade` is the standard's actual
+    requirement — "declared" only when the element carries a level label AND a tolerance a
+    downstream reader can act on, "derived" when a deviation is computable but nobody said to what
+    accuracy the survey was performed, "none" otherwise.
     """
     psets = e.get("psets") if isinstance(e.get("psets"), dict) else {}
     ab = psets.get(ASBUILT_PSET) or {}
     dims = psets.get(ASBUILT_DIM_PSET) or {}
     verified = str(ab.get("Status") or "").upper() == "VERIFIED"
     tol = str(dims.get("WithinTolerance") or "").lower()
+    # LOD-500-LOA. The LOD 500 definition requires that the element's accuracy "shall be noted or
+    # attached to the Model Element" — the LOD number itself says nothing about how closely the
+    # model matches the building. BIMForum points at USIBD's Level of Accuracy specification for
+    # the purpose.
+    #
+    # WHAT IS RECORDED HERE, AND WHY IT IS NOT A LOOKUP TABLE. The declared level is free text: the
+    # project's BEP names its own scale, and USIBD's tolerance ranges are theirs to license, not
+    # ours to embed. So a declaration is only accepted as an accuracy statement when it carries a
+    # NUMBER a downstream reader can act on — a level label alone is a name, and "LOA30" means
+    # nothing to a system that cannot resolve it. Requiring the tolerance makes the claim
+    # self-contained and sidesteps the licence question entirely.
+    loa = str(dims.get("LOA") or ab.get("LOA") or "").strip() or None
+    try:
+        tol_mm = float(dims.get("Tolerance_mm") or ab.get("Tolerance_mm") or 0) or None
+    except (TypeError, ValueError):
+        tol_mm = None
+    measured = any(str(k).endswith("_Measured") for k in dims)
+    if loa and tol_mm and tol_mm > 0:
+        grade = "declared"       # the spec's requirement, met
+    elif measured:
+        grade = "derived"        # a deviation is computable, but no level was stated
+    else:
+        grade = "none"
     return {
         "verified": verified,
         "method": str(ab.get("Method") or "") or None,
         "verified_by": str(ab.get("VerifiedBy") or "") or None,
         "verified_date": str(ab.get("VerifiedDate") or "") or None,
-        # a recorded measurement is what states the accuracy — the flag alone never does
-        "accuracy_stated": bool(any(str(k).endswith("_Measured") for k in dims)),
+        # UNCHANGED semantics, deliberately: a recorded measurement is evidence of accuracy for the
+        # dimension it measured, and callers already depend on that reading. The stronger claim the
+        # standard asks for is `accuracy_grade`, added beside it rather than folded into it.
+        "accuracy_stated": measured,
+        "loa_level": loa,
+        "loa_tolerance_mm": tol_mm,
+        "accuracy_grade": grade,
         "within_tolerance": None if tol not in ("true", "false") else (tol == "true"),
     }
 
@@ -319,6 +351,11 @@ def assess(db: Session, pid: str, idx: dict[str, dict] | None) -> dict[str, Any]
 _GAP_ACTIONS = {
     "not_verified": "send it to the field — LOD 500 needs someone to look, not more modelling",
     "no_accuracy": "record the measured dimension; a bare VERIFIED flag states no accuracy",
+    # LOD-500-LOA: measured but never GRADED. The deviation is computable and nobody has said what
+    # accuracy the survey was performed to, which is the half of the definition that is usually
+    # skipped — and the half a receiving party needs in order to rely on the number.
+    "no_loa_level": "state the level of accuracy (label + tolerance in mm); a measurement without a "
+                    "stated accuracy is a number nobody downstream can rely on",
     "out_of_tolerance": "resolve the deviation — measured outside tolerance is a finding, not handover",
     "thin_information": "add type / classification / properties / quantities before turnover",
 }
@@ -354,6 +391,11 @@ def handover_readiness(db: Session, pid: str, idx: dict[str, dict] | None,
             reason = "out_of_tolerance"
         elif not v["accuracy_stated"]:
             reason = "no_accuracy"
+        elif v["accuracy_grade"] != "declared":
+            # Ordered AFTER `no_accuracy` on purpose: an element with no measurement at all needs a
+            # survey, not a form field, and naming the cheaper fix first would send someone to type
+            # a tolerance for a measurement that was never taken.
+            reason = "no_loa_level"
         else:
             fac = _facets(e)
             reason = None if sum(1 for f in LOIN_FACETS if fac[f]) >= 4 else "thin_information"

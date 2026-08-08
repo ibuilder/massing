@@ -176,9 +176,16 @@ def verify_from_scan(model, deviation: dict[str, Any], verified_by: str = "",
     stamped = dims = 0
     if apply and verified:
         guids = [r["guid"] for r in verified]
+        # LOD-500-LOA: this pipeline HAS the accuracy in hand and used to spend it on a free-text
+        # note. The scan's tolerance is the accuracy the survey was performed to, so it is declared
+        # as one — label plus a number, which is what makes the claim resolvable by a receiving
+        # party. It is deliberately NOT mapped onto a USIBD level: that table is not ours to embed,
+        # and a self-describing "p95 <= 15 mm" needs no lookup to be useful.
+        _tol_m = float(deviation.get("tolerance") or 0.05)
         stamped = edit_asbuilt.verify_asbuilt(
             model, guids, verified_by=verified_by or "scan", method="laser-scan",
-            note=f"p95 deviation within {deviation.get('tolerance')} m", date=date)
+            note=f"p95 deviation within {deviation.get('tolerance')} m", date=date,
+            loa_level="measured (scan p95)", tolerance_mm=_tol_m * 1000.0)
         # the measured deviation IS the stated accuracy — without it the stamp claims verification
         # while saying nothing about how closely the model matches what was built
         for r in verified:
