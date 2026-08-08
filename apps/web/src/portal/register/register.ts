@@ -323,6 +323,49 @@ export class RegisterUI {
       await this.ctx.host.api.saveView(pid, m.key, v.name ?? "", { q: filter.q, state: filter.state, sort: this.sort[m.key] });
       void this.openModule(m, filter);
     };
+    // R41-REACH-WRITES — retire a saved view. Views could be created and applied since they shipped
+    // and never removed, so a mistyped one stayed in the dropdown of whoever made it forever.
+    //
+    // WHY A PICK-THEN-CONFIRM AND NOT AN ✕ ON THE SELECT. `viewSel.onchange` applies the view and
+    // re-renders this whole toolbar, so the select never HOLDS a selection — a "delete the selected
+    // one" button would have nothing to read. The number-pick matches the Templates control beside
+    // it, and the confirm step is what turns a number back into a name: agreeing to delete "3" is
+    // not consent, agreeing to delete "Overdue — mine" is.
+    //
+    // AND IT READS THE `deleted` FLAG RATHER THAN ASSUMING. This is the endpoint that returned
+    // "deleted": true for a row it had not touched until v0.3.892; the reason it is safe to wire now
+    // is that the flag became true only when the delete happened, and a UI that ignored it would put
+    // that defect straight back on the screen.
+    const delView = document.createElement("button"); delView.className = "tool-btn";
+    delView.textContent = "🗑 view"; delView.dataset.cap = "editor";
+    delView.title = views.length ? "Delete one of your saved views" : "No saved views to delete";
+    delView.disabled = !views.length;
+    delView.onclick = async () => {
+      const picked = await promptModal("Delete a saved view",
+        [{ name: "pick", label: "View # to delete", required: true }], "Next",
+        views.map((v, i) => `${i + 1}. ${v.name}`).join("\n"));
+      if (!picked) return;
+      // `parseInt` returns NaN for "abc" and 3 for "3abc"; both must be refused rather than
+      // silently deleting the third view because the string happened to start with a digit.
+      const n = Number((picked.pick ?? "").trim());
+      const target = Number.isInteger(n) ? views[n - 1] : undefined;
+      if (!target) { toast(`No view numbered "${picked.pick}" — nothing deleted.`, "error"); return; }
+      const ok = await confirmModal(`Delete the view "${target.name}"?`,
+        "Saved views are yours alone, so this removes it only for you. The records it filters are "
+        + "not touched.\n\nThere is no undo — the filter and sort would have to be set up again.",
+        "Delete view", true);
+      if (!ok) return;
+      let res: { deleted: boolean };
+      try {
+        res = await this.ctx.host.api.deleteView(pid, m.key, target.id);
+      } catch (e) { toast(`Not deleted: ${(e as Error).message}`, "error"); return; }
+      // A false here is not an error — the row was already gone, which is what a second tab or an
+      // earlier click leaves behind. Saying "deleted" anyway is how a stale dropdown starts looking
+      // like a server that lost the write.
+      if (!res.deleted) toast(`"${target.name}" was already gone — refreshing the list.`, "info");
+      else toast(`Deleted view "${target.name}"`, "success");
+      void this.openModule(m, filter);
+    };
     // reusable templates: apply a saved set of records, or save the current ones as a template
     const tplBtn = document.createElement("button"); tplBtn.className = "tool-btn"; tplBtn.dataset.cap = "review"; tplBtn.textContent = "⌹ Templates";
     tplBtn.title = "Apply or save a reusable template for this module";
@@ -373,7 +416,7 @@ export class RegisterUI {
     colBtn.textContent = "⚙ Columns"; colBtn.title = "Choose which fields show as columns";
     if (this.readColPrefs(m.key)) colBtn.classList.add("on");   // signal a non-default column set is active
     colBtn.onclick = () => this.columnPicker(m, colNames, filter);
-    actions.append(newBtn, boardBtn, csvBtn, impBtn, impFile, pasteBtn, editBtn, tplBtn, colBtn, fbox, stateSel, viewSel, saveView);
+    actions.append(newBtn, boardBtn, csvBtn, impBtn, impFile, pasteBtn, editBtn, tplBtn, colBtn, fbox, stateSel, viewSel, saveView, delView);
     // R30-TOOLS — the tools this register declares, rendered from `module.json` rather than hardcoded.
     //
     // The audit's finding was that every optional key a module could carry was presentation — icon,

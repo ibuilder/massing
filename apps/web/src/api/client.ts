@@ -3107,9 +3107,13 @@ export class ApiClient extends withFinance(withContracts(withAuth(withProforma(w
   }
 
   // authoring round-trip (Phase 6)
-  /** Model version history (one snapshot per publish). */
+  /** Model version history (one snapshot per publish), WITH its review state. The four review keys
+   *  are not new server work — this type declared 4 of the 8 keys `versions.history` has returned
+   *  since R18, so the record was discarded here (see `viewer/tools/modelReviewPanel.ts`). */
   modelVersions(pid: string) {
-    return this.json<{ version: number; element_count: number; note: string | null; created_at: string | null }[]>(`/projects/${pid}/versions`);
+    return this.json<{ version: number; element_count: number; note: string | null; created_at: string | null;
+      review_status: "draft" | "in_review" | "approved"; reviewed_by: string | null;
+      reviewed_at: string | null; review_note: string | null }[]>(`/projects/${pid}/versions`);
   }
   /** Diff two model versions — added/removed/modified elements (with change labels) + unchanged count. */
   versionDiff(pid: string, a: number, b: number) {
