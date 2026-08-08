@@ -132,74 +132,27 @@ currently fail if either regresses.**
   `AEC_RATE_LIMIT_RPM` read as covering rate limiting in general, and was silent about the
   always-on limiter capping `POST /auth/stepup` at 10/min. A generic-sounding gate hid a missing one.
 
-- **LOD-ASPECTS — ⚠️ the achieved-LOD number scores INFORMATION and reports it as GEOMETRY.** *(M —
-  Lane C; added 2026-08-08 from the BIMForum LOD Specification 2025, supplied by the user)*
+- ✅ **LOD 2025 — COMPLETE as of v0.3.903.** All three items (LOD-ASPECTS, LOD-500-LOA,
+  LOD-ELEMENT-TABLE) shipped. Full record in [`roadmap-completed.md`](roadmap-completed.md).
 
-  `services/api/src/aec_api/lod.py` infers achieved LOD by **counting LOIN facets** — geometry, type,
-  classification, properties, quantities — and mapping the count onto a band
-  (`_FACETS_TO_LOD[5] = "LOD 400"`). Nothing in that path looks at the geometry itself.
+  **Two things worth keeping here.** First, the defect was one shape in three places: a number
+  computed from whatever data happened to be available, then labelled as the thing somebody wanted
+  to know. A well-tagged bounding box scored LOD 350; a verification recorded that it happened and
+  never how accurate it was; a target matrix could be authored and never compared. Second, the fix
+  in all three cases was the same move — **say what was actually measured, and report the part you
+  could not measure as unmeasured.**
 
-  **Measured, not argued.** A generic placeholder box tagged `IfcWall` with a classification, a
-  `Pset_WallCommon` and a `Qto_WallBaseQuantities` scores **LOD 350** — the construction-coordination
-  milestone. Delete its property and quantity sets, changing not one vertex, and the same box scores
-  **LOD 200**. The number moves two bands on tagging alone.
+  **The licence constraint stands for anything that touches this again.** BIMForum Part I is
+  CC BY-NC-ND and Part II is CC BY-NC; NonCommercial is a hard exclusion for this repo. No element
+  table, keynotes, per-element definitions, Uniclass→Omniclass crosswalk or band→aspect-value table
+  may enter the codebase. The ISO 7817-1 aspect names and the AIA band numbers are not BIMForum's to
+  license and are what the implementation uses.
 
-  That is a category error, and it is the shape this roadmap keeps re-learning: a plausible value in
-  the reassuring direction, on a figure teams put in contracts and BIM execution plans. LOD is a
-  claim about how far an element's **geometry has been thought through**; LOIN facets measure how
-  completely it is **described**. A well-tagged placeholder is exactly the case where the two come
-  apart, and it is also the most common case in a design-stage model.
-
-  **The 2025 spec supplies the axes to replace the count with.** It states each band against
-  **ISO 7817-1 Part 1** required aspects — *Detail, Dimensionality, Location, Appearance, Parametric
-  Behavior* — e.g. LOD 200 is `Detail: Simplified / Dimensionality: Approximate, 3D / Location:
-  Approximate, absolute`, LOD 300 raises detail to High and both dimensionality and location to
-  Accurate, and LOD 350 raises detail to Complex while adding *interfaces with adjacent or dependent
-  elements*. Those are five named, separately assessable axes; an element is at a band only when it
-  meets **all** of them (the spec is explicit that requirements are minimums and cumulative, and that
-  an accurate, highly-detailed element located approximately "can be no higher than LOD 200").
-
-  Minimum viable fix, in order: (1) stop reporting a facet count under a geometry name — rename the
-  current output to what it measures and say so in `note`; (2) score the aspects that are decidable
-  from the model (Location is checkable against placement precision, Dimensionality against whether
-  quantities derive from real geometry, Detail against representation complexity); (3) report an
-  aspect a model cannot decide as **undecidable rather than as met**, which is the same honest-state
-  rule the rest of the platform follows. **A band claimed on four of five aspects is not that band.**
-
-- **LOD-500-LOA — ⚠️ LOD 500 requires a stated accuracy and we do not record one.** *(S — Lane C)*
-
-  `lod.achieved_lod` correctly refuses to infer LOD 500 from the model and reads it from the
-  field-verification stamp instead — that part is right and should not be redone. But the definition
-  requires more than the fact of verification: *"The level of accuracy shall be noted or attached to
-  the Model Element."* The spec points at **USIBD's Level of Accuracy (LOA) Specification** for the
-  purpose. `verification()` already tracks `_Measured` dimensions and a tolerance flag, so the gap is
-  a recorded LOA level (and the instrument/method behind it) rather than new machinery. Without it a
-  LOD 500 assertion is unfalsifiable — it says a measurement happened, not how good it was.
-
-- ◧ **LOD-ELEMENT-TABLE — LOD targets are per stage, not per element.** *(M — Lane C)*
-
-  `lod.matrix` reads `lod_target` records shaped stage × discipline × element-category, and falls
-  back to five stage defaults. The industry practice the 2025 spec's Part II encodes is a **model
-  element table**: one row per element type keyed to a classification code, with the target LOD at
-  each project milestone and the party responsible. The platform already has the spine that makes
-  this cheap — `classification.py` carries Uniformat/MasterFormat, so an element-scoped target is a
-  new field on an existing register plus a roll-up, not a new taxonomy.
-
-  Worth doing because a stage-level target cannot express the thing teams actually argue about: at
-  CD, curtain wall is expected at 350 and interior partitions at 300, and one number for the stage
-  makes both wrong.
-
-**⚖️ LICENCE — the BIMForum content itself cannot be used, and this is not a formality.** Part I is
-**CC BY-NC-ND 4.0** and Part II is **CC BY-NC 4.0**; the workbook's own header states it. NonCommercial
-is a HARD EXCLUSION for this repo (it is public, and the product is commercial), and NoDerivatives
-additionally forbids adapting Part I. **So none of the three items above may copy the element table,
-the keynotes, the per-element LOD definitions, or the Uniclass→Omniclass/Uniformat crosswalk.**
-
-What they may use is what is not BIMForum's to license: the **ISO 7817-1 aspect names**, the **AIA
-LOD band numbers**, and the ordinary industry practice of a model element table. The workbook itself
-says its rows are *"examples and are intended to be customized by the user"* — which is the shape of
-the fix as well as its limit: **the platform ships the structure, the project authors the content.**
-A customer who has licensed the spec can type their own targets in; we must not ship them.
+  **Still open, and named honestly:** a model read tops out at **LOD 350** — nothing in the served
+  index distinguishes a coordination-ready solid from a fabrication-ready one, and nothing in it can
+  see whether a placement is *accurate* rather than merely present. Both are reported as unread
+  (`ceiling_distribution`) rather than assumed. Closing either needs geometry the index does not
+  carry today, which is a deliberate scope call rather than an oversight.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
 
@@ -374,7 +327,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · LOD-ASPECTS · LOD-500-LOA · LOD-ELEMENT-TABLE |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |

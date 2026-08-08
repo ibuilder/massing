@@ -10,6 +10,65 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## ✅ LOD 2025 — the achieved-LOD number stops measuring the wrong thing *(2026-08-08, v0.3.901–903)*
+
+All three items booked from the BIMForum LOD Specification 2025 (supplied by the user) are in. The
+theme is one defect in three places: **the platform reported LOD numbers it had no evidence for.**
+
+- **LOD-ASPECTS** *(v0.3.901)* — `achieved_lod` mapped a COUNT of LOIN facets onto a band
+  (`_FACETS_TO_LOD[5] = "LOD 400"`) and nothing on that path looked at a shape. Measured: a generic
+  `IfcWall` box carrying a classification, a Pset and a Qto scored **LOD 350**; strip the property
+  and quantity sets, changing not one vertex, and the same box scored **LOD 200**. Two bands on
+  tagging alone, on a figure that goes into contracts and BIM execution plans.
+
+  It could not be fixed in `lod.py` alone: the properties index carried **no geometry at all**, so
+  the four geometric aspects were undecidable rather than unused. Shape *facts* now ride in the index
+  (`rep_types`, `rep_ids`, `has_openings`, `has_material`, `placed`) — facts *about* geometry, small
+  enough for a metadata index, so the geometry/metadata separation holds.
+
+  **The first draft was wrong and its own test caught it.** Folding "what the evidence supports" and
+  "what it rules out" into one value and taking the minimum made *every element in every model*
+  LOD 200, because Location and Dimensionality accuracy are unreadable. `supported` and `cap` are now
+  separate: an aspect nobody can read widens the CEILING and never lowers the band. That separation
+  is the product value — `ceiling_distribution` says the gap is **unread model, not missing model**.
+
+  Honest ceiling: a model read tops out at **LOD 350**, because nothing in the index distinguishes a
+  coordination-ready solid from a fabrication-ready one. The old code claimed 400 on no evidence.
+
+- **LOD-500-LOA** *(v0.3.902)* — the definition requires the level of accuracy to be *noted on the
+  element*; we recorded that a verification happened and never how good it was. Three grades now:
+  `declared` (a label AND a tolerance in mm), `derived` (a measurement exists, nobody stated the
+  accuracy), `none`. A bare label is refused deliberately — USIBD's tolerance table is not ours to
+  embed, so an unresolvable label would satisfy every "is an LOA recorded?" check while leaving the
+  accuracy as unstated as before.
+
+  **The grade red-flagged the platform's own flagship path on its first run.** `scan_deviation` — the
+  one real producer of LOD 500 verifications — had the tolerance in hand and spent it on a free-text
+  note (`"p95 deviation within {tolerance} m"`), unreadable by anything downstream. It now declares
+  the accuracy as a label plus a number.
+
+- **LOD-ELEMENT-TABLE** *(v0.3.903)* — the target matrix was **authorable and uncomparable**.
+  `element_category` is free text, so no target could be joined to an element, and `assess()`
+  returned targets and achieved distribution side by side without ever comparing them. Targets are
+  now addressable by IFC class / Uniformat / discipline with most-specific-wins, Uniformat matches by
+  prefix, and compliance is reported per stage with `short_by_rule` naming which rule decided. An
+  element no rule addresses is reported as untargeted and never counted as compliant.
+
+**⚖️ Licence, and it shaped every one of the three.** Part I is CC BY-NC-ND and Part II is CC BY-NC —
+NonCommercial is a hard exclusion for a public repo and a commercial product, and NoDerivatives
+additionally forbids adapting Part I. **No BIMForum content is in the codebase**: no element table, no
+keynotes, no per-element definitions, no Uniclass→Omniclass crosswalk, and no band→aspect-value table.
+What is used is what is not BIMForum's to license — the ISO 7817-1 aspect names and the AIA band
+numbers — with every threshold derived from IFC's own representation vocabulary. The workbook's own
+words are the design brief and its limit: its rows are *"examples … intended to be customized by the
+user"*. **The platform ships the structure; the project authors the content.**
+
+*What to carry forward: the recurring shape here is a number computed from whatever data happened to
+be available and then labelled as the thing somebody wanted to know. All three fixes are the same
+move — say what was actually measured, and report the part you could not measure as unmeasured.*
+
+---
+
 ## ✅ R41-REACH-WRITES — all four write endpoints wired, each with the step it needed *(2026-08-08, v0.3.890–895)*
 
 The four write-side endpoints the reach sweep deliberately left alone, "because each one needs a
