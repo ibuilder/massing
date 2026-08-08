@@ -165,7 +165,23 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: Set to 117 rather than to main's 121 on purpose. If the true count is 117 this is exact; if
 //: it is higher the gate FAILS LOUDLY on the next run and gets corrected. 121 would have
 //: passed either way and told nobody. Bias low: low fails, high hides.
-const UNCALLED_CEILING = 117;
+//: 117 -> 101 (Lane A/B/E reach sweep, 2026-08-07). Seventeen capabilities that computed an answer
+//: and could not show it to anyone — the qaSection readouts, the dimensional-locks panel, and four
+//: recipes the node canvas simply did not list.
+//:
+//: **101 is what the GATE PRINTED on the merged tree, and the arithmetic would have been wrong.**
+//: 117 minus the fourteen this branch wires is 103; the measured answer is 101, because reach is not
+//: additive across lanes — three sweeps ran concurrently and touched overlapping method sets.
+//:
+//: The failure mode this avoids is not a small error. `toBeLessThanOrEqual` has NO FLOOR, so a stale
+//: ceiling carried forward RAISES the number with every gate green: #273 measured 128 -> 123
+//: correctly, #271 then landed and reached one of the same methods, and landing 123 on a main at 117
+//: would have handed four points of slack to whoever added the next unreachable method.
+//:
+//: So: rebase, set this to 0, run, read the number the assertion prints, restore, land that. And
+//: when two candidates are both defensible, take the smaller — a ceiling set too low fails loudly on
+//: the next run and gets fixed; one set too high never fails at all.
+const UNCALLED_CEILING = 101;
 
 describe("client methods the application actually calls", () => {
   it("agrees with a hand-checked sample in BOTH directions", () => {

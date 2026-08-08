@@ -26,6 +26,25 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
         `/projects/${pid}/edit`, { method: "POST", body: JSON.stringify({ recipe, params, publish }) });
     }
     /** IFCPATCH-LIB — dry-run maintenance scan: how many entities each cleanup recipe would remove. */
+    /**
+     * R38-SOLVER-LOCKS — solve a dimensional-lock system. Pure computation: the route neither reads
+     * nor writes the model, so the caller supplies the variables and applies the result itself.
+     *
+     * Lives beside `editIfc` because that is what Apply writes through, and the two are always used
+     * together. The endpoint shipped in v0.3.701 with no client caller at all.
+     *
+     * `solved` is false when a REQUIRED row cannot hold or a clearance is violated; `conflicts` names
+     * the pair. A weaker tier yielding is the system working as designed, not a failure.
+     */
+    solveConstraints(pid: string, variables: Record<string, number>,
+                     constraints: Record<string, unknown>[]) {
+      return this.json<{
+        values: Record<string, number>; dof: number; solved: boolean;
+        conflicts: { a?: string; b?: string; detail?: string }[];
+        violations: Record<string, unknown>[]; note?: string;
+      }>(`/projects/${pid}/constraints/solve`,
+        { method: "POST", body: JSON.stringify({ variables, constraints }) });
+    }
     modelMaintenance(pid: string) {
       return this.json<{ total_entities: number; cleanable: number;
         recipes: { recipe: string; label: string; removable: number; sample: string[] }[] }>(

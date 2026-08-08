@@ -3,6 +3,7 @@ import type { ModelIdMap } from "../modelIds";
 import { askText } from "../../ui/prompt";
 import { confirmModal, promptModal } from "../../ui/modal";
 import { kvTable, resultNote, showResult } from "../../ui/result";
+import { guidsFromSample } from "../warningSample";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { LayerManager } from "../../tools/layers";
 import { ModelLoader } from "../loader";
@@ -72,7 +73,13 @@ export function buildQaSection(d: QaDeps): void {
   const { section, toolBtn2, api, pid, projectId, notify, selectMap, sets, layerMgr, loader,
           nextId, refreshIssues, container, reloadModelPins, selectByGuid, waitForPublish,
           refreshFederation, authorAndReload, fitToModels, loadProjectModel } = d;
-  const selectedGuid = d.selectedGuid();
+  // NOT `const selectedGuid = d.selectedGuid()`. That is what this file used to do, and it is the
+  // exact bug the docstring above says is impossible by construction: the accessor was threaded
+  // correctly through the seam and then collapsed to a value on arrival. The panel is built at app
+  // init, before anything is selected, so the captured value was `null` FOREVER — "Related elements"
+  // and the layer override button answered "select an element in 3D first" no matter what was
+  // selected. Two dead tools, on main, under a comment explaining why they could not be.
+  const selectedGuid = () => d.selectedGuid();
         const b = section("qa", "Analyze & Coordinate · clash / QA", { requires: "sourceIfc", tool: true });
         if (!b) return;
         const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "4px";
@@ -102,6 +109,444 @@ export function buildQaSection(d: QaDeps): void {
             const phased = Object.entries(d!.phasing).filter(([k, v]) => v && k !== "UNSET");
             if (phased.length) body.appendChild(resultNote(`<b>Phasing</b> — ` + phased.map(([k, v]) => `${v} ${k.toLowerCase()}`).join(", "), ""));
             if (d!.hygiene.issues) body.appendChild(resultNote(`<b>${d!.hygiene.issues}</b> model-hygiene issue(s) — see Model Health.`, "bad"));
+          });
+        })));
+        // VIEW-TEMPLATES — saved view definitions, listed and APPLIED. Both halves were unreachable:
+        // `viewTemplates` (the list) and `resolveViewTemplate` (what it resolves to on THIS model).
+        // A saved view nobody can apply is a stored preference with no effect.
+        //
+        // Applying is reversible — it isolates and colours, it does not edit the model — which is why
+        // this is safe to wire without a confirmation step, unlike the template WRITE endpoints.
+        b.appendChild(toolBtn2("👁 View templates (apply a saved view)", () => withLoading(container, "Reading view templates", async () => {
+          let r;
+          try { r = await api.viewTemplates(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${r.templates.length} template(s)`;
+          showResult("View templates", (body) => {
+            if (!r!.templates.length) {
+              body.appendChild(resultNote("No view templates saved for this project.", ""));
+              return;
+            }
+            for (const t of r!.templates) {
+              const row = document.createElement("div");
+              row.className = "meta";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer";
+              row.innerHTML = `<b>${escapeHtml(t.name)}</b>`
+                + (t.isolate ? ` · isolate ${escapeHtml(t.isolate)}` : "")
+                + (t.hide_classes?.length ? ` · hides ${t.hide_classes.length}` : "")
+                + (t.rules?.length ? ` · ${t.rules.length} colour rule(s)` : "");
+              row.title = "Resolve against this model and apply";
+              row.onclick = async () => {
+                let v;
+                try { v = await api.resolveViewTemplate(pid, t.id); }
+                catch (e) { toast((e as Error).message, "error"); return; }
+                // Resolve first, report second, apply third. A template that resolves to NOTHING on
+                // this model would otherwise isolate an empty set and read as "the model vanished".
+                if (!v.visible.length) {
+                  notify(`"${t.name}" matches no elements in this model — nothing applied`, "info");
+                  return;
+                }
+                await layerMgr.isolateGuids(v.visible.slice(0, 5000));
+                notify(`Applied "${t.name}" — ${v.visible_count} visible, ${v.hidden_count} hidden`
+                  + (v.colored_count ? `, ${v.colored_count} coloured` : ""), "success");
+              };
+              body.appendChild(row);
+            }
+            body.appendChild(resultNote("Applying isolates and colours — it does not change the model.", ""));
+          });
+        })));
+
+        // CLASH-IMPORT — bring in clash results authored elsewhere (Navisworks and friends). Additive:
+        // it imports findings, it does not modify geometry.
+        const clashXml = document.createElement("input");
+        clashXml.type = "file"; clashXml.accept = ".xml"; clashXml.style.display = "none";
+        clashXml.onchange = async () => {
+          const f = clashXml.files?.[0];
+          if (!f) return;
+          await withLoading(container, "Importing clash XML", async () => {
+            try {
+              const res = await api.importClashXml(pid, f);
+              notify(`Imported ${res.imported ?? 0} clash result(s) from ${f.name}`, "success");
+              await refreshIssues();
+            } catch (e) { toast((e as Error).message, "error"); }
+          });
+          clashXml.value = "";        // so re-picking the same file fires change again
+        };
+        b.appendChild(clashXml);
+        b.appendChild(toolBtn2("📥 Import clash XML (from another tool)", () => clashXml.click()));
+
+        // ENVELOPE-R — assembly build-ups with R/U values. Each assembly carries its GUIDs, so the
+        // list selects; a thermal report you cannot point at in the model is a spreadsheet.
+        b.appendChild(toolBtn2("🧱 Envelope assemblies (R / U values)", () => withLoading(container, "Reading assemblies", async () => {
+          let r;
+          try { r = await api.modelAssemblyThermal(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          const list = r.assemblies || [];
+          out.textContent = `${list.length} assembly(ies)`;
+          showResult("Envelope assemblies", (body) => {
+            if (!list.length) { body.appendChild(resultNote("No layered assemblies found in this model.", "")); return; }
+            for (const a of list) {
+              const row = document.createElement("div");
+              row.className = "meta";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle)";
+              row.innerHTML = `<b>${escapeHtml(a.name || "unnamed")}</b> · ${a.element_count} element(s) · `
+                + `${a.thickness_m}m · R ${a.r_value} (${a.r_value_imperial} imp)`;
+              if (a.guids?.length) {
+                row.style.cursor = "pointer"; row.title = `Select ${a.guids.length} element(s)`;
+                row.onclick = async () => { await selectMap(await sets.fromGuids(a.guids.slice(0, 200))); };
+              }
+              body.appendChild(row);
+              if (a.layers?.length) {
+                body.appendChild(kvTable(a.layers.map((l) => ({
+                  k: `· ${escapeHtml(l.name)}`, v: `${l.thickness_m}m · R ${l.r_value}`,
+                }))));
+              }
+            }
+          });
+        })));
+
+        // SHARED-PARAMS — the project's shared parameter definitions. A standards convention the
+        // model is authored against, with no way to see what it actually is.
+        b.appendChild(toolBtn2("📐 Shared parameters (project standard)", () => withLoading(container, "Reading shared parameters", async () => {
+          let r;
+          try { r = await api.sharedParams(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${r.params.length} parameter(s)`;
+          showResult("Shared parameters", (body) => {
+            if (!r!.params.length) {
+              body.appendChild(resultNote("No shared parameters defined for this project.", ""));
+              return;
+            }
+            body.appendChild(resultNote(`<b>${r!.params.length}</b> of a maximum ${r!.max}.`, ""));
+            body.appendChild(kvTable(r!.params.map((x) => ({
+              k: `${escapeHtml(x.pset)}.${escapeHtml(x.name)}`,
+              v: `${escapeHtml(x.ptype)} · ${escapeHtml(x.applies_to)}${x.description ? " — " + escapeHtml(x.description) : ""}`,
+            }))));
+          });
+        })));
+
+        // WIP-PROGRESS — installed vs total. `available` is a real answer: without verified progress
+        // there is nothing to report, and rendering 0% would assert that nothing is installed.
+        b.appendChild(toolBtn2("📈 Model progress (installed vs total)", () => withLoading(container, "Reading progress", async () => {
+          let r;
+          try { r = await api.wipModelProgress(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          if (!r.available) {
+            out.textContent = "no progress data";
+            showResult("Model progress", (body) => body.appendChild(resultNote(
+              escapeHtml(r!.note || "No verified progress recorded yet.")
+              + " — that is not the same as 0% complete.", "")));
+            return;
+          }
+          out.textContent = `${r.percent_complete ?? r.percent_complete_count ?? 0}% complete`;
+          showResult("Model progress", (body) => {
+            body.appendChild(resultNote(`<b>${r!.installed_elements ?? 0}</b> of <b>${r!.total_elements ?? 0}</b> `
+              + `element(s) installed · <b>${r!.percent_complete_count ?? 0}%</b> by count`
+              + (r!.method ? ` · method: ${escapeHtml(r!.method)}` : ""), ""));
+            if (r!.quantity) {
+              body.appendChild(kvTable([
+                { k: "Quantity basis", v: escapeHtml(r!.quantity) },
+                { k: "Elements with quantity", v: String(r!.elements_with_quantity ?? 0) },
+                { k: "Installed / total", v: `${r!.installed_quantity ?? 0} / ${r!.total_quantity ?? 0}` },
+                { k: "Percent by quantity", v: `${r!.percent_complete_quantity ?? 0}%` },
+              ]));
+            }
+            if (r!.note) body.appendChild(resultNote(escapeHtml(r!.note), ""));
+          });
+        })));
+
+        // FEDERATION-LIST — the models registered SERVER-side, beside the existing upload. The
+        // viewer's own federation list shows what is loaded in this session; this shows what the
+        // project actually holds, which is a different question and the one an upload answers to.
+        b.appendChild(toolBtn2("🗃 Registered models (server-side federation)", () => withLoading(container, "Listing models", async () => {
+          let r;
+          try { r = await api.projectModels(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${r.length} registered model(s)`;
+          showResult("Registered models", (body) => {
+            if (!r!.length) {
+              body.appendChild(resultNote("No discipline models registered for this project yet.", ""));
+              return;
+            }
+            body.appendChild(kvTable(r!.map((m) => ({
+              k: escapeHtml(m.discipline || "(no discipline)"),
+              v: `${escapeHtml(m.id)}${m.created_at ? " · " + escapeHtml(m.created_at.slice(0, 10)) : ""}`,
+            }))));
+          });
+        })));
+
+        // FILL-MATRIX — property completeness by class, with the worst gaps named. The data-quality
+        // question every IDS / COBie handover turns on, computed and unreachable.
+        b.appendChild(toolBtn2("📊 Property fill matrix (completeness by class)", () => withLoading(container, "Measuring property fill", async () => {
+          let r;
+          try { r = await api.modelFillMatrix(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${r.class_count} class(es) · ${r.element_count} element(s)`;
+          showResult("Property fill matrix", (body) => {
+            body.appendChild(resultNote(`<b>${r!.element_count}</b> element(s) across <b>${r!.class_count}</b> class(es).`
+              + (r!.note ? ` ${escapeHtml(r!.note)}` : ""), ""));
+            if (r!.worst_gaps.length) {
+              // Worst gaps first: a fill matrix nobody can act on is a spreadsheet. The gaps are the
+              // actionable end of it.
+              body.appendChild(resultNote("<b>Worst gaps</b> — lowest fill rate first:", ""));
+              body.appendChild(kvTable(r!.worst_gaps.slice(0, 25).map((g) => ({
+                k: `${escapeHtml(g.ifc_class)} · ${escapeHtml(g.pset)}.${escapeHtml(g.prop)}`,
+                v: `${Math.round(g.fill_rate * 100)}% filled · ${g.blank} blank`,
+              }))));
+            } else {
+              body.appendChild(resultNote("No property gaps at the reporting threshold.", "ok"));
+            }
+          });
+        })));
+
+        // SPLIT-PLAN — how this model would federate by storey, and what is UNASSIGNED. The
+        // unassigned list is the point: an element in no storey is invisible to every storey filter.
+        b.appendChild(toolBtn2("🗂 Split plan (federation by storey)", () => withLoading(container, "Planning split", async () => {
+          let r;
+          try { r = await api.modelSplitPlan(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${Object.keys(r.counts).length} storey(s) · ${r.unassigned_count} unassigned`;
+          showResult("Split plan", (body) => {
+            body.appendChild(resultNote(r!.unassigned_count
+              ? `<b>${r!.unassigned_count}</b> element(s) belong to no storey — they are invisible to every storey filter.`
+              : "Every element is assigned to a storey.", r!.unassigned_count ? "" : "ok"));
+            body.appendChild(kvTable(Object.entries(r!.counts).map(([st, n]) => ({ k: escapeHtml(st), v: `${n} element(s)` }))));
+            if (r!.unassigned.length) {
+              const row = document.createElement("div");
+              row.className = "meta"; row.style.cssText = "margin-top:4px;cursor:pointer";
+              row.innerHTML = `<b>Select the ${r!.unassigned.length} unassigned</b>`;
+              row.onclick = async () => { await selectMap(await sets.fromGuids(r!.unassigned.slice(0, 200))); };
+              body.appendChild(row);
+            }
+            if (r!.note) body.appendChild(resultNote(escapeHtml(r!.note), ""));
+          });
+        })));
+
+        // CONNECTIONS — the authored connection graph plus its size. Two endpoints, one readout:
+        // the stats alone (nodes/edges) answer nothing a person asks, but they frame the list.
+        b.appendChild(toolBtn2("🧩 Connections (authored joins + graph size)", () => withLoading(container, "Reading connections", async () => {
+          let r, g;
+          try { [r, g] = await Promise.all([api.elementConnections(pid), api.modelGraphStats(pid)]); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = `${r.count} connection(s)`;
+          showResult("Connections", (body) => {
+            body.appendChild(resultNote(`<b>${r!.count}</b> authored connection(s) across `
+              + `<b>${r!.elements_connected}</b> element(s); busiest element has <b>${r!.max_degree}</b>. `
+              + `Model graph: ${g!.nodes} node(s), ${g!.edges} edge(s).`, ""));
+            if (Object.keys(g!.by_rel).length) {
+              body.appendChild(resultNote("<b>Relationships by kind</b>", ""));
+              body.appendChild(kvTable(Object.entries(g!.by_rel).map(([k, v]) => ({ k: escapeHtml(k), v: String(v) }))));
+            }
+            for (const c of r!.connections.slice(0, 50)) {
+              const row = document.createElement("div");
+              row.className = "meta";
+              row.style.cssText = "padding:2px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer";
+              row.innerHTML = `${escapeHtml(c.a_class)} ↔ ${escapeHtml(c.b_class)}`
+                + (c.description ? ` · ${escapeHtml(c.description)}` : "");
+              row.title = "Select both ends";
+              row.onclick = async () => { await selectMap(await sets.fromGuids([c.a, c.b])); };
+              body.appendChild(row);
+            }
+          });
+        })));
+
+        // INTEROP-RT — the round-trip verdict, which nothing could show. It serialises the model,
+        // re-parses it and compares GUID stability, class, name, containment, type and psets.
+        // **GUID stability is a project non-negotiable** and the whole edit-recipe architecture rests
+        // on it; this endpoint checks it and had no client caller, so the promise was unverifiable
+        // from the product. Distinct from `roundtripDiff`, which compares a file YOU bring back —
+        // this one asks whether OUR OWN export is lossless.
+        b.appendChild(toolBtn2("🔁 Round-trip fidelity (is our export lossless?)", () => withLoading(container, "Serialising and re-parsing", async () => {
+          let r;
+          try { r = await api.modelRoundtrip(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = r.fidelity_ok ? "round-trip clean" : `${r.counts.missing + r.counts.added + r.counts.changed} discrepancy(ies)`;
+          showResult("Round-trip fidelity", (body) => {
+            body.appendChild(resultNote(r!.fidelity_ok
+              ? `<b>Lossless</b> — all ${r!.element_count} elements survived serialise → re-parse with GUID, class, name, containment, type and psets intact.`
+              : `<b>Not lossless</b> — ${r!.counts.missing} missing · ${r!.counts.added} added · ${r!.counts.changed} changed, of ${r!.element_count} elements.`,
+              r!.fidelity_ok ? "ok" : "bad"));
+            // MISSING is the one that matters most: an element that does not survive our own export
+            // is data loss, and GUID stability is what every recipe and every pin depends on.
+            for (const [label, guids] of [["Missing after round-trip", r!.missing], ["Appeared after round-trip", r!.added]] as const) {
+              if (!guids.length) continue;
+              const row = document.createElement("div");
+              row.className = "meta"; row.style.cssText = "margin-top:4px;cursor:pointer";
+              row.innerHTML = `<b>${label}</b>: ${guids.length}`;
+              row.title = "Select these elements";
+              row.onclick = async () => { await selectMap(await sets.fromGuids(guids.slice(0, 200))); };
+              body.appendChild(row);
+            }
+            if (r!.changed.length) {
+              body.appendChild(resultNote("<b>Changed</b> — survived, but an aspect differs:", ""));
+              body.appendChild(kvTable(r!.changed.slice(0, 50).map((c) => ({
+                k: escapeHtml(c.class), v: escapeHtml(c.aspects.join(", ")),
+              }))));
+            }
+          });
+        })));
+
+        // AUTH-CONSTRAINTS — the model's OWN constraint graph: broken RelVoids/RelFills hosts,
+        // dangling fills, storey-containment disagreements. Errors and warnings on the model's
+        // internal consistency, with no way to see them until now.
+        b.appendChild(toolBtn2("🔗 Constraint graph (hosts, fills, containment)", () => withLoading(container, "Validating constraint graph", async () => {
+          let r;
+          try { r = await api.modelConstraints(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = r.issue_count ? `${r.errors} error(s) · ${r.warnings} warning(s)` : "constraint graph clean";
+          showResult("Constraint graph", (body) => {
+            body.appendChild(resultNote(r!.issue_count
+              ? `<b>${r!.errors}</b> error(s) · <b>${r!.warnings}</b> warning(s) across `
+                + `${r!.checked.openings} opening(s), ${r!.checked.elements_level_checked} element(s), ${r!.checked.storeys} storey(s).`
+              : `No broken hosts, dangling fills or containment disagreements — `
+                + `${r!.checked.openings} opening(s) and ${r!.checked.storeys} storey(s) checked.`,
+              r!.errors ? "bad" : r!.warnings ? "" : "ok"));
+            // The note carries what was SKIPPED as unmeasurable. Dropping it would turn "we could not
+            // check these" into "these are fine", which is the difference the route is careful about.
+            if (r!.note) body.appendChild(resultNote(escapeHtml(r!.note), ""));
+            for (const i of r!.issues.slice(0, 100)) {
+              const row = document.createElement("div");
+              row.className = "meta";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle);cursor:pointer";
+              row.innerHTML = `${i.severity === "error" ? "🔴" : "🟡"} <b>${escapeHtml(i.name || i.guid)}</b> `
+                + `· ${escapeHtml(i.ifc_class)} — ${escapeHtml(i.detail)}`;
+              row.title = "Select this element";
+              row.onclick = () => { void selectByGuid(i.guid, true); };
+              body.appendChild(row);
+            }
+          });
+        })));
+        // SOURCES-1 — what governs the selected element. `elementSources` had no client caller, so
+        // the answer to "why is this wall like this?" existed server-side and nowhere else.
+        b.appendChild(toolBtn2("🔎 Element sources (what governs this?)", () => withLoading(container, "Reading provenance", async () => {
+          const guid = selectedGuid();
+          if (!guid) { toast("Select an element first", "info"); return; }
+          let r;
+          try { r = await api.elementSources(pid, guid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          // `found: false` is a real answer and not an empty one. Rendering blank sections for an
+          // element the graph has never heard of reads as "nothing governs this", which is a
+          // different claim from "this element is not in the document graph".
+          if (!r.found) {
+            out.textContent = "no provenance";
+            showResult("Element sources", (body) => body.appendChild(resultNote(
+              "This element is not in the document graph — no spec sections, documents or "
+              + "container are recorded for it. That is not the same as nothing governing it.", "")));
+            return;
+          }
+          out.textContent = `${r.citations.length} citation(s)`;
+          showResult("Element sources", (body) => {
+            body.appendChild(resultNote(`<b>${escapeHtml(r!.name || guid)}</b>`
+              + (r!.class ? ` · ${escapeHtml(r!.class)}` : ""), ""));
+            const specs = r!.spec_sections || [];
+            const docs = r!.documents || [];
+            if (specs.length) {
+              body.appendChild(resultNote("<b>Governing spec sections</b>", ""));
+              body.appendChild(kvTable(specs.map((x) => ({
+                k: `${x.system ? escapeHtml(x.system) + " " : ""}${escapeHtml(x.code)}`, v: escapeHtml(x.title),
+              }))));
+            }
+            if (docs.length) {
+              body.appendChild(resultNote("<b>Attached documents</b>", ""));
+              body.appendChild(kvTable(docs.map((x) => ({ k: escapeHtml(x.name), v: x.sheet ? `sheet ${escapeHtml(x.sheet)}` : "" }))));
+            }
+            if (r!.container) {
+              const c = r!.container;
+              const row = document.createElement("div");
+              row.className = "meta"; row.style.cssText = "margin-top:4px";
+              row.innerHTML = `Container: <b>${escapeHtml(c.name || c.guid || "—")}</b> · ${escapeHtml(c.class)}`;
+              // Only offer the jump when there is somewhere to jump to.
+              if (c.guid) {
+                row.style.cursor = "pointer"; row.title = "Select the container";
+                row.onclick = () => { void selectByGuid(c.guid!, true); };
+              }
+              body.appendChild(row);
+            }
+            if (!specs.length && !docs.length && !r!.container) {
+              body.appendChild(resultNote("In the graph, but nothing cites it yet.", ""));
+            }
+          });
+        })));
+        // GEOREF-1 — the survey basis, which nothing could show. `georef.py` reports a BSI LoGeoRef
+        // level (0/10/20/40/50) "so a coordinator can see at a glance how well-georeferenced a model
+        // is", and it had no client caller: the project non-negotiable is to preserve real
+        // coordinates for export, and there was no way to find out whether they were there.
+        b.appendChild(toolBtn2("🌍 Georeferencing (survey basis / LoGeoRef)", () => withLoading(container, "Reading survey basis", async () => {
+          let r;
+          try { r = await api.modelGeoreferencing(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = r.level_label;
+          showResult("Georeferencing", (body) => {
+            // The level IS the verdict — a bare "georeferenced: true" hides the difference between an
+            // elevation-only model and a projected CRS, and those export very differently.
+            body.appendChild(resultNote(
+              `<b>${escapeHtml(r!.level_label)}</b>${r!.note ? " — " + escapeHtml(r!.note) : ""}`,
+              r!.level >= 40 ? "ok" : r!.level === 0 ? "bad" : ""));
+            const rows: { k: string; v: string }[] = [];
+            const mc = r!.map_conversion, crs = r!.crs, site = r!.site;
+            // Every field is rendered as "not set" rather than omitted when absent. An absent row and
+            // a zero row look identical once one is missing, and eastings of 0 is a real value.
+            const num = (v: number | null | undefined) => (typeof v === "number" ? String(v) : "not set");
+            if (mc) {
+              rows.push({ k: "Eastings", v: num(mc.eastings) }, { k: "Northings", v: num(mc.northings) },
+                { k: "Orthogonal height", v: num(mc.orthogonal_height) },
+                { k: "True north bearing", v: mc.true_north_bearing_deg == null ? "not set" : `${mc.true_north_bearing_deg}°` },
+                { k: "Scale", v: num(mc.scale) });
+            }
+            if (crs) {
+              rows.push({ k: "CRS", v: crs.name || "not set" }, { k: "Geodetic datum", v: crs.geodetic_datum || "not set" },
+                { k: "Vertical datum", v: crs.vertical_datum || "not set" },
+                { k: "Map projection", v: crs.map_projection || "not set" }, { k: "Map zone", v: crs.map_zone || "not set" });
+            }
+            if (site) {
+              const dms = (v: number[] | null) => (Array.isArray(v) && v.length ? v.join("° ") : "not set");
+              rows.push({ k: "Site latitude", v: dms(site.ref_latitude) }, { k: "Site longitude", v: dms(site.ref_longitude) },
+                { k: "Site elevation", v: num(site.ref_elevation) });
+            }
+            if (!rows.length) {
+              body.appendChild(resultNote("No IfcMapConversion, projected CRS or IfcSite reference — "
+                + "the model carries no survey basis at all.", "bad"));
+              return;
+            }
+            body.appendChild(kvTable(rows));
+          });
+        })));
+        // WARN-1 — the punch list BEHIND the health badge. `modelHealth` above scores the model and
+        // says "warn"; until now nothing could answer "warn about what, and where?". The feed's own
+        // words: "Where the model-CI badge says pass/warn/fail, this is the actionable list behind
+        // it." It shipped with no client caller at all.
+        b.appendChild(toolBtn2("⚠ Warnings (the punch list behind the score)", () => withLoading(container, "Collecting warnings", async () => {
+          let r;
+          try { r = await api.modelWarnings(pid); }
+          catch (e) { toast((e as Error).message, "error"); return; }
+          out.textContent = r.clean ? "no warnings" : `${r.total} warning(s)`;
+          const sev: Record<string, string> = { fail: "🔴", warn: "🟡", info: "⚪" };
+          showResult("Model warnings", (body) => {
+            body.appendChild(resultNote(r!.clean
+              ? "No hygiene or conformance defects found."
+              : `<b>${r!.by_severity.fail}</b> fail · <b>${r!.by_severity.warn}</b> warn · `
+                + `<b>${r!.by_severity.info}</b> info — worst first.`, r!.clean ? "ok" : r!.by_severity.fail ? "bad" : ""));
+            for (const w of r!.warnings) {
+              const guids = guidsFromSample(w.sample);
+              const row = document.createElement("div");
+              row.className = "meta";
+              row.style.cssText = "padding:3px 0;border-bottom:1px solid var(--border-subtle)";
+              row.innerHTML = `${sev[w.severity] || "⚪"} <b>${escapeHtml(w.label)}</b> · ${w.count}`
+                + (w.note ? ` <span class="meta">${escapeHtml(w.note)}</span>` : "");
+              // Only rows that CAN be zoomed to get the affordance. `overlapping_duplicates` groups
+              // are keyed by class+location and carry no GUID, so a blanket click handler there would
+              // be a control that does nothing — the silent-failure shape, in a panel about defects.
+              if (guids.length) {
+                row.style.cursor = "pointer";
+                row.title = `Select ${guids.length} offending element(s)`;
+                // `sets.fromGuids` is async. The first version of this line cast the Promise away
+                // with `as never` to satisfy tsc — which is how a type error becomes a runtime one.
+                row.onclick = async () => { await selectMap(await sets.fromGuids(guids.slice(0, 200))); };
+              } else {
+                row.title = "This check identifies groups by location, not by element — nothing to select";
+              }
+              body.appendChild(row);
+            }
           });
         })));
         b.appendChild(toolBtn2("🩺 Model Health (all checks, one score)", () => withLoading(container, "Scoring model health", async () => {
@@ -493,8 +938,8 @@ export function buildQaSection(d: QaDeps): void {
           });
         })));
         b.appendChild(toolBtn2("🕸 Related elements (model graph)", () => withLoading(container, "Building model graph", async () => {
-          if (!selectedGuid) { notify("select an element in 3D first", "error"); return; }
-          const guid = selectedGuid;
+          const guid = selectedGuid();
+          if (!guid) { notify("select an element in 3D first", "error"); return; }
           let r;
           try { r = await api.graphNeighbors(pid, guid, 2); }
           catch { toast("Needs a source IFC", "error"); return; }
@@ -547,11 +992,12 @@ export function buildQaSection(d: QaDeps): void {
             const drawSel = () => { layerSel.innerHTML = ""; stack.forEach((L, i) => { const o = document.createElement("option"); o.value = String(i); o.textContent = L.name; layerSel.appendChild(o); }); };
             const addOv = document.createElement("button"); addOv.className = "mini-btn"; addOv.textContent = "＋ override (selected element)";
             addOv.onclick = () => {
-              if (!selectedGuid) { notify("select an element in 3D first", "error"); return; }
+              const g = selectedGuid();
+              if (!g) { notify("select an element in 3D first", "error"); return; }
               if (!psetI.value.trim() || !propI.value.trim() || !stack.length) { notify("need a layer + Pset + Prop", "error"); return; }
               const L = stack[Number(layerSel.value) || 0]; if (!L) { notify("add a layer first", "error"); return; }
-              L.overrides.push({ guid: selectedGuid, pset: psetI.value.trim(), prop: propI.value.trim(), value: valI.value });
-              propI.value = ""; valI.value = ""; draw(); status.textContent = `added override on ${selectedGuid.slice(0, 8)}… to “${L.name}”`;
+              L.overrides.push({ guid: g, pset: psetI.value.trim(), prop: propI.value.trim(), value: valI.value });
+              propI.value = ""; valI.value = ""; draw(); status.textContent = `added override on ${g.slice(0, 8)}… to “${L.name}”`;
             };
             addL.onclick = async () => { const n = await askText("New layer", { label: "Layer name (e.g. Fire coordination):", value: "" }); if (!n) return; stack.push({ name: n, enabled: true, overrides: [] }); draw(); drawSel(); };
             drawSel();
