@@ -327,9 +327,9 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R42-SESSION-MODEL · R42-UNDO |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R42-COMMIT-DELTA |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
@@ -2398,6 +2398,86 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
 **Parked from the same audit:** brotli — the build already emits `.br` siblings and the stock
 nginx image cannot serve them; switching base images is a dependency decision for the user.
 Web-vitals telemetry via a third-party package — same reason, new dependency.
+
+## 🏗 R42 — INCREMENTAL COMMIT RING *(measured 2026-08-08)*
+
+**The premise this ring corrects.** The obvious reading of the authoring pipeline — and the one I
+reached first, from the route code alone — is *"every edit rewrites the whole IFC and reconverts the
+whole model, so incremental geometry needs building."* **That is wrong, and the wrong half is the
+expensive half to have believed.** Incremental geometry already exists and already ships:
+
+* `POST /projects/{pid}/edit-preview` authors the element into a **one-element IFC** and converts
+  just that (`services/api/src/aec_api/routers/authoring.py`, `services/data/src/aec_data/preview.py`)
+* the viewer already holds **N fragment models keyed by id** — `loader.loadFragments(buffer, modelId)`
+  and `disposeModel(id)` in `apps/web/src/viewer/loader.ts`, used today by the preview path, by
+  drag-and-drop `.frag` open, and by reference models
+* A29-LOCAL-PREVIEW already shows that geometry within ~2s, under an amber "not yet on the record"
+  marker
+
+So the pieces are built, wired, and in production. **What is missing is that the authoritative path
+does not use them.** `authorAndReload` commits with `editIfc(..., publish=true)`, waits for a full
+reconvert, then calls `loadProjectModel()` — which `disposeAll()`s and reloads everything, throwing
+away the correct geometry it was already displaying and re-deriving it as part of the whole model.
+
+**Measured on a 1,000-element model** (`Riverside School — structural`, dev API, same machine, same
+converter, back to back):
+
+| path | time | output |
+|---|---|---|
+| `edit-preview` — one element → `.frag` | **1.70 s** | 1,436 bytes |
+| full republish — whole model | **37.39 s** | everything |
+
+**22×, and the 1.7 s result is discarded.** 1,000 elements is a small building; the ratio widens with
+the model, so the workflow degrades exactly as a project becomes worth working on. This is a
+*number*, not an impression, and it should be re-measured rather than quoted after any converter
+change — [[an-audit-must-state-its-configuration]].
+
+### The ring
+
+- **R42-COMMIT-DELTA** *(M — Lane E + C)* — **promote the preview fragment instead of discarding it.**
+On a successful recipe the element has already been authored and converted; keep that fragment as an
+authoritative delta model, drop the amber marker, and **defer** the full reconvert (idle, batched, or
+an explicit "consolidate"). The client already holds base + N models and can drop one by id, so no
+loader work is needed.
+
+*The two hazards, both about the same thing — an element existing twice:*
+1. deltas must be disposed **only after** the new base has loaded, never before, or the element
+   blinks out; and the consolidate must be atomic from the client's point of view.
+2. the served **property index is rebuilt whole** (`properties_index.build_index`), so a delta's
+   element is in the scene before it is in the index — every reader keyed by GUID (selection, LOD,
+   QTO, pins) would miss it. Either the index gains a per-element append, or a delta element is
+   marked *provisional* and readers say so. **Silently missing from the index is the failure mode
+   this codebase keeps finding; it must be visible, not merely small.**
+
+- **R42-SESSION-MODEL** *(M — Lane C)* — **stop re-reading the IFC per edit.** `apply_recipe` opens the
+source from disk, applies, and writes a whole new file every time; on a 50 MB model that is seconds
+of pure I/O per wall, before any conversion. A per-project opened model held across edits removes
+both. `pid_lock.mutating(pid)` already scopes exactly the critical section this needs, so the
+concurrency design is done — what is new is server-side session state, which is why this is its own
+item and not folded into the one above.
+
+- **R42-UNDO** *(M — Lane C)* — **there is no undo.** Checked, not assumed: no inverse, no command
+stack, nothing in the 96 recipes that reverses one. Versioned IFC gives "revert to version N", which
+is not the same thing and is not what anyone reaches for after placing a wall wrong. The version
+chain is the cheap way in — an undo is a diff against the previous version — but it has to be
+designed alongside R42-COMMIT-DELTA, because undoing an edit whose geometry is a delta model means
+dropping that model, and undoing one that has been consolidated does not.
+
+### Deliberately NOT in this ring
+
+* **Editing verbs** (align, mirror, trim/extend, offset, multi-select edit, working planes). The 96
+  recipes are overwhelmingly `add_*`. Real, wanted, and cheaper once an edit is fast and reversible.
+* **Constraints that survive an edit** — moving a wall does not re-solve its joins, its hosted
+  openings or its dependents. Worth noting that this is *why* LOD-ASPECTS found Parametric Behavior
+  unreadable from the model: it is unreadable partly because it is not yet there.
+* **Sheets as data** — already 📐 R27, and the other half of "authoring tool" vs "modeller".
+
+**Sequence: R42-COMMIT-DELTA, then R42-SESSION-MODEL, then R42-UNDO.** The first is the one that
+changes what the product *is*; the second removes the remaining per-edit constant; the third is table
+stakes that gets cheaper once the first two define what an edit is. Everything under "NOT in this
+ring" is additive at any later point and all of it is cheaper afterwards.
+
+---
 
 ## ✏️ R29 — AUTHORING-FEEL RING *(research 2026-07-29: pascalorg/editor + 4 comparators)*
 
