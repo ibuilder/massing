@@ -7,6 +7,7 @@ import { kvTable, resultNote, showResult } from "../../ui/result";
 import { guidsFromSample } from "../warningSample";
 import { sharedParamsButton } from "./sharedParamsPanel";
 import { projectModelsButton } from "./projectModelsPanel";
+import { modelReviewButton } from "./modelReviewPanel";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { LayerManager } from "../../tools/layers";
 import { ModelLoader } from "../loader";
@@ -245,6 +246,11 @@ export function buildQaSection(d: QaDeps): void {
         // Registered models live in their own module: the remove flow is destructive and its
         // confirmation has to predict whether federated clash survives, which is real logic.
         b.appendChild(projectModelsButton({ api, pid, out, container, toolBtn2 }));
+
+        // MODEL REVIEW — the publish history's review gate. Its own module for the same reason as
+        // the two above: `approve` is a TERMINAL transition, so the confirmation has to say so, and
+        // the client type first had to stop discarding the four review keys the server already sent.
+        b.appendChild(modelReviewButton({ api, pid, out, container, toolBtn2 }));
 
         // FILL-MATRIX — property completeness by class, with the worst gaps named. The data-quality
         // question every IDS / COBie handover turns on, computed and unreachable.
