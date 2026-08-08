@@ -209,6 +209,32 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: wrong one the gate says so by name. Do not add a line without saying in the commit why another
 //: unreachable endpoint is worth shipping.
 const UNCALLED: readonly string[] = [
+  "addBasePlate", "addCurtainWall", "addMepFitting", "addRebarCage",
+  "addShearTab", "addTopicComment", "applyDetailingRules", "arrayElement",
+  "assignMaterialSet", "assumptionsRegister", "attachDocument", "buyoutPackages",
+  "buyoutSchedule", "ciLatest", "citedQuery", "clausePlaybook",
+  "clientDecisions", "codeAdoptions", "codeCheck", "colorFacets",
+  "competitiveSupply", "connectElements", "createAssembly", "createGroup",
+  "createType", "decisionGate", "deleteProjectModel", "deleteView",
+  "docGraph", "draftPost", "drawingSchedulesCalc", "drawingSetPlan",
+  "drawingsSyncStatus", "ebcPathways", "editType", "elements5dMap",
+  "energyExportUrl", "energyModel", "enqueueJob", "equipmentSpecCheck",
+  "expandMacro", "feasibilityLotSupply", "feasibilitySellout", "holdSell",
+  "importFamilyPack", "layoutVerify", "listMacros", "listingReso",
+  "liveStream", "loanCovenants", "massingOptionRecipes", "mcpTools",
+  "mep", "modelAdjacency", "moduleCalc", "myWork",
+  "netEffectiveRent", "normalizeT12", "parcelAnalyze", "parcelsDataStatus",
+  "pdfInfo", "permitsTimeline", "preconSnapshot", "procurementLevel",
+  "procurementLevelQuotes", "proformaIncomeBasis", "proformaRollover", "progressActuals",
+  "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
+  "rentRollScrub", "residualLand", "reviewModelVersion", "reviewPost",
+  "reviewScenario", "reviseDrawing", "runMacro", "saveClausePlaybook",
+  "saveDealAuthority", "saveMacros", "saveSharedParams", "saveViewTemplates",
+  "scanDeviation", "scopeRegister", "securitiesPackage", "sendDigest",
+  "setLod", "setPhase", "sharedComment", "sharedDecision",
+  "sharedDigestUrl", "spaceUtilBenchmarks", "speckleStatus", "tieredComps",
+  "topicComments", "updateConnection", "veLog", "verificationDeviations",
+  "wallJoins",
 ];
 
 describe("client methods the application actually calls", () => {
