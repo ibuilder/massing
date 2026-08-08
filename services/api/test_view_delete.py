@@ -111,5 +111,31 @@ with TestClient(app) as c:
     check("...and it survives", any(v.get("id") == elsewhere for v in views_of("alice", other)),
           f"other-project views: {[v.get('id') for v in views_of('alice', other)]}")
 
+    # ---- MODULE scope: the half that was missed when the project half was fixed ----------------
+    # The `pid` check above was added by copying `mark_view_seen`, which does not check `key`
+    # either — so the copy inherited the gap. Both segments of the path address the row; only one
+    # of them was verified. Same user and same project, so nothing crosses a privilege boundary:
+    # this asserts that the module segment MEANS something rather than being decorative.
+    other_mod = make("in rfi", "alice")
+    r = c.delete(f"/projects/{pid}/modules/submittal/views/{other_mod}", headers={"X-User": "alice"})
+    check("a view saved under one module is not deleted through ANOTHER module's path",
+          r.json().get("deleted") is False,
+          f"{r.text} — owner and project both match, so only the module check can refuse this")
+    check("...and it is still listed under its own module",
+          any(v.get("id") == other_mod for v in views_of("alice")),
+          f"{MOD} views: {[v.get('id') for v in views_of('alice')]}")
+
+    # The sibling route had the same gap, and fixing one without the other is how two routes that
+    # are meant to agree start disagreeing. `seen` clears a saved-search alert count, so a
+    # cross-module hit silently marks the WRONG view as read.
+    s = c.post(f"/projects/{pid}/modules/costitem/views/{other_mod}/seen", headers={"X-User": "alice"})
+    check("mark_view_seen refuses a view from another module too", s.status_code == 404,
+          f"{s.status_code} {s.text}")
+    s = c.post(f"/projects/{pid}/modules/{MOD}/views/{other_mod}/seen", headers={"X-User": "alice"})
+    # PAIRED WITH ITS TWIN. A 404-only assertion passes just as well on a route that 404s for
+    # everything, which is the failure mode a refusal test cannot see on its own.
+    check("...and still accepts it through its own module", s.status_code == 200,
+          f"{s.status_code} {s.text}")
+
 print(f"\ntest_view_delete {'OK' if not failures else 'FAILED: ' + ', '.join(failures)}")
 sys.exit(1 if failures else 0)

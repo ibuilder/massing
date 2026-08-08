@@ -442,7 +442,7 @@ def mark_view_seen(pid: str, key: str, vid: str, db: Session = Depends(get_db),
 
     from ..models import SavedView
     v = db.get(SavedView, vid)
-    if not v or v.user != user or v.project_id != pid:
+    if not v or v.user != user or v.project_id != pid or v.module != key:
         raise HTTPException(404, "view not found")
     v.last_seen_at = datetime.now(timezone.utc)
     db.commit()
@@ -459,13 +459,23 @@ def delete_view(pid: str, key: str, vid: str, db: Session = Depends(get_db),
     told "deleted: true" and the view stayed, which is the worst kind of answer: confidently wrong,
     and it trains a UI to stop re-reading. Nothing asserted it because no test covered this route.
 
-    Also now scopes to `pid`, which the sibling `mark_view_seen` always did. Not-mine and
-    doesn't-exist both return `deleted: false` rather than different statuses — distinguishing them
-    would confirm the existence of another user's view id to someone who cannot read it.
+    Not-mine and doesn't-exist both return `deleted: false` rather than different statuses —
+    distinguishing them would confirm the existence of another user's view id to someone who cannot
+    read it.
+
+    SCOPED TO `pid` AND `key`, AND THE SECOND HALF WAS MISSED THE FIRST TIME. The `pid` check landed
+    on its own, copied from `mark_view_seen` — which does not check `key` either, so copying it
+    inherited the same gap. Both segments of the path addressed the row and only one of them was
+    verified: a view saved under `rfi` really was deletable through `/modules/submittal/views/{vid}`,
+    and `mark_view_seen` really would clear the alert on a view belonging to another module.
+
+    Same user, same project, so nothing crosses a privilege boundary — this is a correctness fix, not
+    a second security one. What it costs is smaller and duller: the module segment of the URL meant
+    nothing, so any id typo that happened to name a real view of yours resolved instead of 404ing.
     """
     from ..models import SavedView
     v = db.get(SavedView, vid)
-    deleted = bool(v and v.user == user and v.project_id == pid)
+    deleted = bool(v and v.user == user and v.project_id == pid and v.module == key)
     if deleted:
         db.delete(v)
         db.commit()
