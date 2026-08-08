@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from .. import audit, contracts, esign, esign_bridge, scope_library
 from .. import modules as me
 from ..db import get_db
-from ..rbac import current_user, require_role
+from ..rbac import authorize_pid, current_user, require_role
 from ..throttle import rate_limited
 
 router = APIRouter()
@@ -106,7 +106,16 @@ def contract_document(pid: str, key: str, rid: str, doc: str = "agreement",
         raise HTTPException(400, str(e))
     except HTTPException:
         raise
+    # ATTACH IS A WRITE, AND THE ROUTE IS GATED AT `viewer`. Rendering the document is a read and
+    # `viewer` is right for it; `attach=1` persists an attachment onto the record, which is not. A
+    # read-only user could add attachments to any contract they could see.
+    #
+    # Escalated at the point of use rather than by raising the whole route to `reviewer`, because
+    # that would take the download away from the viewers it is for. `authorize_pid` honours RBAC_ON
+    # exactly as `require_role` does, so this is the same gate reached from a different shape — not
+    # a second policy that can drift from the first.
     if attach:
+        authorize_pid(db, user, pid, "reviewer")
         me.add_attachment(db, key, pid, rid, f"{doc}-{rid}.pdf", "application/pdf", pdf, user)
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{doc}-{rid}.pdf"'})
@@ -135,7 +144,10 @@ def contract_exhibit_docx(pid: str, key: str, rid: str, clauses: str | None = No
         raise
     name = f"exhibit-a-{rid}.docx"
     mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    # Same escalation as document.pdf above - the two routes were the "copied the neighbour" pair,
+    # so they are fixed together rather than one now and one when somebody notices again.
     if attach:
+        authorize_pid(db, user, pid, "reviewer")
         me.add_attachment(db, key, pid, rid, name, mime, blob, user)
     return Response(blob, media_type=mime,
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})

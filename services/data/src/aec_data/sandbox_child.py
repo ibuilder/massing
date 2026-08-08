@@ -2,7 +2,7 @@
 
     python -m aec_data.sandbox_child <workdir>
 
-`<workdir>` holds `in.ifc` and `code.py`. On success this writes `out.ifc` and `result.json` and exits
+`<workdir>` holds `in.ifc` and `snippet.py`. On success this writes `out.ifc` and `result.json` and exits
 0; on failure it writes the reason to stderr and exits non-zero. Nothing else is read or written, and
 the process runs exactly one snippet before dying — a fresh interpreter per call is the cheapest way
 to guarantee a snippet cannot leave state behind for the next one.
@@ -85,9 +85,9 @@ def main(argv: list[str]) -> int:
         print("usage: python -m aec_data.sandbox_child <workdir>", file=sys.stderr)
         return 2
     work = pathlib.Path(argv[1])
-    src, code_path = work / "in.ifc", work / "code.py"
+    src, code_path = work / "in.ifc", work / "snippet.py"
     if not src.is_file() or not code_path.is_file():
-        print(f"workdir {work} must contain in.ifc and code.py", file=sys.stderr)
+        print(f"workdir {work} must contain in.ifc and snippet.py", file=sys.stderr)
         return 2
 
     limits = apply_limits()

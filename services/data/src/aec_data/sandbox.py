@@ -295,7 +295,13 @@ def _run_isolated(work: str, code: str) -> dict[str, Any]:
     """
     import subprocess  # noqa: PLC0415 — only the isolated path needs it
 
-    pathlib.Path(work, "code.py").write_text(code, encoding="utf-8")
+    # NAMED snippet.py, NOT code.py. The child runs `python -m` with `cwd=work`, which puts the
+    # workdir on sys.path[0] - so a file called code.py there SHADOWS THE STDLIB `code` MODULE for
+    # everything the child imports. Nothing in the current import chain (ifcopenshell, .api, .guid)
+    # pulls in `code`, `codeop` or `pdb`, so it was not exploitable - but it sat one unrelated
+    # transitive import away from letting a submitted snippet execute OUTSIDE the AST allowlist,
+    # as an import rather than as sandboxed code. The rename costs nothing and removes the class.
+    pathlib.Path(work, "snippet.py").write_text(code, encoding="utf-8")
 
     # The child must import `aec_data`. Derive the path from THIS module's location rather than
     # inheriting PYTHONPATH: the API process may have been started with a different one, and a child
