@@ -108,7 +108,7 @@ PER_FILE = {
     # not to raise - the same call the /finance extraction made earlier the same day. Re-tightened
     # to the new exact count rather than left at 1_373, because 13 lines of slack is 13 lines the
     # next addition spends without anyone deciding to.
-    "apps/web/src/viewer/tools/qaSection.ts": 1_360,
+    "apps/web/src/viewer/tools/qaSection.ts": 1_345,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.
