@@ -224,7 +224,7 @@ jobs:
       # manual runs don't make a release; keep the installers as downloadable artifacts
       - name: Upload bundles as artifacts (manual runs)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: aec-bim-${{ matrix.platform }}
           if-no-files-found: warn

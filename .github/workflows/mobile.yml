@@ -112,7 +112,7 @@ jobs:
           echo "APK: $APK ($SIZE bytes)"
           test "$SIZE" -gt 1000000 || { echo "::error::APK is only $SIZE bytes — payload missing"; exit 1; }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android-debug-apk
           path: apps/web/android/**/*-debug.apk
