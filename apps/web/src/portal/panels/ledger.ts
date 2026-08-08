@@ -224,7 +224,15 @@ async function renderFinanceGovernance(
     // different problems — netting them to one variance hides both.
     line.innerHTML = `<b>${c.matched}</b> matched · <b>${c.budget_only}</b> budget with no actual · `
       + `<b>${c.actuals_only}</b> actual with no budget · <b>${c.uncoded}</b> uncoded`
-      + (r.fully_reconciled ? " — fully reconciled" : "");
+      // "fully reconciled" is defined by the ABSENCE of two problem lists, not by anything having
+      // matched - fin_ingest.py returns `not actuals_only and not uncoded`. A project with no cost
+      // codes yields empty lists, so the flag is true and the line reads
+      //     0 matched - 0 budget with no actual - 0 actual with no budget - 0 uncoded - fully reconciled
+      // under a heading that says "Period close". A controller scans the verdict, not the zeros, and
+      // reads "the books tie out" where the truth is "there are no books".
+      + (!(c.matched + c.budget_only + c.actuals_only + c.uncoded)
+        ? " — no coded cost data to reconcile yet"
+        : r.fully_reconciled ? " — fully reconciled" : "");
     rec.appendChild(line);
     // Actuals with no budget and uncoded actuals are the two that cost money; show those, highest
     // value first (the server already sorts them that way).
