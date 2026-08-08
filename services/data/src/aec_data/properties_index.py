@@ -25,12 +25,64 @@ class ElementRecord:
     host: str | None = None   # IFC class of the aggregating parent (e.g. an IfcMember's IfcCurtainWall)
     psets: dict[str, dict[str, Any]] = field(default_factory=dict)
     qtos: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # --- GEOMETRY FACTS (LOD-ASPECTS) --------------------------------------------------------
+    # Not geometry — FACTS ABOUT it, small enough to belong in a metadata index. They exist
+    # because LOD is a claim about how far an element's geometry has been thought through, and
+    # until these landed the index carried nothing geometric at all, so `lod.achieved_lod` scored
+    # information completeness and reported the answer under a geometry name.
+    #
+    # `rep_types` is the discriminating one: IFC records how a shape is BUILT
+    # (`BoundingBox` / `SweptSolid` / `Brep` / `Clipping` / `Tessellation` / `MappedRepresentation`),
+    # and a box standing in for a pump is a different claim from a swept solid, which is a different
+    # claim from a clipped Brep. That is exactly the Detail axis, read from the file rather than
+    # guessed from how well the element is tagged.
+    rep_types: list[str] = field(default_factory=list)
+    rep_ids: list[str] = field(default_factory=list)      # Body / Axis / Box / FootPrint …
+    has_openings: bool = False                            # IfcRelVoidsElement — voids cut into it
+    has_material: bool = False
+    placed: bool = False                                  # carries an ObjectPlacement at all
+
+
+def _shape_facts(el) -> tuple[list[str], list[str], bool]:
+    """Representation types + identifiers, and whether anything is voided out of the element.
+
+    Wrapped in a broad except on purpose: this runs over every element of every uploaded file, and a
+    malformed representation on one element must not cost the whole index. An element whose shape
+    could not be read reports EMPTY lists, which downstream reads as *undecidable* rather than as
+    *simple* — failing toward "cannot tell" is the only safe direction for a number that goes into a
+    BIM execution plan.
+    """
+    types: list[str] = []
+    ids: list[str] = []
+    try:
+        rep = getattr(el, "Representation", None)
+        for r in (getattr(rep, "Representations", None) or []):
+            t = getattr(r, "RepresentationType", None)
+            i = getattr(r, "RepresentationIdentifier", None)
+            if t:
+                types.append(str(t))
+            if i:
+                ids.append(str(i))
+    except Exception:  # noqa: BLE001 — see docstring
+        pass
+    try:
+        voided = bool(getattr(el, "HasOpenings", None))
+    except Exception:  # noqa: BLE001
+        voided = False
+    return types, ids, voided
 
 
 def _element_record(el) -> ElementRecord:
     el_type = ue.get_type(el)
     parent = ue.get_aggregate(el)     # the decomposing parent (IfcRelAggregates), not the spatial container
+    rep_types, rep_ids, has_openings = _shape_facts(el)
+    try:
+        has_material = ue.get_material(el) is not None
+    except Exception:  # noqa: BLE001 — a broken material association is not an indexing failure
+        has_material = False
     return ElementRecord(
+        rep_types=rep_types, rep_ids=rep_ids, has_openings=has_openings,
+        has_material=has_material, placed=getattr(el, "ObjectPlacement", None) is not None,
         guid=el.GlobalId,
         ifc_class=el.is_a(),
         name=getattr(el, "Name", None),

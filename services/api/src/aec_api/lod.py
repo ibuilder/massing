@@ -1,11 +1,20 @@
 """LOD (Level of Development) — the target matrix + an achieved-LOD assessment of the loaded model.
 
 The target matrix is authored in the `lod_target` register (stage x discipline x element-category ->
-target LOD 100..500); when it is empty the RIBA/AIA stage defaults apply. Achieved LOD is *inferred*
-from LOIN facet completeness (geometry / type / classification / properties / quantities) — the same
-facets the openBIM quality scorecard scores — so LOD tracking rides on data the model already carries.
-LOD 500 (a verified as-built condition) cannot be inferred from the model alone, so inference caps at
-LOD 400; reaching 500 is an explicit handover/turnover assertion, not a model read.
+target LOD 100..500); when it is empty the RIBA/AIA stage defaults apply.
+
+Achieved LOD is read from the element's **geometry**, along the five ISO 7817-1 aspects — detail,
+dimensionality, location, appearance, parametric behavior. A band requires ALL of them, so the
+result is a minimum and never an average. Where an aspect cannot be read from the served index it
+widens the CEILING rather than lowering the band, and the assessment reports both: the gap between
+them is unread model, not missing model.
+
+Until v0.3.901 this scored LOIN facet completeness instead and reported the answer as a geometry
+band — a well-tagged bounding box came out at LOD 350. That reading survives under its own name
+(`information_score`), because it was a useful measurement wearing the wrong label.
+
+LOD 500 (a field-verified as-built condition) is never inferred: it is read from the verification
+stamp, and an element measured outside tolerance is a finding rather than a handover.
 """
 from __future__ import annotations
 
@@ -18,7 +27,11 @@ from . import modules as me
 from .openbim_quality import LOIN_FACETS, _facets
 
 LOD_BANDS = ["LOD 100", "LOD 200", "LOD 300", "LOD 350", "LOD 400", "LOD 500"]
-_FACETS_TO_LOD = {0: "LOD 100", 1: "LOD 100", 2: "LOD 200", 3: "LOD 300", 4: "LOD 350", 5: "LOD 400"}
+#: DELETED in v0.3.901, and named here rather than silently dropped because it is the defect:
+#: `_FACETS_TO_LOD = {0: "LOD 100", ..., 4: "LOD 350", 5: "LOD 400"}` turned a count of LOIN facets
+#: into a geometry band. A well-tagged bounding box scored LOD 350 by it. Nothing maps a count to a
+#: band any more — see `aspects()`. Left as a comment so a future reader searching for the old
+#: behaviour finds why it went rather than an absence.
 _LOD_RANK = {b: i for i, b in enumerate(LOD_BANDS)}
 
 # RIBA / AIA stage progression used when the register carries no explicit targets.
@@ -88,8 +101,109 @@ def verification(e: dict) -> dict[str, Any]:
     }
 
 
+# --- LOD-ASPECTS ------------------------------------------------------------------------------
+# LOD is a claim about GEOMETRY. Until v0.3.901 this module inferred it from LOIN facet
+# completeness - geometry / type / classification / properties / quantities - and nothing on that
+# path looked at a shape. Measured before the fix: a generic IfcWall box carrying a classification,
+# a Pset and a Qto scored **LOD 350**; strip the property and quantity sets, changing not one
+# vertex, and the same box scored **LOD 200**. Two bands on tagging alone, on a number that goes
+# into contracts and BIM execution plans. (`_facets` also returns `geometry: True` unconditionally,
+# so one of its five was a constant.)
+#
+# The 2025 LOD Specification states each band against **ISO 7817-1 Part 1** aspects - Detail,
+# Dimensionality, Location, Appearance, Parametric Behavior - and is explicit that requirements are
+# minimums, are cumulative, and must ALL be met: an accurately detailed element located
+# approximately "can be no higher than LOD 200". So a band is the MINIMUM across the aspects, never
+# an average and never a count.
+#
+# WHAT THIS DELIBERATELY DOES NOT DO. It does not encode a band-to-aspect-value table. The BIMForum
+# document is CC BY-NC-ND (Part I) / CC BY-NC (Part II) and cannot be reproduced or adapted here.
+# What is used is what is not BIMForum's to license: the aspect NAMES from ISO 7817-1 and the AIA
+# band numbers. Every threshold below is derived from IFC's own representation vocabulary.
+ASPECTS = ("detail", "dimensionality", "location", "appearance", "parametric_behavior")
+
+#: Representation types that can only stand for a placeholder, whatever else is true of the element.
+_PLACEHOLDER_REPS = {"BoundingBox", "Box", "Point", "Curve2D", "GeometricCurveSet", "Annotation2D"}
+#: Representation types that describe a resolved, buildable solid rather than a swept profile.
+_RESOLVED_REPS = {"Brep", "AdvancedBrep", "Clipping", "CSG", "Tessellation", "SurfaceModel"}
+#: Representation types that describe real 3D extent but not resolved detail.
+_SOLID_REPS = {"SweptSolid", "AdvancedSweptSolid", "MappedRepresentation", "SolidModel"}
+
+
+def _aspect(supported: str, cap: str | None, why: str) -> dict[str, Any]:
+    """One aspect's reading.
+
+    `supported` is what the evidence POSITIVELY demonstrates. `cap` is a limit the evidence PROVES —
+    `None` means "no evidence of a limit", which is emphatically not the same as "no limit".
+
+    Keeping those apart is the whole correction. The first draft of this module folded them into one
+    `supported` value and took the minimum across all five aspects; because Location and
+    Dimensionality accuracy are unreadable from the index, both sat at LOD 200 forever and **every
+    element in every model scored LOD 200**. A scorer that returns one answer is not a scorer. An
+    aspect nobody can read must not drag the floor down — it must widen the CEILING and say so.
+    """
+    return {"supported": supported, "cap": cap, "why": why, "decidable": cap is not None}
+
+
+def aspects(e: dict) -> dict[str, dict[str, Any]]:
+    """The five ISO 7817-1 aspects for one element.
+
+    The honest limit, stated once: the index carries how a shape is BUILT, not how ACCURATE it is.
+    Nothing here distinguishes an approximately-placed wall from a precisely-placed one — so Location
+    and Dimensionality report a cap only when the evidence PROVES one (no placement at all; extents
+    that are a box and nothing else) and otherwise decline to constrain the band.
+    """
+    reps = {str(t) for t in (e.get("rep_types") or [])}
+    unknown_shape = not reps
+
+    # DETAIL — the axis IFC answers directly, and the one that DRIVES the band. A bounding box is a
+    # placeholder; a swept solid conveys design intent; a Brep/Clipping/Tessellation is resolved.
+    if unknown_shape:
+        detail = _aspect("LOD 100", None, "no readable shape representation")
+    elif reps & _RESOLVED_REPS:
+        detail = _aspect("LOD 350", None,
+                         "resolved solid (" + ", ".join(sorted(reps & _RESOLVED_REPS)) + ")")
+    elif reps & _SOLID_REPS:
+        detail = _aspect("LOD 300", "LOD 350",
+                         "swept/mapped solid (" + ", ".join(sorted(reps & _SOLID_REPS)) + ")")
+    elif reps & _PLACEHOLDER_REPS:
+        # A box is a placeholder BY CONSTRUCTION — the one aspect decidable DOWNWARD with certainty,
+        # and what stops a well-tagged box claiming a coordination band.
+        detail = _aspect("LOD 200", "LOD 200",
+                         "placeholder representation (" + ", ".join(sorted(reps & _PLACEHOLDER_REPS)) + ")")
+    else:
+        detail = _aspect("LOD 200", None,
+                         "unrecognised representation type (" + ", ".join(sorted(reps)) + ")")
+
+    # DIMENSIONALITY — a box-only shape PROVES approximate extents. Anything else is unreadable.
+    if unknown_shape:
+        dim = _aspect("LOD 100", None, "no readable shape representation")
+    elif (reps & _PLACEHOLDER_REPS) and not (reps & (_SOLID_REPS | _RESOLVED_REPS)):
+        dim = _aspect("LOD 200", "LOD 200", "approximate extents only")
+    else:
+        dim = _aspect("LOD 300", None, "3D solid present; accuracy is not readable from the index")
+
+    # LOCATION — a MISSING placement proves a limit. A present one proves only presence.
+    if not e.get("placed"):
+        loc = _aspect("LOD 100", "LOD 100", "no object placement")
+    else:
+        loc = _aspect("LOD 300", None, "placed; accuracy is not readable from the index")
+
+    # APPEARANCE — a material association is evidence, never a cap: an element can be accurately
+    # represented and carry its material somewhere this index does not look.
+    app = (_aspect("LOD 300", None, "material associated") if e.get("has_material")
+           else _aspect("LOD 200", None, "no material association read"))
+
+    # PARAMETRIC BEHAVIOR — the aspect definitions expect none below LOD 400 unless a keynote
+    # defines it, so this aspect never constrains the lower bands. Reported, not scored.
+    par = _aspect("LOD 400", None, "not required below LOD 400 by the aspect definitions")
+
+    return {"detail": detail, "dimensionality": dim, "location": loc,
+            "appearance": app, "parametric_behavior": par}
+
+
 def achieved_lod(e: dict) -> str:
-    """Achieved LOD for one element.
+    """The band an element's evidence SUPPORTS - the minimum across the aspects, not a count.
 
     Reaches **LOD 500** only on a field-verified element, because that is what LOD 500 means; every
     other element caps at LOD 400 no matter how rich its geometry, since no amount of modelling can
@@ -99,8 +213,35 @@ def achieved_lod(e: dict) -> str:
     v = verification(e)
     if v["verified"] and v["within_tolerance"] is not False:
         return "LOD 500"
+    a = aspects(e)
+    # DETAIL sets the level; the other aspects can only PULL IT DOWN, and only when their evidence
+    # proves a cap. That is the spec's "requirements are minimums and must all be met" without
+    # inventing a limit out of an aspect nobody can read.
+    ranks = [_LOD_RANK[a["detail"]["supported"]]]
+    ranks += [_LOD_RANK[x["cap"]] for x in a.values() if x["cap"]]
+    return LOD_BANDS[min(ranks)]
+
+
+def lod_ceiling(e: dict) -> str:
+    """The highest band the evidence COULD support - equal to `achieved_lod` only when every aspect
+    is decidable. The gap between the two IS the unread part of the model, and reporting it is the
+    difference between "this is LOD 300" and "this is at least LOD 300 and we cannot see higher"."""
+    a = aspects(e)
+    caps = [_LOD_RANK[x["cap"]] for x in a.values() if x["cap"]]
+    # With no proven cap the ceiling is LOD 400 — the highest a model read can reach, since 500 is
+    # a field assertion. The GAP between this and `achieved_lod` is the unread part of the model.
+    return LOD_BANDS[min(caps) if caps else _LOD_RANK["LOD 400"]]
+
+
+def information_score(e: dict) -> int:
+    """LOIN facet completeness, 0-5 - what `achieved_lod` used to be computed from.
+
+    Kept and RENAMED rather than deleted: it is a real, useful reading of how completely an element
+    is described, and the defect was never the measurement, it was the label. Reported beside the
+    LOD band so the two cannot be confused again.
+    """
     fac = _facets(e)
-    return _FACETS_TO_LOD[sum(1 for f in LOIN_FACETS if fac[f])]
+    return sum(1 for f in LOIN_FACETS if fac[f])
 
 
 def assess(db: Session, pid: str, idx: dict[str, dict] | None) -> dict[str, Any]:
@@ -113,10 +254,29 @@ def assess(db: Session, pid: str, idx: dict[str, dict] | None) -> dict[str, Any]
                 "note": "No model loaded — showing the target matrix only. Load a model to assess "
                         "achieved LOD."}
     dist = dict.fromkeys(LOD_BANDS, 0)
+    ceil_dist = dict.fromkeys(LOD_BANDS, 0)
+    limiting = dict.fromkeys(ASPECTS, 0)
+    undecidable = 0
+    no_shape = 0
+    info_sum = 0
     by_disc: dict[str, dict[str, int]] = {}
     for e in idx.values():
         lod = achieved_lod(e)
         dist[lod] += 1
+        ceil_dist[lod_ceiling(e)] += 1
+        info_sum += information_score(e)
+        if not (e.get("rep_types") or []):
+            no_shape += 1
+        a = aspects(e)
+        # Which aspect PROVED the cap that decided the band. A distribution says a model is at
+        # LOD 200 without saying why, and "why" is the only part anyone can act on. Only aspects
+        # with a proven cap can be blamed — an unreadable one is reported separately, below.
+        band = _LOD_RANK[lod]
+        for akey, x in a.items():
+            if x["cap"] and _LOD_RANK[x["cap"]] == band:
+                limiting[akey] += 1
+        if any(x["cap"] is None for x in a.values()):
+            undecidable += 1
         code = classification.discipline_of_ifc_class(e.get("ifc_class") or "")
         name = classification.discipline_name(code) if code else None
         key = name or "Unclassified"
@@ -126,12 +286,31 @@ def assess(db: Session, pid: str, idx: dict[str, dict] | None) -> dict[str, Any]
     by_discipline = [{"discipline": name, "elements": d["count"],
                       "avg_lod": LOD_BANDS[round(d["rank_sum"] / d["count"])]}
                      for name, d in sorted(by_disc.items())]
+    n = len(idx)
     return {
-        "model_scored": True, "elements": len(idx), "distribution": dist,
+        "model_scored": True, "elements": n, "distribution": dist,
+        # The CEILING is the other half of an honest reading: `distribution` is what the model
+        # demonstrably reaches, this is what it could reach if the aspects the index cannot see
+        # turned out to be met. A wide gap means UNREAD, not under-modelled — a distinction the old
+        # single number could not express and therefore never made.
+        "ceiling_distribution": ceil_dist,
+        "limited_by": limiting,
+        "elements_with_an_undecidable_aspect": undecidable,
+        "elements_without_readable_geometry": no_shape,
+        # The OLD number, kept under its true name. It is a real reading of how completely elements
+        # are described; it was only ever wrong as a label for a geometry band.
+        "avg_information_score": round(info_sum / n, 2) if n else 0.0,
+        "information_score_max": len(LOIN_FACETS),
         "by_discipline": by_discipline, "targets": m["targets"], "default": m["default"],
         "using_default": m["using_default"],
-        "note": "Achieved LOD inferred from LOIN facet completeness, except LOD 500 which is read "
-                "from the element's field-verification stamp — no amount of modelling earns it.",
+        "note": "Achieved LOD is the MINIMUM across the five ISO 7817-1 aspects (detail, "
+                "dimensionality, location, appearance, parametric behavior) — a band requires ALL "
+                "of them, so this is never an average and never a facet count. "
+                "`ceiling_distribution` is how high the same elements could reach if the aspects "
+                "the index cannot read were met; the gap is unread model, not missing model. "
+                "LOD 500 is read from the field-verification stamp — no amount of modelling earns "
+                "it. `avg_information_score` is LOIN facet completeness, which this assessment "
+                "reported AS the LOD band until v0.3.901.",
     }
 
 

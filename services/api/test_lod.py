@@ -35,19 +35,33 @@ with TestClient(app) as c:
     a0 = c.get(f"/projects/{pid}/lod/assessment").json()
     assert a0["model_scored"] is False and a0["elements"] == 0, a0
 
-    # --- achieved-LOD inference from a synthetic index (engine unit) ------------------------------
+    # --- achieved-LOD from a synthetic index (engine unit) ---------------------------------------
+    # REWRITTEN in v0.3.901. This fixture used to vary only the INFORMATION on three identical
+    # geometries and assert the band moved 100 -> 350 -> 400, which is exactly the defect
+    # LOD-ASPECTS removed: LOD is a claim about geometry, so tagging must not move it. The elements
+    # now differ in their SHAPE, and the information payload is deliberately held constant on the
+    # two that differ, so the band can only be responding to the geometry.
+    tagged = {"type_name": "W1", "psets": {"Pset_WallCommon": {"a": 1}}, "qtos": {"Q": {"v": 1}}}
     idx = {
-        "g1": {"ifc_class": "IfcWall"},                                       # geometry only -> LOD 100
-        "g2": {"ifc_class": "IfcWall", "type_name": "W1",                     # 5 facets      -> LOD 400
-               "psets": {"Pset_WallCommon": {"a": 1}}, "qtos": {"Q": {"v": 1}}},
-        "g3": {"ifc_class": "IfcDuctSegment", "type_name": "D1",              # 4 facets      -> LOD 350
-               "psets": {"P": {"a": 1}}},
+        "g1": {"ifc_class": "IfcWall", "placed": True, **tagged},             # no readable shape -> 100
+        "g2": {"ifc_class": "IfcWall", "rep_types": ["BoundingBox"],          # placeholder       -> 200
+               "placed": True, **tagged},
+        "g3": {"ifc_class": "IfcDuctSegment", "rep_types": ["Brep"],          # resolved solid    -> 350
+               "placed": True, **tagged},
     }
     a = lod.assess(SessionLocal(), pid, idx)
     assert a["model_scored"] is True and a["elements"] == 3, a
     assert a["distribution"]["LOD 100"] == 1, a["distribution"]
-    assert a["distribution"]["LOD 400"] == 1, a["distribution"]
+    assert a["distribution"]["LOD 200"] == 1, a["distribution"]
     assert a["distribution"]["LOD 350"] == 1, a["distribution"]
+    # All three carry an identical information payload, so the OLD scorer would have put all three
+    # in one band. Three distinct bands is the proof that geometry is now what decides.
+    assert sum(1 for v in a["distribution"].values() if v) == 3, a["distribution"]
+    # The reading that used to BE the band still exists, under its own name.
+    assert a["avg_information_score"] == 5.0, a["avg_information_score"]
+    # The unread part of the model is reported rather than rounded into the band.
+    assert a["elements_without_readable_geometry"] == 1, a
+    assert a["ceiling_distribution"]["LOD 400"] >= 1, a["ceiling_distribution"]
     # per-discipline rollup keys elements by their IFC-class discipline
     assert sum(d["elements"] for d in a["by_discipline"]) == 3, a["by_discipline"]
     discs = {d["discipline"] for d in a["by_discipline"]}
@@ -62,5 +76,8 @@ with TestClient(app) as c:
     assert rep.status_code == 200 and rep.content[:4] == b"%PDF", rep.status_code
 
 print("LOD OK - empty register -> 5 stage defaults; authored target overrides; assessment w/o model = "
-      "targets only; achieved LOD inferred from LOIN facets (1 facet->100, 4->350, 5->400, capped at 400); "
-      "per-discipline rollup by IFC class (IfcDuctSegment->Mechanical); report PDF served")
+      "targets only; achieved LOD read from GEOMETRY along the five ISO 7817-1 aspects (no shape->100, "
+      "BoundingBox->200, Brep->350) with an IDENTICAL information payload on all three, so tagging "
+      "cannot move a band; the old facet reading kept as avg_information_score; unread geometry "
+      "reported rather than rounded; per-discipline rollup by IFC class (IfcDuctSegment->Mechanical); "
+      "report PDF served")

@@ -60,13 +60,33 @@ assert none["verified"] is False and none["method"] is None
 assert lod.verification({"psets": "not-a-dict"})["verified"] is False
 
 # ---- THE POINT: LOD 500 comes from verification, never from modelling ----------------------------
-# an information-complete element that nobody verified stops at 400, however rich it is
-assert lod.achieved_lod(el()) == "LOD 400", lod.achieved_lod(el())
-# a verified element reaches 500 — even a THIN one, because that is what the standard measures
-assert lod.achieved_lod(el(verified=True, measured=True, within=True)) == "LOD 500"
+# UPDATED in v0.3.901 (LOD-ASPECTS). These assertions used to read "LOD 400", which the old
+# facet-count scorer produced for any information-complete element regardless of its shape. Bands
+# now come from geometry, and the best a MODEL READ can demonstrate is LOD 350: the index records
+# how a shape is built, and nothing in it distinguishes a coordination-ready solid from a
+# fabrication-ready one. Reporting 350-with-an-unread-ceiling is the honest version of what the
+# old 400 was asserting without evidence.
+#
+# The POINT of this block is untouched, and it is the reason the file exists: whatever the geometry
+# says, only a field verification reaches 500.
+def geo(**kw):
+    """The fixture with a resolved solid and a placement — i.e. as far as modelling can carry it."""
+    e = el(**kw)
+    e.update({"rep_types": ["Brep"], "placed": True, "has_material": True})
+    return e
+
+
+assert lod.achieved_lod(geo()) == "LOD 350", lod.achieved_lod(geo())
+# ...and the ceiling says the rest is UNREAD rather than absent — the distinction the single
+# number could not make.
+assert lod.lod_ceiling(geo()) == "LOD 400", lod.lod_ceiling(geo())
+# a verified element reaches 500 — even a THIN one, and even a BOX, because that is what the
+# standard measures: observation of what exists, not richness of what was drawn.
+assert lod.achieved_lod(geo(verified=True, measured=True, within=True)) == "LOD 500"
 assert lod.achieved_lod(el(verified=True, thin=True)) == "LOD 500"
-# ...but one measured OUTSIDE tolerance is not promoted: it is verified as wrong
-assert lod.achieved_lod(el(verified=True, measured=True, within=False)) == "LOD 400"
+# ...but one measured OUTSIDE tolerance is not promoted: it is verified as wrong. It falls back to
+# what its geometry supports, which is the honest place for it.
+assert lod.achieved_lod(geo(verified=True, measured=True, within=False)) == "LOD 350"
 assert "LOD 500" in lod.LOD_BANDS and lod.LOD_BANDS[-1] == "LOD 500"
 
 # ---- the gap list: a reason and a next action per element, not a percentage -----------------------
@@ -120,19 +140,19 @@ empty = lod.handover_readiness(None, "p1", None)
 assert empty["model_scored"] is False and empty["gaps"] == [] and "load one" in empty["note"].lower()
 
 # ---- the assessment now reports the 500 band it could never reach before -------------------------
-dist_idx = {"a": el(verified=True, measured=True, within=True), "b": el()}
+dist_idx = {"a": geo(verified=True, measured=True, within=True), "b": geo()}
 # assess() needs a DB session for the target matrix; the distribution logic is what matters here
 counted = {}
 for e in dist_idx.values():
     counted[lod.achieved_lod(e)] = counted.get(lod.achieved_lod(e), 0) + 1
-assert counted == {"LOD 500": 1, "LOD 400": 1}, counted
+assert counted == {"LOD 500": 1, "LOD 350": 1}, counted
 
 print("LOD500 OK - the field-verification stamp that has been written into the IFC since G1 is now "
       "READ by the LOD assessment, which previously capped every model at LOD 400 no matter how much "
       "of it had been verified: the evidence was in the file and the reader ignored it. Two things "
       "from the BIMForum specification are encoded, both commonly got wrong. LOD 500 is not 'more "
       "detail than 400' — it is a field-verified as-built condition, so an information-complete "
-      "element nobody looked at stops at 400 while a THIN verified one reaches 500, which is exactly "
+      "element nobody looked at stops at what its GEOMETRY supports while a THIN verified one reaches 500, which is exactly "
       "backwards from how LOD is usually described. And an element measured outside tolerance is NOT "
       "promoted: it has been verified as wrong, which is a finding rather than a handover. The "
       "accuracy requirement is enforced too — a bare VERIFIED flag states no accuracy, and the 2024 "
