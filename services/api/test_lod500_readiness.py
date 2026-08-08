@@ -29,12 +29,19 @@ FULL = {"type_name": "T", "classification": "C", "psets": {"P": {"a": 1}}, "qtos
 def el(ifc_class="IfcWall", *, verified=False, measured=False, within=None, thin=False, **ab):
     e = {"ifc_class": ifc_class}
     e.update({} if thin else FULL)
+    loa = ab.get("loa", False)
     psets = dict(e.get("psets") or {})
     if verified:
         psets["Massing_AsBuilt"] = {"Status": "VERIFIED", "Method": ab.get("method", "laser-scan"),
                                     "VerifiedBy": ab.get("by", "Survey Co"),
                                     "VerifiedDate": "2026-07-01"}
     dims = {}
+    if loa:
+        # LOD-500-LOA: the level of accuracy the definition requires to be NOTED on the element.
+        # Written as a PAIR — a label with no tolerance is a name a receiving system cannot
+        # resolve, so it does not count as a statement of accuracy.
+        dims["LOA"] = "USIBD LOA30"
+        dims["Tolerance_mm"] = 15.0
     if measured:
         dims["Length_Measured"] = 3.01
         dims["Length_Design"] = 3.0
@@ -56,37 +63,75 @@ assert bare["verified"] is True and bare["accuracy_stated"] is False, bare
 assert bare["within_tolerance"] is None, "unmeasured is unknown, never assumed in tolerance"
 none = lod.verification({"ifc_class": "IfcWall"})
 assert none["verified"] is False and none["method"] is None
+# LOD-500-LOA — three grades, and the difference between them is what a receiving party can rely on.
+assert lod.verification(el(verified=True, measured=True, within=True))["accuracy_grade"] == "derived"
+graded = lod.verification(el(verified=True, measured=True, within=True, loa=True))
+assert graded["accuracy_grade"] == "declared", graded
+assert graded["loa_level"] == "USIBD LOA30" and graded["loa_tolerance_mm"] == 15.0, graded
+assert lod.verification(el(verified=True))["accuracy_grade"] == "none"
+# A malformed tolerance must not be read as a declaration — it is exactly the value that would
+# satisfy an "is an LOA recorded?" check while carrying no information.
+bad = lod.verification({"psets": {"Massing_AsBuiltDim": {"LOA": "LOA30", "Tolerance_mm": "n/a"}}})
+assert bad["accuracy_grade"] == "none" and bad["loa_tolerance_mm"] is None, bad
 # a malformed psets value must not raise — the index is model-derived
 assert lod.verification({"psets": "not-a-dict"})["verified"] is False
 
 # ---- THE POINT: LOD 500 comes from verification, never from modelling ----------------------------
-# an information-complete element that nobody verified stops at 400, however rich it is
-assert lod.achieved_lod(el()) == "LOD 400", lod.achieved_lod(el())
-# a verified element reaches 500 — even a THIN one, because that is what the standard measures
-assert lod.achieved_lod(el(verified=True, measured=True, within=True)) == "LOD 500"
+# UPDATED in v0.3.901 (LOD-ASPECTS). These assertions used to read "LOD 400", which the old
+# facet-count scorer produced for any information-complete element regardless of its shape. Bands
+# now come from geometry, and the best a MODEL READ can demonstrate is LOD 350: the index records
+# how a shape is built, and nothing in it distinguishes a coordination-ready solid from a
+# fabrication-ready one. Reporting 350-with-an-unread-ceiling is the honest version of what the
+# old 400 was asserting without evidence.
+#
+# The POINT of this block is untouched, and it is the reason the file exists: whatever the geometry
+# says, only a field verification reaches 500.
+def geo(**kw):
+    """The fixture with a resolved solid and a placement — i.e. as far as modelling can carry it."""
+    e = el(**kw)
+    e.update({"rep_types": ["Brep"], "placed": True, "has_material": True})
+    return e
+
+
+assert lod.achieved_lod(geo()) == "LOD 350", lod.achieved_lod(geo())
+# ...and the ceiling says the rest is UNREAD rather than absent — the distinction the single
+# number could not make.
+assert lod.lod_ceiling(geo()) == "LOD 400", lod.lod_ceiling(geo())
+# a verified element reaches 500 — even a THIN one, and even a BOX, because that is what the
+# standard measures: observation of what exists, not richness of what was drawn.
+assert lod.achieved_lod(geo(verified=True, measured=True, within=True)) == "LOD 500"
 assert lod.achieved_lod(el(verified=True, thin=True)) == "LOD 500"
-# ...but one measured OUTSIDE tolerance is not promoted: it is verified as wrong
-assert lod.achieved_lod(el(verified=True, measured=True, within=False)) == "LOD 400"
+# ...but one measured OUTSIDE tolerance is not promoted: it is verified as wrong. It falls back to
+# what its geometry supports, which is the honest place for it.
+assert lod.achieved_lod(geo(verified=True, measured=True, within=False)) == "LOD 350"
 assert "LOD 500" in lod.LOD_BANDS and lod.LOD_BANDS[-1] == "LOD 500"
 
 # ---- the gap list: a reason and a next action per element, not a percentage -----------------------
 idx = {
-    "g_ok": el(verified=True, measured=True, within=True),
-    "g_ok2": el("IfcSlab", verified=True, measured=True, within=True),
+    "g_ok": el(verified=True, measured=True, within=True, loa=True),
+    "g_ok2": el("IfcSlab", verified=True, measured=True, within=True, loa=True),
     "g_unverified": el("IfcWall"),
     "g_bad_tol": el("IfcBeam", verified=True, measured=True, within=False),
     "g_no_acc": el("IfcColumn", verified=True),
-    "g_thin": el("IfcDoor", verified=True, measured=True, within=True, thin=True),
+    "g_thin": el("IfcDoor", verified=True, measured=True, within=True, thin=True, loa=True),
+    # LOD-500-LOA: measured, in tolerance, information-complete — and nobody stated to what
+    # accuracy the survey was performed. Under the standard that is an INCOMPLETE assertion, and
+    # before v0.3.902 it counted as a full LOD 500 handover.
+    "g_ungraded": el("IfcPipeSegment", verified=True, measured=True, within=True),
 }
 r = lod.handover_readiness(None, "p1", idx)
-assert r["model_scored"] is True and r["elements"] == 6
+assert r["model_scored"] is True and r["elements"] == 7
 assert r["lod500"] == 2, r["lod500"]
-assert r["readiness_pct"] == round(100 * 2 / 6, 1), r["readiness_pct"]
-assert r["by_reason"] == {"not_verified": 1, "no_accuracy": 1,
+assert r["readiness_pct"] == round(100 * 2 / 7, 1), r["readiness_pct"]
+assert r["by_reason"] == {"not_verified": 1, "no_accuracy": 1, "no_loa_level": 1,
                           "out_of_tolerance": 1, "thin_information": 1}, r["by_reason"]
 reasons = {g["guid"]: g["reason"] for g in r["gaps"]}
 assert reasons == {"g_unverified": "not_verified", "g_bad_tol": "out_of_tolerance",
-                   "g_no_acc": "no_accuracy", "g_thin": "thin_information"}, reasons
+                   "g_no_acc": "no_accuracy", "g_thin": "thin_information",
+                   "g_ungraded": "no_loa_level"}, reasons
+# THE ORDERING MATTERS. An element with no measurement at all is told to survey, not to type a
+# tolerance for a measurement nobody took — so `no_accuracy` must win over `no_loa_level`.
+assert reasons["g_no_acc"] == "no_accuracy", "the cheaper fix must not mask the necessary one"
 # every gap names what to do next — the whole point of a work list over a percentage
 assert all(g["action"] and g["action"] == r["actions"][g["reason"]] for g in r["gaps"])
 assert "more modelling" in r["actions"]["not_verified"], "the standard's core point must be stated"
@@ -96,7 +141,7 @@ assert not any(g["guid"].startswith("g_ok") for g in r["gaps"])
 
 # per-discipline readiness, so the remaining effort can be assigned
 byd = {d["discipline"]: d for d in r["by_discipline"]}
-assert sum(d["elements"] for d in r["by_discipline"]) == 6
+assert sum(d["elements"] for d in r["by_discipline"]) == 7
 assert sum(d["lod500"] for d in r["by_discipline"]) == 2
 for d in r["by_discipline"]:
     assert d["readiness_pct"] == round(100.0 * d["lod500"] / d["elements"], 1), d
@@ -110,29 +155,35 @@ assert cap["by_reason"]["not_verified"] == 50, "counts cover everything, not jus
 assert cap["readiness_pct"] == 0.0
 
 # a fully verified model reports done, with an empty work list
-allgood = {f"g{i}": el(verified=True, measured=True, within=True) for i in range(8)}
+allgood = {f"g{i}": el(verified=True, measured=True, within=True, loa=True) for i in range(8)}
 done = lod.handover_readiness(None, "p1", allgood)
 assert done["lod500"] == 8 and done["readiness_pct"] == 100.0
 assert done["gaps"] == [] and done["by_reason"] == {} and done["truncated"] == 0
+# ...and the SAME eight without a declared accuracy are NOT done. The pair is the point: a rule
+# that only ever refuses is indistinguishable from one that always refuses.
+ungraded = {f"g{i}": el(verified=True, measured=True, within=True) for i in range(8)}
+part = lod.handover_readiness(None, "p1", ungraded)
+assert part["lod500"] == 0 and part["by_reason"] == {"no_loa_level": 8}, part["by_reason"]
+assert "tolerance in mm" in part["actions"]["no_loa_level"], part["actions"]["no_loa_level"]
 
 # no model loaded is an honest empty state, not a 0%-that-looks-like-failure
 empty = lod.handover_readiness(None, "p1", None)
 assert empty["model_scored"] is False and empty["gaps"] == [] and "load one" in empty["note"].lower()
 
 # ---- the assessment now reports the 500 band it could never reach before -------------------------
-dist_idx = {"a": el(verified=True, measured=True, within=True), "b": el()}
+dist_idx = {"a": geo(verified=True, measured=True, within=True), "b": geo()}
 # assess() needs a DB session for the target matrix; the distribution logic is what matters here
 counted = {}
 for e in dist_idx.values():
     counted[lod.achieved_lod(e)] = counted.get(lod.achieved_lod(e), 0) + 1
-assert counted == {"LOD 500": 1, "LOD 400": 1}, counted
+assert counted == {"LOD 500": 1, "LOD 350": 1}, counted
 
 print("LOD500 OK - the field-verification stamp that has been written into the IFC since G1 is now "
       "READ by the LOD assessment, which previously capped every model at LOD 400 no matter how much "
       "of it had been verified: the evidence was in the file and the reader ignored it. Two things "
       "from the BIMForum specification are encoded, both commonly got wrong. LOD 500 is not 'more "
       "detail than 400' — it is a field-verified as-built condition, so an information-complete "
-      "element nobody looked at stops at 400 while a THIN verified one reaches 500, which is exactly "
+      "element nobody looked at stops at what its GEOMETRY supports while a THIN verified one reaches 500, which is exactly "
       "backwards from how LOD is usually described. And an element measured outside tolerance is NOT "
       "promoted: it has been verified as wrong, which is a finding rather than a handover. The "
       "accuracy requirement is enforced too — a bare VERIFIED flag states no accuracy, and the 2024 "

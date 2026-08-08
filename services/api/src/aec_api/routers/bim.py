@@ -421,8 +421,33 @@ def review_version(pid: str, version: int, body: dict = Body(default={}),
     snapshot for review, `approve` or `reject` it (reject returns it to draft), with who/when and an
     optional note. The model file pointer is never touched — this is the QA record teams gate issuance
     on ("issue drawings only from approved versions"). Illegal transition → 409; unknown version → 404.
-    Body: `{action: submit|approve|reject, note?}`."""
+    Body: `{action: submit|approve|reject, note?}`.
+
+    **`approve` is refused for the `api-key` identity.** Not a permission tidy-up — `approved` is a
+    TERMINAL state (`_REVIEW_ACTIONS` has no transition out of it), so `reviewed_by` is a permanent
+    answer to "who approved the model this drawing set was issued from", and "api-key" is not a who.
+    The api-key is a machine credential with no person behind it, which is the same argument
+    `/auth/step-up` makes and the reason it refuses that identity outright.
+
+    Deliberately NOT a full step-up. A seal is a per-document legal attestation carrying personal
+    liability, so it is worth a password per document; this is an internal QA record, and demanding a
+    re-authentication on every model approval would be a contract change for every human caller in
+    exchange for a much smaller claim. What the step-up thinking actually yields here is narrower:
+    the *record* must name a person, so only the identity that cannot be one is refused.
+
+    `submit` and `reject` stay open to the api-key — neither is terminal, both are reversible by the
+    next action, and blocking automation from moving a draft into review buys nothing.
+    """
+    from .. import rbac as _rbac
     from .. import versions
+    # Mirrors the seal route's carve-out exactly: a single-operator desktop build has one human and
+    # no identity provider, so the api-key IS the person there. Gating it would break local mode for
+    # a distinction that does not exist in it.
+    if (str(body.get("action") or "").strip().lower() == "approve"
+            and _rbac.RBAC_ON and not _rbac.LOCAL_MODE and actor == "api-key"):
+        raise HTTPException(403, "approving a model version requires a personal account; the API key "
+                                 "has no person behind it and approval is a permanent record of who "
+                                 "approved. Submit and reject remain available.")
     try:
         out = versions.review(db, pid, version, body.get("action"), actor, body.get("note"))
     except KeyError as e:
@@ -814,15 +839,18 @@ async def add_attachment(pid: str, tid: str, kind: str = Form("file"),
                          file: UploadFile = File(...), db: Session = Depends(get_db),
                          _: str = Depends(require_role("reviewer"))):
     _topic(db, pid, tid)
-    data = await file.read()
     # the stored key must never carry path separators / traversal from the client filename; keep the
     # original name for display only. (storage._p also guards containment as a backstop.)
     safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "file")).lstrip(".") or "file"
     safe_name = safe_name.replace("..", "_")     # belt: no traversal sequences even inside the name
     key = f"{pid}/{tid}/{safe_name}"
-    await run_in_threadpool(storage.put, key, data)   # MinIO put off the event loop (PERF-1 pattern)
+    # R41-UPLOAD-WARK: streamed straight to storage — this route needs no local working copy, so
+    # there is nothing to read the bytes FOR. `size` now comes from what was actually written
+    # rather than from `len(data)`, which is strictly better: it is the length of the object that
+    # exists, not the length of what we intended to write.
+    size = await run_in_threadpool(storage.put_stream, key, storage.upload_chunks(file))
     a = Attachment(topic_id=tid, filename=file.filename, content_type=file.content_type,
-                   size=len(data), kind=kind, storage_key=key)
+                   size=size, kind=kind, storage_key=key)
     db.add(a)
     audit.record(db, action="attachment.create", method="POST", topic_id=tid,
                  path=f"/projects/{pid}/topics/{tid}/attachments", detail={"filename": file.filename})

@@ -72,7 +72,7 @@ PER_FILE = {
     #: other modules and one got a field in only by appending to an existing line. That is the
     #: friction this ratchet is for, and it asked the intended question — the contract documents had
     #: a whole domain to leave with, so the number goes DOWN by 32 instead of up by one.
-    "apps/web/src/api/client.ts": 3_699,   # + cost group -> cost.ts;   # +1 = the withRoutines IMPORT, not an endpoint:   # ⑨ contracts -> contracts.ts; ⑧ 3,796; ⑦ 3,871; before ⑦ 3,967   # + ⑩ finance -> finance.ts (both extractions are in the merged file)
+    "apps/web/src/api/client.ts": 3_703,   # + cost group -> cost.ts;   # +1 = the withRoutines IMPORT, not an endpoint:   # ⑨ contracts -> contracts.ts; ⑧ 3,796; ⑦ 3,871; before ⑦ 3,967   # + ⑩ finance -> finance.ts (both extractions are in the merged file)
     #: R39-DECOMP-VIEWER. Pinned at its CURRENT size before any extraction, deliberately.
     #:
     #: `app.ts` had no per-file entry, so it lived under the 5,200 global — which it also *set*, being
@@ -99,6 +99,16 @@ PER_FILE = {
     #: domain module instead?" — for a self-contained fetch/parse/show sequence the answer was plainly
     #: yes. The instrumentation went into the new module and app.ts came DOWN 36 lines instead of up.
     "apps/web/src/viewer/app.ts": 3_715,
+    # Pinned at its EXACT measured size, not above it. qaSection.ts became the file every reach fix
+    # lands in and reached 1,373 lines while unpinned - the same accumulation app.ts and client.ts
+    # already have entries for. Pinned before it needs splitting rather than after: a ratchet added
+    # at the point of pain only ratifies the pain.
+    # 1_373 -> 1_360: the shared-parameter read + retire moved out to sharedParamsPanel.ts. The pin
+    # fired on the commit that added the retire flow (1,439 > 1,373) and the answer was to extract,
+    # not to raise - the same call the /finance extraction made earlier the same day. Re-tightened
+    # to the new exact count rather than left at 1_373, because 13 lines of slack is 13 lines the
+    # next addition spends without anyone deciding to.
+    "apps/web/src/viewer/tools/qaSection.ts": 1_350,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.

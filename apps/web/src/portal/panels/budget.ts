@@ -1,4 +1,5 @@
 import { groupedBar, money as cmoney, esc } from "../../ui/charts";
+import { confidenceSummary } from "../../ui/confidenceReading";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
 
@@ -169,9 +170,13 @@ export async function renderBudget(ctx: PanelContext) {
         + (bad.length
           ? `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Line</th><th>Missing</th></tr></thead><tbody>${rows(bad)}</tbody></table></div>`
           : `<div class="meta">Every line carries a source and a basis date.</div>`)
+        // BOE-MAPPING-DEDUP: the units live in `ui/confidenceReading.ts` and nowhere else. Two of
+        // the three numbers in this response are fractions and one is already a percentage; this
+        // caller got that wrong once and printed "1%" for a 71.5%-assumption-based budget, beside a
+        // correct dollar figure. The fix at the time was a comment here AND a comment in the
+        // register — the same fact stored twice, which is what this entry was booked to undo.
         + (conf
-          ? `<div class="meta" style="margin-top:4px"><b>Confidence</b> — ${Math.round(conf.pct_assumption_based)}% of cost is assumption-based`
-            + ` (${usd(conf.assumption_based_cost)}), average contingency ${conf.avg_contingency_pct}%.`
+          ? `<div class="meta" style="margin-top:4px"><b>Confidence</b> — ${esc(confidenceSummary(conf, usd))}`
             + ` A documented line is not the same as a confident one: a quote and an allowance can both`
             + ` carry a source.</div>`
           : "")
@@ -192,8 +197,14 @@ export async function renderBudget(ctx: PanelContext) {
         fillEst(`<div class="meta">Model progress is not available for this project — that is not 0% complete. It needs a model with installed quantities to measure against.</div>`);
         return;
       }
-      fillEst(`<div style="font-weight:600">Model progress — method <b>${esc(w.method ?? "—")}</b></div>`
-        + `<div class="meta" style="margin-top:4px">${w.total_elements ?? 0} element(s) measured. Derived from installed quantity, not from a typed percentage.</div>`);
+      // LEAD WITH THE PERCENTAGE - it is what the button promises ("Percent complete derived from
+      // the model's installed quantities, for WIP") and it was the one field not rendered. The
+      // previous version showed the method and `total_elements` labelled "element(s) measured",
+      // which reads as verified work when it is the DENOMINATOR: the model's whole element count.
+      // Mirrors the qaSection readout, which had this right.
+      const pct = w.percent_complete ?? w.percent_complete_count ?? 0;
+      fillEst(`<div style="font-weight:600">Model progress — <b>${pct}%</b> complete <span class="meta">(method ${esc(w.method ?? "—")})</span></div>`
+        + `<div class="meta" style="margin-top:4px"><b>${w.installed_elements ?? 0}</b> of <b>${w.total_elements ?? 0}</b> element(s) installed. Derived from installed quantity, not from a typed percentage.</div>`);
     } catch (err) { fillEst(`<div class="meta">Model progress unavailable: ${(err as Error).message}</div>`); }
   };
   estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, boeBtn, wipBtn, dxfLabel);

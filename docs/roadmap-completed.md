@@ -10,6 +10,114 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## ✅ LOD 2025 — the achieved-LOD number stops measuring the wrong thing *(2026-08-08, v0.3.901–903)*
+
+All three items booked from the BIMForum LOD Specification 2025 (supplied by the user) are in. The
+theme is one defect in three places: **the platform reported LOD numbers it had no evidence for.**
+
+- **LOD-ASPECTS** *(v0.3.901)* — `achieved_lod` mapped a COUNT of LOIN facets onto a band
+  (`_FACETS_TO_LOD[5] = "LOD 400"`) and nothing on that path looked at a shape. Measured: a generic
+  `IfcWall` box carrying a classification, a Pset and a Qto scored **LOD 350**; strip the property
+  and quantity sets, changing not one vertex, and the same box scored **LOD 200**. Two bands on
+  tagging alone, on a figure that goes into contracts and BIM execution plans.
+
+  It could not be fixed in `lod.py` alone: the properties index carried **no geometry at all**, so
+  the four geometric aspects were undecidable rather than unused. Shape *facts* now ride in the index
+  (`rep_types`, `rep_ids`, `has_openings`, `has_material`, `placed`) — facts *about* geometry, small
+  enough for a metadata index, so the geometry/metadata separation holds.
+
+  **The first draft was wrong and its own test caught it.** Folding "what the evidence supports" and
+  "what it rules out" into one value and taking the minimum made *every element in every model*
+  LOD 200, because Location and Dimensionality accuracy are unreadable. `supported` and `cap` are now
+  separate: an aspect nobody can read widens the CEILING and never lowers the band. That separation
+  is the product value — `ceiling_distribution` says the gap is **unread model, not missing model**.
+
+  Honest ceiling: a model read tops out at **LOD 350**, because nothing in the index distinguishes a
+  coordination-ready solid from a fabrication-ready one. The old code claimed 400 on no evidence.
+
+- **LOD-500-LOA** *(v0.3.902)* — the definition requires the level of accuracy to be *noted on the
+  element*; we recorded that a verification happened and never how good it was. Three grades now:
+  `declared` (a label AND a tolerance in mm), `derived` (a measurement exists, nobody stated the
+  accuracy), `none`. A bare label is refused deliberately — USIBD's tolerance table is not ours to
+  embed, so an unresolvable label would satisfy every "is an LOA recorded?" check while leaving the
+  accuracy as unstated as before.
+
+  **The grade red-flagged the platform's own flagship path on its first run.** `scan_deviation` — the
+  one real producer of LOD 500 verifications — had the tolerance in hand and spent it on a free-text
+  note (`"p95 deviation within {tolerance} m"`), unreadable by anything downstream. It now declares
+  the accuracy as a label plus a number.
+
+- **LOD-ELEMENT-TABLE** *(v0.3.903)* — the target matrix was **authorable and uncomparable**.
+  `element_category` is free text, so no target could be joined to an element, and `assess()`
+  returned targets and achieved distribution side by side without ever comparing them. Targets are
+  now addressable by IFC class / Uniformat / discipline with most-specific-wins, Uniformat matches by
+  prefix, and compliance is reported per stage with `short_by_rule` naming which rule decided. An
+  element no rule addresses is reported as untargeted and never counted as compliant.
+
+**⚖️ Licence, and it shaped every one of the three.** Part I is CC BY-NC-ND and Part II is CC BY-NC —
+NonCommercial is a hard exclusion for a public repo and a commercial product, and NoDerivatives
+additionally forbids adapting Part I. **No BIMForum content is in the codebase**: no element table, no
+keynotes, no per-element definitions, no Uniclass→Omniclass crosswalk, and no band→aspect-value table.
+What is used is what is not BIMForum's to license — the ISO 7817-1 aspect names and the AIA band
+numbers — with every threshold derived from IFC's own representation vocabulary. The workbook's own
+words are the design brief and its limit: its rows are *"examples … intended to be customized by the
+user"*. **The platform ships the structure; the project authors the content.**
+
+*What to carry forward: the recurring shape here is a number computed from whatever data happened to
+be available and then labelled as the thing somebody wanted to know. All three fixes are the same
+move — say what was actually measured, and report the part you could not measure as unmeasured.*
+
+---
+
+## ✅ R41-REACH-WRITES — all four write endpoints wired, each with the step it needed *(2026-08-08, v0.3.890–895)*
+
+The four write-side endpoints the reach sweep deliberately left alone, "because each one needs a
+confirmation or recovery step designed rather than bolted on". All four are in. **The rule held: not
+one of them turned out to be a three-line wiring job, and two of them were sitting on server defects
+that only surfaced because the research came before the button.**
+
+- **`saveSharedParams`** *(v0.3.890)* — the write is a `PUT` that REPLACES the whole registry, so the
+  obvious implementation (save the rows this form is holding) silently deletes every definition it
+  does not know about, on a standard every model in the project is authored against. The payload is
+  therefore always the full list the dialog just read, minus exactly one entry; if `pset`+`name` does
+  not identify a single row it refuses rather than guessing, and the count shown afterwards comes
+  from a re-read rather than from arithmetic. Extracted to
+  [`sharedParamsPanel.ts`](../apps/web/src/viewer/tools/sharedParamsPanel.ts) — the size ratchet fired
+  on the commit that added it, which is the friction working on its author.
+- **`deleteProjectModel`** *(v0.3.891)* — removing a discipline model does not degrade federated
+  clash, it **turns it off**: `analysis.py` needs ≥2 accessible models, so deleting the
+  second-to-last one produces a 409 the next time somebody runs clash, not an error at the moment of
+  deletion. The confirmation computes that from the same two inputs the server uses and says so
+  plainly. [`projectModelsPanel.ts`](../apps/web/src/viewer/tools/projectModelsPanel.ts).
+- **`deleteView`** *(server v0.3.892–893, UI v0.3.894)* — **the research found a security defect
+  before the button existed.** `return {"deleted": bool(v)}` was truthy whenever the row EXISTED, so
+  deleting another user's saved view answered `deleted: true` with the view intact. Worse, the
+  mutation check showed the route never compared `project_id`: a view id from a different project was
+  **actually deleted** through this project's path. No test covered the route at all.
+  [`test_view_delete.py`](../services/api/test_view_delete.py) closes it with 13 paired assertions.
+  v0.3.893 then fixed the half missed the first time — neither this route nor its sibling
+  `mark_view_seen` checked `module == key`, so the module segment of the URL was decorative. The UI
+  (register toolbar) reads the `deleted` flag rather than assuming, which is only safe *because* the
+  flag became honest first.
+- **`reviewModelVersion`** *(v0.3.895)* — the state transition, and the entry was right that it
+  needed the seal work's thinking without needing its mechanism. `approved` is **terminal** (no
+  reopen, no revoke), so the confirmation says the words "cannot be undone" and names the account it
+  will be recorded against; and the server refuses `approve` from the `api-key` identity in
+  multi-user mode, because `reviewed_by` is a permanent answer to "who approved this" and a machine
+  credential is not a who. A full password step-up was considered and **rejected with a reason**: a
+  seal is a per-document legal attestation, this is an internal QA record, and mandating
+  re-authentication would be a contract change for every human caller in exchange for a smaller
+  claim. Second finding, unrelated to the write: `ApiClient.modelVersions` declared 4 of the 8 keys
+  the server had been sending since R18, so the review state was **invisible** before it was
+  unwritable. [`modelReviewPanel.ts`](../apps/web/src/viewer/tools/modelReviewPanel.ts),
+  [`test_version_approve_identity.py`](../services/api/test_version_approve_identity.py).
+
+**What to carry forward.** The entry's general rule — *a reach sweep may wire anything that cannot
+lose work and must stop at anything that can* — paid for itself twice over. Two of the four endpoints
+were **broken in ways a three-line wiring would have shipped straight to users**, and both were found
+by reading the endpoint before writing the caller. The cost of the discipline was four small releases
+instead of one; the thing it bought was not the confirmations, it was the two defects.
+
 ## ✅ R38 Wave 1 — the first ten minutes, three of four shipped *(2026-08-02, v0.3.819–820)*
 
 Two sessions, two lanes, one interface message — the server half and the draw-tool half of the same

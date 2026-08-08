@@ -526,11 +526,22 @@ export async function renderAiAssist(ctx: PanelContext) {
         try {
           const cp = await ctx.host.api.reviewContractClauses(pid, "subcontract", r.findings);
           const rows = (cp.clauses ?? []).map((c: Record<string, unknown>) =>
-            `<li><b>${esc(String(c.clause ?? c.category ?? ""))}</b> — ${esc(String(c.position ?? c.standard ?? "no stated position"))}`
+            `<li><b>${esc(String(c.clause ?? c.category ?? ""))}</b> — ${esc(String(c.our_position ?? c.position ?? "no stated position"))}`
             + (c.fallback ? ` <span class="meta">fallback: ${esc(String(c.fallback))}</span>` : "") + `</li>`);
-          pbOut.innerHTML = rows.length
-            ? `<ul style="margin:4px 0 0 16px">${rows.join("")}</ul>`
-            : "The playbook has no stated position for these clauses — which is a gap in the playbook, not agreement with the contract.";
+          // "NO PLAYBOOK STORED" AND "THE PLAYBOOK IS SILENT" ARE DIFFERENT ANSWERS, and only one
+          // of them is about the firm's contract standard. When no playbook exists the server
+          // returns verdict "no_playbook" with a `reason` naming the contract type and no
+          // `clauses` key at all - and this rendered the "gap in the playbook" sentence, telling a
+          // negotiator that the standard was consulted and had no position on indemnity. It was
+          // never consulted. The response carried the cause and the UI discarded it.
+          const verdict = String((cp as Record<string, unknown>).verdict ?? "");
+          if (verdict === "no_playbook") {
+            pbOut.innerHTML = `<b>No clause playbook is stored for this contract type.</b> <span class="meta">${esc(String((cp as Record<string, unknown>).reason ?? ""))} — this is not the playbook agreeing with the contract; there is nothing to compare against yet.</span>`;
+          } else {
+            pbOut.innerHTML = rows.length
+              ? `<ul style="margin:4px 0 0 16px">${rows.join("")}</ul>`
+              : "The playbook has no stated position for these clauses — which is a gap in the playbook, not agreement with the contract.";
+          }
         } catch (e) { pbOut.textContent = `playbook unavailable: ${(e as Error).message}`; }
         pb.disabled = false;
       };

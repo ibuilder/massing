@@ -402,13 +402,16 @@ async def bcf3_add_document(pid: str, guid: str, file: UploadFile = File(...),
     """Attach a document to a topic over the BCF API (the coordinator's tool uploads the PDF/photo
     directly). Same storage path and filename hardening as the native attachment route."""
     t = _topic_or_404(db, pid, guid)
-    data = await file.read()
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "file")).lstrip(".") or "file"
     safe = safe.replace("..", "_")
     key = f"{pid}/{t.id}/{safe}"
-    await run_in_threadpool(storage.put, key, data)
+    # R41-UPLOAD-WARK: streamed, exactly as the native attachment route does. Converted TOGETHER
+    # with its twin on purpose — this route's docstring says "same storage path and filename
+    # hardening as the native attachment route", and a pair that claims to be the same shape is
+    # precisely the place a one-sided change goes unnoticed.
+    size = await run_in_threadpool(storage.put_stream, key, storage.upload_chunks(file))
     a = Attachment(topic_id=t.id, filename=file.filename, content_type=file.content_type,
-                   size=len(data), kind="file", storage_key=key)
+                   size=size, kind="file", storage_key=key)
     db.add(a)
     audit.record(db, action="bcf.document.create", method="POST", topic_id=t.id,
                  path=f"/bcf/3.0/projects/{pid}/topics/{guid}/document_references",

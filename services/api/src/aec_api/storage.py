@@ -378,6 +378,79 @@ def put_stream(key: str, chunks, max_bytes: int | None = None) -> int:
     return backend().put_stream(key, chunks, max_bytes)
 
 
+# --- streaming helpers: the callers' half of R41-UPLOAD-WARK ----------------------------------
+# `put_stream` shipped in v0.3.876 with NO adopters, so every upload route still did
+# `data = await file.read()` and held the whole object. These two functions are what a route needs
+# to stop doing that, and they are here rather than in a router so the four converted routes share
+# one implementation instead of four hand-rolled chunk loops.
+
+#: 1 MiB. Large enough that a 300 MB IFC is ~300 iterations rather than 300k, small enough that
+#: concurrent uploads do not add up to anything interesting. NOT tuned to S3's 5 MiB part floor —
+#: `S3Backend.put_stream` accumulates to that floor itself, so a caller choosing this number does
+#: not need to know S3 exists.
+UPLOAD_CHUNK = 1 << 20
+
+
+def upload_chunks(upload, chunk: int = UPLOAD_CHUNK):
+    """Iterate a Starlette `UploadFile`'s bytes without materialising it.
+
+    **The object is already on disk.** Starlette spools an UploadFile to a temporary file past a
+    small threshold, so `await file.read()` was never reading from the network — it was reading a
+    file that already existed into a `bytes` the size of the upload. That is the whole defect: the
+    expensive part is not the transfer, it is the copy.
+
+    Synchronous on purpose. Both backends' `put_stream` take a plain iterable and are meant to be
+    called inside `run_in_threadpool`, so an async generator here would be unusable by them.
+    """
+    f = upload.file
+    f.seek(0)
+    while True:
+        b = f.read(chunk)
+        if not b:
+            return
+        yield b
+
+
+def stream_to_path(dest, chunks, max_bytes: int | None = None) -> int:
+    """Write chunks to an ARBITRARY filesystem path (not a storage key). Returns bytes written.
+
+    Needed because two of the converted routes must leave a copy somewhere the converter can open
+    by path, which `put_stream` cannot do — it writes to a storage key, and on S3 there is no path
+    at all. Same `.part`-then-rename discipline for the same reason: a truncated file at the final
+    name is worse than no file, because `exists()` reports it and every reader downstream treats it
+    as a complete upload.
+    """
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    part = dest.with_name(dest.name + ".part")
+    written = 0
+    try:
+        with open(part, "wb") as fh:
+            for c in chunks:
+                if not c:
+                    continue
+                written += len(c)
+                if max_bytes is not None and written > max_bytes:
+                    raise TooLarge(f"upload exceeds {max_bytes} bytes")
+                fh.write(c)
+        part.replace(dest)
+    except BaseException:
+        part.unlink(missing_ok=True)
+        raise
+    return written
+
+
+def file_chunks(src, chunk: int = UPLOAD_CHUNK):
+    """Iterate a file already on disk — pairs with `stream_to_path` when a route needs BOTH a local
+    working copy and a durable one, so the object is never whole in memory on either write."""
+    with open(src, "rb") as fh:
+        while True:
+            b = fh.read(chunk)
+            if not b:
+                return
+            yield b
+
+
 def get(key: str) -> bytes:
     return backend().get(key)
 

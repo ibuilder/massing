@@ -72,59 +72,36 @@ the reserve/benchmarking/proforma sweep) — its full record is in
 sweep rather than by a failing test, which is the reason they rank first: **nothing in the suite can
 currently fail if either regresses.**
 
-- ◧ **SEC-PLUGIN-SANDBOX** *(M — Lane **D**, not C: `sandbox.py` lives in `services/data/src/aec_data/`)*
-  — **the binding half SHIPPED v0.3.864; the `setrlimit` half is REFUSED as specified, see below.**
-  The attribute check is now an allowlist rather than a denylist: IFC entity attributes are CamelCase
-  by schema and the dangerous stdlib surface is lowercase, so CamelCase passes and every lowercase
-  name must be explicitly exposed. Each red-team escape in `services/api/test_sandbox.py`
-  (`ifcopenshell.os.system`, `.express.subprocess`, `.api.importlib`, `format_map`, `wrapped_data`)
-  was a lowercase attribute somebody had to think of first; the ones nobody thinks of are now closed
-  by default.
+- ✅ **SEC-PLUGIN-SANDBOX — COMPLETE as of v0.3.884.** Every part of this entry has shipped,
+  including the half it recorded as refused. Full record in
+  [`roadmap-completed.md`](roadmap-completed.md).
 
-  **`setrlimit` cannot be added correctly in-process, and adding it would be worse than not.**
-  `RLIMIT_CPU` bounds *cumulative process CPU since start*, not one call — so it would kill a healthy
-  API worker after enough ordinary traffic, and when it fires it delivers `SIGXCPU` to the whole
-  process, taking every concurrent request with it. `RLIMIT_AS` is process-wide too, so a snippet's
-  memory ceiling would constrain unrelated threads. Both need a child process to be meaningful, which
-  is exactly **R35-SANDBOX-ISOLATION**, Parked pending a deployment-shape decision. The residual risk
-  is unchanged and stated in `services/data/src/aec_data/sandbox.py`: a native call reached through
-  an allowed binding is bounded by that library, not by the trace hook.
+  The binding half landed v0.3.864 (an attribute **allowlist** rather than a denylist — IFC entity
+  attributes are CamelCase by schema and the dangerous stdlib surface is lowercase, so the names
+  nobody thinks of are closed by default). The bytes contract landed v0.3.877. The two things this
+  entry listed as *"Remaining: adopt it in `edit.py`, then the isolation itself"* are both in:
+  `services/data/src/aec_data/edit.py` rebinds the model through `REPLACING_RECIPES`, and
+  `services/data/src/aec_data/sandbox_child.py` runs the snippet in a child process with a fixed
+  argv, an environment allowlist, and a fail-closed spawn.
 
-  **STEP 1 SHIPPED v0.3.877 — the contract exists; the isolation does not yet.**
-  `services/data/src/aec_data/sandbox.py` gains `execute_ifc_bytes`: bytes-in/bytes-out over the same
-  sandbox. It runs **in-process and is NOT isolated**, and that is not claimed. What it removes is
-  the reason isolation could not be built — with a `bytes -> bytes` callee, moving execution into a
-  subprocess or a container becomes a change to one function body instead of to every call site.
-  Remaining: adopt it in `services/data/src/aec_data/edit.py`, then the isolation itself.
+  **The `setrlimit` refusal was resolved rather than overridden, and that is the part worth keeping.**
+  This entry argued at length that `RLIMIT_CPU` and `RLIMIT_AS` *cannot be added correctly
+  in-process*: they bound cumulative process CPU and process-wide memory, so they would kill a
+  healthy API worker after enough ordinary traffic and take every concurrent request down with it.
+  That reasoning was correct, and the answer was never to add them anyway — it was to build the child
+  the limits could live in. They are set in `sandbox_child.py` now, where their scope is exactly one
+  snippet. **A refusal that names its precondition is how the precondition eventually gets built**;
+  a refusal that just says "no" leaves nothing to satisfy.
 
-  **⚠️ PREMISE CORRECTED 2026-08-06 — the stated blocker is wrong, and the real one is bigger.**
-  This says isolation is "Parked pending a deployment-shape decision". That decision is settled: the
-  repo ships `docker-compose.prod.yml`, and R39-WORKER-SPLIT (v0.3.869) built the working precedent
-  for a second process launched by compose. **Isolation is still not buildable, for a reason nobody
-  had written down:** `execute_ifc_code(model, code)` takes a **live in-memory `ifcopenshell.file`**
-  and the snippet mutates it *in place*; the caller keeps using that same object. A child process
-  cannot share it, so isolation means serialise → run → serialise back → reload, which returns a NEW
-  object and breaks every caller. **That is an API contract change at the call site, not a deployment
-  choice** — file-in/file-out first, then the recipe at `services/data/src/aec_data/edit.py`, then
-  isolation. Re-estimate M→L before starting.
+  v0.3.884 closed the last hazard, found by security review rather than by a gate: the snippet was
+  written as "code.py" into a workdir the child puts on `sys.path[0]`, **shadowing the stdlib `code`
+  module** for everything the child imports. Not exploitable — nothing in the child's import chain
+  (`ifcopenshell`, `.api`, `.guid`) reaches it — but one unrelated transitive import away from
+  letting a submitted snippet execute as an *import*, outside the AST allowlist entirely, where the
+  allowlist would never see it. Renamed to "snippet.py".
 
-  *Also recorded because it nearly became a wrong finding:* the sandbox looks unreachable from the
-  routers — the only `sandbox.` reference in `routers/` reports a boolean capability. It is not.
-  `apps/web/src/viewer/app.ts` calls `editIfc(pid, "execute_ifc_code", …)`, which resolves through the
-  **edit-recipe registry**. A grep of the route layer cannot see registry indirection, and any
-  reachability gate built on direct route references will report confident false positives for the
-  same reason.
-
-  Original text: the external audit's one legitimate High. `sandbox.py`
-  executes snippets in-process behind AST checks and a trace-hook timeout; the AST layer is genuinely
-  strong, but a native call reached through an allowed binding can block uninterruptibly, and
-  in-process means the snippet shares the API's file descriptors and environment. Execution is
-  already opt-in (`AEC_ALLOW_IFC_CODE`), which is why this is High and not Critical.
-  Process/container isolation is **Parked as R35-SANDBOX-ISOLATION** because it is a deployment-shape
-  decision; this item is the part that does not need one — tighten what the bound callables can
-  reach, and add `setrlimit` CPU/memory caps around the existing timeout.
-
-
+  Residual risk, unchanged and still stated in `services/data/src/aec_data/sandbox.py`: a native call
+  reached through an allowed binding is bounded by that library, not by the trace hook.
 - ✅ **SHIPPED v0.3.875 (2026-08-07) — R41-SCHEMA-STALE**, both halves. Full record archived in
   [`docs/roadmap-completed.md`](roadmap-completed.md); the two points worth carrying forward are that **the prescription in the entry was wrong and the scope
   claim was right for the wrong reason**. "Force the payload to null on any version difference"
@@ -154,6 +131,28 @@ currently fail if either regresses.**
   legitimately throttling. **The lesson is the guard, not the counter** — a boot guard naming
   `AEC_RATE_LIMIT_RPM` read as covering rate limiting in general, and was silent about the
   always-on limiter capping `POST /auth/stepup` at 10/min. A generic-sounding gate hid a missing one.
+
+- ✅ **LOD 2025 — COMPLETE as of v0.3.903.** All three items (LOD-ASPECTS, LOD-500-LOA,
+  LOD-ELEMENT-TABLE) shipped. Full record in [`roadmap-completed.md`](roadmap-completed.md).
+
+  **Two things worth keeping here.** First, the defect was one shape in three places: a number
+  computed from whatever data happened to be available, then labelled as the thing somebody wanted
+  to know. A well-tagged bounding box scored LOD 350; a verification recorded that it happened and
+  never how accurate it was; a target matrix could be authored and never compared. Second, the fix
+  in all three cases was the same move — **say what was actually measured, and report the part you
+  could not measure as unmeasured.**
+
+  **The licence constraint stands for anything that touches this again.** BIMForum Part I is
+  CC BY-NC-ND and Part II is CC BY-NC; NonCommercial is a hard exclusion for this repo. No element
+  table, keynotes, per-element definitions, Uniclass→Omniclass crosswalk or band→aspect-value table
+  may enter the codebase. The ISO 7817-1 aspect names and the AIA band numbers are not BIMForum's to
+  license and are what the implementation uses.
+
+  **Still open, and named honestly:** a model read tops out at **LOD 350** — nothing in the served
+  index distinguishes a coordination-ready solid from a fabrication-ready one, and nothing in it can
+  see whether a placement is *accurate* rather than merely present. Both are reported as unread
+  (`ceiling_distribution`) rather than assumed. Closing either needs geometry the index does not
+  carry today, which is a deliberate scope call rather than an oversight.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
 
@@ -330,7 +329,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R41-REACH-WRITES · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
@@ -2211,27 +2210,19 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   sessions' worktrees, and the `git worktree remove --force` incident is precisely why a measurement
   gets reported and someone who owns the tree does the deleting.*
 
-- **R41-REACH-WRITES** *(M — Lane E — **split out of the reach sweep 2026-08-07, deliberately not
-  built**)* — the write-side endpoints that have no screen, held back because **each one needs a
-  confirmation or recovery step designed rather than bolted on**. The read-side sweep took
-  `UNCALLED_CEILING` from 131 to 104 by wiring seventeen capabilities; these four were left because
-  wiring them the same way would ship a control that can lose work.
+- ✅ **R41-REACH-WRITES — COMPLETE as of v0.3.895.** All four write endpoints are wired, each with
+  the confirmation or refusal its own failure mode called for. Full record in
+  [`roadmap-completed.md`](roadmap-completed.md).
 
-  | method | why it is not a read-side wiring job |
-  |---|---|
-  | `deleteProjectModel` | **destructive.** Removes a registered discipline model. Needs a named confirmation ("type the discipline"), and an answer to what happens to pins, clash results and issues that reference it. |
-  | `saveSharedParams` | **`PUT` replaces the whole list.** A partial save silently wipes the project standard every other model is authored against. Needs edit-in-place semantics, or a diff-and-confirm. |
-  | `reviewModelVersion` | a **state transition** (`submit`/`approve`/`reject`). Approval is an assertion a person makes; the seal work already established that a bearer token is a session, not a person. Needs the same step-up thinking. |
-  | `deleteView` | destructive, same shape as the first row and cheaper — probably lands with it. |
+  **The one thing worth repeating here, because it is the argument for the item having existed:** two
+  of the four were sitting on server defects that a same-shape-as-a-read wiring would have shipped
+  straight to users. `deleteView` answered `{"deleted": true}` for a row it had not touched *and*
+  deleted views across project boundaries; `modelVersions` had been discarding half the review record
+  the API already sent. Both were found by reading the endpoint before writing the caller, which is
+  the only reason the four-releases-instead-of-one cost bought anything.
 
-  **What is already done and should not be redone:** the read/apply halves are wired.
-  `viewTemplates` + `resolveViewTemplate` apply a saved view (isolate + colour, reversible),
-  `importClashXml` imports findings additively, and `sharedParams` displays the standard read-only.
-  So each row above is *"add the write to an existing screen"*, not *"build a screen"*.
-
-  **The general rule this item exists to hold:** a reach sweep is allowed to wire anything that
-  cannot lose work, and must stop at anything that can. Wiring a destructive endpoint with the same
-  three lines as a read-only one is how a ratchet's progress starts costing more than it buys.
+  The general rule stands and generalises past this entry: **a reach sweep may wire anything that
+  cannot lose work, and must stop at anything that can.**
 
 - **R41-BUNDLER-SPLIT** *(S — Lane J)* — **the suite never exercises the bundler that ships.** The app
   is *built* with **Vite 8 / rolldown** (pinned in `apps/web/package.json`, installed nested at
