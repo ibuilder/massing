@@ -15,6 +15,18 @@
       "fieldset": "LOD Target"
     },
     {
+      "name": "ifc_class",
+      "label": "IFC class (e.g. IfcCurtainWall)",
+      "type": "text",
+      "fieldset": "LOD Target"
+    },
+    {
+      "name": "uniformat",
+      "label": "Uniformat code (e.g. B2010)",
+      "type": "text",
+      "fieldset": "LOD Target"
+    },
+    {
       "name": "discipline",
       "label": "Discipline",
       "type": "select",
@@ -87,6 +99,7 @@
     ]
   },
   "list_columns": [
+    "ifc_class",
     "discipline",
     "phase",
     "target_lod"

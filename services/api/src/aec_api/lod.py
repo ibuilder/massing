@@ -51,7 +51,11 @@ def _d(r: dict) -> dict:
 def matrix(db: Session, pid: str) -> dict[str, Any]:
     """The target LOD matrix from the register, or the stage defaults when none are authored."""
     rows = me.list_records(db, "lod_target", pid, limit=100000) if "lod_target" in me.TABLES else []
+    # LOD-ELEMENT-TABLE: `ifc_class` and `uniformat` are what make a target ADDRESSABLE to an
+    # element. Projected here as well as stored, because `target_for` reads this list — a field the
+    # register accepts and this projection drops is a field the user can fill in and nothing uses.
     targets = [{"element_category": _d(r).get("element_category", ""), "discipline": _d(r).get("discipline", ""),
+                "ifc_class": _d(r).get("ifc_class", ""), "uniformat": _d(r).get("uniformat", ""),
                 "phase": _d(r).get("phase", ""), "target_lod": _d(r).get("target_lod", ""),
                 "state": r.get("workflow_state", "")} for r in rows]
     return {
@@ -60,6 +64,55 @@ def matrix(db: Session, pid: str) -> dict[str, Any]:
                 "RIBA/AIA stage defaults apply (SD LOD200 -> DD LOD300 -> CD LOD350 -> Construction "
                 "LOD400 -> As-built LOD500).",
     }
+
+
+# --- LOD-ELEMENT-TABLE ------------------------------------------------------------------------
+# A target matrix nothing could be COMPARED TO. `lod_target` records carried
+# {element_category, discipline, phase, target_lod} — `element_category` is free text, so no target
+# could be joined to an element, and `assess()` returned the targets and the achieved distribution
+# side by side without ever putting them together. A team could author "curtain wall reaches LOD 350
+# at CD", press assess, and be told a distribution that could not answer the question they asked.
+#
+# The industry practice the 2025 spec's Part II encodes is a MODEL ELEMENT TABLE: one row per
+# element type keyed to a classification, with a target at each milestone. So targets become
+# addressable — by IFC class, by Uniformat code, or by discipline — and resolution is
+# MOST-SPECIFIC-WINS, because that is the whole reason per-element targets exist: at CD a curtain
+# wall is expected at 350 while an interior partition is expected at 300, and one number for the
+# stage makes both wrong.
+#
+# NOTHING FROM THE BIMForum TABLE IS SHIPPED. Part II is CC BY-NC and says its own rows are
+# "examples ... intended to be customized by the user". The platform provides the structure; the
+# project authors the content.
+_TARGET_SPECIFICITY = ("ifc_class", "uniformat", "discipline")
+
+
+def target_for(e: dict, targets: list[dict], phase: str) -> dict | None:
+    """The most specific authored target that applies to one element at one stage, or None.
+
+    Returns the whole target row rather than just its band so a caller can say WHICH rule decided —
+    "short of the curtain-wall rule" is actionable where "short of target" is not.
+    """
+    ifc = (e.get("ifc_class") or "").strip().lower()
+    uni = str(e.get("classification") or "").strip().lower()
+    code = classification.discipline_of_ifc_class(e.get("ifc_class") or "")
+    disc = (classification.discipline_name(code) if code else "").strip().lower()
+    best: dict | None = None
+    best_rank = len(_TARGET_SPECIFICITY)
+    for t in targets:
+        if (t.get("phase") or "").strip() != phase:
+            continue
+        for rank, key in enumerate(_TARGET_SPECIFICITY):
+            want = str(t.get(key) or "").strip().lower()
+            if not want:
+                continue
+            got = {"ifc_class": ifc, "uniformat": uni, "discipline": disc}[key]
+            # Uniformat is matched by PREFIX: a target on "B2010" covers "B2010.10", which is how
+            # the classification tree is meant to be read. Exact-only matching would silently skip
+            # every element carrying a more precise code than the rule was written at.
+            hit = got.startswith(want) if key == "uniformat" else got == want
+            if hit and rank < best_rank:
+                best, best_rank = t, rank
+    return best
 
 
 # ── LOD 500: the field-verification bridge ───────────────────────────────────────────────────────
@@ -318,9 +371,45 @@ def assess(db: Session, pid: str, idx: dict[str, dict] | None) -> dict[str, Any]
     by_discipline = [{"discipline": name, "elements": d["count"],
                       "avg_lod": LOD_BANDS[round(d["rank_sum"] / d["count"])]}
                      for name, d in sorted(by_disc.items())]
+    # LOD-ELEMENT-TABLE: achieved vs TARGET, per authored stage. Computed here rather than in a
+    # second pass so the element loop stays single — and reported per stage because a project asks
+    # "are we there for CD?", not "are we there in general".
+    phases = sorted({(t.get("phase") or "").strip() for t in m["targets"] if (t.get("phase") or "").strip()})
+    compliance = {}
+    for ph in phases:
+        met = short = untargeted = 0
+        worst: dict[str, int] = {}
+        for e in idx.values():
+            t = target_for(e, m["targets"], ph)
+            if not t:
+                untargeted += 1
+                continue
+            want = _LOD_RANK.get(str(t.get("target_lod") or "").strip())
+            if want is None:
+                untargeted += 1
+                continue
+            if _LOD_RANK[achieved_lod(e)] >= want:
+                met += 1
+            else:
+                short += 1
+                label = (t.get("element_category") or t.get("ifc_class")
+                         or t.get("uniformat") or t.get("discipline") or "(unlabelled rule)")
+                worst[label] = worst.get(label, 0) + 1
+        scored = met + short
+        compliance[ph] = {
+            "meeting_target": met, "short_of_target": short,
+            # An element no rule addresses is NOT counted as compliant. A model element table that
+            # covers a third of the model and reports 100% is the failure this whole item exists to
+            # remove, so the uncovered count sits beside the percentage rather than inside it.
+            "no_target": untargeted,
+            "pct_meeting": round(100.0 * met / scored, 1) if scored else None,
+            "short_by_rule": dict(sorted(worst.items(), key=lambda kv: -kv[1])[:10]),
+        }
+
     n = len(idx)
     return {
         "model_scored": True, "elements": n, "distribution": dist,
+        "compliance": compliance,
         # The CEILING is the other half of an honest reading: `distribution` is what the model
         # demonstrably reaches, this is what it could reach if the aspects the index cannot see
         # turned out to be met. A wide gap means UNREAD, not under-modelled — a distinction the old
