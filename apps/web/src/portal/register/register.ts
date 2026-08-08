@@ -5,6 +5,7 @@ import { statusChip } from "../../ui/chips";
 import { type RegisterEmptyKind, registerEmptyEl } from "../../ui/empty";
 import { emptyHint } from "../../ui/emptyGuide";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
+import { confidenceReading } from "../../ui/confidenceReading";
 import { confirmModal, modalShell, promptModal } from "../../ui/modal";
 import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "../offlineQueue";
 import type { PanelContext } from "../panelContext";
@@ -1859,7 +1860,7 @@ export class RegisterUI {
     const { card } = modalShell("Estimate confidence", 460);
     const head = document.createElement("div");
     head.style.cssText = "font-weight:600;font-size:14px";
-    head.textContent = `${Math.round(c.confidence * 100)}% confidence · ${c.band}`;
+    head.textContent = `${confidenceReading(c).confidencePct}% confidence · ${c.band}`;
     const sub = document.createElement("div"); sub.className = "meta";
     // The phase is stated, not assumed. An unmapped basis scores against the scorer's neutral
     // default, and saying so is the difference between a number and a number you can act on.
@@ -1868,13 +1869,14 @@ export class RegisterUI {
     card.append(head, sub);
 
     const kpi = document.createElement("div"); kpi.className = "meta"; kpi.style.marginTop = "6px";
-    // UNITS ARE NOT CONSISTENT ACROSS THIS ONE RESPONSE, and both were verified against the running
-    // scorer rather than read off the field names. `pct_assumption_based` is a FRACTION (0.715 for a
-    // set that is 72% assumption-based) while `avg_contingency_pct` is already a PERCENTAGE (10.63).
-    // Rounding the first without scaling renders "1%" for a budget that is 72% unsupported — a
-    // plausible number, badly wrong, in the reassuring direction. `confidence` is a fraction too.
-    kpi.innerHTML = `<b>${Math.round(c.pct_assumption_based * 100)}%</b> of budget still assumption-based `
-      + `(${esc(usd(c.assumption_based_cost))}) · avg contingency ${Math.round(c.avg_contingency_pct)}%`;
+    // BOE-MAPPING-DEDUP: the units are applied ONCE, in `ui/confidenceReading.ts`, and asserted by
+    // `confidenceReading.test.ts`. They are not consistent across this one response —
+    // `pct_assumption_based` is a fraction despite the name, `avg_contingency_pct` is already a
+    // percentage — and that knowledge used to live as a comment here AND in the budget panel, where
+    // the copy dropped the scaling and rendered "1%" for a 72%-unsupported budget.
+    const cr = confidenceReading(c);
+    kpi.innerHTML = `<b>${cr.assumptionBasedPct}%</b> of budget still assumption-based `
+      + `(${esc(usd(cr.assumptionBasedCost))}) · avg contingency ${cr.avgContingencyPct}%`;
     card.appendChild(kpi);
 
     const soft = c.worst_lines;

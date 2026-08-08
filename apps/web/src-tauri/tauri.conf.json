@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Massing",
-  "version": "0.3.897",
+  "version": "0.3.898",
   "identifier": "com.ibuilder.aecbim",
   "build": {
     "frontendDist": "../dist",

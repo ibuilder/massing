@@ -1,4 +1,5 @@
 import { groupedBar, money as cmoney, esc } from "../../ui/charts";
+import { confidenceSummary } from "../../ui/confidenceReading";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
 
@@ -169,17 +170,13 @@ export async function renderBudget(ctx: PanelContext) {
         + (bad.length
           ? `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Line</th><th>Missing</th></tr></thead><tbody>${rows(bad)}</tbody></table></div>`
           : `<div class="meta">Every line carries a source and a basis date.</div>`)
-        // `pct_assumption_based` is a FRACTION - est_confidence.py returns round(cost/total, 3) -
-        // while `avg_contingency_pct` on the very next line is already a percentage. The units are
-        // inconsistent WITHIN one response, so *100 here is required and its absence is invisible:
-        // Math.round() of a 0-1 value yields only 0 or 1, so a budget that is 71.5% assumption-based
-        // printed "1%" next to a correct dollar figure. Plausible, badly wrong, and reassuring.
-        //
-        // The register's copy at portal/register/register.ts scales it and explains why; this caller
-        // was written from that one afterwards and dropped the scaling. Same defect, second site.
+        // BOE-MAPPING-DEDUP: the units live in `ui/confidenceReading.ts` and nowhere else. Two of
+        // the three numbers in this response are fractions and one is already a percentage; this
+        // caller got that wrong once and printed "1%" for a 71.5%-assumption-based budget, beside a
+        // correct dollar figure. The fix at the time was a comment here AND a comment in the
+        // register — the same fact stored twice, which is what this entry was booked to undo.
         + (conf
-          ? `<div class="meta" style="margin-top:4px"><b>Confidence</b> — ${Math.round(conf.pct_assumption_based * 100)}% of cost is assumption-based`
-            + ` (${usd(conf.assumption_based_cost)}), average contingency ${conf.avg_contingency_pct}%.`
+          ? `<div class="meta" style="margin-top:4px"><b>Confidence</b> — ${esc(confidenceSummary(conf, usd))}`
             + ` A documented line is not the same as a confident one: a quote and an allowance can both`
             + ` carry a source.</div>`
           : "")
