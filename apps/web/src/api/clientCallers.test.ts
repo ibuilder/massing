@@ -105,12 +105,83 @@ function reached(m: string): boolean {
   return false;
 }
 
+/**
+ * Methods that should NOT have a screen, with the condition under which that stops being true.
+ *
+ * This is deliberately not a suppression list for work nobody has got to yet — those belong in the
+ * ceiling, where they stay visible and countable. An entry here is a positive argument that wiring
+ * the method would be a mistake, and it carries the condition that would retire the entry, so it
+ * cannot quietly become permanent.
+ */
+const KNOWN_UNCALLED: Record<string, string> = {
+  // Deletes a captured schedule baseline. R40-EOT ② has just made the NAMED baseline the auditable
+  // input to an extension-of-time figure that ends up in arbitration — slip is measured against it,
+  // and the whole point of sourcing it from the record was that a typed date is unauditable. A
+  // one-click destroy beside that is a footgun, and "it has no caller" is not a reason to give it
+  // one. EXPIRY: wire it once baseline deletion is behind a confirm-and-audit step.
+  clearBaseline: "until baseline deletion is behind a confirm-and-audit step",
+};
+
 const uncalled = surface.filter((m) => !NOT_ENDPOINTS.has(m) && !reached(m));
+/** The countable set: deliberate exclusions are held separately so they cannot pad the ceiling. */
+const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 
 //: CEILING — only ever revised DOWN. The measured value on 2026-08-07, so the set cannot grow
 //: quietly. Wiring a method to a screen lowers it; adding an unreachable endpoint raises it and has
 //: to say so out loud in the commit message.
-const UNCALLED_CEILING = 132;
+//:
+//: 132 -> 131 when PULSE-FINDINGS wired `proformaRenovation` into the home pulse. It was expected to
+//: drop by TWO, for `reserveStudy` as well — that was wrong, and the number is why it was caught:
+//: `reserveStudy` already had a caller in `src/proforma/proforma.ts`, so it was never in this set.
+//: Measured by probing rather than derived from what the wiring touched.
+//: 129 -> 128 on 2026-08-07 (BOE-REACH): `estimateBoe` gained a caller — Basis of estimate on the
+//: budget panel. Measured by re-running the scan, which reports exactly one fewer; nothing became
+//: newly uncalled.
+//:
+//: 131 -> 129 on 2026-08-07 (UNCALLED-SWEEP, Lane C/G/I). The drop is TWO and was MEASURED by
+//: re-running the reachability scan before and after, not derived from what was wired — the
+//: `reserveStudy` note above is exactly why. `portfolioCompare` gained a caller (the returns spread
+//: on the portfolio panel) and `clearBaseline` moved into KNOWN_UNCALLED, which the countable set
+//: now excludes. Nothing became newly uncalled.
+//:
+//: HOW THIS NUMBER WAS OBTAINED, because it matters for trusting it: `vitest` is not installed in
+//: `apps/web` and the shared clone's `src/api` differs from `origin/main` by ~795 deletions, so this
+//: file could not be executed to produce it. The delta was measured with a static reproduction of
+//: the same predicate against a clean `origin/main` worktree, which counts ~127 where this file
+//: counts 131 — a different population, so its ABSOLUTE is not a valid ceiling input. The DELTA is
+//: sound because both affected methods are present in both populations. If this run reports anything
+//: other than 129, trust this file and not the reasoning above.
+//:
+//: 121 -> 117 on 2026-08-07 (LANE-REACH, re-derived at merge). This branch was measured at
+//: 128 -> 123 against d0fbfadd and that was correct THEN. #271 then merged and reached
+//: `estimateConfidence` too (register.ts, per-record), so only FOUR of this branch's five are
+//: still new: wipModelProgress, dealAuthority, reviewContractClauses, aiEstimate.
+//:
+//: Landing the stale 123 on a main already at 121 would have RAISED the ceiling by two with
+//: every gate green — line 181 is `toBeLessThanOrEqual` and has no floor. Two PRs measured
+//: correctly against the same base go stale the instant either merges; the second one must
+//: RE-MEASURE, not merely rebase.
+//:
+//: Set to 117 rather than to main's 121 on purpose. If the true count is 117 this is exact; if
+//: it is higher the gate FAILS LOUDLY on the next run and gets corrected. 121 would have
+//: passed either way and told nobody. Bias low: low fails, high hides.
+//: 117 -> 101 (Lane A/B/E reach sweep, 2026-08-07). Seventeen capabilities that computed an answer
+//: and could not show it to anyone — the qaSection readouts, the dimensional-locks panel, and four
+//: recipes the node canvas simply did not list.
+//:
+//: **101 is what the GATE PRINTED on the merged tree, and the arithmetic would have been wrong.**
+//: 117 minus the fourteen this branch wires is 103; the measured answer is 101, because reach is not
+//: additive across lanes — three sweeps ran concurrently and touched overlapping method sets.
+//:
+//: The failure mode this avoids is not a small error. `toBeLessThanOrEqual` has NO FLOOR, so a stale
+//: ceiling carried forward RAISES the number with every gate green: #273 measured 128 -> 123
+//: correctly, #271 then landed and reached one of the same methods, and landing 123 on a main at 117
+//: would have handed four points of slack to whoever added the next unreachable method.
+//:
+//: So: rebase, set this to 0, run, read the number the assertion prints, restore, land that. And
+//: when two candidates are both defensible, take the smaller — a ceiling set too low fails loudly on
+//: the next run and gets fixed; one set too high never fails at all.
+const UNCALLED_CEILING = 101;
 
 describe("client methods the application actually calls", () => {
   it("agrees with a hand-checked sample in BOTH directions", () => {
@@ -137,10 +208,10 @@ describe("client methods the application actually calls", () => {
   });
 
   it("does not grow the set of client methods no screen can reach", () => {
-    expect(uncalled.length,
-      `${uncalled.length} client methods have no caller outside src/api and tests. ` +
+    expect(uncalledCountable.length,
+      `${uncalledCountable.length} client methods have no caller outside src/api and tests. ` +
       `Wire one to a screen (lowers the ceiling) or say in the commit why another unreachable ` +
-      `endpoint is worth shipping. First 25: ${uncalled.slice(0, 25).join(", ")}`)
+      `endpoint is worth shipping. First 25: ${uncalledCountable.slice(0, 25).join(", ")}`)
       .toBeLessThanOrEqual(UNCALLED_CEILING);
   });
 
@@ -148,8 +219,22 @@ describe("client methods the application actually calls", () => {
     // `surface.test.ts` lists these under "the methods the rest of the app actually calls".
     // That was false when written. This records which of them is still true, so wiring one up
     // fails here and forces the list to be corrected rather than left to rot.
+    //
+    // It did exactly that: PULSE-FINDINGS wired `proformaRenovation` into the home pulse and this
+    // assertion went red on the same run, which is the whole reason it names them individually
+    // instead of counting them.
     const trio = ["proformaRenovation", "proformaRollover", "proformaIncomeBasis"];
     const stillUncalled = trio.filter((m) => uncalled.includes(m));
-    expect(stillUncalled.sort()).toEqual([...trio].sort());
+    expect(stillUncalled.sort()).toEqual(["proformaIncomeBasis", "proformaRollover"]);
+  });
+
+  it("proformaRenovation is reached from a SCREEN, not from another api module", () => {
+    // The pairing that makes the line above mean something. Moving a call into `src/api` would also
+    // take a method out of `uncalled` without any human ever seeing its result — so assert the thing
+    // that was actually wanted: a file outside `src/api` calls it.
+    expect(uncalled.includes("proformaRenovation")).toBe(false);
+    const callers = appFiles.filter((f) => /proformaRenovation/.test(readFileSync(f, "utf8")));
+    expect(callers.length, "no screen calls it — it left `uncalled` for the wrong reason")
+      .toBeGreaterThan(0);
   });
 });

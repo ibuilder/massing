@@ -35,7 +35,7 @@ nobody re-tests becomes folklore: this skill asserted the stall in its own front
 ## Always
 ```
 cd apps/web && export PATH="/c/Program Files/nodejs:$PATH"
-npm run typecheck && npm run lint      # eslint pinned to 9.39.5; Node 20 (Node 18 breaks build)
+npm run typecheck && npm run lint      # Node 24 (Node 18 breaks the build)
 npx vitest run <path/if/covered>
 npm run build                          # strongest compile check; ~1 min
 ```

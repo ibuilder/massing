@@ -76,7 +76,7 @@ export function setDraftDragKey(dt: DataTransfer | null, key: string): void {
  */
 export function readDraftDragKey(dt: DataTransfer | null): string | null {
   if (!canAcceptDraftDrag(dt)) return null;
-  let raw = "";
+  let raw: string;
   try { raw = dt!.getData(DRAFT_DRAG_MIME) ?? ""; } catch { return null; }
   const key = raw.trim();
   if (!key || key.length > MAX_KEY) return null;

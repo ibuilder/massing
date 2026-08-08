@@ -293,7 +293,7 @@ function adminModal() {
 
   const render = async () => {
     list.textContent = "";
-    let users: AccountUser[] = [];
+    let users: AccountUser[];
     try { users = await api.listUsers(); } catch { msg.textContent = "could not load users"; return; }
     for (const u of users) {
       const row = document.createElement("div");
@@ -375,7 +375,7 @@ function membersModal(pid: string) {
 
   const render = async () => {
     list.textContent = "";
-    let members: ProjectMember[] = [];
+    let members: ProjectMember[];
     try { members = await api.members(pid); } catch { msg.textContent = "could not load members"; return; }
     for (const m of members) {
       const row = document.createElement("div");
@@ -438,7 +438,7 @@ function auditModal() {
 
   const render = async () => {
     table.innerHTML = '<div class="meta">loading…</div>'; msg.textContent = "";
-    let rows: AuditEntry[] = [];
+    let rows: AuditEntry[];
     try {
       rows = await api.auditLog({ action: fAction.value.trim() || undefined, actor: fActor.value.trim() || undefined,
         since: fSince.value || undefined, limit: 200 });

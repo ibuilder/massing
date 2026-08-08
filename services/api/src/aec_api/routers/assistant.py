@@ -64,6 +64,32 @@ def routines_due(body: dict = Body(default={}), _: str = Depends(require_identif
                         in_flight=set(body.get("in_flight") or []))
 
 
+@router.post("/projects/{pid}/routines/run-due")
+def project_routines_run_due(pid: str, db: Session = Depends(get_db),
+                             actor: str = Depends(require_role("editor"))):
+    """R22-ROUTINES — enqueue the routines that are due. The step that makes this infrastructure.
+
+    `/routines/due` answers what *should* run and returns it; nothing acted on that answer, which is
+    the entry's own complaint — AI as a tool you remember to use rather than something that happens.
+    This enqueues one job per due routine and stamps the window as consumed.
+
+    **`in_flight` is derived from the jobs table, not assumed empty.** `routines.from_project` takes it
+    as a parameter and no caller supplied one, so the "previous run has not finished" refusal could
+    never fire: a monthly report taking an hour would be re-enqueued on every sweep for that hour.
+
+    Three refusals a scheduler is worthless without:
+
+    * **one job per DUE routine, never one per missed window.** A routine dormant for a year fires
+      once when switched back on, with the missed count reported — not twelve jobs at once.
+    * **a routine naming an unregistered kind is listed under `refused`**, and does not abort the
+      sweep for every correctly-configured routine beside it.
+    * **the window is consumed at enqueue, with the `job_id` recorded.** Consuming it on success would
+      re-fire a failing routine every sweep until it passed — a retry storm dressed as a schedule. The
+      cost is that a failed run waits for the next window, which is why the job id is on the row."""
+    from .. import routines_run
+    return routines_run.run_due(db, pid, actor=actor)
+
+
 @router.get("/projects/{pid}/routines/due")
 def project_routines_due(pid: str, db: Session = Depends(get_db),
                          _: str = Depends(require_role("viewer"))):

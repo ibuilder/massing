@@ -1,10 +1,14 @@
 """ISO 19650 / openBIM standards endpoints — CDE container discipline + requirements register."""
 from __future__ import annotations
 
+import math
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from .. import bim_kpi, bsdd, cde, ids_authoring, mcp_tools, openbim, openbim_quality, standards_expert
+from .. import bim_kpi, bsdd, cde, ids_authoring, mcp_tools, models, openbim, openbim_quality, standards_expert
 from ..db import get_db
 from ..models import Project
 from ..rbac import current_user, require_identified, require_platform_admin, require_role
@@ -200,6 +204,93 @@ def model_select(pid: str, q: str, limit: int = 5000, db: Session = Depends(get_
         return query_dsl.select(_idx_for(pid), q, limit=min(max(limit, 1), 20000))
     except query_dsl.QueryError as e:
         raise HTTPException(422, str(e))
+
+
+@router.post("/projects/{pid}/model/load-timing")
+def record_load_timing(pid: str, body: dict = Body(...), db: Session = Depends(get_db),
+                       user: str = Depends(current_user),
+                       _: str = Depends(require_role("viewer"))):
+    """R39-VIEWER-OBS — record one viewer model-load. Best-effort; the client drops the promise.
+
+    `require_role` is not optional here even though the payload is uninteresting: this is a
+    `/projects/{pid}` route, and a project-scoped route without a role check takes its project from
+    whoever calls it. That is the exact shape of the privilege side-door this repo has already found.
+
+    Every field is clamped rather than trusted. The client is a browser and its numbers are
+    attacker-controlled: an unclamped `total_ms` poisons every percentile this table exists to
+    report, which is a quiet way to make the instrument lie.
+    """
+    _project(db, pid)
+
+    def _ms(key: str) -> int | None:
+        v = body.get(key)
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            return None
+        # NaN/inf never compare into range, so they fall out here rather than reaching the column.
+        return int(v) if 0 <= v <= 86_400_000 else None
+
+    outcome = str(body.get("outcome") or "ok")
+    row = models.ViewerLoadTiming(
+        project_id=pid, actor=user,
+        model_id=str(body.get("modelId") or "")[:200] or None,
+        outcome=outcome if outcome in ("ok", "invisible", "stalled", "failed") else "ok",
+        bucket=str(body.get("bucket") or "unknown")[:20],
+        bytes=_ms("bytes"), fetch_ms=_ms("fetchMs"), parse_ms=_ms("parseMs"),
+        first_frame_ms=_ms("firstFrameMs"), total_ms=_ms("totalMs"),
+        canvas_w=_ms("canvasW"), canvas_h=_ms("canvasH"),
+    )
+    db.add(row)
+    # Retention, so a table written on every model load cannot grow without bound. Time-based rather
+    # than row-based: one indexed DELETE that matches nothing on almost every call, versus a COUNT on
+    # every insert. `error_log` caps rows because an operator reads it as a list; this is read as an
+    # aggregate, where "the last 90 days" is the meaningful window anyway.
+    db.execute(delete(models.ViewerLoadTiming).where(
+        models.ViewerLoadTiming.ts < datetime.now(timezone.utc) - timedelta(days=90)))
+    db.commit()
+    return {"recorded": True}
+
+
+@router.get("/projects/{pid}/model/load-timings")
+def load_timings(pid: str, days: int = 30, db: Session = Depends(get_db),
+                 _: str = Depends(require_role("viewer"))):
+    """R39-VIEWER-OBS — p50/p95 of the load journey, by model-size band.
+
+    Percentiles are computed in Python, not SQL: SQLite has no `percentile_cont`, and this runs on
+    both dialects. The row cap below bounds that in memory.
+
+    **`ok_rate` is reported beside every percentile on purpose.** Percentiles are computed over the
+    loads that finished, so a band whose loads mostly stall would otherwise show an excellent p95
+    drawn from its handful of survivors. The rate is what stops that reading as good news.
+    """
+    since = datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 365)))
+    rows = db.scalars(
+        select(models.ViewerLoadTiming)
+        .where(models.ViewerLoadTiming.project_id == pid, models.ViewerLoadTiming.ts >= since)
+        .order_by(models.ViewerLoadTiming.ts.desc()).limit(20_000)
+    ).all()
+
+    def pct(vals: list[int], q: float) -> int | None:
+        if not vals:
+            return None
+        vs = sorted(vals)
+        # Nearest-rank. The index is clamped because ceil(q*n)-1 lands on n for q=1.0.
+        return vs[min(len(vs) - 1, max(0, math.ceil(q * len(vs)) - 1))]
+
+    by: dict[str, list] = {}
+    for r in rows:
+        by.setdefault(r.bucket, []).append(r)
+    out = []
+    for bucket, rs in sorted(by.items()):
+        done = [r.total_ms for r in rs if r.outcome in ("ok", "invisible") and r.total_ms is not None]
+        out.append({
+            "bucket": bucket, "loads": len(rs),
+            "ok_rate": round(sum(1 for r in rs if r.outcome == "ok") / len(rs), 3),
+            "invisible": sum(1 for r in rs if r.outcome == "invisible"),
+            "stalled": sum(1 for r in rs if r.outcome == "stalled"),
+            "failed": sum(1 for r in rs if r.outcome == "failed"),
+            "p50_ms": pct(done, 0.50), "p95_ms": pct(done, 0.95),
+        })
+    return {"days": days, "loads": len(rows), "buckets": out}
 
 
 @router.post("/projects/{pid}/answer/cited-query")

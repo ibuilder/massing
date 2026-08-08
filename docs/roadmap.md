@@ -201,28 +201,76 @@ instances:
   *Recorded as unreachable in the module's own header so it cannot be mistaken for shipped
   capability — the mistake this band exists to catch.*
 
-- ◧ **R22-PUBLIC-VIEWER** *(M — Lane E; **premise corrected 2026-08-06, and it was wrong on both
-  halves**)* — a share link that opens the model read-only for someone with no account.
+- ✅ **R22-PUBLIC-VIEWER — SHIPPED v0.3.878 (#270).** The decision this entry was waiting on was
+  taken 2026-08-07: **a share token may serve model geometry, as a per-token opt-in, never a
+  default** — following the `show_payments` precedent exactly. `ShareToken.show_model` defaults
+  false, so no link already sent was widened retroactively.
 
-  The entry said *"what is missing is the scoped, revocable token and a route that honours it"*.
-  **Both exist.** `services/api/src/aec_api/models.py` defines `ShareToken` — project-scoped, soft
-  **revocable** (`revoked`, and revoking stops access immediately), audited
-  (`last_viewed_at`, `view_count`), with the token string itself as the credential. And
-  `services/api/src/aec_api/routers/client_portal.py` already has `create_share_token`,
-  `list_share_tokens`, `revoke_share_token`, plus **four routes that honour a token**:
-  `shared_decision`, `shared_comment`, `shared_digest`, `shared_page`.
+  The scope line that mattered: the token serves the converted **fragment**, never the source IFC.
+  "Share the model" reads as either, and the wide reading discloses every property set,
+  classification and GlobalId in the project — a much larger disclosure than was approved. There is
+  a test that fails if the source IFC ever becomes reachable through a token.
 
-  **What is actually missing is smaller in code and larger in decision.** No token route serves
-  **model geometry** — the `.frag` path is not reachable behind a token. And the token's scope is
-  deliberately *"a curated project digest (readiness only; no record-level data)"*, so serving the
-  model through it is **not a route, it is a scope change**: a model is record-level data by any
-  reading of that sentence, and the `PORTAL-TXN` precedent is that widening a token's reach is
-  **opt-in per token**, not a default.
+  All four refusals — unknown token, revoked token, token without the opt-in, project with no
+  published fragment — return an identical 404 body. Distinguishing them would tell an attacker
+  whether a token exists, whether it was revoked, and whether a project has a model.
 
-  So the residue is: **(1) a decision** on whether a share token may expose model geometry at all,
-  and if so under what per-token opt-in — *this is the user's or the release holder's call, not a
-  build*; **(2) then** a `shared_model` route and a viewer entry that runs read-only from a token.
-  Sized M on the old premise; the build half is nearer S once the decision exists.
+- ◧ **QTO-TRADE — the four procurement methods cannot be wired at all, and this is why.** *(backend;
+  blocks `buyoutPackages`, `procurementLevel`, `procurementLevelQuotes` and their sibling)*
+
+  **Two agents reached this independently, from different directions, on 2026-08-07** — one from the
+  input shape, one from the bid-submission side — and both refused to guess. That convergence is
+  what promotes it from a wiring backlog item to a backend finding.
+
+  `services/api/src/aec_api/procurement.py` resolves a line's identity as
+  item-or-description-or-material and **skips any line where all three are absent**. Both
+  model-derived QTO sources return ifc_class / count / unit / quantity / rate / amount — none of
+  those three, and no grouping key. Feeding the engine the exact shape the by-floor QTO produces
+  returns zero packages and zero cost. A screen over today's inputs would render
+  **"Buyout — 0 packages"**, which reads as *this model has nothing to buy out* rather than
+  *this input is incompatible*.
+
+  **The generalisation matters more than the fix:** the reach sweep proved 110 of 110 parseable
+  client methods have live server routes, and reachability was allowed to follow from that. It does
+  not. **Route existence and input adequacy are different questions**, and the sweep only ever
+  measured the first. The blocking work is a trade classification for QTO lines — backend, not UI.
+
+- ◧ **RATCHET-SET — the uncalled ceiling is a scalar with no floor, and it loosened silently today.**
+  *(S; `apps/web/src/api/clientCallers.test.ts`)*
+
+  The assertion is measured-less-than-or-equal-to-ceiling. **Nothing asserts the ceiling is tight**,
+  so a *higher* literal always passes. On 2026-08-07 five PRs lowered that one line from four
+  different bases; two live instances were caught only by hand: #254 carried 129 onto a main at 128,
+  and #273 carried 123 onto a main at 117 — each would have raised the ceiling with every gate green
+  and nobody able to see it.
+
+  **Merge sequencing does not fix this.** It decides *which* number lands, not whether it is true:
+  two PRs measured against one base are both correct until either merges, and then the second is
+  wrong. The second must **re-measure**, not rebase.
+
+  Replace the scalar with the committed **set of uncalled method names**, asserted equal. Tight by
+  construction (set equality has no loose direction); merge-friendly (two PRs reaching different
+  methods delete different lines instead of fighting over one); and strictly more informative — a
+  method moving into the known-uncalled exclusion becomes a visible line move rather than an
+  invisible population change.
+
+  **It does not fix the deeper problem and should not be sold as doing so.** A name leaving the list
+  still only proves a call site appeared, not that the feature works — a caller wired to an
+  incompatible input lowers the number while every gate stays green. That needs a second check:
+  a reach PR should show its endpoint returning real data with the arguments its own caller sends.
+
+- ◧ **BOE-MAPPING-DEDUP — the estimate-to-BoE mapping has more than one implementation.** *(S)*
+
+  The cost-code and total mappings are re-derived client-side where the seam already exists
+  server-side in `services/api/src/aec_api/commercial_drift.py`. One duplicate was removed in
+  v0.3.879 (the per-record BoE view in `apps/web/src/portal/register/register.ts`); a second remains
+  for the confidence reading, now called from both the register and
+  `apps/web/src/portal/panels/budget.ts`. Panels should call the seam rather than re-derive it.
+
+  Booked deliberately rather than paid under time pressure: both copies were already merged when the
+  duplication was diagnosed, and cutting one mid-flight would have moved the reach ceiling again on
+  the files that batch was already fighting over.
+
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
@@ -279,10 +327,10 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R40-RIBBON ② |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R22-PUBLIC-VIEWER · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R41-REACH-WRITES · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
@@ -293,6 +341,41 @@ two rows share a path, so two agents in different rows cannot collide.
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
 R24-IDENTITY · R32-TAXONOMY-LIFECYCLE (all five need the user's call) · PHOTO-PIN · CMMS-OPS (BIG-TICKET: open **one**, slice
 it) · REL-7 (gated on RT-KNIP) · R35-SANDBOX-ISOLATION (process/container isolation for snippet execution — a genuine design change, needs the user's call on deployment shape) · R35-PREFLIGHT-CI (run the prod-config validator against the **actual deploy overlay** in CI — still needs a decision on where the deploy env template lives. **Split 2026-08-02:** the half that needs NO decision — smoke the validator against a *synthetic* safe posture → exit 0 and an unsafe one → exit 1, catching a validator crash, a check regressed to a no-op, or a FAIL demoted — is unparked as a ~10-line CI step; the security session has claimed it).
+
+**A fourth was wrong until 2026-08-07, and it is wrong in the way the table could not see.**
+`roadmapLanes.test.ts` asserts the rows are **disjoint** — no two lanes claim the same path — and it
+is right to. But **disjointness and coverage are two different claims, and only the first was
+tested.** A table that is perfectly disjoint and owns 62% of the tree passes every assertion, and the
+rest is invisible: not contested, simply unclaimed.
+
+Measured: **152 of 390 tracked files under `apps/web/src` belonged to no lane — 53 once vendored code
+and ambient type declarations are set aside.** The unowned set includes `proforma/`, `drawings/`,
+`kernel/`, `pins/`, `studio/`, `tools/`, `tree/`, `connections/`, `account/`, `deploy/`, and the loose
+files in `portal/` that are neither `portal.ts` (A) nor `panels/`/`register/` (B) — `offlineQueue.ts`,
+`prefs.ts`, `panelContext.ts`, sitting between the two lanes least likely to be watching each other.
+That is the same shape as the 2026-07-30 nested overlap, one level up.
+
+This is not theoretical: Lane J's own note records three sessions in one day hitting a path belonging
+to no lane, and on 2026-08-07 a real defect in `apps/web/src/proforma/proforma.ts` — a reserve
+contribution presented as a recommendation without reading the flag that says whether it verified —
+had to be fixed under a one-change lane assignment because there was no row to point at.
+
+**It is now a ratchet rather than a proposal.** `roadmapLanes.test.ts` counts unowned files against a
+ceiling that only ever goes down, and the way down is adding a row here. Rows still to agree:
+`proforma/` · `drawings/` · `kernel/` · `pins/` · `studio/` · `tools/` · `tree/` · the loose `portal/`
+files · `tooling/` + `dev/` (probably J) · `account/` · `connections/` · `deploy/`.
+
+**CORRECTED 2026-08-07, and the correction found a real overlap the original claim would not have.**
+This said the disjointness check "compares the strings raw", so `field/` and `apps/web/src/field/` in
+two lanes would read as disjoint. **That was false** — the check already stripped `apps/web/src/`, and
+planting exactly that duplicate proved it caught it, naming both lanes.
+
+The real gap was the *asymmetry*: it normalised **one** prefix, `apps/web/src/`, so it was blind on the
+services side — and that is where a live overlap was sitting. Lane G claims bare `main.py`, which is
+`services/api/src/aec_api/main.py`; Lane C claims `services/api/src/aec_api/` and carved out only
+`routers/`. **The FastAPI entry point belonged to two lanes at once**, and those two strings never
+compared. `main.py` is now carved out of C, and the check resolves every claim to a repo-relative path
+against `git ls-files` instead of stripping one hard-coded prefix.
 
 **Two lane boundaries were wrong until 2026-07-30 and are worth naming.** Lane A used to own
 `apps/web/src/portal/` *wholesale* while B owned `portal/panels/` — a nested overlap, so the two lanes
@@ -703,11 +786,52 @@ stakes we are missing.
   give `SavedView.config` a schema, and let a view be shared. **Building the entry as written would
   have rebuilt working filtering.** Items 3 and 4 land in `models.py`/`routers/modules.py` — check the
   lane table before starting, that is not lane C's to take unilaterally.
-- ◧ **R22-PIPELINE** *(M — `deal_funnel.py` + migration shipped)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
+- ◧ **R22-PIPELINE** *(M → S — premise-checked 2026-08-07; the backend is built, the remainder is mostly viz)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
   is a funnel, not a project.
-- ◧ **R22-ROUTINES** *(S — `routines.py` + migration shipped)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
+
+  **PREMISE-CHECKED (no build). Both halves the entry describes already exist.**
+  The acquisition funnel is `deal_funnel.py` — stage conversion, weighted value, cycle times, and a
+  `data_quality` guard that refuses to report a conversion rate off too few closed samples. The
+  roll-up *above the project workspace* is `GET /portfolio/executive`: cross-project SPI, % complete,
+  lookahead, late milestones, GMP / EAC / variance-at-completion, an overall status per project,
+  portfolio totals and a status tally, plus the latest solved scenario's IRR/EM per project.
+  `/portfolio/construction`, `/portfolio/prioritization`, `/wip/portfolio` and `/fca/portfolio` sit
+  beside it.
+  Against the spec reference this entry cites, that already covers **multi-project KPI strip, EVM
+  SPI/CPI, milestone tracking and cost-by-project**.
+  **Genuinely missing is three items, and two of them are not Lane C:** a *cross-project* Gantt
+  (`schedule_viz.py` is per-project), a portfolio **risk heat map**, and **resource allocation by
+  department**. The near-misses were checked rather than counted: the "heat" matches in
+  `element_5d.py` and `scan_deviation.py` are different domains (5D element heat, scan deviation), and
+  the `department` matches in `rooms.py` and `scope_clauses.py` are incidental rather than resourcing.
+  So this is not an M of backend work. Size the resourcing engine on its own and route the two
+  visualisation items to the lane that owns them.
+- ✅ **R22-ROUTINES** *(S — `routines.py` + migration shipped; the SWEEP shipped 2026-08-07)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
   scan) rather than on-demand only. Turns AI from a tool you remember to use into infrastructure.
-- ◧ **R22-PUBLIC-VIEWER** — *(sized **M**, not S; see the Band 2 entry, which is the live one — its premise was corrected 2026-08-06: the scoped, revocable token and the routes honouring it ALREADY EXIST.)* This
+
+  **The deciding half existed and nothing acted on it.** `routines.due()` already refuses well — an
+  unknown cadence is refused rather than treated as due, `draft`/`retired` are never fired, missed
+  windows fire ONCE for the current window (`catch_up_suppressed`) — and `jobs.enqueue` already
+  rejects an unregistered kind, and `worker.py` already runs the queue. But both `/routines/due`
+  endpoints are read-only, so "what should run now" was computed, returned and dropped: exactly the
+  entry's own complaint.
+  `services/api/src/aec_api/routines_run.py` + `POST /projects/{pid}/routines/run-due` closes it.
+  **The defect that made this more than plumbing was latent**: `routines.from_project(db, pid, now,
+  in_flight)` takes `in_flight` as a parameter and **no caller supplied one**, so the single refusal in
+  the chain that needs outside knowledge — "the previous run has not finished" — could never fire. With
+  the default empty set, a monthly report taking an hour is re-enqueued on every sweep for that hour.
+  The sweep derives it from the jobs table instead.
+  Three refusals, all mutation-checked: in-flight derived rather than assumed (3 named FAILs); a
+  routine naming an unregistered kind is `refused` and **does not abort the sweep** for the ones beside
+  it (2); and **the window is consumed at enqueue, not at success**, with the `job_id` recorded —
+  consuming it on success would re-fire a failing routine every sweep until it passed, a retry storm
+  dressed as a schedule.
+  *Two shape assumptions were caught by reading rather than trusting a name*: `update_record` takes
+  `actor` and `party` as **required positionals** (omitting them is a TypeError only the write path
+  surfaces), and `me.TABLES[key]` is a Core `Table`, so columns are `t.c.*`. The register also had to
+  be loaded explicitly outside the app lifespan — the same trap as a `TestClient` built outside a
+  `with` block, where every module reads as absent and the failure looks like a missing feature.
+- ✅ **R22-PUBLIC-VIEWER — SHIPPED v0.3.878 (#270)**, per-token opt-in; see the Band 2 record. *(was sized **M**, not S; see the Band 2 entry, which is the live one — its premise was corrected 2026-08-06: the scoped, revocable token and the routes honouring it ALREADY EXIST.)* This
   line is the original scan's one-sentence estimate. It called the item S because it counted the
   viewer, which exists; the Band 2 entry counted the **scoped revocable token and a route that
   honours it**, which do not. Two sizes for one ID is a prioritisation bug, not a rounding
@@ -815,9 +939,59 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   1500 ms timeout fallback. Replacing a prose performance claim with a number is precisely what this
   ring exists to do. If the number comes back single-digit ms, **close the item unbuilt** and keep the
   measurement.
-- **R23-BATCH-OVERLAYS** *(S)* — app-authored overlays (pins, grid, snap markers, dimensions, clash
-  markers) use **zero** instancing; `three@0.184.0` has `BatchedMesh`. Keep the default BIM pass off
-  `MeshStandardMaterial` (presentation mode only); make FOV/FAR responsive by viewport class.
+- ◧ **R23-BATCH-OVERLAYS** *(S)* — **the instancing clause is CLOSED UNBUILT, with the measurement,
+  and the sweep found a different defect in the same place.** Following the precedent set by the item
+  directly above: replace the prose claim with a number, and if the number does not justify the work,
+  keep the number.
+
+  The premise was "app-authored overlays use **zero** instancing", which is true and turns out not to
+  matter, because **there is almost no population to instance.** Enumerated every scene-object
+  construction in app code — 31 sites across 11 files, all forms, not a sample — and of the five
+  families named above:
+
+  | named family | what it actually is | instanceable? |
+  |---|---|---|
+  | pins | **DOM `<div>`s** projected per frame (`apps/web/src/pins/pins.ts`) | no — `BatchedMesh` cannot batch DOM |
+  | grid | 1 `Line` + 1 `Sprite` per axis (`apps/web/src/viewer/draft/gridOverlay.ts`) | **the only real population** |
+  | snap markers · dimensions · clash markers | no mesh overlay exists | nothing to batch |
+  | (unnamed) GIS context | **already hand-merged** into 3 objects (`apps/web/src/viewer/gis.ts`) | already optimal |
+
+  Everything else — peer cursors, reference models, the guide underlay, the gizmos — is O(1) or
+  O(peers). And where the population *is* real, `BatchedMesh` is still the wrong tool: each grid
+  bubble carries its **own 64×64 `CanvasTexture` and material**, and `BatchedMesh` requires a shared
+  one. The correct fix there is a texture atlas or a cache, not instancing.
+
+  **What the measurement did find, in `gridOverlay.ts`:** `set()` rebuilds on every work-plane move,
+  and `clearMeshes` disposed geometry and material but not the texture — in three.js
+  `Material.dispose()` does **not** release `material.map`. Measured `AXES=8 → 8 textures made → 8
+  leaked after ONE rebuild`, i.e. a GPU leak proportional to axes × elevation changes during ordinary
+  authoring. Fixed by caching bubbles by tag (which also removes the re-rasterisation churn) and
+  moving ownership to `dispose()`. A third bug fell out: `getContext("2d")!` asserted a context that
+  is null under happy-dom, which is **why the file had no tests at all** — the untestability and the
+  defect had one cause.
+
+  **The FOV/FAR clause is now BUILT** (`apps/web/src/viewer/cameraProfile.ts`), and measuring it found
+  a second defect the clause did not describe. The library constructs the camera as
+  `PerspectiveCamera(60, aspect, 1, 1e3)` and nothing had revisited it:
+
+  - **A fixed VERTICAL fov gives a phone a third of the view a desktop gets** — horizontal fov is
+    derived from vertical and aspect, so portrait collapses it: **30°** on a phone against **85°** on
+    desktop. Now derived from a target horizontal angle and clamped, so a phone gets ~46°. The clamp
+    floor is 60° — today's value — deliberately: this can only ever *widen*, never narrow. A profile
+    that computed a "better" 51° for desktop would be a regression shipped as an improvement, and
+    nobody reports seeing less as a bug.
+  - **`near = 1 m` is wrong for the first-person walkthrough.** `apps/web/src/viewer/walkMode.ts` puts
+    the eye at 1.65 m and exists for close inspection — but everything within a metre of the eye was
+    clipped, so walking up to a wall or a column made it vanish before you reached it.
+
+  **Why the near plane moves only in walk mode, with the number that decides it.** Depth precision at
+  distance scales with `near`; for a 24-bit buffer the resolvable gap is about `z²/(near·2²⁴)`:
+  `near=1` gives 2.4 mm at 200 m, `near=0.1` gives **6.0 mm at 100 m**. `apps/web/src/viewer/guideUnderlay.ts`
+  lifts its plane 5 mm to avoid z-fighting, so a *global* change would make that underlay z-fight on
+  any model of real size — trading a walk-mode defect for a rendering one.
+
+  The `MeshStandardMaterial` clause needs no work — every remaining use is GIS context, not the BIM
+  pass.
 - **R23-SYMBOL-COUNT** *(M)* — deterministic template-match symbol counting in the **existing** pdf.js
   takeoff worker: mark one instance, normalised cross-correlation, non-maximum suppression.
   **Zero new dependencies**, offline, auditable — which matters for quantities that feed a bid.
@@ -1326,12 +1500,52 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
   therefore nothing to re-edit; changing a count today means deleting copies by hand. **Prerequisite:
   persist the array definition** (an IfcGroup or pset carrying nx/ny/dx/dy/dz plus its member GUIDs)
   and a `set_array_params` recipe that adds/removes members to match. Viewer half is then small.
-- **R38-SOLVER-LOCKS ③** *(M, needs a decision first)* — the R23 dimensional locks as UI. The solver
-  (`services/data/src/aec_data/dim_constraints.py`) reconciles a *system*; with three parameters on
-  a single element there is nothing to reconcile unless the user can state a relationship. **Open
-  question for the user, not a build:** are locks meant to be *within* an element (hold depth, drive
-  width, keep area) or *across* elements (align these walls, hold this offset)? Across-elements is
-  the CAD-familiar meaning and needs multi-element parameter edits, which do not exist yet.
+- **R38-SOLVER-LOCKS ③** *(M — **DECIDED 2026-08-07: both, within-element first**)* — the R23
+  dimensional locks as UI.
+
+  **The user's call:** ship *within*-element locks (hold depth, drive width, keep area) against the
+  existing solver now, and treat *across*-elements (align these walls, hold this offset) as a separate
+  later item once multi-element parameter edits exist. That gets a usable feature out without
+  committing to the larger build up front.
+
+  **Premise-checked 2026-08-07, and the entry's framing was wrong in a way that makes this cheaper
+  than it reads.** The question was posed as though the solver constrained the answer. It does not:
+
+  - `services/data/src/aec_data/dim_constraints.py` exposes `solve(variables, constraints)` over a
+    **flat dict of named scalars**. It has no concept of an element, so within-element and
+    across-element are the same call with different variable names. Its own docstring's example —
+    *"keep a wall 3000 from a grid"* — is an **across**-element relationship, so the general case is
+    what shipped.
+  - **The route already exists**: `POST /projects/{pid}/constraints/solve` in
+    `services/api/src/aec_api/routers/analysis.py`. It has **no client caller**, so the whole feature
+    is server-only today — the same shape the reachability gate exists to catch, and it is not in
+    `KNOWN_UNCALLED`, so it slipped past on the last-static-segment rule.
+
+  **So the solving is done; the work is UI plus a write-back.** The route says so itself: *"pure
+  computation over caller-supplied values — it neither reads nor writes the model."* A UI must gather
+  variables from the selection, call solve, and apply the result back through an edit recipe.
+
+  **The instance-level write path DOES exist** — `services/data/src/aec_data/edit.py`'s `RECIPES`
+  table has **14 entries keyed by `p["guid"]`**, a single element rather than a type. The relevant
+  ones: `set_extrusion_depth(guid, depth)`, `set_wall_thickness(guid, thickness)`,
+  `set_wall_slope(guid, start_height, end_height)`, `move_element(guid, dx, dy, dz)` and
+  `set_element_pset(guid, pset, prop, value, dtype)`.
+
+  *This entry claimed the opposite for one revision, and the way it went wrong is the reusable part.*
+  The functions that ARE the wrong granularity are easy to find by name — `edit_type_params` (type),
+  `set_pset_on_class` (class), `set_storey_elevation` (storey), `instance_props` (read + reset only) —
+  and a grep for guessed setter names finds exactly those and stops. The guid-keyed writes live in a
+  **dispatch table**, not under names anyone would guess. **If a claim is load-bearing, enumerate the
+  whole table rather than the functions you can name.**
+
+  **So the remaining work is a MAPPING, not a capability.** `solve()` returns named scalars, and
+  something must decide that `thickness` on a wall writes through `set_wall_thickness(guid, …)` while
+  `depth` on a column writes through `set_extrusion_depth(guid, …)`. That mapping is the substance of
+  Apply; it is Lane E/C work and needs no new recipe.
+
+  **Where a variable has no recipe, refuse that one BY NAME and apply the rest.** A partial apply that
+  says which locks it could not write is honest; one that silently drops them is the
+  `suggestion_clears_horizon` failure in a new place — a result that looks complete and is not.
 
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
@@ -1409,12 +1623,39 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
   glyphs, and its tests are mostly about *nothing disappearing* and only then about the bar being
   short. A ribbon inherits that gate — `unlaidTitles()` staying empty matters more than any tab
   layout. Design question before build.
-- ◧ **R40-EOT ②** *(M–L, Lane C — `eot.py` shipped)* — extension-of-time entitlement, with its method stated. Every input
+- ◧ **R40-EOT ②** *(M–L, Lane C — `eot.py` shipped; the SOURCED path shipped 2026-08-07)* — extension-of-time entitlement, with its method stated. Every input
   exists (`schedule_cpm.compute` gives ES/EF/LS/LF and free float, with total float derivable as
   LS−ES; `schedule_baselines` gives named baselines and per-activity variance; `notice_clock`
   already types weather/constructive-change/suspension delay events). What is missing is the step
   from baseline + as-built + events to a defensible entitlement: EOT days, excusable /
   non-excusable / compensable, per-event time impact. **The refusal IS the feature:** forensic delay
+  **Premise-checked: every refusal the entry asks for is already in `eot.py`** — the four methods as a
+  closed set, `method_required`, concurrency named rather than apportioned, absorbed float reported as
+  absorbed. **What had no provenance were its inputs.** `POST /schedule/eot` took `baseline_finish`,
+  `actual_finish` and the whole event list from the request body, while `schedule_baselines` (named
+  captured baselines + per-activity variance) and `notice_clock` (typed weather / constructive-change
+  / suspension events, each carrying its source record) sat wired to nothing. On the number the entry
+  itself says ends up in arbitration, that is the wrong place to leave provenance: two people can
+  produce different EOTs from one project by typing different dates, and every careful refusal sits
+  downstream of an input nobody can audit.
+  `services/api/src/aec_api/eot_sourced.py` + `POST /projects/{pid}/schedule/eot/sourced` joins them.
+  **The design follows from what the two sources actually give**, which is not the same thing:
+  `variance()` gives **quantum** (`finish_var` per activity vs a *named* baseline); `notice_clock`
+  gives **cause** and carries **no `days` field at all** — detection establishes that an event
+  occurred, never what it cost. So the gap is reported rather than filled, twice:
+  *an event with no stated duration is `needs_duration`*, listed and excluded from the figure rather
+  than handed the slip it sits near; and **slip with no matching cause is `unattributed`, never
+  `non_excusable`** — defaulting unexplained slip to contractor risk hands one party an entitlement
+  finding nobody demonstrated. Matching is by explicit `activity_id` only: proximity is not causation,
+  and causation is the contested half of every claim. All three mutation-checked (5 / 2 / 6 named
+  FAILs); no baseline returns `baseline_required` **with the available baselines** rather than falling
+  back to a typed date.
+  *Two of my own assumptions were wrong and caught by reading the engine rather than trusting the
+  name:* `compute_variance` rows key on `ref` (there is no `id`), and its `summary` carries slip counts
+  and `max_slip_days` but **no project finish dates** — so `baseline_finish`/`actual_finish` are passed
+  through from the caller and NOT derived here, because inventing a completion date would fabricate
+  the very input this exists to make auditable.
+
   analysis has a published method taxonomy (AACE 29R-03, SCL Protocol 2nd ed) and **the same facts
   give different answers under different methods** — as-planned-vs-as-built, windows and time-impact
   are not interchangeable, and concurrent-delay apportionment is openly contested. The engine states
@@ -1424,6 +1665,42 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
 - ◧ **R22-PIPELINE** — no rewrite needed; a **spec reference now exists** from the same drop (portfolio
   dashboard: multi-project KPI strip, cross-project Gantt, EVM PV/EV/AC + SPI/CPI, risk heat map,
   milestone tracking, resource allocation by department, cost-by-project).
+
+## Reach sweep — Lane C/G/I *(2026-08-07)*
+
+**Measured, then acted on.** `UNCALLED_CEILING` **131 → 123**, the drop measured by re-running the
+scan rather than derived from what was wired.
+
+- `portfolioCompare` wired into the portfolio panel as a **returns spread**. The executive roll-up
+  gives a *blended* equity IRR — one number for the whole book, which cannot show that a single deal
+  is carrying it. This gives per-project IRR / multiple / yield-on-cost from each project's latest
+  solved scenario plus best-and-worst. An absent return renders em-dash, never 0%: a project with no
+  solved scenario has not returned zero, and a fabricated zero would take the "worst" slot from a deal
+  that genuinely holds it. **This is the R22-PIPELINE finding landing** — capability present, reach
+  absent — folded into the sweep rather than re-listed as new work.
+- `estimateBoe` wired as **Basis of estimate** on the budget panel. This closes a loop opened by
+  R22-PROVENANCE: that work gave `estimate` line items `source` / `quote_ref` / `basis_date`, and
+  `boe_ledger` checks them, but nothing showed the result — an estimate you cannot defend
+  line-by-line is what a claim attacks first. The screen maps `code → cost_code` and `amount →
+  total`, **the same seam `commercial_drift.ESTIMATE_TO_BOE` documents server-side**: handing the
+  rows over unmapped does not raise, it silently produces a full, plausible, wrongly-keyed ledger.
+- `clearBaseline` → `KNOWN_UNCALLED`, **with an expiry condition**. It deletes a captured schedule
+  baseline, and R40-EOT ② has just made the *named* baseline the auditable input to an extension-of-
+  time figure that ends up in arbitration. A one-click destroy beside that is a footgun, and "it has
+  no caller" is not a reason to give it one. Retires when baseline deletion is behind a
+  confirm-and-audit step.
+
+**The procurement cluster is NOT a missing screen, and this is the correction worth carrying.** The
+sweep's premise is that every uncalled method has a live server route, so the remedy is uniformly
+"build the screen" — verified true for 110 of them. **A live route is not an available input.**
+`buyoutPackages`, `buyoutSchedule`, `procurementLevel` and `procurementLevelQuotes` are POST endpoints
+whose QTO lines must carry `{item, qty, unit, trade}`; the engine **skips any line without an `item`**
+and falls back to a single `"General"` package without a grouping key. Both model-derived sources
+(`qtoByFloor`, `estimateFromModel`) return `{ifc_class, count, unit, quantity, rate, amount}` — **no
+`item`, no trade/csi/material_class/discipline**. Nothing in the client surface returns a
+procurement-shaped line. A screen built on today's sources would render one package called "General"
+and read as "this project has no scope". **These four need a trade classification on QTO lines
+first**; that is the blocking item, not a panel.
 
 ## 🔬 R41 — EXTERNAL SCAN *(27 sources, 2026-08-06; licences read from the LICENSE file, not the README)*
 
@@ -1463,7 +1740,7 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
 
 ### Capability items
 
-- **R41-FDD-INGEST** *(M — Lane C)* — **consume fault findings; do not build a historian.** The operate
+- ✅ **R41-FDD-INGEST** *(M — Lane C/H; `fault_finding` register shipped 2026-08-07)* — **consume fault findings; do not build a historian.** The operate
   phase has a real hole: FCA/FCI, work orders, PM schedules, asset registers and warranties all exist,
   but **nothing consumes time-series building-automation telemetry**, so condition is surveyed by a
   person rather than measured continuously. The tempting answer — build fault detection ourselves —
@@ -1472,6 +1749,26 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   `fault_finding` register keyed to IFC GlobalId, populated from an external system's MCP or REST
   surface**, feeding the FCI and work-order modules we already have. Public ASHRAE Guideline 36 fault
   identifiers are a stable vocabulary to key against.
+
+  **Premise held — genuinely unbuilt**, unlike most of this ring: `asset_register`, `fca_element`,
+  `work_order` and `warranty` all existed and nothing consumed telemetry findings.
+  `fault_finding` (FDD, 16 fields, four contiguous fieldsets: Fault / Provenance / Asset /
+  Consequence) takes the cheap path the entry prescribes and **does not** build a historian.
+  The design point is that we CONSUME rather than detect, so provenance is a fieldset rather than a
+  footnote: `source_system` + `external_id` + `first_seen`/`last_seen`/`occurrences`. A finding with
+  no source is not ours to assert, and a telemetry fault is an interval that recurs, not an instant —
+  which is why `cleared → reported` ("recurred") is a real transition: **a fault that stops reporting
+  is not necessarily fixed, and one that returns is not new.** `dismissed` is separate from `cleared`
+  for the same reason.
+  G36 identifiers FC1–FC15 are the `g36_id` vocabulary, plus an explicit "Other (not a G36 fault)" so
+  an unmapped fault is recorded as unmapped instead of forced into the nearest code.
+  **No defaults at all** — `test_field_attrs.py` caps them and requires each to be a fact about the
+  record rather than a policy, and on a register fed by someone else's system every default would be
+  an assertion about *their* data.
+  Verified over HTTP with startup actually running: `GET /modules` → **137** (was 136), key-shape
+  identical to `pm_contract`, room derived as `operate`, `POST` → 201 `FDD-001`.
+  *The registry validator earned its keep*: the first draft wrote reference fields as `ref:` when the
+  schema wants `module:`, and it named all four rather than failing silently.
 
   **CHECKED 2026-08-06 — the premise HOLDS, which is worth recording because most have not.** The
   modules the entry says exist do: `fca_element` + `services/api/src/aec_api/fca.py`, `work_order`,
@@ -1489,7 +1786,18 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   federation and is *not* the same problem as our standing set-origin note. Two techniques, both
   reimplement-from-description — the reference source carries an object-code-only header despite an MIT
   root, so **do not paste it**:
-  **(a) a yaw-only oriented bounding box** fitted to drawn geometry (2D convex hull of the footprint,
+  **(a) a yaw-only oriented bounding box** fitted to drawn geometry
+  *[PREMISE-CHECKED 2026-08-06: HOLDS — nothing aligns anything today — but (a) is substantially
+  cheaper than written. `georef.py` exposes one function, `georeferencing(model)`, which **reads** and
+  returns; there is no yaw fitting, no unit-mismatch handling and no alignment anywhere in `services/`.
+  What lowers the cost: **shapely is already a declared dependency** (`services/data/requirements.txt`,
+  `>=2.1.2`, pulled in for trimesh planar paths) and `drawings.py` already uses `MultiPoint(...)
+  .convex_hull`. Shapely ships `minimum_rotated_rectangle`, verified in the pinned version — so the
+  hull-and-fit half is a call, not an implementation, and needs no new dependency and no pasted
+  reference code. **What must still be written by hand is the part the entry says is valuable**: the
+  ≥20% area-saving acceptance threshold that buys a *wall-parallel* rectangle rather than a *smallest*
+  one. The geometry is small; the acceptance rule and the "never touch the source file" guarantee are
+  the work.]* (2D convex hull of the footprint,
   minimum-area rectangle), accepted **only when it saves at least 20% area**. The reasoning is the
   valuable part: a true minimum-area rectangle sat **37° off a building's own walls to buy 14%**, which
   reads as broken. The threshold buys *wall-parallel* rather than *smallest*. Their measured gap was a
@@ -1551,16 +1859,167 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   groups rather than forming them, and reported a clean pass. **An applied mutation that alters no
   behaviour reads exactly like a gate that cannot fail**; the measured numbers coming back identical
   is what caught it.
-- **R41-COMMERCIAL-DRIFT** *(M — Lane C)* — **diff the money across documents, not across our own
+- ◧ **R41-COMMERCIAL-DRIFT** *(M → S/M — Lane C; the document walker SHIPPED 2026-08-07, the PO hop remains)* — **diff the money across documents, not across our own
   estimates.** R25-ESTIMATE-DIFF compares two of *our* numbers. The gap is the chain **bid → executed
   contract → purchase order → invoice**, each hop diffed against the one before it with findings ranked
   by dollar impact: scope added between bid and contract, invoice lines drifting from a locked buyout
   price. This is where subcontractors actually lose money, and it sits on top of cost and document
   control we already have.
-- **R41-IDS-VALIDATE** *(M — Lane D)* — **buildingSMART IDS: author an Information Delivery
+
+  **Walker SHIPPED — `commercial_drift.py`, `GET /projects/{pid}/commercial-drift`.** Premise-checked
+  first and the item was smaller than written: three of the four hops already existed **and were
+  already referentially wired** (`subcontract.awarded_from → bid_submission`,
+  `sub_invoice.subcontract → subcontract`), so bid → contract → invoiced needed no schema change.
+  **Why the existing engines could not do it.** `margin.py` and `cost_spine.py` both measure per cost
+  code, and **a roll-up adds before it compares** — two subcontracts can net to the right code total
+  while one award drifted +15% and another −15%. There is a test for exactly that: both are reported
+  here and the per-code view sees nothing.
+  **Two agreed numbers are deliberately NOT called drift**, which is the whole design:
+  *a change order is money somebody signed for* — `subcontract.change_orders` sums `cor.amount`, so it
+  belongs to the contract→invoiced hop as part of the agreed sum and never to bid→contract; counting
+  it as drift would flag every project that has a CO, which is every project. And *an unaccepted
+  alternate was never bought* — `bid_submission` carries `amount`, `base_bid` and an `alternates`
+  table with an `accepted` flag, so the comparable award figure is base bid + **accepted** alternates,
+  with the row stating its basis. Comparing `amount` blindly buys the rejected ones; comparing
+  `base_bid` alone makes the accepted ones look like scope from nowhere.
+  A hop missing a figure on either side is `incomparable` and counted separately — not a zero-dollar
+  difference. All three refusals mutation-checked (4 / 6 / 2 named FAILs).
+  **Remaining: the PO hop.** `purchase_order` still does not exist and `procurement_package` carries
+  `est_cost`/`award_amount` with **zero reference fields** — an island nothing can walk into or out
+  of. That register plus one more hop closes the entry.
+
+  **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
+  the cost-code axis of this diff is done. The item is much smaller than written.**
+  Registers present: `bid_submission` (`amount`, `unit_prices`), `bid_package`, `prime_contract`
+  (`value`, `sov_value`), `subcontract` (`value`), `owner_invoice` (`amount`, `retainage_total`,
+  `architect_certified_amount`), `sub_invoice` (`amount`). **The chain is already referentially
+  wired**: `subcontract.awarded_from → bid_submission` and `sub_invoice.subcontract → subcontract`,
+  so bid → contract → invoice can be walked today without a schema change.
+  **And the diff partly exists, along a different axis than the entry assumes.** `margin.py`
+  (MARGIN-CBS) already totals budget / committed / actual / billed per cost code, and `cost_spine.py`
+  already asks the harder question — whether one cost code carries the *same scope* from estimate
+  through budget, commitment and invoice, because a code appearing at one stage and not the next
+  produces a row that looks fine. That is document drift measured **per cost code**.
+  **What is actually missing is two things, not four:**
+  1. **the PO hop has no register.** `purchase_order` does not exist; `procurement_package` carries
+     `est_cost` and `award_amount` but has **zero reference fields** — it is an island, so nothing can
+     walk into or out of it. This is the one genuine schema gap;
+  2. **nothing diffs amounts document-to-document along the references that already exist** — bid
+     `amount` vs the `subcontract.value` it was awarded into, contract value vs the sum of its
+     `sub_invoice.amount`. The per-code roll-up cannot see this: two documents can net to the right
+     code total while the individual award drifted.
+  Sized on evidence rather than the entry's wording, this is **S/M** — one register plus one walker
+  over existing references — not the M implied by "build a four-hop diff".
+
+  **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
+  the cost-code axis of this diff is done. The item is much smaller than written.**
+  Registers present: `bid_submission` (`amount`, `unit_prices`), `bid_package`, `prime_contract`
+  (`value`, `sov_value`), `subcontract` (`value`), `owner_invoice` (`amount`, `retainage_total`,
+  `architect_certified_amount`), `sub_invoice` (`amount`). **The chain is already referentially
+  wired**: `subcontract.awarded_from → bid_submission` and `sub_invoice.subcontract → subcontract`,
+  so bid → contract → invoice can be walked today without a schema change.
+  **And the diff partly exists, along a different axis than the entry assumes.** `margin.py`
+  (MARGIN-CBS) already totals budget / committed / actual / billed per cost code, and `cost_spine.py`
+  already asks the harder question — whether one cost code carries the *same scope* from estimate
+  through budget, commitment and invoice, because a code appearing at one stage and not the next
+  produces a row that looks fine. That is document drift measured **per cost code**.
+  **What is actually missing is two things, not four:**
+  1. **the PO hop has no register.** `purchase_order` does not exist; `procurement_package` carries
+     `est_cost` and `award_amount` but has **zero reference fields** — it is an island, so nothing can
+     walk into or out of it. This is the one genuine schema gap;
+  2. **nothing diffs amounts document-to-document along the references that already exist** — bid
+     `amount` vs the `subcontract.value` it was awarded into, contract value vs the sum of its
+     `sub_invoice.amount`. The per-code roll-up cannot see this: two documents can net to the right
+     code total while the individual award drifted.
+  Sized on evidence rather than the entry's wording, this is **S/M** — one register plus one walker
+  over existing references — not the M implied by "build a four-hop diff".
+
+  **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
+  the cost-code axis of this diff is done. The item is much smaller than written.**
+  Registers present: `bid_submission` (`amount`, `unit_prices`), `bid_package`, `prime_contract`
+  (`value`, `sov_value`), `subcontract` (`value`), `owner_invoice` (`amount`, `retainage_total`,
+  `architect_certified_amount`), `sub_invoice` (`amount`). **The chain is already referentially
+  wired**: `subcontract.awarded_from → bid_submission` and `sub_invoice.subcontract → subcontract`,
+  so bid → contract → invoice can be walked today without a schema change.
+  **And the diff partly exists, along a different axis than the entry assumes.** `margin.py`
+  (MARGIN-CBS) already totals budget / committed / actual / billed per cost code, and `cost_spine.py`
+  already asks the harder question — whether one cost code carries the *same scope* from estimate
+  through budget, commitment and invoice, because a code appearing at one stage and not the next
+  produces a row that looks fine. That is document drift measured **per cost code**.
+  **What is actually missing is two things, not four:**
+  1. **the PO hop has no register.** `purchase_order` does not exist; `procurement_package` carries
+     `est_cost` and `award_amount` but has **zero reference fields** — it is an island, so nothing can
+     walk into or out of it. This is the one genuine schema gap;
+  2. **nothing diffs amounts document-to-document along the references that already exist** — bid
+     `amount` vs the `subcontract.value` it was awarded into, contract value vs the sum of its
+     `sub_invoice.amount`. The per-code roll-up cannot see this: two documents can net to the right
+     code total while the individual award drifted.
+  Sized on evidence rather than the entry's wording, this is **S/M** — one register plus one walker
+  over existing references — not the M implied by "build a four-hop diff".
+
+  **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
+  the cost-code axis of this diff is done. The item is much smaller than written.**
+  Registers present: `bid_submission` (`amount`, `unit_prices`), `bid_package`, `prime_contract`
+  (`value`, `sov_value`), `subcontract` (`value`), `owner_invoice` (`amount`, `retainage_total`,
+  `architect_certified_amount`), `sub_invoice` (`amount`). **The chain is already referentially
+  wired**: `subcontract.awarded_from → bid_submission` and `sub_invoice.subcontract → subcontract`,
+  so bid → contract → invoice can be walked today without a schema change.
+  **And the diff partly exists, along a different axis than the entry assumes.** `margin.py`
+  (MARGIN-CBS) already totals budget / committed / actual / billed per cost code, and `cost_spine.py`
+  already asks the harder question — whether one cost code carries the *same scope* from estimate
+  through budget, commitment and invoice, because a code appearing at one stage and not the next
+  produces a row that looks fine. That is document drift measured **per cost code**.
+  **What is actually missing is two things, not four:**
+  1. **the PO hop has no register.** `purchase_order` does not exist; `procurement_package` carries
+     `est_cost` and `award_amount` but has **zero reference fields** — it is an island, so nothing can
+     walk into or out of it. This is the one genuine schema gap;
+  2. **nothing diffs amounts document-to-document along the references that already exist** — bid
+     `amount` vs the `subcontract.value` it was awarded into, contract value vs the sum of its
+     `sub_invoice.amount`. The per-code roll-up cannot see this: two documents can net to the right
+     code total while the individual award drifted.
+  Sized on evidence rather than the entry's wording, this is **S/M** — one register plus one walker
+  over existing references — not the M implied by "build a four-hop diff".
+
+  **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
+  the cost-code axis of this diff is done. The item is much smaller than written.**
+  Registers present: `bid_submission` (`amount`, `unit_prices`), `bid_package`, `prime_contract`
+  (`value`, `sov_value`), `subcontract` (`value`), `owner_invoice` (`amount`, `retainage_total`,
+  `architect_certified_amount`), `sub_invoice` (`amount`). **The chain is already referentially
+  wired**: `subcontract.awarded_from → bid_submission` and `sub_invoice.subcontract → subcontract`,
+  so bid → contract → invoice can be walked today without a schema change.
+  **And the diff partly exists, along a different axis than the entry assumes.** `margin.py`
+  (MARGIN-CBS) already totals budget / committed / actual / billed per cost code, and `cost_spine.py`
+  already asks the harder question — whether one cost code carries the *same scope* from estimate
+  through budget, commitment and invoice, because a code appearing at one stage and not the next
+  produces a row that looks fine. That is document drift measured **per cost code**.
+  **What is actually missing is two things, not four:**
+  1. **the PO hop has no register.** `purchase_order` does not exist; `procurement_package` carries
+     `est_cost` and `award_amount` but has **zero reference fields** — it is an island, so nothing can
+     walk into or out of it. This is the one genuine schema gap;
+  2. **nothing diffs amounts document-to-document along the references that already exist** — bid
+     `amount` vs the `subcontract.value` it was awarded into, contract value vs the sum of its
+     `sub_invoice.amount`. The per-code roll-up cannot see this: two documents can net to the right
+     code total while the individual award drifted.
+  Sized on evidence rather than the entry's wording, this is **S/M** — one register plus one walker
+  over existing references — not the M implied by "build a four-hop diff".
+- ✅ **R41-IDS-VALIDATE** *(M — Lane D; DISSOLVED on premise-check 2026-08-06 — already built end to end)* — **buildingSMART IDS: author an Information Delivery
   Specification, run it against a model, read the report.** Conspicuously absent for a product whose
   thesis is IFC-native, and a likely second gap in the "openBIM gaps complete except the IFC5/IFCX
   write-path" claim. **Verify that claim against the tree before sizing this.**
+
+  **Verified, and the entry is the thing that was wrong — the openBIM claim was right.** All three
+  verbs exist and the loop is closed, including into the UI:
+  *author* — `services/api/src/aec_api/ids_authoring.py` ships a starter template library keyed by
+  element group (Pset_*Common properties per IFC class), builds a standards-valid buildingSMART **IDS
+  1.0** file through `ifctester`, and generates an EIR contract document;
+  *run* — `services/data/src/aec_data/validate.py` validates an IFC against an IDS with `ifctester`,
+  taking an uploaded `.ids` or falling back to a default QA spec set;
+  *read the report* — `POST /projects/{pid}/validate`, with `PUT`/`GET`/`DELETE /projects/{pid}/ids`
+  storing the project's spec, and **all of it already called from `apps/web/src/api/client.ts`** —
+  which makes it the rare feature that is not merely built but reachable.
+  So "conspicuously absent" described a feature that was complete, wired and shipping. **The entry's
+  own instruction is what caught it**, and that is the argument for writing entries that say what to
+  verify: a sentence naming the check costs one grep and saved an M-sized build here.
 
   ✅ **VERIFIED 2026-08-06 — the premise is wrong and the claim HOLDS. This is already built,
   end-to-end and reachable.** All three parts the entry asks for exist:
@@ -1589,7 +2048,24 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   `hash(salt + filesize + chunk hashes)` so **resumption is not a special code path** (re-handshake,
   receive the still-needed list) and deduplication falls out for free; and per-chunk hashes catching
   corruption **before** IFC-to-Fragments conversion runs. **IFC revisions are large and mostly
-  identical between uploads**, so an unchanged re-upload currently costs a full transfer. Their
+  identical between uploads**, so an unchanged re-upload currently costs a full transfer.
+
+  **PREMISE-CHECKED 2026-08-06; the hazard it surfaced is now FIXED and half the mechanism landed.**
+  The premise holds — nothing is chunked, resumable or content-addressed — but two things changed the
+  shape of it.
+  *The hazard, and it was worse than the version I first wrote.* I flagged that a chunked upload would
+  defeat `AEC_MAX_UPLOAD_MB` because the guard reads `content-length` on a single request and N small
+  chunks each pass. The real mechanism was simpler and already live: **with no `content-length` header
+  at all the condition short-circuited and the body was never measured** — so the cap was defeatable
+  without chunking anything. Fixed in v0.3.876 by `bodycap.MaxBodySizeMiddleware`, which counts bytes
+  on the ASGI `receive` channel. Recorded because the correction matters: I reasoned to the right
+  conclusion from the wrong mechanism, and a guard that *fails open on a missing header* is a
+  different class of bug from one that is out-scoped by chunking.
+  *The other half stands and has moved.* `storage.put(key, data: bytes)` was whole-bytes on both
+  backends; `put_stream` now exists (local `.part`+rename, S3 multipart) — but **no call site is
+  converted**, verified in the tree. So the remaining work is the conversion plus the content-addressed
+  handshake itself, and whatever lands must still cap the *assembled* size at the handshake rather
+  than trusting a declared filesize. Their
   sparse-file capability check is this codebase's own house style expressed in a network protocol: on a
   mismatch it **refuses loudly**, naming file, chunk index and offset, rather than silently writing a
   corrupt file.
@@ -1613,9 +2089,10 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
 
 ### Gate and process items
 
-- ◧ **R41-DELETE-RATCHET** *(S — Lane J; the FILE half SHIPPED 2026-08-06, the symbol half deliberately
-  not attempted)* — **assert in CI that removed things stay removed.** Shipped as
-  `apps/web/src/tooling/deleteRatchet.test.ts` over eight deleted documents.
+- ✅ **R41-DELETE-RATCHET** *(S — Lane J; FILE half + SYMBOL half both SHIPPED 2026-08-06)* —
+  **assert in CI that removed things stay removed.** Shipped as
+  `apps/web/src/tooling/deleteRatchet.test.ts` over eight deleted documents, and
+  `services/api/test_delete_ratchet.py` over the API method surface.
 
   **The entry says "a negative assertion is three lines". It is — and the population is the whole
   problem.** Three plausible candidates were tested and all three failed, in three different ways:
@@ -1634,6 +2111,26 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   problem; a path has none of them — prior existence is provable from history, current absence is one
   `git ls-files`, and it needs no comment-stripping, no word boundaries, and no matcher that can agree
   with everything.
+
+  **The symbol half then became tractable — by not searching for a name.** Every failure above is a
+  *string-matching* problem, so `services/api/test_delete_ratchet.py` does no string matching: it
+  parses **definition sites** (`^  name(` at class indent, across `apps/web/src/api/*.ts`) and asserts
+  a derived property over whatever it finds — **no API method is defined in two files**. That inverts
+  all three traps at once. There is no list to guess wrong (`renderRegister` could not have been
+  invented here, because nothing is named in advance); prose cannot match a definition site, so the
+  gate cannot fire on the documentation of its own rule; and a word with a legitimate other life is
+  irrelevant, because a second *definition* is the defect whatever else the word means elsewhere.
+  **The failure it catches is invisible to the size ratchet.** Re-adding one method to `client.ts`
+  while the mixin still defines it costs a few lines, clears the 3,780 pin comfortably, and produces a
+  **shadow** — two definitions, the winner decided by composition order in
+  `withAuth(withProforma(withDesignOptions(...)))`. Every call site resolves, nothing fails to compile,
+  and the extraction is silently undone. 638 methods across 10 files, zero duplicates, **no exemption
+  list**. Mutation-checked by re-adding `designOptionsRecord` to `client.ts`: 3 named FAILs naming the
+  symbol and both owning files.
+  *Scope worth stating so neither half is over-read:* no `.py`/`.ts`/`.tsx` file has ever been deleted
+  on `main` (`git log --diff-filter=D`, 400 commits, **zero**) — which is exactly why the path ratchet
+  lives over `docs/` and the source-side one is about definitions rather than deletions. In source,
+  things here get *extracted*, not removed.
 
   **The eight are load-bearing because `docs/` IS the Pages web root.** Re-adding any one republishes
   a superseded planning document as a live public page. Two of them are competitive analyses, which a
@@ -1662,8 +2159,29 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   hard half — the population is the moved code *named*, the matcher is asserted to find real names,
   comments are stripped, and the legitimate crossings are enumerated as doors. The symbol ratchet is
   the harder second version and should extract that helper rather than re-derive it.
-- **R41-TEST-RESIDUE** *(S — Lane J; found 2026-08-06 by tracing a flaky suite to its cause)* —
-  **the backend suite leaves its databases behind, and nothing sweeps them.** A full `run_tests.py`
+- ✅ **R41-TEST-RESIDUE** *(S — Lane J; found 2026-08-06 by tracing a flaky suite to its cause,
+  **and my own filed premise was wrong** — corrected below)* —
+  **the backend suite leaves its databases behind, and the sweep that should have caught it was
+  removing a filename nothing creates.**
+
+  *Filed as "nothing sweeps them". That is false and the truth is more interesting.* `run_tests.py`
+  sets `DATABASE_URL=sqlite:///./_{t}.db` per test and unlinks exactly that. But **351 of 538 test
+  files overwrite `DATABASE_URL` at import** with a name of their own (`test_absorption.db`,
+  `auth_test.db`). So the runner unlinked a file nothing ever creates while the real one persisted —
+  **a cleanup that ran, succeeded, and removed nothing**, which is indistinguishable from one that
+  works. The 187 tests that *do* use the runner's name were cleaned correctly the whole time, which
+  is exactly why nobody noticed.
+
+  **Fixed with two refinements from a second session, both better than the first design.** The sweep
+  runs **per test as each finishes** rather than after the pool — with the disk at ~96% an end-sweep
+  still peaked at ~1.4 GB held open at once. And **a failing test keeps its database**, because that
+  file is the evidence for the failure and sweeping it destroys what someone needs at 3am.
+
+  Per-test cleanup is **name-scoped from the test's own source**, not a snapshot diff: tests run
+  concurrently, so "everything that appeared while I ran" also contains databases other tests are
+  still using. The end-of-run backstop *does* use snapshot-diff, where no name is available — a
+  `glob("test_*.db")` there would have its safety depend on which filenames happen to exist, and
+  `preview.db` (the dev API's live database) shares that directory. A full `run_tests.py`
   writes a SQLite file per test module into `services/api/`, and no run removes what the last one
   wrote. Measured across the shared clone that day:
 
@@ -1692,6 +2210,28 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   *Filed by the session that found it rather than fixed on the spot: the files belonged to other
   sessions' worktrees, and the `git worktree remove --force` incident is precisely why a measurement
   gets reported and someone who owns the tree does the deleting.*
+
+- **R41-REACH-WRITES** *(M — Lane E — **split out of the reach sweep 2026-08-07, deliberately not
+  built**)* — the write-side endpoints that have no screen, held back because **each one needs a
+  confirmation or recovery step designed rather than bolted on**. The read-side sweep took
+  `UNCALLED_CEILING` from 131 to 104 by wiring seventeen capabilities; these four were left because
+  wiring them the same way would ship a control that can lose work.
+
+  | method | why it is not a read-side wiring job |
+  |---|---|
+  | `deleteProjectModel` | **destructive.** Removes a registered discipline model. Needs a named confirmation ("type the discipline"), and an answer to what happens to pins, clash results and issues that reference it. |
+  | `saveSharedParams` | **`PUT` replaces the whole list.** A partial save silently wipes the project standard every other model is authored against. Needs edit-in-place semantics, or a diff-and-confirm. |
+  | `reviewModelVersion` | a **state transition** (`submit`/`approve`/`reject`). Approval is an assertion a person makes; the seal work already established that a bearer token is a session, not a person. Needs the same step-up thinking. |
+  | `deleteView` | destructive, same shape as the first row and cheaper — probably lands with it. |
+
+  **What is already done and should not be redone:** the read/apply halves are wired.
+  `viewTemplates` + `resolveViewTemplate` apply a saved view (isolate + colour, reversible),
+  `importClashXml` imports findings additively, and `sharedParams` displays the standard read-only.
+  So each row above is *"add the write to an existing screen"*, not *"build a screen"*.
+
+  **The general rule this item exists to hold:** a reach sweep is allowed to wire anything that
+  cannot lose work, and must stop at anything that can. Wiring a destructive endpoint with the same
+  three lines as a read-only one is how a ratchet's progress starts costing more than it buys.
 
 - **R41-BUNDLER-SPLIT** *(S — Lane J)* — **the suite never exercises the bundler that ships.** The app
   is *built* with **Vite 8 / rolldown** (pinned in `apps/web/package.json`, installed nested at

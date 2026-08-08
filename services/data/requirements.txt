@@ -3,7 +3,15 @@ ifcopenshell>=0.8.5,<0.9
 openpyxl>=3.1          # XLSX export
 numpy>=2.5.1           # geometry-derived quantities, AABB clash
 ifctester>=0.8        # IDS / openBIM model validation
-trimesh>=5.0.0          # clash narrow phase (mesh booleans) + 2D section cuts
+# Held at 4.12.2, which is what `services/api/requirements.lock` pins and therefore what the
+# container actually runs — this file is NOT installed anywhere (the API image installs only that
+# lock, and CI installs it too). Dependabot raised this to >=5.0.0 in #229 and every check went
+# green, because nothing had ever compared this file against the lock; the image kept shipping
+# 4.12.2 while this line claimed 5.0.0 was required. Raising it again means regenerating the lock
+# AND validating trimesh 5 against the paths below — it drives mesh booleans (with manifold3d, at
+# 3.5.2) and 2D section cuts, so a major move there is not free. `test_lock_satisfies_requirements.py`
+# now reads this file, so the two can no longer disagree silently.
+trimesh>=4.12.2         # clash narrow phase (mesh booleans) + 2D section cuts
 manifold3d>=2.0       # boolean intersection engine for trimesh
 scipy>=1.18.0           # trimesh path assembly (section drawings)
 networkx>=3.6.1         # trimesh path traversal (section drawings)

@@ -813,7 +813,8 @@ RECIPES = {
     # B5 — generic element-to-element connection (IfcRelConnectsElements, LOD-350 coordination)
     "connect_elements": lambda m, p: connect_elements(m, p["guid_a"], p["guid_b"], p.get("description")),
     # A1 — sandboxed ifcopenshell escape hatch (gated by AEC_ALLOW_IFC_CODE; AST-whitelisted)
-    "execute_ifc_code": lambda m, p: _sandbox().execute_ifc_code(m, p["code"]),
+    # Returns (new_model, changed) — it is in REPLACING_RECIPES and the drivers rebind on it.
+    "execute_ifc_code": lambda m, p: _sandbox_replace(m, p["code"]),
     # B3 — sloped-top wall (parapet slope / shed / gable)
     "set_wall_slope": lambda m, p: set_wall_slope(m, p["guid"], p["start_height"], p["end_height"]),
     # E3 — sketch-to-BIM: closed profile → extruded element; pull an existing extrusion's depth
@@ -997,6 +998,36 @@ def _sandbox():
     return sandbox
 
 
+def _sandbox_replace(model: ifcopenshell.file, code: str) -> tuple[ifcopenshell.file, dict]:
+    """SEC-PLUGIN-SANDBOX step two — run the snippet through the `bytes -> bytes` contract.
+
+    Step one added `sandbox.execute_ifc_bytes` and nothing called it. A contract with no adopter is
+    not a migration, it is a second implementation: the isolation work would still have had to change
+    this call site later, which was precisely the blocker step one existed to remove.
+
+    **The trap this closes, and it fails silently.** Every other entry in `RECIPES` mutates `model` in
+    place and the driver keeps using that same object. `execute_ifc_bytes` cannot — it serialises,
+    runs, and hands back a NEW model. Wire it in without teaching the driver to rebind and the recipe
+    reports a perfectly good `changed` count while the edit is written nowhere: the driver saves the
+    OLD object. No error, no traceback, a green run, and the user's edit is gone. That is why this
+    returns the model rather than swallowing it, why `REPLACING_RECIPES` exists, and why
+    `test_sandbox_adopt.py` asserts against the **written file** instead of the return value.
+
+    The double round-trip (serialise, run, parse) is the price the step-one docstring already accepted
+    and is the reason it is spent here and nowhere else: this recipe is off unless `AEC_ALLOW_IFC_CODE=1`,
+    so no ordinary edit pays it.
+    """
+    out_bytes, result = _sandbox().execute_ifc_bytes(model.to_string().encode("utf-8"), code)
+    return ifcopenshell.file.from_string(out_bytes.decode("utf-8")), result
+
+
+#: Recipes that return `(new_model, changed)` instead of mutating in place. The driver MUST rebind its
+#: `model` for these, or the edit is silently discarded — see `_sandbox_replace`. Kept as a set beside
+#: `RECIPES` rather than as a flag inside each entry so the drivers can ask one question, and so a new
+#: replacing recipe cannot be added without landing in a place both drivers already read.
+REPLACING_RECIPES = frozenset({"execute_ifc_code"})
+
+
 def _rep():
     """Lazy handle to the representations module (it imports edit.set_element_pset → avoid a cycle)."""
     from . import representations
@@ -1055,7 +1086,12 @@ def apply_recipe(ifc_path: str, recipe: str, params: dict, out_path: str) -> dic
     mpre = guards.model_precheck(model, recipe, params)
     if not mpre["ok"]:
         raise ValueError("; ".join(mpre["errors"]))
-    changed = RECIPES[recipe](model, params)
+    if recipe in REPLACING_RECIPES:
+        # The recipe hands back a NEW model (see `_sandbox_replace`). Rebinding is what makes the edit
+        # reach `out_path`; without it the line below saves the pre-edit object and reports success.
+        model, changed = RECIPES[recipe](model, params)
+    else:
+        changed = RECIPES[recipe](model, params)
     model.write(out_path)
     return {"recipe": recipe, "changed": changed, "out": out_path}
 
@@ -1082,7 +1118,15 @@ def apply_recipes(ifc_path: str, steps: list[dict], out_path: str) -> dict:
     # applies get the full model_precheck; wired dependent flows use /edit/graph.
     results = []
     for s in steps:
-        results.append({"recipe": s["recipe"],
-                        "changed": RECIPES[s["recipe"]](model, s.get("params") or {})})
+        recipe = s["recipe"]
+        params = s.get("params") or {}
+        if recipe in REPLACING_RECIPES:
+            # Rebinding matters twice over in a batch: the written file needs the new model, and every
+            # LATER step has to mutate it too. Bind only the result and the steps after this one edit
+            # an orphan — each reporting its own healthy `changed` count into a file nobody saved.
+            model, changed = RECIPES[recipe](model, params)
+        else:
+            changed = RECIPES[recipe](model, params)
+        results.append({"recipe": recipe, "changed": changed})
     model.write(out_path)
     return {"steps": results, "step_count": len(results), "out": out_path}

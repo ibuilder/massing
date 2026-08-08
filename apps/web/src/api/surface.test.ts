@@ -96,7 +96,18 @@ describe("the API client's public surface", () => {
     // the move** — that is the evidence nothing was dropped. The three added methods
     // (proformaRenovation / proformaRollover / proformaIncomeBasis) are client callers for endpoints
     // that had none, which is why the floor legitimately rises.
-    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(703);
+    // 2026-08-07 (SCALE-SEAM ⑨): raised 703 -> 705, and the +1 over the measured baseline is NEW
+    // SURFACE. Measured with THIS reader on both sides rather than reasoned about: at 85b73677,
+    // pre-extraction, it counts **704**; with the six contract methods moved into contracts.ts and
+    // `scopeExhibit` added, **705**. The move is invisible to it, which is the evidence nothing was
+    // dropped; the +1 is `scopeExhibit`, a client caller for `/scope-library/exhibit`, an endpoint
+    // that shipped with none at all.
+    //
+    // The floor was briefly written as 704 here, from a counter I wrote myself that said 706 — two
+    // different numbers from two different instruments, neither of them this one. Take the number
+    // from the reader that enforces it: raising the floor to force a high estimate green, or leaving
+    // it slack under a hand-rolled one, both defeat the gate in the same direction.
+    expect(surface.size, `only ${surface.size} methods reachable`).toBeGreaterThanOrEqual(706);
   });
 
   it("keeps the transport primitives the domain methods are built on", () => {
@@ -127,7 +138,10 @@ describe("the API client's public surface", () => {
       "topicsBoard", "createTopic", "viewpoints",                   // BCF coordination
       "elementEffectiveProps", "elementCosts", "costSummary",       // model + 5D
       "solveProforma", "proformaLive", "portfolioCompare",           // ⑧ moved — spread over 4 regions
-      "proformaRenovation", "proformaRollover", "proformaIncomeBasis",  // ⑧ new — were unreachable
+      // ⑧ new — added unreachable; `proformaRenovation` now has a screen (PULSE-FINDINGS, 2026-08-07)
+      // and the other two still do not. Corrected here rather than left as "were unreachable", which
+      // had already stopped being true for one of the three.
+      "proformaRenovation", "proformaRollover", "proformaIncomeBasis",
       "schedule4d", "scheduleCpm", "evm",                           // 4D + earned value
       "estimateFromModel", "qtoByFloor", "sovFromBudget",           // estimating
       "drawingMarkup", "promoteDrawingMarkup",                      // 2D markup -> RFI

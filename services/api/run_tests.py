@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -42,7 +43,7 @@ TESTS = ["test_provenance_report", "test_provenance_estimate_leg", "test_proform
          "test_evidence_gate", "test_cpm", "test_estimate", "test_bidding", "test_safety", "test_portfolio", "test_templates", "test_versions", "test_generate", "test_sso", "test_ai", "test_closeout", "test_security", "test_dev_budget", "test_specialty", "test_testfit", "test_structure", "test_research", "test_compute_graph", "test_ratelimit", "test_federated_clash", "test_classification",
          # R22-ENTITLE-RISK — approval odds + entitlement duration in the Monte Carlo:
          "test_approval_risk", "test_entitlement_route",
-         "test_contracts", "test_reports", "test_esign", "test_publish_status", "test_schedule_alerts",
+         "test_contracts", "test_scope_library", "test_scope_docx", "test_reports", "test_esign", "test_publish_status", "test_schedule_alerts",
          "test_schedule_optimize",
          # R23-RECIPE-ARTIFACT — the edit-recipe log + its routes:
          "test_recipe_log", "test_recipe_route",
@@ -53,7 +54,7 @@ TESTS = ["test_provenance_report", "test_provenance_estimate_leg", "test_proform
          "test_migrate", "test_alembic_migrations", "test_appraisal", "test_marketing", "test_workflow_gate", "test_due_feed", "test_directory",
          # R22-CLASSIFY-AI — classification coverage + code proposals:
          "test_classify_assist", "test_classify_route",
-         "test_ask", "test_verification", "test_webhooks", "test_operate_capital", "test_payroll_drawings", "test_assistant_itb", "test_construction_depth", "test_distribution", "test_e57", "test_empty_project", "test_metrics", "test_metrics_auth", "test_licensing", "test_revit_bridge", "test_precon", "test_specs", "test_feasibility", "test_clash_import", "test_clash_intel", "test_clash_reduction_scale", "test_layout", "test_loads", "test_verified_progress", "test_element_records", "test_securities_bridge", "test_imports", "test_search_alerts", "test_attachments",
+         "test_ask", "test_viewer_load_timing", "test_verification", "test_webhooks", "test_operate_capital", "test_payroll_drawings", "test_assistant_itb", "test_construction_depth", "test_distribution", "test_e57", "test_empty_project", "test_metrics", "test_metrics_auth", "test_licensing", "test_revit_bridge", "test_precon", "test_specs", "test_feasibility", "test_clash_import", "test_clash_intel", "test_clash_reduction_scale", "test_layout", "test_loads", "test_verified_progress", "test_element_records", "test_securities_bridge", "test_imports", "test_search_alerts", "test_attachments",
          # previously not wired into the gate (glob would have caught these) — now covered:
          "test_analytics", "test_discipline", "test_gbxml", "test_review", "test_interop",
          "test_module_config", "test_module_schema", "test_field_attrs", "test_eticket_tm", "test_ref_backfill", "test_module_tables", "test_module_filters", "test_guid_integrity", "test_pay_application", "test_module_fields", "test_throttle", "test_route_order",
@@ -75,13 +76,15 @@ TESTS = ["test_provenance_report", "test_provenance_estimate_leg", "test_proform
          "test_envelope", "test_model_query", "test_field_ai", "test_deferred",
          "test_gltf_export", "test_gltf_lod", "test_gltf_compress", "test_ifc5_read", "test_ifcx_write", "test_model_events", "test_docmanager", "test_proforma_provenance", "test_filed_output",
          "test_bim_columns", "test_bfast", "test_step_scan", "test_scan_cache", "test_market",
-         "test_grid", "test_propmap", "test_layers", "test_graph", "test_fitout", "test_logistics", "test_types", "test_groups", "test_phasing", "test_lod500", "test_selector", "test_representations", "test_openings", "test_detailing", "test_rules", "test_drawing", "test_sections", "test_view_range", "test_disc_ssot", "test_dxf", "test_export_formats", "test_specmanual", "test_steel_connections", "test_rebar", "test_mep_systems", "test_mep_sizing", "test_takeoff2d", "test_measure_provenance", "test_takeoff_count", "test_wave11_edges", "test_unit_scale", "test_curtainwall", "test_nlauthor", "test_nl_ai", "test_guards", "test_edit_undo", "test_sandbox_bytes", "test_sandbox", "test_security_audit", "test_preflight_smoke", "test_wall_slope", "test_mesh", "test_annotation", "test_content", "test_content_import", "test_structural", "test_analytical", "test_struct_solve", "test_lateral", "test_struct_loads", "test_wall_analytical", "test_struct_supports", "test_docgraph", "test_routines", "test_rfi_qa", "test_nodegraph", "test_drawing_set", "test_project_package", "test_mep_families", "test_architectural", "test_preview", "test_icdd", "test_ifc_cache",
+         "test_grid", "test_propmap", "test_layers", "test_graph", "test_fitout", "test_logistics", "test_types", "test_groups", "test_phasing", "test_lod500", "test_selector", "test_representations", "test_openings", "test_detailing", "test_rules", "test_drawing", "test_sections", "test_view_range", "test_disc_ssot", "test_dxf", "test_export_formats", "test_specmanual", "test_steel_connections", "test_rebar", "test_mep_systems", "test_mep_sizing", "test_takeoff2d", "test_measure_provenance", "test_takeoff_count", "test_wave11_edges", "test_unit_scale", "test_curtainwall", "test_nlauthor", "test_nl_ai", "test_guards", "test_edit_undo", "test_sandbox_bytes", "test_sandbox_adopt", "test_sandbox_isolated", "test_sandbox", "test_security_audit", "test_preflight_smoke", "test_wall_slope", "test_mesh", "test_annotation", "test_content", "test_content_import", "test_structural", "test_analytical", "test_struct_solve", "test_lateral", "test_struct_loads", "test_wall_analytical", "test_struct_supports", "test_docgraph", "test_routines", "test_routines_run", "test_rfi_qa", "test_nodegraph", "test_drawing_set", "test_project_package", "test_mep_families", "test_architectural", "test_preview", "test_icdd", "test_ifc_cache",
          "test_evm", "test_authoring_props", "test_wip", "test_traceability", "test_scale",
          "test_sheetgen", "test_issuance", "test_drawing_revision", "test_pdfops", "test_stamps", "test_seal_identity", "test_stepup_race",
          "test_markup", "test_route_authz", "test_route_reachability", "test_body_pid_authz", "test_global_authz", "test_protected_prefix_coverage", "test_baseline", "test_global_mutating_authz", "test_ref_counter", "test_audit_coverage", "test_bsdd",
          "test_openbim_registry", "test_waterfall", "test_sessions", "test_mfa", "test_stored_ids", "test_cobie", "test_fts_index", "test_scim", "test_saml", "test_responsibility", "test_array_live", "test_assemblies",
          "test_dxf_takeoff", "test_qto_class_match", "test_georef", "test_scene_package", "test_clash_bvh", "test_model_qa", "test_model_health", "test_roundtrip_qa", "test_stakeholder", "test_prioritization", "test_ai_readiness",
-         "test_scan_deviation", "test_plan_to_bim", "test_errorlog", "test_import_cycles", "test_tenant_scoping", "test_schedule_risk", "test_carbon_compliance", "test_permit_check", "test_drawing_qa", "test_element_5d", "test_authoring_matrix", "test_option_missing", "test_option_score", "test_plugin_registry", "test_jobs", "test_worker_split", "test_job_orphan_scope", "test_job_stall", "test_pid_lock_xproc", "test_sheet_layout", "test_dim_component", "test_sheet_recover", "test_firm_standards", "test_site_context", "test_risk_board", "test_env_wind", "test_model_options", "test_doc_text", "test_escalation", "test_query_dsl", "test_rule_library", "test_schedule_baselines", "test_model_ci", "test_xlsx_roundtrip", "test_geometric_rules", "test_rebar_rules", "test_cx", "test_distwaterfall", "test_license_cloud", "test_smart_views", "test_ifcpatch", "test_bcf_api", "test_coordination_fresh", "test_assemblies_cost", "test_fem_export", "test_subset_export", "test_norm_valid", "test_schema_diag", "test_revision_delta", "test_bep", "test_pm_close", "test_itp", "test_quality_chain", "test_quality_chain_route", "test_meeting_links", "test_est_bands", "test_scope_gap", "test_golden_thread", "test_clash_xml_import", "test_gis_out", "test_cbs", "test_mep_graph", "test_model_warnings", "test_schedule_options", "test_master_builder", "test_client_portal", "test_selections", "test_margin", "test_model_assets", "test_macros", "test_layout_options", "test_equipment", "test_space_util", "test_design_metrics", "test_mep_fittings", "test_prod_actuals", "test_pipeline_allocate", "test_production", "test_procure_level", "test_adjacency", "test_supply_chain", "test_invisible_unicode", "test_cited_answer", "test_est_confidence", "test_buyout_schedule", "test_scope_register", "test_permit_timeline", "test_absorption", "test_progress_rollup", "test_fill_matrix", "test_parcel_geometry", "test_assembly_thermal", "test_portal_txn", "test_persona_answer", "test_boe_ledger", "test_assumption_provenance", "test_assumption_provenance_route", "test_concept_budget", "test_topic_board", "test_roof_window", "test_topic_lifecycle", "test_calc_fields", "test_constraints", "test_cli", "test_view_templates", "test_type_catalogs", "test_password_policy", "test_fin_gov", "test_fin_calc", "test_fin_ingest", "test_fin_portfolio", "test_level_move", "test_instance_props", "test_roundtrip", "test_wall_joins", "test_composite_family", "test_shared_params", "test_version_values", "test_ifcpatch_transforms", "test_bcf3", "test_energy_export", "test_net_effective", "test_cre_deal_desk", "test_cre_governance", "test_cre_tier3", "test_family_geometry", "test_demo_seed", "test_cost_spine", "test_family_shapes", "test_workflow_config", "test_option_takeoff", "test_option_carbon", "test_option_carbon_route", "test_option_economics", "test_option_economics_route", "test_option_object", "test_option_object_route", "test_family_coverage", "test_section_annotation", "test_lod500_readiness", "test_scan_to_lod500", "test_egress_routes", "test_status_workflow_parity", "test_section_hatch", "test_section_keynotes", "test_detail_refs", "test_vg_overrides", "test_revit_export_cfg", "test_soft_clash", "test_sequence_clash", "test_element_tags", "test_cost_ifc", "test_fived", "test_health_consistency", "test_module_rooms", "test_modules_response_complete", "test_lifecycle_strip", "test_family_merge", "test_element_facts", "test_consistency", "test_work_queue", "test_task_bind", "test_qto_wire", "test_estimate_diff", "test_dim_constraints", "test_sov_build", "test_takeoff_scope", "test_claim_type", "test_risk_calibrate", "test_schedule_status", "test_engine_routes", "test_reachable", "test_money_wire", "test_license_gate", "test_perf_budget", "test_perf_rate", "test_cache_key", "test_oauth_providers", "test_qto_measured_area", "test_lod_census", "test_lod_proxy", "test_model_ensure", "test_support_graph", "test_export_colour_stable", "test_stair_ramp", "test_profile_dims", "test_eot", "test_plan_identity", "test_axon_view", "test_photo_cv", "test_photo_detect", "test_pipeline_scales", "test_plan_pins", "test_pins_unified", "test_index_freshness", "test_bake_budget", "test_geom_slots", "test_bake_shared", "test_geo_ref", "test_file_sizes", "test_doc_substance", "test_claude_md_gates", "test_upload_cap", "test_vitals", "test_samples", "test_bundle_index",
+         "test_scan_deviation", "test_plan_to_bim", "test_errorlog", "test_import_cycles", "test_tenant_scoping", "test_schedule_risk", "test_carbon_compliance", "test_permit_check", "test_drawing_qa", "test_element_5d", "test_authoring_matrix", "test_option_missing", "test_option_score", "test_plugin_registry", "test_jobs", "test_worker_split", "test_job_orphan_scope", "test_job_stall", "test_pid_lock_xproc", "test_sheet_layout", "test_dim_component", "test_sheet_recover", "test_firm_standards", "test_site_context", "test_risk_board", "test_env_wind", "test_model_options", "test_doc_text", "test_escalation", "test_query_dsl", "test_rule_library", "test_schedule_baselines", "test_model_ci", "test_xlsx_roundtrip", "test_geometric_rules", "test_rebar_rules", "test_cx", "test_distwaterfall", "test_license_cloud", "test_smart_views", "test_ifcpatch", "test_bcf_api", "test_coordination_fresh", "test_assemblies_cost", "test_fem_export", "test_subset_export", "test_norm_valid", "test_schema_diag", "test_revision_delta", "test_bep", "test_pm_close", "test_itp", "test_quality_chain", "test_quality_chain_route", "test_meeting_links", "test_est_bands", "test_scope_gap", "test_golden_thread", "test_clash_xml_import", "test_gis_out", "test_cbs", "test_mep_graph", "test_model_warnings", "test_schedule_options", "test_master_builder", "test_client_portal", "test_selections", "test_margin", "test_model_assets", "test_macros", "test_layout_options", "test_equipment", "test_space_util", "test_design_metrics", "test_mep_fittings", "test_prod_actuals", "test_pipeline_allocate", "test_production", "test_procure_level", "test_adjacency", "test_supply_chain", "test_invisible_unicode", "test_cited_answer", "test_est_confidence", "test_buyout_schedule", "test_scope_register", "test_permit_timeline", "test_absorption", "test_progress_rollup", "test_fill_matrix", "test_parcel_geometry", "test_assembly_thermal", "test_portal_txn", "test_persona_answer", "test_boe_ledger", "test_assumption_provenance", "test_assumption_provenance_route", "test_concept_budget", "test_topic_board", "test_roof_window", "test_topic_lifecycle", "test_calc_fields", "test_constraints", "test_cli", "test_view_templates", "test_type_catalogs", "test_password_policy", "test_fin_gov", "test_fin_calc", "test_fin_ingest", "test_fin_portfolio", "test_level_move", "test_instance_props", "test_roundtrip", "test_wall_joins", "test_composite_family", "test_shared_params", "test_version_values", "test_ifcpatch_transforms", "test_bcf3", "test_energy_export", "test_net_effective", "test_cre_deal_desk", "test_cre_governance", "test_cre_tier3", "test_family_geometry", "test_demo_seed", "test_cost_spine", "test_commercial_drift", "test_family_shapes", "test_workflow_config", "test_option_takeoff", "test_option_carbon", "test_option_carbon_route", "test_option_economics", "test_option_economics_route", "test_option_object", "test_option_object_route", "test_family_coverage", "test_section_annotation", "test_lod500_readiness", "test_scan_to_lod500", "test_egress_routes", "test_status_workflow_parity", "test_section_hatch", "test_section_keynotes", "test_detail_refs", "test_vg_overrides", "test_revit_export_cfg", "test_soft_clash", "test_sequence_clash", "test_element_tags", "test_cost_ifc", "test_fived", "test_health_consistency", "test_module_rooms", "test_modules_response_complete", "test_lifecycle_strip", "test_family_merge", "test_element_facts", "test_consistency", "test_work_queue", "test_task_bind", "test_qto_wire", "test_estimate_diff", "test_dim_constraints", "test_sov_build", "test_takeoff_scope", "test_claim_type", "test_risk_calibrate", "test_schedule_status", "test_engine_routes", "test_reachable", "test_money_wire", "test_license_gate", "test_perf_budget", "test_perf_rate", "test_cache_key", "test_oauth_providers", "test_qto_measured_area", "test_lod_census", "test_lod_proxy", "test_model_ensure", "test_support_graph", "test_export_colour_stable", "test_stair_ramp", "test_profile_dims", "test_eot", "test_eot_sourced", "test_shared_model", "test_plan_identity", "test_axon_view", "test_photo_cv", "test_photo_detect", "test_pipeline_scales", "test_plan_pins", "test_pins_unified", "test_index_freshness", "test_bake_budget", "test_geom_slots", "test_bake_shared", "test_geo_ref", "test_file_sizes", "test_delete_ratchet", "test_doc_substance", "test_claude_md_gates", "test_upload_cap", "test_vitals", "test_samples", "test_bundle_index",
+         # R41-TEST-RESIDUE — the residue sweep must never propose a database it does not own:
+         "test_sweep_guard",
          # R23-DIGEST — the deterministic model digest and its two routes:
          "test_model_digest", "test_digest_route",
          # observability (error alerting + distributed tracing) — env-gated, no-op when unconfigured:
@@ -89,7 +92,7 @@ TESTS = ["test_provenance_report", "test_provenance_estimate_leg", "test_proform
          # public docs are a shipped surface: competitor names for interop only, never comparison:
          "test_no_comparative_names",
          # this list is itself hand-maintained, so it gets a test of its own:
-         "test_no_secrets", "test_rate_shared", "test_race_conditions", "test_lock_satisfies_requirements", "test_manifest",
+         "test_no_secrets", "test_rate_shared", "test_race_conditions", "test_lock_satisfies_requirements", "test_manifest", "test_alembic_single_head",
          # 2026-08-02 merge-train repair: the eleven-PR merge dropped these six registrations while
          # landing their files — the packed-line hazard, fifth direction. Registered from a disk diff
          # (manifest_problems named them), each run locally first: four green; preflight_covers_settings
@@ -152,7 +155,8 @@ def manifest_problems(tests: list[str] | None = None,
     return problems
 
 
-def _run_one(t: str, base: dict, cwd: Path = HERE) -> tuple[str, bool, float, str]:
+def _run_one(t: str, base: dict, cwd: Path = HERE,
+             before: frozenset[Path] = frozenset()) -> tuple[str, bool, float, str]:
     """Run a single test_*.py as an isolated subprocess (own SQLite db + storage dir) and return
     (name, ok, seconds, captured-output). Safe to run concurrently — each test's db/storage is
     unique. `cwd` selects the suite's home dir (services/api for TESTS, services/data for DATA_TESTS);
@@ -177,7 +181,105 @@ def _run_one(t: str, base: dict, cwd: Path = HERE) -> tuple[str, bool, float, st
                 "--parallel-mode", f"{t}.py"]
     proc = subprocess.run(argv, cwd=cwd, env=env,
                           capture_output=True, encoding="utf-8", errors="replace")
-    return t, proc.returncode == 0, time.time() - t0, (proc.stdout or "") + (proc.stderr or "")
+    ok = proc.returncode == 0
+    # R41-TEST-RESIDUE: sweep HERE, not after the pool. The disk sat at ~96% while a full run held
+    # ~1.4 GB of databases open at once; removing each as it finishes keeps the peak at roughly one
+    # test's worth. A FAILED test keeps its database — that file is the evidence for the failure, and
+    # sweeping it destroys what someone needs at 3am.
+    # KEEP_TEST_DB=1 keeps everything, for diagnosing a test that PASSES and still leaves state
+    # behind — the case where the sweep working correctly is what hides the thing you are hunting.
+    if ok and os.environ.get("KEEP_TEST_DB") != "1":
+        _sweep_owned(t, cwd, before)
+    return t, ok, time.time() - t0, (proc.stdout or "") + (proc.stderr or "")
+
+
+#: Anchored on the ASSIGNMENT, not on any occurrence of the DSN. An unanchored pattern matched
+#: `sqlite:///./aec.db` inside a COMMENT in test_stepup_race.py — a comment warning that that file
+#: is the developer's dev database — and would have unlinked 5 MB of their data the first time that
+#: test passed. A comment is not code; `registerOwnership.test.ts` hit the same trap and its first
+#: run failed on the sentence explaining what a door is.
+_DB_LITERAL = re.compile(r"""DATABASE_URL["']\]\s*=\s*["']sqlite:///\./([^"']+)["']""")
+_COMMENT = re.compile(r"^\s*#.*$", re.M)
+
+
+def _owned_dbs(t: str, cwd: Path) -> set[Path]:
+    """The database files test `t` can create — read from its own source, not guessed.
+
+    **Why source-derived rather than a snapshot diff, which is what a per-test sweep would want.**
+    Tests run concurrently in a thread pool, so "everything that appeared while I ran" also contains
+    files other tests are still using; diffing per-test would delete a live database out from under a
+    parallel run. Every test declares its `DATABASE_URL` as a literal `sqlite:///./NAME.db`, so the
+    set is knowable exactly and is concurrency-safe by construction.
+
+    Includes the runner's own `_{t}.db` (used by the 187 tests that do not override it) and SQLite's
+    `-wal` / `-shm` siblings, which are separate files and were never being removed either.
+    """
+    names = {f"_{t}.db"}
+    try:
+        src = _COMMENT.sub("", (cwd / f"{t}.py").read_text(encoding="utf-8", errors="replace"))
+        names |= set(_DB_LITERAL.findall(src))
+    except OSError:
+        pass                                   # unreadable source: fall back to the runner's own name
+    out: set[Path] = set()
+    for n in names:
+        out |= {(cwd / n).resolve()}
+        #: `-journal` is SQLite's default rollback sibling and the only one this suite produces
+        #: (measured: journal=2, wal=0, shm=0). `-wal`/`-shm` need WAL mode, which it does not use —
+        #: the first set was derived from what SQLite CAN write rather than what it DOES write here.
+        out |= {(cwd / f"{n}{sfx}").resolve() for sfx in ("-journal", "-wal", "-shm")}
+    return out
+
+
+def _sweep_owned(t: str, cwd: Path, before: frozenset[Path] = frozenset()) -> None:
+    """Remove the databases test `t` owns. Only ever called for a test that PASSED.
+
+    `before` is the pre-run snapshot, and it is the belt to the anchored-regex braces. The two
+    halves of this sweep have DIFFERENT safety properties: `_sweep_leftovers` is safe by
+    construction because a diff cannot name a pre-existing file, while this one deletes BY NAME and
+    so is only as safe as the name. Honouring `before` here makes a bad name inert rather than
+    destructive, and makes the protected-file property hold for both halves instead of one.
+    """
+    for q in _owned_dbs(t, cwd) - set(before):
+        try:
+            q.unlink(missing_ok=True)
+        except OSError:
+            pass                               # a live handle — the end-of-run check reports it
+
+
+def _db_snapshot(dirs: tuple[Path, ...] | None = None) -> set[Path]:
+    """Every `*.db` sitting in the two suite homes right now, as RESOLVED paths.
+
+    Resolved on both sides of every set operation below, because `Path("./x.db")` and
+    `Path("/abs/x.db")` are unequal even when they name the same file — so an unresolved `keep` set
+    would silently match nothing and the sweep would delete the failed test's database anyway. That
+    is this file's own defect shape inverted: not a cleanup that removes nothing, but a guard that
+    protects nothing, and both look identical from outside.
+    """
+    return {q.resolve() for d in (dirs or (HERE, DATA_DIR)) for q in d.glob("*.db*")}
+
+
+def _sweep_leftovers(before: set[Path], keep: set[Path],
+                     dirs: tuple[Path, ...] | None = None) -> tuple[int, int]:
+    """Backstop after the pool: remove run-created databases nobody claimed, return (removed, left).
+
+    **Snapshot-and-diff here, deliberately, where per-test naming is not available.** The obvious
+    alternative is `glob("test_*.db")`, and its safety depends on *what filenames happen to exist* —
+    which changes when someone adds a test, with no edit to this sweep. `preview.db`, the dev API's
+    live database, sits in this directory today; tomorrow it could be something else. A diff against a
+    pre-run snapshot can only ever remove files that appeared **during** the run, so it stays correct
+    when the filenames change and cannot be broken by a file that arrives later.
+
+    `keep` holds the databases of tests that FAILED. That file is the evidence for the failure, and
+    sweeping it destroys the thing someone needs at 3am — so a red suite leaves its state on disk.
+    """
+    removed = 0
+    for q in sorted(_db_snapshot(dirs) - before - keep):
+        try:
+            q.unlink()
+            removed += 1
+        except OSError:
+            pass
+    return removed, len(_db_snapshot(dirs) - before - keep)
 
 
 def main() -> int:
@@ -199,9 +301,10 @@ def main() -> int:
     jobs = int(os.environ.get("TEST_JOBS") or 0) or max(1, (os.cpu_count() or 2) - 1)
     jobs = max(1, min(jobs, len(tests)))
     results: list[tuple[str, bool, float]] = []
+    dbs_before = _db_snapshot()
     t_start = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
-        for t, ok, dt, out in ex.map(lambda tc: _run_one(tc[0], base, tc[1]), tests):
+        for t, ok, dt, out in ex.map(lambda tc: _run_one(tc[0], base, tc[1], frozenset(dbs_before)), tests):
             results.append((t, ok, dt))
             print(f"{'PASS' if ok else 'FAIL'}  {t}  ({dt:.1f}s)", flush=True)
             if not ok:
@@ -209,6 +312,20 @@ def main() -> int:
 
     passed = sum(1 for _, ok, _ in results if ok)
     print(f"\n{passed}/{len(results)} suites passed  ({jobs} parallel, {time.time() - t_start:.0f}s wall)")
+
+    # R41-TEST-RESIDUE. Sweep, then ASSERT the sweep worked — two different checks, and this very
+    # defect is why: a sweep that removes nothing looks exactly like a clean tree. Reporting the
+    # count is what makes a regression visible instead of silent.
+    kept = {q for t, ok, _ in results if not ok
+            for q in _owned_dbs(t, DATA_DIR if t in DATA_TESTS else HERE)}
+    removed, leftover = _sweep_leftovers(dbs_before, kept)
+    held = sum(1 for q in kept if q.exists())
+    print(f"test databases: {removed} swept after the pool, {held} kept for failed tests, "
+          f"{leftover} unaccounted for")
+    if leftover:
+        print(f"FAIL  run_tests residue: {leftover} test database(s) nobody claimed survived the "
+              f"sweep — each full run leaked ~1.4 GB when this regressed before")
+        return 1
     if os.environ.get("COVERAGE") == "1":
         # merge the per-subprocess shards and emit coverage.xml (Repowise / CI-artifact upload).
         # Runs even on a red suite: partial coverage of a failing run is still real data.

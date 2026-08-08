@@ -132,6 +132,31 @@ def margin_by_costcode(pid: str, db: Session = Depends(get_db), _: str = Depends
     return margin.by_cost_code(db, pid)
 
 
+@router.get("/projects/{pid}/commercial-drift")
+def commercial_drift_walk(pid: str, db: Session = Depends(get_db),
+                          _: str = Depends(require_role("viewer"))):
+    """R41-COMMERCIAL-DRIFT — diff the money across DOCUMENTS: bid → executed contract → invoiced,
+    walked along references the registers already carry (`subcontract.awarded_from`,
+    `sub_invoice.subcontract`). One row per subcontract, largest movement first.
+
+    **This is the diff `/margin/by-costcode` and `/cost-spine` structurally cannot do.** Both measure
+    per cost code, and a roll-up adds before it compares — two subcontracts can net to the right code
+    total while one award drifted 15% up and another 15% down. Read this for the individual award.
+
+    Two things are deliberately NOT called drift. **Change orders** are money somebody signed for, so
+    they sit in the contract→invoiced hop as part of the agreed sum and never in bid→contract;
+    counting them as drift would flag every project that has a CO, which is every project. And an
+    **unaccepted alternate** was never bought, so the comparable bid figure is base bid plus accepted
+    alternates, with the row stating which basis it used.
+
+    A hop missing a figure on either side is `incomparable` and counted separately — that is not the
+    same as a zero-dollar difference."""
+    from .. import commercial_drift
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return commercial_drift.for_project(db, pid)
+
+
 @router.get("/projects/{pid}/cost-spine")
 def cost_spine_trace(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """COST-SPINE — does one cost code carry the same scope from budget through commitment, actual and

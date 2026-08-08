@@ -70,6 +70,19 @@ MIN_SEGMENT = 5
 #: **Not an allowlist of acceptable routes** — a record of what existed when the gate was written, so
 #: the NEXT one cannot arrive unnoticed. Shrinking this set is always allowed and never fails.
 KNOWN_UNCALLED: set[str] = {
+    #: R39-VIEWER-OBS, added 2026-08-07 with an expiry condition rather than a shrug. The POST that
+    #: WRITES load timings has a caller (`reportViewerLoad` in `apps/web/src/api/model.ts`, called
+    #: from the viewer's load path) — it is only this read-side aggregate that has none yet.
+    #:
+    #: Not parked for convenience: a reader for it belongs in an admin/diagnostics screen, and every
+    #: candidate screen lives in Lane A or B while this work is Lane E. Adding one here would put two
+    #: sessions in the same file for the sake of satisfying a gate, which is the collision the lane
+    #: table exists to prevent. The data is queryable over HTTP today; what is missing is a screen.
+    #:
+    #: **Remove this entry when that screen lands** — the route is finished and tested
+    #: (`test_viewer_load_timing.py` covers p50/p95, the survivorship guard and retention), so this
+    #: is a UI gap, not an unfinished endpoint.
+    "/projects/{pid}/model/load-timings",
     "/bcf/3.0/projects/{pid}/topics/{guid}/document_references",
     "/benchmarks/unit-rates", "/cost/datasets/import-custom", "/portfolio/deal-memory",
     "/proforma/entitlement-risk", "/proforma/provenance/admissibility",

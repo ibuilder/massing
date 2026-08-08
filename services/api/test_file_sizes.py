@@ -56,11 +56,23 @@ CEILING = 5_200
 #: narrower than its claim.
 #:
 #: A new endpoint added straight to `client.ts` will fail this, and that friction is the point rather
+#: 2026-08-07: raised by ONE line, and the exception is stated rather than quietly taken. The
+#: line is `import { withRoutines } from "./routines";` — the *mechanism* of an extraction,
+#: not an endpoint. The endpoint itself went into `api/routines.ts`, which is what this ratchet
+#: asks for. A mixin cannot be composed without one import line, so a file sitting exactly on
+#: its pin can never gain one otherwise. If this climbs again for the same reason, the pin is
+#: measuring the wrong thing and should count endpoints.
 #: than a side effect: the question it forces is "should this live in a domain module instead?", and
 #: post-⑦ the answer is usually yes. Raising an entry is therefore a deliberate act that should be
 #: argued for in the commit message — the direction of travel is down.
 PER_FILE = {
-    "apps/web/src/api/client.ts": 3_780,   # design/options -> designOptions.ts; ⑧ 3,796; ⑦ 3,871;    before ⑦ 3,967
+    #: ⑨ contracts/scope-library/esign -> contracts.ts. This entry had ZERO headroom — the file
+    #: measured exactly its 3,780 cap and the check is `measured > cap`, so a single added line
+    #: failed the build. Three lanes hit that wall the same day; two routed their new methods into
+    #: other modules and one got a field in only by appending to an existing line. That is the
+    #: friction this ratchet is for, and it asked the intended question — the contract documents had
+    #: a whole domain to leave with, so the number goes DOWN by 32 instead of up by one.
+    "apps/web/src/api/client.ts": 3_699,   # + cost group -> cost.ts;   # +1 = the withRoutines IMPORT, not an endpoint:   # ⑨ contracts -> contracts.ts; ⑧ 3,796; ⑦ 3,871; before ⑦ 3,967   # + ⑩ finance -> finance.ts (both extractions are in the merged file)
     #: R39-DECOMP-VIEWER. Pinned at its CURRENT size before any extraction, deliberately.
     #:
     #: `app.ts` had no per-file entry, so it lived under the 5,200 global — which it also *set*, being
@@ -77,8 +89,16 @@ PER_FILE = {
     #:   ② clash/QA (851) 5,114 -> 4,272
     #:   ③ analyse (238) + ④ authoring (91)  4,272 -> 3,953
     #:   ⑤ project-browser panel (216)      3,953 -> 3,751
+    #:   ⑥ loadProjectModel (37)            3,751 -> 3,715
     #: The whole `builders` map is now out of app.ts. Ratcheted each time, never reset.
-    "apps/web/src/viewer/app.ts": 3_751,
+    #:
+    #: ⑥ is worth recording because the ratchet CAUSED it rather than merely permitting it.
+    #: R39-VIEWER-OBS needed ~5 lines of instrumentation inside `loadProjectModel`, and this entry had
+    #: zero headroom, so the choice was to raise the pin or move the routine. The comment above says
+    #: the friction is the point and that the question it should force is "should this live in a
+    #: domain module instead?" — for a self-contained fetch/parse/show sequence the answer was plainly
+    #: yes. The instrumentation went into the new module and app.ts came DOWN 36 lines instead of up.
+    "apps/web/src/viewer/app.ts": 3_715,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.

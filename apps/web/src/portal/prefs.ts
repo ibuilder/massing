@@ -58,7 +58,7 @@ export function readRoomOpen(key: string): boolean | null {
 }
 
 export function setRoomOpen(key: string, open: boolean): void {
-  let m: Record<string, boolean> = {};
+  let m: Record<string, boolean>;
   try { m = JSON.parse(localStorage.getItem("portal-room-open") || "{}") as Record<string, boolean>; }
   catch { m = {}; }
   m[key] = open;

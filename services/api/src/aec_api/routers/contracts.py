@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from .. import audit, contracts, esign, esign_bridge, scope_library
 from .. import modules as me
 from ..db import get_db
-from ..rbac import current_user, require_role
+from ..rbac import authorize_pid, current_user, require_role
 from ..throttle import rate_limited
 
 router = APIRouter()
@@ -31,9 +31,64 @@ def esign_status(_: str = Depends(current_user)):
 
 
 @router.get("/scope-library")
-def scope_library_list(_: str = Depends(current_user)):
-    """The scope-of-work clause library used to compose Exhibit A (ids + titles, grouped by category)."""
-    return {"clauses": scope_library.library()}
+def scope_library_list(division: str | None = None, trade: str | None = None,
+                       _: str = Depends(current_user)):
+    """The scope-of-work clause library used to compose Exhibit A (ids + titles, no bodies).
+
+    `division` (a CSI MasterFormat key) or `trade` (which resolves to one) narrows the catalog to that
+    division plus the universal clauses. The filter is not a nicety: the library spans every
+    MasterFormat division, and an unnarrowed composer asks somebody to pick a subcontract exhibit out
+    of a list where most entries belong to other trades. The response carries `divisions` so a caller
+    can offer the filter without knowing the catalog.
+
+    No clause count is quoted here on purpose. This docstring is published into `/openapi.json`, so a
+    number in it is a live claim to every API consumer that nothing re-checks — the same reason the
+    web standards stopped quoting a test count. `GET /scope-library` with no filter returns the
+    current catalog; that is the number, and it cannot drift from itself.
+
+    `trade` is resolved server-side rather than by the caller so the mapping lives in one place; an
+    unrecognised trade returns the whole catalog rather than an empty one, which is the same
+    fall-back `default_ids` makes.
+
+    `exhibit_categories` says which of the returned clauses can actually go INTO Exhibit A, so a
+    composer can offer only those without restating the rule. It is not decoration: `library()`
+    returns clauses whose division matches **or is None**, and every `gc-*`/`sc-*` conditions clause
+    has division None — so a narrowed catalog still contains clauses the exhibit renderer will drop.
+    Without this the picker offers a tick that silently does nothing, which teaches a user the control
+    is broken.
+
+    Served rather than hardcoded client-side because a second copy of this exact rule is what caused
+    the preview/document divergence: the route filtered and the PDF did not. One authority, read by
+    everyone who needs it.
+    """
+    div = division or scope_library.division_for_trade(trade)
+    return {"clauses": scope_library.library(div),
+            "division": div, "division_name": scope_library.division_name(div),
+            "divisions": sorted({c["division"] for c in scope_library.CLAUSES if c.get("division")}),
+            "exhibit_categories": sorted(scope_library.EXHIBIT_CATEGORIES)}
+
+
+@router.get("/scope-library/exhibit")
+def scope_library_exhibit(trade: str | None = None, clauses: str | None = None,
+                          _: str = Depends(current_user)):
+    """Assemble a scope of work: the clauses that would go into Exhibit A, numbered, with bodies.
+
+    This is the read-only half of the exhibit that `document.pdf?doc=exhibit` renders, and it exists
+    so the composer can show what it is about to produce **before** a PDF is generated and attached to
+    a record. It takes the same `clauses` override and the same trade default, so what is previewed
+    here and what is signed there come from one code path rather than two that drift.
+
+    Only exhibit categories are returned — inclusions, exclusions, clarifications. The conditions
+    clauses belong to the agreement body, not to Exhibit A, and returning them here would invite a
+    caller to render them twice in one contract package.
+    """
+    picked = scope_library.exhibit_clauses([c for c in (clauses or "").split(",") if c] or None, trade)
+    return {"trade": trade,
+            "division": (div := scope_library.division_for_trade(trade)),
+            "division_name": scope_library.division_name(div),
+            "clauses": scope_library.numbered(picked),
+            "counts": {cat: sum(1 for c in picked if c["category"] == cat)
+                       for cat in sorted({c["category"] for c in picked})}}
 
 
 @router.get("/projects/{pid}/contracts/{key}/{rid}/document.pdf")
@@ -51,10 +106,51 @@ def contract_document(pid: str, key: str, rid: str, doc: str = "agreement",
         raise HTTPException(400, str(e))
     except HTTPException:
         raise
+    # ATTACH IS A WRITE, AND THE ROUTE IS GATED AT `viewer`. Rendering the document is a read and
+    # `viewer` is right for it; `attach=1` persists an attachment onto the record, which is not. A
+    # read-only user could add attachments to any contract they could see.
+    #
+    # Escalated at the point of use rather than by raising the whole route to `reviewer`, because
+    # that would take the download away from the viewers it is for. `authorize_pid` honours RBAC_ON
+    # exactly as `require_role` does, so this is the same gate reached from a different shape — not
+    # a second policy that can drift from the first.
     if attach:
+        authorize_pid(db, user, pid, "reviewer")
         me.add_attachment(db, key, pid, rid, f"{doc}-{rid}.pdf", "application/pdf", pdf, user)
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{doc}-{rid}.pdf"'})
+
+
+@router.get("/projects/{pid}/contracts/{key}/{rid}/exhibit.docx")
+def contract_exhibit_docx(pid: str, key: str, rid: str, clauses: str | None = None,
+                          attach: bool = False, db: Session = Depends(get_db),
+                          user: str = Depends(require_role("viewer"))):
+    """Exhibit A as an editable Word document — the copy a subcontractor redlines and sends back.
+
+    Same clause selection and same merge context as `document.pdf?doc=exhibit`; only the container
+    differs. The PDF is the signed instrument, this is the negotiating copy, and scope negotiation is
+    redlining — a PDF is the wrong object to hand somebody who has to strike what they do not hold.
+
+    A separate path rather than `document.pdf?fmt=docx` because the extension is what a browser, a
+    mail client and a document management system all key on; a `.pdf` URL that returns a Word file is
+    the kind of thing that arrives at a subcontractor as a file their machine refuses to open.
+    """
+    clause_ids = [c for c in (clauses or "").split(",") if c] or None
+    try:
+        blob = contracts.exhibit_docx(db, key, pid, rid, clause_ids)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except HTTPException:
+        raise
+    name = f"exhibit-a-{rid}.docx"
+    mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    # Same escalation as document.pdf above - the two routes were the "copied the neighbour" pair,
+    # so they are fixed together rather than one now and one when somebody notices again.
+    if attach:
+        authorize_pid(db, user, pid, "reviewer")
+        me.add_attachment(db, key, pid, rid, name, mime, blob, user)
+    return Response(blob, media_type=mime,
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @router.post("/projects/{pid}/contracts/{key}/{rid}/sign")

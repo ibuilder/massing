@@ -34,7 +34,7 @@ function schedulesModal(api: ApiClient, getPid: GetPid, connectionId: string) {
   const list = document.createElement("div"); card.appendChild(list);
   const render = async () => {
     list.textContent = "";
-    let scheds: SyncScheduleItem[] = [];
+    let scheds: SyncScheduleItem[];
     try { scheds = (await api.syncSchedules(pid)).filter((s) => s.connection_id === connectionId); }
     catch { list.innerHTML = `<div class="meta">admin only.</div>`; return; }
     if (!scheds.length) { const e = document.createElement("div"); e.className = "empty-state"; e.innerHTML = `No schedules yet<span class="es-hint">Add one below to auto-sync from Procore.</span>`; list.appendChild(e); }

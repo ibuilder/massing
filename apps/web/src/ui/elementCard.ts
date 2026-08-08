@@ -91,7 +91,7 @@ export async function mountElementCard(
   guid: string,
   label?: string | null,
 ): Promise<void> {
-  let strip: LifecycleStrip | null = null;
+  let strip: LifecycleStrip | null;
   try { strip = await api.elementLifecycle(pid, guid); } catch { strip = null; }
   renderElementCard(host, { guid, label, strip });
 }

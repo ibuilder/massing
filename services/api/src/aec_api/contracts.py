@@ -87,10 +87,17 @@ def _signature_block(ss, parties: list[tuple[str, str]], signatures: list[dict])
 # --- documents ---------------------------------------------------------------
 def _exhibit_flowables(ss, ctx: dict, clause_ids: list[str] | None):
     from reportlab.platypus import Paragraph, Spacer
-    ids = clause_ids or sl.default_ids(ctx.get("trade"))
+    # Exhibit A owns scope, exclusions and clarifications; Article 3 of the agreement owns the
+    # conditions. Without this filter the exhibit rendered EVERYTHING in `ids`, which produced two
+    # defects at once for a plumbing subcontract: 31 clauses in the signed PDF against 11 in the
+    # `/scope-library/exhibit` preview, and the 20 conditions clauses printed **twice in one document**
+    # — once in Article 3 and again here. The duplication is older than the preview (7 clauses with
+    # the pre-import library); the preview↔document drift arrived with the filtered route, which is
+    # what makes this the fix for both. Applied unconditionally, including to an explicit
+    # `clause_ids`: one authority decides what belongs in an exhibit, not the caller.
     out = [Paragraph("Exhibit A — Scope of Work", ss["DocTitle"]),
            Paragraph(f"{ctx['project']} · {ctx['vendor']}", ss["Sub"])]
-    for c in sl.clauses_by_ids(ids):
+    for c in sl.exhibit_clauses(clause_ids, ctx.get("trade")):
         out.append(Paragraph(sl.merge(c["title"], ctx), ss["H"]))
         out.append(Paragraph(sl.merge(c["body"], ctx), ss["Body"]))
     if len(out) <= 2:
@@ -116,7 +123,7 @@ def subcontract_agreement(db: Session, key: str, pid: str, rid: str, clause_ids:
                    f"<b>{ctx['value']}</b>, subject to {ctx['retainage']} retainage and the terms below.", ss["Body"]),
          Paragraph("Article 3 — Conditions", ss["H"])]
     for c in sl.clauses_by_ids([x for x in sl.default_ids(ctx.get("trade")) if x not in
-                                {s["id"] for s in sl.CLAUSES if s["category"] == "Scope"}]):
+                                {s["id"] for s in sl.CLAUSES if s["category"] in sl.EXHIBIT_CATEGORIES}]):
         f.append(Paragraph(sl.merge(c["title"], ctx), ss["H"]))
         f.append(Paragraph(sl.merge(c["body"], ctx), ss["Body"]))
     f += _signature_block(ss, [("General Contractor", "GC"), ("Subcontractor", "Subcontractor")], (d.get("signatures") or []))
@@ -138,7 +145,7 @@ def prime_contract(db: Session, key: str, pid: str, rid: str, clause_ids: list[s
                    f"subject to {ctx['retainage']} retainage.", ss["Body"]),
          Paragraph("Article 2 — General Conditions", ss["H"])]
     for c in sl.clauses_by_ids([x for x in sl.default_ids(None) if x not in
-                                {s["id"] for s in sl.CLAUSES if s["category"] == "Scope"}]):
+                                {s["id"] for s in sl.CLAUSES if s["category"] in sl.EXHIBIT_CATEGORIES}]):
         f.append(Paragraph(sl.merge(c["title"], ctx), ss["H"]))
         f.append(Paragraph(sl.merge(c["body"], ctx), ss["Body"]))
     f += _signature_block(ss, [("Owner", "Owner"), ("General Contractor", "GC")], (d.get("signatures") or []))
@@ -179,6 +186,19 @@ def change_order(db: Session, key: str, pid: str, rid: str, clause_ids: list[str
 def exhibit(db: Session, key: str, pid: str, rid: str, clause_ids: list[str] | None = None) -> bytes:
     _, _, ctx = _context(db, key, pid, rid)
     return _build(_exhibit_flowables(_styles(), ctx, clause_ids))
+
+
+def exhibit_docx(db: Session, key: str, pid: str, rid: str,
+                 clause_ids: list[str] | None = None) -> bytes:
+    """Exhibit A as an editable Word document — the copy a subcontractor redlines and returns.
+
+    Shares `_context` with the PDF, so the merge fields resolve identically. A clause whose wording
+    differs between the Word copy and the signed PDF is a dispute waiting to happen, and one context
+    builder is the only thing that prevents it.
+    """
+    from . import scope_docx  # noqa: PLC0415 — only this doc needs it
+    _, _, ctx = _context(db, key, pid, rid)
+    return scope_docx.build(ctx, clause_ids)
 
 
 def asi_instruction(db: Session, key: str, pid: str, rid: str, clause_ids: list[str] | None = None) -> bytes:

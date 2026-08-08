@@ -15,6 +15,7 @@
  *  makes that checkable rather than hoped for.
  */
 import { HttpCore, type LiveStream } from "./httpCore";
+import type { ViewerLoadTiming } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -253,6 +254,20 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ query: string; matched: number; truncated: boolean; guids: string[];
       predicates: { field: string; op: string; value: string | null }[]; note?: string }>(
       `/projects/${pid}/model/select?q=${encodeURIComponent(q)}&limit=${limit}`);
+  }
+  /**
+   * R39-VIEWER-OBS — one row per model load, including the loads that stalled or drew nothing.
+   *
+   * Lives here rather than in `client.ts` because that file is at its size pin, which is the friction
+   * the ratchet exists to create; and as its own mixin it would have cost `client.ts` two lines it
+   * does not have. Model-load telemetry belongs to the `/model` group anyway.
+   *
+   * Best-effort by contract: the caller drops the promise. A viewer must never be slowed, still less
+   * broken, by the thing measuring it.
+   */
+  reportViewerLoad(pid: string, t: ViewerLoadTiming) {
+    return this.json<{ recorded: boolean }>(`/projects/${pid}/model/load-timing`,
+      { method: "POST", body: JSON.stringify(t) });
   }
   /** SMART-VIEWS — the project's saved property-driven view presets (name + selector + mode). */
   };

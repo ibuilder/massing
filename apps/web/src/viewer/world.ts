@@ -1,5 +1,6 @@
 import * as OBC from "@thatopen/components";
 import * as THREE from "three";
+import { cameraProfile } from "./cameraProfile";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
@@ -110,10 +111,38 @@ export function createViewer(container: HTMLElement): Viewer {
     if (w === lastW && h === lastH) return;     // observers fire on no-op layout passes too
     lastW = w; lastH = h;
     world.renderer?.resize();
+    applyCameraProfile(world, w, h);
   });
   ro.observe(container);
+  // Apply once at construction as well as on resize. The observer fires on the first layout pass in
+  // a browser, but not if the container is already at its final size — and a camera that only gets
+  // its profile when something moves is a camera that is wrong on the paths where nothing does.
+  applyCameraProfile(world, container.clientWidth, container.clientHeight);
 
   return { components, world, container, grid, stopPixelGovernor, stopResizeObserver: () => ro.disconnect() };
+}
+
+/**
+ * R23-CAMERA-CLASS — put the viewport-derived fov/near/far onto the live camera.
+ *
+ * Separate from `cameraProfile()` so the arithmetic stays testable without a WebGL context: that
+ * module is pure and unit-tested, this is the three lines that touch the renderer.
+ *
+ * `updateProjectionMatrix()` is not optional — three caches the projection and a changed `fov` is
+ * inert until it is called, which fails silently and looks exactly like the profile being wrong.
+ */
+export function applyCameraProfile(
+  world: { camera?: { three?: unknown } }, width: number, height: number, walk = false,
+): void {
+  // Structural, not `World`: `walkMode.ts` types its viewer with the minimum it needs precisely to
+  // keep three/DOM out of its core, and demanding the full library type here would force that file
+  // to give that up for three lines of camera state.
+  const cam = world.camera?.three as THREE.PerspectiveCamera | undefined;
+  if (!cam?.isPerspectiveCamera) return;          // ortho/plan mode has no fov to set
+  const p = cameraProfile(width, height, { walk });
+  if (cam.fov === p.fov && cam.near === p.near && cam.far === p.far) return;
+  cam.fov = p.fov; cam.near = p.near; cam.far = p.far;
+  cam.updateProjectionMatrix();
 }
 
 const SUN = "aec-sun", HEMI = "aec-hemi", FILL = "aec-fill", GROUND = "aec-shadow-ground";

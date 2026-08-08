@@ -542,12 +542,32 @@ export class ProformaUI {
           annualContribution: Number(contrib.inp.value) || 0, inflationPct: Number(infl.inp.value) || 0,
         });
         rout.innerHTML = "";
+        // RESERVE-SUGGESTION-UNVERIFIED. The server SOLVES the level contribution and then RE-RUNS it
+        // against the schedule to confirm it clears; `suggestion_clears_horizon` is that second
+        // answer. This banner printed the number in bold as a recommendation and never read the
+        // flag, so a suggestion that does not actually clear looked exactly like one that does — at
+        // the precise moment someone would act on it.
+        //
+        // Read as `=== false`, never falsily: the field is optional, and an older server that omits
+        // it means "not checked", which must not render as "does not work". Inventing a warning from
+        // an absent field is its own wrong answer.
+        //
+        // The wording says only what the flag actually licenses. `reserve.py` computes `need` as the
+        // EXACT closed-form minimum — `max` over k of `(cum - opening) / k`, then ceiled — so a failed
+        // verification does NOT mean "no flat contribution clears this horizon". It means the solved
+        // figure disagreed with the schedule when re-run, i.e. a residual. The first draft of this
+        // sentence explained a cause it could not know, which is the same defect it exists to fix.
+        const unverified = rs.suggestion_clears_horizon === false;
         const banner = document.createElement("div"); banner.className = "meta";
-        banner.style.cssText = `padding:6px 8px;border-left:3px solid var(${rs.adequately_funded ? "--status-good" : "--status-warn"});margin-bottom:6px`;
+        banner.style.cssText = `padding:6px 8px;border-left:3px solid var(${rs.adequately_funded && !unverified ? "--status-good" : "--status-warn"});margin-bottom:6px`;
         banner.innerHTML = rs.adequately_funded
           ? `<b>Adequately funded</b> through ${rs.horizon.to} at this contribution.`
           : `<b>Underfunded</b> — reserve balance goes negative in <b>${rs.first_underfunded_year}</b>. `
-            + `Suggested level contribution: <b>${money(rs.suggested_level_contribution)}/yr</b>.`;
+            + `Suggested level contribution: <b>${money(rs.suggested_level_contribution)}/yr</b>`
+            + (unverified
+              ? ` — <b>which did not clear the horizon when re-run.</b> Treat this figure as `
+                + `unreliable rather than as a target.`
+              : `.`);
         rout.appendChild(banner);
         const meta = document.createElement("div"); meta.className = "meta"; meta.style.marginBottom = "6px";
         meta.textContent = `${rs.components} component(s) in the study · ${rs.components_missing_data} missing `

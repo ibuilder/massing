@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
+import { resolve, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -179,6 +180,65 @@ function parkedCodes(): Set<string> {
 }
 
 const LANES = laneRows();
+
+/**
+ * Resolve a lane's path claim to a repo-relative path.
+ *
+ * **Why this replaced a `replace(/^apps\/web\/src\//, "")`.** The table mixes notations —
+ * `apps/web/src/shell/` beside bare `main.ts`, `portal/panels/`, `field/`, `inference.ts`, `main.py` —
+ * and the old normaliser stripped exactly one prefix, `apps/web/src/`. That worked for the web lanes
+ * and was **blind on the services side**, which is where it mattered:
+ *
+ *   Lane G claims bare `main.py`  ->  services/api/src/aec_api/main.py
+ *   Lane C claims                     services/api/src/aec_api/   (carving out only routers/)
+ *
+ * C contains G's `main.py`, so the FastAPI entry point belonged to two lanes at once, and the
+ * disjointness check could not see it because those two strings never compared. That is the same
+ * defect the 2026-07-30 nested overlap was, in the half of the table nobody had normalised.
+ *
+ * Resolution is grounded in the repo rather than in a convention: walk each of the lane's QUALIFIED
+ * paths and their ancestor directories, and take the first that yields a tracked path. `inference.ts`
+ * resolves to `apps/web/src/viewer/inference.ts` and `main.py` to `services/api/src/aec_api/main.py`
+ * for the same reason, without either being special-cased.
+ *
+ * **A limit worth stating rather than discovering.** This takes the path alone, not the lane, so one
+ * bare name always resolves the same way whoever claims it. That is exactly what makes a duplicate
+ * claim detectable — and it means two lanes legitimately using the same bare name for *different*
+ * files (an `index.ts` in two directories) would be reported as a clash they do not have. No such
+ * pair exists today. If one appears, the fix is to qualify it in the table, which is the better
+ * outcome anyway: a bare name that is ambiguous to this resolver is ambiguous to a human reader too.
+ */
+const TRACKED: ReadonlySet<string> = new Set(
+  execFileSync("git", ["ls-files"], { cwd: resolve(REPO), encoding: "utf8", maxBuffer: 1 << 26 })
+    .split(/\r?\n/).map((l) => l.trim()).filter(Boolean),
+);
+const TRACKED_DIRS: ReadonlySet<string> = new Set(
+  [...TRACKED].flatMap((f) => {
+    const parts = f.split("/"); const out: string[] = [];
+    for (let i = 1; i < parts.length; i++) out.push(parts.slice(0, i).join("/") + "/");
+    return out;
+  }),
+);
+
+const ROOTS = ["apps/", "services/", "docs/", "scripts/", "integrations/", ".github/"];
+
+function qualify(p: string): string {
+  const raw = p.replace(/^\.\//, "").replace(/^!/, "");
+  if (ROOTS.some((r) => raw.startsWith(r)) || raw === "README.md") return raw;
+  for (const lane of LANES) {
+    if (!lane.paths.includes(p) && !lane.excludes.includes(p)) continue;
+    for (const q of lane.paths.map((x) => x.replace(/^!/, ""))) {
+      if (!ROOTS.some((r) => q.startsWith(r))) continue;
+      const segs = q.replace(/\/$/, "").split("/");
+      for (let i = segs.length; i > 0; i--) {
+        const cand = segs.slice(0, i).join("/") + "/" + raw;
+        if (TRACKED.has(cand) || TRACKED_DIRS.has(cand)) return cand;
+      }
+    }
+  }
+  return raw;
+}
+
 const CODES = itemCodes(OPEN);
 
 describe("the roadmap lane table", () => {
@@ -211,7 +271,7 @@ describe("the roadmap lane table", () => {
     // The real defect: `apps/web/src/portal/` (lane A) CONTAINED `portal/panels/` (lane B). Equality
     // is not the test — containment is, and only in the direction that matters: if one lane's path is
     // a prefix of another's, edits inside the deeper path belong to two lanes at once.
-    const norm = (p: string) => p.replace(/^apps\/web\/src\//, "").replace(/^\.\//, "");
+    const norm = qualify;
     const clashes: string[] = [];
     for (const a of LANES) {
       // A carve-out only excuses the overlap it actually names, and only for the lane that declared it.
@@ -235,7 +295,7 @@ describe("the roadmap lane table", () => {
     // The failure mode a carve-out introduces: `!routers/` removes it from lane C, and if no row then
     // claims it, the directory has no owner and any session may edit it — which is the exact state that
     // let one route be added twice. So an exclusion must hand the path to someone, not just drop it.
-    const norm = (p: string) => p.replace(/^apps\/web\/src\//, "").replace(/^\.\//, "");
+    const norm = qualify;
     const orphanCarves: string[] = [];
     for (const l of LANES) {
       for (const x of l.excludes.map(norm)) {
@@ -350,5 +410,91 @@ describe("the roadmap lane table", () => {
       }
     }
     expect(dupes, "an item in two lanes puts two sessions on one job").toEqual([]);
+  });
+});
+
+/**
+ * LANE-COVERAGE — the question the disjointness check above cannot ask.
+ *
+ * That check asserts no two lanes claim the same path, and it is right to. But **disjointness and
+ * coverage are two different claims, and only the first was tested.** A lane table that is perfectly
+ * disjoint and owns 62% of the tree passes every assertion above, and the remaining 38% is invisible:
+ * not contested, simply unclaimed.
+ *
+ * That is not theoretical. The table's own note records Lane J being created on 2026-08-06 after
+ * "three sessions in one day flagged a path belonging to no lane... Each flagged it correctly and
+ * then had to edit it anyway", and concludes: **"An unowned shared path is not neutral ground; it is
+ * a collision nobody is watching for."** The measurement that prompted this check found 152 of 390
+ * tracked files under `apps/web/src` unowned — 56 once vendored code is set aside — including
+ * `proforma/`, where a defect was fixed the same day under a one-change lane assignment because
+ * there was no row to point at.
+ *
+ * A RATCHET, not a wall. Requiring zero today would ship a red test, and a red test everyone learns
+ * to ignore protects nothing. The number only ever goes down, and it goes down by adding a row to the
+ * table — which is the actual work.
+ */
+function walk(dir: string, out: string[] = []): string[] {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = `${dir}/${e.name}`;
+    if (e.isDirectory()) walk(p, out); else out.push(p);
+  }
+  return out;
+}
+
+/** Not lanes: vendored copies re-synced by overwrite, and ambient type declarations. */
+const NOT_A_LANE = (rel: string) =>
+  rel.startsWith("apps/web/src/vendor/") || rel.endsWith(".d.ts");
+
+//: Measured 2026-08-07 BY THIS READER. Only ever revised DOWN, and the way down is a new row in the
+//: lane table rather than a bigger number here.
+//:
+//: 53, not the 56 my own probe reported. The gap is exactly the three `.d.ts` files this gate exempts
+//: by name and that probe did not — both counts are right for their own exclusions, and a threshold
+//: taken from a different reader is a threshold for a different question. `surface.test.ts` records
+//: being bitten by precisely this (698 from a probe vs 696 from the gate), so the number is read back
+//: out of the assertion that enforces it.
+const UNOWNED_CEILING = 53;
+
+describe("the lane table covers the tree it governs", () => {
+  const WEB = resolve(REPO, "apps/web/src");
+  const ROOT = resolve(REPO).split(sep).join("/");
+  const all = walk(WEB).map((p) => p.split(sep).join("/").slice(ROOT.length + 1));
+  // The table mixes notations: `apps/web/src/shell/` alongside bare `main.ts`, `portal/panels/`,
+  // `field/`. The bare ones are relative to `apps/web/src/`. Resolving them is not cosmetic — my
+  // first version filtered on `startsWith("apps/web/")` and reported 90 unowned instead of 56,
+  // because it silently dropped every relative claim. A population error, in the gate written to
+  // catch population errors.
+  //
+  // Worth flagging separately: the DISJOINTNESS check above compares these strings raw, so two lanes
+  // claiming the same directory in different notations — `field/` and `apps/web/src/field/` — would
+  // read as disjoint. That is a live gap in that check, not this one.
+  const claimed = LANES.flatMap((l) => l.paths)
+    .filter((p) => !p.startsWith("!") && !p.startsWith("services/") && !p.startsWith("docs/") && p !== "README.md")
+    .map((p) => (p.startsWith("apps/") ? p : `apps/web/src/${p}`))
+    .filter((p) => p.startsWith("apps/web/src/"));
+  const unowned = all.filter((f) => !NOT_A_LANE(f) && !claimed.some((p) => f === p || f.startsWith(p)));
+
+  it("can see the tree and the claims — else every count below is vacuous", () => {
+    // Both halves. An empty file list reports zero unowned and looks like total coverage; an empty
+    // claim list reports everything unowned and looks like a catastrophe. Neither is a measurement.
+    expect(all.length, "no web source files found — the walk is broken, not the table").toBeGreaterThan(200);
+    expect(claimed.length, "no lane claims any apps/web path — the table parse is broken").toBeGreaterThan(5);
+  });
+
+  it("does not grow the set of files no lane owns", () => {
+    const byDir = [...new Set(unowned.map((f) => f.split("/").slice(0, 4).join("/")))].sort();
+    expect(unowned.length,
+      `${unowned.length} file(s) under apps/web/src belong to no lane. Add a row to the lane table ` +
+      `in docs/roadmap.md rather than raising this number. Locations: ${byDir.join(", ")}`)
+      .toBeLessThanOrEqual(UNOWNED_CEILING);
+  });
+
+  it("names a path the table genuinely does not claim — so the checker is not always empty", () => {
+    // The paired control. A matcher that is too loose returns zero unowned for any table at all,
+    // which is indistinguishable from full coverage. `vendor/` is excluded by name above, so use a
+    // real unclaimed source path: this must be found, and it must stop being found once a row lands.
+    expect(unowned.some((f) => f.startsWith("apps/web/src/proforma/")),
+      "proforma/ is unclaimed today — if this fails, either a row was added (update this test) " +
+      "or the matcher stopped working").toBe(true);
   });
 });

@@ -14,26 +14,43 @@ import { VENDOR_ENTRIES } from "../../vendorAlias";
  * shipped with no route to them, and every gate measured the engine while none measured the path.
  * A vendored package nothing imports is the same defect with a bigger diff.
  */
+
+/**
+ * The vendored engine, imported ONCE at module scope. Importing it is itself the assertion — if the
+ * alias does not resolve, this module fails to load and every test below reports it.
+ *
+ * THIS WAS A 20s PER-TEST TIMEOUT, AND THE TIMEOUT WAS NOT ENOUGH
+ *     The previous note here was right about the cause — the first import pays the whole transform
+ *     for a ~20k-line library, ~800 ms alone — and chose to raise that one test's budget from 5 s to
+ *     20 s, reasoning that a cold transform is not what the assertion tests. That reasoning is sound
+ *     and the fix still failed: on 2026-08-07 it **timed out at 20 s**, and the next test failed at
+ *     5 s in the same run, because when the first caller's import never resolves, everything else
+ *     awaiting the same module dies with it. One slow first-caller takes the file down.
+ *
+ *     Raising a budget keeps the cliff and moves it somewhere less predictable — which is exactly
+ *     what happened, and the second failure is the evidence. Hoisting removes it: the transform runs
+ *     once during collection, outside any per-test budget, and no test inherits it.
+ *
+ *     Same remedy as `api/library.test.ts` (a `?raw` transform) and `tooling/deleteRatchet.test.ts`
+ *     (a `git log` walk), from three different causes. The shared rule: **fixture cost does not
+ *     belong inside a per-test timeout**, and a margin measured on an idle machine is a property of
+ *     the machine, not of the test.
+ */
+const VENDOR = await import("@massingcloud/pdf-viewer");
+
 describe("the vendored PDF engine", () => {
   it("is registered in the one alias map", () => {
     expect(VENDOR_ENTRIES["@massingcloud/pdf-viewer"]).toBe("./src/vendor/massingpdf/index.ts");
   });
 
-  // 20s, not the 5s default. This is the FIRST import of the vendored engine in the run, so it pays
-  // the whole transform cost for a ~20k-line library at once. Alone it takes ~800ms; under the full
-  // suite it reliably crossed 5s and failed — a real gate breaking on a real cost, not a flake.
-  // Raising the budget is right here: the assertion is "the alias resolves", and how long a cold
-  // transform takes is not what it is testing. If this ever needs raising again, the vendored copy
-  // has grown enough to be worth a second look.
-  it("actually imports through the alias, not just through a relative path", async () => {
-    const mod = await import("@massingcloud/pdf-viewer");
-    expect(mod).toBeTruthy();
-  }, 20_000);
+  // The import is at module scope (see VENDOR above), so neither of these carries the transform.
+  it("actually imports through the alias, not just through a relative path", () => {
+    expect(VENDOR).toBeTruthy();
+  });
 
-  it("exposes the surface the takeoff flow will need", async () => {
-    const mod = await import("@massingcloud/pdf-viewer");
+  it("exposes the surface the takeoff flow will need", () => {
     for (const name of ["Viewer", "PdfDocument", "AnnotationStore", "definePlugin"]) {
-      expect(typeof (mod as Record<string, unknown>)[name], name).not.toBe("undefined");
+      expect(typeof (VENDOR as Record<string, unknown>)[name], name).not.toBe("undefined");
     }
   });
 

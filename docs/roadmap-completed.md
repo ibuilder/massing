@@ -4850,3 +4850,31 @@ distinguish from alias residue. Undecidable from the record alone.
   language caught it: the scan returned the same count with the probes present. *Word-bounding is the
   right default for a symbol search and the wrong one for a name-fragment search* — and a filter that
   excludes its own subject produces a clean bill of health.
+
+
+---
+
+## R22-PUBLIC-VIEWER — a share token may serve model geometry ✅ *(v0.3.878, PR #270)*
+
+The entry sat in Band 2 for weeks described as a build. It was not: the share token was already
+project-scoped, revocable and audited, and four routes already honoured one. **What was missing was
+a decision** — may a share token expose model geometry at all? — and the roadmap had it filed as
+missing code.
+
+Answered 2026-08-07: **yes, as a per-token opt-in, never a default.** The flag defaults false, so no
+link already in someone's inbox was widened retroactively. The token serves the converted fragment
+and never the source IFC; unknown, revoked, not-opted-in and no-model-published all return an
+identical 404 so none of them is an enumeration oracle. The owner's token list shows which links
+carry geometry, because an opt-in nobody can audit after minting cannot be reviewed or regretted.
+
+## REACH RING — ceiling 131 to 117 in one day ✅ *(v0.3.861–v0.3.880)*
+
+The uncalled ceiling fell from 131 to 117 across #269, #271, #272, #273 and #254, with #266 still to
+land. Every step was measured by re-running the gate rather than derived from what the wiring
+touched — a discipline that earned itself twice over when two PRs each reached the same method and
+the arithmetic would have produced a number the gate rejects.
+
+The sharpest find was not a count. **FIN-GOV**: the finance period lock was *enforced* — every
+mutation dated into a closed month refused with a 409 — while the control to see or reopen it had no
+path in the UI. An unreachable feature is one nobody can use; an unreachable control over an enforced
+rule actively blocks people, and that distinction is now how reach work is prioritised.

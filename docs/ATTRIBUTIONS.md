@@ -58,6 +58,15 @@ its code is supply-chain surface with no offsetting benefit, and the lockfile ga
 
 ## Site-photo object detection — R22-PHOTO-CV Tier 2
 
+**`python-docx` (MIT)** produces the editable Word form of Exhibit A in
+`services/api/src/aec_api/scope_docx.py`. Approved by the user on 2026-08-07. Its marginal cost is
+**one** package, not three: both of its requirements were already in the lock with their floors
+already satisfied — `lxml` 6.1.1 (needs >=3.1.0) and `typing-extensions` 4.16.0 (needs >=4.9.0),
+checked before adding rather than assumed. A `.docx` is a zip of XML and the exhibit is only headings
+and paragraphs, so hand-rolling the OOXML was considered and refused: this is a **contract document**,
+and a malformed part that Word declines to open is a worse failure than a dependency — one that would
+land on a subcontractor rather than on us.
+
 **`onnxruntime` (MIT)** runs the exported detector in `services/api/src/aec_api/photo_detect.py`. It
 is the ONLY new runtime dependency for detection, and that split is deliberate: `torch` and
 `torchvision` are used exclusively by `services/api/scripts/export_detector.py`, offline, to produce

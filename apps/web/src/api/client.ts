@@ -2,7 +2,11 @@
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
 import { withAuth } from "./auth";
 import { withAuthoring } from "./authoring";
+import { withCost } from "./cost";
+import { withRoutines } from "./routines";
+import { withContracts } from "./contracts";
 import { withDesignOptions } from "./designOptions";
+import { withFinance } from "./finance";
 import { withLibrary } from "./library";
 import { HttpCore, type LiveStream } from "./httpCore";
 import { withModel } from "./model";
@@ -29,13 +33,13 @@ import type {
   Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, PreflightSummary, ProfessionalLicense,
-  ResolveAction, ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
+  ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
   Topic, Vec3, Viewpoint, WorkItem, VitalsPayload } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))) {
+export class ApiClient extends withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -753,26 +757,6 @@ export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcu
       { method: "POST", body: JSON.stringify({ companies }) });
   }
 
-  // --- contract documents (generate / scope library / sign) -----------------
-  /** URL of a generated contract document — doc = agreement | prime | co | exhibit. */
-  contractDocUrl(pid: string, key: string, rid: string, doc: string, clauses?: string, attach = false) {
-    const q = new URLSearchParams({ doc, ...(clauses ? { clauses } : {}), ...(attach ? { attach: "1" } : {}) }).toString();
-    return this.url(`/projects/${pid}/contracts/${key}/${rid}/document.pdf?${q}`);
-  }
-  /** Scope-of-work clause library for composing Exhibit A. */
-  scopeLibrary() {
-    return this.json<{ clauses: { id: string; category: string; title: string; trade?: string | null }[] }>(`/scope-library`);
-  }
-  /** Record a party's signature (typed name) on a contract / change order. */
-  signContract(pid: string, key: string, rid: string, party: string, name: string) {
-    return this.json<{ signatures: { party: string; name: string; signed_at: string; method: string }[] }>(
-      `/projects/${pid}/contracts/${key}/${rid}/sign`, { method: "POST", body: JSON.stringify({ party, name }) });
-  }
-  /** Apply a certificate-based PAdES digital signature to the contract document (tamper-evident). */
-  digitalSignContract(pid: string, key: string, rid: string) {
-    return this.json<{ signed: boolean; fingerprint: string; kind: string }>(
-      `/projects/${pid}/contracts/${key}/${rid}/digital-sign`, { method: "POST", body: "{}" });
-  }
   /** Whether server-side E57 → .xyz point-cloud conversion is available (needs optional pye57). */
   e57Status() {
     return this.json<{ available: boolean; max_points: number; message: string }>(`/convert/e57/status`);
@@ -783,19 +767,6 @@ export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcu
     const res = await fetch(this.url(`/convert`), { method: "POST", headers: this.authHeaders(), body: fd });
     if (!res.ok) throw new Error((await res.text()) || `convert failed (${res.status})`);
     return res.blob();
-  }
-  /** Digital-signature capability — built-in PAdES + the optional 3rd-party bridge (DocuSeal etc.). */
-  esignStatus() {
-    return this.json<{ pades: { available: boolean; kind: string };
-      bridge: { enabled: boolean; provider: string | null; implemented: boolean; message: string } }>(
-      `/esign/status`);
-  }
-  /** Route a contract/CO through the configured 3rd-party e-signature provider (DocuSeal etc.). */
-  sendForSignature(pid: string, key: string, rid: string, signers: { email: string; name?: string; party?: string }[]) {
-    return this.json<{ provider: string; submission_id: number | string | null;
-      signers: { email: string; role: string; url: string | null }[]; status: string }>(
-      `/projects/${pid}/contracts/${key}/${rid}/send-for-signature`,
-      { method: "POST", body: JSON.stringify({ signers }) });
   }
   /** Triage an RFI (AI): category / discipline / urgency / ball-in-court + a draft response. */
   triageRfi(pid: string, rid: string) {
@@ -1803,35 +1774,6 @@ export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcu
   }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
-  /** MARGIN-CBS — per-cost-code reconciliation: budget vs committed vs actual vs billed → buyout margin. */
-  marginByCostCode(pid: string) {
-    type Row = { cost_code: string; budget: number; committed: number; actual: number; billed: number;
-      buyout_margin: number; variance: number; pct_committed: number | null; pct_spent: number | null;
-      over_committed: boolean; over_budget: boolean; actions: ResolveAction[] };
-    return this.json<{
-      code_count: number; total_budget: number; total_committed: number; total_actual: number;
-      total_billed: number; total_buyout_margin: number; total_variance: number;
-      pct_committed: number | null; pct_spent: number | null;
-      over_committed_codes: number; over_budget_codes: number; rows: Row[]; note: string;
-    }>(`/projects/${pid}/margin/by-costcode`);
-  }
-  /** COST-SPINE — does one cost code carry the same scope across budget → commitment → actual →
-   *  invoice? Reports presence, not just amounts; `traceability_pct` is the share of committed+actual
-   *  money on a budgeted code, which is the coverage the margin report above inherits. */
-  costSpine(pid: string) {
-    type SpineRow = { cost_code: string; code: string; ref: string;
-      budget: number; committed: number; actual: number; billed: number;
-      counts: Record<string, number>; stages_present: string[]; stage_count: number;
-      first_break: string | null; traceable: boolean; flags: string[]; actions: ResolveAction[] };
-    return this.json<{
-      rows: SpineRow[]; code_count: number; stages: string[];
-      unassigned: Record<string, { amount: number; count: number }>;
-      unassigned_total: number; unassigned_count: number;
-      codes_not_in_register: string[]; unused_register_codes: string[];
-      traceability_pct: number | null; traceable_spend: number; total_spend: number;
-      broken: string[]; note: string;
-    }>(`/projects/${pid}/cost-spine`);
-  }
   /** SELECTIONS — owner selections & allowances rollup (allowance vs actual → change-order candidates). */
   selectionsSummary(pid: string) {
     type Cat = { category: string; count: number; allowance: number; actual: number; delta: number };
@@ -2150,29 +2092,6 @@ export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcu
       `/projects/${pid}/propmap/plan`, { method: "POST", body: JSON.stringify({ rules }) });
   }
 
-  // real-estate development finance (Proforma)
-  /** FIN-GOV — the project's locked reporting period (books closed through lock_date, or null). */
-  financeLock(pid: string) {
-    return this.json<{ lock_date: string | null; set_by?: string; set_at?: string; note?: string }>(
-      `/projects/${pid}/finance/lock`);
-  }
-  setFinanceLock(pid: string, lockDate: string | null, note?: string) {
-    return this.json<{ lock_date: string | null; set_by: string; note: string }>(
-      `/projects/${pid}/finance/lock`,
-      { method: "PUT", body: JSON.stringify({ lock_date: lockDate, note: note ?? "" }) });
-  }
-  /** FIN-INGEST — budget ↔ actuals two-way reconciliation on the cost-code spine. */
-  financeReconcile(pid: string) {
-    return this.json<{ matched: unknown[]; budget_only: unknown[]; actuals_only: unknown[];
-      uncoded: { module: string; ref: string; amount: number; vendor?: string }[];
-      counts: Record<string, number>; fully_reconciled: boolean }>(
-      `/projects/${pid}/finance/reconcile`);
-  }
-  /** FIN-INGEST — import lineage: the project's audit-logged import batches, newest first. */
-  financeImports(pid: string) {
-    return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
-      imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
-  }
   /** CRE-HOLDSELL — hold vs sell: incremental hold-year IRRs against the proceeds declined today. */
   holdSell(pid: string, inputs: unknown, hurdleRate = 0.12, maxYears = 10) {
     return this.json<{ computable: boolean; reason?: string;
@@ -2914,7 +2833,7 @@ export class ApiClient extends withAuth(withProforma(withDesignOptions(withProcu
       events: { year: number; item: string; cost: number; cost_escalated: number; source: string; ref: string }[];
       schedule: { year: number; outflows: number; contribution: number; balance: number }[];
       total_outflows: number; first_underfunded_year: number | null; adequately_funded: boolean;
-      suggested_level_contribution: number; note: string }>(
+      suggested_level_contribution: number; suggestion_clears_horizon?: boolean; note: string }>(
       `/projects/${pid}/reserves/study${qs ? `?${qs}` : ""}`);
   }
   camReconciliation(pid: string, opts: { year?: number; grossUpToPct?: number; buildingSf?: number } = {}) {
