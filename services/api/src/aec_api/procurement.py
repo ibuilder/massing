@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from . import modules as me
+from . import classification, modules as me
 
 
 def _num(v) -> float:
@@ -72,6 +72,73 @@ def level_quotes(quotes: list[dict]) -> dict:
 
 
 _PKG_KEYS = ("package", "trade", "csi", "material_class", "discipline")
+
+
+#: Model-derived QTO lines and hand-entered estimate lines are the SAME data under different key
+#: names, and `buyout_packages` only ever read the hand-entered spelling. `element_5d` emits
+#: `{guid, name, ifc_class, storey, basis, quantity, rate, cost}`; the grouping read `item` /
+#: `description` / `material` for identity, `qty` for quantity and `unit_price` for price, and
+#: `trade` for the package. A model line carries NONE of those names, so every line hit
+#: `if not item: continue` and the engine returned zero packages for a fully-priced model.
+#:
+#: That is why the four procurement client methods were filed as "cannot be wired": a screen over
+#: this would have rendered "Buyout — 0 packages · $0", which reads as *this project has no scope*
+#: rather than *this input is in the other dialect*. The capability was never missing; the two
+#: halves simply never agreed on spelling.
+#:
+#: THE TRADE COMES FROM THE CLASSIFICATION SPINE, NOT FROM A NEW TABLE HERE. `classification.py`
+#: already maps IfcWall -> ("04 20 00", "Unit Masonry"), IfcDoor -> ("08 10 00", "Doors & Frames"),
+#: and returns ("01 00 00", "General Requirements") for anything unmapped. Adding a second mapping
+#: beside it is how two sources of truth start disagreeing about what a wall is.
+_QTY_KEYS = ("qty", "quantity", "count")
+_COST_KEYS = ("cost", "total", "amount")
+_ITEM_KEYS = ("item", "description", "material", "name")
+
+
+def _ifc_trade(ln: dict) -> tuple[str, str] | None:
+    """(csi_code, trade_title) for a line that carries only an IFC class, else None."""
+    cls = str(ln.get("ifc_class") or "").strip()
+    if not cls:
+        return None
+    return classification.classify(cls, "masterformat")
+
+
+def normalize_qto_line(ln: dict) -> dict:
+    """One dialect. Accepts a hand-entered estimate line OR a model-derived one, unchanged if it
+    already speaks the first. Explicit fields always win — this fills gaps, it never overrides."""
+    out = dict(ln)
+    item = next((str(ln[k]).strip() for k in _ITEM_KEYS if str(ln.get(k) or "").strip()), "")
+    trade = next((str(ln[k]).strip() for k in _PKG_KEYS if str(ln.get(k) or "").strip()), "")
+    ifc = _ifc_trade(ln)
+    if ifc:
+        code, title = ifc
+        # An element with no name is identified by WHAT IT IS, which is the trade title - never left
+        # blank, because a blank is what made the whole line disappear.
+        if not item:
+            item = title
+        if not trade:
+            trade = title
+        out.setdefault("csi", code)
+    if item:
+        out["item"] = item
+    if trade:
+        out["trade"] = trade
+    if out.get("qty") in (None, ""):
+        for k in _QTY_KEYS:
+            if ln.get(k) not in (None, ""):
+                out["qty"] = ln[k]
+                break
+    if out.get("cost") in (None, ""):
+        for k in _COST_KEYS:
+            if ln.get(k) not in (None, ""):
+                out["cost"] = ln[k]
+                break
+    if out.get("unit_price") in (None, "") and ln.get("rate") not in (None, ""):
+        out["unit_price"] = ln["rate"]
+    # `basis` is element_5d's word for the unit an element is measured in (area / volume / length).
+    if not str(out.get("unit") or "").strip() and str(ln.get("basis") or "").strip():
+        out["unit"] = str(ln["basis"]).strip()
+    return out
 _DEFAULT_W = {"price": 0.6, "coverage": 0.25, "lead_time": 0.15}
 
 
@@ -81,12 +148,19 @@ def buyout_packages(qto_lines: list[dict], by: str = "trade") -> dict:
     RFQ scope (item · qty · unit) the buyer can send out. Deterministic — no side effects."""
     by = by if by in _PKG_KEYS else "trade"
     groups: dict[str, dict] = {}
-    for ln in qto_lines or []:
-        if not isinstance(ln, dict):
+    skipped_unidentifiable = 0
+    for raw in qto_lines or []:
+        if not isinstance(raw, dict):
             continue
+        ln = normalize_qto_line(raw)
         key = str(ln.get(by) or ln.get("package") or "General").strip() or "General"
         item = (ln.get("item") or ln.get("description") or ln.get("material") or "").strip()
         if not item:
+            # Still counted and REPORTED rather than silently dropped. A line with no name, no
+            # description, no material and no IFC class cannot be put in a package - but a caller
+            # seeing "0 packages" deserves to know lines were discarded, not conclude there is no
+            # scope. Silence here is what made this engine look like it had nothing to say.
+            skipped_unidentifiable += 1
             continue
         g = groups.setdefault(key, {"package": key, "lines": [], "est_cost": 0.0})
         qty, unit = _num(ln.get("qty")), ln.get("unit") or ln.get("uom") or ""
@@ -103,7 +177,8 @@ def buyout_packages(qto_lines: list[dict], by: str = "trade") -> dict:
         })
     packages.sort(key=lambda p: -p["est_cost"])
     return {"grouped_by": by, "package_count": len(packages),
-            "total_est_cost": round(sum(p["est_cost"] for p in packages), 2), "packages": packages,
+            "total_est_cost": round(sum(p["est_cost"] for p in packages), 2), "skipped_unidentifiable": skipped_unidentifiable,
+        "packages": packages,
             "note": "QTO lines grouped into buyout packages; each carries an RFQ scope (item/qty/unit) to "
                     "send to suppliers. Feed returned quotes to /procurement/level for a scored comparison."}
 
