@@ -86,6 +86,7 @@ from .edit_struct import (  # noqa: F401 — re-exported: routers/RECIPES/genera
 )
 from .geomconf import bounded_iterator
 from .ifc_loader import open_model
+from .ifc_loader import seed_model_cache as _seed_cache
 
 _DTYPE = {"bool": "IfcBoolean", "str": "IfcLabel", "float": "IfcReal", "int": "IfcInteger"}
 
@@ -1093,6 +1094,10 @@ def apply_recipe(ifc_path: str, recipe: str, params: dict, out_path: str) -> dic
     else:
         changed = RECIPES[recipe](model, params)
     model.write(out_path)
+    # R42-SESSION-MODEL: the next edit opens `out_path`. The model that IS `out_path` is in memory
+    # right now, so hand it to the cache instead of letting the next call re-parse the file we just
+    # wrote. Best-effort by design — a failed seed costs a parse, never correctness.
+    _seed_cache(out_path, model)
     return {"recipe": recipe, "changed": changed, "out": out_path}
 
 
@@ -1129,4 +1134,5 @@ def apply_recipes(ifc_path: str, steps: list[dict], out_path: str) -> dict:
             changed = RECIPES[recipe](model, params)
         results.append({"recipe": recipe, "changed": changed})
     model.write(out_path)
+    _seed_cache(out_path, model)   # R42: same handoff as apply_recipe
     return {"steps": results, "step_count": len(results), "out": out_path}
