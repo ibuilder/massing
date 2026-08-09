@@ -327,7 +327,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R42-SESSION-WRITE · R42-UNDO |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R42-SESSION-WRITE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R42-COMMIT-DELTA |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -2496,12 +2496,31 @@ both. `pid_lock.mutating(pid)` already scopes exactly the critical section this 
 concurrency design is done — what is new is server-side session state, which is why this is its own
 item and not folded into the one above.
 
-- **R42-UNDO** *(M — Lane C)* — **there is no undo.** Checked, not assumed: no inverse, no command
-stack, nothing in the 96 recipes that reverses one. Versioned IFC gives "revert to version N", which
-is not the same thing and is not what anyone reaches for after placing a wall wrong. The version
-chain is the cheap way in — an undo is a diff against the previous version — but it has to be
-designed alongside R42-COMMIT-DELTA, because undoing an edit whose geometry is a delta model means
-dropping that model, and undoing one that has been consolidated does not.
+- ⛔️ **R42-UNDO — WITHDRAWN. The claim was false and I asserted it as verified.** This entry said
+  *"there is no undo. Checked, not assumed: no inverse, no command stack."* **Undo and redo exist,
+  are wired end to end, and have been for some time.**
+
+  `services/api/src/aec_api/edit_history.py` is a bounded per-project undo/redo stack
+  (`push` / `undo` / `redo` / `state`) kept as a storage sidecar. `POST /projects/{pid}/edit/undo`
+  and `/edit/redo` restore the prior model version; **six** call sites push a pre-edit version
+  (single edit, batch, macro, MCP run_recipe, …), and a batch deliberately pushes ONE entry so a
+  multi-step command undoes as one step. The client has `editUndo` / `editRedo` / `editHistoryState`
+  and a `↶ Undo` button in the rail that refreshes its own enabled state. There is even considered
+  keybinding design: Ctrl+Z is reserved for popping the last point of an **in-progress draft**, with
+  a comment saying element undo keeps the rail control precisely so the two do not collide.
+
+  **How I got it wrong, because the mechanism matters more than the mistake.** I grepped
+  `services/data/src/aec_data/edit*.py` for `def undo|undo_recipe|inverse`, found nothing, and wrote
+  it down as checked. The capability lives in `services/api/`. That is the recorded lesson
+  [[enumerate-the-table-not-the-names-you-know]] — **a grep proves a string absent, never a
+  capability** — and writing "checked, not assumed" on top of an unchecked claim is worse than
+  leaving it unqualified, because it tells the next reader not to re-check.
+
+  **What is actually left, stated at the size it really is:** an undo costs a **full republish**
+  (`_restore_version(..., publish=True)`), which the R42 measurements put at ~37 s on a 1,000-element
+  model — so undo inherits exactly the cost R42-COMMIT-DELTA exists to remove, and needs no separate
+  item. The only genuinely missing piece is a keyboard shortcut for *element* undo, since Ctrl+Z is
+  taken by the draft-point undo; that is a small UX call, not a ring item.
 
 ### Deliberately NOT in this ring
 
@@ -2512,7 +2531,7 @@ dropping that model, and undoing one that has been consolidated does not.
   unreadable from the model: it is unreadable partly because it is not yet there.
 * **Sheets as data** — already 📐 R27, and the other half of "authoring tool" vs "modeller".
 
-**Sequence (REVISED by the spike — see the note above): R42-SESSION-MODEL, then R42-COMMIT-DELTA, then R42-UNDO.** The first is the one that
+**Sequence (REVISED twice — see the spike note, and R42-UNDO withdrawn): R42-SESSION-MODEL (done), then R42-COMMIT-DELTA.** The first is the one that
 changes what the product *is*; the second removes the remaining per-edit constant; the third is table
 stakes that gets cheaper once the first two define what an edit is. Everything under "NOT in this
 ring" is additive at any later point and all of it is cheaper afterwards.
