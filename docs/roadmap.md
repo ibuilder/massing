@@ -327,7 +327,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R42-SESSION-MODEL · R42-UNDO |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R42-SESSION-WRITE · R42-UNDO |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R42-COMMIT-DELTA |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -2469,7 +2469,27 @@ loader work is needed.
    marked *provisional* and readers say so. **Silently missing from the index is the failure mode
    this codebase keeps finding; it must be visible, not merely small.**
 
-- **R42-SESSION-MODEL** *(M — Lane C)* — **stop re-reading the IFC per edit.** `apply_recipe` opens the
+- ✅ **R42-SESSION-MODEL — COMPLETE as scoped, v0.3.907.** *"Stop re-reading the IFC per edit"* is done; the remaining WRITE concern is tracked separately as **R42-SESSION-WRITE**.
+
+  *What shipped, and why it was smaller than this entry assumed.* `open_model` was **already** cached
+  by `(path, mtime, size)`. It was never missing — it was unreachable from the authoring loop,
+  because every edit writes a new timestamped file so the next edit's key differs and misses by
+  construction. Its own docstring said so, phrased as a reassurance about staleness. `apply_recipe`
+  now hands its post-write model to the cache, so an edit's OUTPUT opens without a parse.
+  `services/api/test_model_cache_seed.py` proves it by counting `ifcopenshell.open` calls.
+
+  **What remains is the WRITE, and it needs a product decision rather than more code.** Each edit
+  still serialises a whole new IFC. Deferring that means the file on disk is no longer the current
+  model — which changes what *"the current source"* means to every other reader (publish, export,
+  clash, the MCP tools, a second user's optimistic-lock check) and what *"saved"* means to a user.
+  That is a decision about the product's contract with its own data, not a caching change, and it
+  should not be made inside a commit that looks like an optimisation.
+
+- **R42-SESSION-WRITE** *(M — Lane C)* — **the write half of R42-SESSION-MODEL**, split out with its
+  own id because the parse half has shipped and one id cannot be both done and open. Each edit
+  still serialises a whole new IFC; deferring that changes what "the current source" means to
+  every other reader and what "saved" means to a user, so it is a decision about the product's
+  contract with its own data rather than an optimisation. **Needs a product call before code.** `apply_recipe` opens the
 source from disk, applies, and writes a whole new file every time; on a 50 MB model that is seconds
 of pure I/O per wall, before any conversion. A per-project opened model held across edits removes
 both. `pid_lock.mutating(pid)` already scopes exactly the critical section this needs, so the
