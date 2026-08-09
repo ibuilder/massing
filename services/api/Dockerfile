@@ -10,7 +10,7 @@
 # of step with the supported web runtime (both manifests declare engines.node >= 24, CI runs 24).
 FROM node:24-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS converter
 WORKDIR /conv
-ARG FRAGMENTS_VERSION=3.4.5
+ARG FRAGMENTS_VERSION=3.4.7
 ARG WEBIFC_VERSION=0.0.77
 RUN npm init -y >/dev/null 2>&1 && npm install --no-audit --no-fund \
     @thatopen/fragments@${FRAGMENTS_VERSION} web-ifc@${WEBIFC_VERSION}

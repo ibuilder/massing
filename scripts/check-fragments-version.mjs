@@ -42,12 +42,23 @@ for (const df of DOCKERFILES) {
 // is exactly the coupling landmine CLAUDE.md warns about, so CI fails until this record is updated in
 // the same commit as the bump — a conscious act, not an accident. (The suite is intentionally at mixed
 // patch levels; equality between packages is NOT the invariant, the recorded tuple is.)
+//
+// TUPLE UPDATED 2026-08-08 (PR #231). Re-verified live before touching this record, because the
+// whole value of the pin is that nobody moves it without looking:
+//   * a 5-element project renders 5 meshes; a 154-element project renders 82 meshes / 473,088
+//     triangles — the counts TRACK the model rather than merely being non-zero
+//   * the section box takes the renderer from 0 to 6 clipping planes with localClipping enabled
+//   * `selectByGuid` resolves without throwing; zero console errors across both loads
+//   * `npm run typecheck` and the real Vite 8 / rolldown `npm run build` both clean in the primary
+//     clone (a worktree resolves a DIFFERENT Vite and would not have proven this)
+// NOT re-verified: authoring a new element end-to-end. Recorded here rather than implied, since
+// this comment is the only evidence a later reader will have of what "verified" covered.
 const KNOWN_GOOD = {
-  "@thatopen/components": "3.4.6",
-  "@thatopen/components-front": "3.4.3",
-  "@thatopen/ui": "3.4.3",
-  "@thatopen/fragments": "3.4.5",
-  "three": "0.184.0",
+  "@thatopen/components": "3.4.8",
+  "@thatopen/components-front": "3.4.4",
+  "@thatopen/ui": "3.4.10",
+  "@thatopen/fragments": "3.4.7",
+  "three": "0.185.1",
   "web-ifc": "0.0.77",
 };
 for (const [dep, want] of Object.entries(KNOWN_GOOD)) {
