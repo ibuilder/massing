@@ -18,6 +18,8 @@ import { parseDynConstraint } from "./dynInput";
 import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
+import { DeltaStore, deltaCommitter, deltaIndicator } from "./deltaCommit";
+import { makeWaitForPublish } from "./publishWait";
 import { buildElementProps, buildRawProps } from "./propsView";
 import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
 import { buildLifecycleStrip } from "../ui/lifecycleStrip";
@@ -113,6 +115,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const projectId = ctx.projectId;
   const setStatus = ctx.setStatus;
   const notify = ctx.notify;
+  const waitForPublish = makeWaitForPublish(api);
   const propsPanel = $("panel-props");   // Properties is now a docked rail panel (Revit-style), not a floating aside
   const propsBody = $("props-body");
   const propsHint = () => { propsBody.innerHTML = `<div class="meta">Select an element in the model to see its type, parameters, and property sets.</div>`; };
@@ -176,6 +179,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   let modelCount = 0;
   // track a human label per loaded model so the federation panel can list disciplines
   const modelLabels = new Map<string, string>();
+  // R42-COMMIT-DELTA — edits authored but not yet in the base fragment. `refreshDeltas` is set
+  // by the rail when it builds its indicator; null until then, which is why every call is `?.`.
+  const deltas = new DeltaStore();
+  let refreshDeltas: (() => void) | null = null;
   // view-only reference overlays (meshes / point clouds) added alongside the fragment models
   const referenceModels = new Map<string, { object: THREE.Object3D; label: string; dispose?: () => void }>();
   const nextId = (label?: string) => {
@@ -1138,7 +1145,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // loads. The preview is real-looking geometry, and real-looking geometry with no marker is
     // indistinguishable from a committed element — which becomes a lie the moment the recipe
     // fails. Amber outline over accurate preview geometry states exactly the truth: this shape,
-    // not yet on the record. The outline drops only when publish completes (authorAndReload).
+    // not yet on the record. Since R42-COMMIT-DELTA it drops when the RECIPE lands, not a reconvert.
     let previewId: string | null = null;
     try {
       const pv = await api.editPreview(projectId, a.recipe, params);
@@ -1150,45 +1157,31 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     await authorAndReload(a.recipe, params, a.label, previewId);
   }
 
+  const committer = deltaCommitter({
+    store: deltas, refresh: () => refreshDeltas?.(),
+    editIfc: (r, p, pub) => api.editIfc(projectId!, r, p, pub),
+    publish: (reconvert) => api.publish(projectId!, reconvert),
+    awaitPublish: () => waitForPublish(projectId!),
+    reloadModel: () => loadProjectModel(), reloadPins: () => reloadModelPins(),
+    dispose: (id) => loader.disposeOne(id),
+    clearDraft: () => draftProxies.clear(),
+    markFailed: () => draftProxies.markFailed(),
+    notify,
+  });
+
   /** Author a recipe and republish. Returns the outcome so a caller can react to a REFUSAL
    *  (`refused` — the recipe itself said no, e.g. a non-rectangular profile) distinctly from a
    *  publish flake (`applied: false, refused: false`). Existing callers ignore the return. */
   async function authorAndReload(recipe: string, params: Record<string, unknown>, label: string,
                                  previewId: string | null = null): Promise<{ applied: boolean; refused: boolean }> {
-    // the preview model is normally reclaimed by loadProjectModel()'s disposeAll; on any non-done
-    // outcome it would otherwise orphan GPU geometry (unique id per attempt) — dispose it explicitly.
-    const dropPreview = async () => { if (previewId) { await loader.disposeOne(previewId).catch(() => {}); } };
-    const outcome = { applied: false, refused: false };
-    await withLoading(container, `authoring ${label} + republishing`, async () => {
-      try {
-        await api.editIfc(projectId!, recipe, params, true);
-        notify(`${label} authored — converting…`, "info");
-        const state = await waitForPublish(projectId!);
-        if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); notify(`${label} applied${shown ? " — shown" : ""}`, "success"); outcome.applied = true; }
-        else { await dropPreview(); draftProxies.markFailed(); notify(`${label} authored — publish ${state}`, state === "error" ? "error" : "info"); }
-        await reloadModelPins();
-      } catch (err) {
-        // A29: a failed placement keeps its marker, turned red — a toast says something failed,
-        // the marker says WHERE. The next draft action clears it (fromParams handles that).
-        draftProxies.markFailed(); await dropPreview();
-        outcome.refused = true;
-        notify(`${label} failed: ${(err as Error).message}`, "error");
-      }
-    });
+    let outcome = { applied: false, refused: false };
+    // The delta path does not republish, so it must not say it does — the two paths differ in what
+    // the user is waiting for, which is the whole job of this string.
+    await withLoading(container, previewId ? `authoring ${label}` : `authoring ${label} + republishing`,
+      async () => { outcome = await committer.commit(recipe, params, label, previewId); });
     return outcome;
   }
 
-  async function waitForPublish(pid: string, onTick?: (s: string) => void): Promise<string> {
-    const deadline = Date.now() + 12 * 60 * 1000;
-    while (Date.now() < deadline) {
-      let s: { state: string };
-      try { s = await api.publishStatus(pid); } catch { return "error"; }
-      onTick?.(s.state);
-      if (s.state === "done" || s.state === "error") return s.state;
-      await new Promise((r) => setTimeout(r, 1500));
-    }
-    return "running";
-  }
   async function loadProjectModel(): Promise<boolean> {
     // R39-DECOMP-VIEWER ⑥ — body extracted to ./loadProjectModel.ts, which is also where
     // R39-VIEWER-OBS instruments the load journey. Every dependency below was `const` here.
@@ -3277,6 +3270,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       redoBtn.onclick = () => void doUndoRedo(true);
       void refreshUndo();
 
+      // R42-COMMIT-DELTA — rebuild the base geometry so it matches the data. The deltas are dropped
+      // only AFTER the new base has loaded: dropping first would blink the elements off screen, and
+      // on a failed publish would leave the user with neither the delta nor the rebuild.
+      const deltaUi = deltaIndicator(deltas, () =>
+        withLoading(container, "rebuilding model geometry", () => committer.consolidate()));
+      refreshDeltas = deltaUi.refresh;
+
       // `planPaneBtn` before `planBtn`: the docked pane is the daily surface, the SVG export the
       // occasional one. (It was CREATED and never appended from v0.3.826 until 2026-08-02 — the pane
       // shipped wired, tested and unreachable, which no test caught because tests exercised the
@@ -3286,7 +3286,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       // named variables; they just all ended up in one `append`. Each group now goes to the rail
       // item that owns it, which is what finally gives **Annotate** and **Detail** real contents
       // instead of shipping them empty.
-      glBody.append(status, levelSel, undoRow, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
+      glBody.append(status, levelSel, undoRow, deltaUi.el, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
         phaseBtn, queryBtn, lodBtn, asBuiltBtn, manage, levelsMgr);
       // The drawing set: produced from the model, read as documents.
       railGroup("export", "Drawings & sheets", [planPaneBtn, planBtn, sheetBtn, pdfBtn, schedBtn,
