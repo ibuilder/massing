@@ -120,9 +120,19 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `import -> ${res.status}`); }
       return res.json() as Promise<{ imported: { guid: string; name: string; ifc_class: string }[]; count: number; publish?: string }>;
     }
-    publish(pid: string) {
-      return this.json<{ state: string }>(
-        `/projects/${pid}/publish`, { method: "POST", body: JSON.stringify({ reconvert: true }) });
+    /**
+     * Re-run the pipeline. `reconvert: false` reindexes WITHOUT rebuilding fragments — the index and
+     * version snapshot go current while the rendered geometry stays at the previous publish.
+     *
+     * THE BODY IS A BARE BOOLEAN, NOT AN OBJECT, and that is not a style choice. The route declares
+     * `reconvert: bool = Body(default=True)` with no `embed`, so FastAPI takes the whole body as the
+     * value. This method sent `{"reconvert": true}` from the day it was written and every call
+     * **422'd** — `⟳ Republish` in the rail and the AI plan's Apply were both dead. Nothing caught
+     * it: the failure is a rejected promise in a click handler, so the button just never finished.
+     */
+    publish(pid: string, reconvert = true) {
+      return this.json<{ state: string; reconvert?: boolean }>(
+        `/projects/${pid}/publish`, { method: "POST", body: JSON.stringify(reconvert) });
     }
     /** Computational-graph (M4) node palette — each node's input/output ports for the visual editor. */
     computeNodes() {
