@@ -1,8 +1,11 @@
 /**
  * R36-DRAWINGS-RETURN — **a workspace that owns no rail must offer a way out, and it must be true.**
  *
- * The defect: `drawings.ts` renders into its own workspace with no back control and no route into the
- * viewer, and Specs behaves the same. The only exit is knowing the tabs along the top are navigation
+ * The defect, as re-measured in the running app on 2026-08-09: **Drawings already had its return
+ * control and its room tabs** — this file's original claim that neither did was true when written and
+ * stale by the time it was read. What was still broken was Specs, and for a reason no destination
+ * list could express: `openSpecs()` calls `setWorkspace("design")`, so Specs is not a workspace and
+ * `DEAD_END_WS` never fired for it. The only exit was knowing the tabs along the top are navigation
  * — which is knowledge someone has to give you, and not what a person reaches for when a screen has
  * trapped them. They look for a way *back*.
  *
@@ -18,6 +21,8 @@
  * a duplicated label list is exactly how the rail ended up with `undefinedView` on screen.
  */
 import { beforeEach, describe, expect, it } from "vitest";
+
+import { DEAD_END_WS, offersReturn, returnLabel, returnTarget } from "./wsReturn";
 
 /** The shell fragment these controls live in — workspaces plus their tab strip. */
 function mountShell(): void {
@@ -40,13 +45,17 @@ function mountShell(): void {
 }
 
 /**
- * The behaviour under test, mirroring `main.ts`. Reproduced rather than imported because `main.ts` is
- * the app entry point and importing it boots the whole shell; the logic asserted here is the
- * origin-tracking rule, and it is small enough that a drift between the two would be visible in the
- * one place it matters — the `DEAD_END_WS` set and the "previous, else model" fallback.
+ * The DOM plumbing, mirroring `main.ts`. Still reproduced — importing `main.ts` boots the whole
+ * shell — but every DECISION is now imported from `./wsReturn`, which is the point of that module
+ * existing.
+ *
+ * The previous version reproduced the decisions too, including its own
+ * `DEAD_END_WS = new Set(["drawings"])`, and argued that drift "would be visible in the one place it
+ * matters". It was not: this file's own header said *"and Specs behaves the same"* while its copy of
+ * the set silently excluded Specs, so the suite passed for months over a gap it had described in
+ * prose. A test asserting a reproduction cannot fail when the original is wrong.
  */
 function makeNav() {
-  const DEAD_END_WS = new Set(["drawings"]);
   let currentWs = "model";
   let previousWs: string | null = null;
 
@@ -59,7 +68,7 @@ function makeNav() {
   function renderReturnBar(wsKey: string): void {
     const host = document.getElementById(`ws-${wsKey}`);
     if (!host) return;
-    const dest = previousWs && previousWs !== wsKey ? previousWs : "model";
+    const dest = returnTarget(previousWs, wsKey);          // the REAL rule, imported
     let bar = host.querySelector<HTMLElement>(".ws-return");
     if (!bar) {
       bar = document.createElement("div");
@@ -70,16 +79,18 @@ function makeNav() {
     const back = document.createElement("button");
     back.type = "button";
     back.className = "tool-btn ws-return-btn";
-    back.textContent = `← Back to ${wsLabel(dest)}`;
+    back.textContent = returnLabel(dest, wsLabel);         // the REAL label, imported
     back.onclick = () => setWorkspace(dest);
     bar.appendChild(back);
   }
 
-  function setWorkspace(key: string): void {
-    if (key !== currentWs) previousWs = currentWs;
+  function setWorkspace(key: string, arrival: "jump" | "nav" = "nav"): void {
+    const moved = key !== currentWs;
+    if (moved) previousWs = currentWs;
     currentWs = key;
     document.querySelectorAll(".workspace").forEach((w) => w.classList.toggle("active", w.id === `ws-${key}`));
-    if (DEAD_END_WS.has(key)) renderReturnBar(key);
+    if (offersReturn(key, moved ? previousWs : null, arrival)) renderReturnBar(key);  // REAL trigger
+    else document.getElementById(`ws-${key}`)?.querySelector(".ws-return")?.remove();
   }
 
   return { setWorkspace, active: () => currentWs, DEAD_END_WS };
@@ -150,5 +161,85 @@ describe("a dead-end workspace offers a way out", () => {
     nav.setWorkspace("drawings");
     nav.setWorkspace("drawings");
     expect(returnBtn("drawings")!.textContent).not.toContain("Drawings");
+  });
+});
+
+describe("a JUMP out of your workspace owes you a return, even to a normal workspace", () => {
+  beforeEach(mountShell);
+
+  it("Specs — the case the old copy of DEAD_END_WS could not express", () => {
+    // `openSpecs()` does `setWorkspace("design")`. Design is a perfectly ordinary workspace with
+    // tabs, so no set of dead-end NAMES would ever have caught this. Measured in the running app
+    // before the fix: of seven visible controls there mentioning model/3D, one was the Design tab
+    // the user was already on, two were analysis modules, and four were project-home cards —
+    // start-over actions, not a way back.
+    const nav = makeNav();
+    nav.setWorkspace("design", "jump");
+    expect(returnBtn("design"), "pressing Specs from the model must not strand the user").not.toBeNull();
+    expect(returnBtn("design")!.textContent).toBe("← Back to Model");
+  });
+
+  it("BOTH launch surfaces behave the same — asserted as a set, not one example", () => {
+    // The defect was an ASYMMETRY: Drawings had the control and Specs did not. Checking them
+    // together is what makes that expressible; two separate tests would both have passed while the
+    // pair disagreed, which is exactly what happened.
+    for (const [dest, arrival] of [["drawings", "jump"], ["design", "jump"]] as const) {
+      mountShell();
+      const nav = makeNav();
+      nav.setWorkspace(dest, arrival);
+      expect(returnBtn(dest), `${dest} reached by a rail jump has no way back`).not.toBeNull();
+      expect(returnBtn(dest)!.textContent).toBe("← Back to Model");
+    }
+  });
+
+  it("choosing a workspace from the NAV does not grow a return bar", () => {
+    // The twin. Without it, "always render the bar" would pass every assertion above while putting a
+    // back button on every ordinary navigation — a control that appears everywhere means nothing.
+    const nav = makeNav();
+    nav.setWorkspace("design", "nav");
+    expect(returnBtn("design"), "ordinary navigation is not a trap and needs no escape").toBeNull();
+  });
+
+  it("a dead end stays a dead end however you reach it", () => {
+    // Drawings owns no tabs of its own, so arriving from the workspace bar still traps you. The
+    // journey rule ADDS to the destination rule rather than replacing it.
+    const nav = makeNav();
+    nav.setWorkspace("drawings", "nav");
+    expect(returnBtn("drawings")).not.toBeNull();
+  });
+
+  it("a jump that does not change workspace offers nothing", () => {
+    const nav = makeNav();
+    nav.setWorkspace("design", "nav");
+    nav.setWorkspace("design", "jump");
+    expect(returnBtn("design"), "you never left, so there is nowhere to go back to").toBeNull();
+  });
+});
+
+describe("the bar is removed, not merely not-rendered", () => {
+  beforeEach(mountShell);
+
+  it("a later ORDINARY visit clears a bar left by an earlier jump", () => {
+    // Found live, and invisible to every test above: each one mounts a fresh DOM, so a bar that
+    // outlives its reason had nowhere to show up. In the running app the Design workspace kept
+    // "← Back to Model" permanently after one press of Specs — telling the next arrival they had
+    // been carried somewhere they had in fact walked into, and offering an exit from no trap.
+    const nav = makeNav();
+    nav.setWorkspace("design", "jump");
+    expect(returnBtn("design"), "the jump earns a bar").not.toBeNull();
+
+    nav.setWorkspace("model");
+    nav.setWorkspace("design", "nav");
+    expect(returnBtn("design"), "walking in yourself must clear it").toBeNull();
+  });
+
+  it("a dead end KEEPS its bar on an ordinary visit", () => {
+    // The twin: "remove whenever arrival is nav" would pass the test above and silently strip the
+    // control from Drawings, which is the original defect restored.
+    const nav = makeNav();
+    nav.setWorkspace("drawings", "jump");
+    nav.setWorkspace("model");
+    nav.setWorkspace("drawings", "nav");
+    expect(returnBtn("drawings"), "drawings owns no tabs — it is a trap however you arrive").not.toBeNull();
   });
 });

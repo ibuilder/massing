@@ -4,6 +4,7 @@ import { ApiClient, type MassingParams } from "./api/client";
 import { toast, escapeHtml, safeUrl } from "./ui/feedback";
 import { showResult } from "./ui/result";
 import { buildRoomTabs, renderRoomTabs, roomForWorkspace } from "./shell/roomTabs";
+import { offersReturn, returnLabel, returnTarget, returnTitle } from "./shell/wsReturn";
 import { headerAction, renderHeaderAction } from "./shell/nextAction";
 import { pinnedItems, renderPinnedRail } from "./shell/pinnedRail";
 import { ROOM_HOST, destRoom } from "./shell/spine";
@@ -541,7 +542,7 @@ const RAIL_ITEMS: { key: string; label: string; title: string; cluster: string; 
   { key: "detail", label: "Detail", title: "Fabrication detail — connections, rebar, MEP fittings", cluster: "Author" },
   { key: "props", label: "Props", title: "Properties — selected element", cluster: "Author" },
   { key: "sheets", label: "Drawings", title: "Drawing set & sheets", cluster: "Document",
-    launch: () => setWorkspace("drawings") },
+    launch: () => setWorkspace("drawings", "jump") },
   { key: "annotate", label: "Annotate", title: "Notes, dimensions, tags, revision clouds", cluster: "Document" },
   { key: "export", label: "Export", title: "Drawings, sheets, schedules and exports — IFC, COBie, quantities, closeout", cluster: "Document" },
   { key: "specs", label: "Specs", title: "Specification sections", cluster: "Document",
@@ -679,7 +680,7 @@ function wsLabel(key: string): string {
 function renderReturnBar(wsKey: string): void {
   const host = document.getElementById(`ws-${wsKey}`);
   if (!host) return;
-  const dest = previousWs && previousWs !== wsKey ? previousWs : "model";
+  const dest = returnTarget(previousWs, wsKey);
   let bar = host.querySelector<HTMLElement>(".ws-return");
   if (!bar) {
     bar = document.createElement("div");
@@ -690,8 +691,8 @@ function renderReturnBar(wsKey: string): void {
   const back = document.createElement("button");
   back.type = "button";
   back.className = "tool-btn ws-return-btn";
-  back.textContent = `← Back to ${wsLabel(dest)}`;
-  back.title = `Return to ${wsLabel(dest)} — where you opened ${wsLabel(wsKey)} from`;
+  back.textContent = returnLabel(dest, wsLabel);
+  back.title = returnTitle(dest, wsKey, wsLabel);
   back.onclick = () => setWorkspace(dest);
   bar.appendChild(back);
 }
@@ -711,11 +712,17 @@ let currentWs = "model";
  * behaviour that teaches people not to trust the control.
  */
 let previousWs: string | null = null;
-/** Workspaces that own no rail and no tabs of their own, so a return affordance is load-bearing. */
-const DEAD_END_WS = new Set(["drawings"]);
-
-function setWorkspace(key: string) {
-  if (key !== currentWs) previousWs = currentWs;
+/**
+ * `jump` marks an arrival driven by a control somewhere else — a rail launch — as opposed to the
+ * user choosing a workspace from the nav. It is the difference Specs needed: Design is not a dead
+ * end, but being *carried* into it from the model rail still leaves you with no way back.
+ */
+function setWorkspace(key: string, arrival: "jump" | "nav" = "nav") {
+  // `previousWs` only advances on a real move, so on a no-op re-entry it still names some OLDER
+  // workspace. Passing it anyway offered "← Back to Model" to someone who had navigated to Design
+  // deliberately and merely re-triggered it — a way out of a room they were not trapped in.
+  const moved = key !== currentWs;
+  if (moved) previousWs = currentWs;
   currentWs = key;
   document.querySelectorAll(".ws-btn").forEach((b) => {
     const on = (b as HTMLElement).dataset.ws === key;
@@ -725,7 +732,13 @@ function setWorkspace(key: string) {
   document.querySelectorAll(".workspace").forEach((w) => w.classList.toggle("active", w.id === `ws-${key}`));
   showProjectHomeSignpost(key);
   if (key === "drawings") openDrawingsTab();
-  if (DEAD_END_WS.has(key)) renderReturnBar(key);
+  // Render OR remove — never just render. The bar is a claim that this visit was a jump, and it used
+  // to live only in `drawings`, where the claim is permanently true. Now that a normal workspace can
+  // carry one, a bar left behind from a previous visit tells the next arrival they were carried here
+  // when they walked in themselves, and offers a way out of a room they are not trapped in. Caught in
+  // the running app, not by the suite: each unit test mounts a fresh DOM, so nothing persisted.
+  if (offersReturn(key, moved ? previousWs : null, arrival)) renderReturnBar(key);
+  else document.getElementById(`ws-${key}`)?.querySelector(".ws-return")?.remove();
   if (key === "studio") void openStudioTab();
   if (key === "design") openDesignTab();
   if (key === "construction") openPortalTab();
@@ -1168,7 +1181,9 @@ let drawings: import("./drawings/drawings").DrawingsUI | null = null;
  * than guessing at it with a timer.
  */
 function openSpecs() {
-  setWorkspace("design");
+  // "jump", because the rail carried the user here — Design is a normal workspace, so nothing else
+  // would have offered them a route back to the model they pressed Specs from.
+  setWorkspace("design", "jump");
   void whenDesignReady().then(() => designPortal.openModuleByKey("spec_section"));
 }
 

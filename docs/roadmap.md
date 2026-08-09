@@ -325,7 +325,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN · R40-RIBBON ② |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN ✅ *(SHIPPED v0.3.913, pending archive)* · R40-RIBBON ② |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
@@ -3121,9 +3121,32 @@ in-place, never separate pages); **tool scope follows context** (the palette sho
 verbs, with a command bar as the escape hatch to everything); and **role-shaped landing content**
 (the first screen of a work area answers that role's first question, not a generic dashboard).
 
-- ⭐ **R36-DRAWINGS-RETURN** *(S — Lane A)* — a back affordance from drawings/specs to Design, and
-  the room tabs visibly present in those workspaces. The cheapest real defect in the ring; ship it
-  first and alone.
+- ✅ **R36-DRAWINGS-RETURN — COMPLETE, v0.3.913.** `apps/web/src/shell/wsReturn.ts` +
+  `apps/web/src/shell/wsReturn.test.ts`.
+
+  **Three of this entry's four claims were already false when it was read.** Measured in the running
+  app before writing anything — Drawings: room tabs 622×37 visible, Design tab present, "← Back to
+  Model" present at 111×23. Specs: room tabs 510×37 visible, Design tab present, **no return
+  control.** So the defect was an ASYMMETRY, not an absence, and only Specs had it.
+
+  *Why Specs was missed, which is the part worth keeping.* The trigger was `DEAD_END_WS`, a set of
+  **workspaces** — and Specs is not a workspace. `openSpecs()` calls `setWorkspace("design")` and
+  opens a module inside it. Design is a perfectly ordinary workspace with tabs, so no list of
+  dead-end *names* could ever have caught it, yet a user who pressed Specs on the model rail was
+  still stranded: of the seven visible controls there mentioning model/3D, one was the Design tab
+  they were already on, two were analysis modules, and four were project-home cards — start-over
+  actions, not a way back. The rule is now about the **journey** (*a control that carries you out of
+  your workspace owes you a return*) rather than the destination.
+
+  *The suite could not have found this.* `wsReturn.test.ts` existed with **no `wsReturn.ts` beside
+  it** — it reproduced `main.ts`'s logic including its own `DEAD_END_WS = new Set(["drawings"])`, so
+  it asserted a COPY. Its own header said *"and Specs behaves the same"* while its copy excluded
+  Specs. The decisions now live in the module and the test imports them.
+
+  *Two defects the live check caught that the unit tests structurally could not:* a "jump" that did
+  not change workspace offered a return using a stale origin; and the bar was rendered but **never
+  removed**, so one press of Specs left "← Back to Model" in the Design workspace permanently. Every
+  unit test mounts a fresh DOM, so nothing could persist across visits to be seen.
 - ⭐ **R36-VIEWER-SUBAPP** *(L — Lane E; slice before starting)* — **now the top item in this ring**,
   because the rail work above cleared its way: the tools no longer float over the canvas, so the
   canvas is free to change what it renders. Drawings + specs + model as one subapp with a mode switch
