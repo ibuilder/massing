@@ -19,6 +19,7 @@ import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
 import { DeltaStore, deltaCommitter, deltaIndicator } from "./deltaCommit";
+import { type ViewSpec, railSheetOptions, sheetPath, viewsForCanvas } from "./sheetSpecs";
 import { makeWaitForPublish } from "./publishWait";
 import { buildElementProps, buildRawProps } from "./propsView";
 import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
@@ -2495,20 +2496,21 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         + "slabs as class-styled poché with dimensions + keynotes. The active level scopes it.";
 
       // W11 C3: compose an issuable sheet (ARCH-D border + titleblock) around the plan.
-      const sheetBtn = toolBtn2("📄 Issue sheet (A-101)", () => {
-        const q = new URLSearchParams({ scale: "100", number: "A-101", title: "FLOOR PLAN" });
-        if (activeStorey) { q.set("storey", activeStorey); q.set("title", `${activeStorey.toUpperCase()} PLAN`); }
-        window.open(api.url(`/projects/${projectId}/drawings/sheet.svg?${q.toString()}`), "_blank");
-      });
+      // Options come from sheetSpecs.ts, which can emit nothing the route does not declare — these
+      // three used to send `number`/`title`/`scale`, which sheet.* drops. See that file's header.
+      const openSheet = (fmt: "svg" | "pdf", views?: ViewSpec[]) => window.open(
+        api.url(sheetPath(projectId!, fmt, railSheetOptions(activeStorey, views))), "_blank");
+      const sheetBtn = toolBtn2("📄 Issue sheet (A-101)", () => openSheet("svg"));
       sheetBtn.title = "Compose an issuable construction sheet — ARCH-D border + titleblock (project, sheet "
         + "number, scale, north arrow) with the plan placed in a scaled viewport. The deliverable.";
 
       // W11 C3b: the submittable PDF of the sheet (reportlab, permit-ready).
-      const pdfBtn = toolBtn2("⤓ Sheet PDF (A-101)", () => {
-        const q = new URLSearchParams({ scale: "100", number: "A-101", title: "FLOOR PLAN" });
-        if (activeStorey) { q.set("storey", activeStorey); q.set("title", `${activeStorey.toUpperCase()} PLAN`); }
-        window.open(api.url(`/projects/${projectId}/drawings/sheet.pdf?${q.toString()}`), "_blank");
-      });
+      const pdfBtn = toolBtn2("⤓ Sheet PDF (A-101)", () => openSheet("pdf"));
+      // R36 slice 3 — place WHAT IS ON THE CANVAS; the first point at which 2D and 3D are peers on paper.
+      const placeBtn = toolBtn2("🖼 Place this view on a sheet",
+        () => openSheet("pdf", viewsForCanvas(planPane.isOpen ? "2d" : "3d", activeStoreyZ)));
+      placeBtn.title = "Sheet PDF of the view you are looking at — the active level's plan in 2D, a true "
+        + "isometric in 3D. Both are vector drawings that keep their GlobalIds, not screenshots.";
       pdfBtn.title = "Download the sheet as a PDF (ARCH-D, titleblock, plan poché + dimensions + keynotes) — "
         + "the submittable construction-document deliverable, rendered server-side.";
 
@@ -3289,7 +3291,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       glBody.append(status, levelSel, undoRow, deltaUi.el, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
         phaseBtn, queryBtn, lodBtn, asBuiltBtn, manage, levelsMgr);
       // The drawing set: produced from the model, read as documents.
-      railGroup("export", "Drawings & sheets", [planPaneBtn, planBtn, sheetBtn, pdfBtn, schedBtn,
+      railGroup("export", "Drawings & sheets", [planPaneBtn, planBtn, sheetBtn, pdfBtn, placeBtn, schedBtn,
         schedPdfBtn, manualBtn, sectBtn]);
       railGroup("annotate", "Annotate", [annotateHead, annotateWrap]);
       railGroup("library", "Families & content", [libHead, libWrap]);

@@ -2510,6 +2510,18 @@ it.* `apps/web/src/viewer/deltaCommit.ts` + `apps/web/src/viewer/deltaCommit.tes
   reasoning: [`docs/internal/adr-001-sheet-composition.md`](internal/adr-001-sheet-composition.md);
   the slice plan is in [`docs/internal/r36-viewer-subapp-design.md`](internal/r36-viewer-subapp-design.md).
 
+  *SLICE 3 SHIPPED v0.3.916 — and it found a third silent-drop.* The rail's three sheet buttons built
+  their own query strings and sent `number`, `title` and `scale`; `sheet.*` accepts `sheet`, `page`,
+  `purpose`, `rev`, `storey`, `views`. FastAPI drops unknown query parameters, so all three vanished
+  — measured live: `?number=A-999` returned a sheet numbered **A-101**. Invisible because the rail's
+  `number=A-101` equalled the route's default, so the per-level title it computed never reached the
+  paper. There is no `title` field in the titleblock at all, so the description now goes in `purpose`,
+  which is real. `apps/web/src/viewer/sheetSpecs.ts` can emit nothing outside `SHEET_PARAMS`, and its
+  test asserts that set against **the route's own signature** rather than a remembered list. The new
+  `🖼 Place this view on a sheet` control sends the active level's plan in 2D and a true isometric in
+  3D — not a camera match, because a perspective camera and a parallel projection are not the same
+  view. `apps/web/src/viewer/sheetSpecs.test.ts`.
+
   *Cost paid in the right place.* `app.ts` is on a per-file ratchet with zero headroom, so the feature
   could not simply be added to it. The commit DECISION moved into the module — where it is now
   testable without a loader, a fragment server or a running convert — and `waitForPublish` (nine

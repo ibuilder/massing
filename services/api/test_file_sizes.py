@@ -98,7 +98,15 @@ PER_FILE = {
     #: the friction is the point and that the question it should force is "should this live in a
     #: domain module instead?" — for a self-contained fetch/parse/show sequence the answer was plainly
     #: yes. The instrumentation went into the new module and app.ts came DOWN 36 lines instead of up.
-    "apps/web/src/viewer/app.ts": 3_715,
+    #: 3_715 -> 3_717 (v0.3.916). RAISED, which the comment above says must be argued for, so:
+    #: R36 slice 3 added one user-facing rail control ("Place this view on a sheet"). The extraction
+    #: the ratchet asks for HAPPENED — `sheetSpecs.ts` is 133 lines of new logic that never entered
+    #: this file, and it also absorbed the three inline `URLSearchParams` builders that were here
+    #: (which were sending `number`/`title`/`scale`, none of which the route accepts). What is left is
+    #: two lines of WIRING for a new button, and wiring is what this file is for. The alternative was
+    #: to push DOM construction into `sheetSpecs.ts`, whose freedom from the DOM is exactly why its
+    #: eleven tests need no browser — that would be trading a real property for a number.
+    "apps/web/src/viewer/app.ts": 3_717,
     # Pinned at its EXACT measured size, not above it. qaSection.ts became the file every reach fix
     # lands in and reached 1,373 lines while unpinned - the same accumulation app.ts and client.ts
     # already have entries for. Pinned before it needs splitting rather than after: a ratchet added
