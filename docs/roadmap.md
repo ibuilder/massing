@@ -2434,6 +2434,26 @@ change — [[an-audit-must-state-its-configuration]].
 
 ### The ring
 
+**SPIKED 2026-08-08, and the spike changed two things — read this before starting.**
+
+*The stated hazard is smaller than written, and the sequencing below was wrong.* `_publish` already
+takes `reconvert: bool` and does the two halves separately: (1) node converter → `.frag`, (2) rebuild
+the properties index. So a commit CAN reindex without reconverting, and every GUID-keyed reader is
+correct immediately — the index-staleness hazard does not have to exist. **But the halves are closer
+in cost than hoped.** Measured on a 52 MB source: reindex **6.6 s**, convert **10.2 s** — the convert
+is only 1.5× the reindex, because the reindex is itself a full IFC parse.
+
+**So deferring the convert alone buys about 60%, not 95%, and R42-SESSION-MODEL is the bigger lever,
+not the follow-up.** Both halves re-parse the whole file from disk; holding the model in memory is
+what makes an incremental commit actually incremental, and it is what would let the index be appended
+for one element rather than rebuilt. Re-sequence accordingly: **SESSION-MODEL first, then
+COMMIT-DELTA on top of it.**
+
+*Also found and FIXED in v0.3.906 (it was a prerequisite for any of this): `POST /publish` accepted
+`reconvert` and nothing read it — `run_publish` called `_publish(p)` and took the default, so every
+`reconvert=false` reconverted anyway. The switch this whole ring turns on was already present and
+disconnected. `services/api/test_publish_reconvert.py`.*
+
 - **R42-COMMIT-DELTA** *(M — Lane E + C)* — **promote the preview fragment instead of discarding it.**
 On a successful recipe the element has already been authored and converted; keep that fragment as an
 authoritative delta model, drop the amber marker, and **defer** the full reconvert (idle, batched, or
@@ -2472,7 +2492,7 @@ dropping that model, and undoing one that has been consolidated does not.
   unreadable from the model: it is unreadable partly because it is not yet there.
 * **Sheets as data** — already 📐 R27, and the other half of "authoring tool" vs "modeller".
 
-**Sequence: R42-COMMIT-DELTA, then R42-SESSION-MODEL, then R42-UNDO.** The first is the one that
+**Sequence (REVISED by the spike — see the note above): R42-SESSION-MODEL, then R42-COMMIT-DELTA, then R42-UNDO.** The first is the one that
 changes what the product *is*; the second removes the remaining per-edit constant; the third is table
 stakes that gets cheaper once the first two define what an edit is. Everything under "NOT in this
 ring" is additive at any later point and all of it is cheaper afterwards.

@@ -1091,14 +1091,23 @@ def edit_preview(pid: str, recipe: str = Body(..., embed=True),
 @router.post("/projects/{pid}/publish", status_code=202)
 def publish(pid: str, reconvert: bool = Body(default=True), db: Session = Depends(get_db),
             actor: str = Depends(require_role("editor"))):
-    """Re-run the pipeline on the current source IFC (convert to .frag + reindex), off the
-    request thread. Returns immediately; poll GET publish/status for completion."""
+    """Re-run the pipeline on the current source IFC, off the request thread. Returns immediately;
+    poll GET publish/status for completion.
+
+    `reconvert=false` rebuilds the properties index and the version snapshot but SKIPS the fragment
+    convert — so every GUID-keyed reader (selection, LOD, QTO, pins) is correct while the rendered
+    geometry stays at the previous publish. That is a deliberately PARTIAL state and callers must
+    treat it as one: the model on screen is behind the model in the index. It exists because the two
+    halves have genuinely different costs, measured on a 52 MB source: reindex 6.6s, convert 10.2s.
+
+    The flag was accepted and ignored until v0.3.906 — `run_publish` called `_publish(p)` and took
+    the default."""
     _project(db, pid)  # 404 guard
     audit.record(db, action="ifc.publish", actor=actor, method="POST",
-                 path=f"/projects/{pid}/publish")
+                 path=f"/projects/{pid}/publish", detail={"reconvert": reconvert})
     db.commit()
-    _publish_bg(pid)
-    return {"state": "running"}
+    _publish_bg(pid, reconvert)
+    return {"state": "running", "reconvert": reconvert}
 
 
 @router.post("/projects/{pid}/source-ifc")
@@ -1376,7 +1385,7 @@ def _set_pub_status(pid: str, state: str, detail: dict | None = None) -> None:
          "at": datetime.now(timezone.utc).isoformat()}).encode())
 
 
-def run_publish(pid: str) -> None:
+def run_publish(pid: str, reconvert: bool = True) -> None:
     """Convert + reindex a project's source IFC, recording status. Pure + synchronous + idempotent —
     callable by the daemon thread now, or directly by an external task worker (RQ / Dramatiq on the
     already-optional Redis) later, with no code change. We deliberately don't run Celery: for the
@@ -1390,7 +1399,13 @@ def run_publish(pid: str) -> None:
             if not p:
                 _set_pub_status(pid, "error", {"error": "project not found"})
                 return
-            result = _publish(p)
+            # R42: `reconvert` reaches `_publish` now. It did not before — this line read
+            # `_publish(p)`, so `POST /publish {"reconvert": false}` reconverted anyway. The route
+            # accepted the parameter, documented it, and nothing read it: the same shape as the
+            # `lod_target` fields the matrix dropped and the review keys `modelVersions` discarded.
+            # It matters beyond tidiness because the whole R42 ring turns on being able to reindex
+            # WITHOUT reconverting, and the switch for that was already here and disconnected.
+            result = _publish(p, reconvert=reconvert)
         ok = not result.get("reconvert_error")
         _set_pub_status(pid, "done" if ok else "error", result)
         if ok:
@@ -1417,13 +1432,13 @@ _publish_pool = concurrent.futures.ThreadPoolExecutor(
     max_workers=_PUBLISH_WORKERS, thread_name_prefix="publish")
 
 
-def _publish_bg(pid: str) -> None:
+def _publish_bg(pid: str, reconvert: bool = True) -> None:
     """Run run_publish off the request thread. A 50MB IFC convert takes minutes — doing it in-request
     would tie up a worker; clients poll publish/status. Submitted to a bounded pool so a burst of
     uploads can't spawn unbounded converts. (Swap the pool for `worker.enqueue(run_publish, pid)` to
     move it onto a real queue without touching run_publish.)"""
     _set_pub_status(pid, "running")
-    _publish_pool.submit(run_publish, pid)
+    _publish_pool.submit(run_publish, pid, reconvert)
 
 
 @router.get("/projects/{pid}/publish/status")
