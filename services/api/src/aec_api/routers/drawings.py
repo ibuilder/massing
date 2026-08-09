@@ -833,40 +833,55 @@ def _sheet_meta(db: Session, pid: str, sheet: str, purpose: str = "", rev: str =
             "date": date.today().isoformat(), "drawn_by": "AEC Platform"}
 
 
-@router.get("/projects/{pid}/drawings/sheet.svg")
-def sheet_svg(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "", rev: str = "",
-              storey: str | None = None, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
-    """A composed **key-plan sheet** (representative plans + section + elevation in a titleblock). `storey`
-    renders one named level's sheet; omitted, it samples up to a few levels (a tall tower gets one sheet per
-    level in the full set — cramming every plan on a page is neither fast nor legible)."""
+def _compose_sheet(db, pid: str, sheet: str, page: str, purpose: str, rev: str,
+                   storey: str | None, views: str | None, fmt: str):
+    """One composition path for all three sheet formats.
+
+    `views` (R36 print slice) lets a caller name the viewports — `views=plan@0,axon` — instead of
+    taking `default_sheet`'s automatic choice. Absent, behaviour is unchanged, so every existing
+    link keeps working. A malformed `views` is a 400 naming the offending token: the parser refuses
+    rather than dropping, because a sheet quietly missing a view is wrong in the one way nobody
+    checks.
+    """
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
-    svg = drawings.default_sheet(open_model(_source_ifc(db, pid)),
-                                 _sheet_meta(db, pid, sheet, purpose, rev), page=page, fmt="svg", storey=storey)
+    model = open_model(_source_ifc(db, pid))
+    meta = _sheet_meta(db, pid, sheet, purpose, rev)
+    if not views:
+        return drawings.default_sheet(model, meta, page=page, fmt=fmt, storey=storey)
+    try:
+        specs = drawings.parse_views(views)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
+    return drawings.sheet(model, specs, meta, page=page, fmt=fmt)
+
+
+@router.get("/projects/{pid}/drawings/sheet.svg")
+def sheet_svg(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "", rev: str = "",
+              storey: str | None = None, views: str | None = None,
+              db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    """A composed **key-plan sheet** (representative plans + section + elevation in a titleblock). `storey`
+    renders one named level's sheet; omitted, it samples up to a few levels (a tall tower gets one sheet per
+    level in the full set — cramming every plan on a page is neither fast nor legible)."""
+    svg = _compose_sheet(db, pid, sheet, page, purpose, rev, storey, views, "svg")
     return _svg(svg)
 
 
 @router.get("/projects/{pid}/drawings/sheet.dxf")
 def sheet_dxf(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "", rev: str = "",
-              storey: str | None = None, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+              storey: str | None = None, views: str | None = None,
+              db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """DXF-EXPORT — the composed sheet (viewports + annotations + titleblock) as editable R12 CAD
     linework, not just paper. Same composition as sheet.svg/pdf; layers BORDER/VIEW-n/ANNO/TITLEBLOCK."""
-    from aec_data import drawings  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    text = drawings.default_sheet(open_model(_source_ifc(db, pid)),
-                                  _sheet_meta(db, pid, sheet, purpose, rev), page=page, fmt="dxf", storey=storey)
+    text = _compose_sheet(db, pid, sheet, page, purpose, rev, storey, views, "dxf")
     return _dxf(text, f"{sheet}")
 
 
 @router.get("/projects/{pid}/drawings/sheet.pdf")
 def sheet_pdf(pid: str, sheet: str = "A-101", page: str = "A3", purpose: str = "", rev: str = "",
-              storey: str | None = None, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
-    from aec_data import drawings  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
-
-    pdf = drawings.default_sheet(open_model(_source_ifc(db, pid)),
-                                 _sheet_meta(db, pid, sheet, purpose, rev), page=page, fmt="pdf", storey=storey)
+              storey: str | None = None, views: str | None = None,
+              db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+    pdf = _compose_sheet(db, pid, sheet, page, purpose, rev, storey, views, "pdf")
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="{_safe_name(sheet)}.pdf"'})

@@ -2498,6 +2498,18 @@ it.* `apps/web/src/viewer/deltaCommit.ts` + `apps/web/src/viewer/deltaCommit.tes
   reindexing fixes an identity that was wrong from the start. `apply_recipe(..., want_guid=)` now lets
   the commit adopt the preview's id. `services/api/test_adopt_guid.py`.
 
+  *THE PRINT SLICE IS SMALLER THAN THIS ENTRY ASSUMES — shipped v0.3.915 (ADR-001 items 1–5).* The
+  entry says *"3D only captures a hero image, so the two are not yet peers — slice the print path
+  first."* That premise went stale: **CANVAS-PEER already shipped the axonometric as a real drawing**
+  (true isometric basis, per-element silhouettes keeping their GlobalIds, depth-sorted). What was
+  missing was reach, and it was worse than missing — the `axon` branch sat in `sheet_layout`'s
+  *wrapper*, so the shipping path fell through to plan and a sheet asked for an axonometric returned
+  **a plan cut at 1.20 m wearing the caller's title**. The branch now lives in the shared
+  `_view_for_spec`, an unknown kind raises instead of substituting, and
+  `services/api/test_view_kind_dispatch.py` asserts BOTH dispatchers agree kind-by-kind. Full
+  reasoning: [`docs/internal/adr-001-sheet-composition.md`](internal/adr-001-sheet-composition.md);
+  the slice plan is in [`docs/internal/r36-viewer-subapp-design.md`](internal/r36-viewer-subapp-design.md).
+
   *Cost paid in the right place.* `app.ts` is on a per-file ratchet with zero headroom, so the feature
   could not simply be added to it. The commit DECISION moved into the module — where it is now
   testable without a loader, a fragment server or a running convert — and `waitForPublish` (nine

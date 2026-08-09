@@ -1841,9 +1841,34 @@ def _view_for_spec(meshes, spec: dict) -> tuple[list[np.ndarray], str, str]:
         items = elevation_outlines(meshes, d, with_depth=True)
         items.sort(key=lambda it: it[1])  # far→near for hidden-line removal
         return [c for c, _ in items], spec.get("title", f"{d.upper()} ELEVATION"), f"{d} elev"
+    if kind == "axon":
+        # ADR-001. This branch used to live only in `sheet_layout._view_polys`, one level ABOVE the
+        # shared helper — so `compose()`, which every shipping sheet route uses, never saw it and fell
+        # through to the plan below. Asking `sheet()` for an axonometric returned a plan cut at 1.20 m
+        # wearing the caller's title: measured 2026-08-09 as `label='ISO VIEW' sub='cut @ 1.20 m'`.
+        # A drawing that says one thing and draws another, on a document an engineer may seal.
+        az = float(spec.get("azimuth", 45.0))
+        el = float(spec.get("elevation_angle", ISO_ELEVATION_DEG))
+        items = axon_outlines(meshes, az, el)
+        note = "isometric" if (az, el) == (45.0, ISO_ELEVATION_DEG) else f"az {az:.0f}° / el {el:.0f}°"
+        # NTS, always: an axonometric has no true paper scale, and a scale denominator on one would be
+        # a false statement on a drawing.
+        return [c for _g, _c, c, _d in items], spec.get("title", "AXONOMETRIC"), f"{note} · NTS"
+    if kind != "plan":
+        # REFUSE, never substitute. The fall-through that used to be here is exactly how a requested
+        # axonometric became a plan. An unrecognised kind is a caller bug, and returning *some other
+        # drawing* hides it behind something that looks entirely deliberate.
+        raise ValueError(
+            f"unknown view kind {kind!r}; expected one of: axon, elevation, plan, section")
     elev = float(spec.get("elevation", 0.0)) + float(spec.get("cut_height", 1.2))
     polys = cut_baked(meshes, "plan", elev)
     return polys, spec.get("title", "PLAN"), f"cut @ {elev:.2f} m"
+
+
+#: The view kinds `_view_for_spec` understands. Exported so a gate can assert that every dispatcher
+#: over it supports the same set — the divergence ADR-001 records began with one branch living in a
+#: wrapper instead of here.
+VIEW_KINDS = ("axon", "elevation", "plan", "section")
 
 
 def _vertical_extras(spec, grid, levels, mn, mx, ox, oy, dh, scale):
@@ -1957,6 +1982,68 @@ def sheet(model: ifcopenshell.file, specs: list[dict], meta: dict,
 
 def sheet_file(ifc_path: str, specs: list[dict], meta: dict, page="A3", cols=2, fmt="svg"):
     return sheet(open_model(ifc_path), specs, meta, page, cols, fmt)
+
+
+def parse_views(text: str) -> list[dict]:
+    """Parse a compact `views=` string into view specs. ADR-001 / R36 print slice.
+
+    The sheet routes are GET, and a sheet should stay a **linkable URL** — you send someone a
+    drawing, you do not send them a POST body. So the view list is a compact grammar rather than a
+    JSON payload::
+
+        plan                      the default cut (1.2 m above 0.0)
+        plan@3.5                  a plan at storey elevation 3.5 m
+        section:x@12.5            a section on the X axis at offset 12.5
+        elevation:north           a north elevation
+        axon                      a true isometric
+        axon@30x20                azimuth 30°, elevation angle 20°
+
+    Comma-separated, in the order they should appear on the sheet:
+    ``views=plan@0,plan@3.5,section:x@12.5,axon``
+
+    **An unparseable token raises.** Dropping it would silently produce a sheet with fewer views than
+    the caller asked for — a drawing that is wrong in the one way nobody checks, since nothing on the
+    page says a view is missing. Same rule as `_view_for_spec`'s refusal to substitute: this whole
+    file's recent history is one silent substitution.
+    """
+    specs: list[dict] = []
+    for raw in (t.strip() for t in (text or "").split(",")):
+        if not raw:
+            continue
+        head, _, arg = raw.partition("@")
+        kind, _, sub = head.partition(":")
+        kind = kind.strip().lower()
+        if kind not in VIEW_KINDS:
+            raise ValueError(f"unknown view kind {kind!r} in {raw!r}; expected one of: "
+                             + ", ".join(VIEW_KINDS))
+        try:
+            if kind == "plan":
+                specs.append({"kind": "plan", "elevation": float(arg)} if arg else {"kind": "plan"})
+            elif kind == "section":
+                axis = (sub or "x").lower()
+                if axis not in ("x", "y"):
+                    raise ValueError(f"section axis must be x or y, got {axis!r}")
+                specs.append({"kind": "section", "axis": axis, "offset": float(arg or 0.0)})
+            elif kind == "elevation":
+                d = (sub or "north").lower()
+                if d not in ("north", "south", "east", "west"):
+                    raise ValueError(f"elevation direction must be north/south/east/west, got {d!r}")
+                specs.append({"kind": "elevation", "direction": d})
+            else:                                            # axon
+                spec: dict = {"kind": "axon"}
+                if arg:
+                    az, _, el = arg.lower().partition("x")
+                    if not el:
+                        raise ValueError("axon angles are 'azimuth x elevation', e.g. axon@30x20")
+                    spec |= {"azimuth": float(az), "elevation_angle": float(el)}
+                specs.append(spec)
+        except ValueError as e:
+            # Re-raised with the offending token, because "could not convert string to float: 'abc'"
+            # tells a caller nothing about WHICH view they mistyped.
+            raise ValueError(f"bad view {raw!r}: {e}") from None
+    if not specs:
+        raise ValueError("views= was given but parsed to nothing; omit it to get the default sheet")
+    return specs
 
 
 def default_sheet(model: ifcopenshell.file, meta: dict, page: str = "A3", fmt: str = "svg",

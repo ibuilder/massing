@@ -193,12 +193,17 @@ Each ships green on its own; none depends on the next.
 
 | # | Slice | Size | Why this order |
 |---|---|---|---|
-| **1** | **Refuse unknown view kinds + add `axon` to `_view_for_spec`** | **S** | Closes a live defect (a sheet that says ISO VIEW and draws a plan). Pure server, fully testable, zero UI. Nothing else is honest until this is true. |
-| 2 | Carry `specs` on the sheet routes | S | Makes slice 1 reachable. Still no UI. |
+| ~~1~~ | ~~Refuse unknown view kinds + add `axon` to `_view_for_spec`~~ | S | **SHIPPED v0.3.915.** Closed the live defect. The branch moved DOWN into the shared dispatcher so both composers get it; an unknown kind now raises; `VIEW_KINDS` is exported and both dispatchers are asserted to agree kind-by-kind. |
+| ~~2~~ | ~~Carry the view list on the sheet routes~~ | S | **SHIPPED v0.3.915.** Not a JSON body — a compact `views=` grammar (`views=plan@0,section:x@12.5,axon@30x20`), because a sheet should stay a **linkable URL**. `drawings.parse_views()` is pure and refuses an unparseable token rather than dropping it: a sheet quietly missing a viewport is wrong in the one way nobody checks. All three sheet routes share one `_compose_sheet` helper so they cannot drift; omitting `views` keeps the existing default-sheet behaviour exactly. |
 | 3 | `sheetSpecs.ts` + a "place this view on a sheet" control | M | First user-visible peer-ness. Print is now genuinely mode-agnostic. |
 | 4 | `subapp.ts` — mode switch Model ▸ Sheets ▸ Specs, in place | M | Only now does the switch expose nothing embarrassing. |
 | 5 | Selection bus across modes | M | F2. Builds on R38-SYNC-SELECT rather than replacing it. |
 | 6 | Takeoff/markup as a plugin of the subapp | M | Last, because it consumes the bus. |
+
+**Slices 1–2 shipped v0.3.915.** Next is slice 3 — the first user-visible peer-ness, and the point at
+which ADR-001's deferred question reopens: if a "place this view on a sheet" control needs
+per-viewport `rect`/`scale`, Option B (migrating the routes to `compose_viewports`) stops being
+optional and the UI becomes its test.
 
 **Start at slice 1 regardless of whether R36 proceeds.** It is a correctness fix that happens to be
 the foundation.

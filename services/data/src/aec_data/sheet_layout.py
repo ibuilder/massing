@@ -126,14 +126,15 @@ def _view_polys(meshes, vp: dict) -> tuple[list[np.ndarray], str, str]:
         items = elevation_outlines(_filtered(meshes, classes), d, with_depth=True)
         items.sort(key=lambda it: it[1])
         return [c for c, _ in items], vp.get("title", f"{d.upper()} ELEVATION"), f"{d} elev"
-    if kind == "axon":
-        # CANVAS-PEER: 3D as a real viewport rather than a captured screenshot. It composes here
-        # exactly like a plan or an elevation — same meshes, same sheet, same PDF — which is what
-        # lets the canvas offer 2D and 3D as interchangeable modes without the sheet layer knowing
-        # or caring which one is on screen.
+    if kind == "axon" and classes:
+        # Only the CLASS-FROZEN axon stays here, for the same reason plan and section do above: the
+        # freeze is this module's feature, not the shared helper's. The unfiltered axon now delegates
+        # like everything else — ADR-001. Keeping a second copy here is what let `compose()` and
+        # `compose_viewports()` disagree about which kinds exist, and a viewport asking `sheet()` for
+        # an axonometric silently received a plan.
         az = float(vp.get("azimuth", 45.0))
         el = float(vp.get("elevation_angle", ISO_ELEVATION_DEG))
-        items = axon_outlines(_filtered(meshes, classes) if classes else meshes, az, el)
+        items = axon_outlines(_filtered(meshes, classes), az, el)
         note = "isometric" if (az, el) == (45.0, ISO_ELEVATION_DEG) else f"az {az:.0f}° / el {el:.0f}°"
         return [c for _g, _c, c, _d in items], vp.get("title", "AXONOMETRIC"), f"{note} · NTS"
     return _view_for_spec(meshes, vp)

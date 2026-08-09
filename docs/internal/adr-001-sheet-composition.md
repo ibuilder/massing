@@ -1,6 +1,6 @@
 # ADR-001: One sheet-composition model, or two?
 
-**Status:** Proposed
+**Status:** Accepted — items 1–5 shipped v0.3.915; items 6–7 stand
 **Date:** 2026-08-09 (at v0.3.913)
 **Deciders:** repo owner
 **Supersedes/relates:** the open question left by [`r36-viewer-subapp-design.md`](r36-viewer-subapp-design.md) §7
@@ -170,16 +170,32 @@ stops being optional and should be done then, with the UI as its test.
 
 ---
 
+## Outcome (v0.3.915)
+
+Items 1–5 shipped. Two details are worth carrying forward because neither was in the plan:
+
+* **`sheet_layout` kept ONE axon branch** — the class-frozen one. Delegating that too would have
+  silently dropped the per-viewport class freeze for axonometrics, trading one wrong drawing for
+  another. The unfiltered axon delegates; the frozen one stays, for the same reason plan and section
+  already did.
+* **`VIEW_KINDS` is now exported and asserted across BOTH dispatchers.** The root cause was never
+  "axon was missing" — it was two dispatchers disagreeing about which kinds exist, with only one on
+  the shipping path. `test_view_kind_dispatch.py` compares them kind-by-kind, so the divergence
+  cannot silently reopen.
+
+Item 7 held: the sheet routes were **not** migrated to `compose_viewports`. The trigger to revisit
+is unchanged — R36 slice 3 needing per-viewport `rect`/`scale`.
+
 ## Action items
 
-1. [ ] Move the `axon` branch from `sheet_layout._view_polys` into `drawings._view_for_spec`;
+1. [x] Move the `axon` branch from `sheet_layout._view_polys` into `drawings._view_for_spec`;
        have `_view_polys` delegate for it as it does for the rest.
-2. [ ] Replace `_view_for_spec`'s fall-through with an explicit `plan` branch and a raise on an
+2. [x] Replace `_view_for_spec`'s fall-through with an explicit `plan` branch and a raise on an
        unknown kind.
-3. [ ] Test: a spec of `kind: "axon"` through **`sheet()`** returns an axonometric, not a plan —
+3. [x] Test: a spec of `kind: "axon"` through **`sheet()`** returns an axonometric, not a plan —
        asserted through the shipping route path, not `compose_viewports`.
-4. [ ] Test (the twin): an unknown kind raises rather than rendering anything. A refusal test with no
+4. [x] Test (the twin): an unknown kind raises rather than rendering anything. A refusal test with no
        twin passes on a function that refuses everything.
-5. [ ] Gate: the two dispatchers support the same set of kinds — so if they diverge again it is loud.
-6. [ ] Record in the roadmap that the R36 print slice is *smaller* than the entry assumes, and why.
-7. [ ] **Do not** migrate the sheet routes to `compose_viewports` in this pass. Revisit per above.
+5. [x] Gate: the two dispatchers support the same set of kinds — so if they diverge again it is loud.
+6. [x] Record in the roadmap that the R36 print slice is *smaller* than the entry assumes, and why.
+7. [x] **Do not** migrate the sheet routes to `compose_viewports` in this pass. Revisit per above.
