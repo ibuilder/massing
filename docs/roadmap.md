@@ -2481,6 +2481,23 @@ it.* `apps/web/src/viewer/deltaCommit.ts` + `apps/web/src/viewer/deltaCommit.tes
   IFC. Without clearing the store there, the rail would strand on "N edits not yet rebuilt" forever
   while `loadProjectModel`'s `disposeAll` had already reclaimed the very geometry those records named.
 
+  *VERIFIED END-TO-END, v0.3.912.* The unit tests exercise the decision; the wire was measured
+  separately against a running API and a real project, recording every request. Both paths, back to
+  back, same recipe: the delta path sent `"publish":false` then `POST /publish` with the bare body
+  `false`, made **0** model reloads and was user-visible in **45 ms**; the full-publish path took
+  **1,025 ms** and one reload. `/elements` went 4 → 5 → 7, so the elements really landed.
+  `store.reindexing` was true immediately after commit and false after `settled()`.
+
+  *A DEFECT THIS ENTRY DID NOT ANTICIPATE, found by that verification and fixed in v0.3.912.* The
+  preview and the commit were **two different elements**. `edit_preview` authors into a throwaway
+  one-storey model, so both runs minted their own GlobalId — measured live: preview
+  `33a6Uiew11Mv_Pc4qvizwA`, committed `0POIcNSNv2lh4Acrld7xm4`, and the preview id was in no index.
+  Harmless while the fragment was discarded on commit; **keeping it made the mismatch permanent**, so
+  the wall the user had just drawn was missing from selection, properties, LOD, QTO and pins until
+  Rebuild. Hazard 2 above predicted an index *timing* problem and there is one — but no amount of
+  reindexing fixes an identity that was wrong from the start. `apply_recipe(..., want_guid=)` now lets
+  the commit adopt the preview's id. `services/api/test_adopt_guid.py`.
+
   *Cost paid in the right place.* `app.ts` is on a per-file ratchet with zero headroom, so the feature
   could not simply be added to it. The commit DECISION moved into the module — where it is now
   testable without a loader, a fragment server or a running convert — and `waitForPublish` (nine

@@ -21,9 +21,17 @@ type Ctor<T> = new (...args: any[]) => T;
 
 export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Authoring extends Base {
-    editIfc(pid: string, recipe: string, params: Record<string, unknown>, publish = true) {
+    /** `wantGuid` — adopt the GUID the preview fragment already carries, so the kept delta geometry
+     *  and the committed element are one element. See `adopt_guid` in the data engine. */
+    editIfc(pid: string, recipe: string, params: Record<string, unknown>, publish = true,
+            wantGuid?: string) {
       return this.json<{ recipe: string; changed: number | string; published: unknown }>(
-        `/projects/${pid}/edit`, { method: "POST", body: JSON.stringify({ recipe, params, publish }) });
+        `/projects/${pid}/edit`,
+        // `want_guid` is omitted, not sent as null, when there is no preview to match: the route
+        // treats absence as "mint a fresh id", which is the pre-existing behaviour every other
+        // caller relies on.
+        { method: "POST", body: JSON.stringify(wantGuid ? { recipe, params, publish, want_guid: wantGuid }
+                                                        : { recipe, params, publish }) });
     }
     /** IFCPATCH-LIB — dry-run maintenance scan: how many entities each cleanup recipe would remove. */
     /**

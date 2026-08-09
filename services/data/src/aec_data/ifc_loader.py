@@ -113,6 +113,37 @@ class _ModelCache:
             pass
         return True
 
+    def evict(self, path: str) -> int:
+        """Forget every entry for `path`. Returns how many went, so a caller can assert on it.
+
+        ── WHY A MUTATING READER MUST CALL THIS ──────────────────────────────────────────────────
+        This cache hands out a SHARED, MUTABLE model. `apply_recipe` opens its input through here and
+        then mutates that object in place before writing the result to a *different* file — so the
+        moment an edit finishes, the entry for its INPUT path describes a file it no longer matches.
+
+        Measured 2026-08-09 on a freshly written base with no walls::
+
+            walls on disk in base .............. 0
+            walls via open_model(base) [cached]  1     <-- after one edit that merely READ base
+
+        Anything that reopens that path afterwards is handed the next version's content under the
+        previous version's name: undo/redo restoring a prior version, a version-to-version compare, a
+        drawing or export generated from an earlier source, or simply two edits branching off one
+        base. It fails silently and in the most convincing possible way — a real model, fully
+        readable, just not the one that was asked for.
+
+        This is NOT new with the seeding work; `lru_cache` keyed the same way and had the same hole.
+        What changed is that R42's authoring loop finally hits the cache often enough to matter.
+
+        Evicting rather than deep-copying is deliberate: a copy of a multi-hundred-MB model on every
+        edit would cost more than the cache saves, and the mutator genuinely wants the object it was
+        given. What it must not do is leave that object registered under its old name.
+        """
+        stale = [k for k in self._d if k[0] == path]
+        for k in stale:
+            del self._d[k]
+        return len(stale)
+
     def cache_clear(self) -> None:
         self._d.clear()
 
@@ -150,6 +181,35 @@ def _open_uncached(path: str) -> ifcopenshell.file:
 #: The one cache. A second cache keyed on the same thing is how two answers to "what is in this
 #: file" start disagreeing, so seeding goes through this object rather than beside it.
 _open_cached = _ModelCache(maxsize=8)
+
+
+def open_model_for_write(path: str) -> ifcopenshell.file:
+    """Open a model you intend to MUTATE. Same object `open_model` gives you, minus the cache entry.
+
+    Use this — never bare `open_model` — whenever the returned model will be mutated and written,
+    which in practice means "anywhere a `.write(...)` follows in the same function".
+
+    The cache hands out a shared, mutable model. Mutating one obtained through `open_model` leaves the
+    entry for that path describing a file it no longer matches, and the next reader of that version
+    is silently handed a different model under its name (see `_ModelCache.evict` for the measurement).
+
+    A named entry point rather than "remember to call evict": the four mutating readers in this
+    codebase were written by different people at different times, and three of them did not know the
+    hazard existed. The one that did — the subset export in `routers/bim.py` — worked around it
+    locally with an uncached `ifcopenshell.open` and a comment, which fixed that site and taught
+    nothing to the others. `services/api/test_mutating_readers.py` now enumerates them instead.
+    """
+    model = open_model(path)
+    evict_model_cache(path)
+    return model
+
+
+def evict_model_cache(path: str) -> int:
+    """Drop every cached model for `path` — call before mutating a model this cache handed out.
+
+    Module-level twin of `seed_model_cache`, so `edit.py` need not reach into `_open_cached`.
+    """
+    return _open_cached.evict(path)
 
 
 def seed_model_cache(path: str, model: ifcopenshell.file) -> bool:

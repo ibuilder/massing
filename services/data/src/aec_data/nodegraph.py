@@ -108,9 +108,9 @@ def run(model, graph: dict) -> dict[str, Any]:
 def execute_graph(ifc_path: str, graph: dict, out_path: str) -> dict[str, Any]:
     """Open the model, run the recipe graph, and write the result — the single-call authoring pass a
     visual node canvas commits. Returns {order, outputs, node_count, out}."""
-    from .ifc_loader import open_model
+    from .ifc_loader import open_model_for_write
 
-    model = open_model(ifc_path)
+    model = open_model_for_write(ifc_path)             # `run` mutates it in place; see the loader
     result = run(model, graph)
     model.write(out_path)
     result["out"] = out_path

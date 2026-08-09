@@ -164,11 +164,14 @@ function harness(over: Partial<DeltaDeps> = {}) {
 describe("commit — with a preview fragment", () => {
   it("authors WITHOUT publishing and never reloads the model", async () => {
     const { d, store, c } = harness();
-    const out = await c.commit("add_wall", { x: 1 }, "Wall", "pv-1");
+    const out = await c.commit("add_wall", { x: 1 }, "Wall", "pv-1", "GUID000000000000000001");
 
     expect(out).toEqual({ applied: true, refused: false });
-    // publish=false on the edit: the whole saving is not converting here.
-    expect(d.editIfc).toHaveBeenCalledWith("add_wall", { x: 1 }, false);
+    // publish=false on the edit: the whole saving is not converting here. And the preview's GUID is
+    // handed over, so the element that lands in the IFC IS the one this fragment draws — without it
+    // the kept geometry carries an id no index has, which is how it shipped for a few hours.
+    expect(d.editIfc).toHaveBeenCalledWith("add_wall", { x: 1 }, false, "GUID000000000000000001");
+    expect(store.entries()[0]!.guid).toBe("GUID000000000000000001");
     // reconvert=false on the publish: reindex so the DATA is current, without re-deriving geometry.
     expect(d.publish).toHaveBeenCalledWith(false);
     // The call that costs 37 s on a 1,000-element model, not made. `awaitPublish` IS called — but
@@ -236,10 +239,15 @@ describe("commit — with no preview fragment", () => {
     // only the delta case would pass on a commit() that had lost its `else` entirely.
     const withPv = harness();
     const without = harness();
-    await withPv.c.commit("r", {}, "L", "pv-1");
+    await withPv.c.commit("r", {}, "L", "pv-1", "GUID000000000000000002");
     await without.c.commit("r", {}, "L", null);
-    expect(withPv.d.editIfc).toHaveBeenCalledWith("r", {}, false);
-    expect(without.d.editIfc).toHaveBeenCalledWith("r", {}, true);
+    expect(withPv.d.editIfc).toHaveBeenCalledWith("r", {}, false, "GUID000000000000000002");
+    // No preview means no GUID to adopt: the server mints one, which is the pre-existing behaviour.
+    // Asserted on the raw call so "passed undefined" and "passed nothing" stay distinguishable —
+    // toHaveBeenCalledWith(..., undefined) would demand a 4th argument that is never sent.
+    const call = vi.mocked(without.d.editIfc).mock.calls[0]!;
+    expect(call.slice(0, 3)).toEqual(["r", {}, true]);
+    expect(call[3]).toBeUndefined();
     expect(withPv.d.reloadModel).not.toHaveBeenCalled();
     expect(without.d.reloadModel).toHaveBeenCalled();
   });

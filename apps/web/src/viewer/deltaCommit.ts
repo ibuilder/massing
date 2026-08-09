@@ -32,6 +32,9 @@ export type DeltaEntry = {
   modelId: string;
   /** What the user did, in their words ("Wall", "Door") — shown when they ask what is pending. */
   label: string;
+  /** The element's GlobalId, which the commit forces the real element to adopt so this fragment and
+   *  the model are the same element. Absent when the preview gave none. */
+  guid?: string;
 };
 
 /**
@@ -179,7 +182,8 @@ export type DeltaDeps = {
   store: DeltaStore;
   /** Repaint the rail. Separate from `store` because the rail may not be built yet. */
   refresh: () => void;
-  editIfc: (recipe: string, params: Record<string, unknown>, publish: boolean) => Promise<unknown>;
+  editIfc: (recipe: string, params: Record<string, unknown>, publish: boolean,
+            wantGuid?: string) => Promise<unknown>;
   publish: (reconvert: boolean) => Promise<unknown>;
   /** Poll to a terminal publish state ("done" | "error" | …). */
   awaitPublish: () => Promise<string>;
@@ -256,12 +260,15 @@ export function deltaCommitter(d: DeltaDeps) {
    * than waiting.
    */
   async function commit(recipe: string, params: Record<string, unknown>, label: string,
-                        previewId: string | null): Promise<CommitOutcome> {
+                        previewId: string | null, previewGuid?: string): Promise<CommitOutcome> {
     const outcome: CommitOutcome = { applied: false, refused: false };
     try {
       if (previewId) {
-        await d.editIfc(recipe, params, false);
-        d.store.add({ modelId: previewId, label });
+        // The GUID is the whole point of keeping this fragment: without it the shape on screen and
+        // the element in the model are two different elements, and every GUID-keyed reader misses
+        // the one the user just drew. Measured live before the fix — preview 33a6…, committed 0POI….
+        await d.editIfc(recipe, params, false, previewGuid);
+        d.store.add({ modelId: previewId, label, guid: previewGuid });
         d.clearDraft();                 // it is on the record now — the amber draft marker goes
         d.refresh();
         outcome.applied = true;

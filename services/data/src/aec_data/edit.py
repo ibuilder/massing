@@ -85,7 +85,7 @@ from .edit_struct import (  # noqa: F401 — re-exported: routers/RECIPES/genera
     set_wall_thickness,
 )
 from .geomconf import bounded_iterator
-from .ifc_loader import open_model
+from .ifc_loader import open_model_for_write
 from .ifc_loader import seed_model_cache as _seed_cache
 
 _DTYPE = {"bool": "IfcBoolean", "str": "IfcLabel", "float": "IfcReal", "int": "IfcInteger"}
@@ -1072,16 +1072,66 @@ def _apply_layers(model: ifcopenshell.file, overrides) -> int:
     return n
 
 
-def apply_recipe(ifc_path: str, recipe: str, params: dict, out_path: str) -> dict:
+_GUID_RE = __import__("re").compile(r"^[0-9A-Za-z_$]{22}$")
+
+
+def adopt_guid(model, changed, want: str) -> str:
+    """Force the element this recipe just created to carry `want` as its GlobalId.
+
+    WHY THIS EXISTS. `edit_preview` authors the element a second time, into a throwaway one-storey
+    model, purely to get fast geometry. Both runs mint their own GlobalId, so the preview fragment
+    the viewer displays and the element that lands in the real IFC had **different GUIDs** — verified
+    on a live project 2026-08-09: preview `33a6Uiew11Mv_Pc4qvizwA`, committed `0POIcNSNv2lh4Acrld7xm4`.
+
+    That was harmless while the preview was thrown away on commit. R42-COMMIT-DELTA keeps it, so the
+    mismatch became permanent: the shape on screen carried a GUID that is in no index, and every
+    GUID-keyed reader — selection, properties, LOD, QTO, pins — would miss the very element the user
+    had just drawn, until they hit Rebuild. The roadmap called this hazard a short window. Keeping
+    the fragment turned it into a standing one.
+
+    Returns the GUID actually in force, so a caller never has to assume the adoption happened.
+    """
+    if not want:
+        return changed
+    if not isinstance(changed, str) or not _GUID_RE.match(changed):
+        # Recipes that report a COUNT, or a list, have no single element to re-key. Refusing loudly
+        # beats silently re-keying whichever element happened to be first.
+        raise ValueError(f"adopt_guid needs a recipe that creates exactly one element; got {changed!r}")
+    if not _GUID_RE.match(want):
+        raise ValueError(f"not a well-formed IFC GlobalId: {want!r}")
+    if want == changed:
+        return changed
+    for el in model.by_type("IfcRoot"):
+        if el.GlobalId == want:
+            # Uniqueness is the one invariant a GlobalId has. Silently creating a duplicate would
+            # corrupt every downstream join in the platform.
+            raise ValueError(f"GlobalId {want!r} is already used in this model")
+    target = next((el for el in model.by_type("IfcRoot") if el.GlobalId == changed), None)
+    if target is None:
+        raise ValueError(f"the recipe reported {changed!r} but no element in the model has it")
+    target.GlobalId = want
+    return want
+
+
+def apply_recipe(ifc_path: str, recipe: str, params: dict, out_path: str,
+                 want_guid: str | None = None) -> dict:
     """Apply a recipe to the IFC and save a new file. GUIDs of existing elements are
-    preserved, so downstream pins/RFIs/clashes (keyed by GUID) survive."""
+    preserved, so downstream pins/RFIs/clashes (keyed by GUID) survive.
+
+    `want_guid` re-keys the newly created element before the write — see `adopt_guid`. It is done
+    HERE rather than by reopening the output afterwards so there is still exactly one write, and so
+    the model handed to the session cache is the one that is really on disk.
+    """
     if recipe not in RECIPES:
         raise ValueError(f"unknown recipe {recipe!r}; have {list(RECIPES)}")
     from . import guards  # E8 — reject a broken edit before it touches the model
     pre = guards.precheck(recipe, params)
     if not pre["ok"]:
         raise ValueError("; ".join(pre["errors"]))
-    model = open_model(ifc_path)
+    # for_write, not open_model: this model is mutated IN PLACE and written elsewhere, so leaving it
+    # cached under `ifc_path` would serve the NEXT version to anything reopening THIS one — undo,
+    # version compare, a drawing off an earlier source. Measured, not theorised; see the loader.
+    model = open_model_for_write(ifc_path)
     # E8 (model-aware): references must exist in THIS model — a hallucinated GUID, a typo'd storey,
     # or a door hosted on a slab is rejected before any mutation
     mpre = guards.model_precheck(model, recipe, params)
@@ -1093,6 +1143,8 @@ def apply_recipe(ifc_path: str, recipe: str, params: dict, out_path: str) -> dic
         model, changed = RECIPES[recipe](model, params)
     else:
         changed = RECIPES[recipe](model, params)
+    if want_guid:
+        changed = adopt_guid(model, changed, want_guid)
     model.write(out_path)
     # R42-SESSION-MODEL: the next edit opens `out_path`. The model that IS `out_path` is in memory
     # right now, so hand it to the cache instead of letting the next call re-parse the file we just
@@ -1117,7 +1169,7 @@ def apply_recipes(ifc_path: str, steps: list[dict], out_path: str) -> dict:
         pre = guards.precheck(recipe, s.get("params") or {})
         if not pre["ok"]:
             raise ValueError(f"step {i + 1} ({recipe}): " + "; ".join(pre["errors"]))
-    model = open_model(ifc_path)
+    model = open_model_for_write(ifc_path)             # same in-place mutation as apply_recipe
     # E8 note: NO model-aware precheck on batches — a step may legally reference an element (or a
     # storey) a PRIOR step in the same batch creates, which can't be known up front. Single-recipe
     # applies get the full model_precheck; wired dependent flows use /edit/graph.

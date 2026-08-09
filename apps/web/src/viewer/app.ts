@@ -1146,20 +1146,20 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // indistinguishable from a committed element — which becomes a lie the moment the recipe
     // fails. Amber outline over accurate preview geometry states exactly the truth: this shape,
     // not yet on the record. Since R42-COMMIT-DELTA it drops when the RECIPE lands, not a reconvert.
-    let previewId: string | null = null;
+    let previewId: string | null = null, previewGuid: string | undefined;
     try {
       const pv = await api.editPreview(projectId, a.recipe, params);
       if (pv?.frag) {
-        previewId = `preview-${pv.guid || Date.now()}`;
+        previewGuid = pv.guid || undefined; previewId = `preview-${previewGuid || Date.now()}`;
         await loader.loadFragments(pv.frag, previewId);
       }
     } catch { /* preview unavailable — the optimistic proxy stands until the full reload */ }
-    await authorAndReload(a.recipe, params, a.label, previewId);
+    await authorAndReload(a.recipe, params, a.label, previewId, previewGuid);
   }
 
   const committer = deltaCommitter({
     store: deltas, refresh: () => refreshDeltas?.(),
-    editIfc: (r, p, pub) => api.editIfc(projectId!, r, p, pub),
+    editIfc: (r, p, pub, g) => api.editIfc(projectId!, r, p, pub, g),
     publish: (reconvert) => api.publish(projectId!, reconvert),
     awaitPublish: () => waitForPublish(projectId!),
     reloadModel: () => loadProjectModel(), reloadPins: () => reloadModelPins(),
@@ -1173,12 +1173,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
    *  (`refused` — the recipe itself said no, e.g. a non-rectangular profile) distinctly from a
    *  publish flake (`applied: false, refused: false`). Existing callers ignore the return. */
   async function authorAndReload(recipe: string, params: Record<string, unknown>, label: string,
-                                 previewId: string | null = null): Promise<{ applied: boolean; refused: boolean }> {
+                                 previewId: string | null = null, previewGuid?: string): Promise<{ applied: boolean; refused: boolean }> {
     let outcome = { applied: false, refused: false };
     // The delta path does not republish, so it must not say it does — the two paths differ in what
     // the user is waiting for, which is the whole job of this string.
     await withLoading(container, previewId ? `authoring ${label}` : `authoring ${label} + republishing`,
-      async () => { outcome = await committer.commit(recipe, params, label, previewId); });
+      async () => { outcome = await committer.commit(recipe, params, label, previewId, previewGuid); });
     return outcome;
   }
 

@@ -441,7 +441,26 @@ app.add_middleware(
     allow_origins=[o.strip() for o in _cors.split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Content-Disposition"],
+    # A custom response header is INVISIBLE to cross-origin JS unless it is named here. Only the
+    # seven CORS-safelisted ones (content-type, content-length, cache-control, …) come through for
+    # free, so every `res.headers.get("X-…")` in the web client needs its name in this list or it
+    # reads `null` — in a browser, always, with no error anywhere.
+    #
+    # Measured 2026-08-09 against the running API from a real cross-origin page: the browser could
+    # see exactly ["content-length", "content-type"] and `X-Element-Guid` came back null. Three reads
+    # had been dead since they were written:
+    #
+    #   X-Element-Guid   -> `|| ""` swallowed it, so an authored element's preview id silently fell
+    #                       back to a timestamp instead of the GUID.
+    #   X-Seal-Sealed    -> `=== "true"` on null is FALSE, so a PDF genuinely sealed by a licensed
+    #                       PE/RA reported back as **not sealed**. A false negative about a
+    #                       professional seal is the worst of the three by a distance.
+    #   X-Seal-Compliance-> `|| ""` again: the compliance note vanished.
+    #
+    # This is the shape the codebase keeps meeting — a read that cannot fail loudly, wearing a
+    # default that looks like a legitimate answer. `test_cors_expose_headers.py` now derives the
+    # population from the client instead of trusting this list to be maintained by hand.
+    expose_headers=["Content-Disposition", "X-Element-Guid", "X-Seal-Sealed", "X-Seal-Compliance"],
 )
 
 # First-layer per-IP rate limit (opt-in: set AEC_RATE_LIMIT_RPM>0 in production). Fixed 60s window.

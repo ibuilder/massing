@@ -401,11 +401,13 @@ async def import_families(pid: str, file: UploadFile = File(...), publish: bool 
     into the project's source IFC, saving a new version. Imported types become placeable via the
     place-family picker (GET /projects/{id}/types). GUIDs of existing elements are preserved."""
     from aec_data import families  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
+    from aec_data.ifc_loader import open_model_for_write  # type: ignore
 
     p = _project(db, pid)
     data = await file.read()
-    model = open_model(p.source_ifc)
+    # for_write: import_types_from_ifc mutates this model and it is written to a NEW version path,
+    # so it must not stay cached under the OLD one. See ifc_loader.open_model_for_write.
+    model = open_model_for_write(p.source_ifc)
     imported = families.import_types_from_ifc(model, data)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
     base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
@@ -435,7 +437,7 @@ def import_family_pack(pid: str, pack: str = Body(..., embed=True),
     parent references are refused. The audit record carries the pack's sha256, so an import can be tied
     back to exact content later."""
     from aec_data import families, family_packs  # type: ignore
-    from aec_data.ifc_loader import open_model  # type: ignore
+    from aec_data.ifc_loader import open_model_for_write  # type: ignore
 
     p = _project(db, pid)
     try:
@@ -443,7 +445,7 @@ def import_family_pack(pid: str, pack: str = Body(..., embed=True),
     except ValueError as e:
         raise HTTPException(404, str(e)) from None
 
-    model = open_model(p.source_ifc)
+    model = open_model_for_write(p.source_ifc)   # mutated then written to a new version — see the loader
     imported = families.import_types_from_ifc(model, data)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
     base_stem = re.sub(r"(_\d{14,20})+$", "", Path(p.source_ifc).stem)
@@ -593,9 +595,16 @@ def edit_precheck(pid: str, recipe: str = Body(..., embed=True), params: dict = 
 @router.post("/projects/{pid}/edit")
 def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
          publish: bool = Body(default=False), base_source: str | None = Body(default=None),
+         want_guid: str | None = Body(default=None),
          db: Session = Depends(get_db), actor: str = Depends(require_role("editor"))):
     """Apply an authoring recipe (set_pset | batch_tag | place_type) to the source IFC,
     saving a new version. GUIDs of existing elements are preserved.
+
+    `want_guid` makes the newly created element adopt a GlobalId the caller already has — which is
+    how an `edit-preview` fragment and the committed element end up being the SAME element. Without
+    it the two runs mint different GUIDs, and R42-COMMIT-DELTA (which keeps the preview fragment on
+    screen) would leave the user looking at a shape whose GUID is in no index. 400 if the id is
+    malformed, already taken, or the recipe did not create exactly one element.
 
     COLLAB-1 optimistic lock: pass `base_source` (the model signature the client last loaded, from
     `GET .../collab`) and the edit is rejected **409** if another user has published since — so a
@@ -629,7 +638,7 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
             if ed_year:
                 params = {**params, "ibc_edition": str(ed_year)}
         try:
-            result = ed.apply_recipe(p.source_ifc, recipe, params, out)
+            result = ed.apply_recipe(p.source_ifc, recipe, params, out, want_guid=want_guid)
         except PermissionError as e:                   # A1 sandbox disabled
             raise HTTPException(403, str(e)) from e
         except (ValueError, KeyError) as e:            # E8 guard rejection / sandbox reject / missing param
