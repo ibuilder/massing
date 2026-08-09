@@ -20,9 +20,14 @@
  * The label is read from the workspace tab that already names it rather than a second lookup table:
  * a duplicated label list is exactly how the rail ended up with `undefinedView` on screen.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { DEAD_END_WS, offersReturn, returnLabel, returnTarget } from "./wsReturn";
+
+const REPO = resolve(__dirname, "../../../..");
 
 /** The shell fragment these controls live in — workspaces plus their tab strip. */
 function mountShell(): void {
@@ -41,6 +46,12 @@ function mountShell(): void {
       <section id="ws-model" class="workspace active"></section>
       <section id="ws-drawings" class="workspace"></section>
       <section id="ws-design" class="workspace"></section>
+      <!-- ws-finance is here because the deep-link events really do target it (portal.ts "Open
+           underwriting"). Leaving it out made the set-assertion below fail for a fictional reason:
+           renderReturnBar returns early when the ws-KEY section is absent, so a missing fixture
+           section reads exactly like a missing feature. A fixture is a claim about the DOM.
+           (No backticks in here - this whole block is inside a template literal.) -->
+      <section id="ws-finance" class="workspace"></section>
     </main>`;
 }
 
@@ -241,5 +252,75 @@ describe("the bar is removed, not merely not-rendered", () => {
     nav.setWorkspace("model");
     nav.setWorkspace("drawings", "nav");
     expect(returnBtn("drawings"), "drawings owns no tabs — it is a trap however you arrive").not.toBeNull();
+  });
+});
+
+describe("the journey rule belongs at the EVENT boundary, not at each call site", () => {
+  beforeEach(mountShell);
+
+  /**
+   * v0.3.913 wired `arrival: "jump"` at the two rail launches and called R36-DRAWINGS-RETURN
+   * complete. A code review found eight more controls — the portal's "Open underwriting" → finance,
+   * a margin panel → model, six others — that all cross workspaces through the
+   * `aec:goto-workspace` / `aec:workspace` events and therefore still took the `"nav"` default. They
+   * stranded the user in exactly the way Specs did, while the roadmap said the item was done.
+   *
+   * The fix is not a longer list of call sites. **The event IS the journey**: nothing dispatches
+   * `aec:goto-workspace` except a control in another workspace sending you somewhere. So the rule
+   * lives at the listener, where it cannot be forgotten by the next person adding a deep-link.
+   */
+  it("a workspace reached through the deep-link event earns a return, without the dispatcher opting in", () => {
+    const nav = makeNav();
+    // the dispatcher says only WHERE to go — exactly what portal.ts / margin.ts send today
+    const viaEvent = (dest: string) => nav.setWorkspace(dest, "jump");
+    viaEvent("design");
+    expect(returnBtn("design"), "a deep-link that names no arrival must still not strand you").not.toBeNull();
+    expect(returnBtn("design")!.textContent).toBe("← Back to Model");
+  });
+
+  it("every destination those events actually target is covered — asserted as a SET", () => {
+    // The v0.3.913 defect was that two call sites were wired and the rest were not, so checking one
+    // destination would have passed throughout. These are the real `detail:` values dispatched in
+    // the app today.
+    for (const dest of ["design", "finance", "model", "drawings"]) {
+      mountShell();
+      const nav = makeNav();
+      nav.setWorkspace("model");
+      if (dest === "model") nav.setWorkspace("design");   // start elsewhere so "model" is a real move
+      nav.setWorkspace(dest, "jump");
+      expect(returnBtn(dest), `a jump to ${dest} leaves no way back`).not.toBeNull();
+    }
+  });
+});
+
+describe("main.ts actually passes the journey — the gate that would have caught v0.3.913", () => {
+  /**
+   * Everything above tests the RULE. None of it can see whether `main.ts` invokes the rule, which is
+   * precisely how the original defect shipped: `offersReturn` was correct and two of ten call sites
+   * used it. Mutation-checked — reverting the two listeners drops the `"jump"` count from 4 to 2 and
+   * every behavioural test above still passes.
+   *
+   * A source assertion, like `fileIO.test.ts`, because the alternative is booting the whole shell.
+   * It is written to fail on the way this specific defect returns: a cross-workspace event listener
+   * that forgets to say it is a journey.
+   */
+  const main = readFileSync(resolve(REPO, "apps/web/src/main.ts"), "utf8");
+
+  it("both cross-workspace event listeners declare the arrival as a jump", () => {
+    for (const evt of ["aec:goto-workspace", "aec:workspace"]) {
+      const at = main.indexOf(`addEventListener("${evt}"`);
+      expect(at, `${evt} listener not found — it moved, and this gate now proves nothing`)
+        .toBeGreaterThan(-1);
+      const body = main.slice(at, at + 400);
+      expect(body, `${evt} carries the user across workspaces, so it must pass "jump"`)
+        .toContain('"jump"');
+    }
+  });
+
+  it("the rail launches still pass it too", () => {
+    // The two sites v0.3.913 did wire. Kept so a refactor cannot quietly drop them while the
+    // listeners above keep the count looking healthy.
+    expect(main).toContain('setWorkspace("drawings", "jump")');
+    expect(main, "openSpecs jumps into Design").toMatch(/setWorkspace\("design",\s*"jump"\)/);
   });
 });

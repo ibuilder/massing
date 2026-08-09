@@ -10,7 +10,7 @@ list — the useful path through these documents is not alphabetical.
 | **See it demoed** | [Walkthrough](walkthrough.md) — a 3-minute script, or a written click-through |
 | **Deploy it for real** | [Deployment](deploy.md) → [go-live checklist](PRODUCTION_CHECKLIST.md) → [operator runbook](operations.md) |
 | **Call the API** | [API reference](reference/api.md), or `/docs` on any running instance |
-| **Understand how it is built** | [Architecture](reference/architecture.md) · [client vs server](client-vs-server.md) |
+| **Understand how it is built** | [Architecture](reference/architecture.md) · [client vs server](client-vs-server.md) · [drawings & sheets](drawings.md) |
 | **Add a record type** | [Authoring a module](authoring-modules.md) — no code required |
 | **Know what it can do** | [capabilities.html](https://massing.build/capabilities.html) · [roadmap](roadmap.md) |
 
@@ -40,6 +40,7 @@ list — the useful path through these documents is not alphabetical.
 | [reference/api.md](reference/api.md) | Every significant endpoint, grouped. The live truth is `/docs` on a running API. |
 | [reference/architecture.md](reference/architecture.md) | How the four services fit together, and the repo layout. |
 | [client-vs-server.md](client-vs-server.md) | Which work runs in the browser and which in Python — and why the line sits there. |
+| [drawings.md](drawings.md) | How a model becomes a drawing set: bake → view → sheet → SVG/DXF/PDF, the view-spec vocabulary, and the two composers. |
 | [mass-format.md](mass-format.md) | The `.mass` project container. A plain ZIP; one project per file. |
 | [authoring-matrix.md](authoring-matrix.md) | Coverage matrix of every authoring recipe. **Generated — do not hand-edit.** |
 | [roles-views.md](roles-views.md) | Which role owns which room, and the rule used to place a new tool. |

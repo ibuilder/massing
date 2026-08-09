@@ -59,6 +59,17 @@ deliberately deferred. A reader should treat every claim here as a **proposal**.
 | `sibling-repo-import-2026-08-01.md` | Evaluation + outcome, 2026-08-01: what to import from the four sibling repos. **Executed** — the four phases shipped in v0.3.811, and the "Outcome" section records that three of them changed on contact (a premise check shrank one, a measurement moved a threshold 4x, and a Fragments-writer blocker rescoped another). Read the Outcome before the Plan. |
 | `marketing-copy.md` | Messaging drafts. Reflects shipped capability only — check before reuse, copy rots faster than code. |
 
+### Design records — current, 2026-08-09
+
+Written at v0.3.913 during the R36 print-path investigation. All three are **current**; each states
+its own grade and the date it was measured.
+
+| File | Status |
+| --- | --- |
+| `adr-001-sheet-composition.md` | **Decision record, Proposed.** Two sheet composers exist and disagree about which view kinds are valid — the shipping one renders a *plan* when asked for an axonometric, because the `axon` branch sits in the wrapper rather than the shared `_view_for_spec`. Chooses backporting the branch over migrating the routes, and says what would reverse that. |
+| `r36-viewer-subapp-design.md` | **Design pass + slice plan** for R36-VIEWER-SUBAPP. Its finding is that the roadmap entry's premise had gone stale: CANVAS-PEER already shipped the axonometric-as-a-drawing half, so the print slice is a dispatcher branch, not a rendering pipeline. Six slices, each shipping green alone. |
+| `tech-debt-2026-08-09.md` | **Audit.** Eight scored items; the top three tie at P=24 (two dependency bumps carrying CVEs in the production lock, plus the composer defect). Its "Checked and NOT counted" section is the load-bearing half — two candidate findings were dropped after verification, including one I had already half-written up. |
+
 ## Adding to this directory
 
 Two rules, both learned from failures recorded in the table above:

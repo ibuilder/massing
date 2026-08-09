@@ -3147,6 +3147,16 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   not change workspace offered a return using a stale origin; and the bar was rendered but **never
   removed**, so one press of Specs left "← Back to Model" in the Design workspace permanently. Every
   unit test mounts a fresh DOM, so nothing could persist across visits to be seen.
+
+  ⚠ **v0.3.913 marked this COMPLETE while it was wired at 2 of ~10 crossings — corrected in
+  v0.3.914.** A code review found that the rule was passed only at the two rail launches, so the
+  other eight cross-workspace controls (the portal's "Open underwriting" → finance, a margin panel →
+  model, six more) still stranded the user exactly as Specs did. The fix is not a longer list of call
+  sites: **the `aec:goto-workspace` / `aec:workspace` EVENTS are the journey** — nothing dispatches
+  them except a control in another workspace — so the rule now lives at the two listeners, where the
+  next person adding a deep-link cannot forget it. The behavioural tests could not see this (they
+  assert the rule, not its wiring), so `wsReturn.test.ts` gained a source gate that fails when a
+  listener drops `"jump"` — mutation-checked.
 - ⭐ **R36-VIEWER-SUBAPP** *(L — Lane E; slice before starting)* — **now the top item in this ring**,
   because the rail work above cleared its way: the tools no longer float over the canvas, so the
   canvas is free to change what it renders. Drawings + specs + model as one subapp with a mode switch

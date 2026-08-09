@@ -759,9 +759,11 @@ function setWorkspace(key: string, arrival: "jump" | "nav" = "nav") {
   syncStatusBarMode();      // the viewport controls belong to the viewport
 }
 // deep-link from a tool section to the workspace that owns the full records (e.g. Cost → Construction)
+// "jump", not "nav": a deep-link is by definition a control in ANOTHER workspace carrying the user
+// here, which is exactly the journey R36-DRAWINGS-RETURN's return bar exists for.
 window.addEventListener("aec:workspace", (e) => {
   const key = (e as CustomEvent<string>).detail;
-  if (WORKSPACES.some((w) => w.key === key)) setWorkspace(key);
+  if (WORKSPACES.some((w) => w.key === key)) setWorkspace(key, "jump");
 });
 const wsEl = $("workspaces");
 
@@ -1138,7 +1140,11 @@ function whenDesignReady(): Promise<boolean> {
 }
 
 // Developer portal's "Underwriting" shortcut → the proforma workspace
-window.addEventListener("aec:goto-workspace", (e) => setWorkspace((e as CustomEvent).detail as string));
+// Every dispatcher of this event is a control somewhere else sending the user to a workspace — the
+// portal's "Open underwriting" → finance, a margin panel → model, and six more. Wiring the rule at
+// the two rail launches only (v0.3.913) left all of them stranding the user exactly as Specs did,
+// while the roadmap called the item complete. The EVENT is the journey; it does not need a list.
+window.addEventListener("aec:goto-workspace", (e) => setWorkspace((e as CustomEvent).detail as string, "jump"));
 
 // Proforma (Finance) + Drawings are secondary workspaces — code-split so their code (and deps) load
 // on first open instead of bloating the initial shell. Portal (default Construction) stays eager.

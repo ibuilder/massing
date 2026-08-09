@@ -109,6 +109,11 @@ PER_FILE = {
     # to the new exact count rather than left at 1_373, because 13 lines of slack is 13 lines the
     # next addition spends without anyone deciding to.
     "apps/web/src/viewer/tools/qaSection.ts": 1_350,
+    # Pinned at its EXACT measured size on 2026-08-09, BEFORE it needs splitting — the third-largest
+    # hand-written file in the tree and the only one of that size with no ratchet. The qaSection entry
+    # above records why the timing matters: "a ratchet added at the point of pain only ratifies the
+    # pain." Nothing is wrong with this file today; that is precisely when the pin is free.
+    "apps/web/src/portal/register/register.ts": 2_546,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.
