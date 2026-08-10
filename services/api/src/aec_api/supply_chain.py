@@ -20,8 +20,25 @@ from typing import Any
 # Word-boundary matching (not naive substring — else "EXEMPLARY" in a BSD text falsely matches "mpl").
 # copyleft = disallowed by project policy; "strong" (GPL/AGPL) is the hard line, LGPL/MPL are weak
 # (accepted in practice for our dynamic-linking/distribution model but still surfaced for review).
+# CC0-1.0 and BSL-1.0 added 2026-08-10 on the owner's instruction. CC0 was already SHIPPING — 59
+# files under services/data/families/external/ declare it — so the written rule was narrower than
+# reality; it is a public-domain dedication, strictly more permissive than MIT.
+#
+# **BSL-1.0 is the Boost Software License** — permissive, MIT-like, no copyleft. **BUSL-1.1 is the
+# Business Source License** — source-available, NOT open source, and not permitted. One letter
+# apart, opposite ends of the spectrum, so the pairing is worth stating even though the pattern
+# turns out to separate them easily.
+#
+# *This comment said, at length and with confidence, that `\b` was what kept BUSL out. It is not.*
+# "BUSL" is B-U-S-L and does not contain the substring "bsl" at all, so even a bare `bsl`
+# alternative cannot match it — a mutation removing the anchors left every BUSL test passing, which
+# is how the claim was caught. The anchors stay for the same reason every other alternative here
+# carries them (prose hits inside longer words: the "EXEMPLARY"/"mpl" case in the line above), not
+# because BUSL depends on them. Recorded rather than quietly reworded, because a wrong explanation
+# beside correct code is the kind of thing the next reader believes.
 _PERMITTED_RE = re.compile(r"\bmit\b|\bbsd\b|apache|\bisc\b|python software foundation|\bpsf\b|"
-                           r"unlicense|public domain|\bzlib\b|\b0bsd\b|\bwtfpl\b", re.I)
+                           r"unlicense|public domain|\bzlib\b|\b0bsd\b|\bwtfpl\b|"
+                           r"\bcc0\b|creative commons zero|\bbsl\b|boost software", re.I)
 _COPYLEFT_RE = re.compile(r"\b[al]?gpl|\bmpl\b|mozilla public|\bepl\b|eclipse public|\bcddl\b|\beupl\b|"
                           r"affero|copyleft|gnu (lesser|general|affero)", re.I)
 _STRONG_RE = re.compile(r"\ba?gpl|affero", re.I)   # GPL/AGPL — matches gplv3/agpl, NOT lgpl
