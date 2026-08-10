@@ -21,10 +21,44 @@ router = APIRouter()
 
 
 def _safe_relay(target: str) -> bool:
-    """A RelayState/return-URL is only safe to redirect to if it's a same-site absolute path — one
-    leading slash, and NOT a protocol-relative (`//host`) or backslash (`/\\host`) form that browsers
-    resolve to another origin. Guards against open redirects."""
-    return bool(target) and target.startswith("/") and not target.startswith(("//", "/\\"))
+    """A RelayState/return-URL is only safe to redirect to if it is a same-site absolute path.
+
+    The prefix checks are necessary and were not sufficient. Measured 2026-08-09 against the real
+    function — it admitted FIVE off-site targets, all of which a browser resolves away from us:
+
+        /\\tevil.example.com     TAB then host      ADMITTED
+        /\\revil.example.com     CR then host       ADMITTED
+        /\\n//evil.example.com   LF then //host     ADMITTED
+        /\\t/evil.example.com    the known variant  ADMITTED
+        /x:y/evil               colon first seg    ADMITTED
+
+    **A browser strips TAB, CR and LF before resolving the URL**, so `/<TAB>/evil.example.com`
+    becomes `//evil.example.com` — protocol-relative, off-site. Rejecting `//` and `/\\` therefore
+    rejects the *spelling* of the attack and not the attack: the guard has to refuse the bytes,
+    because it cannot see the form the browser will act on.
+
+    A colon in the first path segment is refused for the same reason — `/x:y` is read as a scheme by
+    some resolvers.
+
+    Found by reading MassingCloud/massingplan's adversarial suite, which hit the same class from the
+    other side: its guard was `startswith("/") and not startswith("//")` and `/\\evil.example.com`
+    walked through it. We already had the backslash; we did not have the control characters. Two
+    codebases, one bug class, neither complete alone.
+    """
+    if not target or not target.startswith("/"):
+        return False
+    if target.startswith(("//", "/\\")):
+        return False
+    # Refuse C0 controls and DEL anywhere — not just at the front. A browser removes them wherever
+    # they sit, so their position is the attacker's choice and not a property we can rely on.
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in target):
+        return False
+    # Only the first PATH segment can be mistaken for a scheme. A colon in a query string or a
+    # fragment is ordinary — `/search?q=a:b` is a real destination, and the first draft of this fix
+    # refused it, caught by the paired "real destinations still work" test rather than by review.
+    rest = target[1:]
+    first_segment = rest.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
+    return ":" not in first_segment
 
 
 def _acs(request: Request) -> str:
