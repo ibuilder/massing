@@ -87,14 +87,20 @@ currently fail if either regresses.**
 - ✅ **SHIPPED v0.3.876 (2026-08-07)** — R39-THROTTLE-SHARED ①. *Full record archived 2026-08-10 → docs/roadmap-completed.md.*
 - ✅ **LOD 2025 — COMPLETE as of v0.3.903.** *Full record archived 2026-08-10 → docs/roadmap-completed.md.*
 
-- ○ **R43-CSRF-GET** *(S — Lane C; found 2026-08-09 while auditing a sibling's guard)* — **audit every
-  state-changing route reachable by GET.** Our session cookie is set `samesite="lax"`
-  (`routers/saml.py` `_cookie`, and the same in `routers/auth.py`), and there is no CSRF middleware —
-  so Lax is the entire defence. Lax withholds the cookie on a cross-site POST/PATCH/DELETE but **sends
-  it on a top-level GET**, which means any route that mutates on GET is cross-site-triggerable by a
-  link. The work is to enumerate the routers, not to guess: list every GET that writes, and either
-  convert it or gate it. **Un-audited is the finding — I have not established that such a route
-  exists, only that nothing would stop one.**
+- ✅ **R43-CSRF-GET — AUDITED 2026-08-10, and the answer is "none, and now nothing can add one."**
+  Our session cookie is `samesite="lax"` (`routers/auth.py`, `routers/saml.py`) and there is no CSRF
+  middleware, so Lax is the entire defence — and Lax withholds the cookie on a cross-site POST but
+  **sends it on a top-level GET**. The route table was therefore the whole protection, and nothing
+  was watching the route table. An AST scan over all 456 service files found **six** GET handlers
+  that touch the DB session and **zero that change state**: three verification routes and the SCIM
+  user list are `select(...)` reads; the CAM statement PDF commits only its own `audit.record`, and
+  dropping that would lose the audit trail, which is the worse trade; the OAuth callback does create
+  a user but MUST be a GET because the provider chooses the method, and its authority is the
+  provider's one-time code, not our cookie. **The finding was never "there is a bug" — it was
+  "nothing would stop one",** so the deliverable is `services/api/test_mutating_get.py`, a ratchet on
+  the exact (module, path, ops) set with a written reason per entry and a twin that refuses a reason
+  short enough to be a rubber stamp. Mutation-checked three ways: a mutating GET added to a router,
+  a broken scan (which must fail, not report clean), and a gutted reason.
 
 - ○ **R43-ORG-OWNERSHIP** *(S — Lane C; same audit)* — **check what self-registration grants.** The
   question is whether a self-provisioned account can end up owning an org (or an org's first project)
@@ -206,6 +212,26 @@ instances:
   duplication was diagnosed, and cutting one mid-flight would have moved the reach ceiling again on
   the files that batch was already fighting over.
 
+
+- ○ **R43-PLAN-EMPTY-AT-CUT** *(S — Lane D; measured 2026-08-10, found while checking a sibling's
+  bug report against our own pipeline)* — **a plan can render zero linework and report itself fine.**
+  `plan_svg` cuts at `elevation + cut_height` with `cut_height=1.2` m. On `samples/school_str.ifc`
+  the top storey at 11.400 yields **0 cut loops at the default cut** — the parapet is shorter than
+  the cut height, so the plane passes over everything. The sheet composes, the titleblock prints the
+  cut elevation, and nothing says the drawing is empty *because it was cut above the building*
+  rather than because the storey is empty. **Those are different facts and the output cannot tell
+  them apart.** Cheap fix shape: when a cut returns no loops, say so in the response the way an
+  `incomplete[]` field would — do NOT silently retry at a lower plane, which would make the
+  titleblock's stated elevation a lie. Not obviously a bug: "nothing is at that height" may be the
+  right answer for a roof plan, which is exactly why this is a gap-check and not a fix.
+
+  *Provenance worth keeping:* the sibling reported that **their** sectioner drops loops at cuts
+  exactly coplanar with a datum — 7 loops becoming 3 — and warned it would reach plans, since plans
+  get cut at storey elevations. **Measured against ours, it does not reproduce**: on `school_str.ifc`
+  and `samples/vertical_farm.ifc`, at every storey datum, the exact-height count equals the +1 mm
+  count and never falls below both neighbours. We also do not depend on `@massing/drawings2d`. The
+  warning was right to send and the conclusion still had to be measured — reasoning from "we both
+  section meshes" would have produced the wrong answer in either direction.
 
 - ○ **R43-VIEWER-CONFORMANCE** *(S — Lane E; MassingViewer issue #512)* — **run their conformance
   suite against our live API.** Their `kernel-remote` score is 0.0.0 and has only ever passed against
