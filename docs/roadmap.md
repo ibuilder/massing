@@ -3203,8 +3203,16 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   dev-preview geometry loader stalls, so the tab strip has not been seen in a browser. 11 unit tests
   cover the switch's behaviour and `tsc` covers the wiring; the DOM is unverified and said so.
 
-  Remaining: slice 5 (selection carried across modes **by GlobalId** — pick a door in 3D, see it on
-  the sheet), slice 6 (takeoff/markup as a plugin), and the Specs surface itself.
+  **Slice 5, measured v0.3.919 — the model↔sheet half ALREADY WORKED, by accident.** Picking in 3D and
+  switching to Sheets does carry the GlobalId, because three unrelated mechanisms happen to line up:
+  `onSelectionChanged` fires whether or not the pane is visible and stores `sel` before touching the
+  DOM; `dock("full")` forces a refresh; `refresh` ends by re-applying `syncPlanHighlight`. Remove any
+  one and the feature vanishes silently — the plan renders, nothing is lit, and it reads as "that
+  element isn't on this level". `PlanPane` had **no instance-level tests at all**, so nothing would
+  have noticed. `apps/web/src/viewer/planPaneSelection.test.ts` is now the thing that fails first.
+
+  Remaining: the **keynote → spec section** half of slice 5, which is blocked on the Specs surface;
+  slice 6 (takeoff/markup as a plugin); and the Specs surface itself.
 
 - **R36-ROOM-BRIEFS** *(M — Lane B; one room per release)* — per-room, per-role landing priority:
   each room opens with the three answers its primary role needs (superintendent in Schedule: today's
