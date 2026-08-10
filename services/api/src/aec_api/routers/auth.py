@@ -69,7 +69,14 @@ def register(username: str = Body(..., embed=True), password: str = Body(..., em
              role: str = Body("user", embed=True), authorization: str | None = Header(default=None),
              db: Session = Depends(get_db)):
     if db.query(User).count() == 0:
-        role = "admin"                       # bootstrap: the first account is admin
+        # Bootstrap: the first account on an empty table is created with no token, because there is
+        # no admin yet to authorise one. What made that dangerous is that `role` is not a hint —
+        # `_is_platform_admin` ends with `return u.role == "admin"`, so this line was an
+        # UNAUTHENTICATED grant of platform admin to whoever reached a fresh deployment first.
+        # When AEC_ADMIN_EMAILS is set the operator has already declared who the admins are, and a
+        # stranger who happens to register first is not one of them. Unconfigured deployments
+        # (desktop, local, single-operator) still bootstrap exactly as before.
+        role = "admin" if not _platform_admin_emails() else "user"
     else:
         tok = authorization[7:] if (authorization or "").startswith("Bearer ") else ""
         sub = auth.verify_token(tok)

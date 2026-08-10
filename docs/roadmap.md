@@ -102,12 +102,26 @@ currently fail if either regresses.**
   short enough to be a rubber stamp. Mutation-checked three ways: a mutating GET added to a router,
   a broken scan (which must fail, not report clean), and a gutted reason.
 
-- ○ **R43-ORG-OWNERSHIP** *(S — Lane C; same audit)* — **check what self-registration grants.** The
-  question is whether a self-provisioned account can end up owning an org (or an org's first project)
-  rather than joining one. Auto-provisioning is on by default (`AEC_OAUTH_NO_AUTOPROVISION` is
-  opt-*out*), so the free path is the default path. Read `routers/auth.py`, `routers/saml.py` and the
-  org-membership model together; a grant that is correct in one and absent in the other is the shape
-  this repo keeps shipping.
+- ✅ **R43-ORG-OWNERSHIP — the premise was wrong and the audit found a REAL hole anyway. Fixed
+  v0.3.926.** This entry said "registration granting org ownership", which I imported from a generic
+  threat list: **there is no Org or Tenant model in this codebase at all.** The tenancy primitive is
+  `ProjectMember` plus a global `role` hint. Reading the six `User(...)` construction sites instead
+  of the threat list is what turned up the actual defect — and **five of the six were already
+  correct**, which is precisely why the sixth had gone unnoticed.
+
+  `POST /auth/register` takes no token when the user table is empty, because there is no admin yet
+  to authorise one. That part is fine. What was not fine is that it also set `role="admin"` — and
+  `role` is not a hint, because `routers/auth.py`'s `_is_platform_admin` ends with
+  `return u.role == "admin"`. **On a fresh public deployment the first stranger to reach
+  /auth/register became platform admin, unauthenticated, even with `AEC_ADMIN_EMAILS` already naming
+  someone else.** Restoring the defect under test returns `GET /auth/users` → **200**, so this was
+  live and reachable rather than theoretical.
+
+  Fix: when `AEC_ADMIN_EMAILS` is set the operator has already declared who the admins are, so
+  bootstrap grants `"user"`; unset (desktop, local, single-operator) still grants `"admin"` and
+  nothing changes. `services/api/test_bootstrap_admin.py` asserts **both halves** plus the gate —
+  testing only the refusal would pass on a change that silently broke every local install, and the
+  over-correction mutation proves the twin catches exactly that.
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
 
@@ -213,7 +227,7 @@ instances:
   the files that batch was already fighting over.
 
 
-- ○ **R43-PLAN-EMPTY-AT-CUT** *(S — Lane D; measured 2026-08-10, found while checking a sibling's
+- **R43-PLAN-EMPTY-AT-CUT** *(S — Lane D; measured 2026-08-10, found while checking a sibling's
   bug report against our own pipeline)* — **a plan can render zero linework and report itself fine.**
   `plan_svg` cuts at `elevation + cut_height` with `cut_height=1.2` m. On `samples/school_str.ifc`
   the top storey at 11.400 yields **0 cut loops at the default cut** — the parapet is shorter than
@@ -233,7 +247,7 @@ instances:
   warning was right to send and the conclusion still had to be measured — reasoning from "we both
   section meshes" would have produced the wrong answer in either direction.
 
-- ○ **R43-VIEWER-CONFORMANCE** *(S — Lane E; MassingViewer issue #512)* — **run their conformance
+- **R43-VIEWER-CONFORMANCE** *(S — Lane E; MassingViewer issue #512)* — **run their conformance
   suite against our live API.** Their `kernel-remote` score is 0.0.0 and has only ever passed against
   a stub its own author wrote, so it is a green check with no subject. Needs :8093 up with a real
   project; report the RAW `remote` column **including refusals**, because a suite that skips what it
@@ -284,11 +298,11 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN ✅ *(SHIPPED v0.3.913, pending archive)* · R40-RIBBON ② |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN ✅ *(SHIPPED v0.3.913, pending archive)* · R40-RIBBON ② · R43-CRUD-FRAGMENTS |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R42-COMMIT-DELTA ✅ *(SHIPPED v0.3.911, pending archive)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE · R43-PLAN-DRIFT |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE · R43-PLAN-EMPTY-AT-CUT |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R42-COMMIT-DELTA ✅ *(SHIPPED v0.3.911, pending archive)* · R43-VIEWER-CONFORMANCE |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
@@ -619,7 +633,7 @@ per-session state in production, and round-trips every interaction, which the 60
 and the offline non-negotiable forbids). What survived the analysis is the *measured* part, and it is
 the only item here with real scope.
 
-- ○ **R43-CRUD-FRAGMENTS** *(M — Lane A/B; scope with a measurement, do not start with a migration)* —
+- **R43-CRUD-FRAGMENTS** *(M — Lane A/B; scope with a measurement, do not start with a migration)* —
   **server-composed HTML fragments for the register third.** Measured over ~47k hand-written lines
   (excluding tests, the generated 32k `schema.d.ts` and 18k vendored code): `viewer`+`drawings` is
   ~17k and genuinely SPA-shaped; **`portal`+`proforma` is ~13k of registers, panels and forms that are
@@ -629,14 +643,14 @@ the only item here with real scope.
   that number decide whether the other registers follow. A ring that starts by converting all of them
   has assumed its own result.
 
-- ○ **R43-MASSINGBILL-CORE** *(M — Lane C; blocked on the sibling, instruction already sent)* —
+- **R43-MASSINGBILL-CORE** *(M — Lane C; blocked on the sibling, instruction already sent)* —
   **not adoptable yet.** "application.py" (778 lines) and "sov.py" (398) — their files, not ours, hence plain quotes — import SQLAlchemy and the ORM,
   so there is no framework-free core to vendor the way massingplan's 19 stdlib modules were. They are
   extracting one. **The question they must answer before any of it lands is replacement or addition**
   — we already ship `payapp.py`, `sov_build.py` and `payments_bridge.py`, and "integrate" is not an
   answer to that. Adoption bar: [`vendorable-core-standard.md`](internal/vendorable-core-standard.md).
 
-- ○ **R43-PLAN-DRIFT** *(S — Lane C)* — **pin cadence for the vendored massingplan engine.** Pin
+- **R43-PLAN-DRIFT** *(S — Lane C)* — **pin cadence for the vendored massingplan engine.** Pin
   `155640a7` is clean and correct today; what does not exist is a way to notice when it stops being.
   Deliberately not installed yet — the decision outstanding is cadence, not correctness.
 
