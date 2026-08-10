@@ -4986,3 +4986,532 @@ The sharpest find was not a count. **FIN-GOV**: the finance period lock was *enf
 mutation dated into a closed month refused with a 409 — while the control to see or reopen it had no
 path in the UI. An unreachable feature is one nobody can use; an unreachable control over an enforced
 rule actively blocks people, and that distinction is now how reach work is prioritised.
+
+## Archived 2026-08-10 — 22 entries closed at v0.3.875–924
+
+Moved out of `docs/roadmap.md` in one pass. Every entry below was already marked complete IN the
+roadmap and was simply never archived, so the active list read ~19% longer than the work actually
+outstanding — 662 lines of it. Each left a one-line stub behind, because the lane table still names
+these ids and a stub keeps that reference resolvable.
+
+- ✅ **SEC-PLUGIN-SANDBOX — COMPLETE as of v0.3.884.** Every part of this entry has shipped,
+  including the half it recorded as refused. Full record in
+  [`roadmap-completed.md`](roadmap-completed.md).
+
+  The binding half landed v0.3.864 (an attribute **allowlist** rather than a denylist — IFC entity
+  attributes are CamelCase by schema and the dangerous stdlib surface is lowercase, so the names
+  nobody thinks of are closed by default). The bytes contract landed v0.3.877. The two things this
+  entry listed as *"Remaining: adopt it in `edit.py`, then the isolation itself"* are both in:
+  `services/data/src/aec_data/edit.py` rebinds the model through `REPLACING_RECIPES`, and
+  `services/data/src/aec_data/sandbox_child.py` runs the snippet in a child process with a fixed
+  argv, an environment allowlist, and a fail-closed spawn.
+
+  **The `setrlimit` refusal was resolved rather than overridden, and that is the part worth keeping.**
+  This entry argued at length that `RLIMIT_CPU` and `RLIMIT_AS` *cannot be added correctly
+  in-process*: they bound cumulative process CPU and process-wide memory, so they would kill a
+  healthy API worker after enough ordinary traffic and take every concurrent request down with it.
+  That reasoning was correct, and the answer was never to add them anyway — it was to build the child
+  the limits could live in. They are set in `sandbox_child.py` now, where their scope is exactly one
+  snippet. **A refusal that names its precondition is how the precondition eventually gets built**;
+  a refusal that just says "no" leaves nothing to satisfy.
+
+  v0.3.884 closed the last hazard, found by security review rather than by a gate: the snippet was
+  written as "code.py" into a workdir the child puts on `sys.path[0]`, **shadowing the stdlib `code`
+  module** for everything the child imports. Not exploitable — nothing in the child's import chain
+  (`ifcopenshell`, `.api`, `.guid`) reaches it — but one unrelated transitive import away from
+  letting a submitted snippet execute as an *import*, outside the AST allowlist entirely, where the
+  allowlist would never see it. Renamed to "snippet.py".
+
+  Residual risk, unchanged and still stated in `services/data/src/aec_data/sandbox.py`: a native call
+  reached through an allowed binding is bounded by that library, not by the trace hook.
+
+- ✅ **SHIPPED v0.3.875 (2026-08-07) — R41-SCHEMA-STALE**, both halves. Full record archived in
+  [`docs/roadmap-completed.md`](roadmap-completed.md); the two points worth carrying forward are that **the prescription in the entry was wrong and the scope
+  claim was right for the wrong reason**. "Force the payload to null on any version difference"
+  would have blanked every historical record the first time anyone *added* a field — i.e. rendered
+  them as empty and indistinguishable from never-filled-in, which is the exact failure the item
+  exists to remove. Severity now derives from the payload (orphaned / mistyped keys), not from the
+  version alone. And "135+ registers share one table shape" was true of the *factory*, not of the
+  deployed database: one `_table()` declares the column, but `create_all` never alters an existing
+  table, so it still needed an Alembic revision or it would have passed on SQLite and failed on
+  every deployed Postgres.
+
+- ✅ **SHIPPED v0.3.876 (2026-08-07)** — R39-THROTTLE-SHARED ①. `throttle.py`'s per-endpoint caps
+  now count through `ratecount`, shared across workers when `AEC_REDIS_URL` is set. The counter is
+  `main.py`'s existing implementation extracted rather than a second one written beside it, which
+  also fixed a real defect by construction: the old bound was a wholesale `clear()` at 10k keys, so
+  a scanner cycling through callers could wipe the limiter's state for every caller it was
+  legitimately throttling. **The lesson is the guard, not the counter** — a boot guard naming
+  `AEC_RATE_LIMIT_RPM` read as covering rate limiting in general, and was silent about the
+  always-on limiter capping `POST /auth/stepup` at 10/min. A generic-sounding gate hid a missing one.
+
+- ✅ **LOD 2025 — COMPLETE as of v0.3.903.** All three items (LOD-ASPECTS, LOD-500-LOA,
+  LOD-ELEMENT-TABLE) shipped. Full record in [`roadmap-completed.md`](roadmap-completed.md).
+
+  **Two things worth keeping here.** First, the defect was one shape in three places: a number
+  computed from whatever data happened to be available, then labelled as the thing somebody wanted
+  to know. A well-tagged bounding box scored LOD 350; a verification recorded that it happened and
+  never how accurate it was; a target matrix could be authored and never compared. Second, the fix
+  in all three cases was the same move — **say what was actually measured, and report the part you
+  could not measure as unmeasured.**
+
+  **The licence constraint stands for anything that touches this again.** BIMForum Part I is
+  CC BY-NC-ND and Part II is CC BY-NC; NonCommercial is a hard exclusion for this repo. No element
+  table, keynotes, per-element definitions, Uniclass→Omniclass crosswalk or band→aspect-value table
+  may enter the codebase. The ISO 7817-1 aspect names and the AIA band numbers are not BIMForum's to
+  license and are what the implementation uses.
+
+  **Still open, and named honestly:** a model read tops out at **LOD 350** — nothing in the served
+  index distinguishes a coordination-ready solid from a fabrication-ready one, and nothing in it can
+  see whether a placement is *accurate* rather than merely present. Both are reported as unread
+  (`ceiling_distribution`) rather than assumed. Closing either needs geometry the index does not
+  carry today, which is a deliberate scope call rather than an oversight.
+
+- ✅ **R22-PUBLIC-VIEWER — SHIPPED v0.3.878 (#270).** The decision this entry was waiting on was
+  taken 2026-08-07: **a share token may serve model geometry, as a per-token opt-in, never a
+  default** — following the `show_payments` precedent exactly. `ShareToken.show_model` defaults
+  false, so no link already sent was widened retroactively.
+
+  The scope line that mattered: the token serves the converted **fragment**, never the source IFC.
+  "Share the model" reads as either, and the wide reading discloses every property set,
+  classification and GlobalId in the project — a much larger disclosure than was approved. There is
+  a test that fails if the source IFC ever becomes reachable through a token.
+
+  All four refusals — unknown token, revoked token, token without the opt-in, project with no
+  published fragment — return an identical 404 body. Distinguishing them would tell an attacker
+  whether a token exists, whether it was revoked, and whether a project has a model.
+
+- ✅ **CLOSED FOR FREE — do the seven rooms all have a non-empty demo?** They do. Every module in
+  every room has at least one seeded record: cost 18/18 (65 records), deal 9/9 (17), design 32/32
+  (70), operate 15/15 (51), planning 26/26 (50), schedule 7/7 (24), and **work 28/28 (48)** — the one
+  the check singled out. No build needed.
+
+  *The measurement was wrong twice before it was right, which is the part worth keeping.* The first
+  pass matched `/modules/{key}/records` and reported **zero records in all seven rooms** — a
+  spectacular finding that was purely a wrong key shape; the list endpoint is `/modules/{key}`. A
+  gap-check that reports total absence should be suspected of measuring the wrong thing before it is
+  believed.
+
+- ✅ **R22-ROUTINES** *(S — `routines.py` + migration shipped; the SWEEP shipped 2026-08-07)* — **scheduled agent runs** (monthly progress report, weekly schedule-risk
+  scan) rather than on-demand only. Turns AI from a tool you remember to use into infrastructure.
+
+  **The deciding half existed and nothing acted on it.** `routines.due()` already refuses well — an
+  unknown cadence is refused rather than treated as due, `draft`/`retired` are never fired, missed
+  windows fire ONCE for the current window (`catch_up_suppressed`) — and `jobs.enqueue` already
+  rejects an unregistered kind, and `worker.py` already runs the queue. But both `/routines/due`
+  endpoints are read-only, so "what should run now" was computed, returned and dropped: exactly the
+  entry's own complaint.
+  `services/api/src/aec_api/routines_run.py` + `POST /projects/{pid}/routines/run-due` closes it.
+  **The defect that made this more than plumbing was latent**: `routines.from_project(db, pid, now,
+  in_flight)` takes `in_flight` as a parameter and **no caller supplied one**, so the single refusal in
+  the chain that needs outside knowledge — "the previous run has not finished" — could never fire. With
+  the default empty set, a monthly report taking an hour is re-enqueued on every sweep for that hour.
+  The sweep derives it from the jobs table instead.
+  Three refusals, all mutation-checked: in-flight derived rather than assumed (3 named FAILs); a
+  routine naming an unregistered kind is `refused` and **does not abort the sweep** for the ones beside
+  it (2); and **the window is consumed at enqueue, not at success**, with the `job_id` recorded —
+  consuming it on success would re-fire a failing routine every sweep until it passed, a retry storm
+  dressed as a schedule.
+  *Two shape assumptions were caught by reading rather than trusting a name*: `update_record` takes
+  `actor` and `party` as **required positionals** (omitting them is a TypeError only the write path
+  surfaces), and `me.TABLES[key]` is a Core `Table`, so columns are `t.c.*`. The register also had to
+  be loaded explicitly outside the app lifespan — the same trap as a `TestClient` built outside a
+  `with` block, where every module reads as absent and the failure looks like a missing feature.
+
+- ✅ **R22-PUBLIC-VIEWER — SHIPPED v0.3.878 (#270)**, per-token opt-in; see the Band 2 record. *(was sized **M**, not S; see the Band 2 entry, which is the live one — its premise was corrected 2026-08-06: the scoped, revocable token and the routes honouring it ALREADY EXIST.)* This
+  line is the original scan's one-sentence estimate. It called the item S because it counted the
+  viewer, which exists; the Band 2 entry counted the **scoped revocable token and a route that
+  honours it**, which do not. Two sizes for one ID is a prioritisation bug, not a rounding
+  difference — S and M land in different sprints.
+
+**Deliberately NOT taken:** crew/equipment dispatch, payroll, inventory, and a general ledger. Those
+are mature, crowded, low-margin categories with a decade of incumbency. **Prefer seams to
+reimplementation** — R22-ACCT-SEAM exists precisely so we never write a GL.
+
+- ✅ **DONE for the parameters that exist** — R38-LIVE-PARAMS. Slices 1–3 shipped v0.3.823–825:
+  the depth field, the slider with a live base-anchored ghost, and W/L dimension chips over
+  `set_profile_dims`. Slice 3 was deferred in the morning (chips over one variable are theater),
+  the prerequisite was named, Core shipped the recipes, and the chips landed the same afternoon —
+  the pattern worth repeating for everything below. Three items were carved out of it by
+  premise-check on 2026-08-02, each blocked on a **named server-side prerequisite**:
+
+- ✅ **R41-FDD-INGEST** *(M — Lane C/H; `fault_finding` register shipped 2026-08-07)* — **consume fault findings; do not build a historian.** The operate
+  phase has a real hole: FCA/FCI, work orders, PM schedules, asset registers and warranties all exist,
+  but **nothing consumes time-series building-automation telemetry**, so condition is surveyed by a
+  person rather than measured continuously. The tempting answer — build fault detection ourselves —
+  needs a historian, point-role mapping and an ingest path, which is a *different product*: the
+  reference implementation is six years old and 250 MB of repository. **The cheap path is a
+  `fault_finding` register keyed to IFC GlobalId, populated from an external system's MCP or REST
+  surface**, feeding the FCI and work-order modules we already have. Public ASHRAE Guideline 36 fault
+  identifiers are a stable vocabulary to key against.
+
+  **Premise held — genuinely unbuilt**, unlike most of this ring: `asset_register`, `fca_element`,
+  `work_order` and `warranty` all existed and nothing consumed telemetry findings.
+  `fault_finding` (FDD, 16 fields, four contiguous fieldsets: Fault / Provenance / Asset /
+  Consequence) takes the cheap path the entry prescribes and **does not** build a historian.
+  The design point is that we CONSUME rather than detect, so provenance is a fieldset rather than a
+  footnote: `source_system` + `external_id` + `first_seen`/`last_seen`/`occurrences`. A finding with
+  no source is not ours to assert, and a telemetry fault is an interval that recurs, not an instant —
+  which is why `cleared → reported` ("recurred") is a real transition: **a fault that stops reporting
+  is not necessarily fixed, and one that returns is not new.** `dismissed` is separate from `cleared`
+  for the same reason.
+  G36 identifiers FC1–FC15 are the `g36_id` vocabulary, plus an explicit "Other (not a G36 fault)" so
+  an unmapped fault is recorded as unmapped instead of forced into the nearest code.
+  **No defaults at all** — `test_field_attrs.py` caps them and requires each to be a fact about the
+  record rather than a policy, and on a register fed by someone else's system every default would be
+  an assertion about *their* data.
+  Verified over HTTP with startup actually running: `GET /modules` → **137** (was 136), key-shape
+  identical to `pm_contract`, room derived as `operate`, `POST` → 201 `FDD-001`.
+  *The registry validator earned its keep*: the first draft wrote reference fields as `ref:` when the
+  schema wants `module:`, and it named all four rather than failing silently.
+
+  **CHECKED 2026-08-06 — the premise HOLDS, which is worth recording because most have not.** The
+  modules the entry says exist do: `fca_element` + `services/api/src/aec_api/fca.py`, `work_order`,
+  `pm_schedule`, `asset_register`, `warranty`. There is **no `fault_finding` register**, and **no
+  ASHRAE Guideline 36 vocabulary anywhere** — every ASHRAE reference in the tree is design-side
+  (Level 1 audit, heat-balance load, low-velocity duct, rule-of-thumb), none is FDD.
+
+  **The one thing that looked like a counter-example is not one.** `meter` and `meter_reading`
+  registers exist, so "nothing consumes time-series" reads wrong at first glance. `meter_reading`'s
+  fields are `subject`, `meter`, `reading_date`, `consumption`, `cost` — **a utility bill, not
+  building-automation telemetry**. Periodic manual consumption is a different shape from continuous
+  point data, and nothing bridges them. The gap and the proposed cheap path both stand as written.
+
+- ✅ **R41-IDS-VALIDATE** *(M — Lane D; DISSOLVED on premise-check 2026-08-06 — already built end to end)* — **buildingSMART IDS: author an Information Delivery
+  Specification, run it against a model, read the report.** Conspicuously absent for a product whose
+  thesis is IFC-native, and a likely second gap in the "openBIM gaps complete except the IFC5/IFCX
+  write-path" claim. **Verify that claim against the tree before sizing this.**
+
+  **Verified, and the entry is the thing that was wrong — the openBIM claim was right.** All three
+  verbs exist and the loop is closed, including into the UI:
+  *author* — `services/api/src/aec_api/ids_authoring.py` ships a starter template library keyed by
+  element group (Pset_*Common properties per IFC class), builds a standards-valid buildingSMART **IDS
+  1.0** file through `ifctester`, and generates an EIR contract document;
+  *run* — `services/data/src/aec_data/validate.py` validates an IFC against an IDS with `ifctester`,
+  taking an uploaded `.ids` or falling back to a default QA spec set;
+  *read the report* — `POST /projects/{pid}/validate`, with `PUT`/`GET`/`DELETE /projects/{pid}/ids`
+  storing the project's spec, and **all of it already called from `apps/web/src/api/client.ts`** —
+  which makes it the rare feature that is not merely built but reachable.
+  So "conspicuously absent" described a feature that was complete, wired and shipping. **The entry's
+  own instruction is what caught it**, and that is the argument for writing entries that say what to
+  verify: a sentence naming the check costs one grep and saved an M-sized build here.
+
+  ✅ **VERIFIED 2026-08-06 — the premise is wrong and the claim HOLDS. This is already built,
+  end-to-end and reachable.** All three parts the entry asks for exist:
+
+  * **author** — `services/api/src/aec_api/ids_authoring.py` builds a standards-valid IDS 1.0 via
+    `ifctester` from a starter template library, plus an EIR document. Routes `/ids/templates`,
+    `/ids/build`, `/ids/eir` in `services/api/src/aec_api/routers/ids.py`; client methods
+    `idsTemplates` / `idsBuildBlob` / `idsDownload`; UI in `apps/web/src/portal/panels/standards.ts`.
+  * **pin to a project** — `/projects/{pid}/ids` with pin / unpin / status, so validation runs with no
+    re-upload.
+  * **run it and read the report** — `POST /projects/{pid}/validate`
+    (`services/api/src/aec_api/routers/analysis.py`) over `services/data/src/aec_data/validate.py`,
+    with precedence *uploaded > pinned > built-in defaults*. `format=json` returns the per-spec
+    pass/fail summary and **`format=bcf` returns a .bcfzip punch list of the non-conformances**, one
+    topic per failing specification — so an IDS audit round-trips into other coordination tools.
+
+  That last part is **more** than the entry asks for. `ids_authoring.py`'s own docstring says it
+  plainly: *"We already validate models against an IDS; this is the upstream half."* Closing as
+  already built. **The "openBIM gaps complete except the IFC5/IFCX write-path" claim survives this
+  test** — IDS was the suspected second gap and it is not one.
+
+- ✅ **R41-DELETE-RATCHET** *(S — Lane J; FILE half + SYMBOL half both SHIPPED 2026-08-06)* —
+  **assert in CI that removed things stay removed.** Shipped as
+  `apps/web/src/tooling/deleteRatchet.test.ts` over eight deleted documents, and
+  `services/api/test_delete_ratchet.py` over the API method surface.
+
+  **The entry says "a negative assertion is three lines". It is — and the population is the whole
+  problem.** Three plausible candidates were tested and all three failed, in three different ways:
+
+  * `?shell=classic` was deleted, but `"classic"` still lives in `apps/web/src/dev/liveAudit.test.ts`
+    as a run label — the string has a legitimate other life.
+  * the More menu is gone, but `"more"` appears in `apps/web/src/viewer/app.ts` and
+    `apps/web/src/viewer/railToolbox.ts` **in prose describing the removal** — the gate would fire on
+    the documentation of its own rule.
+  * the register renderer's internals — `renderRegister` and `registerBoard` were *guessed*, and
+    `git log -S` says **neither ever existed at any commit**. That assertion would have passed
+    forever, guarded nothing, and read as coverage. **It is the exact defect this ring is about, and
+    the only thing that caught it was checking history for a name somebody had invented.**
+
+  **So the first pass ratchets FILE PATHS, not symbols.** Every failure above is a string-matching
+  problem; a path has none of them — prior existence is provable from history, current absence is one
+  `git ls-files`, and it needs no comment-stripping, no word boundaries, and no matcher that can agree
+  with everything.
+
+  **The symbol half then became tractable — by not searching for a name.** Every failure above is a
+  *string-matching* problem, so `services/api/test_delete_ratchet.py` does no string matching: it
+  parses **definition sites** (`^  name(` at class indent, across `apps/web/src/api/*.ts`) and asserts
+  a derived property over whatever it finds — **no API method is defined in two files**. That inverts
+  all three traps at once. There is no list to guess wrong (`renderRegister` could not have been
+  invented here, because nothing is named in advance); prose cannot match a definition site, so the
+  gate cannot fire on the documentation of its own rule; and a word with a legitimate other life is
+  irrelevant, because a second *definition* is the defect whatever else the word means elsewhere.
+  **The failure it catches is invisible to the size ratchet.** Re-adding one method to `client.ts`
+  while the mixin still defines it costs a few lines, clears the 3,780 pin comfortably, and produces a
+  **shadow** — two definitions, the winner decided by composition order in
+  `withAuth(withProforma(withDesignOptions(...)))`. Every call site resolves, nothing fails to compile,
+  and the extraction is silently undone. 638 methods across 10 files, zero duplicates, **no exemption
+  list**. Mutation-checked by re-adding `designOptionsRecord` to `client.ts`: 3 named FAILs naming the
+  symbol and both owning files.
+  *Scope worth stating so neither half is over-read:* no `.py`/`.ts`/`.tsx` file has ever been deleted
+  on `main` (`git log --diff-filter=D`, 400 commits, **zero**) — which is exactly why the path ratchet
+  lives over `docs/` and the source-side one is about definitions rather than deletions. In source,
+  things here get *extracted*, not removed.
+
+  **The eight are load-bearing because `docs/` IS the Pages web root.** Re-adding any one republishes
+  a superseded planning document as a live public page. Two of them are competitive analyses, which a
+  standing user directive keeps out of the public docs — and `services/api/test_no_comparative_names.py`
+  enforces that **by content** while saying nothing about those *files*. **Neither check implies the
+  other**, which is a better argument for both than either makes alone.
+
+  **Enrollment stops the ninth entry being invented:** an entry must be absent now **and** present in
+  some earlier commit, so something that merely "does not exist yet" cannot be enrolled and the gate
+  cannot grow into a ban on future work. Enroll at deletion time; never archaeologise history, because
+  inference cannot separate *removed on principle* from *removed incidentally*.
+
+  **A stated blind spot, and it was proven rather than assumed.** `actions/checkout@v7` clones at
+  `fetch-depth: 1` and `.github/workflows/ci.yml` does not override it. A `git clone --depth 1` of this
+  repo reports `is_shallow=true`, **1 commit**, and the enrollment lookup finds **0** — so that half
+  would have failed all eight entries in CI for a reason unrelated to the code. The two halves are
+  therefore split by what they *need*: absence runs everywhere and is the ratchet; enrollment runs only
+  where history exists and **says so when it cannot**, rather than passing quietly. Deepening the CI
+  clone was rejected — a 2,000-commit fetch on every run to re-verify a property fixed at authoring
+  time.
+
+  Mutation-checked four ways: re-add a path → red; re-add it *relocated* → red on the basename check;
+  enroll a never-existent path → red; empty the list → red on the vacuity guard.
+
+  **Lineage:** `apps/web/src/portal/register/registerOwnership.test.ts` got there first and solved the
+  hard half — the population is the moved code *named*, the matcher is asserted to find real names,
+  comments are stripped, and the legitimate crossings are enumerated as doors. The symbol ratchet is
+  the harder second version and should extract that helper rather than re-derive it.
+
+- ✅ **R41-TEST-RESIDUE** *(S — Lane J; found 2026-08-06 by tracing a flaky suite to its cause,
+  **and my own filed premise was wrong** — corrected below)* —
+  **the backend suite leaves its databases behind, and the sweep that should have caught it was
+  removing a filename nothing creates.**
+
+  *Filed as "nothing sweeps them". That is false and the truth is more interesting.* `run_tests.py`
+  sets `DATABASE_URL=sqlite:///./_{t}.db` per test and unlinks exactly that. But **351 of 538 test
+  files overwrite `DATABASE_URL` at import** with a name of their own (`test_absorption.db`,
+  `auth_test.db`). So the runner unlinked a file nothing ever creates while the real one persisted —
+  **a cleanup that ran, succeeded, and removed nothing**, which is indistinguishable from one that
+  works. The 187 tests that *do* use the runner's name were cleaned correctly the whole time, which
+  is exactly why nobody noticed.
+
+  **Fixed with two refinements from a second session, both better than the first design.** The sweep
+  runs **per test as each finishes** rather than after the pool — with the disk at ~96% an end-sweep
+  still peaked at ~1.4 GB held open at once. And **a failing test keeps its database**, because that
+  file is the evidence for the failure and sweeping it destroys what someone needs at 3am.
+
+  Per-test cleanup is **name-scoped from the test's own source**, not a snapshot diff: tests run
+  concurrently, so "everything that appeared while I ran" also contains databases other tests are
+  still using. The end-of-run backstop *does* use snapshot-diff, where no name is available — a
+  `glob("test_*.db")` there would have its safety depend on which filenames happen to exist, and
+  `preview.db` (the dev API's live database) shares that directory. A full `run_tests.py`
+  writes a SQLite file per test module into `services/api/`, and no run removes what the last one
+  wrote. Measured across the shared clone that day:
+
+  | worktree | leftover `*.db` | size |
+  |---|---|---|
+  | "lane-f-proforma" | **324** | 1,423 MB |
+  | "integrate" | **322** | 1,413 MB |
+  | main clone | **332** | 1,441 MB |
+
+  **~1.4 GB per worktree per full backend run**, and every one of those files was hours stale. With
+  free space at ~3%, that is the whole problem: two sessions independently hit
+  `sqlite3.OperationalError: disk I/O error` and vitest timeouts (`library.test.ts` 5,026 ms,
+  `pdfVendor.test.ts` 20,016 ms) that **passed on a clean re-run**. The residue does not announce
+  itself — it manufactures failures that look exactly like flaky tests, in files that have nothing
+  to do with it, which is why it survived long enough to reach 2.8 GB.
+
+  **The fix is two things and the second is the one that lasts.** The suite removes its own
+  databases; *and* a **leftover count is asserted**, because a sweep that silently stops working
+  looks identical to a clean tree — the same reason every gate here is mutation-checked rather than
+  trusted.
+
+  **Assert the COUNT, not free space.** Disk was measured swinging **~10 GB while a suite runs**, so
+  a free-space threshold would flap with concurrency and teach people to ignore it. A leftover count
+  is deterministic and attributable.
+
+  *Filed by the session that found it rather than fixed on the spot: the files belonged to other
+  sessions' worktrees, and the `git worktree remove --force` incident is precisely why a measurement
+  gets reported and someone who owns the tree does the deleting.*
+
+- ✅ **R41-REACH-WRITES — COMPLETE as of v0.3.895.** All four write endpoints are wired, each with
+  the confirmation or refusal its own failure mode called for. Full record in
+  [`roadmap-completed.md`](roadmap-completed.md).
+
+  **The one thing worth repeating here, because it is the argument for the item having existed:** two
+  of the four were sitting on server defects that a same-shape-as-a-read wiring would have shipped
+  straight to users. `deleteView` answered `{"deleted": true}` for a row it had not touched *and*
+  deleted views across project boundaries; `modelVersions` had been discarding half the review record
+  the API already sent. Both were found by reading the endpoint before writing the caller, which is
+  the only reason the four-releases-instead-of-one cost bought anything.
+
+  The general rule stands and generalises past this entry: **a reach sweep may wire anything that
+  cannot lose work, and must stop at anything that can.**
+
+- ✅ **R39-THROTTLE-SHARED ①** *(M, Lane C — **SHIPPED v0.3.876**; checked 2026-08-06: accurate and genuinely open**;
+  recorded so the next reader does not re-verify)* — `throttle.py` keeps `_HITS` as a plain
+  in-process `dict`, so the per-worker multiplication the entry describes is real and unchanged.
+
+- ✅ **R42-COMMIT-DELTA — COMPLETE, v0.3.911.** *Promote the preview fragment instead of discarding
+it.* `apps/web/src/viewer/deltaCommit.ts` + `apps/web/src/viewer/deltaCommit.test.ts`.
+
+  On a successful recipe the element has already been authored and converted, so the commit now keeps
+  that fragment as an authoritative delta, clears the amber marker, reindexes **without** reconverting
+  and does **not** reload. The full rebuild is an explicit `⟳ Rebuild (N)` in the rail. No loader work
+  was needed: it has held base + N models keyed by id since it shipped. The path with **no** preview
+  fragment still does the full publish — there is no geometry to keep there, and going delta would
+  show the user a model missing the thing they just drew.
+
+  *Both hazards were real and both are handled — the second one was the interesting half:*
+  1. deltas are dropped **only after** the new base has loaded, and only when the rebuild actually
+     succeeded. A failed consolidate keeps them, which is the one state where they are the only
+     correct geometry on screen. Asserted both ways.
+  2. the served **property index is rebuilt whole** (`properties_index.build_index`), so a delta's
+     element is in the scene before it is in the index. It is neither appended per-element nor
+     hand-waved: the reindex is **bracketed and counted**, and while it is in flight the rail says
+     *"Model data is still updating — searches and quantities may not see the newest edits yet"*
+     instead of *"The data is current"*. `publish` resolves on ACCEPT, not on completion, so the
+     bracket closes on the poll to a terminal state — closing it early was one of the mutations
+     checked. `settled()` is there for a caller that needs the index current before reading it.
+
+  *A third case the entry did not anticipate, found by writing the tests:* a **successful full
+  publish also rebuilds the pending deltas**, because they are in the IFC and the convert reads the
+  IFC. Without clearing the store there, the rail would strand on "N edits not yet rebuilt" forever
+  while `loadProjectModel`'s `disposeAll` had already reclaimed the very geometry those records named.
+
+  *VERIFIED END-TO-END, v0.3.912.* The unit tests exercise the decision; the wire was measured
+  separately against a running API and a real project, recording every request. Both paths, back to
+  back, same recipe: the delta path sent `"publish":false` then `POST /publish` with the bare body
+  `false`, made **0** model reloads and was user-visible in **45 ms**; the full-publish path took
+  **1,025 ms** and one reload. `/elements` went 4 → 5 → 7, so the elements really landed.
+  `store.reindexing` was true immediately after commit and false after `settled()`.
+
+  *A DEFECT THIS ENTRY DID NOT ANTICIPATE, found by that verification and fixed in v0.3.912.* The
+  preview and the commit were **two different elements**. `edit_preview` authors into a throwaway
+  one-storey model, so both runs minted their own GlobalId — measured live: preview
+  `33a6Uiew11Mv_Pc4qvizwA`, committed `0POIcNSNv2lh4Acrld7xm4`, and the preview id was in no index.
+  Harmless while the fragment was discarded on commit; **keeping it made the mismatch permanent**, so
+  the wall the user had just drawn was missing from selection, properties, LOD, QTO and pins until
+  Rebuild. Hazard 2 above predicted an index *timing* problem and there is one — but no amount of
+  reindexing fixes an identity that was wrong from the start. `apply_recipe(..., want_guid=)` now lets
+  the commit adopt the preview's id. `services/api/test_adopt_guid.py`.
+
+  *THE PRINT SLICE IS SMALLER THAN THIS ENTRY ASSUMES — shipped v0.3.915 (ADR-001 items 1–5).* The
+  entry says *"3D only captures a hero image, so the two are not yet peers — slice the print path
+  first."* That premise went stale: **CANVAS-PEER already shipped the axonometric as a real drawing**
+  (true isometric basis, per-element silhouettes keeping their GlobalIds, depth-sorted). What was
+  missing was reach, and it was worse than missing — the `axon` branch sat in `sheet_layout`'s
+  *wrapper*, so the shipping path fell through to plan and a sheet asked for an axonometric returned
+  **a plan cut at 1.20 m wearing the caller's title**. The branch now lives in the shared
+  `_view_for_spec`, an unknown kind raises instead of substituting, and
+  `services/api/test_view_kind_dispatch.py` asserts BOTH dispatchers agree kind-by-kind. Full
+  reasoning: [`docs/internal/adr-001-sheet-composition.md`](internal/adr-001-sheet-composition.md);
+  the slice plan is in [`docs/internal/r36-viewer-subapp-design.md`](internal/r36-viewer-subapp-design.md).
+
+  *SLICE 3 SHIPPED v0.3.916 — and it found a third silent-drop.* The rail's three sheet buttons built
+  their own query strings and sent `number`, `title` and `scale`; `sheet.*` accepts `sheet`, `page`,
+  `purpose`, `rev`, `storey`, `views`. FastAPI drops unknown query parameters, so all three vanished
+  — measured live: `?number=A-999` returned a sheet numbered **A-101**. Invisible because the rail's
+  `number=A-101` equalled the route's default, so the per-level title it computed never reached the
+  paper. There is no `title` field in the titleblock at all, so the description now goes in `purpose`,
+  which is real. `apps/web/src/viewer/sheetSpecs.ts` can emit nothing outside `SHEET_PARAMS`, and its
+  test asserts that set against **the route's own signature** rather than a remembered list. The new
+  `🖼 Place this view on a sheet` control sends the active level's plan in 2D and a true isometric in
+  3D — not a camera match, because a perspective camera and a parallel projection are not the same
+  view. `apps/web/src/viewer/sheetSpecs.test.ts`.
+
+  *Cost paid in the right place.* `app.ts` is on a per-file ratchet with zero headroom, so the feature
+  could not simply be added to it. The commit DECISION moved into the module — where it is now
+  testable without a loader, a fragment server or a running convert — and `waitForPublish` (nine
+  lines, **24 call sites**, no test in its life) came out into `apps/web/src/viewer/publishWait.ts`
+  with `apps/web/src/viewer/publishWait.test.ts`. `app.ts` ends where it started, at its pin.
+
+- ✅ **R42-SESSION-MODEL — COMPLETE as scoped, v0.3.907.** *"Stop re-reading the IFC per edit"* is done; the remaining WRITE concern is tracked separately as **R42-SESSION-WRITE**.
+
+  *What shipped, and why it was smaller than this entry assumed.* `open_model` was **already** cached
+  by `(path, mtime, size)`. It was never missing — it was unreachable from the authoring loop,
+  because every edit writes a new timestamped file so the next edit's key differs and misses by
+  construction. Its own docstring said so, phrased as a reassurance about staleness. `apply_recipe`
+  now hands its post-write model to the cache, so an edit's OUTPUT opens without a parse.
+  `services/api/test_model_cache_seed.py` proves it by counting `ifcopenshell.open` calls.
+
+  **What remains is the WRITE, and it needs a product decision rather than more code.** Each edit
+  still serialises a whole new IFC. Deferring that means the file on disk is no longer the current
+  model — which changes what *"the current source"* means to every other reader (publish, export,
+  clash, the MCP tools, a second user's optimistic-lock check) and what *"saved"* means to a user.
+  That is a decision about the product's contract with its own data, not a caching change, and it
+  should not be made inside a commit that looks like an optimisation.
+
+- ✅ **UX-VIEWED — COMPLETE, v0.3.922.** ShareToken view-timestamps now render as chips.
+  `apps/web/src/ui/chips.ts::shareState` + the call in `masterBuilder.ts`.
+  **Shipped as scoped — one call, plus the honest edge the entry did not anticipate.** The 2026-08-06
+  check was right in every particular: `statusChip` already took a `ts` option *for this*,
+  `last_viewed_at` was already typed at `client.ts`, and `masterBuilder.ts` never imported the chip
+  module at all. Nothing needed building.
+
+  **Paid is deliberately NOT produced, and that is a finding rather than a shortfall.** The vocabulary
+  names three states; the share-token row carries no payment state. `show_payments` is a *capability*
+  flag — whether the shared page displays payments — not a record that one happened. Deriving "Paid"
+  from it would put a chip on screen asserting something nobody measured, so `shareState` returns two
+  states and a test asserts it never returns the third. When a real paid signal reaches this row,
+  whoever adds it must delete that test on purpose rather than discover the gap in review.
+
+
+  Every layer this needs already exists. `services/api/src/aec_api/models.py` stores `view_count` and
+  `last_viewed_at` on `ShareToken`; `services/api/src/aec_api/client_portal.py` **increments both on
+  every view** and serves them from `_public_row`; `apps/web/src/api/client.ts` types them; and
+  `apps/web/src/ui/chips.ts` is the chip vocabulary itself — its opening line names *"Sent → Viewed →
+  Paid"* as the exact phrasing it exists to standardise, with 7 tests.
+
+  **What is missing is one call.** `apps/web/src/portal/panels/masterBuilder.ts` renders the share
+  row as a link plus a revoke button and inlines the count as plain text — `(3 views)`. It never
+  calls `statusChip`, and it **never uses `last_viewed_at` at all**, so the timestamp is gathered on
+  every view, stored, serialised, sent over the wire, typed in the client, and then dropped on the
+  floor.
+
+  So this is not "build a view-tracking pipeline" (S); it is *use the chip vocabulary that exists on
+  the data that is already on the wire*. The remaining work is in one file. **Nothing needed
+  building; something needed calling** — the same reach-not-capability shape as the `snapEngine`
+  resolver with zero callers.
+
+- ✅ **R36-DRAWINGS-RETURN — COMPLETE, v0.3.913.** `apps/web/src/shell/wsReturn.ts` +
+  `apps/web/src/shell/wsReturn.test.ts`.
+
+  **Three of this entry's four claims were already false when it was read.** Measured in the running
+  app before writing anything — Drawings: room tabs 622×37 visible, Design tab present, "← Back to
+  Model" present at 111×23. Specs: room tabs 510×37 visible, Design tab present, **no return
+  control.** So the defect was an ASYMMETRY, not an absence, and only Specs had it.
+
+  *Why Specs was missed, which is the part worth keeping.* The trigger was `DEAD_END_WS`, a set of
+  **workspaces** — and Specs is not a workspace. `openSpecs()` calls `setWorkspace("design")` and
+  opens a module inside it. Design is a perfectly ordinary workspace with tabs, so no list of
+  dead-end *names* could ever have caught it, yet a user who pressed Specs on the model rail was
+  still stranded: of the seven visible controls there mentioning model/3D, one was the Design tab
+  they were already on, two were analysis modules, and four were project-home cards — start-over
+  actions, not a way back. The rule is now about the **journey** (*a control that carries you out of
+  your workspace owes you a return*) rather than the destination.
+
+  *The suite could not have found this.* `wsReturn.test.ts` existed with **no `wsReturn.ts` beside
+  it** — it reproduced `main.ts`'s logic including its own `DEAD_END_WS = new Set(["drawings"])`, so
+  it asserted a COPY. Its own header said *"and Specs behaves the same"* while its copy excluded
+  Specs. The decisions now live in the module and the test imports them.
+
+  *Two defects the live check caught that the unit tests structurally could not:* a "jump" that did
+  not change workspace offered a return using a stale origin; and the bar was rendered but **never
+  removed**, so one press of Specs left "← Back to Model" in the Design workspace permanently. Every
+  unit test mounts a fresh DOM, so nothing could persist across visits to be seen.
+
+  ⚠ **v0.3.913 marked this COMPLETE while it was wired at 2 of ~10 crossings — corrected in
+  v0.3.914.** A code review found that the rule was passed only at the two rail launches, so the
+  other eight cross-workspace controls (the portal's "Open underwriting" → finance, a margin panel →
+  model, six more) still stranded the user exactly as Specs did. The fix is not a longer list of call
+  sites: **the `aec:goto-workspace` / `aec:workspace` EVENTS are the journey** — nothing dispatches
+  them except a control in another workspace — so the rule now lives at the two listeners, where the
+  next person adding a deep-link cannot forget it. The behavioural tests could not see this (they
+  assert the rule, not its wiring), so `wsReturn.test.ts` gained a source gate that fails when a
+  listener drops `"jump"` — mutation-checked.
