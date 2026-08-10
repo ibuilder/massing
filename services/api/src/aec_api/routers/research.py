@@ -2,6 +2,8 @@
 analytics (R4), and research-grade benchmarks (R5)."""
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -14,6 +16,8 @@ from ..models import Project
 from ..rbac import require_role
 
 _P6_KEY = "{pid}/schedule_p6.json"   # imported Primavera P6 activities (drives 4D calendar dates)
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -235,9 +239,7 @@ async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depen
     from aec_data.schedule import parse_schedule  # type: ignore  (data-service engine on sys.path)
 
     from .. import modules as me
-    from .. import storage
-
-    from .. import schedule_import
+    from .. import schedule_import, storage
 
     text = (await file.read()).decode("utf-8", "ignore")
 
@@ -253,9 +255,15 @@ async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depen
     except ValueError:                               # not a format we read fully
         report = {"format": "unknown", "fell_back": True, "issues": []}
     except Exception as exc:                         # noqa: BLE001 — never fail the upload
+        log.warning("schedule reader failed for %s: %s", pid, exc, exc_info=True)
         report = {"format": "unknown", "fell_back": True,
                   "issues": [{"severity": "error", "code": "IMPORT.READER_FAILED",
-                              "message": str(exc),
+                              # The exception text is LOGGED, never returned. A reader failure on an
+                              # uploaded file can carry a path, a parser internal or a fragment of the
+                              # upload itself, and this response goes back to whoever posted the file.
+                              # `IMPORT.READER_FAILED` plus the log is what an operator needs; the
+                              # caller needs to know it fell back, not why. (py/stack-trace-exposure)
+                              "message": "the schedule reader failed; see the server log",
                               "action": "fell back to the legacy parser"}]}
 
     if rich:
