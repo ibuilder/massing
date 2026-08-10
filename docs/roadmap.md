@@ -3194,10 +3194,23 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   titled ISO VIEW), the `views=` grammar, and "place this view on a sheet". Without them the switch
   would have exposed 2D and 3D as non-peers immediately.
 
-  **Specs is deliberately NOT registered, and that is remaining work, not an oversight.** The spec
-  book exists only as a modal and has no canvas surface, so a Specs tab would highlight and show
-  nothing — the failure recorded here as "existence is not arrival". `canvasMode.test.ts` fails if
-  `specs` is registered while no spec surface exists, so the third mode cannot be faked into place.
+  **SPECS SHIPPED v0.3.920 — all three modes are real.** `apps/web/src/viewer/specPane.ts` renders the
+  3-part MasterFormat manual as a canvas surface, and selecting an element reveals its section. It
+  needed **no backend work**: `specmanual.py` has served `elements: [{guid, name, ifc_class}]` per
+  section since it shipped, and the client's return type simply never declared the field — so the
+  section↔element link looked like unbuilt work while sitting in every response. Exact mirror of the
+  sheet-params defect: there the client SENT keys the route ignores, here it IGNORED keys the route
+  sends. A contract believed rather than read, in both directions.
+
+  The `elements` list is **capped at 50 per section** while `element_count` is the true total, so the
+  pane distinguishes *"no spec section"* from *"not in the first 50, so I cannot tell"* — the second
+  reported as the first would be a statement about the payload posing as one about the model.
+
+  The v0.3.918 guard that forbade registering `specs` without a surface now guards the general rule,
+  and a mutation showed it had been **too weak**: it matched the string `specPane` anywhere, which the
+  mode's own `enter`/`leave` satisfy, so a mode wired to a pane that is never built would have passed.
+  It now requires `new SpecPane(` AND the `appendChild` — "built but never appended" being this repo's
+  most repeated defect.
 
   **Not verified live.** `createViewerApp` needs a WebGL context and a Fragments worker and the
   dev-preview geometry loader stalls, so the tab strip has not been seen in a browser. 11 unit tests

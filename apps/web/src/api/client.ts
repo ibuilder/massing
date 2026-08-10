@@ -34,7 +34,7 @@ import type {
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, PreflightSummary, ProfessionalLicense,
   ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
-  Topic, Vec3, Viewpoint, WorkItem, VitalsPayload } from "./types";
+  SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
@@ -1039,11 +1039,10 @@ export class ApiClient extends withFinance(withContracts(withAuth(withProforma(w
       `/projects/${pid}/ai/author`, { method: "POST", body: JSON.stringify({ text, context }) });
   }
   /** W11 D6: the 3-part MasterFormat project manual seeded from the model. */
+  /** The 3-part MasterFormat project manual. See `SpecManual` in `types.ts` for the 50-per-section
+   *  cap on `elements` — it matters to every caller. */
   specManual(pid: string) {
-    return this.json<{ system: string; section_count: number; division_count: number; note: string;
-      divisions: { division: string; title: string; sections: { code: string; title: string;
-        element_count: number; part1_general: string; part2_products: string[]; part3_execution: string[] }[] }[] }>(
-      `/projects/${pid}/spec/manual`);
+    return this.json<SpecManual>(`/projects/${pid}/spec/manual`);
   }
   /** S4: whether the model can be undone / redone + stack depths. */
   editHistory(pid: string) {

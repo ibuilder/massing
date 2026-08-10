@@ -103,18 +103,27 @@ describe("a mode cannot exist without a surface", () => {
     expect(() => new CanvasModeSwitch([])).toThrow();
   });
 
-  it("SPECS IS DELIBERATELY ABSENT — and app.ts must not register it without a surface", () => {
+  it("a registered mode must have a surface that is CONSTRUCTED AND MOUNTED", () => {
     /**
-     * The roadmap names Model ▸ Sheets ▸ Specs. Specs ships when it has a canvas renderer; today the
-     * spec book is a modal only. This asserts the intent rather than leaving it in a comment: if
-     * someone wires a `specs` mode, this fails until a spec surface exists in the viewer, at which
-     * point they delete this test on purpose rather than discovering the gap in review.
+     * Written in v0.3.918 when Specs deliberately did not ship, to stop a tab that highlights and
+     * shows nothing. Specs shipped in v0.3.920, so the test now guards the general rule instead of
+     * one absence — which is the point at which it earned its keep rather than being deleted.
+     *
+     * IT WAS TOO WEAK AND A MUTATION FOUND IT. The first version asked whether the string `specPane`
+     * appeared anywhere in `app.ts`. Deleting the pane's construction and its `appendChild` still
+     * left three references — in the mode's own `enter`/`leave` — so a `specs` mode wired to a pane
+     * that is never built would have passed. It now requires `new SpecPane(` AND the append, because
+     * "built but never appended" is this repo's single most repeated defect: `planPaneBtn` shipped
+     * that way for eighty versions.
      */
     const app = readFileSync(resolve(REPO, "apps/web/src/viewer/app.ts"), "utf8");
-    const registers = /key:\s*"specs"/.test(app);
-    const hasSurface = /class\s+SpecPane|specPane/.test(app);
-    expect(registers && !hasSurface, "a `specs` mode is registered but no spec surface exists — that "
-      + "is a tab which highlights and shows nothing").toBe(false);
-    expect(MODE_ORDER).toContain("specs");   // the seat is reserved, so this stays a scoping choice
+    if (/key:\s*"specs"/.test(app)) {
+      expect(/new SpecPane\(/.test(app),
+        "a `specs` mode is registered but no SpecPane is constructed").toBe(true);
+      expect(/appendChild\(specPane\.el\)/.test(app),
+        "SpecPane is constructed but never appended — the tab would highlight and show nothing")
+        .toBe(true);
+    }
+    expect(MODE_ORDER).toContain("specs");
   });
 });

@@ -47,6 +47,7 @@ import { DraftProxyLayer } from "./draft/draftProxy";
 import { TransformGizmo } from "./draft/transformGizmo";
 import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
 import { CanvasModeSwitch } from "./canvasMode";
+import { SpecPane } from "./specPane";
 import { PlanPane } from "./planPane";
 import { type PlanBounds, validatePlacement } from "./placeValid";
 import { planBoundsFromModels } from "./modelBounds";
@@ -892,7 +893,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     headers: () => api.authHeaders(),
   });
   container.appendChild(planPane.el);
-  onSelectionChanged = (guid) => planPane.highlight(guid);
+  onSelectionChanged = (guid) => { planPane.highlight(guid); specPane.highlight(guid); };
+
+  // R36-VIEWER-SUBAPP — the Specs canvas. `elements` per section was ALREADY served by
+  // `specmanual.py` and merely undeclared in the client type, so the section<->element link needed
+  // no backend work at all.
+  const specPane = new SpecPane({
+    load: () => api.specManual(projectId!),
+    notify,
+    onPick: (guid) => { void selectByGuid(guid, true); },
+  });
+  container.appendChild(specPane.el);
 
   // R36-VIEWER-SUBAPP ④ — the canvas is one surface at a time, not 3D with a strip attached.
   // `specs` is deliberately NOT registered: the spec book is a modal, so a Specs tab would highlight
@@ -909,6 +920,10 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     { key: "sheets", label: "Sheets", title: "The generated plan as the canvas — the drawing, full size",
       blocked: () => (projectId ? null : "open a project first — a sheet is cut from its model"),
       enter: () => planPane.dock("full"), leave: () => planPane.dock("hidden") },
+    { key: "specs", label: "Specs", title: "The 3-part MasterFormat project manual — the spec book "
+        + "that accompanies the drawings. Selecting an element reveals its section.",
+      blocked: () => (projectId ? null : "open a project first — the manual is seeded from its model"),
+      enter: () => specPane.dock("full"), leave: () => specPane.dock("hidden") },
   ], (m) => {
     for (const b of Array.from(canvasTabs.children) as HTMLButtonElement[]) {
       const on = b.dataset.mode === m;

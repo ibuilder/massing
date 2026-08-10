@@ -685,3 +685,39 @@ export interface ViewerLoadTiming {
   canvasW: number | null;
   canvasH: number | null;
 }
+
+/**
+ * The 3-part MasterFormat project manual (`GET /projects/{pid}/spec/manual`).
+ *
+ * `elements` is capped at **50 per section** server-side (`specmanual.py`) while `element_count` is
+ * the true total. The two must be shown together or the shorter list reads as the whole set — and
+ * "this element has no spec section" then gets asserted about elements past the cap, which is a
+ * statement about the payload masquerading as one about the model. `viewer/specPane.ts` carries the
+ * lookup that keeps them distinct.
+ *
+ * The field was SERVED from the day the endpoint shipped and simply undeclared here, so no caller
+ * could reach it: the section-to-element link looked like unbuilt work for months.
+ */
+export interface SpecSection {
+  code: string;
+  title: string;
+  element_count: number;
+  part1_general: string;
+  part2_products: string[];
+  part3_execution: string[];
+  elements: { guid: string | null; name: string; ifc_class: string }[];
+}
+
+export interface SpecDivision {
+  division: string;
+  title: string;
+  sections: SpecSection[];
+}
+
+export interface SpecManual {
+  system: string;
+  section_count: number;
+  division_count: number;
+  note: string;
+  divisions: SpecDivision[];
+}
