@@ -44,7 +44,7 @@ networkx>=3.6.1
 shapely>=2.0
 reportlab>=5.0.0
 pyhanko>=0.25            # PAdES certificate-based PDF digital signatures (esign.py)
-pypdf>=6.14.2           # CVE-2026-59935/-59936 floor; contract/spec text extraction for the review engine (review.py)
+pypdf>=6.15.0           # CVE-2026-71852/-71870 floor (was 6.14.2 for -59935/-59936); contract/spec text extraction for the review engine (review.py)
 defusedxml>=0.7.1        # XXE / billion-laughs hardening for untrusted CityGML parsing (citygml.py)
 pyarrow>=16.0          # columnar Parquet export of the model element set (model_query.to_parquet)
 signxml>=3.2           # SAML 2.0 assertion XML-DSig signature verification (saml.py)
@@ -97,3 +97,18 @@ onnxruntime>=1.23
 # CONTRACT document — a malformed part that Word declines to open is a far worse failure than a
 # dependency, and the failure would land on a subcontractor rather than on us.
 python-docx>=1.2
+
+# --- security floors on TRANSITIVE packages -------------------------------------------------------
+# Nothing here is imported by our code. Each line exists only to raise a floor on a package we get
+# through something else, because a transitive dependency has no other place to be pinned. Delete a
+# line once the parent's own floor has caught up — leaving it costs nothing but says something false
+# about why the version is what it is.
+#
+# cryptography: arrives via pyhanko / pyhanko-certvalidator / signxml. CVE-2026-69247 (HIGH,
+# GHSA-g6cj-pr64-35w5) is a Bleichenbacher oracle in PKCS#7 EnvelopedData DECRYPTION — distinguishable
+# errors and timing. We only ever *sign* (PAdES via pyhanko, XML-DSig verification via signxml) and
+# never decrypt EnvelopedData, so the exploit path is very likely absent from our surface. Floored
+# anyway: "we don't call the vulnerable API" is an argument about today's code, and the fix is a
+# version number. Found 2026-08-09 by auditing the LOCK — CI's pip-audit had been reporting it into a
+# step summary that nothing failed on.
+cryptography>=50.0.0
