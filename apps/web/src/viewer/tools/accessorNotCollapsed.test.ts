@@ -34,6 +34,21 @@ const COLLAPSE = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(?:d|deps)\.\1\s*\(\s*\)\s*
 
 const files = readdirSync(DIR).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
 
+/**
+ * Strip comments before matching. Without this the gate reads its own subject matter: a module that
+ * *documents* the collapse — quoting the `qaSection.ts` line that caused it — is flagged for the bug
+ * it is warning against. `modelStatePanels.ts` tripped exactly that on its first run, and the fix is
+ * not to reword the comment; a check that punishes explaining a defect teaches people to stop
+ * explaining defects.
+ *
+ * This is the second gate in this repo to need it (`test_lock_advisories.py` reads a workflow step
+ * whose comment says "do not add continue-on-error"). The general rule: **a gate that greps source
+ * must strip comments, or its own documentation becomes a finding.**
+ */
+function code(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+
 describe("tools sections do not collapse an accessor dependency", () => {
   it("found the tools modules — else this passes by measuring nothing", () => {
     // The vacuity guard. An empty file list reports zero collapses and looks like total compliance.
@@ -43,7 +58,7 @@ describe("tools sections do not collapse an accessor dependency", () => {
   it("never assigns d.x() to a const named x", () => {
     const hits: string[] = [];
     for (const f of files) {
-      const src = readFileSync(resolve(DIR, f), "utf8");
+      const src = code(readFileSync(resolve(DIR, f), "utf8"));
       for (const m of src.matchAll(COLLAPSE)) hits.push(`${f}: const ${m[1]} = d.${m[1]}()`);
     }
     expect(hits,
@@ -57,6 +72,15 @@ describe("tools sections do not collapse an accessor dependency", () => {
     // at all, which is indistinguishable from the rule being followed.
     const sample = "  const selectedGuid = d.selectedGuid();\n  const other = d.other();";
     expect([...sample.matchAll(COLLAPSE)].map((m) => m[1])).toEqual(["selectedGuid", "other"]);
+  });
+
+  it("does not flag the collapse when it appears in a COMMENT", () => {
+    // The paired control for `code()`. Documenting the defect must stay possible — and the strip
+    // must not be so eager that it also removes real code on the same line.
+    const commented = "/** was `const selectedGuid = d.selectedGuid();` */\n"
+      + "// const lastPoint = d.lastPoint();\n"
+      + "const real = d.real();   // this one is code and must still be caught";
+    expect([...code(commented).matchAll(COLLAPSE)].map((m) => m[1])).toEqual(["real"]);
   });
 
   it("does not flag a legitimate inline read", () => {
