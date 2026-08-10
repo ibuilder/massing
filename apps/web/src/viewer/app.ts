@@ -46,6 +46,7 @@ import { LogisticsOverlay } from "./draft/logisticsOverlay";
 import { DraftProxyLayer } from "./draft/draftProxy";
 import { TransformGizmo } from "./draft/transformGizmo";
 import { PushPullGizmo, stretchTransform } from "./draft/pushPull";
+import { CanvasModeSwitch } from "./canvasMode";
 import { PlanPane } from "./planPane";
 import { type PlanBounds, validatePlacement } from "./placeValid";
 import { planBoundsFromModels } from "./modelBounds";
@@ -892,6 +893,46 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   });
   container.appendChild(planPane.el);
   onSelectionChanged = (guid) => planPane.highlight(guid);
+
+  // R36-VIEWER-SUBAPP ④ — the canvas is one surface at a time, not 3D with a strip attached.
+  // `specs` is deliberately NOT registered: the spec book is a modal, so a Specs tab would highlight
+  // and show nothing. `canvasMode.test.ts` fails if it is registered without a surface.
+  const canvasTabs = document.createElement("div");
+  canvasTabs.className = "canvas-tabs";
+  canvasTabs.setAttribute("role", "tablist");
+  canvasTabs.style.cssText = "position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:6;"
+    + "display:flex;gap:2px;padding:2px;border-radius:7px;background:rgba(15,23,42,.72);"
+    + "backdrop-filter:blur(6px)";
+  const modeSwitch = new CanvasModeSwitch([
+    { key: "model", label: "Model", title: "The 3D model — author, inspect and coordinate",
+      enter: () => planPane.dock("hidden"), leave: () => {} },
+    { key: "sheets", label: "Sheets", title: "The generated plan as the canvas — the drawing, full size",
+      blocked: () => (projectId ? null : "open a project first — a sheet is cut from its model"),
+      enter: () => planPane.dock("full"), leave: () => planPane.dock("hidden") },
+  ], (m) => {
+    for (const b of Array.from(canvasTabs.children) as HTMLButtonElement[]) {
+      const on = b.dataset.mode === m;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", String(on));
+    }
+  });
+  for (const key of modeSwitch.modes()) {
+    const d = modeSwitch.def(key)!;
+    const b = document.createElement("button");
+    b.className = "tool-btn" + (key === modeSwitch.active ? " on" : "");
+    b.dataset.mode = key; b.textContent = d.label; b.type = "button";
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(key === modeSwitch.active));
+    if (d.title) b.title = d.title;
+    b.style.cssText = "font-size:12px;padding:3px 12px";
+    b.onclick = () => {
+      const r = modeSwitch.switchTo(key);
+      // A refusal must SAY so. A tab that swallows the click reads as broken.
+      if (!r.ok) notify(r.reason ?? `cannot open ${d.label}`, "error");
+    };
+    canvasTabs.appendChild(b);
+  }
+  container.appendChild(canvasTabs);
   // Authoring is done through the Draft panel (the parameter-driven, snapping, per-level surface) —
   // the old click-to-place toolbar buttons (wall/column/beam/family) were a redundant second way to do
   // the same thing and were removed. The buttons below act on the *selected* element.
@@ -2147,13 +2188,17 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         + "IBC/ASTM flashing details + specs, rated walls get assembly keynotes. Same rules validate as IDS QA.";
 
       // W11 C1: generate a schematic plan drawing (SVG) from the model, at the active level if one is set.
-      const planPaneBtn = toolBtn2("◫ Plan beside model", () => {
-        const open = planPane.toggle();
-        planPaneBtn.classList.toggle("on", open);
-        if (open) notify("Plan pane open — it follows the active level", "info");
+      // Routes through the mode switch rather than toggling the pane itself: two independent
+      // controls over one element is how "both visible" and "neither visible" become reachable.
+      const planPaneBtn = toolBtn2("◫ Plan as canvas", () => {
+        const to = modeSwitch.active === "sheets" ? "model" : "sheets";
+        const r = modeSwitch.switchTo(to);
+        if (!r.ok) { notify(r.reason ?? "cannot open the plan", "error"); return; }
+        planPaneBtn.classList.toggle("on", modeSwitch.active === "sheets");
       });
-      planPaneBtn.title = "Dock the generated plan beside the 3D view; it re-cuts when you change the "
-        + "active level, and selection syncs both ways — click linework in the plan to select in 3D.";
+      planPaneBtn.title = "Make the generated plan the canvas (same as the Sheets tab). It re-cuts "
+        + "when you change the active level, and selection syncs both ways — click linework in the "
+        + "plan to select in 3D.";
       const planBtn = toolBtn2("🖨 Generate plan (SVG)", () => {
         const q = new URLSearchParams({ scale: "100" });
         if (activeStorey) q.set("storey", activeStorey);
@@ -2175,7 +2220,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       const pdfBtn = toolBtn2("⤓ Sheet PDF (A-101)", () => openSheet("pdf"));
       // R36 slice 3 — place WHAT IS ON THE CANVAS; the first point at which 2D and 3D are peers on paper.
       const placeBtn = toolBtn2("🖼 Place this view on a sheet",
-        () => openSheet("pdf", viewsForCanvas(planPane.isOpen ? "2d" : "3d", activeStoreyZ)));
+        () => openSheet("pdf", viewsForCanvas(modeSwitch.active === "sheets" ? "2d" : "3d", activeStoreyZ)));
       placeBtn.title = "Sheet PDF of the view you are looking at — the active level's plan in 2D, a true "
         + "isometric in 3D. Both are vector drawings that keep their GlobalIds, not screenshots.";
       pdfBtn.title = "Download the sheet as a PDF (ARCH-D, titleblock, plan poché + dimensions + keynotes) — "

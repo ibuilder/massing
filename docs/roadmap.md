@@ -3181,16 +3181,30 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   next person adding a deep-link cannot forget it. The behavioural tests could not see this (they
   assert the rule, not its wiring), so `wsReturn.test.ts` gained a source gate that fails when a
   listener drops `"jump"` — mutation-checked.
-- ⭐ **R36-VIEWER-SUBAPP** *(L — Lane E; slice before starting)* — **now the top item in this ring**,
-  because the rail work above cleared its way: the tools no longer float over the canvas, so the
-  canvas is free to change what it renders. Drawings + specs + model as one subapp with a mode switch
-  (Model ▸ Sheets ▸ Specs), the takeoff/markup layer as a plugin of it, and selection carried across
-  modes **by GlobalId** — pick a door in 3D, see it on the sheet; pick a keynote, see the spec section.
-  The user's framing adds a requirement the original item missed: *"they need to be interchangeable
-  and may need some refactoring so that we can print 2d or 3d"* — **print is part of the interface,
-  not a later concern.** Today 2D has a real path (plan SVG → sheet → PDF) while 3D only captures a
-  hero image, so the two are not yet peers and the mode switch would expose that immediately. Slice
-  the print path first. Per the non-negotiables the interface speaks GlobalId only, never viewer ids.
+- ◧ **R36-VIEWER-SUBAPP** *(L — Lane E; SLICE 4 SHIPPED v0.3.918 — `apps/web/src/viewer/canvasMode.ts`)*
+  — **the mode switch is in.** The canvas is now one surface at a time (Model ▸ Sheets) rather than 3D
+  with a strip attached: the plan was `position:absolute; right:0; width:38%`, so 2D was a slice of the
+  model rather than a peer of it. Visibility is DERIVED from the mode, so "both visible" and "neither
+  visible" are unrepresentable rather than merely discouraged, and the old "◫ Plan beside model"
+  toggle now routes through the switch so one thing owns the pane. A refusal carries a reason —
+  Sheets before a project is open says so, because a tab that swallows the click reads as broken.
+
+  Slices 1–3 were the print path this depended on, and the roadmap's own sequencing note was right
+  that it had to come first: `axon` reaching the shipping dispatcher (it had been drawing a plan
+  titled ISO VIEW), the `views=` grammar, and "place this view on a sheet". Without them the switch
+  would have exposed 2D and 3D as non-peers immediately.
+
+  **Specs is deliberately NOT registered, and that is remaining work, not an oversight.** The spec
+  book exists only as a modal and has no canvas surface, so a Specs tab would highlight and show
+  nothing — the failure recorded here as "existence is not arrival". `canvasMode.test.ts` fails if
+  `specs` is registered while no spec surface exists, so the third mode cannot be faked into place.
+
+  **Not verified live.** `createViewerApp` needs a WebGL context and a Fragments worker and the
+  dev-preview geometry loader stalls, so the tab strip has not been seen in a browser. 11 unit tests
+  cover the switch's behaviour and `tsc` covers the wiring; the DOM is unverified and said so.
+
+  Remaining: slice 5 (selection carried across modes **by GlobalId** — pick a door in 3D, see it on
+  the sheet), slice 6 (takeoff/markup as a plugin), and the Specs surface itself.
 
 - **R36-ROOM-BRIEFS** *(M — Lane B; one room per release)* — per-room, per-role landing priority:
   each room opens with the three answers its primary role needs (superintendent in Schedule: today's

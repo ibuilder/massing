@@ -219,5 +219,24 @@ export class PlanPane {
     return this.open;
   }
 
+  /**
+   * R36-VIEWER-SUBAPP ④ — how much of the canvas the plan occupies.
+   *
+   * `"side"` is the original 38% strip beside the model, for comparing the two. `"full"` is the plan
+   * AS the canvas, which is what makes 2D a peer of 3D rather than a slice of it. `"hidden"` yields
+   * the canvas back.
+   *
+   * Deliberately not a second visibility flag: `CanvasModeSwitch` is the single owner, and
+   * `toggle()` now routes through it. Two independent controls over one element is how you get
+   * "both visible" and "neither visible" states that nothing forbids.
+   */
+  dock(style: "side" | "full" | "hidden"): void {
+    this.open = style !== "hidden";
+    this.el.style.display = this.open ? "flex" : "none";
+    this.el.style.width = style === "full" ? "100%" : "38%";
+    this.el.style.left = style === "full" ? "0" : "";
+    if (this.open) void this.refresh(true);
+  }
+
   get isOpen(): boolean { return this.open; }
 }
