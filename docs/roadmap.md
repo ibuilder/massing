@@ -3224,8 +3224,28 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   element isn't on this level". `PlanPane` had **no instance-level tests at all**, so nothing would
   have noticed. `apps/web/src/viewer/planPaneSelection.test.ts` is now the thing that fails first.
 
-  Remaining: the **keynote → spec section** half of slice 5, which is blocked on the Specs surface;
-  slice 6 (takeoff/markup as a plugin); and the Specs surface itself.
+  **Slice 6 scoped by measurement, 2026-08-09 — it is an INTEGRATION, not a build.** The markup and
+  takeoff layer is already complete and wired: all five client methods (`drawingMarkup`,
+  `addDrawingMarkup`, `saveDrawingMarkups`, `deleteDrawingMarkup`, `promoteDrawingMarkup`) have
+  callers, the read side has four, and every one of them is in `apps/web/src/drawings/drawings.ts`.
+  Nothing needs writing; it needs to be reachable from the Sheets canvas so a drawing is marked up
+  where it is being looked at, rather than in a different room.
+
+  **The one real design question, and the non-negotiables answer it.** Markups key on a sheet id — a
+  persisted document record — and the viewer's Sheets mode renders `plan.svg?storey=…&scale=…`, a
+  live cut with no record and no id. So a generated plan needs an identity to attach markups to.
+  Keying on the storey NAME would look natural and is wrong: levels can be renamed here, and every
+  markup on that level would orphan silently. Per the non-negotiable — *reference by IFC GlobalId,
+  never transient ids* — the key is the **storey's GlobalId**. That is a rule the project already
+  holds, not a new decision, and it is the reason this is specified rather than open.
+
+  Cost that follows: `PlanPane` asks for a storey by name (`activeStorey()`), so slice 6 also has to
+  carry the storey's GUID down to the cut request. The existing `${sheet.id}#pdf` convention shows
+  the codebase already namespaces markup stores by suffix, so `plan:<storeyGuid>` fits the pattern
+  that is there.
+
+  Remaining: the **keynote → spec section** link (the spec surface now exists; keynotes do not yet
+  carry their section code), and slice 6 as specified above.
 
 - **R36-ROOM-BRIEFS** *(M — Lane B; one room per release)* — per-room, per-role landing priority:
   each room opens with the three answers its primary role needs (superintendent in Schedule: today's
