@@ -10,7 +10,15 @@ on:
   push:
     branches: [main]
     paths:
+      # `.lock` and `.in` are NOT covered by the `*.txt` glob, and their absence was a real hole:
+      # this workflow audits `services/api/requirements.lock`, and until 2026-08-09 a change to that
+      # exact file could not trigger the workflow that audits it. The CVE bumps that found this ran
+      # only because the same commit happened to touch security.yml. A check's TRIGGER is part of its
+      # scope, and a scope that excludes its own subject is not a smaller check — it is no check.
+      # `test_lock_advisories.py` now asserts every audited path matches one of these globs.
       - "**/requirements*.txt"
+      - "**/requirements*.lock"
+      - "**/requirements*.in"
       - "**/package.json"
       - "**/package-lock.json"
       - ".github/workflows/security.yml"

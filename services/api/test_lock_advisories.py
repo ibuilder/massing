@@ -141,10 +141,45 @@ def test_the_workflow_actually_calls_the_gate_and_can_fail() -> None:
     print("PASS  security.yml invokes the gate, with no continue-on-error and no `|| true`")
 
 
+def test_every_audited_path_can_actually_trigger_the_workflow() -> None:
+    """A gate that its own subject cannot trigger is not a smaller gate — it is no gate.
+
+    Found 2026-08-09, immediately after shipping the gate above. `security.yml` triggered on
+    `**/requirements*.txt`; the file it audits is `services/api/requirements.lock`, which matches
+    none of the globs. A lock-only change — the exact change that introduces or removes an advisory
+    — could not start the workflow that checks the lock. The CVE-bump commit ran it only because it
+    happened to touch `security.yml` in the same push.
+
+    So this asserts the two halves against each other: every path in `audit_lock_gate.LOCKS` must
+    match one of the workflow's `paths:` globs. Neither list is trusted to remember the other.
+    """
+    import fnmatch
+
+    gate = _load()
+    wf = os.path.join(os.path.dirname(__file__), "..", "..", ".github", "workflows", "security.yml")
+    with open(wf, encoding="utf-8") as fh:
+        src = fh.read()
+    block = src[src.index("    paths:"):src.index("  workflow_dispatch:")]
+    globs = [ln.strip().lstrip("- ").strip('"')
+             for ln in block.splitlines() if ln.strip().startswith("- ")]
+    assert globs, "no paths: globs parsed — this check is reading the wrong part of the workflow"
+
+    for lock in gate.LOCKS:
+        matched = [g for g in globs
+                   if fnmatch.fnmatch(lock, g) or fnmatch.fnmatch(lock, g.replace("**/", "*"))
+                   or fnmatch.fnmatch(os.path.basename(lock), g.lstrip("**/"))]
+        assert matched, (
+            f"{lock} is audited by the gate but matches none of security.yml's trigger globs "
+            f"{globs} — a change to it would not run the workflow that audits it")
+    print(f"PASS  every audited lock can trigger the workflow   {len(gate.LOCKS)} path(s) vs "
+          f"{len(globs)} glob(s)")
+
+
 if __name__ == "__main__":
     test_every_exemption_is_dated_and_unexpired()
     test_an_expired_exemption_blocks()
     test_a_fixable_advisory_blocks_and_an_unfixable_one_does_not()
     test_a_broken_audit_run_is_a_failure_not_a_pass()
     test_the_workflow_actually_calls_the_gate_and_can_fail()
+    test_every_audited_path_can_actually_trigger_the_workflow()
     print("test_lock_advisories OK")
