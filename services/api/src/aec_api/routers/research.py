@@ -237,8 +237,37 @@ async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depen
     from .. import modules as me
     from .. import storage
 
+    from .. import schedule_import
+
     text = (await file.read()).decode("utf-8", "ignore")
-    activities = parse_schedule(text)            # auto-detects XER (tab-delimited) or PMXML (XML)
+
+    # XER and MSPDI now go through the vendored massingplan readers, which carry
+    # TASKPRED, calendars, constraints, actuals and remaining duration. The
+    # previous path wrote five fields per activity and read no relationships at
+    # all — and a network with no relationships has no critical path, so every
+    # activity came back with zero float while the import reported success.
+    report: dict = {}
+    rich: list[dict] = []
+    try:
+        rich, report = schedule_import.parse_full(text)
+    except ValueError:                               # not a format we read fully
+        report = {"format": "unknown", "fell_back": True, "issues": []}
+    except Exception as exc:                         # noqa: BLE001 — never fail the upload
+        report = {"format": "unknown", "fell_back": True,
+                  "issues": [{"severity": "error", "code": "IMPORT.READER_FAILED",
+                              "message": str(exc),
+                              "action": "fell back to the legacy parser"}]}
+
+    if rich:
+        activities = [{"activity_id": r["activity_id"], "name": r["data"]["name"],
+                       "start": r["data"]["start"], "finish": r["data"]["finish"],
+                       "activity_type": r["data"]["activity_type"],
+                       "_data": r["data"]} for r in rich]
+    else:                                            # PMXML, or a file we could not read fully
+        activities = parse_schedule(text)            # auto-detects XER (tab-delimited) or PMXML (XML)
+        report.setdefault("fell_back", True)
+        report.setdefault("has_logic", False)
+
     if not activities:
         raise HTTPException(422, "no activities found — is this a Primavera P6 .xer or .xml export?")
     starts = [a["start"] for a in activities if a.get("start")]
@@ -255,9 +284,12 @@ async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depen
     created = updated = 0
     for a in activities:
         code = a.get("activity_id") or ""
-        data = {"name": a.get("name") or code or "Activity", "wbs": code,
-                "start": a.get("start") or None, "finish": a.get("finish") or None,
-                "activity_type": "Milestone" if (a.get("start") and a.get("start") == a.get("finish")) else "Task"}
+        # `_data` is the full blob from the vendored reader — logic, calendar,
+        # constraints, actuals. Absent only on the legacy fallback path.
+        data = a.get("_data") or {
+            "name": a.get("name") or code or "Activity", "wbs": code,
+            "start": a.get("start") or None, "finish": a.get("finish") or None,
+            "activity_type": "Milestone" if (a.get("start") and a.get("start") == a.get("finish")) else "Task"}
         rid = prior_index.get(code)
         if rid:
             try:                                     # update the existing imported record (keeps GC edits elsewhere)
@@ -269,10 +301,15 @@ async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depen
         record_ids[code] = rec["id"]; created += 1
 
     payload = {"activities": activities, "count": len(activities), "record_ids": record_ids,
-               "start": min(starts) if starts else None, "finish": max(finishes) if finishes else None}
+               "start": min(starts) if starts else None, "finish": max(finishes) if finishes else None,
+               "import_report": report}
     storage.put(_P6_KEY.format(pid=pid), json.dumps(payload).encode("utf-8"))
     return {"count": payload["count"], "created": created, "updated": updated,
-            "start": payload["start"], "finish": payload["finish"], "preview": activities[:20]}
+            "start": payload["start"], "finish": payload["finish"], "preview": activities[:20],
+            # The headline the caller has to be able to see: how much logic came
+            # across, and everything the reader had to coerce or drop. Without
+            # `has_logic` a zero-relationship import looks identical to a good one.
+            "report": report}
 
 
 @router.delete("/projects/{pid}/schedule/import-xer")
