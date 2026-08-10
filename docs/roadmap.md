@@ -643,12 +643,34 @@ the only item here with real scope.
   that number decide whether the other registers follow. A ring that starts by converting all of them
   has assumed its own result.
 
-- **R43-MASSINGBILL-CORE** *(M — Lane C; blocked on the sibling, instruction already sent)* —
-  **not adoptable yet.** "application.py" (778 lines) and "sov.py" (398) — their files, not ours, hence plain quotes — import SQLAlchemy and the ORM,
-  so there is no framework-free core to vendor the way massingplan's 19 stdlib modules were. They are
-  extracting one. **The question they must answer before any of it lands is replacement or addition**
-  — we already ship `payapp.py`, `sov_build.py` and `payments_bridge.py`, and "integrate" is not an
-  answer to that. Adoption bar: [`vendorable-core-standard.md`](internal/vendorable-core-standard.md).
+- ◧ **R43-MASSINGBILL-CORE** *(M — Lane C; kit reviewed 2026-08-10 at their pin `3af9124c`)* —
+  **the core now exists and is MIT; their "pure addition" claim does NOT survive checking.** They
+  shipped `massingbill/core/` — four stdlib-only modules (`money`, `retainage`, `requisition`,
+  `enums`) with a CI job that pip-installs nothing at all, so "zero deps" is measured rather than
+  asserted. Licence read from their `LICENSE` file: MIT.
+
+  **Verified on our side, and this is the part that changes the plan.** Their message said there is
+  *"no G702 header math, retainage engine or change-order handling on your side to supersede"*. Both
+  halves of that are wrong: `payapp.py:49` computes `amt * retainage_pct / 100.0` — retainage
+  arithmetic, in floats, on billable amounts — and `G702` appears in **six** of our files
+  (`cost.py`, `report.py`, `rooms.py`, `routers/closeout.py`, `routers/cost.py`,
+  `routers/proforma.py`). So the requisition half is **not an addition, it is a potential duality**,
+  which is the shape that produced "two objects both called an RFI". It needs a per-site decision,
+  not a drop-in.
+
+  **What they got right, confirmed:** `payapp.py:23` is a single `float(str(v).replace(",", "")
+  .replace("$", ""))` that every billed amount flows through, and summing a 200-line schedule that
+  way drifts. `sov_build.py` derives an SOV *from a model estimate* and theirs never does, so that
+  one is genuinely ours and they compose.
+
+  **Recommended split (the user's call, see the decisions section):** take "core/money.py" first and
+  fix the float path alone, with the existing G702 suite as the **parity gate** — the new code must
+  reproduce the old numbers before it replaces them. Treat the requisition half as its own ring once
+  the six G702 sites are mapped.
+
+  *Their environment claim was also wrong in our favour to catch:* they assumed we run 3.12. CI does;
+  the api venv is **3.10.6**, where `from enum import StrEnum` raises. Their guard commit is the
+  difference between a clear message and a baffling one on the first local run.
 
 - **R43-PLAN-DRIFT** *(S — Lane C)* — **pin cadence for the vendored massingplan engine.** Pin
   `155640a7` is clean and correct today; what does not exist is a way to notice when it stops being.
