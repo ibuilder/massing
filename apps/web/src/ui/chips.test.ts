@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { countNarrative, deltaChip, kpiHeader, statusChip, toneFor } from "./chips";
+import { countNarrative, deltaChip, kpiHeader, shareState, statusChip, toneFor } from "./chips";
 
 describe("UX-CHIPS — the shared status/delta vocabulary", () => {
   it("maps workflow words to tones", () => {
@@ -86,5 +86,45 @@ describe("UX-CHIPS — the shared status/delta vocabulary", () => {
     expect(html).toContain("3 jobs on track, 1 over budget");
     expect(html).not.toContain("stalled");              // zero counts drop out
     expect(countNarrative([[0, "x"]])).toBe("Nothing needs attention");
+  });
+});
+
+describe("shareState — UX-VIEWED, and the state it deliberately does not claim", () => {
+  it("an unviewed link is Sent, with no timestamp to show", () => {
+    expect(shareState(0, null)).toEqual({ label: "Sent", ts: null });
+  });
+
+  it("a viewed link is Viewed, and carries last_viewed_at — the field this row used to drop", () => {
+    // The whole point of the item: the timestamp was stored, served and typed, and never read.
+    expect(shareState(3, "2026-08-09T12:00:00Z")).toEqual({ label: "Viewed", ts: "2026-08-09T12:00:00Z" });
+  });
+
+  it("views with NO timestamp are still Viewed — the count is the fact", () => {
+    // Rows predating the column being populated have a count and no date. Reporting Sent because a
+    // date is missing would be a claim about the recipient rather than about our data.
+    expect(shareState(2, null)).toEqual({ label: "Viewed", ts: null });
+  });
+
+  it("a single view is Viewed, not a plural-off-by-one", () => {
+    expect(shareState(1, "2026-08-09T12:00:00Z").label).toBe("Viewed");
+  });
+
+  it("NEVER returns Paid — the share row has no payment state to derive it from", () => {
+    /**
+     * `show_payments` on the token is a CAPABILITY flag — whether the shared page displays payments —
+     * not a record that one occurred. A "Paid" chip derived from it would assert on screen something
+     * nobody measured. This test exists so that when someone reaches for the third state they have to
+     * bring a real signal with them, and delete this deliberately rather than discover the gap later.
+     */
+    for (const [n, ts] of [[0, null], [1, "2026-08-09T12:00:00Z"], [99, null]] as const) {
+      expect(shareState(n, ts).label).not.toBe("Paid");
+    }
+  });
+
+  it("the chip it feeds renders the timestamp span, which is why statusChip takes `ts` at all", () => {
+    const st = shareState(4, "2026-08-09T12:00:00Z");
+    const html = statusChip(st.label, { ts: st.ts });
+    expect(html).toContain("chip2-ts");
+    expect(html).toContain("Viewed");
   });
 });

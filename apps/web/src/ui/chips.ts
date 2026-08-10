@@ -104,3 +104,25 @@ function fmtMoney(v: number): string {
   if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
   return `$${v.toFixed(0)}`;
 }
+
+/**
+ * UX-VIEWED — the state of a share link, in the Sent → Viewed → Paid vocabulary this module owns.
+ *
+ * Every layer for this already existed: `ShareToken` stores `view_count` and `last_viewed_at`,
+ * `client_portal.py` increments both on every view and serves them, and `client.ts` types them. The
+ * only thing missing was a caller — `masterBuilder.ts` rendered `(3 views)` as plain text and never
+ * touched `last_viewed_at` at all, so the timestamp was stored, serialised, sent over the wire,
+ * typed, and dropped on the floor. Nothing needed building; something needed calling.
+ *
+ * **PAID IS DELIBERATELY NOT RETURNED.** The vocabulary has three states and this function produces
+ * two, because the share-token row carries no payment state — `show_payments` is a *capability* flag
+ * (whether the shared page displays payments at all), not a record that one happened. Deriving
+ * "Paid" from it would put a chip on the screen asserting something nobody measured. When a real
+ * paid signal reaches this row, it goes here.
+ */
+export function shareState(viewCount: number, lastViewedAt: string | null): { label: string; ts: string | null } {
+  // A viewed link with no timestamp is still Viewed — the count is the fact, the timestamp is detail
+  // that predates the column being populated. Reporting Sent because a date is missing would be a
+  // claim about the recipient rather than about our data.
+  return viewCount > 0 ? { label: "Viewed", ts: lastViewedAt } : { label: "Sent", ts: null };
+}

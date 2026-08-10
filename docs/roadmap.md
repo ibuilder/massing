@@ -2721,8 +2721,20 @@ removed. Remaining, in priority order:
   destinations whose names do not tell a user which answers their question; all three now sit together
   under `Analyse & check`, which makes the overlap visible and worth resolving rather than hiding it.
 - **UX-GANTT** *(M)* — weekly Gantt/calendar hybrid with inline % + crew coloring + a metric strip.
-- ◧ **UX-VIEWED** *(S — **checked 2026-08-06: the pipeline is built end to end and the CHIP is the
-  only thing missing**)* — ShareToken page view-timestamps → Sent/Viewed/Paid chips, self-hosted.
+- ✅ **UX-VIEWED — COMPLETE, v0.3.922.** ShareToken view-timestamps now render as chips.
+  `apps/web/src/ui/chips.ts::shareState` + the call in `masterBuilder.ts`.
+  **Shipped as scoped — one call, plus the honest edge the entry did not anticipate.** The 2026-08-06
+  check was right in every particular: `statusChip` already took a `ts` option *for this*,
+  `last_viewed_at` was already typed at `client.ts`, and `masterBuilder.ts` never imported the chip
+  module at all. Nothing needed building.
+
+  **Paid is deliberately NOT produced, and that is a finding rather than a shortfall.** The vocabulary
+  names three states; the share-token row carries no payment state. `show_payments` is a *capability*
+  flag — whether the shared page displays payments — not a record that one happened. Deriving "Paid"
+  from it would put a chip on screen asserting something nobody measured, so `shareState` returns two
+  states and a test asserts it never returns the third. When a real paid signal reaches this row,
+  whoever adds it must delete that test on purpose rather than discover the gap in review.
+
 
   Every layer this needs already exists. `services/api/src/aec_api/models.py` stores `view_count` and
   `last_viewed_at` on `ShareToken`; `services/api/src/aec_api/client_portal.py` **increments both on

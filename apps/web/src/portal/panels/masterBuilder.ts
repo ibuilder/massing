@@ -1,3 +1,4 @@
+import { shareState, statusChip } from "../../ui/chips";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 
@@ -107,10 +108,20 @@ export async function renderMasterBuilder(ctx: PanelContext) {
           const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;margin:2px 0;flex-wrap:wrap";
           const link = document.createElement("a"); link.href = ctx.host.api.sharedPageUrl(t.token); link.target = "_blank"; link.rel = "noopener";
           link.className = "meta"; link.style.cssText = "flex:1 1 200px;word-break:break-all";
-          link.textContent = `🔗 ${t.label ? t.label + " · " : ""}…${t.token.slice(-8)}${t.show_payments ? " · 💲" : ""} (${t.view_count} view${t.view_count === 1 ? "" : "s"})`;
+          link.textContent = `🔗 ${t.label ? t.label + " · " : ""}…${t.token.slice(-8)}${t.show_payments ? " · 💲" : ""}`;
+          // UX-VIEWED: the chip vocabulary, on data that was already on the wire. `last_viewed_at`
+          // was stored, served and typed, and this row dropped it — the count was rendered as
+          // plain text and the timestamp never read at all.
+          const st = shareState(t.view_count, t.last_viewed_at);
+          const chip = document.createElement("span");
+          chip.style.flex = "0 0 auto";
+          chip.innerHTML = statusChip(st.label, { ts: st.ts,
+            title: `${st.label} — ${t.view_count} view${t.view_count === 1 ? "" : "s"}`
+              + (st.ts ? `, last ${st.ts}` : "") });   // statusChip escapes label and title itself
+
           const del = document.createElement("button"); del.className = "selset-del"; del.textContent = "✕ revoke"; del.title = "Revoke this link immediately";
           del.onclick = async () => { try { await ctx.host.api.revokeShareToken(pid, t.token); void loadTokens(); } catch (e) { alert((e as Error).message); } };
-          row.append(link, del); shareBody.appendChild(row);
+          row.append(link, chip, del); shareBody.appendChild(row);
         }
       } catch (e) { shareBody.innerHTML = `<div class="meta">Share links unavailable: ${esc((e as Error).message)}</div>`; }
     };
