@@ -39,6 +39,19 @@ jobs:
             echo "## $req" >> "$GITHUB_STEP_SUMMARY"
             pip-audit -r "$req" --desc --format markdown >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
           done
+      - name: pip-audit — GATE on advisories that HAVE a published fix (blocking)
+        # The report-only step above is a triage surface and stays that way. It is also, on its own,
+        # a check with no failure mode: it carries continue-on-error AND a trailing `|| true`, and on
+        # 2026-08-09 it was found to have been reporting a HIGH in cryptography (CVE-2026-69247) into
+        # a step summary while this job reported success. Same shape as the bandit pair below —
+        # report everything, block on the part that is unambiguously actionable.
+        #
+        # Blocks only where a fix version exists, because only then is there something to do. See
+        # scripts/audit_lock_gate.py for why that asymmetry is the design and not a loophole.
+        # Do not weaken this step; test_lock_advisories.py asserts that neither escape hatch is
+        # present, which is the only reason it cannot quietly revert to what it replaced.
+        run: python scripts/audit_lock_gate.py
+
       - name: bandit (code security scan, medium+ severity)
         continue-on-error: true        # report-only — surfaces XXE / SSRF / injection patterns
         run: |
