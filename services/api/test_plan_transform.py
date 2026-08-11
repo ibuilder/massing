@@ -122,6 +122,53 @@ if len(levels) > 1:
           ("terms that moved between storeys: " + ", ".join(moved)) if moved else
           "every term identical across two storeys — the values are not derived from the cut")
 
+# --- R43-PLAN-EMPTY-AT-CUT ------------------------------------------------------------------------
+# A plan can compose fully — titleblock, scale bar, grid — while the cut plane found NO geometry,
+# and until v0.3.928 nothing in the output said so. Measured on this same fixture: the top storey at
+# 11.400 yields zero cut loops at the default `elevation + 1.2`, because the parapet is shorter than
+# the cut height. The existing early return did not fire because it requires polys AND below AND
+# grid to all be empty, and `grid_from_meshes` derives from the whole model rather than from the cut.
+#
+# "The storey is empty" and "we cut above the building" are different facts. The output must
+# distinguish them, and this asserts BOTH directions — a check that only looked at the empty storey
+# would pass on an implementation that stamped the warning onto every sheet.
+per_storey = {}
+for lvl in levels:
+    s_svg = drawings.plan_svg(model, lvl["elevation"])
+    m_loops = re.search(r'data-plan-cut-loops="(\d+)"', s_svg)
+    per_storey[lvl["elevation"]] = (int(m_loops.group(1)) if m_loops else None,
+                                    "NO GEOMETRY AT THIS CUT" in s_svg)
+
+check("every plan reports its cut-loop count",
+      all(v[0] is not None for v in per_storey.values()),
+      "; ".join(f"{k:.3f}={v[0]}" for k, v in per_storey.items()))
+
+empty = {k: v for k, v in per_storey.items() if v[0] == 0}
+drawn = {k: v for k, v in per_storey.items() if (v[0] or 0) > 0}
+
+check("the fixture actually exercises both cases — otherwise the two checks below are vacuous",
+      bool(empty) and bool(drawn),
+      f"{len(empty)} empty cut(s), {len(drawn)} drawn")
+
+check("a cut that found nothing says so on the sheet",
+      all(v[1] for v in empty.values()),
+      "; ".join(f"{k:.3f} loops={v[0]} note={v[1]}" for k, v in empty.items()))
+
+check("a cut that found geometry does NOT carry the warning — the twin",
+      not any(v[1] for v in drawn.values()),
+      "; ".join(f"{k:.3f} loops={v[0]} note={v[1]}" for k, v in drawn.items() if v[1]))
+
+# The note must not be a silent re-cut. The titleblock prints the cut elevation, so a plan that
+# quietly re-cut somewhere else would make that printed number a lie — a confident wrong answer
+# rather than an obvious missing one. Assert the empty sheet still reports the elevation it was ASKED
+# for, not one it chose.
+if empty:
+    e0 = sorted(empty)[0]
+    esvg = drawings.plan_svg(model, e0)
+    check("an empty cut still reports the elevation it was asked for, not a substituted one",
+          f"{e0 + 1.2:.3f}" in esvg,
+          f"expected the cut elevation {e0 + 1.2:.3f} to appear on the sheet")
+
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)

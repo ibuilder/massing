@@ -520,7 +520,23 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
            f'data-plan-scale="{float(scale)!r}" '
            f'data-plan-ox="{float(ox)!r}" data-plan-oy="{float(oy)!r}" '
            f'data-plan-minx="{float(mn[0])!r}" data-plan-miny="{float(mn[1])!r}" '
-           f'data-plan-drawh="{float(draw_h)!r}"'
+           f'data-plan-drawh="{float(draw_h)!r}" '
+           # R43-PLAN-EMPTY-AT-CUT: how many loops the CUT produced, always, as a number.
+           #
+           # Measured on `samples/school_str.ifc`: the top storey at 11.400 yields ZERO cut loops at
+           # the default `elevation + 1.2`, because the parapet is shorter than the cut height and
+           # the plane passes over the building. The sheet still composed — titleblock, scale bar,
+           # grid — so a blank drawing printed and nothing said why.
+           #
+           # The existing early return only fires when polys AND below AND grid are all empty, and
+           # `grid_from_meshes` derives from the whole model rather than from the cut, so a storey
+           # with any grid at all skips the guard. That is why the case was invisible.
+           #
+           # A COUNT, not a boolean: it answers "was anything drawn" and "how much" with one value
+           # that cannot drift out of step with a separate flag. **Zero here means "we cut above (or
+           # below) the geometry", which is a different fact from "this storey is empty" — and until
+           # now the output could not tell them apart.**
+           f'data-plan-cut-loops="{len(guided)}"'
            f'><rect width="{width}" height="{height}" fill="#fff"/>']
 
     # grid lines + bubbles
@@ -623,6 +639,22 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
                    f'<text x="{pad+28}" y="{ly:.0f}" font-family="sans-serif" font-size="10" '
                    f'fill="#777">below cut (view depth)</text>')
     out.append(_pin_layer(pins, T, mn, mx))
+    # R43-PLAN-EMPTY-AT-CUT, the human half. `data-plan-cut-loops` tells a program the cut was
+    # empty; it does nothing for someone holding a printed sheet. A plan with a full titleblock, a
+    # scale bar and a grid — and no building — reads as "this storey is empty", which is a different
+    # claim from the true one: the cut plane missed the geometry.
+    #
+    # Deliberately NOT a silent retry at a lower plane. The titleblock prints the cut elevation, so
+    # re-cutting somewhere else and saying nothing would make that printed number a lie — worse than
+    # a blank sheet, because it is a confident wrong answer rather than an obvious missing one.
+    if not polys:
+        out.append(f'<text x="{ox + draw_w / 2:.0f}" y="{oy + draw_h / 2:.0f}" '
+                   f'text-anchor="middle" font-family="sans-serif" font-size="15" fill="#b00">'
+                   f'NO GEOMETRY AT THIS CUT ({elevation + cut_height:.3f} m)</text>'
+                   f'<text x="{ox + draw_w / 2:.0f}" y="{oy + draw_h / 2 + 19:.0f}" '
+                   f'text-anchor="middle" font-family="sans-serif" font-size="11" fill="#777">'
+                   f'the cut plane is above or below this storey&#8217;s geometry &#8212; '
+                   f'adjust the cut height</text>')
     out.append(_titleblock_band(width, height, pad, title, elevation + cut_height, scale, grid))
     out.append("</svg>")
     return "".join(out)

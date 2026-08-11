@@ -245,25 +245,30 @@ instances:
   the files that batch was already fighting over.
 
 
-- **R43-PLAN-EMPTY-AT-CUT** *(S — Lane D; measured 2026-08-10, found while checking a sibling's
-  bug report against our own pipeline)* — **a plan can render zero linework and report itself fine.**
-  `plan_svg` cuts at `elevation + cut_height` with `cut_height=1.2` m. On `samples/school_str.ifc`
-  the top storey at 11.400 yields **0 cut loops at the default cut** — the parapet is shorter than
-  the cut height, so the plane passes over everything. The sheet composes, the titleblock prints the
-  cut elevation, and nothing says the drawing is empty *because it was cut above the building*
-  rather than because the storey is empty. **Those are different facts and the output cannot tell
-  them apart.** Cheap fix shape: when a cut returns no loops, say so in the response the way an
-  `incomplete[]` field would — do NOT silently retry at a lower plane, which would make the
-  titleblock's stated elevation a lie. Not obviously a bug: "nothing is at that height" may be the
-  right answer for a roof plan, which is exactly why this is a gap-check and not a fix.
+- ✅ **R43-PLAN-EMPTY-AT-CUT — SHIPPED v0.3.929.** A plan could compose fully — titleblock, scale
+  bar, grid — while the cut plane found **no geometry**, and nothing in the output said so. Measured
+  on `samples/school_str.ifc`: the top storey at 11.400 yields **zero** cut loops at the default
+  `elevation + 1.2 m`, because the parapet is shorter than the cut height.
 
-  *Provenance worth keeping:* the sibling reported that **their** sectioner drops loops at cuts
-  exactly coplanar with a datum — 7 loops becoming 3 — and warned it would reach plans, since plans
-  get cut at storey elevations. **Measured against ours, it does not reproduce**: on `school_str.ifc`
-  and `samples/vertical_farm.ifc`, at every storey datum, the exact-height count equals the +1 mm
-  count and never falls below both neighbours. We also do not depend on `@massing/drawings2d`. The
-  warning was right to send and the conclusion still had to be measured — reasoning from "we both
-  section meshes" would have produced the wrong answer in either direction.
+  **Why it was invisible:** an early "no geometry" return existed, but it fires only when polys AND
+  below AND grid are *all* empty — and `grid_from_meshes` derives from the whole model rather than
+  from the cut, so any storey with a grid skipped the guard entirely. A guard whose condition is
+  broader than the thing it guards is a guard that never runs.
+
+  Two halves. Machine-readable: `data-plan-cut-loops` on the SVG root, **a count rather than a
+  boolean**, so it answers "was anything drawn" and "how much" with one value that cannot drift out
+  of step with a separate flag. Human-readable: a red **NO GEOMETRY AT THIS CUT** note with the cut
+  elevation, because a count does nothing for someone holding a printed sheet.
+
+  **Deliberately not a silent re-cut at a lower plane.** The titleblock prints the cut elevation, so
+  quietly cutting elsewhere would make that printed number a lie — a confident wrong answer instead
+  of an obvious missing one. Asserted: an empty cut still reports the elevation it was *asked* for.
+
+  Covered in `services/api/test_plan_transform.py` (same fixture, so the bake cost is paid once).
+  Three mutations, all caught by name: removing the note, stamping it on **every** sheet — the twin,
+  without which the empty-case check would pass on a plan that cried wolf on all of them — and
+  hardcoding the loop count, which made the fixture stop containing an empty case and tripped the
+  **vacuity guard** (`0 empty cut(s), 5 drawn`) rather than passing on nothing.
 
 - **R43-VIEWER-CONFORMANCE** *(S — Lane E; MassingViewer issue #512)* — **run their conformance
   suite against our live API.** Their `kernel-remote` score is 0.0.0 and has only ever passed against
