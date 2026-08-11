@@ -18,6 +18,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from starlette.concurrency import run_in_threadpool
 
+from .. import storage
 from ..rbac import current_user
 from ..serving import content_disposition
 from ..throttle import rate_limited
@@ -70,7 +71,12 @@ async def convert(file: UploadFile = File(...), _: str = Depends(current_user),
             safe = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(file.filename or "model.rvt")) or "model.rvt"
             rvt = Path(td) / safe
             frag = Path(td) / "out.frag"
-            rvt.write_bytes(await file.read())
+            # R41-UPLOAD-WARK: stream to the temp path instead of `write_bytes(await file.read())`.
+            # RVT files are among the largest anything uploads here, and Starlette has ALREADY
+            # spooled this one to disk — so the old line was a disk-to-memory-to-disk copy of a file
+            # that existed the whole time. `stream_to_path` also writes `.part` then renames, so a
+            # failed upload cannot leave a truncated .rvt that the converter would happily open.
+            await run_in_threadpool(storage.stream_to_path, rvt, storage.upload_chunks(file))
             try:
                 # The APS translation can run for many minutes; never block the event loop on it.
                 await run_in_threadpool(

@@ -81,8 +81,26 @@ currently fail if either regresses.**
   `bodycap.MaxBodySizeMiddleware` now counts bytes on the ASGI `receive` channel, which bounds every
   route at once rather than a hand-listed set that would be stale the day it was written.
   `storage.put_stream` is the back half's missing primitive (local `.part`+rename, S3 multipart, both
-  cleaning up on refusal). **What remains: no `await file.read()` call site has been converted**, so
-  a request under the cap is still materialised whole. That is the rest of R41-UPLOAD-WARK.
+  cleaning up on refusal). **Corrected 2026-08-10: "no call site has been converted" was already
+  false when written.** Four were — `routers/authoring.py` (twice), `routers/bcf_api.py`,
+  `routers/bim.py` — and `storage.py`'s own docstring says "the four converted routes", so the
+  roadmap contradicted the code it was describing. The caller-side helpers exist too:
+  `storage.upload_chunks`, `storage.stream_to_path`, `storage.file_chunks`. A fifth converted
+  v0.3.927: the APS **RVT** path in `routers/convert.py`, which did
+  `rvt.write_bytes(await file.read())` on the largest files anything uploads here.
+
+  **The remaining ~34 sites are NOT all convertible, and counting them as if they were is what made
+  this item look bigger than it is.** They split three ways, and only the first is work:
+  *(a)* routes that **store** the upload — convertible, same one-line shape as the five done;
+  *(b)* routes that hand the bytes to a **whole-buffer parser** — CityGML XML, E57 point-cloud
+  decode, BFAST/VIM, `bcf_io.parse_records_bcfzip`, the Excel/CSV sheet readers. Streaming those
+  means changing the parsers, which is a different item with a different risk profile, and pretending
+  otherwise is how a "convert the call sites" ticket quietly becomes a rewrite;
+  *(c)* routes whose payload is **structurally small** — an IDS file, a JSON config, a `.bcf` —
+  where the copy is not worth a code change.
+
+  So the honest remaining scope is (a), and the next step is to *classify the 34* rather than
+  convert them — **a count is not a work list.**
 
 - ✅ **SHIPPED v0.3.876 (2026-08-07)** — R39-THROTTLE-SHARED ①. *Full record archived 2026-08-10 → docs/roadmap-completed.md.*
 - ✅ **LOD 2025 — COMPLETE as of v0.3.903.** *Full record archived 2026-08-10 → docs/roadmap-completed.md.*

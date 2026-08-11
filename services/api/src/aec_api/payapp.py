@@ -11,18 +11,53 @@ after funds received), and *progress* or *final*. We match by substring on `waiv
 with whatever labels a deployment uses."""
 from __future__ import annotations
 
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+
 from sqlalchemy.orm import Session
 
 from . import modules as me
 
+_CENT = Decimal("0.01")
 
-def _num(v) -> float:
-    if v in (None, ""):
-        return 0.0
+
+def _money(v) -> Decimal:
+    """Parse a declared amount to an exact Decimal.
+
+    This replaced `_num`, which did `float(str(v).replace(",", "").replace("$", "").strip())` and
+    handed the result to an accumulator. Summing money as binary floats drifts — ten 0.10s do not
+    make 1.00 — and `reconcile` accumulates across an unbounded number of rows. A pay application
+    out by a penny gets rejected, so the drift is the document failing, not a rounding curiosity.
+
+    `Decimal(str(v))` rather than `Decimal(v)` on purpose: `Decimal(0.1)` captures the float's error
+    exactly (0.1000000000000000055511151231257827…) and preserves the very thing being fixed, while
+    `Decimal("0.1")` is 0.1. Callers legitimately pass floats — records store JSON — so the string
+    round-trip is where the value stops being binary.
+
+    Same permissive contract as before: unparseable and empty both return zero rather than raising.
+    A new parser is a contract change for every caller, and `test_money_parity.py` pins the accepted
+    spellings so tightening it cannot happen by accident.
+    """
+    if v is None or v == "":
+        return Decimal(0)
     try:
-        return float(str(v).replace(",", "").replace("$", "").strip())
-    except (TypeError, ValueError):
-        return 0.0
+        return Decimal(str(v).replace(",", "").replace("$", "").strip())
+    except (TypeError, ValueError, InvalidOperation):
+        return Decimal(0)
+
+
+def _q(d: Decimal) -> Decimal:
+    """Quantize to cents, HALF-UP — the accounting convention.
+
+    Not `round()` and not Decimal's default: both are ROUND_HALF_EVEN, so `round(0.125, 2)` gives
+    0.12. An invoice rounds half away from zero. The difference is invisible until an auditor finds
+    it, which is why it is asserted rather than assumed.
+    """
+    return d.quantize(_CENT, rounding=ROUND_HALF_UP)
+
+
+def _retainage(amount: Decimal, pct: Decimal) -> Decimal:
+    """Retainage as cents. Exact multiply, then one quantize — never quantize the operands first."""
+    return _q(amount * pct / Decimal(100))
 
 
 def _is_unconditional(wt: str) -> bool:
@@ -38,15 +73,16 @@ def reconcile(db: Session, project_id: str) -> dict:
 
     def V(name: str) -> dict:
         return vend.setdefault(name or "(unknown)", {
-            "vendor": name or "(unknown)", "billed": 0.0, "paid": 0.0, "retainage": 0.0,
-            "waived_unconditional": 0.0, "waived_conditional": 0.0,
+            "vendor": name or "(unknown)", "billed": Decimal(0), "paid": Decimal(0),
+            "retainage": Decimal(0),
+            "waived_unconditional": Decimal(0), "waived_conditional": Decimal(0),
             "paid_invoices": 0, "waivers": 0})
 
     for r in invoices:
         d = r.get("data", {})
         v = V(d.get("vendor"))
-        amt = _num(d.get("amount"))
-        ret = amt * _num(d.get("retainage_pct")) / 100.0
+        amt = _money(d.get("amount"))
+        ret = _retainage(amt, _money(d.get("retainage_pct")))
         state = r.get("workflow_state")
         if state in ("approved", "paid"):
             v["billed"] += amt
@@ -60,7 +96,7 @@ def reconcile(db: Session, project_id: str) -> dict:
         if r.get("workflow_state") not in ("received", "closed"):
             continue                                             # only waivers actually on file count
         v = V(d.get("vendor"))
-        amt = _num(d.get("amount"))
+        amt = _money(d.get("amount"))
         v["waivers"] += 1
         if _is_unconditional(d.get("waiver_type")):
             v["waived_unconditional"] += amt
@@ -69,17 +105,25 @@ def reconcile(db: Session, project_id: str) -> dict:
 
     rows = []
     for v in vend.values():
-        exposure = round(max(0.0, v["paid"] - v["waived_unconditional"]), 2)
-        v["exposure"] = exposure
-        v["status"] = ("clear" if exposure <= 0.005 else
+        exposure = _q(max(Decimal(0), v["paid"] - v["waived_unconditional"]))
+        # Status is decided on the EXACT Decimal, before the float cast below. The old code
+        # compared a float exposure against 0.005 — a tolerance that existed only to paper over
+        # float drift. With exact cents the comparison is simply "is there any exposure at all".
+        v["status"] = ("clear" if exposure <= 0 else
                        "conditional_only" if v["waived_conditional"] >= exposure else "no_waiver")
+        v["exposure"] = float(exposure)
+        # Cast to float only at the JSON boundary — accumulate exact, serialise at the edge.
         for k in ("billed", "paid", "retainage", "waived_unconditional", "waived_conditional"):
-            v[k] = round(v[k], 2)
+            v[k] = float(_q(v[k]))
         rows.append(v)
     rows.sort(key=lambda x: -x["exposure"])
 
-    total_exposure = round(sum(r["exposure"] for r in rows), 2)
-    at_risk = [r["vendor"] for r in rows if r["exposure"] > 0.005]
+    # The rollup is the number the user actually reads, so it is summed exactly too rather than
+    # re-adding the floats we just cast. `at_risk` is derived from the per-vendor STATUS, not from a
+    # second float comparison against 0.005 — two thresholds for one question is how a vendor ends
+    # up "clear" in one column and "at risk" in another.
+    total_exposure = float(_q(sum((_money(r["exposure"]) for r in rows), Decimal(0))))
+    at_risk = [r["vendor"] for r in rows if r["status"] != "clear"]
     return {"vendors": rows, "vendor_count": len(rows),
             "total_lien_exposure": total_exposure, "vendors_at_risk": at_risk,
             "message": (None if not at_risk else
