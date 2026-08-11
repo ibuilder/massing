@@ -80,7 +80,29 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
           axes: { tag: string; dir: "u" | "v"; start: [number, number]; end: [number, number] }[];
           intersections: { x: number; y: number; label: string }[];
           bounds: { min: [number, number]; max: [number, number] } | null; note?: string };
-        levels: { name: string | null; elevation: number }[];
+        /**
+         * `guid` is the IfcBuildingStorey's GlobalId, and it has been served since this endpoint
+         * shipped — `storey_elevations` returns `{name, elevation, guid}`. It was simply not declared
+         * here, so no caller could reach it, and R36 slice 6 was scoped as needing a server change to
+         * carry a level identity down to the plan cut. It does not.
+         *
+         * Third instance of one defect shape in a day: the sheet routes were SENT keys they ignore,
+         * the spec manual's `elements` were IGNORED though sent, and this. A response type narrower
+         * than the response is invisible — nothing fails, the field just cannot be used.
+         *
+         * It matters that this is the GUID and not the name: levels are renameable here, and markup
+         * or state keyed on a name orphans silently on rename. The non-negotiable is GlobalId.
+         *
+         * Declared REQUIRED, not optional, and that was checked rather than assumed. The route
+         * is `/projects/{pid}/model/grid`, which does NOT call `storey_elevations` directly —
+         * it calls `grid.grid_and_levels`, which imports it. Traced end to end against
+         * `samples/school_str.ifc`: keys are `elevation, guid, name` with a non-empty guid on
+         * all five levels. `guid?:` would understate that, and an optional field forces every
+         * caller into a defensive branch for a case that cannot occur — which is precisely
+         * where a `?? level.name` fallback gets written, reintroducing the rename orphan this
+         * field exists to prevent.
+         */
+        levels: { name: string | null; elevation: number; guid: string }[];
       }>(`/projects/${pid}/model/grid`);
     }
     familyCatalog() {
