@@ -496,9 +496,32 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
     def T(x, y):
         return ox + (x - mn[0]) * scale, oy + draw_h - (y - mn[1]) * scale
 
+    # R38-PLAN-TRANSFORM: serialise the terms of `T` onto the root instead of discarding them.
+    #
+    # Every term below is already computed — `T` uses all six to place every polyline — and until
+    # now none of them left the function. The drawing knew where things were and the client could
+    # not ask, so a client holding a world position had no way to find its pixel. That single
+    # omission is what blocked live cursor sync (R38-SYNC-VIEW's last third).
+    #
+    # The inverse is arithmetic:  x = minx + (px - ox) / scale
+    #                             y = miny + (drawh - (py - oy)) / scale
+    #
+    # **The workaround this exists to make unnecessary** is back-solving the transform from a
+    # polyline whose element geometry the client already knows. That works in a demo and drifts
+    # silently the first time a cut differs from what the client assumes — the same defect shape as
+    # R24-TRACE-UI's rejected plan: inventing in the client a fact the server threw away.
+    #
+    # Emitted with `repr()`-grade precision rather than formatted: a rounded scale puts a cursor a
+    # few pixels off at the far end of a large plan, which reads as a sync bug rather than as
+    # rounding, and the whole point of shipping the exact terms is that the client stops guessing.
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-           f'viewBox="0 0 {width} {height}"><rect width="{width}" height="{height}" fill="#fff"/>']
+           f'viewBox="0 0 {width} {height}" '
+           f'data-plan-scale="{float(scale)!r}" '
+           f'data-plan-ox="{float(ox)!r}" data-plan-oy="{float(oy)!r}" '
+           f'data-plan-minx="{float(mn[0])!r}" data-plan-miny="{float(mn[1])!r}" '
+           f'data-plan-drawh="{float(draw_h)!r}"'
+           f'><rect width="{width}" height="{height}" fill="#fff"/>']
 
     # grid lines + bubbles
     bub = 13

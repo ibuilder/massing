@@ -319,7 +319,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · UX-VIEWED · REL-4 · R36-DRAWINGS-RETURN ✅ *(SHIPPED v0.3.913, pending archive)* · R40-RIBBON ② · R43-CRUD-FRAGMENTS |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R22-ROUTINES · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-FDD-INGEST · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE · R43-PLAN-DRIFT |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-PLAN-IDENTITY ③ · R38-PLAN-TRANSFORM ③ *(new 2026-08-06 — blocks R38-SYNC-VIEW's cursor sync)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE · R43-PLAN-EMPTY-AT-CUT |
+| **D · Geometry & drawings** | `services/data/src/aec_data/` | SEC-PLUGIN-SANDBOX *(moved from C 2026-08-05 — the item said "Lane **D**, not C" all along; while one ID covered two items the table could not be right about both)* · R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* · R41-IDS-VALIDATE · R43-PLAN-EMPTY-AT-CUT |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` |A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R42-COMMIT-DELTA ✅ *(SHIPPED v0.3.911, pending archive)* · R43-VIEWER-CONFORMANCE |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
@@ -1589,23 +1589,31 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
     R24-TRACE-UI's rejected plan — **inventing in the client a fact the server threw away**.
     Original text: the second viewport with **cursor, pan/zoom and storey sync**. Buildable today;
     needs no identity.
-  - **R38-PLAN-TRANSFORM ③** *(S, Lane D — prerequisite, found 2026-08-06)* — **emit the plan's
-    world-to-SVG transform instead of discarding it.** `plan_drawing_svg` derives `mn`, `scale`,
-    `ox`, `oy` and `draw_h` to place every polyline, then serialises none of them, so the drawing
-    knows where things are and the client cannot ask. Put them on the SVG root
-    (`data-plan-scale`, `data-plan-ox`, `data-plan-oy`, `data-plan-minx`, `data-plan-miny`,
-    `data-plan-drawh`) and the inverse is arithmetic.
+  - ✅ **R38-PLAN-TRANSFORM — SHIPPED v0.3.928.** The plan SVG root now carries the six terms of its
+    own transform: `data-plan-scale`, `-ox`, `-oy`, `-minx`, `-miny`, `-drawh`. `plan_drawing_svg`
+    derived all six to place every polyline through a local `T(x, y)` and serialised none of them, so
+    the drawing knew where everything was and the client could not ask. Full float precision, not
+    formatted: a rounded scale puts a cursor visibly off at the far end of a large plan, which reads
+    as a sync bug rather than as rounding.
 
-    **This is the same defect as R38-PLAN-IDENTITY, one field over**: a value the bake holds and
-    drops on the way out — *one discarded value, not new machinery*. It unblocks cursor sync, and
-    with it anything else that needs to point at a place rather than at an element: a measurement
-    echoed onto the plan, a pin dropped in 3D showing where it lands, a section line drawn in plan.
+    `services/api/test_plan_transform.py` asserts the **round trip, not the attributes** — it reads
+    the terms off the root, rebuilds the inverse independently, takes a real pixel off a real
+    polyline the server placed, and requires pixel → world → pixel agreement to 1e-3. Plus an extent
+    check (catches a self-consistent but wrongly-scaled transform) and a two-storey comparison
+    (catches a hardcoded one; `scale`, `minx`, `miny`, `drawh` all move). *Asserting the attribute
+    exists would pass on a value that is wrong, stale, or from a different cut — the presence of an
+    attribute says nothing about it being the transform the drawing actually used.*
 
-  - **R38-PLAN-IDENTITY ③** *(S, Lane D — prerequisite)* — carry the GUID through the bake:
-    `(guid, cls, mesh)` and a `cut_baked_guided` variant, so each polyline names its source element.
-    **This is one discarded value, not new machinery** — and it unlocks selection sync, click-a-wall-
-    in-plan-selects-in-3D, precise pin-to-drawing anchoring, and R27's "the drawing is data" thesis
-    more broadly. Highest leverage-per-line item left in the ring.
+    **This unblocks R38-SYNC-VIEW's cursor sync**, the last third of that item, and with it anything
+    that needs to point at a place rather than at an element.
+  - ✅ **R38-PLAN-IDENTITY — ALREADY DONE when this entry was written; confirmed 2026-08-10.**
+    `cut_baked_guided` exists in `services/data/src/aec_data/drawings.py`, returns
+    `(guid, ifc_class, polyline)`, and its own docstring opens with this item's id. The SVG has
+    emitted `data-guid` per cut polyline since R38-SYNC-SELECT shipped v0.3.829. The entry stayed
+    open anyway and kept being cited as a prerequisite blocking three other items. **Third stale
+    premise found the same day** — after massingbill's "pure addition" claim and R41-UPLOAD-WARK's
+    "no call site has been converted" — and all three overstated the work remaining, which is the
+    direction that makes a roadmap quietly wrong rather than loudly wrong.
   - ✅ **R38-SYNC-SELECT ③** *(S, Lane E)* — **SHIPPED v0.3.829** — selection sync in both directions.
     The SVG emits `data-guid` per cut polyline (both rendering modes), the pane adds invisible fat
     hit-twins to ~1px linework, and one element lights as MANY loops. Shipping it also surfaced that
