@@ -181,13 +181,22 @@ def _present(
     return day_of(start), day_of(finish - 1)
 
 
-def schedule(
+def schedule_with_network(
     source: ExchangeSchedule,
     *,
     data_date: date | None = None,
     options: SchedulerOptions | None = None,
-) -> ScheduleOutcome:
-    """Schedule an :class:`ExchangeSchedule` and return dates ready to persist."""
+) -> tuple[ScheduleOutcome, list[Task], list[Link], dict[str, WorkCalendar]]:
+    """Schedule, and hand back the network it built.
+
+    `schedule()` throws the network away, so a caller that also needs the links
+    -- to render dependency arrows, say -- calls `to_network()` a second time
+    and converts every activity and relationship twice for one response. On a
+    large import that is real work done for nothing.
+
+    Returning what was already built costs nothing and removes the second pass.
+    `schedule()` delegates here so there is still one implementation.
+    """
     tasks, links, calendars = source.to_network()
     resolved = options or source.options
     if source.must_finish_by and resolved.must_finish_by is None:
@@ -196,7 +205,20 @@ def schedule(
     issues = IssueLog()
     issues.extend(source.issues)
     result = calculate(tasks, links, calendars, data_date=dd, options=resolved, issues=issues)
-    return _outcome(tasks, calendars, result, issues)
+    return _outcome(tasks, calendars, result, issues), list(tasks), list(links), dict(calendars)
+
+
+def schedule(
+    source: ExchangeSchedule,
+    *,
+    data_date: date | None = None,
+    options: SchedulerOptions | None = None,
+) -> ScheduleOutcome:
+    """Schedule an :class:`ExchangeSchedule` and return dates ready to persist."""
+    outcome, _tasks, _links, _calendars = schedule_with_network(
+        source, data_date=data_date, options=options
+    )
+    return outcome
 
 
 def schedule_network(

@@ -5,10 +5,43 @@
 | | |
 |---|---|
 | Upstream | https://github.com/MassingCloud/massingplan |
-| Commit | `155640a759ac9159fa79d3e3dd9e08674a14f457` |
-| Synced | 2026-08-10 |
-| Content digest | `3b94544306fb8c13` |
-| Local deviations | **NONE** |
+| Commit | `b703dca49b6a8f88b26fe114d2716989de4dbf5c` |
+| Synced | 2026-08-11 (was `155640a7`, 2026-08-10) |
+| Content digest | `d7d2ac5e71b0ac7e` — **recipe below** |
+| Local deviations | **NONE** — verified in both directions, see below |
+
+### How the digest is computed
+
+Written down because the previous one was not. The recorded `3b94544306fb8c13` could not be
+reproduced by any recipe tried here, so it could not be used to verify anything — **a recorded
+verification value nobody can recompute is not a verification, it is a decoration.** It is replaced
+rather than carried forward, and the method is now stated so the next sync can check it:
+
+```
+sha256 over, for each *.py in `massingplan/core` at the pin, sorted by full path:
+    basename  then  file bytes with CRLF normalised to LF
+truncated to 16 hex chars
+```
+
+CRLF normalisation matters and is not cosmetic: this repo sets `* text=auto`, so a checkout on
+Windows has CRLF on disk while `git show` emits LF. A byte-for-byte comparison against upstream
+reports **every line of every file** as changed. That is exactly what happened during this sync —
+7 files looked modified, and normalised the real answer was 1.
+
+### What changed at this pin
+
+- `schedule.py` — **additive**: new `schedule_with_network()` returns the network `schedule()` had
+  already built, so a caller needing the links stops calling `to_network()` a second time.
+  `schedule()` delegates to it, so there is still one implementation and its signature is unchanged.
+  26 insertions, 4 deletions.
+- `locations.py` — **new, and inert here**: location-based (line-of-balance) scheduling. Nothing in
+  our adapter imports it. Vendored anyway, because the pin names a tree and a *partial* copy is how
+  two implementations start — the exact hazard upstream's own drift check watches for in both
+  directions.
+
+Verified before copying: **no file exists in our copy that is absent upstream**, so there were no
+local edits to lose. That direction is the dangerous one — a fix made here and never sent up is
+invisible to a one-way check.
 
 ## What this is
 
