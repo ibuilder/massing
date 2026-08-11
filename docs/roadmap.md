@@ -656,15 +656,32 @@ per-session state in production, and round-trips every interaction, which the 60
 and the offline non-negotiable forbids). What survived the analysis is the *measured* part, and it is
 the only item here with real scope.
 
-- **R43-CRUD-FRAGMENTS** *(M — Lane A/B; scope with a measurement, do not start with a migration)* —
-  **server-composed HTML fragments for the register third.** Measured over ~47k hand-written lines
-  (excluding tests, the generated 32k `schema.d.ts` and 18k vendored code): `viewer`+`drawings` is
-  ~17k and genuinely SPA-shaped; **`portal`+`proforma` is ~13k of registers, panels and forms that are
-  thin over FastAPI JSON**; the remaining ~14k is plumbing. We run one UI strategy across two
-  workloads with different needs, and only the second one pays for server-side composition. **Do ONE
-  register first with a before/after** — bundle bytes, time-to-interactive, and lines deleted — and let
-  that number decide whether the other registers follow. A ring that starts by converting all of them
-  has assumed its own result.
+- ⛔️ **R43-CRUD-FRAGMENTS — RESCOPED 2026-08-11 before any code was written; as originally written it
+  was not executable.** The entry said "do ONE register first with a before/after and let that number
+  decide whether the others follow". **There is no one register.** `apps/web/src/portal/register/
+  register.ts` is a single generic 2,546-line `RegisterUI`, schema-driven, with **zero** per-module
+  branches, serving **206** `module.json` modules. Converting "a register" converts all 206 at once.
+
+  That is a different risk profile from the one the ring was approved on: not an incremental trial
+  that a measurement can halt, but a single swap across every register in the product, with no
+  intermediate state to compare against. **The measurement the entry asks for cannot be taken**, and
+  the plan's own logic — let the number decide — has nothing to decide with.
+
+  The LOC split it rested on is confirmed, re-measured recursively: `portal` 11,123 + `proforma`
+  1,891 = **13,014 of 46,693 hand-written lines (27%)**, against `viewer`+`drawings` 16,904 (36%).
+  So the *thesis* stands — the register third is thin over FastAPI JSON and is where server-side
+  composition would pay. What does not stand is the delivery plan.
+
+  **Before this restarts, someone must answer: what is the smallest reversible slice?** Candidates,
+  none costed: one field TYPE rather than one module; the read-only table only, leaving inline edit
+  on the client; or one module behind a per-module flag the generic renderer honours — which is
+  itself a change to the generic renderer. Until one of those is scoped, this is a plan, not a task.
+
+  *Method note, because it nearly went the other way:* a re-check of the 13k figure using
+  `portal/*.ts` returned 1,673 and I almost published a correction saying the ring rested on a 3.6×
+  error. The glob is non-recursive and caught 10 of 43 files — `portal/panels/` and `portal/register/`
+  are subdirectories. **The re-check was sloppier than the thing it checked**, and a wrong correction
+  is worse than a wrong original because it arrives wearing a verification badge.
 
 - ◧ **R43-MASSINGBILL-CORE** *(M — Lane C; kit reviewed 2026-08-10 at their pin `3af9124c`)* —
   **the core now exists and is MIT; their "pure addition" claim does NOT survive checking.** They
