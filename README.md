@@ -364,7 +364,7 @@ POST   /projects/{id}/edit | /publish          authoring round-trip (GUID-stable
 POST   /projects/{id}/generate/massing         zoning → IFC massing + acquisition proforma
 GET    /projects/{id}/drawings/sheet.pdf       issuable ARCH-D sheet
 POST   /projects/{id}/cost/estimate → /sov     price the model, then build the SOV from that estimate
-GET    /projects/{id}/codecheck/occupancy      edition-aware occupancy + egress, IBC-cited
+GET    /projects/{id}/codecheck/egress         edition-aware occupancy + egress, IBC-cited
 GET/POST /projects/{id}/modules/{key}          any of 137 registers, config-driven CRUD
 ```
 

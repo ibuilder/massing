@@ -281,3 +281,90 @@ describe("a backticked source file in a published doc actually exists", () => {
     ).toEqual([]);
   });
 });
+
+describe("every endpoint the docs document actually exists", () => {
+  /**
+   * `README.md` documented `GET /projects/{id}/codecheck/occupancy`. There is no such route — the
+   * endpoint is `/codecheck/egress`, whose own docstring reads *"COMPUTED occupancy load (IBC 1004) +
+   * egress capacity (IBC 1005)"*. A reader following the README got a 404 on the one call the line
+   * existed to describe. Nothing caught it: the path is not a file, so the citation gate above cannot
+   * see it, and no test reads prose.
+   *
+   * **The matcher is the interesting part, and the first two versions were unusable.** A naive
+   * string compare reported 22 unmatched claims of which 21 were the checker's fault:
+   *
+   *   - `POST /test-fit/{compare,optimize}` — brace shorthand for two routes, truncated at the comma.
+   *   - `POST /wp-json/massing-sso/v1/token` — WordPress, not this API.
+   *   - `GET /projects/{pid}/modules/rfi` — correct: `rfi` is a value of the declared `{key}` segment.
+   *
+   * A gate with a 95% false-positive rate does not get fixed, it gets deleted — so it matches
+   * segment-wise, letting a declared `{param}` absorb a literal, and skips brace-shorthand and
+   * non-API hosts explicitly rather than by accident. At 982 declared routes and 169 documented
+   * claims it now reports zero, and reverting the `occupancy` typo fails it.
+   */
+  const ROUTES: Array<[string, string[]]> = [];
+  {
+    const dir = resolve(REPO, "services/api/src/aec_api/routers");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".py"))
+      .map((f) => join(dir, f))
+      .concat([resolve(REPO, "services/api/src/aec_api/main.py")]);
+    for (const f of files) {
+      if (!existsSync(f)) continue;
+      const src = readFileSync(f, "utf8");
+      for (const m of src.matchAll(/@\w+\.(get|post|put|patch|delete)\(\s*["']([^"']+)/g)) {
+        ROUTES.push([m[1]!.toUpperCase(), m[2]!.split("/").filter(Boolean)]);
+      }
+    }
+  }
+
+  /**
+   * A DECLARED `{param}` absorbs any literal — that is what a path parameter means, and it is why
+   * `GET /projects/{pid}/modules/rfi` is correct.
+   *
+   * A DOC-side `{id}` must NOT absorb a declared literal, and getting that backwards made the first
+   * version of this gate match everything. With both sides permissive, the generic register route
+   * `projects/{pid}/modules/{key}/{rid}` — three wildcards in four segments — matched
+   * `projects/{id}/codecheck/occupancy`, the very defect this file was written for. The gate passed
+   * its own mutation test at 0 failures and I nearly shipped it.
+   */
+  const segMatch = (r: string[], d: string[]) =>
+    r.length === d.length && r.every((rs, i) => (rs.startsWith("{") ? true : rs === d[i]));
+
+  /**
+   * The tail rule exists because docs legitimately abbreviate: `GET /budget/cashflow` for
+   * `/projects/{pid}/budget/cashflow`. It must ANCHOR ON A LITERAL, and that took three attempts.
+   *
+   * The register route `/projects/{pid}/modules/{key}/{rid}` ends in two consecutive wildcards, so an
+   * unanchored tail rule matched *any* two-segment path — `/authoring/invented-thing` included. Every
+   * loosening of this matcher was punished by that one route, which is the useful lesson: a route
+   * table with wildcard-heavy generics will absorb a sloppy matcher silently.
+   */
+  const known = (verb: string, segs: string[]) =>
+    ROUTES.some(([v, r]) => {
+      if (v !== verb) return false;
+      if (segMatch(r, segs)) return true;
+      if (r.length <= segs.length) return false;
+      const tail = r.slice(-segs.length);
+      return !tail[0]!.startsWith("{") && segMatch(tail, segs);
+    });
+
+  it("parsed a plausible route table — otherwise this passes vacuously", () => {
+    expect(ROUTES.length, `parsed ${ROUTES.length} routes`).toBeGreaterThan(300);
+  });
+
+  it("documents no endpoint the API does not declare", () => {
+    // Brace-shorthand (`{a,b}`) and non-API hosts are not claims about this API's route table.
+    const SKIP = /\{[^}]*[,|][^}]*\}|\/wp-json\//;
+    const bad: string[] = [];
+    for (const rel of DOC_PATHS.filter((p) => !isInternal(p) && !p.includes("roadmap")).concat(["README.md"])) {
+      const text = readFileSync(resolve(REPO, rel), "utf8");
+      for (const m of text.matchAll(/\b(GET|POST|PUT|PATCH|DELETE)\s+(\/[a-zA-Z0-9/{},|_.-]+)/g)) {
+        const raw = m[2]!;
+        if (SKIP.test(raw)) continue;
+        if (known(m[1]!, raw.split("/").filter(Boolean))) continue;
+        bad.push(`${rel}: ${m[1]} ${raw}`);
+      }
+    }
+    expect([...new Set(bad)], "documented endpoints with no matching route").toEqual([]);
+  });
+});
