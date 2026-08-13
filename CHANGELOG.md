@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.940 (2026-08-13) — two uploads that copied a file that was already on disk
+
+### R39-UPLOAD-CAP-APP — the 34 sites classified, and the two nobody had counted
+
+The roadmap's instruction was *"classify the 34 rather than convert them — a count is not a work
+list"*, and that was the right instruction: every one of those sites is the identical
+`await file.read()` call, which is exactly why the count read as one work item. Reading each one
+together with **what it does with the bytes** splits them three ways, and only the first is work:
+
+- **stores the bytes** — `documents.py`, `modules.py` ×2, `authoring.py`. Five, not thirty-four.
+  Converting these means widening the persisting function to take chunks, which `storage.put_stream`
+  already supports.
+- **hands the buffer to a parser** — point clouds, BCF zips, XLSX, PDF, IFC, the converters. Streaming
+  these means changing the parsers: a different item with a different risk profile.
+- **structurally small or already capped** — `properties.py` rejects oversize before parsing.
+
+**Two sites were converted here, and they are the ones a count could never have surfaced**, because
+they look like parser sites and behave like storage ones: `cost.py`'s DXF takeoff and `authoring.py`'s
+raise-plan both read the entire upload and then **wrote it straight back out to a temp file**, purely
+to hand a *path* to a parser. Starlette had already spooled that upload to disk, so each was a
+disk-to-memory-to-disk copy of a file that existed the whole time — and a survey-sized DXF is exactly
+where that costs something. This is the identical conversion `convert.py`'s RVT path already carried,
+so it is a precedent being followed rather than a pattern being invented. `stream_to_path` writes
+`.part` then renames, so a failed upload can no longer leave a truncated `.dxf` for the parser to
+open.
+
+Both routes have real upload tests that POST through the HTTP layer, and **mutation-checking proved
+those tests reach the new code** rather than passing beside it: stubbing out the write makes the
+takeoff route answer 400 "Not a readable DXF". Verifying that the test can *see* the change is the
+step that separates a covered line from a covered claim.
+
 ## v0.3.939 (2026-08-13) — a test that reported failure while nothing had failed
 
 ### The suite's exit code depended on the console encoding

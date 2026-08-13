@@ -1213,10 +1213,13 @@ async def raise_plan_to_bim(pid: str, file: UploadFile = File(...),
     from aec_data import plan_to_bim  # from services/data/src (on sys.path)
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
-    data = await file.read()
+    from starlette.concurrency import run_in_threadpool
     with tempfile.TemporaryDirectory() as td:   # never scratch into the read-only /app tree
         dxf_path = Path(td) / "plan.dxf"
-        dxf_path.write_bytes(data)
+        # R41-UPLOAD-WARK: same conversion as the RVT path in `convert.py` — Starlette has already
+        # spooled this upload to disk, so `write_bytes(await file.read())` was a disk-to-memory-to-
+        # disk copy of a file that existed the whole time.
+        await run_in_threadpool(storage.stream_to_path, dxf_path, storage.upload_chunks(file))
         if preview:
             try:
                 return plan_to_bim.parse_plan(str(dxf_path))

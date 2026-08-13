@@ -1013,12 +1013,18 @@ async def takeoff_dxf(pid: str, file: UploadFile = File(...),
     import os
     import tempfile
 
-    from .. import dxf_takeoff
-    data = await file.read()
+    from starlette.concurrency import run_in_threadpool
+
+    from .. import dxf_takeoff, storage
+    # R41-UPLOAD-WARK: stream to the temp path instead of `fh.write(await file.read())`. Starlette
+    # has ALREADY spooled this upload to disk, so the old line was a disk-to-memory-to-disk copy of a
+    # file that existed the whole time — and a survey-sized DXF is exactly the case where that
+    # matters. Same conversion as the RVT path in `convert.py`; `stream_to_path` writes `.part` then
+    # renames, so a failed upload cannot leave a truncated .dxf for the parser to open.
     fd, tmp = tempfile.mkstemp(suffix=".dxf")
+    os.close(fd)                      # stream_to_path opens it itself; the fd would leak otherwise
     try:
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(data)
+        await run_in_threadpool(storage.stream_to_path, tmp, storage.upload_chunks(file))
         try:
             return dxf_takeoff.takeoff(tmp)
         except RuntimeError as e:

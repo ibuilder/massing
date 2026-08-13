@@ -123,6 +123,31 @@ currently fail if either regresses.**
   So the honest remaining scope is (a), and the next step is to *classify the 34* rather than
   convert them — **a count is not a work list.**
 
+  **CLASSIFIED 2026-08-13.** Every `await file.read()` in `services/api/src/aec_api/routers/` was
+  read together with what it does with the bytes on the next two or three lines, because the call
+  itself is identical in all three buckets — which is exactly why the count read as one work item.
+
+  * **(a) stores the bytes — convertible, and this is the whole work list.**
+    `documents.py` (`docmanager.upload`), `modules.py` ×2 (`mod_engine.add_attachment`, single and
+    multi-file), `authoring.py` (the content-shelf asset). These hand a `bytes` object to a function
+    that persists it, so converting them means widening *that* function to take chunks —
+    `storage.put_stream` already does. **Five, not thirty-four.**
+  * **(b) hands the buffer to a parser** — `analysis.py` ×4 (point cloud, sheet recover, IDS),
+    `bim.py` ×5 (bundle, BCF zip, clash XLSX/XML), `drafting.py` ×2 and `drawings.py` ×2 (PDF),
+    `modules.py` ×2 (openpyxl, BCF), `authoring.py` (IFC open), `verification.py` (`photo_cv`),
+    `convert.py` ×3, plus `standards.py` / `research.py` / `review.py`. Streaming these means
+    changing the parsers, which is a different item with a different risk profile.
+  * **(c) structurally small or already capped** — `properties.py` rejects over `AEC_PROPS_MAX_MB`
+    before parsing; the remaining config/IDS uploads are small by construction.
+
+  **Two of (a)'s neighbours were converted in v0.3.940** and were not on anyone's list, because they
+  are the one shape that hides in bucket (b): `cost.py`'s DXF takeoff and `authoring.py`'s raise-plan
+  both read the whole upload and then **wrote it straight back out to a temp file** to hand a *path*
+  to a parser. Starlette had already spooled that upload to disk, so each was a
+  disk-to-memory-to-disk copy of a file that existed the whole time — the identical conversion
+  `convert.py`'s RVT path already carried. Both routes have real upload tests, and mutation-checking
+  proved those tests reach the new code rather than merely passing beside it.
+
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
 
