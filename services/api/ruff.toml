@@ -12,9 +12,17 @@ target-version = "py310"
 # import ordering and quoted-annotation style — our house rules, not defects — and "fixing" them would
 # make every future re-sync a merge instead of an overwrite. Anything genuinely wrong goes upstream as
 # an issue and comes back on the next sync. See services/data/src/VENDOR-massingifc-python.md.
+# The same argument applies to the two VENDORED PYTHON trees, and until 2026-08-11 it was not applied
+# to them: `src/massingplan` and `src/massingcapture` were being linted while the three trees above
+# were not. Both PASS today, so nothing was broken — the hazard is the next re-sync. A verbatim copy
+# that fails our house style creates pressure to edit the copy, and editing the copy is how a vendor
+# becomes a fork. The policy was written down and applied to three of five vendored trees; this makes
+# it five of five. Their properties are held by tests instead: `test_massingcapture_vendor.py` asserts
+# stdlib-only imports and no reach outside the vendored packages, which is what we actually depend on.
 extend-exclude = ["dist_desktop", ".venv", "build",
                   "../data/src/massingifc_scene", "../data/src/massingifc_ifc",
-                  "../data/src/massingviser_geometry"]
+                  "../data/src/massingviser_geometry",
+                  "src/massingplan", "src/massingcapture"]
 
 [lint]
 # Correctness/defects: F = pyflakes (unused imports/vars, undefined names, f-string bugs),

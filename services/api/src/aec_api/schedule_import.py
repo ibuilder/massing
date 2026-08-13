@@ -26,6 +26,23 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+# CRIT-2 (Aikido, 2026-08-13). `massingplan/core/mspdi.py` parses with stdlib
+# `ElementTree.fromstring`, which is open to XXE and billion-laughs. The scanner's instruction was to
+# swap defusedxml INTO that file. **That would be wrong here**: it is VENDORED verbatim from
+# MassingCloud/massingplan, its `core` is stdlib-only *by contract*, and editing a vendored copy turns
+# it into a fork every future re-sync has to merge.
+#
+# Upstream already made the right call and wrote it down in that function: "`core` is pure stdlib by
+# contract so the application layer is where an untrusted upload gets hardened." They did their half.
+# **This module IS that application layer and had not done its half** — it fed uploaded text straight
+# into `read_mspdi`. That gap is the real finding, and it is ours, not theirs.
+#
+# defusedxml is already declared in requirements.in (for citygml) and already used by bcf_io,
+# citygml, clash_import and routers/bim, so this applies an existing standard to a path that missed
+# it rather than adding a dependency.
+import defusedxml.ElementTree as _defused_et
+from defusedxml.common import DefusedXmlException
+
 from massingplan.core.issues import IssueLog, Severity
 from massingplan.core.model import ExchangeSchedule
 from massingplan.core.mspdi import MSPDIError, read_mspdi
@@ -145,6 +162,22 @@ def parse_full(text: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if detected == "xer":
         schedule = read_xer(text)
     elif detected == "mspdi":
+        # Parse once with the hardened parser purely to REJECT. defusedxml raises on external
+        # entities, DTD retrieval and entity expansion; if it returns, the document contains none of
+        # them and the vendored stdlib reader can be handed the same text safely.
+        #
+        # The cost is one extra parse of an upload, which is the right trade for a path that accepts
+        # a file from a user. Note this rejects rather than sanitises: a document that needs an
+        # external entity to be meaningful is not one we want to import silently degraded.
+        try:
+            _defused_et.fromstring(text)
+        except DefusedXmlException as exc:
+            raise MSPDIError(
+                "MSPDI refused: the document uses XML entity or DTD features that are disabled for "
+                f"uploaded files ({type(exc).__name__})."
+            ) from exc
+        except _defused_et.ParseError:
+            pass  # not well-formed — let read_mspdi raise its own, better-worded MSPDIError
         schedule = read_mspdi(text)
     elif detected == "pmxml":
         # Handled by the data service's parser, which does not read logic.
