@@ -275,13 +275,28 @@ instances:
 eighth time running.** The record is below; the previous five are in
 [`roadmap-completed.md`](roadmap-completed.md).
 
-- ⚠️ **REAL — nothing reads `suggestion_clears_horizon`.** `services/api/src/aec_api/reserve.py`
-  computes it and `services/api/test_reserves_cam.py` asserts it, but no panel calls `reserveStudy`
-  at all. An operator still cannot tell a verified suggested contribution from an unverified one.
+**Re-checked 2026-08-13: both "REAL" findings are now CLOSED**, wired by PULSE-FINDINGS into the home
+pulse's deal card. Neither entry was updated when the work landed, so the band read as carrying two
+open gaps that no longer existed. **The band's own thesis is why this matters** — these entries exist
+to say "a value is computed and nobody can see it", and an entry that keeps saying so after the
+screen ships is the same defect pointed the other way.
 
-- ⚠️ **REAL — nothing renders `nothing_renovated`.** `services/api/src/aec_api/proforma/renovation.py`
-  computes it and `apps/web/src/api/proforma.ts` *types* it — its own comment says callers "should
-  surface it prominently" — but the only caller of `proformaRenovation` is a test.
+- ✅ **CLOSED by PULSE-FINDINGS — `suggestion_clears_horizon` reaches a screen.** *(verified
+  2026-08-13)* `apps/web/src/portal/portal.ts` fans `reserveStudy` into the home pulse and maps the
+  field to `reserveSuggestionFails` on the deal card. The finding below — *"no panel calls
+  `reserveStudy` at all"* — was true when written and is not now.
+
+  Read **strictly**, and that is the part worth keeping: `=== false`, never `!value`. A missing field
+  means *the engine did not answer*, and letting that read as *the suggestion fails* invents a risk
+  line from an absent value — which costs trust in every other line on the card.
+  `apps/web/src/portal/panels/pulse.test.ts` gates the strictness against `portal.ts` source and
+  carries a vacuity guard, because the mutation that swapped `=== false` for `!value` passed all 77
+  portal tests with nothing guarding it.
+
+- ✅ **CLOSED by PULSE-FINDINGS — `nothing_renovated` renders.** *(verified 2026-08-13)* Same fan-out:
+  `portal.ts` calls `proformaRenovation` and shows the finding on the deal card, preferring the
+  engine's own `nothing_renovated_why` and falling back to "no unit completed a start". The claim
+  below that *"the only caller of `proformaRenovation` is a test"* is stale.
 
   **Chasing that one turned up something larger, and it is now gated.**
   `apps/web/src/api/surface.test.ts` introduced a list with *"the methods the rest of the app
