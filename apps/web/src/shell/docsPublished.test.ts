@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join, relative, resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -218,4 +219,65 @@ describe("the published site does not link into the fence", () => {
       expect(bad, `${page} links to unpublished paths: ${bad.join(", ")}`).toEqual([]);
     });
   }
+});
+
+describe("a backticked source file in a published doc actually exists", () => {
+  /**
+   * `CLAUDE.md` states the rule — "Backticks are therefore reserved for files that exist" — and
+   * enforces it for its own citations via `services/api/test_claude_md_gates.py`. Nothing enforced it
+   * for the docs a *reader* sees, and on 2026-08-13 three had rotted:
+   *
+   *   README.md                   `entitlements.py`          -> the tier seam is `tiers.py`
+   *   docs/reference/architecture.md  `test_no_competitors.py`   -> `test_no_comparative_names.py`
+   *   docs/reference/architecture.md  `check_file_sizes.py`      -> `test_file_sizes.py`
+   *
+   * The last two are the sharp lesson. **Both are names CLAUDE.md holds up as examples of files that
+   * never existed** — and they were copied out of that warning into a reference table as though they
+   * were citations. A cautionary example and a citation look identical once the surrounding sentence
+   * is gone, which is exactly why the rule needs a gate rather than a paragraph.
+   *
+   * Matched on basename, not path, because docs cite `rooms.py` far more often than
+   * `services/api/src/aec_api/rooms.py` and requiring full paths would be answered by deleting the
+   * backticks. Generated artefacts and third-party config are excluded by name below — each is a file
+   * that legitimately does not live in this repo.
+   */
+  const EXTERNAL = new Set([
+    "claude_desktop_config.json", // Claude Desktop's own config, on the user's machine
+    "latest.json",                // emitted by tauri-action at release time
+    "props.json",                 // a MinIO object, not a repo file
+    "package.json",               // ambiguous: many, and always real
+    "tsconfig.json",
+  ]);
+
+  const TRACKED = new Set(
+    execFileSync("git", ["ls-files"], { cwd: REPO, encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean),
+  );
+  const BASENAMES = new Set([...TRACKED].map((p) => p.split("/").pop()!));
+
+  const PUBLISHED = DOC_PATHS.filter((p) => !isInternal(p) && !p.includes("roadmap"))
+    .concat(["README.md"]);
+
+  it("has a corpus and a file list — either being empty makes this vacuous", () => {
+    expect(TRACKED.size).toBeGreaterThan(500);
+    expect(PUBLISHED.length).toBeGreaterThan(10);
+  });
+
+  it("cites no source file that is not in the repo", () => {
+    const CITE = /`([A-Za-z0-9_.-]+\.(?:py|ts|tsx|json|yml|yaml|toml|sh))`/g;
+    const bad: string[] = [];
+    for (const rel of PUBLISHED) {
+      const text = readFileSync(resolve(REPO, rel), "utf8");
+      for (const m of text.matchAll(CITE)) {
+        const name = m[1]!;
+        if (EXTERNAL.has(name) || BASENAMES.has(name)) continue;
+        bad.push(`${rel}: \`${name}\``);
+      }
+    }
+    expect(
+      [...new Set(bad)],
+      "these docs cite files that do not exist — fix the name or drop the backticks",
+    ).toEqual([]);
+  });
 });

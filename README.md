@@ -215,7 +215,7 @@ Highlights, all **built and verified** in this repo unless noted:
   generated massing) as real, **GUID-stable, typed** IFC occurrences via `type.assign_type`.
 - **Sign-in (SSO) + free tier, no admin** — log in with **Google / Microsoft / Procore** (OAuth2);
   SSO users are plain **free-tier** accounts and there's **no admin tier for end users** (project
-  owners manage their own teams; platform config is ops/env). A `tier` seam (`entitlements.py`)
+  owners manage their own teams; platform config is ops/env). A `tier` seam (`tiers.py`)
   makes the eventual paid plans a one-place change.
 - **First-run onboarding + AI assistant** — a skippable welcome + coach-mark tour for new users, and
   an **"Ask AI"** box that answers natural-language questions about a project (open RFIs, overdue,

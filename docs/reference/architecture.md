@@ -104,8 +104,8 @@ fail** rather than rules that are written down:
 | --- | --- |
 | `test_reachable.py` | Is a feature actually wired to a route? |
 | `ties.test.ts` | Do the aliases agree? |
-| `test_no_competitors.py` | Documentation policy. |
-| `check_file_sizes.py` | Module size ceiling. |
+| `test_no_comparative_names.py` | Documentation policy. |
+| `test_file_sizes.py` | Module size ceiling. |
 | `parity.test.ts` | The room rail reaches every destination the catalog lists. |
 | `spine.test.ts` | The client room list cannot drift from the server's. |
 | `test_module_rooms.py` | Every module has a room; none is filed by guesswork. |
