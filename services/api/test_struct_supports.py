@@ -73,4 +73,4 @@ print("SUPPORTS OK - apply_supports fixes the base (lowest-elevation) analytical
       "IfcBoundaryNodeCondition supports (pinned = translations fixed / rotations free; fixed = all six "
       "DOF), making the analytical model statically stable + solvable. Idempotent (re-apply doesn't "
       "accumulate), reported by summary through a round-trip, cleared by a re-derive; the "
-      "apply_structural_supports recipe publishes it; empty model → 0 supports.")
+      "apply_structural_supports recipe publishes it; empty model -> 0 supports.")

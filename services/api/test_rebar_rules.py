@@ -112,6 +112,6 @@ with TestClient(app) as c:
 os.remove(TMP)
 print("REBAR RULES OK - catalog: ACI tie-spacing envelope picks the governing limb (16db=0.406 on a "
       "0.5m/#8 column, least-dim on a 0.25m, 16db with #4 bars); BBS off the authored cage: 2 marks "
-      "(4×#8 straights at h−2·cover, ties at the stirrup perimeter), #8 unit mass ≈3.98 kg/m, totals "
+      "(4x#8 straights at h-2·cover, ties at the stirrup perimeter), #8 unit mass ~=3.98 kg/m, totals "
       "+ tonnage + CSV with TOTAL row; check_cage passes the 0.3m cage, flags 0.6m > 0.406 envelope "
       "naming the limb, and reports a bare column as a finding")

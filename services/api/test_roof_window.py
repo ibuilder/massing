@@ -50,7 +50,7 @@ if os.path.exists(TMP):
     os.remove(TMP)
 
 print("ROOF-WINDOW OK - the add_roof_window recipe cuts a skylight opening through a flat IfcRoof at [4,3] "
-      "(IfcOpeningElement voiding the roof, full-depth) and fills it with a 1.0×1.5 IfcWindow of "
+      "(IfcOpeningElement voiding the roof, full-depth) and fills it with a 1.0x1.5 IfcWindow of "
       "PredefinedType SKYLIGHT via the standard feature relations; a second skylight coexists (2 openings), "
       "a bad host GUID raises cleanly, and the relations survive a write/reopen round-trip. The flat-roof "
       "DORMER slice — the pitched-roof dormer assembly follows when pitched roofs land.")

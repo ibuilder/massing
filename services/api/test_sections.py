@@ -130,5 +130,5 @@ for f in (TMP2,):
 if os.path.exists(TMP):
     os.remove(TMP)
 
-print("SECTIONS OK - section_svg auto-centres the cut on the model extent (offset=None → mid-X), honours "
+print("SECTIONS OK - section_svg auto-centres the cut on the model extent (offset=None -> mid-X), honours "
       "an explicit offset, and elevations render for N/S/E/W.")

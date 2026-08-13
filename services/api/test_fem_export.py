@@ -97,5 +97,5 @@ if os.path.exists(TMP):
 
 print("FEM-EXPORT OK - the derived portal frame exports as OpenSees .tcl (3 elasticBeamColumn elements "
       "from 2 columns + 1 beam, base nodes fixed, kip-inch-ksi): a vertical column uses geomTransf 2, a "
-      "beam uses 1; node/element/fix line counts match the reported counts; no analytical model → "
+      "beam uses 1; node/element/fix line counts match the reported counts; no analytical model -> "
       "not available; the /structure/opensees.tcl route 409s without a model and streams text/plain otherwise.")

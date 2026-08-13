@@ -94,7 +94,7 @@ with TestClient(app) as c:
     _INDEX.pop(pid, None)
 
 print("CX OK - seed: 3 equipment assets from the index (wall ignored, GUID-deduped on re-seed), "
-      "6 phase checklists (asset×Pre-Functional/Functional, (asset,phase)-deduped), Functional "
+      "6 phase checklists (assetxPre-Functional/Functional, (asset,phase)-deduped), Functional "
       "stamped with MEP FPT expecteds (SF-1.flow=2000); matrix: AHU-1 2 assets/4 tests/1 accepted "
       "= 25%, Functional cell 2/1/1 with the Pass; dossier: assets+tests-by-phase+expected values "
       "+ 1 open punch mention; unknown system empty but well-formed")

@@ -297,7 +297,7 @@ for f in ("./_worker_split_test.db",):
         except OSError:
             pass
 
-print("WORKER-SPLIT OK - AEC_JOB_WORKER defaults to inline (unset/typo → inline, only 'off' disables) "
+print("WORKER-SPLIT OK - AEC_JOB_WORKER defaults to inline (unset/typo -> inline, only 'off' disables) "
       "and a STARTED app honours it in BOTH directions; `run_forever()` (what `python -m aec_api.worker` "
       "runs) drained a real queued job off the main thread and shut down on stop_worker(); the worker "
       "REFUSES to start where pid_lock cannot span processes (a dedicated worker is a second writer, "

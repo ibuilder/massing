@@ -104,6 +104,6 @@ with TestClient(app) as c:
 
 print("LICENSE-CLOUD OK - offline by default (validate is a no-op, secret never required); the shared "
       "secret is never echoed by /settings/integrations or /license; when enabled, validate() sends the "
-      "X-Massing-Secret + {key,app} to {base}/validate and normalizes the verdict (unknown tier→free); "
+      "X-Massing-Secret + {key,app} to {base}/validate and normalizes the verdict (unknown tier->free); "
       "the admin cloud-check applies a valid tier, downgrades on an explicit revoked verdict, and treats "
       "a network error as offline (no downgrade of a paying operator).")

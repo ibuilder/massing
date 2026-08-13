@@ -67,7 +67,7 @@ with TestClient(app) as c:
     cm = c.get(f"/projects/{pid}/topics/{t_mod['id']}/comments").json()
     assert any("re-verify" in x["text"] for x in cm), cm
 
-print("COORDINATION-FRESH OK - scan finds open clash topics whose elements changed v1→v2 (g1 modified, "
-      "g3 removed → 2 stale; g2 unchanged, the rfi + closed topics excluded); recheck adds a "
+print("COORDINATION-FRESH OK - scan finds open clash topics whose elements changed v1->v2 (g1 modified, "
+      "g3 removed -> 2 stale; g2 unchanged, the rfi + closed topics excluded); recheck adds a "
       "model-changed label + a re-verify comment to each, is idempotent, and never auto-closes "
       "(topic stays open — the coordinator decides).")

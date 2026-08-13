@@ -60,6 +60,6 @@ if _ifc.exists():
 
 print("TYPE-CATALOGS OK - desk carries three named sizes (1400/1600/1800), names resolve to dims "
       "case-insensitively, un-cataloged families fall back to 'Standard', unknown family/type errors "
-      "name the catalog; placing '1600 × 800' twice dedupes to ONE IfcFurnitureType while a second "
+      "name the catalog; placing '1600 x 800' twice dedupes to ONE IfcFurnitureType while a second "
       "size adds another (3 occurrences over 2 types), explicit dims beat type_name, and the "
       "/families/{key}/types route serves the catalog (404 unknown).")

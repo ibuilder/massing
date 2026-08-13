@@ -76,6 +76,6 @@ if os.path.exists(TMP):
     os.remove(TMP)
 
 print("test_roundtrip_qa OK - fingerprint captures schema/units/GUIDs/storeys/by-class/property payload; a "
-      "clean write→reopen is IDENTICAL (nothing shed); compare() flags EXPORT LOSS when a wall is dropped "
+      "clean write->reopen is IDENTICAL (nothing shed); compare() flags EXPORT LOSS when a wall is dropped "
       "(GUID removed + IfcWall delta -1) and reports lossless-but-not-identical when the target is a "
       "superset; export-qa endpoint 409s without a source IFC.")

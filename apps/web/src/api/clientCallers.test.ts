@@ -211,7 +211,7 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 const UNCALLED: readonly string[] = [
   "addBasePlate", "addCurtainWall", "addMepFitting", "addRebarCage",
   "addShearTab", "addTopicComment", "applyDetailingRules", "arrayElement",
-  "assignMaterialSet", "assumptionsRegister", "attachDocument", "buyoutPackages",
+  "assignMaterialSet", "assumptionsRegister", "attachDocument",
   "buyoutSchedule", "ciLatest", "citedQuery", "clausePlaybook",
   "clientDecisions", "codeAdoptions", "codeCheck", "colorFacets",
   "competitiveSupply", "connectElements", "createAssembly", "createGroup",

@@ -278,13 +278,13 @@ for f in (TMP, LIB, _fresh):
         os.remove(f)
 
 print("W11 EDGES OK - families (unknown key / bad dims / non-Type class / blank name / missing-type edit "
-      "raise; dims-variant dedupe; no-geom→box on first dims edit; single-material inspector; "
+      "raise; dims-variant dedupe; no-geom->box on first dims edit; single-material inspector; "
       "import_types_from_ifc round-trip + re-import dedupe) - groups (empty/stale assembly raise; None name; "
       "1x1 & clamped arrays make 0 copies; arrayed copies detached from source group; missing-guid "
       "ungroup no-op / group_detail raise) - rebar (tie_spacing 0 guarded, invalid bar size falls back, "
-      "huge spacing → 2 ties) - connections (bolts 0 / capped at 4 / single-bolt tab; wrong-class raises) - "
+      "huge spacing -> 2 ties) - connections (bolts 0 / capped at 4 / single-bolt tab; wrong-class raises) - "
       "drawing (FIXED sheet_svg KeyError on empty model; empty schedules; MasterFormat outranks UniFormat "
-      "keynote) - detailing (empty/None guids → 0; name-dedup; missing-guid inspector raises) - rules "
+      "keynote) - detailing (empty/None guids -> 0; name-dedup; missing-guid inspector raises) - rules "
       "(empty ruleset; idempotent re-apply no dup codes; host_fire_rated + property-value facets; "
       "wrong-value no match) - representations (empty/None set_lod; int-stage coercion; ensure_contexts "
       "idempotent).")

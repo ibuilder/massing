@@ -105,7 +105,7 @@ with TestClient(app) as c:
         time.sleep(0.1)
     assert st["state"] == "done" and st["result"]["total_checks"] == 5, st
 
-print("MODEL-CI OK - 5-check pack (rules/named/clash/ids/qto_delta) → pass/warn/fail badge; "
+print("MODEL-CI OK - 5-check pack (rules/named/clash/ids/qto_delta) -> pass/warn/fail badge; "
       "door-missing-rating fails, clean model passes, unnamed fails completeness, no-model skips all "
       "five; run persists + latest reads it. CI-3: qto rollup + >25% drift maths (appear/vanish/swing "
       "flagged, stable + sub-threshold quiet); no-pinned-IDS and no-source-IFC skip cleanly; "

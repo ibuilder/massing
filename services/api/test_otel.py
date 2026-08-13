@@ -245,7 +245,7 @@ _reset(endpoint="http://collector:4318", AEC_OTEL_TRACES_SAMPLE_RATE="0.5",
 assert otel.init() is True
 assert rec.sampler == ("ParentBased", 0.5), rec.sampler
 assert rec.resource_attrs == {"service.name": "massing-api-staging"}, rec.resource_attrs
-print("6. sample rate: default 0.1, override, clamp, malformed→default; service name honored")
+print("6. sample rate: default 0.1, override, clamp, malformed->default; service name honored")
 
 
 # --- cleanup so import side effects don't leak to other test modules ------------------------------

@@ -123,5 +123,5 @@ finally:
     rbac.role_for = _orig_role_for
     rbac.RBAC_ON = _was
 
-print("ESCALATION OK - ball-in-court tracks transitions (open→Consultant/OwnersRep, answered→GC); "
-      "3 overdue escalated (L2×2 + L3×1) onto timelines + notified; idempotent re-run; job round-trips")
+print("ESCALATION OK - ball-in-court tracks transitions (open->Consultant/OwnersRep, answered->GC); "
+      "3 overdue escalated (L2x2 + L3x1) onto timelines + notified; idempotent re-run; job round-trips")

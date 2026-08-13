@@ -62,5 +62,5 @@ assert fourd.TRADE_FOR_CLASS["IfcColumn"] == "Structure"
 print("DISC-SSOT OK - sheet-series is now a derived view of the canonical discipline map: "
       "classification.series_of_ifc_class reproduces the former sheetgen._CLASS_SERIES exactly (incl. the "
       "FP/FA refinement + curtain-wall host context), sheetgen.detect_series and the drawing-set cover both "
-      "derive from it (their private tables removed), so discipline↔sheet-series can never drift; takt trade "
+      "derive from it (their private tables removed), so discipline<->sheet-series can never drift; takt trade "
       "(fourd.TRADE_FOR_CLASS) stays a deliberately separate build-sequence axis.")

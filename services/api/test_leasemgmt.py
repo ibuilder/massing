@@ -89,8 +89,8 @@ bad = [lease(workflow_state="active", base_rent_annual="not-a-number", escalatio
 assert L.escalation_schedule(bad)["current_base_rent"] == 0.0, "non-numeric rent coerces to 0, no crash"
 assert L.renewal_pipeline(bad, as_of=today)["at_risk_rent"] == 0.0, "unparseable end_date → not bucketed"
 
-print("LEASEMGMT OK - escalation compounds base·(1+esc)^y (L1 @3% → 115,927.41 at year 5), portfolio per "
-      "year sums active leases (draft excluded); CAM recovery = psf×sf over recovery-type active leases "
-      "(NNN 120k + ModGross 40k = 160k), recovery ratio + over/under-recovery vs the opex pool (0.8 → 40k "
-      "leakage; 140k pool → 20k over), zero pool → ratio None; renewal buckets by days-to-expiry with "
-      "at-risk rent = holdover + expiring≤365 (180k), options counted; empty/malformed inputs never crash.")
+print("LEASEMGMT OK - escalation compounds base·(1+esc)^y (L1 @3% -> 115,927.41 at year 5), portfolio per "
+      "year sums active leases (draft excluded); CAM recovery = psfxsf over recovery-type active leases "
+      "(NNN 120k + ModGross 40k = 160k), recovery ratio + over/under-recovery vs the opex pool (0.8 -> 40k "
+      "leakage; 140k pool -> 20k over), zero pool -> ratio None; renewal buckets by days-to-expiry with "
+      "at-risk rent = holdover + expiring<=365 (180k), options counted; empty/malformed inputs never crash.")

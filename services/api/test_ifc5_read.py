@@ -56,6 +56,6 @@ with tempfile.TemporaryDirectory() as d:
         f.write("ISO-10303-21;\nHEADER;\nFILE_SCHEMA(('IFC4'));\nENDSEC;\n")
     assert _is_json_model(spf) is False
 
-print("IFC5 READ OK - ifcJSON {data:[…]} parses 3 physical elements (spatial + rels excluded, psets + "
+print("IFC5 READ OK - ifcJSON {data:[...]} parses 3 physical elements (spatial + rels excluded, psets + "
       "project name kept); IFCX/USD-layer {attributes:{ifc5:class}} parses 2 (incl. nested child); "
       "index_file dispatches JSON->IFC5 reader and STEP->ifcopenshell; geometry flagged not-readable")

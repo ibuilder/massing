@@ -91,10 +91,10 @@ assert empty["region_count"] == 0 and empty["total_cost"] == 0.0, empty
 assert empty["assemblies"], "the assembly catalog is always returned for the UI"
 
 print("TAKEOFF-2D OK - shoelace area (winding-independent) + polyline length in pixels; a two-point "
-      "calibration gives real units/px; quantify() converts each traced region to a real area (×scale²) or "
-      "length (×scale), prices it at the assembly rate (overridable per project vintage), rolls up by "
-      "assembly sorted by cost, and totals — a 100×100 px slab at 0.05 m/px = 25 m² @ $130 = $3,250; unknown "
+      "calibration gives real units/px; quantify() converts each traced region to a real area (xscale²) or "
+      "length (xscale), prices it at the assembly rate (overridable per project vintage), rolls up by "
+      "assembly sorted by cost, and totals — a 100x100 px slab at 0.05 m/px = 25 m² @ $130 = $3,250; unknown "
       "categories fall back to a generic area; empty input is a clean zero. R34-SHEET-SCALE: a region "
-      "carrying its own scale is measured at THAT scale (0.10 over a 0.05 call = 100 m², exactly 4× — area "
+      "carrying its own scale is measured at THAT scale (0.10 over a 0.05 call = 100 m², exactly 4x — area "
       "goes as scale²; length linearly), `scale_source` distinguishes region from call, `scales_used` lists "
       "both, and a junk/non-positive region scale falls back to the call scale rather than pricing at zero.")

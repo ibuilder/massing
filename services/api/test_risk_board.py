@@ -71,6 +71,6 @@ with TestClient(app) as c:
     assert pred["ref"] == "1.1" and "20% complete" in pred["evidence"], pred   # cites the real %
     assert mb["blocked"] >= 1, mb
 
-print("RISK-BOARD OK - one register over 5 engines: empty project → clear board with lane report; an "
+print("RISK-BOARD OK - one register over 5 engines: empty project -> clear board with lane report; an "
       "overdue activity raises a schedule alert, an overdue high topic raises coordination + preflight "
-      "blockers; items ranked high→low, all deep-linked; band escalates to elevated/critical.")
+      "blockers; items ranked high->low, all deep-linked; band escalates to elevated/critical.")

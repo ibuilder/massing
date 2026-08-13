@@ -126,5 +126,5 @@ print("MEP-EQUIP OK - the procurement equipment schedule derives from the IFC: t
       "route 409s without a model and returns 3 units across 2 lines with one. Ties: the curated starter's "
       "presence checks ('*') report a pump with no FlowRate as missing without ever conflicting; "
       "/to-submittals mints one product-data submittal per type and a re-run skips both (idempotent); "
-      "/budget-lines starts unpriced and picks up the price-ledger median (1000+1200 → 1100/EA) once the "
+      "/budget-lines starts unpriced and picks up the price-ledger median (1000+1200 -> 1100/EA) once the "
       "ledger has seen the type.")

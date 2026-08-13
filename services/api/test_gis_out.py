@@ -78,6 +78,6 @@ if os.path.exists(TMP):
     os.remove(TMP)
 
 print("GIS-OUT OK - a model georeferenced to 40N/74W exports a WGS84 GeoJSON FeatureCollection: a site "
-      "Point at [-74, 40] and a footprint Polygon (~10 m × 20 m bbox) whose corners sit building-scale-close "
+      "Point at [-74, 40] and a footprint Polygon (~10 m x 20 m bbox) whose corners sit building-scale-close "
       "to the anchor; DMS decodes correctly; a model with no site lat/long is not-available; the "
       "/models/footprint.geojson route 409s without a model and streams the FeatureCollection otherwise.")

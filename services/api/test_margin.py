@@ -64,7 +64,7 @@ with TestClient(app) as c:
     assert c.get("/projects/no-such/margin/by-costcode").status_code == 404
 
 print("MARGIN-CBS OK - per-cost-code reconciliation ties budget/committed/actual/billed together: 03 30 00 "
-      "bought out under budget ($100k budget, $85k committed → +$15k buyout margin, $60k variance, 85%% "
-      "committed), 09 20 00 committed over budget ($50k vs $55k → −$5k margin, over-committed flag); rows "
+      "bought out under budget ($100k budget, $85k committed -> +$15k buyout margin, $60k variance, 85%% "
+      "committed), 09 20 00 committed over budget ($50k vs $55k -> -$5k margin, over-committed flag); rows "
       "sort worst-margin first; totals $150k budget / $140k committed / +$10k buyout margin / 1 over-committed "
       "code; empty project zeroes and unknown 404s.")

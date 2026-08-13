@@ -82,6 +82,6 @@ with TestClient(app) as c:
     forced = c.post(f"{P}/drawing-set/issue", json={"purpose": "Issued for Construction"}, headers=HDR)
     assert forced.status_code == 201 and forced.json()["preflight"]["ready"] is False, forced.text
 
-print(f"ISSUANCE OK - 2 issuances (Permit {m_count} sheets, Bid {total}); sheet×issuance matrix shows "
+print(f"ISSUANCE OK - 2 issuances (Permit {m_count} sheets, Bid {total}); sheetxissuance matrix shows "
       "Mechanical in both issues and Electrical only in the later one; per-issuance transmittal PDF; "
-      "AIA purposes vocabulary (SD/DD/CD/Permit/Bid/IFC/…).")
+      "AIA purposes vocabulary (SD/DD/CD/Permit/Bid/IFC/...).")

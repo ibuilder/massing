@@ -68,7 +68,7 @@ with TestClient(app) as c:
     assert c.post("/estimate/assembly/price", json={}).status_code == 422
 
 print("EST-ASSEMBLIES OK - unit-rate build-up from labour/material/equipment components (extended = "
-      "qty×cost×(1+waste); rate=Σ=11.20, by-kind subtotals; unknown kind→material, bad qty→0); "
-      "overrides re-cost by resource name (Mason→80 ⇒ 12.20); price() extends over a take-off qty "
-      "(250 SF ⇒ 2800); the starter library pre-computes each rate; endpoints list/price with "
+      "qtyxcostx(1+waste); rate=sum=11.20, by-kind subtotals; unknown kind->material, bad qty->0); "
+      "overrides re-cost by resource name (Mason->80 => 12.20); price() extends over a take-off qty "
+      "(250 SF => 2800); the starter library pre-computes each rate; endpoints list/price with "
       "assembly_id or a custom component list, build-up-only omits total, 404/422 on bad input.")

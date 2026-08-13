@@ -81,7 +81,7 @@ with TestClient(app) as c:
 if _ifc.exists():
     _ifc.unlink()
 
-print("WALL-JOINS OK - find classifies the 10m×6m corner as an L (longer wall through) and the "
+print("WALL-JOINS OK - find classifies the 10mx6m corner as an L (longer wall through) and the "
       "4m dead-end as a T; resolve butt-joins deterministically (through 10->10.1 m closing the "
       "outside corner, L-stub 6->5.9 m, T-stub 4->3.9 m, far ends pinned, the door in the through "
       "wall unmoved to the millimetre), a second pass is a no-op (idempotent), and "

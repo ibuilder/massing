@@ -68,5 +68,5 @@ if os.path.exists(TMP):
 print("WARN-1 OK - the unified model-warnings feed flattens the hygiene (model_qa) + normative-conformance "
       "(norm_valid) lenses into one worst-first punch list: a well-formed blank model yields a warn-only "
       "feed (zero fails), a duplicate GlobalId surfaces a duplicate_guids FAIL row that sorts to the top, "
-      "severity ordering (fail→warn→info) holds, and the /models/warnings route 409s without a source IFC "
+      "severity ordering (fail->warn->info) holds, and the /models/warnings route 409s without a source IFC "
       "and returns the structured feed otherwise.")

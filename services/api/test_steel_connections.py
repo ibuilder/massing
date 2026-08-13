@@ -99,5 +99,5 @@ print("STEEL CONNECTIONS OK - base plate (IfcPlate) + 4 anchor bolts (IfcMechani
       "under a steel column, grouped into an IfcElementAssembly (>=6 parts, fabrication LOD 350/400); "
       "shear tab + 3 bolts on a beam; non-column rejected; add_base_plate recipe works via apply_recipe. "
       "B5: add_connection_assembly authors plate+bolts at the joint AND records "
-      "IfcRelConnectsWithRealizingElements (A↔B realized by 5 parts, ConnectionType BOLTED/WELDED); "
+      "IfcRelConnectsWithRealizingElements (A<->B realized by 5 parts, ConnectionType BOLTED/WELDED); "
       "connection_summary browses them; same-member/bad-kind reject; registered as a recipe.")

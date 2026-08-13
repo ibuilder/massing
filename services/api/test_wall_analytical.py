@@ -66,6 +66,6 @@ for f in (TMP, OUT):
         os.remove(f)
 
 print("WALL-ANALYTICAL OK - derive_analytical idealises a load-bearing (shear) wall into a vertical "
-      "IfcStructuralSurfaceMember at its mid-plane (a length×height IfcFaceSurface spanning the wall "
+      "IfcStructuralSurfaceMember at its mid-plane (a lengthxheight IfcFaceSurface spanning the wall "
       "height), while a non-bearing partition is skipped; the flat slab surface member coexists; the "
       "wall_surface_members count is idempotent across a re-derive and survives a serialize round-trip.")

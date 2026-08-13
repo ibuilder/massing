@@ -75,7 +75,7 @@ if os.path.exists(TMP):
     os.remove(TMP)
 
 print("WALL-ASSEMBLY THERMAL OK - a brick/cavity/insulation/gypsum wall computes R 2.224 (R-12.6 imperial) "
-      "→ U 0.45 from the layers themselves (insulation contributes 1.667, the air cavity its fixed 0.17, "
+      "-> U 0.45 from the layers themselves (insulation contributes 1.667, the air cavity its fixed 0.17, "
       "films 0.17; an explicit k overrides the category); over an authored model with applied layer sets the "
       "engine finds the assembly, its 2+ walls, positive U, per-layer R and a thickness-based takeoff; the "
       "/model/assembly-thermal route 409s without a source IFC.")

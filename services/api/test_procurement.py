@@ -117,4 +117,4 @@ print("PROCUREMENT OK - quote leveling (split award: rebar->BuildMart, concrete-
       "as price_observations (unpriced skipped); the ledger rolls up min/median/max + latest + "
       "+25% latest-vs-median drift + vendors + series, ?material= filters canonically; QTO "
       "suggestions prefer volume>area>count with GUID narrowing; material_request walks "
-      "requested→approved→ordered→delivered; empty selector 422s")
+      "requested->approved->ordered->delivered; empty selector 422s")

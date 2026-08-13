@@ -80,7 +80,7 @@ with TestClient(app) as c:
     assert rr.status_code == 200, rr.text
     assert rr.json()["compliance"]["violations"] == ["FAR"], rr.json()
 
-print("PARCEL-IMPORT OK - a 100×50 m parcel parses from GeoJSON/Feature/WKT to exactly 5,000 m² (1.236 ac, "
+print("PARCEL-IMPORT OK - a 100x50 m parcel parses from GeoJSON/Feature/WKT to exactly 5,000 m² (1.236 ac, "
       "300 m perimeter); a lon/lat ring projects equirectangularly to within 1% of the analytic area; against "
       "a max-FAR 2.0 / coverage 0.6 / height 30 m envelope a 12,000 m² GFA proposal is FAR 2.4 (violation, "
       "max buildable 10,000 m²) while coverage 0.4 and height-at-limit pass; missing limits report ok=None; "

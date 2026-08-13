@@ -218,7 +218,7 @@ def test_the_gate_states_its_own_coverage() -> None:
           f"classified [{where}]")
     if unresolved:
         print(f"      not classified locally: {', '.join(sorted(unresolved)[:8])}"
-              f"{' …' if len(unresolved) > 8 else ''}")
+              f"{' ...' if len(unresolved) > 8 else ''}")
 
 
 if __name__ == "__main__":

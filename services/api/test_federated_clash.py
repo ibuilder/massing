@@ -101,6 +101,6 @@ assert scoped and all(x["a_guid"] == one_guid for x in scoped), "guids_a scopes 
 assert len(scoped) < len(base), "a one-element scope must shrink the result"
 assert clash.detect(_m, narrow=False, guids_a=set()) == [], "an empty GUID set matches nothing"
 
-print(f"FEDERATED CLASH OK — {res['count']} cross-model clashes (STR×MEP), "
+print(f"FEDERATED CLASH OK — {res['count']} cross-model clashes (STRxMEP), "
       f"{res['created_topics']} BCF topics; registry append/list/delete + auto-build verified; "
-      f"QUERY-DSL guid scoping: {len(scoped)}/{len(base)} clashes for one scoped element, empty set → none")
+      f"QUERY-DSL guid scoping: {len(scoped)}/{len(base)} clashes for one scoped element, empty set -> none")

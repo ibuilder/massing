@@ -254,7 +254,7 @@ print("SCHED-OPT OK - the optioneer enumerates a bounded crew/zoning grid over t
       "train or falls back to the default takt train. PHASE-4B: crew shifts follow the CPM — passing a "
       "critical path moves the crew-doubling candidates onto it and NAMES the off-path trades it "
       "excluded (a second crew on a trade with float buys no days and still costs the premium); "
-      "critical_path='auto' derives it from the project's own activity network (the Foundations→"
-      "Superstructure→Rough-in chain is critical, Drywall/Interiors has float and is excluded); and a "
+      "critical_path='auto' derives it from the project's own activity network (the Foundations->"
+      "Superstructure->Rough-in chain is critical, Drywall/Interiors has float and is excluded); and a "
       "critical path that matches no trade — or a project with no schedule at all — falls back to the "
       "slowest-trade heuristic and says so instead of optimising an imagined bottleneck.")

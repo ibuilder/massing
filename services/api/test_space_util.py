@@ -96,10 +96,10 @@ if os.path.exists(TMP):
     os.remove(TMP)
 
 print("SPACE-UTIL OK - occupancy capacity per IfcSpace at an area-per-person standard rolls up by type "
-      "(200+105 m² Office → 30 seats at 10 m²/person; a 0-area space → 0; a different standard changes the "
+      "(200+105 m² Office -> 30 seats at 10 m²/person; a 0-area space -> 0; a different standard changes the "
       "count; a bad standard falls back to the default), and a headcount program compares against the "
       "modelled inventory into a required-vs-supplied gap per type worst-deficit-first (Office needs 400 has "
-      "305 → −95 deficit); the /model/space-utilization route 409s without a model and the /space-demand "
+      "305 -> -95 deficit); the /model/space-utilization route 409s without a model and the /space-demand "
       "route returns a gap plan. Benchmarking: /benchmarks/space-utilization aggregates capacity + "
       "m²-per-space across the portfolio's modelled projects with a portfolio median, clamps the "
       "standard, and model-less projects simply aren't rows.")

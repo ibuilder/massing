@@ -141,7 +141,7 @@ with TestClient(app) as c:
     assert c.get(f"/projects/{pid}/workflow/not_a_module").status_code == 404
 
 print("WFE-3 OK - a project can rewire which of a module's DECLARED states connect (RFIs going "
-      "straight draft→answered here, with a reopen), and both halves agree: the actions the UI offers "
+      "straight draft->answered here, with a reopen), and both halves agree: the actions the UI offers "
       "and the transitions the engine honours come from the same effective workflow, so there is no "
       "button that 409s. Overrides carry their own party/requires gates. THE POINT: an override that "
       "would strand live records — a state holding records with no way out — is REFUSED with the "

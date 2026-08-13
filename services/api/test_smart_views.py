@@ -70,6 +70,6 @@ with TestClient(app) as c:
     assert c.get(f"/projects/{pid}/smart-views/nope/run").status_code == 404
 
 print("SMART-VIEWS OK - saved view presets (name + QUERY-DSL selector + isolate/color/hide) validate + "
-      "persist atomically (bad selector → 422, no clobber); colour only kept in color mode + hex-checked; "
-      "run() resolves the selector to GUIDs over the property index (L3 duct → [g1]; storey=L3 → g1,g3; "
-      "no model → empty); routes list/save/run with 404 on an unknown id.")
+      "persist atomically (bad selector -> 422, no clobber); colour only kept in color mode + hex-checked; "
+      "run() resolves the selector to GUIDs over the property index (L3 duct -> [g1]; storey=L3 -> g1,g3; "
+      "no model -> empty); routes list/save/run with 404 on an unknown id.")

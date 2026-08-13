@@ -63,6 +63,6 @@ with TestClient(app) as c:
 
 print("DISTWATERFALL OK - empty cap table zeroes with a note; 2.0M exit over 900k LP / 100k GP "
       "conserves every dollar, LP IRR clears the 8% pref with capital fully returned, EMs are "
-      "internally consistent, and allocation is pro-rata within the LP class (Alpha=2×Beta, sorted "
+      "internally consistent, and allocation is pro-rata within the LP class (Alpha=2xBeta, sorted "
       "desc); short dates synthesize annual periods (3 for 3 distributions); pref_rate override "
       "echoed. (Tier math itself is pinned in test_waterfall.)")

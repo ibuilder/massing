@@ -113,11 +113,11 @@ assert r2["torsion"]["irregularity"] and "Type 1b" in r2["torsion"]["irregularit
 if os.path.exists(TMP):
     os.remove(TMP)
 
-print("STRUCT-LATERAL OK - ASCE 7 §12.8 seismic ELF hand-verified (3×100 kip @ 10/20/30 ft, SDS=1/R=8 → "
+print("STRUCT-LATERAL OK - ASCE 7 §12.8 seismic ELF hand-verified (3x100 kip @ 10/20/30 ft, SDS=1/R=8 -> "
       "Cs=0.125, V=37.5 kip, Fx=6.25/12.5/18.75, shears 37.5/31.25/18.75, OTM=875 kip·ft); the §12.8-5 "
       "floor + §12.8-3 upper bound on Cs both verified; simplified wind MWFRS qz via the Kz power law, base "
-      "shear = Σ story forces and grows with V²; lateral_from_model reads stories + estimates weight, runs "
+      "shear = sum story forces and grows with V²; lateral_from_model reads stories + estimates weight, runs "
       "both, and picks the governing base shear; not-a-PE disclaimer on every result. DRIFT: §12.12 "
-      "allowable Δa=coeff·hsx by Risk Category (II 2.4in / IV 1.2in per 10ft story), design drift "
-      "Δ=Cd·δxe/Ie from story shear ÷ stiffness (k=100→pass, k=50→fail) or a target elastic ratio; "
-      "§12.3.2.1 torsional flag δmax/δavg → Type 1a(>1.2)/1b(>1.4) with the Ax amplification.")
+      "allowable deltaa=coeff·hsx by Risk Category (II 2.4in / IV 1.2in per 10ft story), design drift "
+      "delta=Cd·deltaxe/Ie from story shear ÷ stiffness (k=100->pass, k=50->fail) or a target elastic ratio; "
+      "§12.3.2.1 torsional flag deltamax/deltaavg -> Type 1a(>1.2)/1b(>1.4) with the Ax amplification.")

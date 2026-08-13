@@ -63,7 +63,7 @@ with TestClient(app) as c:
     assert j["total"] == 93_500_000 and j["rates"]["rates"]["office"]["n"] == 3, j["total"]
 
 print("CONCEPT-BUDGET OK - three own office projects (300/350/400 per SF) yield a median 350 with p25 325 / "
-      "p75 375 (escalating 2024→2026 at 5%/yr compounds to 385.88); a 200k SF office massing prices at $70M "
+      "p75 375 (escalating 2024->2026 at 5%/yr compounds to 385.88); a 200k SF office massing prices at $70M "
       "(range $65–75M, source own-history n=3), retail/lab fall back to the $500 default, a use with no "
       "history and no default is UNPRICED rather than guessed; $85M subtotal + 10% contingency = $93.5M "
       "(range $88.5–98.5M); the /estimate/concept-budget route derives rates from history and prices the "

@@ -91,10 +91,10 @@ with TestClient(app) as c:
 
 print("PROCURE-LEVEL OK - QTO line items group into buyout packages (Concrete $12.5k > HVAC $4k, each with "
       "an RFQ scope of item/qty/unit to send out); returned quotes for a package are scored against the RFQ "
-      "scope on price (extended over scope qty), coverage completeness, and lead time → Ace (full coverage, "
+      "scope on price (extended over scope qty), coverage completeness, and lead time -> Ace (full coverage, "
       "cheaper, faster) beats BuildCo (misses formwork), with per-item low prices surfaced and lead-time "
       "weight folding into price+coverage when no lead times are given; both routes return 200. "
       "Persistence: /procurement/packages/save writes one Buyout Packages record per group (est cost, "
       "line count, JSON scope, draft state) and /packages/{rid}/send-rfq mints a Bid Solicitation "
-      "carrying name/trade/due and advances the package draft → rfq_sent (idempotent on re-send; 404 "
+      "carrying name/trade/due and advances the package draft -> rfq_sent (idempotent on re-send; 404 "
       "on an unknown package).")

@@ -74,7 +74,7 @@ with TestClient(app) as c:
     assert c.get("/projects/no-such/selections/summary").status_code == 404
 
 print("SELECTIONS OK - the selections log rolls up to the allowance-vs-actual money picture: 5 selections "
-      "(4 priced, 1 owner-approved), total allowance $5,700 vs actual $4,790 → net -$910 UNDER; 2 over / 1 "
+      "(4 priced, 1 owner-approved), total allowance $5,700 vs actual $4,790 -> net -$910 UNDER; 2 over / 1 "
       "under / 1 on-allowance; the two over-allowance items surface as change-order candidates worst-first "
       "(faucet +$250 approved, pulls +$240), per-category signed deltas "
       "(Fixtures +250 / Flooring -600), and an empty project returns a zeroed summary; 404 on unknown.")

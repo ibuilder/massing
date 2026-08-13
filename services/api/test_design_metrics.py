@@ -75,5 +75,5 @@ if os.path.exists(TMP):
 print("DESIGN-METRICS OK - program-efficiency + daylight metrics compute over the model: floors, space "
       "count, net floor area, gross (from storey quantities or net÷0.82), net-to-gross ratio, unit count + "
       "area-by-type; and a deterministic average-daylight-factor ESTIMATE from the model's glazed area vs "
-      "net floor area (CIBSE constants → ADF% = WFR × ~9.07, banded ≥2% good / 1–2% fair / <1% limited, "
+      "net floor area (CIBSE constants -> ADF% = WFR x ~9.07, banded >=2% good / 1–2% fair / <1% limited, "
       "clearly labelled an estimate not a ray-trace); the /model/design-metrics route 409s without a model.")

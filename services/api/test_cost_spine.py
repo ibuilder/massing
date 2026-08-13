@@ -124,7 +124,7 @@ with TestClient(app) as c:
     # the route is project-scoped and role-gated like every other /projects/{pid} route
     assert c.get("/projects/does-not-exist/cost-spine").status_code == 404
 
-print("COST-SPINE OK - cost-code identity traced across budget→commitment→actual→invoice, reporting "
+print("COST-SPINE OK - cost-code identity traced across budget->commitment->actual->invoice, reporting "
       "PRESENCE not just amounts: a complete chain reaches all four stages with no flags, while "
       "spend booked against a code nobody budgeted is NAMED (spend_without_budget) rather than left "
       "to show up as a large negative variance, budget with nothing behind it reports where the chain "

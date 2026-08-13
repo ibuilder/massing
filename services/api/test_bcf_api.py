@@ -92,6 +92,6 @@ print("BCF-API OK - /bcf/versions negotiates 2.1 + /bcf/2.1/auth advertises the 
       "/bcf/2.1/projects lists accessible projects; a BCF-shape topic create maps topic_type/"
       "topic_status/labels/assigned_to onto the native Topic (Clash/Open, same row as /projects/"
       "{pid}/topics), fetch-by-guid 404s on a bad guid; comments round-trip in BCF shape and share the "
-      "native Comment row; missing title / empty comment → 422. Viewpoints round-trip the "
+      "native Comment row; missing title / empty comment -> 422. Viewpoints round-trip the "
       "perspective_camera (view_point + unit direction), components.selection/visibility.exceptions, "
       "and snapshot — same row as the native viewpoint route; the snapshot streams as a real PNG.")

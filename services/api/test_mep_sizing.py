@@ -179,8 +179,8 @@ print("MEP-SIZE OK - sizing_check reads Pset_Massing_MEPSizing off each authored
       "100 mm/1000 CFM duct fails, a 50 mm/20 GPM pipe passes, a 25 mm/50 GPM pipe fails (~21 ft/s); runs "
       "with no design flow return info; limits are overridable; empty models don't crash; every result "
       "carries the not-a-PE disclaimer. DEPTH: pressure_loss matches the hand-computed empirical duct rate "
-      "(300 mm/1000 CFM ≈ 0.23 in.wg/100ft → over the 0.10 equal-friction budget) + Hazen-Williams pipe "
+      "(300 mm/1000 CFM ~= 0.23 in.wg/100ft -> over the 0.10 equal-friction budget) + Hazen-Williams pipe "
       "rates, series-sums per system and names the index run; tray_fill computes per-conductor NEC 392.22 "
-      "fill from authored cable diameters (3×30 mm in a 300 mm tray passes, 6×40 mm in a 100 mm tray "
-      "fails, no cables → info); thermal_loads screens space-by-space W/sf loads (office/conference/"
+      "fill from authored cable diameters (3x30 mm in a 300 mm tray passes, 6x40 mm in a 100 mm tray "
+      "fails, no cables -> info); thermal_loads screens space-by-space W/sf loads (office/conference/"
       "back-of-house densities, hand-checked office total) vs the GFA÷350 block estimate.")

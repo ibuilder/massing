@@ -68,5 +68,5 @@ with TestClient(app) as c:
 print("PERSONA-ANSWER OK - the same CitedAnswer shapes per seat: exec gets two sentences + a cost-exposure "
       "chip, field one line + 'show these on my level', pm the breakdown + RFI chip (unknown personas fall "
       "back to pm); claims/citations are never dropped; the deterministic insight prioritizes conflicts > "
-      "uncited > no-match > coverage, and follow-up chips (≤4) derive from what the answer contains; the "
+      "uncited > no-match > coverage, and follow-up chips (<=4) derive from what the answer contains; the "
       "/answer/cited-query route shapes when persona is passed and stays a plain CitedAnswer when not.")

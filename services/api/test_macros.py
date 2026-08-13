@@ -104,6 +104,6 @@ if os.path.exists(TMP):
 print("RECIPE-MACROS OK - a chained edit-recipe saves as a named parameterized command: expand() resolves "
       "${param} placeholders with type preserved (a bare ${x0} stays numeric) + declared defaults, a "
       "required param with no value raises, and an unknown recipe name is rejected atomically at save; the "
-      "routes list (starter fallback) → save (422 on bad recipe, no overwrite) → expand (model-free preview) "
-      "→ run (applies the whole chain as ONE GUID-stable version with a single undo entry, 404 on a missing "
+      "routes list (starter fallback) -> save (422 on bad recipe, no overwrite) -> expand (model-free preview) "
+      "-> run (applies the whole chain as ONE GUID-stable version with a single undo entry, 404 on a missing "
       "macro).")

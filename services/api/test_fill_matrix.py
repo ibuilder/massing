@@ -51,7 +51,7 @@ with TestClient(app) as c:
     assert rr.status_code == 200, rr.text
     assert rr.json()["class_count"] == 0, rr.json()                           # no model loaded yet
 
-print("FILL-MATRIX OK - a category × property fill-rate pivot: of 4 IfcWall, Pset_WallCommon.FireRating is "
+print("FILL-MATRIX OK - a category x property fill-rate pivot: of 4 IfcWall, Pset_WallCommon.FireRating is "
       "filled on 2 (0.5) with w3/w4 blank and LoadBearing filled on 2 with w2/w3 blank — each property hands "
       "back the exact blank GUIDs (the selection a bulk edit fills in one pass) + a query-DSL scope; the "
       "fully-filled IfcSlab.IsExternal is excluded from worst_gaps, which surfaces the partially-filled wall "

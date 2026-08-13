@@ -69,8 +69,8 @@ with TestClient(app) as c:
     # a term with no operator is LEGAL grammar (a field-exists check) — it filters, never 500s
     assert c.get(f"/projects/{pid}/topics/board", params={"filter": "priority"}).json()["total"] == 1
 
-print("TOPIC-BOARD OK - the kanban groups topics into stable workflow-ordered columns (open → in progress → "
-      "closed; priority High → Low with unassigned last; newest-modified first within a column) and the "
-      "QUERY-DSL grammar filters topic fields (priority=High → 2, status=open & assignee=kim → 2, title~duct "
-      "→ 1); the /topics/board route resolves ahead of /topics/{tid} (200 not 404), applies filters "
+print("TOPIC-BOARD OK - the kanban groups topics into stable workflow-ordered columns (open -> in progress -> "
+      "closed; priority High -> Low with unassigned last; newest-modified first within a column) and the "
+      "QUERY-DSL grammar filters topic fields (priority=High -> 2, status=open & assignee=kim -> 2, title~duct "
+      "-> 1); the /topics/board route resolves ahead of /topics/{tid} (200 not 404), applies filters "
       "server-side, and 422s on a bad group_by or an unparseable selector.")

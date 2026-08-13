@@ -83,8 +83,8 @@ with TestClient(app) as c:
                   json={"actuals": actuals, "planned": planned}).json()["source"] == "request"
 
 print("PROD-ACTUALS OK - field actuals roll up per activity into installed rate (qty ÷ productive/cycle "
-      "hours) + crew utilization (productive ÷ productive+idle), compared to the planned rate → drywall "
-      "10 SF/hr is +25% ahead of an 8 SF/hr plan, doors 4 EA/hr is −20% behind a 5 EA/hr plan (50% complete, "
+      "hours) + crew utilization (productive ÷ productive+idle), compared to the planned rate -> drywall "
+      "10 SF/hr is +25% ahead of an 8 SF/hr plan, doors 4 EA/hr is -20% behind a 5 EA/hr plan (50% complete, "
       "10 h projected to finish at rate), an unplanned activity has no status; the rollup counts 1 ahead / 1 "
       "behind, overall utilization 0.625, worst-variance first; the /progress/actuals route 404s on a "
       "missing project and returns the analysis otherwise. Persistence: with an empty actuals list the "

@@ -51,8 +51,8 @@ with TestClient(app) as c:
     l = c.post(f"/projects/{pid}/feasibility/lot-supply", json={"vdl": 1200, "monthly_absorption": 100})
     assert l.status_code == 200 and l.json()["band"] == "oversupplied", l.text
 
-print("ABSORPTION-SELLOUT + LOT-SUPPLY-INDEX OK - 100 units at 10/month × $500k phase over a 10-month "
+print("ABSORPTION-SELLOUT + LOT-SUPPLY-INDEX OK - 100 units at 10/month x $500k phase over a 10-month "
       "sell-out ($50M revenue, $200k carry over the window, 0.83 yr), with the last month selling the "
       "remainder on an uneven mix; absorption 0 can't be phased. The Lot Supply Index reads VDL ÷ absorption "
-      "as months of supply indexed to a 6-month equilibrium: 12 mo → LSI 200 oversupplied, 3 mo → 50 "
-      "undersupplied, 6 mo → 100 balanced; both /feasibility routes 404 on a missing project.")
+      "as months of supply indexed to a 6-month equilibrium: 12 mo -> LSI 200 oversupplied, 3 mo -> 50 "
+      "undersupplied, 6 mo -> 100 balanced; both /feasibility routes 404 on a missing project.")

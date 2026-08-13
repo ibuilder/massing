@@ -173,7 +173,7 @@ assert all(r["composite"] >= 0 for r in mix["options"])
 assert {r["carbon_basis"] for r in mix["options"]} == {"hybrid", "benchmark"}
 
 print("GEN-SCORE DEPTH OK - an elemental takeoff now sits behind each option: quantities off the real "
-      "massing geometry (perimeter × height for façade, not GFA alone), priced element by element with "
+      "massing geometry (perimeter x height for façade, not GFA alone), priced element by element with "
       "each rate and extension auditable, and run through the platform's OWN EPD factor table rather "
       "than a second copy. The payoff is what a benchmark structurally cannot do: a squat plate and a "
       "slender tower with identical GFA and type get identical benchmark carbon, while the takeoff "

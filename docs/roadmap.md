@@ -178,8 +178,25 @@ instances:
   *Recorded as unreachable in the module's own header so it cannot be mistaken for shipped
   capability — the mistake this band exists to catch.*
 
-- ◧ **QTO-TRADE — the four procurement methods cannot be wired at all, and this is why.** *(backend;
-  blocks `buyoutPackages`, `procurementLevel`, `procurementLevelQuotes` and their sibling)*
+- ◧ **QTO-TRADE — the four procurement methods cannot be wired at all, and this is why.**
+  *(**backend half DONE**; the remaining work is the other three methods' screens — Lane B, not C)*
+
+  **BACKEND CLOSED, verified 2026-08-13.** `procurement.normalize_qto_line` accepts either dialect
+  and is called by `buyout_packages`; the trade comes from `classification.py`, not from a second
+  mapping table beside it — which is what the entry below asked for and the right call, since a
+  second table is how two sources of truth start disagreeing about what a wall is.
+
+  **`buyoutPackages` now has a screen (v0.3.939)**: *Buyout packages* on the budget panel feeds
+  `qtoByFloor`'s `by_discipline` lines — the exact `{ifc_class, count, unit, quantity, rate, amount}`
+  shape that used to produce zero packages — straight into the engine.
+
+  Two empty states are rendered **separately and deliberately**, because collapsing them is the
+  specific failure this entry warned about: *no priced quantities* (nothing to package yet) reads
+  differently from *lines went in and nothing came out* (a grouping problem). One empty table for
+  both is what would have said "this project has no scope" about a fully-priced model.
+
+  Remaining: `procurementLevel`, `procurementLevelQuotes`, `buyoutSchedule` still have no caller.
+  They need returned quotes to level, which is a different input than the model.
 
   **Two agents reached this independently, from different directions, on 2026-08-07** — one from the
   input shape, one from the bid-submission side — and both refused to guess. That convergence is

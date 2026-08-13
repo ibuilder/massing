@@ -51,8 +51,8 @@ with TestClient(app) as c:
     j = rr.json()
     assert j["overdue"] == 1 and j["entries"][0]["material"] == "W12x26 steel", j
 
-print("BUYOUT-SCHED OK - QTO lines join to their installing activity (by id/cost-code/trade) → the "
-      "last-responsible-order date (install start − lead time): a steel line with a 60-day lead installing "
-      "2026-08-15 must be ordered by 2026-06-16 (overdue as of 2026-07-01, buffer −15d), rebar with a 21-day "
+print("BUYOUT-SCHED OK - QTO lines join to their installing activity (by id/cost-code/trade) -> the "
+      "last-responsible-order date (install start - lead time): a steel line with a 60-day lead installing "
+      "2026-08-15 must be ordered by 2026-06-16 (overdue as of 2026-07-01, buffer -15d), rebar with a 21-day "
       "lead installing 2026-09-01 orders by 2026-08-11 (ok), and an unmatched line is 'unscheduled' and sorts "
       "last; soonest-order-first, 1 overdue, $30k in the window; the /procurement/buyout-schedule route works.")

@@ -88,6 +88,6 @@ with TestClient(app) as c:
     assert c.delete(f"/projects/{pid}/site-context", headers=HDR).json()["deleted"] is True
     assert c.get(f"/projects/{pid}/site-context", headers=HDR).status_code == 409
 
-print("SITE-CONTEXT OK - DMS→decimal georef; Overpass→GeoJSON (2 buildings w/ height 21m + 4-storey "
-      "→12m, road LineString, landuse parcel, open ring skipped); MockTransport fetch carries "
+print("SITE-CONTEXT OK - DMS->decimal georef; Overpass->GeoJSON (2 buildings w/ height 21m + 4-storey "
+      "->12m, road LineString, landuse parcel, open ring skipped); MockTransport fetch carries "
       "lat/radius; endpoint 409s without coordinates, serves the cache fully offline, DELETE clears.")

@@ -8,6 +8,28 @@ import type { PanelContext } from "../panelContext";
  * overhead, fee & contingency, shown budget vs committed vs actual vs EAC with owner + sub billing,
  * buyout savings, and the cost-loaded cash-flow curve. Extracted from portal.ts (PanelContext seam).
  */
+/** What the buyout packaging actually found — the three cases kept distinct.
+ *
+ * QTO-TRADE's whole complaint was that these collapse into one empty table. "No priced quantities"
+ * and "lines went in, nothing came out" are different facts about a project: the first is a project
+ * that has not been estimated yet, the second is a grouping failure on a fully-priced model. Showing
+ * one message for both is what made a working model read as having no scope.
+ *
+ * Pure and exported so it can be asserted directly. The renderer around it needs a live api and a
+ * mounted DOM, and a test that scanned the source for two different strings would prove they were
+ * spelled differently, not that the right one is chosen.
+ */
+export type BuyoutOutcome =
+  | { kind: "no-quantities" }
+  | { kind: "no-packages"; lineCount: number }
+  | { kind: "packages"; packageCount: number };
+
+export function buyoutOutcome(lineCount: number, packageCount: number): BuyoutOutcome {
+  if (lineCount <= 0) return { kind: "no-quantities" };
+  if (packageCount <= 0) return { kind: "no-packages", lineCount };
+  return { kind: "packages", packageCount };
+}
+
 export async function renderBudget(ctx: PanelContext) {
   const pid = ctx.host.projectId()!;
   ctx.root.innerHTML = "";
@@ -118,6 +140,54 @@ export async function renderBudget(ctx: PanelContext) {
         + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Storey</th><th style="text-align:right">Elements</th><th style="text-align:right">Cost</th></tr></thead><tbody>${rows(st)}</tbody></table></div>`);
     } catch (err) { fillEst(`<div class="meta">By-floor QTO unavailable: ${(err as Error).message}</div>`); }
   };
+  // QTO-TRADE — buyout packages FROM THE MODEL, which is the half that could not be wired before.
+  //
+  // `buyout_packages` resolved a line's identity as item/description/material and skipped any line
+  // where all three were absent. `qtoByFloor` emits `{ifc_class, count, unit, quantity, rate,
+  // amount}` — none of those three — so every model line hit `if not item: continue` and the engine
+  // returned zero packages for a fully-priced model. A screen over that would have rendered
+  // "Buyout — 0 packages · $0", which reads as *this project has nothing to buy out* rather than
+  // *this input is in the other dialect*. That is why a wired-but-wrong screen is worse than none.
+  //
+  // `procurement.normalize_qto_line` now speaks both dialects and takes the trade from the
+  // classification spine, so the same lines group properly. The refusal case is still rendered
+  // explicitly below rather than as an empty table — an empty result and an incompatible input must
+  // not look the same, which was the whole complaint.
+  const buyBtn = document.createElement("button"); buyBtn.className = "tool-btn";
+  buyBtn.textContent = "📦 Buyout packages";
+  buyBtn.title = "Group the model's quantities into buyout packages by trade, each with an RFQ scope";
+  buyBtn.onclick = async () => {
+    fillEst(`<div class="meta">Grouping the model's quantities into packages…</div>`);
+    try {
+      const q = await ctx.host.api.qtoByFloor(pid);
+      // `by_discipline` is the model's own roll-up: one line per IFC class with quantity and rate.
+      const lines = (q.by_discipline ?? []) as unknown as Record<string, unknown>[];
+      if (buyoutOutcome(lines.length, 1).kind === "no-quantities") {
+        fillEst(`<div class="meta">The model produced no priced quantities, so there is nothing to `
+          + `package yet. Run an estimate or a takeoff first.</div>`);
+        return;
+      }
+      const b = await ctx.host.api.buyoutPackages(pid, lines, "trade");
+      const outcome = buyoutOutcome(lines.length, b.packages.length);
+      if (outcome.kind === "no-packages") {
+        // Named separately from "no quantities" on purpose: same empty table, different cause.
+        fillEst(`<div class="meta">${outcome.lineCount} priced line(s) went in and no package came `
+          + `out — that is a grouping problem, not an empty project. ${esc(b.note || "")}</div>`);
+        return;
+      }
+      const pk = b.packages.map((p) => `<tr><td>${esc(p.package)}</td>`
+        + `<td style="text-align:right">${p.line_count}</td>`
+        + `<td style="text-align:right">${usd(p.est_cost)}</td>`
+        + `<td class="meta">${esc(p.rfq_scope.slice(0, 3).map((s) => s.item).join(", "))}`
+        + `${p.rfq_scope.length > 3 ? ` +${p.rfq_scope.length - 3}` : ""}</td></tr>`);
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">Buyout packages — ${b.package_count} `
+        + `package(s) · <b>${usd(b.total_est_cost)}</b> · grouped by ${esc(b.grouped_by)}</div>`
+        + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr>`
+        + `<th>Package</th><th style="text-align:right">Lines</th><th style="text-align:right">Est. cost</th>`
+        + `<th>RFQ scope</th></tr></thead><tbody>${rows(pk)}</tbody></table></div>`
+        + `<div class="meta" style="margin-top:4px">${esc(b.note || "")}</div>`);
+    } catch (err) { fillEst(`<div class="meta">Buyout packaging failed: ${(err as Error).message}</div>`); }
+  };
   const dxfLabel = document.createElement("label"); dxfLabel.className = "tool-btn"; dxfLabel.style.cursor = "pointer";
   dxfLabel.textContent = "⬒ Takeoff a DXF"; dxfLabel.title = "2D CAD quantity takeoff — linear metres, enclosed area and block counts per layer";
   const dxfInput = document.createElement("input"); dxfInput.type = "file"; dxfInput.accept = ".dxf"; dxfInput.style.display = "none"; dxfLabel.appendChild(dxfInput);
@@ -207,7 +277,7 @@ export async function renderBudget(ctx: PanelContext) {
         + `<div class="meta" style="margin-top:4px"><b>${w.installed_elements ?? 0}</b> of <b>${w.total_elements ?? 0}</b> element(s) installed. Derived from installed quantity, not from a typed percentage.</div>`);
     } catch (err) { fillEst(`<div class="meta">Model progress unavailable: ${(err as Error).message}</div>`); }
   };
-  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, boeBtn, wipBtn, dxfLabel);
+  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, buyBtn, boeBtn, wipBtn, dxfLabel);
 
   // budget movement vs baseline (shown only if a baseline exists; 409 otherwise → ignored)
   const bvHolder = document.createElement("div"); ctx.root.appendChild(bvHolder);

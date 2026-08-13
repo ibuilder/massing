@@ -60,5 +60,5 @@ if os.path.exists(TMP):
     os.remove(TMP)
 
 print("MESH OK - add_mesh_representation authors an IfcBuildingElementProxy with an IfcTriangulatedFaceSet "
-      "(Tessellation rep, 1-based CoordIndex); tessellation confirms a square pyramid (2×2 base, apex at "
-      "2 m, base at Z=0, ≥6 triangles); degenerate mesh + out-of-range face index are rejected.")
+      "(Tessellation rep, 1-based CoordIndex); tessellation confirms a square pyramid (2x2 base, apex at "
+      "2 m, base at Z=0, >=6 triangles); degenerate mesh + out-of-range face index are rejected.")

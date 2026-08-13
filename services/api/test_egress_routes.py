@@ -132,7 +132,7 @@ print("EGRESS-ROUTES OK - travel distance is now measured along the route a pers
       "is always shorter than the real walk and the error runs in the UNSAFE direction — it passes "
       "plans that do not comply, and reading it carefully cannot recover that, because the number is "
       "the wrong measurement. Routing is a multi-source Dijkstra outward from every exit over a "
-      "rasterised floor plate: deterministic, offline, and 8-connected with a √2 diagonal so an "
+      "rasterised floor plate: deterministic, offline, and 8-connected with a sqrt2 diagonal so an "
       "open-floor run is not overstated by ~41% the way a 4-connected grid would be. Every space "
       "reports BOTH numbers plus their ratio, so the understatement is visible per space rather than "
       "asserted in general. A space with no route at all is reported as unreachable rather than "

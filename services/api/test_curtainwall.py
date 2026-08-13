@@ -78,5 +78,5 @@ for f in (TMP, MM, OUT):
         os.remove(f)
 
 print("CURTAIN WALL OK - IfcCurtainWall aggregates 4 mullions + 3 transoms (IfcMember MULLION) + 6 glazing "
-      "panels (IfcPlate CURTAIN_PANEL) on a 3×2 grid, contained in the storey; panel real width = 2.0 m on "
+      "panels (IfcPlate CURTAIN_PANEL) on a 3x2 grid, contained in the storey; panel real width = 2.0 m on "
       "BOTH metre and millimetre models (unit-scale correct); add_curtain_wall recipe works via apply_recipe.")

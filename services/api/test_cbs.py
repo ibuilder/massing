@@ -70,7 +70,7 @@ with TestClient(app) as c:
 if os.path.exists(TMP):
     os.remove(TMP)
 
-print("CBS-1 OK - a $1M direct cost layers to $1,259,280: indirect 10%% ($100k) → contingency 5%% ($55k) "
-      "→ management reserve 3%% ($33k, separate from contingency) → overhead & profit 6%% → taxes; the six "
+print("CBS-1 OK - a $1M direct cost layers to $1,259,280: indirect 10%% ($100k) -> contingency 5%% ($55k) "
+      "-> management reserve 3%% ($33k, separate from contingency) -> overhead & profit 6%% -> taxes; the six "
       "layers' shares sum to 100%%; defaults fill omitted rates and zero direct is safe; the /estimate/cbs "
       "route 409s without a model and layers the takeoff direct cost with query-override rates otherwise.")

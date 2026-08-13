@@ -72,5 +72,5 @@ if os.path.exists(TMP):
     os.remove(TMP)
 
 print("SPEC MANUAL OK - project_manual groups elements by MasterFormat into CSI divisions (04 Masonry / "
-      "05 Metals) → sections with SectionFormat Part 1/2/3; Part 3 Execution pulls attached install docs "
+      "05 Metals) -> sections with SectionFormat Part 1/2/3; Part 3 Execution pulls attached install docs "
       "(steel erection) or falls back to manufacturer instructions; CSI-ordered; manual_text renders the outline.")

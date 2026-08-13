@@ -167,6 +167,6 @@ if os.path.exists(TMP):
     os.remove(TMP)
 
 print("PRODUCTIVITY OK - the rate catalog groups activities by trade w/ loading factors; labor_estimate "
-      "computes man-hours (qty×mh×loading) + crew-days + cost (100 m² masonry → 130 mh → $3,900 at $30/hr), "
+      "computes man-hours (qtyxmhxloading) + crew-days + cost (100 m² masonry -> 130 mh -> $3,900 at $30/hr), "
       "highrise loading inflates hours, unknown/zero lines skipped; from_model derives a rough takeoff "
-      "(2 walls → ~45 m² masonry, slab → concrete casting) straight from element dimensions.")
+      "(2 walls -> ~45 m² masonry, slab -> concrete casting) straight from element dimensions.")

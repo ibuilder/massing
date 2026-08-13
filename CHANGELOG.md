@@ -4,6 +4,49 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.939 (2026-08-13) — a test that reported failure while nothing had failed
+
+### The suite's exit code depended on the console encoding
+
+`test_procurement.py` passed every assertion it makes and then **died printing its success line**.
+The arrow in `"rebar→BuildMart"` is U+2192; Windows' default console encoding is cp1252, which has no
+such character. Exit code 1, zero failed assertions, and a traceback where the OK line should be.
+
+Through `run_tests.py` it passed, because that runner sets `PYTHONUTF8=1` for its children. Run
+directly — which is how anyone debugging a single test runs it — it reported failure while nothing had
+failed. **A false red is worse than an annoyance: it sends someone to debug a passing test, and what
+it teaches is to distrust the runner.**
+
+**The same bug bit from the other side on the same day.** A gate written that morning put a U+2192 in
+its *failure* detail. Every assertion passed, so nothing showed — until a mutation made it fail, and
+instead of naming the unpinned action it raised `UnicodeEncodeError`. Exit code 1 either way, so the
+mutation appeared to work; the message identifying the culprit was destroyed. Reading the output
+rather than the exit code is the only reason it was caught.
+
+Swept 67 test files, replacing such characters **inside `print()` calls only** — located by walking
+the AST, not by a blind find-and-replace, so docstrings and comments are untouched.
+`services/api/test_output_encoding.py` holds the line, and is deliberately narrow for the same
+reason: a rule covering docstrings would flag its own prose, which is how a gate gets switched off.
+It carries the twin too — asserting cp1252 punctuation (em dashes, curly quotes) stays *allowed*, so
+nobody "fixes" characters that were never the problem.
+
+### QTO-TRADE — buyout packages from the model reach a screen
+
+The backend half was already done and the roadmap had not noticed: `procurement.normalize_qto_line`
+speaks both dialects and takes the trade from the classification spine rather than a second mapping
+table. What was missing was the screen. *Buyout packages* on the budget panel now feeds
+`qtoByFloor`'s `by_discipline` lines — the exact `{ifc_class, count, unit, quantity, rate, amount}`
+shape that used to yield zero packages — into the engine.
+
+**Two empty states, rendered separately on purpose.** *No priced quantities* and *lines went in and
+nothing came out* are different facts about a project, and one shared empty table for both is exactly
+what would have reported "this project has nothing to buy out" about a fully-priced model.
+
+The uncalled-method gate did its job on first contact: adding the caller failed the build with
+`1 method(s) in UNCALLED now HAVE a caller: buyoutPackages`, naming the method and prescribing the
+fix. That is the RATCHET-SET conversion — from a scalar ceiling with no floor to a committed set —
+earning its keep in real use.
+
 ## v0.3.938 (2026-08-13) — supply-chain pins, and a citation that opens the document it cites
 
 ### HIGH-7 — every third-party GitHub Action pinned to a commit SHA

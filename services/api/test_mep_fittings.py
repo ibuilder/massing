@@ -74,6 +74,6 @@ if os.path.exists(TMP):
 
 print("MEP-FITTINGS OK - over three authored + connected mini-systems the engine infers the implied "
       "fittings deterministically from the port graph: a tee at the 3-way junction node, a reducer at the "
-      "300→200 mm in-line joint, and an elbow at the 90° segment-to-segment corner (branch legs are not "
+      "300->200 mm in-line joint, and an elbow at the 90° segment-to-segment corner (branch legs are not "
       "double-counted as elbows/reducers); the counts roll into QTO as EA lines, and the /mep/fittings "
       "route 409s without a model and returns the fitting counts otherwise.")

@@ -82,7 +82,7 @@ for f in (TMP, OUT):
         os.remove(f)
 
 print("STRUCT-LOADS-IFC OK - apply_member_loads writes one IfcStructuralLinearAction per analytical curve "
-      "member (applied IfcStructuralLoadLinearForce, global −Z at (D+L)×14593.9 N/m), each connected to its "
+      "member (applied IfcStructuralLoadLinearForce, global -Z at (D+L)x14593.9 N/m), each connected to its "
       "member and grouped under the load group — a loaded, solver-ready analytical IFC. Idempotent "
       "(re-apply refreshes the value, counts unchanged); summary reports load_actions through a round-trip; "
       "a re-derive purges the actions with no orphans; the apply_structural_loads recipe publishes it; an "

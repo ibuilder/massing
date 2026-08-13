@@ -74,7 +74,7 @@ with TestClient(app) as c:
     assert j["vs_actuals"]["total_variance"] == 6800.0, j["vs_actuals"]
 
 print("BOE-LEDGER OK - the assumption ledger flags the undocumented basis (a quote line without a quote_ref, "
-      "a line missing its basis date → 33% documented); SD→DD drift shows concrete re-based 100→110 qty and "
-      "500→520 unit cost with the source upgraded allowance→quote (+$7,200, escalation 3→5%); against actuals "
+      "a line missing its basis date -> 33% documented); SD->DD drift shows concrete re-based 100->110 qty and "
+      "500->520 unit cost with the source upgraded allowance->quote (+$7,200, escalation 3->5%); against actuals "
       "the $8,800 concrete miss decomposes EXACTLY into $5,200 quantity effect + $3,600 price effect "
-      "(quantity-driven) while steel's −$2,000 is pure price; the /estimate/boe route returns all three reads.")
+      "(quantity-driven) while steel's -$2,000 is pure price; the /estimate/boe route returns all three reads.")

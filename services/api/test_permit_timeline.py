@@ -60,8 +60,8 @@ with TestClient(app) as c:
     j = rr.json()
     assert j["measured"] == 6 and j["estimate"]["expected_days"] == 90, j
 
-print("PERMIT-TIMELINE OK - days-to-issue = issued − filed over cached permits (an issued<filed row dropped): "
+print("PERMIT-TIMELINE OK - days-to-issue = issued - filed over cached permits (an issued<filed row dropped): "
       "the Austin New-Commercial $1M–10M cohort of 5 has p25/median/p75 = 59/90/120 days; the pro-forma "
-      "estimate returns median 90d (3.0mo expected) + p75 120d (conservative carry) at basis 'jurisdiction × "
-      "type × band'; a thin Residential cohort broadens to the jurisdiction median (74.5d over all 6 Austin "
+      "estimate returns median 90d (3.0mo expected) + p75 120d (conservative carry) at basis 'jurisdiction x "
+      "type x band'; a thin Residential cohort broadens to the jurisdiction median (74.5d over all 6 Austin "
       "permits); the /permits/timeline route 404s on a missing project and 409s with no permit data.")
