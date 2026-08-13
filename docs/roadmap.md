@@ -128,10 +128,23 @@ currently fail if either regresses.**
   itself is identical in all three buckets — which is exactly why the count read as one work item.
 
   * **(a) stores the bytes — convertible, and this is the whole work list.**
-    `documents.py` (`docmanager.upload`), `modules.py` ×2 (`mod_engine.add_attachment`, single and
-    multi-file), `authoring.py` (the content-shelf asset). These hand a `bytes` object to a function
-    that persists it, so converting them means widening *that* function to take chunks —
-    `storage.put_stream` already does. **Five, not thirty-four.**
+    `documents.py` (`docmanager.upload`) and `modules.py` ×2 (`mod_engine.add_attachment`, single and
+    bulk). These hand a `bytes` object to a function that persists it, so converting them means
+    widening *that* function to take chunks — `storage.put_stream` already does. **Three, not
+    thirty-four. All three converted in v0.3.941–942.**
+
+    **Corrected 2026-08-13: this first said FIVE and named `authoring.py`'s content-shelf asset.**
+    That route never stores the upload — it hands the buffer to `content.parse_mesh` and keeps only
+    the resulting verts/faces, so it belongs in (b). The misclassification came from reading the two
+    lines *after* `await file.read()` (a filename suffix and a category lookup, which read like the
+    preamble to a store) instead of following `data` to its single use. **Classify an upload by where
+    its bytes are USED, not by what surrounds the read.**
+
+    `bim.py`'s BCF topic attachment is a fourth store site and is absent from this list on purpose:
+    R41-UPLOAD-WARK converted it back in v0.3.876, so it has no `await file.read()` left to find. A
+    population derived from "sites that still read the whole body" correctly excludes what is already
+    fixed — but it also means the list is not "every store site", and reading it as one would
+    undercount the surface.
   * **(b) hands the buffer to a parser** — `analysis.py` ×4 (point cloud, sheet recover, IDS),
     `bim.py` ×5 (bundle, BCF zip, clash XLSX/XML), `drafting.py` ×2 and `drawings.py` ×2 (PDF),
     `modules.py` ×2 (openpyxl, BCF), `authoring.py` (IFC open), `verification.py` (`photo_cv`),

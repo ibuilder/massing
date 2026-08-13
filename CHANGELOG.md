@@ -4,6 +4,47 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.942 (2026-08-13) — record attachments stream, and a bulk route nothing was checking
+
+### R39-UPLOAD-CAP-APP — bucket (a) closed
+
+`mod_engine.add_attachment` takes the same widening as `docmanager.upload`: **either** `data` or
+`chunks`, exactly one required, with `size` from `put_stream`'s written count. Both routes now stream
+— the single attachment and the bulk upload, which exists precisely because a superintendent dumps a
+batch of site photos at once, so holding the whole batch in memory was the wrong shape for the one
+case it was built for. The three `contracts.py` callers hold real bytes and are untouched.
+
+### The test gap that mutation-checking found
+
+Stubbing the write so **nothing was stored** left `test_evidence_gate` green. It asserts `count == 3`
+and three attachment rows — and a row is created whether or not the bytes arrive. The bulk route had
+no content assertion anywhere in the suite.
+
+`test_attachments.py` now uploads three payloads of **different lengths** and checks each one's bytes
+round-trip and each recorded `size`, so a batch that stores nothing, or stores one file three times,
+fails on content and on size rather than passing a row count.
+
+**What that test explicitly does not prove, recorded because the obvious claim is wrong.** It does
+not guard the route's `lambda f=f:` late-binding capture. Removing `f=f` leaves the test green — and
+correctly so: the route awaits each `run_in_threadpool` *inside* the loop, so every lambda runs before
+the loop advances and the classic late-binding defect cannot occur. The binding is harmless insurance,
+not load-bearing. A comment claiming otherwise would be a confident wrong answer about our own
+coverage, which is the failure this release's other half is about.
+
+### The published classification was wrong, in both directions
+
+v0.3.940 said bucket (a) was **five** sites and named `authoring.py`'s content-shelf asset. It is
+**three**. That route never stores the upload — it hands the buffer to `content.parse_mesh` and keeps
+only the resulting verts and faces, so it belongs in (b). The error came from reading the two lines
+*after* `await file.read()` — a filename suffix and a category lookup, which read like the preamble to
+a store — instead of following `data` to its single use. **Classify an upload by where its bytes are
+used, not by what surrounds the read.**
+
+And `bim.py`'s BCF topic attachment is a fourth store site absent from the list on purpose: R41-UPLOAD-WARK
+converted it in v0.3.876, so it has no `await file.read()` left to find. A population derived from
+"sites that still read the whole body" correctly excludes what is already fixed — but it is therefore
+not "every store site", and reading it as one undercounts the surface.
+
 ## v0.3.941 (2026-08-13) — the suite finally runs on the bundler that ships
 
 ### R41-BUNDLER-SPLIT — one Vite, and it is the one that builds the app

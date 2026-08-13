@@ -497,21 +497,39 @@ def set_element_guids(db: Session, key: str, project_id: str, rid: str, guids: l
 
 # --- attachments (bytes live in storage/MinIO) ------------------------------
 def add_attachment(db: Session, key: str, project_id: str, rid: str, filename: str,
-                   content_type: str | None, data: bytes, actor: str) -> dict:
+                   content_type: str | None, data: bytes | None, actor: str, *,
+                   chunks=None) -> dict:
+    """Attach a file to a record.
+
+    R39-UPLOAD-CAP-APP. Same widening as `docmanager.upload`: pass EITHER `data` (bytes in hand) or
+    `chunks` (an iterable from `storage.upload_chunks`), never both and never neither. The routes
+    pass `chunks` — Starlette has already spooled the upload to disk, so `await file.read()` was
+    copying a file that existed.
+
+    `size` is `put_stream`'s return value on the streaming path — the count actually WRITTEN — so
+    the row cannot record a size the stored object does not have. It is used twice below (the row and
+    the response) and both now read the same variable rather than re-deriving it.
+    """
     from . import storage
     from .models import RecordAttachment
 
+    if (data is None) == (chunks is None):
+        raise ValueError("pass exactly one of `data` or `chunks`")
     get_record(db, key, project_id, rid)  # 404 if missing
     aid = str(uuid.uuid4())
     skey = f"records/{project_id}/{key}/{rid}/{aid}_{filename}"
-    storage.put(skey, data)
+    if chunks is not None:
+        size = storage.put_stream(skey, chunks)
+    else:
+        storage.put(skey, data)
+        size = len(data)
     att = RecordAttachment(id=aid, project_id=project_id, module=key, record_id=rid,
-                           filename=filename, content_type=content_type, size=len(data),
+                           filename=filename, content_type=content_type, size=size,
                            storage_key=skey, uploaded_by=actor)
     db.add(att)
     _log(db, project_id, key, rid, actor, None, "attach", {"filename": filename})
     db.commit()
-    return {"id": aid, "filename": filename, "size": len(data), "content_type": content_type}
+    return {"id": aid, "filename": filename, "size": size, "content_type": content_type}
 
 
 def list_attachments(db: Session, key: str, project_id: str, rid: str) -> list[dict]:

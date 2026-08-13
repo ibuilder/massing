@@ -789,9 +789,16 @@ def tag_elements(pid: str, key: str, rid: str, guids: list[str] = Body(..., embe
 async def upload_attachment(pid: str, key: str, rid: str, file: UploadFile = File(...),
                             db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):
     """Attach a file to a record (stored in object storage / MinIO)."""
-    data = await file.read()
-    return mod_engine.add_attachment(db, key, pid, rid, file.filename or "file",
-                                     file.content_type, data, user)
+    from starlette.concurrency import run_in_threadpool
+
+    from .. import storage
+    # R39-UPLOAD-CAP-APP: stream instead of `await file.read()`. Site photos and marked-up PDFs are
+    # the common case here and neither is small. `add_attachment` is synchronous and commits, so the
+    # whole call goes to the threadpool rather than iterating chunks on the event loop.
+    return await run_in_threadpool(
+        lambda: mod_engine.add_attachment(db, key, pid, rid, file.filename or "file",
+                                          file.content_type, None, user,
+                                          chunks=storage.upload_chunks(file)))
 
 
 @router.post("/projects/{pid}/modules/{key}/{rid}/attachments/bulk", status_code=201)
@@ -801,11 +808,17 @@ async def upload_attachments_bulk(pid: str, key: str, rid: str,
                                   user: str = Depends(require_role("reviewer"))):
     """Attach **many** files at once — the field reality (a super dumps a batch of site photos rather
     than uploading them one by one). Each is stored like a single upload; returns all created + a count."""
+    from starlette.concurrency import run_in_threadpool
+
+    from .. import storage
     out = []
     for f in files:
-        data = await f.read()
-        out.append(mod_engine.add_attachment(db, key, pid, rid, f.filename or "file",
-                                             f.content_type, data, user))
+        # Streamed one at a time on purpose: the batch is the reason this route exists, so holding
+        # every file of a photo dump in memory at once is precisely what to avoid.
+        out.append(await run_in_threadpool(
+            lambda f=f: mod_engine.add_attachment(db, key, pid, rid, f.filename or "file",
+                                                  f.content_type, None, user,
+                                                  chunks=storage.upload_chunks(f))))
     return {"count": len(out), "attachments": out}
 
 

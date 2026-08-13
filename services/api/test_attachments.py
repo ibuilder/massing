@@ -66,6 +66,43 @@ with TestClient(app) as c:
     rec = c.get(f"/projects/{pid}/modules/rfi/{rid}").json()
     assert any(a["id"] == aid for a in rec.get("attachments", [])), rec.get("attachments")
 
+    # --- BULK: every file must land, with ITS OWN bytes -------------------------------------------
+    # The bulk route had no content assertion anywhere. Mutation-checked and it mattered: stubbing the
+    # write so nothing was stored left `test_evidence_gate` GREEN, because that test only counts rows
+    # (count == 3, three attachments listed) and a row is created whether or not bytes arrive.
+    #
+    # Distinct payloads of DIFFERENT LENGTHS on purpose, so a batch that stores one file three times
+    # — or crosses two files' bytes — fails on content AND on size rather than only on the row count.
+    #
+    # What this does NOT prove, stated because the obvious claim is wrong: it does not guard the
+    # route's `lambda f=f:` late-binding capture. That was checked by mutation — removing `f=f`
+    # leaves this test green, and correctly so: the route awaits each `run_in_threadpool` INSIDE the
+    # loop, so every lambda is invoked before the loop advances and the classic late-binding defect
+    # cannot occur. The binding is harmless insurance, not load-bearing, and a comment claiming this
+    # test defends it would be a confident wrong answer about our own coverage.
+    BULK = [("one.bin", b"A"), ("two.bin", b"BB"), ("three.bin", b"CCC")]
+    rid2 = c.post(f"/projects/{pid}/modules/rfi",
+                  json={"data": {"subject": "Bulk", "question": "batch"}}).json()["id"]
+    blk = c.post(f"/projects/{pid}/modules/rfi/{rid2}/attachments/bulk",
+                 files=[("files", (n, b, "application/octet-stream")) for n, b in BULK])
+    assert blk.status_code == 201, blk.text[:200]
+    rows = blk.json()["attachments"]
+    assert len(rows) == 3, rows
+
+    by_name = {r["filename"]: r for r in rows}
+    for name, payload in BULK:
+        r = by_name.get(name)
+        assert r is not None, f"{name} missing from {sorted(by_name)}"
+        # size is put_stream's WRITTEN count, so a stored-nothing bug shows up here and not only
+        # in the bytes below.
+        assert r["size"] == len(payload), f"{name}: size {r['size']} != {len(payload)}"
+        got = c.get(f"/module-attachments/{r['id']}/download")
+        assert got.status_code == 200, (name, got.status_code)
+        assert got.content == payload, f"{name}: stored {got.content!r}, expected {payload!r}"
+
+    # ...and the three are genuinely distinct objects, not one file listed three times.
+    assert len({r["id"] for r in rows}) == 3, rows
+
 print("ATTACHMENTS OK - module-record attachment uploads + downloads at /module-attachments/{id}/download "
       "(200, bytes round-trip, image/png, inline disposition); the old /attachments/{id}/download path "
       "correctly 404s for a module id (bim.py's Attachment-table route no longer shadows thumbnails)")
