@@ -49,17 +49,41 @@ Tiers 1–2), `scan_deviation.py`, `license_cloud.py`. `services/data/`: `step_s
 possible), `probe/splat.py` (Gaussian splats), `probe/ply.py`, `probe/mesh.py`, `probe/las.py`,
 `probe/plan.py` (plan registration), `bridge/scene.py` (BIM + mesh + cloud + splat in one scene).
 
-### The timing argument — **stated as a hypothesis, not a finding**
+### The timing argument — **CHECKED, and wrong as I stated it**
 
-`R38-PLAN-TRANSFORM` shipped three commits ago (v0.3.928). Our plan SVG now publishes the six terms
-of its own world↔pixel transform, so a client holding a world position can find its pixel. That is
-*precisely* the primitive a plan-linked walkthrough needs in order to place capture positions on a
-drawing — and until v0.3.928 we could not have built it without the back-solving hack that entry
-explicitly refuses.
+I wrote that `R38-PLAN-TRANSFORM` (v0.3.928) had unblocked a plan-linked walkthrough, on the guess
+that their registration would consume a transform of the shape we now publish. **It does not.**
 
-**I have inferred this fit from module names and the README, not from reading `probe/plan.py`.**
-Confirming it is step 1 below, and if it does not hold the rest of the sequencing changes.
+Read: `probe/plan.py` summarises DXF/PDF/DWG — sheet size, stated drawing scale, vector-vs-scan.
+`adapters/plan.py` renders a PDF page and returns `points_per_pixel`, described in its own comment as
+*"the exact link between pixel and sheet. Without it the image is a picture of a drawing; with it, a
+stated scale like 1:100 gives metres per pixel."* Nothing there reads attributes off a plan we
+generated.
 
+They solve the same problem **from the opposite end**: recovering a pixel↔world mapping that
+rasterisation destroyed in an *imported* drawing, where we publish a mapping we already knew for a
+plan we *generated*.
+
+**The real relationship is better than the one I guessed, and it changes step 1.** Both sides now
+express the same concept — metres-per-unit plus an origin. That is an argument for defining that
+representation ONCE and having both produce it, so a capture position pinned to an imported PDF and
+one pinned to a generated plan are the same kind of thing. It is not an argument about adoption
+timing, and the sequence below is ordered accordingly.
+
+### Dependencies: the `dependencies = []` headline is true and misleading
+
+Verified by reading imports, not the manifest:
+
+- **`probe/` (all 11 modules) is genuinely stdlib-only.** e57, las, ply, mesh, splat, image, plan,
+  structured, text, media, bim — every one. This is the part that is free to take.
+- **`adapters/` is not.** Each useful adapter sits behind a real extra: `crs = pyproj>=3.6`
+  (imported unconditionally — `from pyproj import CRS, Transformer`, no guard), `drone = pymavlink`,
+  `plan = pypdfium2 + pillow`, `pointcloud = open3d`, `mesh = trimesh + numpy + pillow`,
+  `media = opencv-python`.
+
+**We do not currently declare pyproj.** So `adapters/crs.py` and `adapters/drone.py` are not a vendor
+decision, they are a **new-dependency decision, and those need explicit sign-off.** That is the same
+caveat massingplan's VENDOR.md makes in reverse: read the directory, not the project manifest.
 ## Why this one is a PARTIAL vendor, unlike massingplan
 
 massingplan was a `core/` subtree, so we took the whole tree — a partial copy is how two
@@ -75,16 +99,19 @@ check will flag forever otherwise.
 
 ## Sequence
 
-1. **Verify the plan-transform fit.** Read `probe/plan.py` and `adapters/crs.py`. Does their
-   registration consume a transform of the shape we now publish? One session, no code.
-2. **Vendor `probe/` only**, as a read-only capability: content-first format detection for E57, LAS,
-   PLY, mesh, splat, image, structured text. This is additive — we gain formats we cannot currently
-   identify — and touches nothing we already ship. `e57.py` stays ours until a parity gate says
-   otherwise.
-3. **Then `ingest/session.py` + `telemetry.py`**, which is what unlocks capture sessions and
-   therefore session-vs-session compare (verified progress). This is the actual product value.
-4. **`adapters/drone.py` + `crs.py`** last — coordinate frames are where a wrong answer is confident
-   and invisible, so they want their own parity work against real georeferenced data.
+1. **Agree one plan-calibration shape** — metres-per-unit + origin — that both a generated plan and
+   an imported PDF/DXF can produce. This replaces the "verify the transform fit" step, which was
+   answered above: there is no fit to verify, there is a representation to unify. Ours already ships
+   as `data-plan-*` on the SVG root; theirs comes out of `adapters/plan.render_page`.
+2. **Vendor `probe/` — and only `probe/`.** Stdlib-only, verified per module. Purely additive: we
+   gain content-first identification of E57, LAS, PLY, mesh, splat, image, structured text and BIM
+   files, and it touches nothing we ship. `e57.py` stays ours until a parity gate says otherwise.
+3. **`ingest/session.py` + `telemetry.py`** — capture sessions, which is what makes session-vs-session
+   compare possible. This is the actual product value and the reason to do any of this.
+4. **`adapters/*` — a dependency decision, not a vendoring one.** pyproj, pymavlink, pypdfium2 and
+   open3d are all new to us. Each needs explicit approval before any code moves, and coordinate
+   frames additionally want parity work against real georeferenced data, because a wrong frame is
+   confident and invisible.
 
 Do **not** take `server/`, `demo.py`, or `bridge/massingviser.py`.
 
