@@ -5515,3 +5515,336 @@ it.* `apps/web/src/viewer/deltaCommit.ts` + `apps/web/src/viewer/deltaCommit.tes
   next person adding a deep-link cannot forget it. The behavioural tests could not see this (they
   assert the rule, not its wiring), so `wsReturn.test.ts` gained a source gate that fails when a
   listener drops `"jump"` — mutation-checked.
+
+
+## Archived 2026-08-13 — three R43 items closed in the tree but still listed as open
+
+Moved out of [`roadmap.md`](roadmap.md) during a documentation audit. Each was already marked ✅ there
+with its full record; the roadmap's own header says it carries **open items only**, so keeping them
+inline made the open list longer than the open work. Two of the three are corrections rather than
+builds — worth preserving for that reason, not despite it.
+
+- ✅ **R43-CSRF-GET — AUDITED 2026-08-10, and the answer is "none, and now nothing can add one."**
+  Our session cookie is `samesite="lax"` (`routers/auth.py`, `routers/saml.py`) and there is no CSRF
+  middleware, so Lax is the entire defence — and Lax withholds the cookie on a cross-site POST but
+  **sends it on a top-level GET**. The route table was therefore the whole protection, and nothing
+  was watching the route table. An AST scan over all 456 service files found **six** GET handlers
+  that touch the DB session and **zero that change state**: three verification routes and the SCIM
+  user list are `select(...)` reads; the CAM statement PDF commits only its own `audit.record`, and
+  dropping that would lose the audit trail, which is the worse trade; the OAuth callback does create
+  a user but MUST be a GET because the provider chooses the method, and its authority is the
+  provider's one-time code, not our cookie. **The finding was never "there is a bug" — it was
+  "nothing would stop one",** so the deliverable is `services/api/test_mutating_get.py`, a ratchet on
+  the exact (module, path, ops) set with a written reason per entry and a twin that refuses a reason
+  short enough to be a rubber stamp. Mutation-checked three ways: a mutating GET added to a router,
+  a broken scan (which must fail, not report clean), and a gutted reason.
+
+
+- ✅ **R43-ORG-OWNERSHIP — the premise was wrong and the audit found a REAL hole anyway. Fixed
+  v0.3.926.** This entry said "registration granting org ownership", which I imported from a generic
+  threat list: **there is no Org or Tenant model in this codebase at all.** The tenancy primitive is
+  `ProjectMember` plus a global `role` hint. Reading the six `User(...)` construction sites instead
+  of the threat list is what turned up the actual defect — and **five of the six were already
+  correct**, which is precisely why the sixth had gone unnoticed.
+
+  `POST /auth/register` takes no token when the user table is empty, because there is no admin yet
+  to authorise one. That part is fine. What was not fine is that it also set `role="admin"` — and
+  `role` is not a hint, because `routers/auth.py`'s `_is_platform_admin` ends with
+  `return u.role == "admin"`. **On a fresh public deployment the first stranger to reach
+  /auth/register became platform admin, unauthenticated, even with `AEC_ADMIN_EMAILS` already naming
+  someone else.** Restoring the defect under test returns `GET /auth/users` → **200**, so this was
+  live and reachable rather than theoretical.
+
+  Fix: when `AEC_ADMIN_EMAILS` is set the operator has already declared who the admins are, so
+  bootstrap grants `"user"`; unset (desktop, local, single-operator) still grants `"admin"` and
+  nothing changes. `services/api/test_bootstrap_admin.py` asserts **both halves** plus the gate —
+  testing only the refusal would pass on a change that silently broke every local install, and the
+  over-correction mutation proves the twin catches exactly that.
+
+
+- ✅ **R43-PLAN-EMPTY-AT-CUT — SHIPPED v0.3.929.** A plan could compose fully — titleblock, scale
+  bar, grid — while the cut plane found **no geometry**, and nothing in the output said so. Measured
+  on `samples/school_str.ifc`: the top storey at 11.400 yields **zero** cut loops at the default
+  `elevation + 1.2 m`, because the parapet is shorter than the cut height.
+
+  **Why it was invisible:** an early "no geometry" return existed, but it fires only when polys AND
+  below AND grid are *all* empty — and `grid_from_meshes` derives from the whole model rather than
+  from the cut, so any storey with a grid skipped the guard entirely. A guard whose condition is
+  broader than the thing it guards is a guard that never runs.
+
+  Two halves. Machine-readable: `data-plan-cut-loops` on the SVG root, **a count rather than a
+  boolean**, so it answers "was anything drawn" and "how much" with one value that cannot drift out
+  of step with a separate flag. Human-readable: a red **NO GEOMETRY AT THIS CUT** note with the cut
+  elevation, because a count does nothing for someone holding a printed sheet.
+
+  **Deliberately not a silent re-cut at a lower plane.** The titleblock prints the cut elevation, so
+  quietly cutting elsewhere would make that printed number a lie — a confident wrong answer instead
+  of an obvious missing one. Asserted: an empty cut still reports the elevation it was *asked* for.
+
+  Covered in `services/api/test_plan_transform.py` (same fixture, so the bake cost is paid once).
+  Three mutations, all caught by name: removing the note, stamping it on **every** sheet — the twin,
+  without which the empty-case check would pass on a plan that cried wolf on all of them — and
+  hardcoding the loop count, which made the fixture stop containing an empty case and tripped the
+  **vacuity guard** (`0 empty cut(s), 5 drawn`) rather than passing on nothing.
+
+
+## Archived 2026-08-13 — five rings with no open work left in them
+
+Moved wholesale out of [`roadmap.md`](roadmap.md), which says it carries **open items only**. Each of
+these had zero open item bullets: R27, AUTHORING-GESTURE and R24-TOOLS-SPLIT are research narratives whose
+conclusions already shipped, R42's two remaining entries are both ⛔ closed decisions,
+and the Reach sweep describes wiring that was done. Together they were **239 lines of the open roadmap** describing no available work.** The research is worth keeping; it was in the wrong file.
+
+## 📐 R27 — THE DRAWING IS DATA RING *(external research 2026-07-26: one paper + 16 sources)*
+
+**Where the evidence came from.** A peer-reviewed layout-analysis paper on construction drawings
+([arXiv:2607.18997](https://arxiv.org/abs/2607.18997), with its ADIRO region taxonomy and a benchmark
+of detection vs. vision-language models), a systems-engineering handbook on durable technical
+representation, and thirteen reachable industry/OSS sources. Three sources refused automated fetch
+(403/503) and are **not** cited as evidence for anything below — an unread source is not a source.
+
+**The thesis this ring is built on.** The platform already treats the *model* as data. It still
+treats the *drawing* as an image with some text behind it. Every source that mattered converged on
+the same seam: between a sheet's metadata (which we read) and its content (which we render) sits a
+**layout layer** — where on the sheet the titleblock, revision table, legend, notes and each drawn
+view actually are — and nothing in this repo computes it. That layer is what turns a PDF from a
+picture into something a takeoff, a note and a revision can each be *attached to*.
+
+**Two findings shape the approach, and both cut against the obvious build.**
+
+*A general-purpose document-layout model is a **negative** prior here.* The paper's ablation is
+unusually direct: pre-training on general document layout scored **0.589** against **0.727** for the
+same architecture randomly initialised and **0.772** for generic-object pre-training. Construction
+sheets are not documents with unusual furniture; they are a different distribution, and a model that
+has learned "this is a paragraph" is actively wrong about them. This is evidence *against* reaching
+for an off-the-shelf document-AI dependency — which is also the outcome the offline/$0 constraint
+needs, so the constraint costs nothing here.
+
+*The vector layer is already on the sheet.* Our sheets are generated by `drawings_render`/`sheetgen`
+and most received sheets are vector PDFs. Region boundaries are literally drawn — titleblock borders,
+viewport frames, table rules are **paths**, not inferred shapes. So the first implementation is
+deterministic geometry over `pypdf`'s content stream, not detection. Detection is what you need when
+you have thrown the vectors away; we mostly have not. Rasters fall back to "unknown", stated.
+
+## Reach sweep — Lane C/G/I *(2026-08-07)*
+
+**Measured, then acted on.** `UNCALLED_CEILING` **131 → 123**, the drop measured by re-running the
+scan rather than derived from what was wired.
+
+- `portfolioCompare` wired into the portfolio panel as a **returns spread**. The executive roll-up
+  gives a *blended* equity IRR — one number for the whole book, which cannot show that a single deal
+  is carrying it. This gives per-project IRR / multiple / yield-on-cost from each project's latest
+  solved scenario plus best-and-worst. An absent return renders em-dash, never 0%: a project with no
+  solved scenario has not returned zero, and a fabricated zero would take the "worst" slot from a deal
+  that genuinely holds it. **This is the R22-PIPELINE finding landing** — capability present, reach
+  absent — folded into the sweep rather than re-listed as new work.
+- `estimateBoe` wired as **Basis of estimate** on the budget panel. This closes a loop opened by
+  R22-PROVENANCE: that work gave `estimate` line items `source` / `quote_ref` / `basis_date`, and
+  `boe_ledger` checks them, but nothing showed the result — an estimate you cannot defend
+  line-by-line is what a claim attacks first. The screen maps `code → cost_code` and `amount →
+  total`, **the same seam `commercial_drift.ESTIMATE_TO_BOE` documents server-side**: handing the
+  rows over unmapped does not raise, it silently produces a full, plausible, wrongly-keyed ledger.
+- `clearBaseline` → `KNOWN_UNCALLED`, **with an expiry condition**. It deletes a captured schedule
+  baseline, and R40-EOT ② has just made the *named* baseline the auditable input to an extension-of-
+  time figure that ends up in arbitration. A one-click destroy beside that is a footgun, and "it has
+  no caller" is not a reason to give it one. Retires when baseline deletion is behind a
+  confirm-and-audit step.
+
+**The procurement cluster is NOT a missing screen, and this is the correction worth carrying.** The
+sweep's premise is that every uncalled method has a live server route, so the remedy is uniformly
+"build the screen" — verified true for 110 of them. **A live route is not an available input.**
+`buyoutPackages`, `buyoutSchedule`, `procurementLevel` and `procurementLevelQuotes` are POST endpoints
+whose QTO lines must carry `{item, qty, unit, trade}`; the engine **skips any line without an `item`**
+and falls back to a single `"General"` package without a grouping key. Both model-derived sources
+(`qtoByFloor`, `estimateFromModel`) return `{ifc_class, count, unit, quantity, rate, amount}` — **no
+`item`, no trade/csi/material_class/discipline**. Nothing in the client surface returns a
+procurement-shaped line. A screen built on today's sources would render one package called "General"
+and read as "this project has no scope". **These four need a trade classification on QTO lines
+first**; that is the blocking item, not a panel.
+
+## 🏗 R42 — INCREMENTAL COMMIT RING *(measured 2026-08-08)*
+
+**The premise this ring corrects.** The obvious reading of the authoring pipeline — and the one I
+reached first, from the route code alone — is *"every edit rewrites the whole IFC and reconverts the
+whole model, so incremental geometry needs building."* **That is wrong, and the wrong half is the
+expensive half to have believed.** Incremental geometry already exists and already ships:
+
+* `POST /projects/{pid}/edit-preview` authors the element into a **one-element IFC** and converts
+  just that (`services/api/src/aec_api/routers/authoring.py`, `services/data/src/aec_data/preview.py`)
+* the viewer already holds **N fragment models keyed by id** — `loader.loadFragments(buffer, modelId)`
+  and `disposeModel(id)` in `apps/web/src/viewer/loader.ts`, used today by the preview path, by
+  drag-and-drop `.frag` open, and by reference models
+* A29-LOCAL-PREVIEW already shows that geometry within ~2s, under an amber "not yet on the record"
+  marker
+
+So the pieces are built, wired, and in production. **What is missing is that the authoritative path
+does not use them.** `authorAndReload` commits with `editIfc(..., publish=true)`, waits for a full
+reconvert, then calls `loadProjectModel()` — which `disposeAll()`s and reloads everything, throwing
+away the correct geometry it was already displaying and re-deriving it as part of the whole model.
+
+**Measured on a 1,000-element model** (`Riverside School — structural`, dev API, same machine, same
+converter, back to back):
+
+| path | time | output |
+|---|---|---|
+| `edit-preview` — one element → `.frag` | **1.70 s** | 1,436 bytes |
+| full republish — whole model | **37.39 s** | everything |
+
+**22×, and the 1.7 s result is discarded.** 1,000 elements is a small building; the ratio widens with
+the model, so the workflow degrades exactly as a project becomes worth working on. This is a
+*number*, not an impression, and it should be re-measured rather than quoted after any converter
+change — [[an-audit-must-state-its-configuration]].
+
+### The ring
+
+**SPIKED 2026-08-08, and the spike changed two things — read this before starting.**
+
+*The stated hazard is smaller than written, and the sequencing below was wrong.* `_publish` already
+takes `reconvert: bool` and does the two halves separately: (1) node converter → `.frag`, (2) rebuild
+the properties index. So a commit CAN reindex without reconverting, and every GUID-keyed reader is
+correct immediately — the index-staleness hazard does not have to exist. **But the halves are closer
+in cost than hoped.** Measured on a 52 MB source: reindex **6.6 s**, convert **10.2 s** — the convert
+is only 1.5× the reindex, because the reindex is itself a full IFC parse.
+
+**So deferring the convert alone buys about 60%, not 95%, and R42-SESSION-MODEL is the bigger lever,
+not the follow-up.** Both halves re-parse the whole file from disk; holding the model in memory is
+what makes an incremental commit actually incremental, and it is what would let the index be appended
+for one element rather than rebuilt. Re-sequence accordingly: **SESSION-MODEL first, then
+COMMIT-DELTA on top of it.**
+
+*Also found and FIXED in v0.3.906 (it was a prerequisite for any of this): `POST /publish` accepted
+`reconvert` and nothing read it — `run_publish` called `_publish(p)` and took the default, so every
+`reconvert=false` reconverted anyway. The switch this whole ring turns on was already present and
+disconnected. `services/api/test_publish_reconvert.py`.*
+
+- ⛔️ **R42-SESSION-WRITE — CLOSED, decided against 2026-08-09.** Deferring the per-edit IFC write
+  was the remaining half of the speed win. **We are keeping the write.**
+
+  *Why, stated so nobody re-opens it without new information.* Today every edit is durable the
+  instant the request returns: `Project.source_ifc` points at a complete file, and publish, export,
+  clash, the MCP tools and another user's optimistic-lock check all read that file as the truth.
+  Deferring it moves the truth into server memory between edits and forces three answers nobody
+  wants to give — does a mid-session export see the edits, are they lost on restart, does a second
+  user see them before a flush.
+
+  **And undo depends on it.** `edit_history` works by restoring a prior file path; it exists
+  *because* every edit is a file. Deferring the write is not a caching change, it is a redesign of
+  durability that takes undo with it.
+
+  The cheap half is already banked — `R42-SESSION-MODEL` removed the re-PARSE (v0.3.907). What is
+  left of the cost is the convert, and that is `R42-COMMIT-DELTA`'s territory, which does not touch
+  durability at all. **Re-open only if the product decides to become session-based with an explicit
+  Save**, which is a different product, not a faster one.
+
+- ⛔️ **R42-UNDO — WITHDRAWN. The claim was false and I asserted it as verified.** This entry said
+  *"there is no undo. Checked, not assumed: no inverse, no command stack."* **Undo and redo exist,
+  are wired end to end, and have been for some time.**
+
+  `services/api/src/aec_api/edit_history.py` is a bounded per-project undo/redo stack
+  (`push` / `undo` / `redo` / `state`) kept as a storage sidecar. `POST /projects/{pid}/edit/undo`
+  and `/edit/redo` restore the prior model version; **six** call sites push a pre-edit version
+  (single edit, batch, macro, MCP run_recipe, …), and a batch deliberately pushes ONE entry so a
+  multi-step command undoes as one step. The client has `editUndo` / `editRedo` / `editHistoryState`
+  and a `↶ Undo` button in the rail that refreshes its own enabled state. There is even considered
+  keybinding design: Ctrl+Z is reserved for popping the last point of an **in-progress draft**, with
+  a comment saying element undo keeps the rail control precisely so the two do not collide.
+
+  **How I got it wrong, because the mechanism matters more than the mistake.** I grepped
+  `services/data/src/aec_data/edit*.py` for `def undo|undo_recipe|inverse`, found nothing, and wrote
+  it down as checked. The capability lives in `services/api/`. That is the recorded lesson
+  [[enumerate-the-table-not-the-names-you-know]] — **a grep proves a string absent, never a
+  capability** — and writing "checked, not assumed" on top of an unchecked claim is worse than
+  leaving it unqualified, because it tells the next reader not to re-check.
+
+  **What is actually left, stated at the size it really is:** an undo costs a **full republish**
+  (`_restore_version(..., publish=True)`), which the R42 measurements put at ~37 s on a 1,000-element
+  model — so undo inherits exactly the cost R42-COMMIT-DELTA exists to remove, and needs no separate
+  item. The only genuinely missing piece is a keyboard shortcut for *element* undo, since Ctrl+Z is
+  taken by the draft-point undo; that is a small UX call, not a ring item.
+
+### Deliberately NOT in this ring
+
+* **Editing verbs** (align, mirror, trim/extend, offset, multi-select edit, working planes). The 96
+  recipes are overwhelmingly `add_*`. Real, wanted, and cheaper once an edit is fast and reversible.
+* **Constraints that survive an edit** — moving a wall does not re-solve its joins, its hosted
+  openings or its dependents. Worth noting that this is *why* LOD-ASPECTS found Parametric Behavior
+  unreadable from the model: it is unreadable partly because it is not yet there.
+* **Sheets as data** — already 📐 R27, and the other half of "authoring tool" vs "modeller".
+
+**Sequence (REVISED twice — see the spike note, and R42-UNDO withdrawn): R42-SESSION-MODEL (done), then R42-COMMIT-DELTA (done, v0.3.911). The ring is closed except R42-SESSION-WRITE, which was decided against.** The first is the one that
+changes what the product *is*; the second removes the remaining per-edit constant; the third is table
+stakes that gets cheaper once the first two define what an edit is. Everything under "NOT in this
+ring" is additive at any later point and all of it is cheaper afterwards.
+
+---
+
+## 🧲 AUTHORING-GESTURE — the Open CAD Studio re-scan *(2026-08-03, premise-checked against the tree)*
+
+Asked whether their drag-and-drop authoring is worth copying. **Three premises failed the check, two
+of them mine**, so the answer is recorded with the corrections rather than the conclusion alone.
+
+**1. Open CAD Studio does not author by drag-and-drop.** At v0.9.2 (2026-08-03, six releases past the
+July study) every drag feature they ship is file-handling or chrome: *drag drawing files onto the
+window* (v0.8.7) and *drag to reorder document tabs* (v0.8.9). Block and symbol placement is the
+`INSERT` **command** — their own notes say there is no palette-insertion workflow. Their authoring
+model is CAD-classic: type a command, pick points against snaps. **Building drag-to-author for parity
+would be copying something that is not there.**
+
+**2. Our precision suite is already at rough parity — I twice recommended building what exists.**
+Verified in `apps/web/src/viewer/snapEngine.ts` and its call sites: `resolveSnap` + `segmentSnaps`
+(endpoint / edge / midpoint / centre, then grid), `polarConstrain` (45° increments, 4° tolerance),
+`applyDynamicInput` with a typed distance/angle constraint that **beats every automatic snap** because
+the drafter said exactly what they want, shift-held ortho lock from the previous point, and a snap
+glyph on hit. Plus `CADCMD` for the command grammar. SNAP-KIT shipped; the roadmap said so in
+`docs/roadmap-completed.md` and two successive recommendations here ignored it.
+
+*The instrument that failed both times was a memory file read instead of the code.* Same family as the
+five already recorded — a claim that was true when written and had since been overtaken.
+
+**3. Nothing in that GitHub account is usable as code — a licence wall, not a technical one.**
+OpenCADStudio is **GPL-3.0**. Of twelve Python repos, `Road` / `freecad.trails` / `freecad.turns` /
+`PyTrails` / `Delaunator-Python` are **LGPL-2.1**, and `NodeCAD` / `Modern-UI` are **GPL-3.0**. All
+excluded by the MIT/BSD/Apache-only rule. `iced_aw` is MIT but Rust GUI widgets; the PythonOCC fork is
+MIT over an LGPL base. **Nothing may be vendored, ported or read-and-reimplemented.** Behaviours
+described in public release notes are interface descriptions rather than code, which is the same
+footing the July study stood on when CADCMD was written.
+
+### What is actually left, and it is small
+
+## 🔪 R24-TOOLS-SPLIT — cut *(measured 2026-08-03, shipped v0.3.848)*
+
+RAIL-SPLIT routed tool-groups to rail panels by their `data-tool` key, which worked for every group
+except one: `qa` went whole to **Review**, and `GROUP_PANEL` recorded why Analyse could not become its
+own rail item — *"the analysis it belongs beside (code, egress, cost, 4D) is still inside the `qa`
+tool-group"*. A one-button rail item is the thin version of the empty-room failure, so Analyse waited
+for this split rather than shipping hollow. **That condition is now met**, and the fold is gone.
+
+**The measurement was the whole job.** The `qa` section was `apps/web/src/viewer/app.ts` **lines
+3453–4539 — 1087 lines and 42 labelled controls with no internal structure at all**: zero
+sub-headings, zero group markers, one divider. That is why this was *not* a re-parenting pass like
+RAIL-SPLIT: **there was nothing to re-parent**, so the sub-group had to be created before anything
+could be routed.
+
+The seam fell exactly where the deferral note predicted — *"is the model right"* against *"what does
+it tell you"*. **Three contiguous ranges, 234 lines, moved verbatim** into a second `section()` call
+in the same builder:
+
+| moved | controls | why |
+|---|---|---|
+| 3872–3936 | site logistics, 4D construction sequence | 4D — a reading over time |
+| 4023–4158 | occupancy & egress, IBC code analysis, IEBC scope, cost estimate | code, egress, cost |
+| 4194–4226 | the natural-language Ask | the one tool the `analyse` toolbox group already had |
+
+**Cut as two `section()` calls, not as a file move — and that is what made it safe.** The block is one
+closure over shared state (`api`, `pid`, `container`, the layer manager); extracting functions first is
+how a re-parenting pass turns into a rewrite. Because each builder declares its own local `b` and
+`out`, every moved range is the original text at the original indent, **not one identifier renamed**.
+The status line was the trap worth naming: `out` is written by nearly every handler, so a single
+shared one would have printed an Analyse result into the Review panel. Two locals, same name, one each.
+
+**Verified by counting, in both directions.** `apps/web/src/viewer/toolsSplit.test.ts` freezes the
+42-control inventory and asserts each is on the side the split intended, that none is in both, and
+that neither half was hollowed out — a suite that only proves *Analyse has contents* passes just as
+happily if `qa` had been emptied wholesale. Live at v0.3.848: Review 25 tools, Analyse 6 + Ask, the
+moved handlers run (code analysis returned `IBC 2021 · CA adoption` after a jurisdiction re-check) and
+each panel's status line stayed in its own panel.

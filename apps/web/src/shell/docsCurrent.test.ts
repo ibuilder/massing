@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { globSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { beforeEach, describe, expect, it } from "vitest";
@@ -238,5 +238,116 @@ describe("the public Pages site does not send visitors after things that were de
       const label = id[0]!.toUpperCase() + id.slice(1);
       expect(INDEX, `index.html never names the ${label} room`).toContain(label);
     }
+  });
+});
+
+/**
+ * The module and section COUNTS, and the section NAMES.
+ *
+ * Added 2026-08-13 after finding both wrong at once. Four published docs said "133 modules / 30
+ * sections" against a real 137 / 37 — drifted for four releases with nothing to catch it. The room
+ * count above has been gated since the day it was wrong; the module count never was, and that gap is
+ * the whole reason one drifted and the other did not. **A gate's scope is part of its claim.**
+ *
+ * The worse half was not the number. `gc-portal.md` — the document whose job is describing the module
+ * engine — named fifteen sections, and **seven did not exist**: Preconstruction, Engineering, Field,
+ * Cost, BIM, Facilities, Schedule. A wrong count is a stale fact; wrong names are a description of a
+ * different product, and a reader has no way to tell which of the fifteen to trust.
+ *
+ * Derived from `module.json` on disk, never written down here, for the reason in the header comment:
+ * an expectation stated twice agrees with itself while both halves drift.
+ */
+describe("the docs describe the module engine that exists", () => {
+  const MODULES = globSync("services/api/modules/*/module.json", { cwd: REPO })
+    .map((rel) => JSON.parse(readFileSync(resolve(REPO, rel), "utf8")) as { section?: string });
+  const SECTIONS = new Set(MODULES.map((m) => m.section).filter((s): s is string => !!s));
+
+  const COUNTED = [
+    ["README.md", README],
+    ["docs/gc-portal.md", doc("docs/gc-portal.md")],
+    ["docs/user-guide/README.md", doc("docs/user-guide/README.md")],
+    ["docs/user-guide/rooms.md", doc("docs/user-guide/rooms.md")],
+  ] as const;
+
+  it("the module corpus loaded — otherwise every assertion here is vacuous", () => {
+    expect(MODULES.length).toBeGreaterThan(50);
+    expect(SECTIONS.size).toBeGreaterThan(10);
+    expect(MODULES.filter((m) => !m.section)).toEqual([]);
+  });
+
+  it("no doc states a module or register count that is not the real one", () => {
+    for (const [name, text] of COUNTED) {
+      for (const m of text.matchAll(/\b(\d{2,4}) (modules|registers)\b/g)) {
+        expect(Number(m[1]), `${name} says "${m[0]}" — there are ${MODULES.length}`)
+          .toBe(MODULES.length);
+      }
+    }
+  });
+
+  it("no doc states a section count that is not the real one", () => {
+    for (const [name, text] of COUNTED) {
+      for (const m of text.matchAll(/\b(\d{1,3}) sections\b/g)) {
+        expect(Number(m[1]), `${name} says "${m[0]}" — there are ${SECTIONS.size}`)
+          .toBe(SECTIONS.size);
+      }
+    }
+  });
+
+  it("every section a doc names is a section that exists", () => {
+    // Scoped to the sentence that introduces the sections, so ordinary prose using a word that
+    // happens to be a section name ("the drawings room") is not dragged in. The failure this
+    // catches is a LIST of names presented as the product's sections.
+    const intro = doc("docs/gc-portal.md").match(/sections span the whole job[^.]*\./s)?.[0] ?? "";
+    expect(intro, "gc-portal.md no longer introduces the sections — re-point this assertion")
+      .not.toBe("");
+    const named = intro.match(/[A-Z][a-z]+(?: [A-Z][a-z]+)*/g) ?? [];
+    expect(named.length, "the intro sentence names no sections — the assertion below is vacuous")
+      .toBeGreaterThan(5);
+    const fiction = named.filter((n) => !SECTIONS.has(n));
+    expect(fiction, `gc-portal.md names sections that do not exist: ${fiction.join(", ")}`)
+      .toEqual([]);
+  });
+});
+
+/**
+ * `docs/status.html` is titled "Massing — current status" and is linked from `index.html`,
+ * `guide.html`, `capabilities.html` and the docs index. On 2026-08-13 its "Recently shipped" section
+ * still showcased v0.3.573–581 as "the latest wave" against a live **v0.3.932** — 352 releases, six
+ * weeks. Nothing was wrong with the page; it simply stopped being true, and no check reads prose.
+ *
+ * The version BADGE on that page is live (a shields.io release image), which is what made the rot
+ * invisible: the number at the top was correct while the story underneath it was a year of releases
+ * out of date. **A live widget beside stale prose reads as a fresh page.**
+ *
+ * The bound is deliberately loose. This is not asking the page to track every release — it is asking
+ * that a page calling itself "current" is not a whole ring of work behind. Tighten it and it fails on
+ * every release; drop it and it fails never, which is where this started.
+ */
+describe("the page that calls itself 'current status' is not a ring behind", () => {
+  const LAG = 75;
+  const version = (s: string) => Number(/^0\.3\.(\d+)$/.exec(s)?.[1] ?? NaN);
+
+  it("compares against a real version, or it is measuring nothing", () => {
+    const pkg = JSON.parse(readFileSync(resolve(REPO, "apps/web/package.json"), "utf8")) as {
+      version: string;
+    };
+    expect(Number.isFinite(version(pkg.version)), `unparseable version ${pkg.version}`).toBe(true);
+  });
+
+  it("names a release within reach of the shipped one", () => {
+    const pkg = JSON.parse(readFileSync(resolve(REPO, "apps/web/package.json"), "utf8")) as {
+      version: string;
+    };
+    const now = version(pkg.version);
+    const html = readFileSync(resolve(REPO, "docs/status.html"), "utf8");
+    const named = [...html.matchAll(/v0\.3\.(\d{3})/g)].map((m) => Number(m[1]));
+    expect(named.length, "status.html names no release at all — this assertion is vacuous")
+      .toBeGreaterThan(3);
+    const newest = Math.max(...named);
+    expect(
+      now - newest,
+      `status.html's newest release is v0.3.${newest} but the app is v0.3.${now} — ` +
+        `${now - newest} behind. It calls itself "current status"; refresh "Recently shipped".`,
+    ).toBeLessThanOrEqual(LAG);
   });
 });

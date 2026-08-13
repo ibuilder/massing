@@ -188,26 +188,26 @@
 
   <section>
     <p class="h2">Recently shipped</p>
-    <h2>Derive the deal, the buyout and the FM register straight from the model</h2>
-    <p class="lead">The latest wave turns the model — the source of truth — into decisions the deterministic way: computed, not reconstructed by AI. Sweep the massing for yield, reconcile the buyout per cost code with a one-click fix, and pull the FM register, the equipment RFQ and its spec-conflicts out of the IFC by class.</p>
+    <h2>Drawings that explain themselves, one canvas, and a model that admits when it is behind</h2>
+    <p class="lead">The recent wave is about output you can trust without opening the model to check. A plan that finds nothing at the cut plane now says so and why; a sheet publishes the transform it drew with; the canvas is one surface at a time instead of two fighting; and a converted model tells you when it is behind the file rather than quietly serving stale geometry.</p>
     <div class="cards">
       <div class="card" style="--accent:var(--cyan)">
-        <div class="k">Feasibility</div>
-        <h3>Massing optioneer</h3>
-        <p>Sweep the zoning-envelope levers — floor-to-floor, core efficiency, coverage strategy, unit mix — over the deterministic program engine, score each option on a transparent yield-on-cost proforma, and rank them with a cost-vs-profit Pareto frontier. Pick a massing to author; no AI, no doc-scanning.</p>
-        <span class="tag">v0.3.576</span>
+        <div class="k">Drawings</div>
+        <h3>A plan that says why it is blank</h3>
+        <p>A plan could compose perfectly — titleblock, scale bar, grid — while the cut plane found no geometry, and nothing in the output said so. An empty plan now states the reason. Sheets publish the transform they were drawn with, so a drawing can be checked against the model rather than trusted, and a sheet asking for an axonometric no longer quietly draws a plan.</p>
+        <span class="tag">v0.3.913–915 · v0.3.928–929</span>
       </div>
       <div class="card" style="--accent:var(--blue)">
-        <div class="k">Money</div>
-        <h3>Cost-code margin + one-click fixes</h3>
-        <p>Reconcile budget vs. committed vs. actual vs. billed per cost code into a projected buyout margin and cost variance, flagging over-committed / over-budget codes worst-first — and pair each flag with a one-click action straight to the records behind it, instead of a passive number.</p>
-        <span class="tag b">v0.3.573 · v0.3.577</span>
+        <div class="k">Rooms &amp; viewer</div>
+        <h3>The canvas is one surface at a time</h3>
+        <p>The viewer sub-app work closed the rail arc: the canvas switches 2D and 3D in place instead of running two surfaces at once, cross-mode selection is asserted rather than working by accident, and Specs ships into the room rail. Leaving a drawing returns you where you were — a rule that now lives at the event, not at the two crossings that happened to be wired.</p>
+        <span class="tag b">v0.3.913–914 · v0.3.917–922</span>
       </div>
       <div class="card" style="--accent:var(--violet)">
-        <div class="k">Model → FM &amp; buyout</div>
-        <h3>Asset register + equipment RFQ</h3>
-        <p>Derive the maintainable-asset register (the FM handover, one-per-GUID) and the procurement equipment schedule (RFQ line-items rolled up by type with a representative spec) from the IFC by class, and cross-check the modelled Pset values against the specified requirements — the scheduled-vs-specified conflict catch.</p>
-        <span class="tag v">v0.3.574 · v0.3.580–581</span>
+        <div class="k">Model freshness &amp; money</div>
+        <h3>Keep the geometry, and admit when it is stale</h3>
+        <p>Re-converting a model no longer throws away geometry that has not changed — and when the converted model is behind the file, it says so instead of serving the previous version under this version's name. Alongside it, money is <code>Decimal</code> end to end, so a rounded display value can no longer become a stored total.</p>
+        <span class="tag v">v0.3.911–912 · v0.3.927</span>
       </div>
     </div>
   </section>
