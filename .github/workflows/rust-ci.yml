@@ -32,11 +32,11 @@ jobs:
             patchelf \
             libgtk-3-dev
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c  # stable
         with:
           components: clippy, rustfmt
 
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6  # v2
         with:
           workspaces: apps/web/src-tauri -> target
 

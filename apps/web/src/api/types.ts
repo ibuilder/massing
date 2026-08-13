@@ -721,3 +721,26 @@ export interface SpecManual {
   note: string;
   divisions: SpecDivision[];
 }
+
+/** A citation returned by the extractive document QA (`doc_text.answer`, `rfi_qa`).
+ *
+ * R31-CITE-HIGHLIGHT. The server has emitted seven fields since v0.3.877; the two panels that
+ * render citations each declared their own inline `{ page, snippet }` and dropped the other five —
+ * including `doc_id` and `openable`, the two the "make the citation a control" work depends on.
+ * A response type narrower than the response is invisible from both ends: the server looks like it
+ * is not sending the data, and the UI looks like it has nothing to render, so a shipped capability
+ * reads as unbuilt. `citationContract.test.ts` now asserts this type against `doc_text.py`.
+ *
+ * `openable` is computed server-side (from `source_kind`) rather than re-derived per caller —
+ * three callers deriving one predicate is three chances to disagree.
+ */
+export interface DocCitation {
+  page: number;
+  snippet?: string;
+  doc?: string;
+  doc_id?: string | null;
+  section?: string | null;
+  title?: string | null;
+  /** True when a stored source document exists, so the citation can be opened. */
+  openable?: boolean;
+}

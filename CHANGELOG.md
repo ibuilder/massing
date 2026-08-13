@@ -4,6 +4,79 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.938 (2026-08-13) — supply-chain pins, and a citation that opens the document it cites
+
+### HIGH-7 — every third-party GitHub Action pinned to a commit SHA
+
+A workflow step runs code from another repository with access to this one, and a tag or branch ref is
+mutable: whoever controls the upstream repo can repoint it, and the next CI run executes the new
+code. Thirteen third-party references across eight actions are now pinned to 40-hex commit SHAs, each
+carrying a trailing comment naming the version it pins so it can still be bumped deliberately.
+
+The worst was `dtolnay/rust-toolchain@stable` — not a tag but a **branch**, used three times, which
+moves on every upstream push by design.
+
+**Scope is stated rather than assumed.** `actions/*` and `github/codeql-action/*` stay on version
+tags: they are published by GitHub itself, from the same trust root that runs the workflow, so
+pinning them defends against a compromise that would already own the runner. Pinning all 33 would
+triple the bump burden for no threat-model gain, and a gate whose upkeep outweighs its value gets
+switched off. `services/api/test_actions_pinned.py` enforces the rule so a ninth action cannot be
+added unpinned.
+
+**The first enumeration of this was wrong, and how it was wrong is the reusable part.** A grep
+reported 46 references including `actions/setup-example@v1` — a **commented-out line** in CodeQL's
+starter template, naming an action that does not exist. The gate therefore parses the workflows as
+YAML: a parser cannot see a comment at all. That is the fifth time a source-scanning check here has
+read the prose describing it rather than the code.
+
+Also fixed: `db-migrations.yml` used `actions/checkout@v5` while the other thirteen call sites used
+`@v7`.
+
+### R31-CITE-HIGHLIGHT — the citation is now a control
+
+`doc_text.answer()` has emitted seven fields per citation since v0.3.877. Both panels that render
+citations declared their own inline `{ page, snippet }` and dropped the other five — including
+`doc_id` and `openable`, which are exactly the two the "make the citation a control" work needs.
+
+The cost of that is the point. With those fields dropped the feature looked *blocked on a backend
+change that had already shipped*: a comment in `aiassist.ts` said "there is nothing to open" and the
+roadmap carried the item as blocked, while the server had been sending the answer the whole time. **A
+narrow client type does not merely hide a field — it produces confident, documented, wrong claims
+about what the system can do.** `citationContract.test.ts` now asserts the shared `DocCitation` type
+against `doc_text.py` by set equality in both directions.
+
+Clicking a citation fetches its source PDF and opens it. Fetched as a blob rather than linked,
+because auth is a bearer header and a plain link arrives unauthenticated. Citations whose ingest was
+text-only stay plain text — the server says so via `openable`, and a control that always 404s is
+worse than no control.
+
+**Not done, so nobody rediscovers it:** the in-page highlight box. `citeLocate.ts` can find a passage
+but needs a `PageWords` supplier the viewer does not yet expose. Opening the document is the
+reachable half.
+
+### SCALE-SEAM ⑪ — doc QA moves out of client.ts
+
+Adding that one method took `client.ts` from 3,703 to 3,715 and **failed the size ratchet**, which is
+the ratchet working exactly as `contracts.ts` documented when it hit the same wall. The response was
+not to raise the pin but to ask whether the method belonged in a domain module: the three `review*`
+methods were already a cluster sharing one route prefix and one helper. They moved to `docqa.ts` with
+that helper, and the pin moves **down**, 3,703 → 3,690.
+
+One hazard worth recording from the extraction: the mixin was first written constraining on an
+interface exposing the `protected` helper. A mixin constraint cannot see a protected member, so the
+inferred base silently collapsed and every *other* mixin's methods vanished from `ApiClient` — which
+surfaced as `editIfc` not existing, a symptom nowhere near its cause. Moving the helper into the
+mixin removed the cross-mixin reach entirely.
+
+### Verified false: Aikido MED-5 and MED-6
+
+Both were checked against the code rather than the report. **MED-6 (SSRF)** — the one operator-settable
+URL already routes through `safe_urlopen`, whose `_ValidatingRedirectHandler` re-validates *every*
+redirect hop; the remaining call sites are fixed-host with the injected value landing after the first
+`/`, where it cannot reach the authority. **MED-5 (file inclusion)** — `storage.py` resolves first and
+tests containment afterwards, and validates keys at the interface so both backends refuse the same
+set. Neither needed a change. That brings the scan to 14 findings examined, 11 misreported.
+
 ## v0.3.937 (2026-08-13) — the changelog rule becomes a test, because as prose it failed twice
 
 This file stopped at v0.3.881 while **fifty-two releases shipped**, twenty-two of them tagged. Before

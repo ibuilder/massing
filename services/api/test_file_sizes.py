@@ -72,7 +72,7 @@ PER_FILE = {
     #: other modules and one got a field in only by appending to an existing line. That is the
     #: friction this ratchet is for, and it asked the intended question — the contract documents had
     #: a whole domain to leave with, so the number goes DOWN by 32 instead of up by one.
-    "apps/web/src/api/client.ts": 3_703,   # + cost group -> cost.ts;   # +1 = the withRoutines IMPORT, not an endpoint:   # ⑨ contracts -> contracts.ts; ⑧ 3,796; ⑦ 3,871; before ⑦ 3,967   # + ⑩ finance -> finance.ts (both extractions are in the merged file)
+    "apps/web/src/api/client.ts": 3_690,   # + cost group -> cost.ts;   # +1 = the withRoutines IMPORT, not an endpoint:   # ⑨ contracts -> contracts.ts; ⑧ 3,796; ⑦ 3,871; before ⑦ 3,967   # + ⑩ finance -> finance.ts (both extractions are in the merged file)   # ⑪ doc-QA -> docqa.ts: adding ONE method for R31-CITE-HIGHLIGHT hit 3,715 and failed here, which is this pin working; the review* cluster + its helper moved out instead, so 3,703 -> 3,690
     #: R39-DECOMP-VIEWER. Pinned at its CURRENT size before any extraction, deliberately.
     #:
     #: `app.ts` had no per-file entry, so it lived under the 5,200 global — which it also *set*, being

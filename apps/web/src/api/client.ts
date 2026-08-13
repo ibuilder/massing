@@ -8,6 +8,7 @@ import { withContracts } from "./contracts";
 import { withDesignOptions } from "./designOptions";
 import { withFinance } from "./finance";
 import { withLibrary } from "./library";
+import { withDocQa } from "./docqa";
 import { HttpCore, type LiveStream } from "./httpCore";
 import { withModel } from "./model";
 import { withEstimate } from "./estimate";
@@ -39,7 +40,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))) {
+export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -2278,19 +2279,6 @@ export class ApiClient extends withFinance(withContracts(withAuth(withProforma(w
   dashboard(pid: string, party?: string) {
     const q = party ? `?party=${encodeURIComponent(party)}` : "";
     return this.json<Dashboard>(`/projects/${pid}/dashboard${q}`);
-  }
-  reviewContract(pid: string, opts: { file?: File; text?: string }) {
-    return this.reviewPost<{ findings: { clause: string; severity: "high" | "medium" | "low"; category: string;
-      rationale: string; suggested_action: string; snippet: string }[];
-      counts: Record<string, number>; source: string; message?: string }>(pid, "contract", opts);
-  }
-  reviewScope(pid: string, opts: { file?: File; text?: string }) {
-    return this.reviewPost<{ gaps: { marker: string; note: string; snippet: string }[]; source: string; message?: string }>(
-      pid, "scope", opts);
-  }
-  reviewAsk(pid: string, question: string, opts: { file?: File; text?: string }) {
-    return this.reviewPost<{ answer: string; citations: { page: number; snippet: string }[]; source: string; message?: string }>(
-      pid, "ask", { ...opts, question });
   }
 
   // --- AI drafting (RFI / submittal summary / scope of work) -----------------

@@ -81,20 +81,6 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
       method: "POST", body: JSON.stringify(body) });
   }
   /** Preconstruction intelligence — POST a contract/spec (file or text) for review. */
-  /** Shared multipart POST for the contract-review endpoints.
-   *  `protected`, not `private`: ApiClient still calls this for three review methods that did not
-   *  move with the `/modules` group, and a derived class cannot see a base's private member. Exactly
-   *  the constraint that kept `liveStream` in client.ts until SCALE-SEAM ③ moved it to HttpCore. */
-  protected async reviewPost<T>(pid: string, kind: string, opts: { file?: File; text?: string; question?: string }) {
-    const fd = new FormData();
-    if (opts.file) fd.append("file", opts.file);
-    if (opts.text != null) fd.append("text", opts.text);
-    if (opts.question != null) fd.append("question", opts.question);
-    const res = await fetch(this.url(`/projects/${pid}/review/${kind}`), {
-      method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) throw new Error(`Review ${kind} -> ${res.status}`);
-    return res.json() as Promise<T>;
-  }
   /** Download URL for a module's header-only import template (CSV). */
   importTemplateUrl(pid: string, key: string) {
     return this.url(`/projects/${pid}/modules/${key}/import-template.csv`);

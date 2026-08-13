@@ -1,4 +1,4 @@
-import type { ApiClient } from "../../api/client";
+import type { ApiClient, DocCitation } from "../../api/client";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { money as cmoney } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
@@ -13,6 +13,55 @@ import type { PanelContext } from "../panelContext";
 // Severity → status colour, shared by the risk-review sub-renderers.
 const SEV_TONE: Record<string, string> = {
   high: "var(--status-crit)", medium: "var(--status-warn)", low: "var(--status-good)" };
+
+/** Render one citation, as a control when there is a document behind it (R31-CITE-HIGHLIGHT).
+ *
+ * Both citation renderers used this shape independently and each declared its own narrow inline
+ * type, so widening one would have left the other inert — the reason this is one function.
+ *
+ * `openable` is the server's answer, not a guess made here: a doctext document can be ingested from
+ * raw text, in which case no source file has ever existed and there is nothing to open. Those stay
+ * plain text, because a control that always 404s is worse than no control.
+ *
+ * The snippet is written with `textContent`, never `innerHTML` — it is document prose from an
+ * uploaded file, i.e. exactly the untrusted string an escape exists for.
+ */
+function citationEl(api: ApiClient, pid: string, c: DocCitation): HTMLElement {
+  const wrap = document.createElement("div");
+  wrap.className = "meta";
+  wrap.style.cssText = "margin:2px 0 0 8px;border-left:2px solid var(--line);padding-left:6px";
+  const head = document.createElement(c.openable && c.doc_id ? "button" : "span");
+  const label = `p.${c.page}${c.section ? " §" + c.section : ""}${c.doc ? " — " + c.doc : ""}`;
+  head.textContent = label;
+  if (c.openable && c.doc_id) {
+    const btn = head as HTMLButtonElement;
+    btn.className = "file-btn";
+    btn.style.cssText = "padding:1px 6px;font-size:11px";
+    btn.title = "Open the source document";
+    btn.onclick = async () => {
+      const was = btn.textContent; btn.disabled = true; btn.textContent = "opening…";
+      try {
+        const blob = await api.doctextSource(pid, c.doc_id!);
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank", "noopener");
+        // Revoked on a timer, not immediately: revoking before the new context has fetched the
+        // object leaves a blank tab. 60s is long enough for a load and short enough not to pin a
+        // large PDF in memory for the session.
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } catch (e) {
+        toast(`Could not open source: ${(e as Error).message}`, "error");
+      } finally { btn.disabled = false; btn.textContent = was; }
+    };
+  }
+  wrap.appendChild(head);
+  if (c.snippet) {
+    const q = document.createElement("div");
+    q.style.cssText = "font-style:italic;margin-top:2px";
+    q.textContent = `“${c.snippet}”`;   // textContent: this is document text
+    wrap.appendChild(q);
+  }
+  return wrap;
+}
 
   // --- Risk Review (preconstruction intelligence) ------------------------------------------------
 export function renderRiskReview(ctx: PanelContext) {
@@ -57,7 +106,7 @@ export function renderRiskReview(ctx: PanelContext) {
         try {
           if (active === "contract") renderContractFindings(ctx, out, await ctx.host.api.reviewContract(pid, opts), pid);
           else if (active === "scope") renderScopeGaps(out, await ctx.host.api.reviewScope(pid, opts));
-          else renderDocAnswer(out, await ctx.host.api.reviewAsk(pid, qInp!.value.trim(), opts));
+          else renderDocAnswer(ctx.host.api, pid, out, await ctx.host.api.reviewAsk(pid, qInp!.value.trim(), opts));
         } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
       };
       run.onclick = () => void doRun();
@@ -400,33 +449,28 @@ export async function renderAiAssist(ctx: PanelContext) {
 
   function renderRfiDraft(ctx: PanelContext, out: HTMLElement, pid: string,
       d: { subject: string; question: string; discipline: string; spec_section?: string; priority: string;
-           citations?: { page: number; snippet?: string }[]; source: string; message?: string }) {
+           citations?: DocCitation[]; source: string; message?: string }) {
     out.innerHTML = "";
     const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
     const subj = el("input", "portal-filter") as HTMLInputElement; subj.value = d.subject; subj.style.cssText = "width:100%;margin:2px 0";
     const q = el("textarea", "portal-filter") as HTMLTextAreaElement; q.value = d.question; q.style.cssText = "width:100%;min-height:80px;margin:2px 0";
     const meta = el("div", "meta"); meta.style.margin = "4px 0";
     meta.textContent = `Discipline: ${d.discipline}${d.spec_section ? " · Spec " + d.spec_section : ""} · Priority ${d.priority} · ${d.source}`;
-    // R31-CITE-HIGHLIGHT (partial): show WHAT was cited, not only where. The server has been sending
-    // `snippet` all along and this rendered `p.12` alone — a page number the reader has to take on
-    // trust, in a draft they are about to send to a design team.
+    // R31-CITE-HIGHLIGHT: the citation is a control when a source document exists behind it.
     //
-    // Deliberately NOT made clickable, and the reason is a blocker worth knowing before anyone tries:
-    // a citation's `doc_id` is a SLUG OF THE DOCUMENT NAME (doc_text.py), and the doctext index
-    // stores `{doc_id, name, chunks, sections, ingested_at}` — no file id, no path. `ingest()` takes
-    // raw bytes plus a name, so a doctext document need never have been a stored file at all. There
-    // is nothing to open. `rfi_qa.py` switched citations to `doc_id` calling it "the RESOLVABLE
-    // identifier"; it is not resolvable either, so the dead end moved rather than closed.
+    // The comment that stood here said the citation could NOT be made clickable — "there is nothing
+    // to open" — and it was true when written and false by v0.3.877, which stored the PDF beside
+    // the chunks and added `GET /projects/{pid}/doctext/{doc_id}/source`. A stale comment asserting
+    // a blocker is worse than no comment: it tells the next reader not to attempt the thing that
+    // now works, and this one sat directly on top of the code it was discouraging.
+    //
+    // What is NOT done here, so the next reader does not have to rediscover it: the in-page
+    // HIGHLIGHT box. `citeLocate.ts` can find a passage on a page, but it needs a `PageWords`
+    // supplier the viewer does not yet expose. Opening the document is the reachable half.
     const cite = el("div", "meta");
     if (d.citations?.length) {
       cite.textContent = "Source: " + d.citations.map((c) => `p.${c.page}`).join(", ");
-      for (const c of d.citations) {
-        if (!c.snippet) continue;
-        const q = el("div", "meta");
-        q.style.cssText = "margin:2px 0 0 8px;border-left:2px solid var(--line);padding-left:6px;font-style:italic";
-        q.textContent = `p.${c.page}: “${c.snippet}”`;   // textContent: this is document text
-        cite.appendChild(q);
-      }
+      for (const c of d.citations) cite.appendChild(citationEl(ctx.host.api, pid, c));
     }
     const create = el("button", "file-btn") as HTMLButtonElement; create.textContent = "Create RFI";
     create.onclick = async () => {
@@ -564,15 +608,14 @@ export async function renderAiAssist(ctx: PanelContext) {
     }
   }
 
-  function renderDocAnswer(out: HTMLElement, r: { answer: string; citations: { page: number; snippet: string }[]; source: string; message?: string }) {
+  function renderDocAnswer(api: ApiClient, pid: string, out: HTMLElement,
+      r: { answer: string; citations: DocCitation[]; source: string; message?: string }) {
     out.innerHTML = "";
     const ans = document.createElement("div"); ans.className = "dash-card"; ans.style.margin = "6px 0";
     ans.innerHTML = `<div>${esc(r.answer || r.message || "No answer.")}</div>`
       + `<div class="meta" style="margin-top:4px"><span class="badge">${r.source === "claude" ? "AI" : "extract"}</span></div>`;
     out.appendChild(ans);
-    for (const c of r.citations) {
-      const cite = document.createElement("div"); cite.className = "meta"; cite.style.margin = "3px 0";
-      cite.innerHTML = `<b>p.${c.page}</b> — ${esc(c.snippet)}`;
-      out.appendChild(cite);
-    }
+    // Same control as the RFI draft's citations — see `citationEl`. This renderer previously built
+    // its own markup with `innerHTML`, which is why the two drifted apart in the first place.
+    for (const c of r.citations) out.appendChild(citationEl(api, pid, c));
   }

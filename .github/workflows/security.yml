@@ -169,7 +169,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Generate SPDX SBOM (repo filesystem)
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610  # v0
         with:
           path: .
           format: spdx-json

@@ -130,10 +130,18 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
-- ◧ **R31-CITE-HIGHLIGHT** *(NOT S — snippet display shipped v0.3.868; **the data-model blocker is
-  CLEARED as of v0.3.877** — the remaining work is the viewer `PageWords` bridge)* — **the citation
-  could not be resolved to anything openable, so "make it a control" had nothing to click through
-  to.**
+- ◧ **R31-CITE-HIGHLIGHT** *(NOT S — snippet display shipped v0.3.868; the data-model blocker was
+  CLEARED v0.3.877; **the citation became a control in v0.3.938** — all that remains is the viewer
+  `PageWords` bridge for the in-page highlight box)* — **the citation could not be resolved to
+  anything openable, so "make it a control" had nothing to click through to.**
+
+  **SHIPPED v0.3.938 — and the delay was self-inflicted, which is the lesson.** The work was one
+  afternoon once the premise was checked. What kept it open was that both citation renderers declared
+  their own inline `{ page, snippet }` type and dropped the `doc_id` and `openable` the server had
+  been sending since v0.3.877 — so the capability was invisible from both ends, and a code comment
+  plus this very entry both asserted a blocker that no longer existed. `citationContract.test.ts`
+  now asserts the shared `DocCitation` type against `doc_text.py` by set equality, so a client type
+  narrower than the response fails a build instead of quietly re-scoping a feature as blocked.
 
   **CLEARED 2026-08-07.** The blocker was smaller and dumber than this entry knew: `ingest` ran
   `extract_pdf_text` and then **discarded the PDF**, so even when a real document existed nothing
