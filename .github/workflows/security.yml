@@ -108,10 +108,20 @@ jobs:
         # leaving the credential published in the objects for anyone who clones.
         env:
           GITLEAKS_VERSION: "8.30.1"
+          # SHA-256 of gitleaks_8.30.1_linux_x64.tar.gz, from the release's own checksums file.
+          # HARDCODED on purpose rather than downloaded alongside the tarball: a checksums file
+          # fetched from the same origin as the artefact is signed by nothing and moves with it, so
+          # it catches corruption and catches nothing else. A digest committed here fails even when
+          # the release asset itself is replaced, which is the attack this step exists to survive —
+          # the binary is DOWNLOADED AND EXECUTED in CI with repo access.
+          # Bumping GITLEAKS_VERSION without bumping this fails loudly at `sha256sum --check`, which
+          # is the correct outcome: the two are one fact and must move together.
+          GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
         run: |
           set -euo pipefail
           GITLEAKS_RC=0          # set -u: must exist before the || below can assign it
           curl -sSfL -o gitleaks.tar.gz             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum --check --status             || { echo "::error::gitleaks tarball failed checksum verification — refusing to run it"; exit 1; }
           tar -xzf gitleaks.tar.gz gitleaks
           test -x ./gitleaks
           ./gitleaks version

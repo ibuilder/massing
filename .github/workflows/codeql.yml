@@ -40,6 +40,14 @@ concurrency:
   group: codeql-${{ github.event_name == 'pull_request' && github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+# Default-deny for any job added later. Both existing jobs (`scope`, `analyze`) already scope their
+# own permissions, so this changes nothing today — Aikido's MED-2 named two other workflows and was
+# wrong about this one. It is here because a job added WITHOUT its own block inherits the
+# repository default, and the repository default is not `contents: read`. A safe default costs one
+# line; noticing that a new job lacked a block would cost a review that may not happen.
+permissions:
+  contents: read
+
 jobs:
   # Decide WHICH language analyses this event needs, and emit them as the matrix below.
   #
