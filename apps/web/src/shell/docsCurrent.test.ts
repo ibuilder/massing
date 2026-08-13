@@ -351,3 +351,48 @@ describe("the page that calls itself 'current status' is not a ring behind", () 
     ).toBeLessThanOrEqual(LAG);
   });
 });
+
+/**
+ * `CHANGELOG.md` stopped at v0.3.881 on 2026-08-07 and **fifty-two releases shipped without an
+ * entry** — 22 of them tagged — before a documentation audit noticed on 2026-08-13. Nothing warned:
+ * the release flow bumps four version files and tags, and the changelog is a fifth step that simply
+ * stopped being taken. A missing entry is invisible in exactly the way a wrong one is not.
+ *
+ * **This gate was wrong when first written, in the two ways that matter most.** It is recorded here
+ * because both are easy to repeat:
+ *
+ * 1. The bound was 75 — *larger than the 52-release gap it was written for*. It passed on the exact
+ *    incident it existed to catch. A threshold looser than the failure you are guarding against is
+ *    decoration. Mutation-testing found it; reading it did not.
+ * 2. Headings here are RANGES (`## v0.3.882–933`), and the first regex captured only the opening
+ *    number. A changelog current to 933 would have been read as stopping at 882 and failed a
+ *    correctly-maintained file — the mirror error, and the one that would have got the gate deleted.
+ *
+ * So: parse both ends of a range, and keep the bound below the size of a real lapse.
+ */
+describe("the changelog is not a ring behind the shipped version", () => {
+  // Under the 52-release gap this was written for, and above a normal batch — several releases a day
+  // land here, and entries are legitimately written per-batch rather than per-release.
+  const LAG = 25;
+
+  it("names a release within reach of the shipped one", () => {
+    const pkg = JSON.parse(readFileSync(resolve(REPO, "apps/web/package.json"), "utf8")) as {
+      version: string;
+    };
+    const now = Number(/^0\.3\.(\d+)$/.exec(pkg.version)?.[1] ?? NaN);
+    expect(Number.isFinite(now), `unparseable version ${pkg.version}`).toBe(true);
+
+    const log = readFileSync(resolve(REPO, "CHANGELOG.md"), "utf8");
+    // Both ends: `## v0.3.877` and `## v0.3.882–933` / `## v0.3.878-881`.
+    const named = [...log.matchAll(/^## v0\.3\.(\d{3})(?:\s*[–—-]\s*(\d{3}))?/gm)]
+      .flatMap((m) => [Number(m[1]), m[2] ? Number(m[2]) : Number(m[1])]);
+    expect(named.length, "CHANGELOG.md has no `## v0.3.x` headings — this assertion is vacuous")
+      .toBeGreaterThan(3);
+    const newest = Math.max(...named);
+    expect(
+      now - newest,
+      `CHANGELOG.md's newest entry is v0.3.${newest} but the app is v0.3.${now} — ${now - newest} ` +
+        `releases unrecorded. Add an entry, or reconcile the range from the release commits.`,
+    ).toBeLessThanOrEqual(LAG);
+  });
+});

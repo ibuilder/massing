@@ -4,6 +4,82 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.882–933 — fifty-two releases reconciled from the release commits
+
+**This section is reconstructed, and it is thinner than the ones below it on purpose.** The changelog
+stopped at v0.3.881 on 2026-08-07 and fifty-two releases shipped without an entry — 22 of them tagged —
+until a documentation audit on 2026-08-13 found the gap. What follows is derived from the release
+commits themselves, which in this repo carry a real description rather than "bump version". It is an
+accurate index of *what shipped*; it is **not** the per-release reasoning the entries below carry,
+because that reasoning was never written down and inventing it now would be worse than the gap.
+
+Two tags carry no version-named commit and are recorded here rather than silently skipped:
+**v0.3.924** is `b7d0c9b6` *"the ruff step and the CodeQL alert that v0.3.923 shipped red"*, and
+**v0.3.931** is `2c4f478d` *"R43-CRUD-FRAGMENTS was not executable as written — rescoped before any
+code"*.
+
+### 882–886 (2026-08-07) — answers that outran their data, and a write behind a read gate
+
+- **883** — "AI estimating is off" is not "0 line(s)". An unavailable feature was reporting an empty
+  result, which reads as *"we looked and there is nothing"*.
+- **886** — four reach callers rendered a confident answer the response did not support. Same shape as
+  883, found four more times.
+- **884** — SEC: `attach=1` was a **write** sitting behind a viewer gate; and a module shadowing the
+  stdlib `code` was renamed.
+- **885** — Band 1 emptied: SEC-PLUGIN-SANDBOX closed, `qaSection.ts` pinned.
+- **882** — the two new roadmap items assigned to lanes.
+
+### 887–909 (2026-08-08) — reach writes, the LOD 2025 read, and three red mains in one day
+
+- **887 · 898** — QTO-TRADE: the buyout engine could always do this, but the two halves spoke different
+  dialects. BOE-MAPPING-DEDUP then stopped the confidence units being a comment in two files.
+- **890 · 891 · 894 · 895** — R41-REACH-WRITES 1–4: retiring a shared parameter without the PUT eating
+  the standard; removing a discipline model now says when it will disable clash; a saved view can be
+  deleted and the confirmation names it; the model-review gate — **approve is not a thing an API key
+  can do**.
+- **892 · 893** — SEC: `delete_view` claimed a success it had not achieved *and* crossed project
+  boundaries; the module segment of the saved-view URL meant nothing.
+- **899 · 901 · 902 · 903 · 904** — the LOD Spec 2025 read and its three items: the LOD band now comes
+  from the **geometry**, not from how well an element is tagged; a verification that never says how
+  accurate it was is an incomplete assertion; the target matrix was authorable and uncomparable.
+- **905 · 906 · 907 · 908 · 909** — the R42 incremental-commit ring, opened on a premise that was wrong
+  until the code was read. `/publish` accepted `reconvert` and nothing read it. R42-SESSION-MODEL: the
+  model cache existed and the authoring loop could never hit it. **R42-UNDO withdrawn — undo exists, is
+  wired, and has its own suite.**
+- **888 · 889 · 900** — main was red three times in one day, and *reported green once*. Causes: a ruff
+  I001 on a new import, and a streaming test writing to `/app`, a path that exists only on one machine.
+
+### 910–922 (2026-08-09) — drawings return, and the canvas becomes one surface
+
+- **913 · 914** — R36-DRAWINGS-RETURN: three of the item's four claims were already false, and the one
+  real defect was invisible to its own test. It had been wired at 2 of ~10 crossings and called
+  complete; the rule now lives at the event.
+- **915 · 916** — gate what **ships**, not what happens to be installed; a sheet asking for an
+  axonometric no longer draws a plan; the rail's sheet buttons were sending three parameters the route
+  does not accept.
+- **918 · 919 · 920** — R36-VIEWER-SUBAPP: the canvas is one surface at a time; cross-mode selection
+  worked *by accident* and is now asserted; Specs ships, needing no backend work at all.
+- **911 · 912** — R42-COMMIT-DELTA keeps the geometry already converted and **says when the model is
+  behind**; alongside three silent reads, one wrong identity, and a cache serving the next version
+  under this version's name.
+- **910 · 917 · 921 · 922** — `⟳ Republish` and the AI plan's Apply had never worked (the body shape
+  422s); `app.ts` 3,717 → 3,384 with the ratchet going down; `@types/three` was a minor behind `three`,
+  so `tsc` described a different library; UX-VIEWED — `last_viewed_at` was stored, served, typed, and
+  dropped on the floor.
+
+### 923–933 (2026-08-10 → 08-13) — siblings vendored, money made exact, plans that explain themselves
+
+- **926** — R43-ORG-OWNERSHIP: **bootstrap registration handed platform admin to a stranger.** The
+  entry's stated premise was wrong and the audit found a real hole anyway.
+- **925** — R43-CSRF-GET: no route changes state on a GET, and now nothing can add one quietly.
+- **927** — money is `Decimal` end to end, so a display-rounded value can no longer become a stored
+  total. R41-UPLOAD-WARK's premise turned out to be already false.
+- **928 · 929 · 930** — R38-PLAN-TRANSFORM: the plan publishes the transform it used. R43-PLAN-EMPTY-AT-CUT:
+  a blank plan now says **why** it is blank. The storey GlobalId was being served all along.
+- **923 · 932 · 933** — massingplan's CPM engine vendored and the P6 import that read no relationships
+  fixed; massingplan re-synced, where **the recorded content digest verified nothing**; massingcapture
+  classify+probe vendored, hardening the MSPDI upload at our layer rather than upstream's.
+
 ## v0.3.878–881 — thirteen PRs land, and a ratchet that was quietly not one
 
 ### The reach ring: 131 → 117 uncalled client methods
