@@ -198,8 +198,20 @@ instances:
   not. **Route existence and input adequacy are different questions**, and the sweep only ever
   measured the first. The blocking work is a trade classification for QTO lines — backend, not UI.
 
-- ◧ **RATCHET-SET — the uncalled ceiling is a scalar with no floor, and it loosened silently today.**
+- ✅ **RATCHET-SET — the uncalled ceiling is a scalar with no floor, and it loosened silently today.**
   *(S; `apps/web/src/api/clientCallers.test.ts`)*
+
+  **ALREADY DONE — verified 2026-08-13, and this entry was the stale thing.** The conversion landed
+  on 2026-08-07: `clientCallers.test.ts` now holds the committed `UNCALLED` set and there is no
+  surviving `toBeLessThanOrEqual` assertion anywhere in the file — the only occurrences are inside
+  the history comments explaining why the scalar was removed, which is exactly the shape that makes a
+  grep say "still there". It went further than this entry asked, too: rather than one set-equality it
+  asserts two directional `toEqual([])` checks, so *newly appeared* and *newly wired* report as
+  separate diffs instead of merging into one indistinguishable blob.
+
+  Left here rather than moved to `roadmap-completed.md` with the closing argument intact, because the
+  reasoning below is the record of *why* a scalar ceiling was the wrong instrument, and it is worth
+  reading before anyone adds another one.
 
   The assertion is measured-less-than-or-equal-to-ceiling. **Nothing asserts the ceiling is tight**,
   so a *higher* literal always passes. On 2026-08-07 five PRs lowered that one line from four
@@ -222,7 +234,22 @@ instances:
   incompatible input lowers the number while every gate stays green. That needs a second check:
   a reach PR should show its endpoint returning real data with the arguments its own caller sends.
 
-- ◧ **BOE-MAPPING-DEDUP — the estimate-to-BoE mapping has more than one implementation.** *(S)*
+- ✅ **BOE-MAPPING-DEDUP — the estimate-to-BoE mapping has more than one implementation.** *(S)*
+
+  **DONE — verified 2026-08-13, and this entry's prescription was wrong about where the seam is.**
+  The second duplicate was resolved by extracting `apps/web/src/ui/confidenceReading.ts`, which both
+  `apps/web/src/portal/panels/budget.ts` and `apps/web/src/portal/register/register.ts` now import;
+  the units are applied once there and asserted by `apps/web/src/ui/confidenceReading.test.ts`
+  (7 tests). Two panels calling one shared reader is not duplication.
+
+  The instruction below — *"panels should call the seam rather than re-derive it"*, naming
+  `services/api/src/aec_api/commercial_drift.py` — could not have been followed as written. That
+  module holds `bid_award_figure` / `walk` / `for_project`: bid-to-award **drift**, with no
+  confidence function in it at all. The server-side confidence scorer is
+  `services/api/src/aec_api/est_confidence.py`, and it already computes the score; what the two
+  panels were each re-deriving was the **unit handling on the response**, which is a client concern
+  and correctly lives in a client module. **A roadmap item that names the wrong file sends the next
+  reader to rewrite working code** — the same failure as R31 above, on the same day.
 
   The cost-code and total mappings are re-derived client-side where the seam already exists
   server-side in `services/api/src/aec_api/commercial_drift.py`. One duplicate was removed in
