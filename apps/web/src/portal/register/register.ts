@@ -245,7 +245,10 @@ export class RegisterUI {
 
   /** Immediate loading placeholder so a click gives feedback before the fetch returns. */
   private skeleton(label: string) {
-    this.ctx.root.innerHTML = `<div class="section-title">${label}</div>`
+    // Escaped for uniformity rather than for a known vector: callers pass static section
+    // labels today. A rule applied only where a threat is already visible is a rule that
+    // stops being applied.
+    this.ctx.root.innerHTML = `<div class="section-title">${esc(label)}</div>`
       + `<div>${'<div class="skel-row"></div>'.repeat(6)}</div>`;
   }
   async openModule(m: ModuleDef, filter: RegisterFilter = {}) {
@@ -2072,7 +2075,11 @@ export class RegisterUI {
     let cities: { id: string; label: string; geo: boolean }[] = [];
     try { cities = (await this.ctx.host.api.permitCities()).cities; }
     catch (e) { out.textContent = `Could not load cities: ${(e as Error).message}`; }
-    sel.innerHTML = cities.map((c) => `<option value="${c.id}">${c.label}${c.geo ? "" : " (text search only)"}</option>`).join("");
+    // `cities` is a SERVER response (`api.permitCities()`), so both fields are free text from
+    // outside this file and must be escaped before reaching innerHTML — the repo's standing
+    // esc() discipline, which this line predated. `c.geo` is a boolean and picks between two
+    // literals, so it needs nothing.
+    sel.innerHTML = cities.map((c) => `<option value="${esc(c.id)}">${esc(c.label)}${c.geo ? "" : " (text search only)"}</option>`).join("");
     const opts = () => ({
       city: sel.value, address: addr.value.trim() || undefined,
       lat: lat.value ? Number(lat.value) : undefined, lon: lon.value ? Number(lon.value) : undefined,

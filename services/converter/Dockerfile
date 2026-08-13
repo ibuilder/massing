@@ -11,5 +11,11 @@ RUN npm init -y >/dev/null 2>&1 \
 
 COPY services/converter /app/services/converter
 
+# Drop root. This image is a CLI entrypoint — it binds no port, so there is no privileged-port
+# problem and nothing to trade away. `--chown` on the app tree so the non-root user can read
+# what it was given and write nothing it was not.
+RUN addgroup -S app && adduser -S -G app app && chown -R app:app /app
+USER app
+
 # usage: docker compose run --rm converter /data/model.ifc /data/model.frag
 ENTRYPOINT ["node", "services/converter/src/cli.mjs"]
