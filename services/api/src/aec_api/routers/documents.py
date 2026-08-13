@@ -68,10 +68,20 @@ async def documents_upload(pid: str, path: str = Form(...), file: UploadFile = F
     """Upload a document into a standard folder. Auto-named to the information standard; a new upload of
     the same document supersedes the prior revision (never overwritten — the old one is archived)."""
     _project_or_404(pid, db)
+    from starlette.concurrency import run_in_threadpool
+
+    from .. import storage
     try:
-        return docmanager.upload(pid, path, file.filename or "file", await file.read(), actor,
-                                 title=title, discipline=discipline, doc_type=doc_type,
-                                 cde_state=cde_state, revision=revision)
+        # R39-UPLOAD-CAP-APP: stream rather than `await file.read()`. Documents are the largest
+        # thing an ordinary user uploads here, and Starlette has already spooled this one to disk.
+        # `docmanager.upload` is synchronous and does its own per-project locking, so the whole call
+        # goes to the threadpool — iterating the chunks on the event loop would block every other
+        # request for the duration of the write, which is the problem this is meant to remove.
+        return await run_in_threadpool(
+            lambda: docmanager.upload(pid, path, file.filename or "file", None, actor,
+                                      chunks=storage.upload_chunks(file),
+                                      title=title, discipline=discipline, doc_type=doc_type,
+                                      cde_state=cde_state, revision=revision))
     except ValueError as e:
         raise HTTPException(400, str(e))
 

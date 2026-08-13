@@ -135,11 +135,26 @@ def get_file(pid: str, fid: str) -> tuple[bytes, str, str] | None:
 
 # --- upload (with auto-naming + revision supersede) -----------------------------------------------
 @_locked
-def upload(pid: str, folder: str, filename: str, data: bytes, actor: str, *, title: str | None = None,
+def upload(pid: str, folder: str, filename: str, data: bytes | None, actor: str, *,
+           chunks: Any = None, title: str | None = None,
            discipline: str | None = None, doc_type: str | None = None, cde_state: str | None = None,
            revision: str | None = None, when: datetime | None = None) -> dict[str, Any]:
     """File an uploaded document into `folder`. Auto-names to the standard, supersedes any prior revision
-    of the same document, and returns the new entry + the naming-validation result."""
+    of the same document, and returns the new entry + the naming-validation result.
+
+    R39-UPLOAD-CAP-APP. Pass EITHER `data` (bytes already in hand) or `chunks` (an iterable, from
+    `storage.upload_chunks`) — never both, never neither. The route passes `chunks`, because
+    Starlette has already spooled the upload to disk and `await file.read()` merely copied a file
+    that existed into a `bytes` the size of the document. The other callers hold real bytes and keep
+    passing `data`, which is why this is a widening rather than a signature change.
+
+    `size` comes from `put_stream`'s return value on the streaming path rather than `len(data)`.
+    That matters more than it looks: it is the byte count actually WRITTEN, so the index cannot
+    record a size the stored object does not have."""
+    if (data is None) == (chunks is None):
+        # Refused rather than defaulted. Accepting both would make it ambiguous which one was
+        # stored; accepting neither would write a zero-byte document and index it as real.
+        raise ValueError("pass exactly one of `data` or `chunks`")
     if not folder_template.is_valid(folder):
         raise ValueError(f"'{folder}' is not a standard folder — file into the standard taxonomy")
     node = folder_template.node(folder)
@@ -158,7 +173,11 @@ def upload(pid: str, folder: str, filename: str, data: bytes, actor: str, *, tit
     ext = ("." + filename.rsplit(".", 1)[1]) if "." in filename else ""
     stored = _safe(_standard_name(doc_type, discipline, title, rev, when) + ext)
     key = f"{pid}/docs/{folder}/{stored}"
-    storage.put(key, data)
+    if chunks is not None:
+        size = storage.put_stream(key, chunks)
+    else:
+        storage.put(key, data)
+        size = len(data)
 
     if prior:
         prior["superseded"] = True
@@ -170,7 +189,7 @@ def upload(pid: str, folder: str, filename: str, data: bytes, actor: str, *, tit
         "id": f"f{idx['seq']}", "folder": folder, "name": stored, "orig_name": filename,
         "title": title, "discipline": discipline, "doc_type": doc_type, "revision": rev,
         "cde_state": cde_state, "status": "Issued" if cde_state == "published" else "Draft",
-        "owner_role": node.get("owner_role"), "size": len(data), "key": key,
+        "owner_role": node.get("owner_role"), "size": size, "key": key,
         "uploaded_by": actor, "uploaded_at": when.isoformat(timespec="seconds"),
         "supersedes": prior["id"] if prior else None,
     }

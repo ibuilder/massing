@@ -1326,7 +1326,7 @@ Four sessions are live in this repo. R24 is **`apps/web` outside `src/shell/`**.
   of them on any branch, precisely because they are the high-conflict files. If you take a lane,
   say so — a session message costs nothing and a merge conflict in this file costs an hour.
 - **The version lives in THREE files**, not the two the `ship-release` skill names: `apps/web/package.json`,
-  `apps/web/src-tauri/tauri.conf.json`, **and `package-lock.json` (~line 23)**.
+  `apps/web/src-tauri/tauri.conf.json`, **and `package-lock.json` under the `packages["apps/web"].version` key**. *Located by key, not by line: it sat at line 23 until the R41-BUNDLER-SPLIT dedupe added a root devDependency and pushed it to 24. `apps/web/src/shell/versionConsistency.test.ts` already reads it structurally, which is why the move broke nothing — a line number in prose is the part that rots.*
   `shell/versionConsistency.test.ts` fails the web suite if the lockfile disagrees.
 - **The web app's three escaping layers have DISTINCT scopes.** Stated once, because assuming one
   covers another is how the gap between them gets used:
@@ -1885,7 +1885,7 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
 
 ### Gate and process items
 
-- **R41-BUNDLER-SPLIT** *(S — Lane J)* — **the suite never exercises the bundler that ships.** The app
+- ✅ **R41-BUNDLER-SPLIT** *(S — Lane J; DONE v0.3.941)* — **the suite never exercises the bundler that ships.** The app
   is *built* with **Vite 8 / rolldown** (pinned in `apps/web/package.json`, installed nested at
   `apps/web/node_modules/vite`) and *tested* under **Vite 6 / rollup**, from the copy hoisted to the
   repo root.
@@ -1897,10 +1897,25 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   `@vitest/mocker` is `^6 || ^7 || ^8` and `vite-plugin-pwa` is `^3 … ^8`. The root copy is 6.4.3
   purely because that resolution satisfies every range and nothing has forced npm to move it.
 
-  So the remedy is a **lockfile dedupe**, not a version bump and not a new dependency. What it still
-  needs is a decision about *when*: re-resolving the root mutates `node_modules` for every session
-  sharing this clone, and it would be the first time the suite has ever run against the bundler that
-  ships — which is the entire point, and also the risk. Consistent between the clone and a
+  So the remedy is a **lockfile dedupe**, not a version bump and not a new dependency.
+
+  **CLOSED v0.3.941 — and the dedupe alone was not enough, which is worth recording.** An
+  `overrides` entry was the obvious fix and npm *registered* it (`npm ls` printed `vite@8.1.5
+  overridden`) while leaving the hoisted copy at 6.4.3 and reporting the tree `invalid`. Neither
+  `npm install` nor `npm install --package-lock-only` re-resolved it, and deleting
+  `node_modules/vite` did not either — the lockfile still pinned 6.4.3 and `npm install` honours the
+  lock. **A registered override with an unchanged lock is the shape to watch for**: npm tells you it
+  applied and the tree says otherwise, so trusting the config over `npm ls` would have left the split
+  in place while reporting it fixed.
+
+  What worked was declaring `vite` as a root devDependency at the same exact pin `apps/web` uses.
+  That is one added line, not a new package — the root then dedupes to a single `vite@8.1.5` and
+  `apps/web/node_modules/vite` disappears entirely.
+
+  **The suite now runs on the bundler that ships**: 1,576 tests pass under Vite 8 / rolldown, and
+  faster (26.5 s vs 32.6 s). Typecheck, lint and the production build are unchanged, and the
+  precache output is byte-identical at 902.20 KiB — so this bought the coverage without moving what
+  ships. Consistent between the clone and a
   worktree, so test results are not *unstable* — but the test environment is not merely narrower than
   production, it is **a different implementation**, and it can agree with you about code the shipping
   bundler treats differently.

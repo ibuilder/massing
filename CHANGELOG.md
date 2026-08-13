@@ -4,6 +4,59 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.941 (2026-08-13) — the suite finally runs on the bundler that ships
+
+### R41-BUNDLER-SPLIT — one Vite, and it is the one that builds the app
+
+The app was **built** with Vite 8 / rolldown and **tested** under Vite 6 / rollup. Not merely a
+narrower environment — a *different implementation*, able to agree with you about code the shipping
+bundler treats differently.
+
+**The filed cause was wrong, and that is what kept it parked.** The entry said vitest depends on
+vite `^6`. It does not: vitest declares `^6.0.0 || ^7.0.0 || ^8.0.0` in both `dependencies` and
+`peerDependencies`, and 4.1.10 is current. Checked against the lockfile, **no consumer requires `^6`
+exclusively**. So this was never a dependency decision awaiting sign-off; the root simply resolved to
+6.4.3 because that satisfied every range and nothing forced it to move.
+
+**The dedupe alone did not work, and the failure mode is worth knowing.** An `overrides` entry looked
+like the fix, and npm *registered* it — `npm ls` printed `vite@8.1.5 overridden` — while leaving the
+hoisted copy at 6.4.3 and marking the tree `invalid`. Neither `npm install` nor
+`npm install --package-lock-only` re-resolved it, and deleting `node_modules/vite` did not either,
+because the lockfile still pinned 6.4.3 and `npm install` honours the lock. **A registered override
+over an unchanged lock is a config that reports success while the tree disagrees** — believing the
+config instead of `npm ls` would have left the split in place and called it closed.
+
+What worked: declare `vite` as a root devDependency at the same exact pin `apps/web` already uses.
+One line, no new package. The tree then dedupes to a single `vite@8.1.5` and
+`apps/web/node_modules/vite` disappears.
+
+**Result:** 1,576 tests pass under Vite 8 / rolldown, and faster (26.5 s vs 32.6 s). Typecheck, lint
+and the production build are unchanged, and the precache output is byte-identical at 902.20 KiB — the
+coverage was bought without moving what ships.
+
+**One quiet consequence, caught rather than shipped:** the added root devDependency pushed
+`package-lock.json`'s version key from line 23 to line 24. The release recipe named "line 23" in
+prose. Nothing broke, because `versionConsistency.test.ts` reads
+`packages["apps/web"].version` structurally — the roadmap now names the key instead of the line,
+since the line number was the only part that could rot.
+
+### R39-UPLOAD-CAP-APP — the first of the five storage sites
+
+`docmanager.upload` now accepts **either** `data` (bytes in hand) or `chunks` (an iterable from
+`storage.upload_chunks`), and the documents route passes the latter. Documents are the largest thing
+an ordinary user uploads here, and `await file.read()` was copying a file Starlette had already
+spooled to disk.
+
+Two details that are not incidental:
+
+- **Exactly one of the two is required** — passing both is ambiguous about what was stored, passing
+  neither would write a zero-byte document and index it as real. Refused rather than defaulted.
+- **`size` now comes from `put_stream`'s return value**, the count actually written, rather than
+  `len(data)`. The index cannot record a size the stored object does not have.
+
+The other four callers hold real bytes and still pass `data`, which is why this is a widening rather
+than a signature change.
+
 ## v0.3.940 (2026-08-13) — two uploads that copied a file that was already on disk
 
 ### R39-UPLOAD-CAP-APP — the 34 sites classified, and the two nobody had counted
