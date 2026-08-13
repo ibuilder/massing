@@ -888,6 +888,45 @@ def _can_read(db: Session, s: Scenario, user: str) -> bool:
     return False
 
 
+def _can_write(db: Session, s: Scenario, user: str) -> bool:
+    """Write permission. **Deliberately NOT `_can_read`.**
+
+    `_can_read` admits anyone in `shared_with` — that is how an LP sees a scenario they were sent.
+    An LP with read access must not be able to edit assumptions, clone, approve a review, or pull a
+    draw package. Read permission is not write permission, and reusing one guard for both is the
+    quiet way to grant the second while auditing only the first.
+
+    Write therefore requires an actual project role, which is what `role_for` answers.
+    """
+    if not rbac.RBAC_ON:
+        return True
+    return bool(s.project_id and rbac.role_for(db, s.project_id, user) is not None)
+
+
+def _scenario_for(sid: str, db: Session, user: str, *, write: bool = False) -> Scenario:
+    """Fetch a scenario and authorise the caller, in one place.
+
+    Added 2026-08-13. `_can_read` already existed and was called by **2 of the 8** `{sid}` routes:
+    provenance and get. The other six — share, update, clone, review, forecast, draw-package — fetched
+    by id and acted, with no ownership check at all. `/proforma` is in `main.py`'s
+    `_PROTECTED_PREFIXES`, so the global middleware 401s anonymous callers and every route *looked*
+    guarded; what was missing was authorisation, not authentication.
+
+    A dependency-style helper rather than six more call-site checks, so that a ninth route cannot be
+    added without answering the question. The 404-before-403 order is deliberate and unchanged: it
+    matches the two routes that were already correct.
+    """
+    s = db.get(Scenario, sid)
+    if not s:
+        raise HTTPException(404, "scenario not found")
+    if write:
+        if not _can_write(db, s, user):
+            raise HTTPException(403, "you do not have write access to this scenario")
+    elif not _can_read(db, s, user):
+        raise HTTPException(403, "not shared with you")
+    return s
+
+
 @router.get("/proforma/scenarios/{sid}/provenance")
 def scenario_provenance(sid: str, revision: str | None = None,
                         db: Session = Depends(get_db), user: str = Depends(current_user)):
@@ -926,12 +965,20 @@ def get_scenario(sid: str, db: Session = Depends(get_db), user: str = Depends(cu
 
 
 @router.post("/proforma/scenarios/{sid}/share", status_code=201)
-def share_scenario(sid: str, user: str = Body(..., embed=True), db: Session = Depends(get_db)):
-    """Grant an LP (or any party) read access to this scenario."""
-    s = db.get(Scenario, sid)
-    if not s:
-        raise HTTPException(404, "scenario not found")
-    s.shared_with = sorted(set((s.shared_with or []) + [user]))
+def share_scenario(sid: str, target: str = Body(..., embed=True, alias="user"),
+                   db: Session = Depends(get_db), actor: str = Depends(current_user)):
+    """Grant an LP (or any party) read access to this scenario.
+
+    **The body's `user` is the person being GRANTED access; `actor` is the person doing the
+    granting.** They were the same parameter until 2026-08-13, and there was no `current_user`
+    dependency at all — so the route had no notion of who was calling, and any authenticated caller
+    could share any scenario with anyone. Sharing is a write, so it takes the write guard.
+
+    The wire key stays `user` via `alias`, so no caller changes; only the code stops conflating two
+    different people under one name.
+    """
+    s = _scenario_for(sid, db, actor, write=True)
+    s.shared_with = sorted(set((s.shared_with or []) + [target]))
     db.commit()
     return {"id": s.id, "shared_with": s.shared_with}
 
@@ -940,9 +987,7 @@ def share_scenario(sid: str, user: str = Body(..., embed=True), db: Session = De
 def update_scenario(sid: str, body: ScenarioIn, db: Session = Depends(get_db),
                     user: str = Depends(current_user)):
     from .. import audit, fin_gov
-    s = db.get(Scenario, sid)
-    if not s:
-        raise HTTPException(404, "scenario not found")
+    s = _scenario_for(sid, db, user, write=True)
     if s.is_locked:
         raise HTTPException(409, "scenario is locked")
     if (getattr(s, "review_status", None) or "draft") in fin_gov.IMMUTABLE_STATES:
@@ -963,10 +1008,9 @@ def update_scenario(sid: str, body: ScenarioIn, db: Session = Depends(get_db),
 
 
 @router.post("/proforma/scenarios/{sid}/clone", status_code=201)
-def clone_scenario(sid: str, name: str = Body(..., embed=True), db: Session = Depends(get_db)):
-    s = db.get(Scenario, sid)
-    if not s:
-        raise HTTPException(404, "scenario not found")
+def clone_scenario(sid: str, name: str = Body(..., embed=True), db: Session = Depends(get_db),
+                   user: str = Depends(current_user)):
+    s = _scenario_for(sid, db, user, write=True)
     c = Scenario(name=name, project_id=s.project_id, assumptions=s.assumptions, result=s.result)
     db.add(c)
     db.commit()
@@ -980,9 +1024,7 @@ def review_scenario(sid: str, action: str = Body(..., embed=True),
     """FIN-GOV: move a scenario through draft → in_review → approved → published
     (reject/reopen walk back to draft). Approved/published assumptions are immutable in place."""
     from .. import audit, fin_gov
-    s = db.get(Scenario, sid)
-    if not s:
-        raise HTTPException(404, "scenario not found")
+    s = _scenario_for(sid, db, user, write=True)
     try:
         out = fin_gov.review_scenario(s, action, user, note)
     except KeyError as e:
@@ -1062,11 +1104,10 @@ class ForecastIn(BaseModel):
 
 
 @router.post("/proforma/scenarios/{sid}/forecast")
-def forecast_scenario(sid: str, body: ForecastIn, db: Session = Depends(get_db)):
+def forecast_scenario(sid: str, body: ForecastIn, db: Session = Depends(get_db),
+                      user: str = Depends(current_user)):
     """Re-forecast the underwritten returns against actuals drawn to date (Phase 5 bridge)."""
-    s = db.get(Scenario, sid)
-    if not s:
-        raise HTTPException(404, "scenario not found")
+    s = _scenario_for(sid, db, user, write=True)
     return reforecast(s.assumptions, [a.model_dump() for a in body.actuals], body.as_of_month)
 
 
@@ -1085,13 +1126,12 @@ class DrawPackageIn(BaseModel):
 
 
 @router.post("/proforma/scenarios/{sid}/draw-package")
-def draw_package(sid: str, body: DrawPackageIn, db: Session = Depends(get_db)):
+def draw_package(sid: str, body: DrawPackageIn, db: Session = Depends(get_db),
+                 user: str = Depends(current_user)):
     """Bridge underwriting → construction draws: turn the scenario's cost tree + actuals into
     Schedule-of-Values records on a GC project, then produce the AIA G702/G703 pay app —
     so the IRR you underwrote and the lender draw run off the SAME cost tree."""
-    s = db.get(Scenario, sid)
-    if not s:
-        raise HTTPException(404, "scenario not found")
+    s = _scenario_for(sid, db, user, write=True)
     if "sov" not in me.TABLES:
         raise HTTPException(409, "SOV module not loaded")
     fc = reforecast(s.assumptions, [a.model_dump() for a in body.actuals], body.as_of_month)
