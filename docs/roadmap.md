@@ -770,9 +770,26 @@ the only item here with real scope.
   the api venv is **3.10.6**, where `from enum import StrEnum` raises. Their guard commit is the
   difference between a clear message and a baffling one on the first local run.
 
-- **R43-PLAN-DRIFT** *(S — Lane C)* — **pin cadence for the vendored massingplan engine.** Pin
-  `155640a7` is clean and correct today; what does not exist is a way to notice when it stops being.
-  Deliberately not installed yet — the decision outstanding is cadence, not correctness.
+- ◧ **R43-PLAN-DRIFT** *(S — Lane C; the local half SHIPPED v0.3.943, cadence still open)* —
+  **pin cadence for the vendored massingplan engine.** What does not exist is a way to notice when
+  the pin stops being correct. The decision outstanding is cadence, not correctness.
+
+  **The pin named here was stale, which is the item's own failure mode.** This read `155640a7`;
+  `VENDOR.md` records the tree moved to `b703dca4` on 2026-08-11 and says so explicitly — *"was
+  `155640a7`, 2026-08-10"*. A pin copied into prose drifted from the pin in the tree, and nothing
+  noticed. Corrected 2026-08-13.
+
+  **The half that was never blocked is now a test.** *Has upstream moved?* needs a cadence, a network
+  and a decision. *Has anyone edited the copy HERE?* needs none of those — only the recipe VENDOR.md
+  already writes down. `services/api/test_massingplan_vendor.py` executes that recipe, comparing
+  against the digest **parsed from VENDOR.md** rather than a second copy in the test, so a re-sync
+  updates one file and the gate follows. It also holds the stdlib-only contract the whole adoption
+  rests on. Mutation-checked three ways: a local edit, a digest not updated after a re-sync, and a
+  third-party import into `core` — the last caught independently by two checks.
+
+  VENDOR.md earned it. Its own words about the previous, unreproducible digest: *"a recorded
+  verification value nobody can recompute is not a verification, it is a decoration."* A recipe
+  stated in prose and never executed is one revision from being decoration again.
 ## 🏗 R21 — LOD 400→500 DOCUMENTATION RING *(from a real LOD 400 shop-drawing set, 2026-07-25)*
 
 Measured against an actual issued wall-section + detail package (13 sheets, 1:100 → 1:10) rather than

@@ -4,6 +4,49 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.943 (2026-08-13) — a vendored copy that can prove it was not edited
+
+### R43-PLAN-DRIFT — the half that was never blocked
+
+The item is filed as blocked on **cadence**: how often to ask whether upstream has moved. That is a
+real open question and this does not answer it. It answers the other half — *has anyone edited the
+copy here?* — which needs no schedule, no network and no decision, only the recipe `VENDOR.md`
+already writes down.
+
+`services/api/test_massingplan_vendor.py` executes that recipe: a content digest over
+`massingplan/core/`, CRLF-normalised, compared against the value **parsed from VENDOR.md** rather
+than a second copy living in the test. A hardcoded expectation would become a second source of truth,
+and the first thing a re-sync would do is make the two disagree while the test stayed green against
+its own stale copy. It also holds the stdlib-only contract the whole adoption rests on.
+
+Mutation-checked three ways, each failing by name: a local edit to a vendored file, a re-sync that
+did not update the digest, and a third-party import into `core` — the last caught independently by
+two different checks.
+
+**VENDOR.md earned this.** It records the recipe because the *previous* digest turned out to be
+unreproducible by anything anyone could try, and its own conclusion was that *"a recorded
+verification value nobody can recompute is not a verification, it is a decoration."* A recipe stated
+in prose and never executed is one revision away from being decoration again.
+
+**The first attempt to reproduce the digest failed, and the measurement was the error.** Hashing the
+whole vendored directory gave a mismatch; the recipe says `core/`, and the top-level `__init__.py` is
+a three-line shim of *ours* that is not upstream's. Over `core/` alone it reproduces exactly. The test
+now asserts that shim stays outside the digest, because widening the recipe is the obvious wrong
+correction a mismatch invites.
+
+### The pin in the roadmap was stale — the item's own failure mode
+
+The entry named pin `155640a7`. VENDOR.md records the tree moved to `b703dca4` on 2026-08-11 and says
+so in as many words: *"was `155640a7`, 2026-08-10"*. A pin copied into prose drifted from the pin in
+the tree and nothing noticed — which is precisely the class of drift this item exists to catch.
+
+### Also
+
+`check()` in the new gate splits its detail into `why` (printed only on failure) and `note` (only on
+success). The shared helper prints one string either way, which puts the failure explanation on a
+PASS line — a log contradicting its own verdict, and a reader skimming for trouble finds the
+scariest sentence sitting under the word PASS.
+
 ## v0.3.942 (2026-08-13) — record attachments stream, and a bulk route nothing was checking
 
 ### R39-UPLOAD-CAP-APP — bucket (a) closed
