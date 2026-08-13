@@ -4,6 +4,95 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.937 (2026-08-13) — the changelog rule becomes a test, because as prose it failed twice
+
+This file stopped at v0.3.881 while **fifty-two releases shipped**, twenty-two of them tagged. Before
+that, v0.3.808 shipped with the same lapse. Both were noticed late and reconstructed from release
+commits — which in this repo carry real descriptions, so the reconstruction is honest, but it is
+strictly thinner than an entry written while the reasoning was still in someone's head. The
+per-release *why* was never recoverable, and inventing it afterwards would have been worse than the
+gap.
+
+`services/api/test_changelog_current.py` now asserts that the version in `apps/web/package.json` —
+the number that actually ships — is named here. It fires before the release, which is the moment the
+fix is cheap.
+
+Two decisions worth stating, because both are the difference between a gate that survives and one
+that gets switched off:
+
+- **It checks the current version only**, not every historical tag. A gate demanding entries for all
+  900-odd releases would fail forever on the reconstructed range and be disabled within a day. A rule
+  that is technically right and operationally impossible is not a rule.
+- **It accepts a grouped range** (`## v0.3.934–936`) as well as an explicit version, because this
+  repo legitimately batches a day's releases into one section. And it carries a twin asserting the
+  matcher *rejects* a version that was never released — without it, "the version appears somewhere in
+  the file" could pass for reasons having nothing to do with the release.
+
+The twin caught something on its first run, and the something was this entry. Its sentinel started as
+a hardcoded fake version, and the paragraph above originally quoted that fake version to explain what
+the twin did — so the gate matched its own release notes and failed. The sentinel is now derived from
+the shipping version's own prefix, which is both a harder test (it must discriminate inside the real
+namespace, not merely across an unrelated one) and one nobody can accidentally write down. **Fourth
+time this repo has shipped a source-scanning check that reads the prose describing it.**
+
+**Also in this release, and the more useful lesson:** v0.3.936 broke `main`. Seven explanatory
+comments added to `apps/web/src/portal/register/register.ts` took it from 2546 to 2553 lines and
+tripped the per-file size ratchet. It was fixed by trimming the comments rather than raising the
+ceiling — the direction of travel on that file is down. The pre-flight missed it because
+**`register.ts` is a web file whose size ratchet is enforced by a Python test in `services/api`**;
+typecheck, lint and the web vitest suite were all run, and all three were structurally blind to it.
+Running the suite that owns the *gate* matters more than running the suite that owns the *language*.
+
+## v0.3.934–936 (2026-08-13) — the Aikido list, worked by reading the code rather than the report
+
+A 32-issue security scan arrived. Twelve findings were examined; **nine were misreported**. Two real
+holes were closed, and four items would have had us edit code that was already correct.
+
+### v0.3.934 — SEC-SCENARIO-AUTHZ: the guard existed and 6 of 8 routes never called it
+
+`_can_read` had been in `routers/proforma.py` all along, called by **two** of the eight `{sid}`
+routes. Share, update, clone, review, forecast and draw-package fetched by id and acted with no
+ownership check. Not an unauthenticated hole — `/proforma` is in `_PROTECTED_PREFIXES`, so the global
+middleware 401s anonymous callers and every route *looked* guarded. **A generic gate hiding a missing
+specific one:** authentication was enforced, authorisation was not.
+
+Worst was `share_scenario`, which took the *grantee* in a parameter named `user` and had **no
+`current_user` dependency at all** — no notion of who was calling, so any authenticated user could
+share any scenario with anyone.
+
+Added `_can_write` (deliberately *not* `_can_read`: an LP with read access must not edit, clone,
+approve or pull a draw package) and `_scenario_for(sid, …, write=…)` so a ninth route cannot be added
+without answering the question. Scenarios carry draw packages and forecasts — this is money-adjacent.
+
+### v0.3.935 — verify the gitleaks binary before executing it
+
+`security.yml` curled a release tarball and ran it, unverified, in CI with repository access. Now
+checked against a SHA-256 committed in the workflow — **hardcoded rather than fetched alongside the
+tarball**, because a checksums file from the same origin is signed by nothing and moves with the
+artefact. A committed digest fails even when the release asset is replaced. Plus a default-deny
+`permissions` block in `codeql.yml` for jobs added later.
+
+### v0.3.936 — one real XSS, three false positives
+
+`register.ts` built `<option>` markup from `api.permitCities()` — a server response — with `c.id` and
+`c.label` raw in `innerHTML`. Escaped. The other 24 `innerHTML` sites in that file were already safe.
+`services/converter/Dockerfile` drops root (a CLI entrypoint, no port to trade). `apps/web/Dockerfile`
+deliberately **not** changed: it is nginx on port 80, and going unprivileged moves the published port
+— a deployment decision, not a code cleanup.
+
+False: `document.write` (zero occurrences), `location.href` into a DOM sink (zero),
+`fast-xml-builder` (not a dependency), and path traversal in `bim.py` (`storage.contained_path`
+already resolves *then* tests containment, and explains why that order matters).
+
+### Also in this range
+
+Earlier the same day: massingcapture `classify/` + `probe/` vendored (v0.3.933), the MSPDI upload
+hardened at **our** layer rather than by forking a vendored file, and massingplan re-synced to
+`b703dca4` (v0.3.932).
+
+**Still open and untouched:** HIGH-7, ~40 third-party GitHub Action references not pinned to commit
+SHAs. Real, mechanical, and all-or-nothing across every CI entry point.
+
 ## v0.3.882–933 — fifty-two releases reconciled from the release commits
 
 **This section is reconstructed, and it is thinner than the ones below it on purpose.** The changelog
