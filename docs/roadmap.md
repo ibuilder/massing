@@ -1887,8 +1887,20 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
 
 - **R41-BUNDLER-SPLIT** *(S — Lane J)* — **the suite never exercises the bundler that ships.** The app
   is *built* with **Vite 8 / rolldown** (pinned in `apps/web/package.json`, installed nested at
-  `apps/web/node_modules/vite`) and *tested* under **Vite 6 / rollup**, because `vitest@4.1.10`
-  depends on vite ^6 and that copy is hoisted to the repo root. Consistent between the clone and a
+  `apps/web/node_modules/vite`) and *tested* under **Vite 6 / rollup**, from the copy hoisted to the
+  repo root.
+
+  **The stated cause was wrong, and it made this look like a dependency decision it is not.** This
+  read "because `vitest@4.1.10` depends on vite ^6". It does not: vitest declares
+  `^6.0.0 || ^7.0.0 || ^8.0.0` in **both** `dependencies` and `peerDependencies`, and 4.1.10 is the
+  current release. Checked against the lockfile, **no consumer requires ^6 exclusively** —
+  `@vitest/mocker` is `^6 || ^7 || ^8` and `vite-plugin-pwa` is `^3 … ^8`. The root copy is 6.4.3
+  purely because that resolution satisfies every range and nothing has forced npm to move it.
+
+  So the remedy is a **lockfile dedupe**, not a version bump and not a new dependency. What it still
+  needs is a decision about *when*: re-resolving the root mutates `node_modules` for every session
+  sharing this clone, and it would be the first time the suite has ever run against the bundler that
+  ships — which is the entire point, and also the risk. Consistent between the clone and a
   worktree, so test results are not *unstable* — but the test environment is not merely narrower than
   production, it is **a different implementation**, and it can agree with you about code the shipping
   bundler treats differently.
