@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.946 (2026-08-14) — R24-CMDK-VERBS: two of the palette's six sections could not be filled
+
+`R24-CMDK-GROUPS` (v0.3.780) gave the command palette its sections, and `GROUP_ORDER` has named
+**Do · Records · Elements · Reports · Modules · Go to** ever since. Only three of those six could ever
+contain anything: `main.ts` registered workspaces, six hardcoded actions, and 130-odd modules.
+**Elements and Reports were headings with no possible contents** — declared, ordered, and unreachable.
+
+The four missing providers are now in `apps/web/src/ui/paletteProviders.ts`, all pure and all injected,
+so none of them imports the viewer, the API client or the DOM:
+
+- **Authoring verbs** do not reimplement Move/Copy/Rotate — they find the toolbar button by its `title`
+  and click it. `viewer/toolbarLayout.ts` already keys the tool table on that exact string and already
+  fails when an installed button is missing from it, so the palette inherits that gate: a retitled
+  button cannot silently lose its palette row. A verb whose button is not installed is **omitted, not
+  disabled** — before a model loads, every authoring row would otherwise look available and do nothing.
+- **Elements** is a GlobalId lookup plus an IFC-class list, and deliberately not a name search. There
+  is no server-side element text search, and pulling every element into the browser to filter would
+  violate "never parse the model in the browser" in order to answer the question badly.
+- **Reports** come from the server's own catalog as static rows, so they go through ranking and
+  recency. Choosing one opens the Report Center *scrolled to and highlighting that row*, rather than
+  dropping the reader at the top of a 56-row modal to re-find what they just named.
+- **Ask** is the fallback, passed separately from the results so it is appended *after* the per-section
+  cap. A fallback the cap can delete is not a fallback: it would vanish exactly when a query matched
+  twelve things badly, which is when it is most useful.
+
+**Fixed on the way, and found by reading rather than by testing:** the palette did
+`items = items.concat(extra)` when async results arrived, appending them to an already-grouped list. A
+record hit — group *Records*, which sorts second — landed *below* Modules and Go to, under a **second**
+`RECORDS` heading. The grouping was a property of the first paint only, and the section the async
+provider exists to fill was the one it could never reach; adding Elements and Reports would have made
+it three duplicate headings instead of one. `mergeResults` re-sorts on group rank alone — `Array#sort`
+is stable, so each side keeps its own ranking inside its section, and re-scoring would have discarded
+the server's relevance order, which the palette cannot reconstruct.
+
+The regression test restores the old `concat` and asserts the ordering flips, so the fix cannot be
+undone by a future edit that merely looks tidier.
+
 ## v0.3.945 (2026-08-14) — R24-TERMS: a building storey is called a storey
 
 Diagnosis #17 of the R24 audit is "three vocabularies collide". Measured before touching anything,

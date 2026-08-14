@@ -124,6 +124,44 @@ export function takePerGroup(cmds: readonly Command[], perGroup: number, total: 
   return out;
 }
 
+/**
+ * Fold late-arriving async results into the already-grouped list, **re-sorted by section**.
+ *
+ * The defect this replaces was invisible in the code and obvious on screen. `refresh()` did
+ * `items = items.concat(extra)`, so a record hit — group *Records*, which sorts second — landed
+ * underneath *Modules* and *Go to*, under a **second** `RECORDS` heading further down the list. The
+ * grouping was a property of the first paint only, and the section that the async provider exists to
+ * fill was the one it could never reach. Adding two more async sections (Elements, Reports) would
+ * have made it three duplicate headings instead of one.
+ *
+ * The sort key is the group rank *alone*, and `Array#sort` is stable per spec (ES2019), so each
+ * side's own ranking survives inside its section. Re-scoring here would discard the async provider's
+ * relevance order, which is the only ordering information it has — the palette does not know why the
+ * server ranked one record above another.
+ *
+ * `pinned` rows bypass the cap entirely and are appended last: see `askFallback`.
+ */
+export function mergeResults(
+  base: readonly Command[],
+  extra: readonly Command[],
+  opts: { perGroup?: number; total?: number; pinned?: readonly Command[] } = {},
+): Command[] {
+  const { perGroup = 8, total = 40, pinned = [] } = opts;
+  const seen = new Set<string>();
+  const all: Command[] = [];
+  for (const c of [...base, ...extra]) {
+    if (seen.has(c.id)) continue;
+    seen.add(c.id);
+    all.push(c);
+  }
+  const capped = takePerGroup(
+    [...all].sort((a, b) => groupRank(groupOf(a)) - groupRank(groupOf(b))),
+    perGroup, total,
+  );
+  const have = new Set(capped.map((c) => c.id));
+  return capped.concat(pinned.filter((p) => !have.has(p.id)));
+}
+
 /** Subsequence fuzzy score: all query chars must appear in order; earlier/contiguous = higher. */
 function fuzzy(q: string, text: string): number {
   if (!q) return 1;
@@ -143,6 +181,11 @@ function fuzzy(q: string, text: string): number {
 export function initCommandPalette(opts: {
   commands: () => Command[];
   search?: (q: string) => Promise<Command[]>;
+  /**
+   * Always-last row for a non-empty query — appended after the per-section cap, so it is the one
+   * result that cannot be trimmed away. Return `null` to offer nothing.
+   */
+  fallback?: (q: string) => Command | null;
 }): { open: () => void } {
   let ov: HTMLDivElement | null = null;
 
@@ -215,13 +258,18 @@ export function initCommandPalette(opts: {
 
     const refresh = () => {
       const q = input.value.trim();
-      items = rankStatic(q); active = 0; paint();
+      const fb = q ? opts.fallback?.(q) ?? null : null;
+      const pinned = fb ? [fb] : [];
+      // `base` is kept, not `items`, so a second async result merges against the ranked static list
+      // rather than against a list that already has the first async batch folded into it — otherwise
+      // the per-section cap would be applied twice and drop rows on the second keystroke.
+      const base = rankStatic(q);
+      items = mergeResults(base, [], { pinned }); active = 0; paint();
       if (opts.search && q.length >= 2) {
         const seq = ++searchSeq;
         void opts.search(q).then((extra) => {
           if (seq !== searchSeq || !ov) return;                // stale (user kept typing / closed)
-          const have = new Set(items.map((c) => c.id));
-          items = items.concat(extra.filter((c) => !have.has(c.id))); paint();
+          items = mergeResults(base, extra, { pinned }); paint();
         }).catch(() => {});
       }
     };

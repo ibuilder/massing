@@ -22,6 +22,9 @@ import { buildMenu, closeMenus } from "./ui/menus";
 // nothing else; no app behaviour depends on it, and it stays out of the production bundle.
 if (import.meta.env.DEV) void import("./dev/liveAudit").then((m) => m.installLiveAudit());
 import { initCommandPalette, type Command } from "./ui/palette";
+import { askFallback, elementCommands, reportCommands, verbCommands } from "./ui/paletteProviders";
+import { mountElementCard, shortGuid } from "./ui/elementCard";
+import { TOOLS } from "./viewer/toolbarLayout";
 import { buildAuthControl } from "./account/accountUI";
 import { icon } from "./ui/icons";
 import { jobLabel, mountJobTray } from "./ui/jobTray";
@@ -1936,10 +1939,69 @@ function openModuleFromPalette(key: string) {
   const go = () => portal.openModuleByKey(key);
   if (portal.moduleList().length) go(); else setTimeout(go, 500);
 }
+// R24-CMDK-VERBS — Elements and Reports were headings the palette could never fill, and authoring
+// verbs were not in it at all. The providers are pure and live in `ui/paletteProviders.ts`; this is
+// where they meet the app. See that file for why verbs dispatch to the real toolbar button.
+
+/** The server's report catalog, fetched once. Empty until it lands — the section simply has no rows. */
+let _reportCatalog: { id: string; name: string; group: string }[] = [];
+void api.reports().then((r) => { _reportCatalog = r.reports; }).catch(() => { /* section stays empty */ });
+
+/** Every `title` currently on a button in the document — the toolbar is built late and rebuilt often. */
+function _installedTitles(): Set<string> {
+  return new Set([...document.querySelectorAll<HTMLElement>("button[title]")].map((b) => b.title));
+}
+
+/** Click the real tool button. `title` is `viewer/toolbarLayout`'s key, so this cannot drift from it. */
+function _clickTool(title: string): void {
+  const btn = [...document.querySelectorAll<HTMLElement>("button[title]")].find((b) => b.title === title);
+  if (btn) btn.click(); else toast("That tool isn't available right now", "info");
+}
+
+function _openElementByGuid(guid: string): void {
+  if (!projectId) { toast("Open a project first", "info"); return; }
+  const pid = projectId;
+  showResult("Element " + shortGuid(guid), (body) => { void mountElementCard(body, api, pid, guid); });
+}
+
+function _openElementsOfClass(ifcClass: string): void {
+  if (!projectId) { toast("Open a project first", "info"); return; }
+  const pid = projectId;
+  showResult(ifcClass, (body) => {
+    body.textContent = "Loading…";
+    void api.elements(pid, { ifc_class: ifcClass, limit: 200 }).then((els) => {
+      body.innerHTML = "";
+      if (!els.length) { body.textContent = `No ${ifcClass} in this model.`; return; }
+      const head = document.createElement("div");
+      head.className = "meta";
+      head.textContent = `${els.length} element(s)`;   // textContent: the class name came from the user
+      body.appendChild(head);
+      for (const e of els) {
+        const row = document.createElement("button");
+        row.className = "tool-btn";
+        row.style.cssText = "display:block;width:100%;text-align:left;margin:2px 0";
+        row.textContent = `${e.name ?? ifcClass} · ${shortGuid(e.guid)}`;
+        row.onclick = () => _openElementByGuid(e.guid);
+        body.appendChild(row);
+      }
+    }).catch((err: Error) => { body.textContent = `failed: ${err.message}`; });
+  });
+}
+
 const _palette = _embed ? null : initCommandPalette({
   commands: () => {
     const cmds: Command[] = [];
     for (const w of WORKSPACES) cmds.push({ id: "ws:" + w.key, label: "Go to " + w.label, hint: "Workspace", run: () => setWorkspace(w.key) });
+    // Authoring/measuring/analysing verbs, but not `look` or `collaborate`: those are states you
+    // toggle while watching the model, and reaching them through an overlay that closes itself is a
+    // worse interaction than the button already on screen.
+    const installed = _installedTitles();
+    cmds.push(...verbCommands(TOOLS, {
+      groups: ["author", "measure", "analyse"],
+      present: (t) => installed.has(t),
+      run: _clickTool,
+    }));
+    cmds.push(...reportCommands(_reportCatalog, (id) => void openReportCenter(api, projectId, id)));
     cmds.push(
       { id: "act:new", label: "New project", hint: "Action", run: () => void newProject() },
       { id: "act:ifc", label: "Open IFC…", hint: "Action", run: () => openModelFile("ifc") },
@@ -1953,17 +2015,23 @@ const _palette = _embed ? null : initCommandPalette({
     return cmds;
   },
   search: async (q) => {
-    if (!projectId) return [];
+    // Element rows are decided from the query alone — no request, so they appear even with the
+    // record search offline, and they are the section a GlobalId query is actually asking for.
+    const els = elementCommands(q, { openGuid: _openElementByGuid, openClass: _openElementsOfClass });
+    if (!projectId) return els;
     try {
       const hits = await api.searchAll(projectId, q);
-      return hits.slice(0, 8).map((h) => ({
+      return els.concat(hits.slice(0, 8).map((h) => ({
         id: "rec:" + h.id, label: `${h.ref} ${h.title ?? ""}`.trim(), hint: h.module_name || "Record",
         run: () => { setWorkspace("construction"); openPortalTab();
           const go = () => portal.openRecordByKey(h.module, h.id);
           if (portal.moduleList().length) go(); else setTimeout(go, 500); },
-      }));
-    } catch { return []; }
+      })));
+    } catch { return els; }
   },
+  // The last row, always. "Ask" dispatches to the model's own plain-English tool, so a query that
+  // matched nothing — or matched twelve things badly — still has somewhere to go.
+  fallback: (q) => askFallback(q, () => _clickTool("Ask the model — plain-English questions about the data")),
 });
 
 // Visible ⌘K affordance — the palette (jump to any workspace/module/record/action) is the fastest

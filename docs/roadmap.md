@@ -1202,7 +1202,7 @@ is recorded. Filed under Decisions below.
 | 10 | finance numbers have no provenance | R24-TRACE-UI | 🟡 v0.3.775 shipped trace for *cost coverage*; the proforma chain (IRR ← NOI ← rent roll ← area ← GUID) — the audit's actual demo — is not built |
 | 11 | density | R24-DENSITY | 🟡 two steps not three (`portal/prefs.ts:71`), dashboards only, **not registers** — which is where the 8-hour user lives |
 | 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | 🟡 `field/field.ts` is a real offline queue with GPS, still inside the desktop IA |
-| 13 | search is scoped to modules | R24-CMDK-VERBS | ❌ **measurably** — see below |
+| 13 | search is scoped to modules | R24-CMDK-VERBS | ✅ **v0.3.946** — verbs, elements, reports and an assistant fallback; `apps/web/src/ui/paletteProviders.ts`. Fixed a second defect on the way: async hits were `concat`ed onto an already-grouped list, so a record landed under a **second** RECORDS heading below Modules |
 | 14 | empty states | R24-EMPTY-GUIDE | ✅ **verified done 2026-08-14** — the "24 lines, 'no project' only" reading is stale by a wide margin. `apps/web/src/ui/empty.ts` is 156 lines and R36-EMPTY-STATE shipped the hard part: a register with no rows distinguishes **none / filtered / failed**, because those send a reader to three different places and rendering them identically was the defect. Plus acronym-safe nouns ("No rfis yet" was the bug), `textContent` throughout since the name and the error body are untrusted, and `data-empty` so a test can assert WHICH kind was decided. Curated hints in `apps/web/src/ui/emptyGuide.ts` (157 lines), wired at two `register.ts` call sites, covered by `apps/web/src/ui/empty.test.ts` and `apps/web/src/ui/emptyGuide.test.ts` |
 | 15 | charts have no grammar | *(none)* | ❌ dropped → `R24-CHARTS-GRAMMAR` |
 | 16 | Report Center is a list of nouns | *(none)* | ❌ dropped → `R24-REPORTS-BY-MOMENT` |
@@ -1278,13 +1278,36 @@ refute one, so this goes first even though it is the least visible.
 
 ### Sprint 3 — the front door earns its keyboard
 
-- ⭐ **R24-CMDK-VERBS** *(M; the grouping half shipped v0.3.780 as **R24-CMDK-GROUPS**)* — results now
-  render in sections (**Do · Records · Elements · Reports · Modules · Go to**), a group is inferred
-  from the `hint` a caller already sets, recency ranks your last twenty commands, and the row cap is
-  **per section** — a flat cap removed every workspace from the list once 130 modules outranked them.
-  Still missing, and the reason this stays open: **authoring verbs**, **element lookup by GlobalId**,
-  **reports**, and `/assistant` as the fallback row. Those are providers in `main.ts`, not palette
-  work — the `Elements` and `Reports` sections exist and are empty until something registers into them.
+- ✅ **R24-CMDK-VERBS** *(M; grouping half v0.3.780 as **R24-CMDK-GROUPS**, providers v0.3.946)* —
+  results render in sections (**Do · Records · Elements · Reports · Modules · Go to**), a group is
+  inferred from the `hint` a caller already sets, recency ranks your last twenty commands, and the row
+  cap is **per section** — a flat cap removed every workspace from the list once 130 modules outranked
+  them. The four missing providers shipped in `apps/web/src/ui/paletteProviders.ts`, all pure and all
+  injected, so none of them imports the viewer, the API client or the DOM:
+  - **Authoring verbs** do not reimplement Move/Copy/Rotate — they find the toolbar button by its
+    `title` and click it. `apps/web/src/viewer/toolbarLayout.ts` already keys the whole tool table on
+    that exact string and already fails when an installed button is missing from it, so the palette
+    inherits that gate: a retitled button cannot silently lose its palette row. A verb whose button is
+    not installed is **omitted, not disabled** — before a model loads, every authoring row would
+    otherwise look available and do nothing.
+  - **Elements** is a GlobalId lookup plus an IFC-class list, and deliberately not a name search:
+    there is no server-side element text search, and pulling every element down to filter in the
+    browser would violate "never parse the model in the browser" to answer a question badly.
+  - **Reports** are static rows from the server catalog, so they go through ranking and recency —
+    the two reports you run each month rise on their own. Choosing one opens the Report Center
+    *scrolled to and highlighting that row* (`focusReportRow`), rather than dropping the reader at
+    the top of a 56-row modal to re-find what they just named.
+  - **Ask** is the fallback, passed as `fallback` rather than mixed into the results, so it is
+    appended *after* the per-section cap. A fallback the cap can delete is not a fallback — it would
+    vanish exactly when a query matched twelve things badly, which is when it is most useful.
+
+  **And a defect found while reading, not while testing:** `refresh()` did `items = items.concat(extra)`,
+  so async hits were appended to an already-grouped list. A record — group *Records*, which sorts
+  second — landed *below* Modules and Go to under a **second** `RECORDS` heading. The grouping was a
+  property of the first paint only, and the section the async provider exists to fill was the one it
+  could never reach; adding Elements and Reports would have made it three duplicate headings. Fixed by
+  `mergeResults`, which re-sorts on group rank alone — `Array#sort` is stable, so each side keeps its
+  own ranking inside its section, and re-scoring would have thrown away the server's relevance order.
 - **R24-DENSITY ②** *(M)* — three steps (Field 56 px / Default 36 px / Compact 28 px) applied to
   **registers**, not just the dashboards `prefs.ts` covers today. Tabular figures wherever a number appears.
   *The register half is `portal/register/register.ts` as of v0.3.850 — inside Lane B, where this item

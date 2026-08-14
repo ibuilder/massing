@@ -11,7 +11,14 @@ import { showResult } from "./ui/result";
  *  WH-347 payroll, PDF tools, project health, assistant, field-verification coverage, …).
  *  Extracted verbatim from main.ts; the host passes its ApiClient + current project id. */
 
-export async function openReportCenter(api: ApiClient, projectId: string | null) {
+/**
+ * @param focusId — R24-CMDK-VERBS. A report chosen from the command palette opens the Center
+ *   *scrolled to and highlighting that row*, rather than dumping the reader at the top of a 56-row
+ *   modal to find again by eye the thing they just named. The Center still opens whole: the palette
+ *   is a shortcut into this surface, not a replacement for it, and the packages above the row are
+ *   often the better answer to what the reader actually wanted.
+ */
+export async function openReportCenter(api: ApiClient, projectId: string | null, focusId?: string) {
   if (!projectId) { toast("Open a project first", "info"); return; }
   const pid = projectId;
   let cat;
@@ -22,6 +29,7 @@ export async function openReportCenter(api: ApiClient, projectId: string | null)
    *  "one model, one card" applied at the smallest scale: learn the row once. */
   const reportRow = (rep: { id: string; name: string }): HTMLElement => {
     const row = document.createElement("div"); row.className = "layer-row";
+    row.dataset.report = rep.id;                  // the anchor `focusId` scrolls to
     const name = document.createElement("span"); name.className = "name"; name.textContent = rep.name;
     const pdf = document.createElement("button"); pdf.className = "tool-btn"; pdf.textContent = "⬇ PDF";
     pdf.onclick = () => window.open(api.reportUrl(pid, rep.id, "pdf"), "_blank");
@@ -555,4 +563,33 @@ export async function openReportCenter(api: ApiClient, projectId: string | null)
       + `<div class="meta">${c.verified} verified · ${c.installed} installed · ${c.deviations} deviations · of ${c.total_elements} elements</div>`; }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
+
+  // Last, so every row exists before we look for one. `focusId` comes from the palette, where the
+  // ids are the server's own catalog keys — an id the catalog no longer serves simply finds nothing
+  // and the Center opens normally, which is the right failure for a convenience.
+  if (focusId) focusReportRow(card, focusId);
+}
+
+/**
+ * Scroll a report row into view and mark it, for `openReportCenter`'s `focusId`.
+ *
+ * Exported and taking a host so it can be tested without a modal. The **last** match is chosen
+ * deliberately: a report appears once inside any package that names it and again under its category
+ * heading, the categories are appended after the packages, and the category row is the one that is
+ * always present — a package match depends on which package happens to list it.
+ */
+export function focusReportRow(host: HTMLElement, reportId: string): HTMLElement | null {
+  const rows = host.querySelectorAll<HTMLElement>(`[data-report]`);
+  let hit: HTMLElement | null = null;
+  for (const r of rows) if (r.dataset.report === reportId) hit = r;
+  if (!hit) return null;
+  hit.classList.add("focus-row");
+  hit.style.outline = "2px solid var(--accent, #3b82f6)";
+  hit.style.borderRadius = "6px";
+  // A package is a <details> and starts collapsed; a row inside a closed one cannot be scrolled to.
+  for (let n: HTMLElement | null = hit; n; n = n.parentElement) {
+    if (n instanceof HTMLDetailsElement) n.open = true;
+  }
+  hit.scrollIntoView({ block: "center" });
+  return hit;
 }
