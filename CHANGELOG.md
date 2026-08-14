@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.951 (2026-08-14) — the DCMA assessment gets a route, because v0.3.950 shipped it without one
+
+`GET /projects/{pid}/schedule/health` now serves the fourteen checks. It mirrors the existing
+`/schedule/cpm` route exactly — same record source, same `require_role("viewer")` on a
+`/projects/{pid}` path, so it lands inside the 735 routes `test_route_authz` already gates.
+
+**This is a fix, and the way it was found is the point.** v0.3.950 added `schedule_health.py` with a
+passing test suite and no route. I noticed, said so, and called it deliberate scope — *"reachable from
+Python but not over the API."* The repo's own `test_reachable.py` disagreed and turned the API gate
+red:
+
+> These modules cannot be reached from any route, MCP tool or entry point. **A tested module behind no
+> route looks exactly like a shipped feature from the outside.**
+
+That gate exists because across v0.3.701–710, seven of eleven things built shipped with no route —
+fully tested, CI-green, impossible to call. So while building a reachability ratchet for the vendored
+engine, I created exactly the defect it describes one level up, and the older gate caught the newer
+one. The fix is the route, not an exemption.
+
 ## v0.3.950 (2026-08-14) — R45-SCHED-REACH ①: DCMA 14-point, reachable at last
 
 `massingplan/core/health.py` has implemented the Defense Contract Management Agency's fourteen

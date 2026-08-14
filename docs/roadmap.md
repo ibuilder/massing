@@ -181,7 +181,7 @@ unreachable — no direct import, and nothing reachable imports them either.
 
 | Vendored module | Lines | Our counterpart | The real question |
 |---|---|---|---|
-| ~~`health`~~ | 634 | ✅ `aec_api/schedule_health.py` | **WIRED v0.3.950** — DCMA 14-point |
+| ~~`health`~~ | 634 | ✅ `aec_api/schedule_health.py` | **WIRED v0.3.950**, routed v0.3.951 — DCMA 14-point |
 | `compare` | 555 | ⚠ `schedule_baselines.compute_variance` | **my table was wrong here** — see the note below |
 | `levelling` | 587 | *(none)* | pure gain — resource levelling |
 | `locations` | 477 | *(none)* | pure gain — location-based (LBMS) scheduling |

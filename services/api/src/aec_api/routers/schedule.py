@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.orm import Session
 
 from .. import modules as me
-from .. import schedule_cpm, schedule_viz, storage
+from .. import schedule_cpm, schedule_health, schedule_viz, storage
 from ..db import get_db
 from ..rbac import require_role
 
@@ -106,6 +106,24 @@ def cpm(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("
     free float, and the critical path (FS dependencies via each activity's `predecessors`)."""
     acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
     return schedule_cpm.compute(acts)
+
+
+@router.get("/projects/{pid}/schedule/health")
+def schedule_health_endpoint(pid: str, db: Session = Depends(get_db),
+                             _: str = Depends(require_role("viewer"))):
+    """R45-SCHED-REACH -- DCMA 14-point schedule quality assessment.
+
+    The fourteen checks are the closest thing the industry has to a shared definition of "is this
+    schedule trustworthy?", and owners and lenders ask for them by name.
+
+    Reads `available` before `grade`: a project with no activities and a schedule with a logic loop
+    both come back `available: false` with `grade: null`, because neither is a *failing* schedule --
+    one has not been planned and the other has no computed dates for a check to read. The engine
+    also excludes checks it could not run from the score's denominator, so a clean schedule reads
+    100 over its runnable checks rather than a diluted number over all fourteen.
+    """
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_health.health(acts)
 
 
 @router.post("/projects/{pid}/schedule/optioneer")
