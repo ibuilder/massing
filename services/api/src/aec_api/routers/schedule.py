@@ -11,6 +11,7 @@ from .. import modules as me
 from .. import (
     schedule_cpm,
     schedule_health,
+    schedule_lastplanner,
     schedule_levelling,
     schedule_locations,
     schedule_progress,
@@ -243,6 +244,26 @@ def schedule_montecarlo_endpoint(pid: str, iterations: int = 2000, ppc_pct: floa
     acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
     return schedule_risk_mc.risk(acts, iterations=iterations, ppc_pct=ppc_pct,
                                  distribution=distribution, seed=seed)
+
+
+@router.get("/projects/{pid}/schedule/reliability")
+def schedule_reliability_endpoint(pid: str, db: Session = Depends(get_db),
+                                  _: str = Depends(require_role("viewer"))):
+    """R45-SCHED-DEDUPE -- Last Planner reliability: PPC by week, with the reasons.
+
+    **A third PPC, and deliberately so.** `lean.ppc` divides by every record, so mid-week the
+    unanswered commitments read as failures; `pull_plan.metrics` divides by the assessed ones only, so
+    one answered commitment out of twenty can read 100%. This one freezes the denominator when the
+    week is committed and returns **`null` until every commitment has an answer** -- a week in progress
+    is unmeasurable, not perfect and not failing.
+
+    Consolidating the three is a domain decision, not a cleanup: a GC reports PPC to an owner. So all
+    three still exist, and `test_ppc_divergence.py` pins the disagreement so it cannot widen unnoticed.
+
+    No lifetime average: `trend` is the series, because one number across six months hides the month
+    it collapsed.
+    """
+    return schedule_lastplanner.reliability(db, pid)
 
 
 @router.post("/projects/{pid}/schedule/optioneer")

@@ -48,7 +48,6 @@ APP = SRC / "aec_api"
 #: entry saying why it is here.**
 UNREACHED = {
     "compare",
-    "lastplanner",
 }
 
 _FAILURES: list[str] = []

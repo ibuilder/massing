@@ -4,6 +4,47 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.960 (2026-08-14) — Last Planner reliability, and three PPCs that disagree
+
+`GET /projects/{pid}/schedule/reliability` — PPC by week with the variance reasons, plus a client
+method and a Schedule-panel card. **20 of 21 vendored modules now reachable.**
+
+The R45 table called `lastplanner` an overlap with `pull_plan.py`. Reading all of them found a **third**
+implementation — `lean.ppc` — and the three do not agree. On one week with 1 done, 1 missed and 3 still
+unanswered:
+
+| | denominator | reads |
+|---|---|---|
+| `lean.ppc` | every record | **20%** |
+| `pull_plan.metrics` | assessed only | **50%** |
+| `core/lastplanner` | frozen at commit | **unmeasurable** (`null`) |
+
+`lean.ppc` reads artificially low mid-week — on Wednesday every team looks like it is failing.
+`pull_plan.metrics` reads artificially high — one commitment answered out of twenty, and it was done,
+reports 100%. **The one the portal renders is the flattering one.** These are not rounding differences;
+they are different questions wearing the same label on the same dashboard.
+
+Two further `lean.ppc` defects, now pinned: it reports **`0.0` and a rating of "needs work" for a
+project with no commitments at all** — a team that made no promises is not a team that broke them — and
+it **defaults** a missing variance reason to the string `"Unspecified"`, quietly filling the learning
+loop with a value nobody entered.
+
+The vendored engine's rules, and why each exists: the denominator is frozen when the week is committed
+(re-planning after seeing how it went makes PPC a measure of nothing); partial completion is not
+partial credit; an unassessed commitment makes the week **unmeasurable, not perfect**; a missed
+commitment must carry a reason, never defaulted; and only make-ready work can be committed. It also
+declines to report a lifetime average — the trend is the signal, and one number across six months hides
+the month it collapsed.
+
+**Nothing was consolidated.** Changing what PPC means on a shipped dashboard is a domain decision with
+contractual weight — a GC reports PPC to an owner — so all three still ship and
+`test_ppc_divergence.py` pins the disagreement so it cannot widen unnoticed.
+
+One hardening on the way: the engine refuses a commitment with no crew, and the first draft let that
+exception escape and take out the whole report. A single malformed record now counts as
+`unusable_tasks` and is excluded, rather than 500-ing the PPC page — surfaced rather than dropped,
+because a silently discarded commitment is a denominator quietly shrinking.
+
 ## v0.3.959 (2026-08-14) — Monte Carlo on the real network, and two engines 38 days apart
 
 `GET /projects/{pid}/schedule/montecarlo` — schedule risk simulated over the same `Task`/`Link`

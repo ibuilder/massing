@@ -201,6 +201,33 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
   }));
   mc.appendChild(mOut); wrap.appendChild(mc);
 
+  // ── Last Planner reliability ─────────────────────────────────────────────────────────────────
+  const rc = card("Last Planner reliability — PPC by week",
+    "A week whose commitments are not all answered reads as unmeasurable, not as a score. The other "
+    + "PPC numbers in this app divide by everything (low mid-week) or by the assessed only (high).");
+  const rOut = document.createElement("div");
+  rc.appendChild(runner(rOut, "▶ Score reliability", async () => {
+    const r = await api.scheduleReliability(pid);
+    render(rOut, r, r.available ? [
+      { label: "mean PPC", value: r.mean_ppc === null ? "—" : `${Math.round(r.mean_ppc * 100)}%`,
+        hint: `over ${r.measurable_weeks} measurable week(s)` },
+      { label: "weeks", value: `${r.weeks}` },
+      { label: "top reason", value: r.top_reasons[0]?.reason ?? "—",
+        hint: r.top_reasons[0] ? `${r.top_reasons[0].count}x` : "no misses recorded" },
+      { label: "not counted", value: `${r.undated_tasks + r.unusable_tasks}`,
+        hint: "undated or unusable tasks" },
+    ] : []);
+    if (r.available && r.trend.length) {
+      const t = document.createElement("div");
+      t.className = "meta"; t.style.marginTop = "4px";
+      // `null` renders as "—", never as 0 — an unmeasurable week is not a failed one.
+      t.textContent = r.trend.map((w) => `${w.week}: `
+        + (w.ppc === null ? `— (${w.unassessed} unanswered)` : `${Math.round(w.ppc * 100)}%`)).join("  ·  ");
+      rOut.appendChild(t);
+    }
+  }));
+  rc.appendChild(rOut); wrap.appendChild(rc);
+
   // ── Levelling ────────────────────────────────────────────────────────────────────────────────
   const lc = card("Resource levelling",
     "Deterministic: the same input always gives the same answer, so a planner can follow the "

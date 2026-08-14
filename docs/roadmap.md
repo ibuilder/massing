@@ -187,7 +187,7 @@ unreachable — no direct import, and nothing reachable imports them either.
 | ~~**`locations`**~~ | 477 | ✅ `aec_api/schedule_locations.py` | **SHIPPED v0.3.952** — line of balance + crew continuity, `GET /schedule/flowline` |
 | ~~`resources`~~ | 254 | ✅ *(via `schedule_levelling`)* | **reachable v0.3.954** — `levelling` imports it |
 | ~~`takt`~~ | 444 | ⚠ `aec_api/takt.py` **163** | **SHIPPED v0.3.953** as `schedule_takt.py` — and they are *different methods*, see the decision below |
-| `lastplanner` | 436 | `aec_api/pull_plan.py` **248** | overlapping |
+| ~~`lastplanner`~~ | 436 | ⚠ `pull_plan.py` + `lean.py` | **SHIPPED v0.3.960** — and it found THREE disagreeing PPCs; see below |
 | ~~`risk`~~ | 303 | ⚠ `aec_api/schedule_risk.py` **195** | **SHIPPED v0.3.959** — and the two disagree by 38 days; see below |
 | `progress` | 214 | `aec_api/progress_rollup.py` **134** | overlapping |
 
@@ -252,6 +252,25 @@ actually won and which we have nothing for.
 
 Wiring it needs one user-facing decision first — which identity key is the default — so it is **not**
 a drop-in adapter like `health` was.
+
+**⚠ THREE PPC IMPLEMENTATIONS, ONE DASHBOARD, AND THEY DISAGREE.** The table named two;
+reading all three found a third. On one week — 1 done, 1 missed, 3 still unanswered:
+
+| | denominator | reads |
+|---|---|---|
+| `lean.ppc` | every record | **20%** — the unanswered count as failures |
+| `pull_plan.metrics` | assessed only | **50%** — the unanswered are not in the denominator |
+| `core/lastplanner` | frozen at commit | **unmeasurable** — `null` until every commitment is answered |
+
+`lean.ppc` reads artificially **low** mid-week (on Wednesday every team looks like it is failing);
+`pull_plan.metrics` reads artificially **high** (one answered of twenty, and done, reads 100%). **The
+portal renders the flattering one.** `lean.ppc` additionally reports `0.0` and a rating of *"needs
+work"* for a project with **no commitments at all**, and defaults a missing variance reason to
+`"Unspecified"` — quietly filling the learning loop with a value nobody entered.
+
+`services/api/test_ppc_divergence.py` pins all three so the spread cannot widen unnoticed.
+**Consolidating them is your decision, not a cleanup** — a GC reports PPC to an owner, so changing what
+the number means is a contractual act. All three still ship.
 
 **⚠ `/schedule/risk` and `/schedule/montecarlo` disagree by 38 days on a 100-working-day chain, and
 the older one is the optimistic answer.** `schedule_risk._network` is FS-only, lag-free and

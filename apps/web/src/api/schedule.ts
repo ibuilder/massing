@@ -331,6 +331,25 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     }>(`/projects/${pid}/schedule/montecarlo${qs ? `?${qs}` : ""}`);
   }
 
+  /**
+   * R45-SCHED-DEDUPE — Last Planner reliability: PPC by week, with the reasons.
+   *
+   * **A third PPC on purpose.** `ppc` is `null` for a week whose commitments are not all answered — a
+   * week in progress is unmeasurable, not perfect and not failing. The other two numbers in this app
+   * divide by everything (reads low mid-week) and by the assessed only (reads high); this one freezes
+   * the denominator at commit. Render `null` as an em-dash, never as 0.
+   */
+  scheduleReliability(pid: string) {
+    return this.json<{
+      available: boolean; reason?: string; weeks: number | null;
+      trend: { week: string; committed: number; completed: number; unassessed: number;
+               ppc: number | null }[];
+      measurable_weeks: number | null; mean_ppc: number | null;
+      top_reasons: { reason: string; count: number }[];
+      undated_tasks: number; unusable_tasks: number; weeks_refused_at_commit: string[];
+    }>(`/projects/${pid}/schedule/reliability`);
+  }
+
   /** EST-1: upsert QTO-driven crew-day durations as EST schedule activities (one per trade, FS chain). */
   scheduleFromEstimate(pid: string, body: { loading?: string; rate?: number; crews?: number } = {}) {
     return this.json<{ written: { ref: string; trade: string; crew_days: number; duration_days: number;
