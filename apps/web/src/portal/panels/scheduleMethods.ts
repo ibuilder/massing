@@ -146,6 +146,33 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
   }));
   tc.appendChild(tOut); wrap.appendChild(tc);
 
+  // ── Progress vs baseline ─────────────────────────────────────────────────────────────────────
+  const pc = card("Progress vs baseline — BEI, variance, slippage",
+    "How the SCHEDULE is standing, not how much of the building is up. A tower can be 60% erected "
+    + "and four weeks late. Needs a captured baseline; without one there is nothing to measure against.");
+  const pOut = document.createElement("div");
+  pc.appendChild(runner(pOut, "▶ Measure progress", async () => {
+    const r = await api.scheduleProgressReport(pid);
+    render(pOut, r, r.available ? [
+      // null, not 0 — nothing was due yet. Rendering "0" here would read as a project doing no work.
+      { label: "BEI", value: r.baseline_execution_index === null ? "—" : r.baseline_execution_index.toFixed(2),
+        hint: r.baseline_execution_index === null ? "nothing was due yet" : "completed / should-have" },
+      { label: "behind", value: `${r.behind}`,
+        hint: `${r.not_started_but_due} due but never started` },
+      { label: "complete", value: `${r.complete}`, hint: `of ${r.activity_count}` },
+      { label: "worst slip", value: r.worst_slippage_days === null ? "—" : `${r.worst_slippage_days}d`,
+        hint: r.worst_slippage_activity ?? "" },
+    ] : []);
+    if (r.available && r.invalid_actuals.length) {
+      const w = document.createElement("div");
+      w.className = "meta"; w.style.marginTop = "4px";
+      w.textContent = `${r.invalid_actuals.length} actual date(s) could not be used: `
+        + r.invalid_actuals.slice(0, 6).join(", ");
+      pOut.appendChild(w);
+    }
+  }));
+  pc.appendChild(pOut); wrap.appendChild(pc);
+
   // ── Levelling ────────────────────────────────────────────────────────────────────────────────
   const lc = card("Resource levelling",
     "Deterministic: the same input always gives the same answer, so a planner can follow the "

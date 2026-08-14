@@ -13,6 +13,7 @@ from .. import (
     schedule_health,
     schedule_levelling,
     schedule_locations,
+    schedule_progress,
     schedule_takt,
     schedule_viz,
     storage,
@@ -196,6 +197,26 @@ def schedule_level_endpoint(pid: str, body: dict = Body(default={}),
     acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
     return schedule_levelling.levelling(
         acts, caps=body.get("caps") or {}, horizon=str(body.get("horizon") or "within_float"))
+
+
+@router.get("/projects/{pid}/schedule/progress-report")
+def schedule_progress_endpoint(pid: str, baseline_id: str | None = None,
+                               db: Session = Depends(get_db),
+                               _: str = Depends(require_role("viewer"))):
+    """R45-SCHED-DEDUPE -- progress of the SCHEDULE against a baseline: BEI, variance, slippage.
+
+    Not the same measurement as `progress_rollup`, which is percent-complete of the **building** from
+    as-built element presence. A tower can be 60% erected and four weeks late; neither number
+    substitutes for the other.
+
+    `baseline_id` defaults to the most recent capture. A project with no baseline is **refused** —
+    measuring a schedule against its own current dates reports every activity perfectly on programme.
+
+    `baseline_execution_index` is `null` when nothing was due, never `1.0`: an empty ratio is no
+    information, and a green tile on a project that has not started is worse than a blank one.
+    """
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_progress.progress(acts, pid, baseline_id=baseline_id)
 
 
 @router.post("/projects/{pid}/schedule/optioneer")

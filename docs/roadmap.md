@@ -253,6 +253,16 @@ actually won and which we have nothing for.
 Wiring it needs one user-facing decision first — which identity key is the default — so it is **not**
 a drop-in adapter like `health` was.
 
+**The `progress` row was the fifth wrong classification, and the only one caught before acting.**
+`progress_rollup.py` measures **the building** — percent complete from as-built element presence,
+keyed by GlobalId, by class / discipline / level, by count *and* by value. `core/progress.py` measures
+**the schedule** — BEI, variance and slippage of activities against baseline dates. A tower can be 60%
+erected and four weeks late; neither number substitutes for the other, and reading one as the other is
+how a report reassures somebody wrongly. They share the word and nothing else.
+
+It also shows the `compare` blocker is specific rather than general: **`progress` needs only dates**,
+which `_snapshot` has, so it shipped. `compare` needs predecessors, which `_snapshot` does not.
+
 **⛔ `compare` is BLOCKED, and the blocker is ours.** `compare()` diffs two *computed schedules* — it
 needs both **networks**, because attributing a finish move means knowing which logic drove it. Our
 baseline snapshot (`schedule_baselines._snapshot`) freezes only `ref`, `name`, `start`, `finish` and

@@ -285,6 +285,26 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
        { method: "POST", body: JSON.stringify({ caps, horizon }) });
   }
 
+  /**
+   * R45-SCHED-DEDUPE — progress of the **schedule** against a baseline: BEI, variance, slippage.
+   *
+   * Distinct from percent-complete of the *building*: a tower can be 60% erected and four weeks late.
+   * `baseline_execution_index` is `null` when nothing was due, never `1.0` — an empty ratio is no
+   * information, and a green tile on a project that has not started is worse than a blank one.
+   */
+  scheduleProgressReport(pid: string, baselineId?: string) {
+    const q = baselineId ? `?baseline_id=${encodeURIComponent(baselineId)}` : "";
+    return this.json<{
+      available: boolean; reason?: string;
+      baseline: { id: string; name: string; captured_at: string; count: number } | null;
+      data_date: string | null; activity_count: number | null;
+      complete: number | null; behind: number | null; not_started_but_due: number | null;
+      baseline_execution_index: number | null; average_finish_variance_days: number | null;
+      worst_slippage_days: number | null; worst_slippage_activity: string | null;
+      invalid_actuals: string[];
+    }>(`/projects/${pid}/schedule/progress-report${q}`);
+  }
+
   /** EST-1: upsert QTO-driven crew-day durations as EST schedule activities (one per trade, FS chain). */
   scheduleFromEstimate(pid: string, body: { loading?: string; rate?: number; crews?: number } = {}) {
     return this.json<{ written: { ref: string; trade: string; crew_days: number; duration_days: number;

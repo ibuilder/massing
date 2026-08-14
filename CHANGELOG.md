@@ -4,6 +4,42 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.958 (2026-08-14) — R45: schedule progress against a baseline, and a fifth misclassification
+
+`GET /projects/{pid}/schedule/progress-report` — BEI, finish variance and slippage of the schedule
+against a captured baseline, with a client method and a card in the Schedule panel.
+
+**The R45 table called this an overlap with `progress_rollup.py`. It is not one, and the difference
+matters on a dashboard.** `progress_rollup` measures the **building**: percent complete from as-built
+element presence, keyed by GlobalId, by class / discipline / level, by count and by value.
+`core/progress.py` measures the **schedule**: how activities stand against their baseline dates. A
+tower can be 60% erected and four weeks late. They share the word "progress" and nothing else — the
+fifth entry in that table classified by name rather than capability, and the first caught *before*
+being acted on, by reading both modules.
+
+It also proves the `compare` blocker is specific, not general: **progress needs only dates**, which
+`schedule_baselines._snapshot` stores, so it ships. `compare` needs predecessors, which the snapshot
+does not have, so it stays blocked.
+
+Two engine judgements preserved deliberately, both of the kind that get "simplified" into a wrong
+answer:
+
+- **BEI is `null` when nothing was due — never `1.0`.** An empty ratio is no information; reporting it
+  as 1.0 puts a green tile on the dashboard of a project that has not started.
+- **`behind` is broader than DCMA check 11.** An activity that was due to start and never did counts
+  as behind, though check 11 only looks at finishes. It is the more urgent problem.
+
+A project with **no baseline is refused**, not measured against its own current dates — that would
+report every activity perfectly on programme.
+
+**One defect caught by running it rather than by types:** the first draft returned
+`report.worst_slippage` under a key named `worst_slippage_days`. That property returns an
+`ActivityProgress` dataclass, not a number, so the route would have serialised a whole object or 500'd
+— invisible to a typecheck, since the adapter returns `dict[str, Any]`. The test now asserts the whole
+result survives `json.dumps`, and the value ships as both the days and the activity that set them.
+
+18 of 21 vendored modules reachable; 3 remain.
+
 ## v0.3.957 (2026-08-14) — ruff, which I never ran locally
 
 The API gate had been red since v0.3.952 and it was never a test. **`ruff check` — three `I001`
