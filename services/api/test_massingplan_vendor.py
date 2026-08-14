@@ -26,8 +26,9 @@ from __future__ import annotations
 
 import hashlib
 import pathlib
-import re
 import sys
+
+from vendor_drift import read_digest, read_pin
 
 HERE = pathlib.Path(__file__).parent
 VENDOR = HERE / "src" / "massingplan"
@@ -86,18 +87,21 @@ files = core_files()
 check("the recipe's population is non-empty", len(files) >= 15,
       "core/ is empty or unreadable", note=f"{len(files)} .py under core/")
 
-recorded = re.search(r"Content digest\s*\|\s*`([0-9a-f]{8,})`", doc)
+# Parsed via `vendor_drift`, not a regex of our own. The weekly drift check reads the SAME pin from
+# the SAME document; two independent parses could disagree about which commit VENDOR.md names, and
+# neither would notice, because each would be self-consistent.
+recorded = read_digest(doc)
 check("VENDOR.md records a content digest", recorded is not None,
       "no `| Content digest | `…`` row found")
-pin = re.search(r"Commit\s*\|\s*`([0-9a-f]{40})`", doc)
+pin = read_pin(doc)
 check("VENDOR.md records a full 40-hex commit pin", pin is not None,
       "a short pin cannot identify a commit unambiguously")
 
 if recorded:
     computed = content_digest(files)
     check("the vendored core matches the digest VENDOR.md records",
-          computed == recorded.group(1),
-          f"computed {computed}, recorded {recorded.group(1)} — either someone edited a vendored "
+          computed == recorded,
+          f"computed {computed}, recorded {recorded} — either someone edited a vendored "
           f"file (fix it UPSTREAM and re-sync; a local patch is a fork the next sync silently "
           f"reverts) or the tree was re-synced without updating VENDOR.md",
           note=f"{computed} over {len(files)} files")
