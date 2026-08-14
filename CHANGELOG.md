@@ -4,6 +4,50 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.949 (2026-08-14) — the vendored engine re-synced, the guard it removed restored, and the check that missed both
+
+### The sync, and the regression it carried
+
+`massingplan` was re-synced from pin `b703dca4` to `d1e4bf16`: two new core modules (`takt`,
+`lastplanner`) and seven deepened. `test_massingplan_vendor` is green — 22 files, digest
+`1904999dd527f385`, still stdlib-only, nobody forked a file.
+
+The same change also deleted the defusedxml hardening from `aec_api/schedule_import.py`. That was
+**not** a design decision. The vendored `mspdi.py` still says, unchanged at the new pin: *"core is
+pure stdlib by contract so the application layer is where an untrusted upload gets hardened."*
+Upstream still delegates to us; our half had been removed, so the two halves no longer met.
+
+It was exploitable, and confirmed by a failing test rather than by reading the diff:
+
+```
+FAIL  an MSPDI upload carrying billion laughs is refused   it was ACCEPTED
+```
+
+The deletion was 33 lines removed and **0 added**, so restoring from `HEAD` lost nothing the sync had
+written. `test_mspdi_xxe` is 5/5 again, including the twin proving the vendored file was not forked to
+get there. The re-synced import is a genuine upgrade and is kept — the two were never in tension.
+
+### R45-VENDOR-REACH — faithfulness and usefulness are different claims
+
+`test_massingplan_vendor` proves the copy is **faithful**. Every one of its checks passed while the
+vendored tree grew by 880 lines that nothing in the API could call. A re-sync can double the engine
+and the gate stays green, because it was never making that claim.
+
+`test_vendor_reachable.py` makes it: **12 of 21 vendored modules are reachable; 9 (3,904 lines) are
+not.** The number is transitive, and that is the point — a direct-import grep reports 12 unreached,
+but three of those (`cpm`, `progress_logic`, `units`) are pulled in by `schedule.py` and run on every
+CPM calculation. A grep-based gate would have sent someone to "wire" code that was already
+load-bearing.
+
+The allowlist ratchets in **both** directions: a module that becomes unreachable without being
+recorded fails, and a recorded module that gets wired fails until it is removed from the list. Both
+are mutation-checked. A one-directional check would let the number grow silently, which is the exact
+failure being fixed.
+
+Filed as R45 in the roadmap, split deliberately: five of the nine have no counterpart in `aec_api`
+and are additive; the other four already have ours beside them — `takt.plan()` is currently defined in
+**both** trees — so those are de-duplication decisions, not adapters.
+
 ## v0.3.948 (2026-08-14) — R24-CHARTS-GRAMMAR ②: one tick style, one legend, one currency
 
 The no-data rule shipped first because it was costing something. These three are the rest of the
