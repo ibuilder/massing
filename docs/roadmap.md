@@ -186,7 +186,7 @@ unreachable — no direct import, and nothing reachable imports them either.
 | `levelling` | 587 | `resource_loading.level()` | overlaps — ours shifts within CPM float; theirs is serial-generation, deterministic |
 | ~~**`locations`**~~ | 477 | ✅ `aec_api/schedule_locations.py` | **SHIPPED v0.3.952** — line of balance + crew continuity, `GET /schedule/flowline` |
 | `resources` | 254 | `resource_loading.loading()` | overlaps — histogram, S-curves and over-allocation already served |
-| `takt` | 444 | `aec_api/takt.py` **163** | **two implementations, same `plan()`** |
+| ~~`takt`~~ | 444 | ⚠ `aec_api/takt.py` **163** | **SHIPPED v0.3.953** as `schedule_takt.py` — and they are *different methods*, see the decision below |
 | `lastplanner` | 436 | `aec_api/pull_plan.py` **248** | overlapping |
 | `risk` | 303 | `aec_api/schedule_risk.py` **195** | overlapping |
 | `progress` | 214 | `aec_api/progress_rollup.py` **134** | overlapping |
@@ -252,6 +252,32 @@ actually won and which we have nothing for.
 
 Wiring it needs one user-facing decision first — which identity key is the default — so it is **not**
 a drop-in adapter like `health` was.
+
+**⚠ DECISION NEEDED — `takt.py` is a line-of-balance engine wearing the name "takt".**
+
+The table filed `takt` as "two implementations, same `plan()`". Reading both says they are **two
+different methods**, and the vendored module's own docstring draws the line: *"Line of balance lets
+every trade run at its own natural pace and then shifts the lines apart until nobody trespasses. Takt
+does the opposite, and the difference is a decision, not a detail: every wagon occupies exactly one
+zone for exactly one takt. The crew sizes move so the durations do not."*
+
+Our `aec_api/takt.py` gives each trade its **own** `takt_days` — `Structure 5, Envelope 5, MEP 6,
+Interiors 8, Finishes 6` — and lets them chase each other up the building. Trades at *different* rates
+is the definition of line of balance. **So real takt was missing entirely**, and now that
+`locations.py` ships as `/schedule/flowline` and *is* line of balance, the product would otherwise
+offer that method twice under two names and still not offer takt.
+
+`schedule_takt.py` + `GET /schedule/takt-train` (v0.3.953) add the missing method. **Nothing was
+renamed or removed** — `takt.py` backs a shipped, user-facing panel, and that is your call, not a
+cleanup. The three options:
+
+1. **Rename ours to "lineofbalance.py"** (plain quotes: it does not exist yet) and let the Takt panel become a Line-of-Balance panel. Most
+   honest, and it is a user-visible label change.
+2. **Keep both names** and treat our `takt.py` as the *charting* layer (it has `progress()` and
+   `takt_svg()`, which the vendored engine does not), pointing it at whichever engine the user picked.
+3. **Leave it.** The names stay wrong; a planner asking for takt gets line of balance.
+
+The engine work is done either way; only the naming is open.
 
 - ◧ **R45-SCHED-REACH ①** *(M; `health` SHIPPED v0.3.950)* — adapters for the five with no
   counterpart: ~~`health`~~, `compare`, `levelling`, `locations`, `resources`.

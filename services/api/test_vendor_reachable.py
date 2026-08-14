@@ -53,7 +53,6 @@ UNREACHED = {
     "progress",
     "resources",
     "risk",
-    "takt",
 }
 
 _FAILURES: list[str] = []

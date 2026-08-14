@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.953 (2026-08-14) — R45-SCHED-DEDUPE ②: takt was never implemented, only named
+
+`GET /projects/{pid}/schedule/takt-train`. The R45 table filed `takt` as *"two implementations, same
+`plan()`"* — pick the better one. Reading both says they are **two different methods**, and the
+vendored docstring draws the line: line of balance lets every trade run at its own pace and shifts the
+lines apart until nobody trespasses; **takt does the opposite** — every wagon occupies exactly one zone
+for exactly one takt, and the crew sizes move so the durations do not.
+
+`aec_api/takt.py` gives each trade its own rate (`Structure 5, Envelope 5, MEP 6, Interiors 8,
+Finishes 6`). Trades running at *different* rates is the definition of line of balance. **So our "takt"
+module is a line-of-balance engine wearing the wrong name, and real takt was missing entirely** — which
+matters now that `locations.py` ships as `/schedule/flowline` and genuinely is line of balance.
+
+What real takt gives: `(W + Z - 1)` takts for `W` wagons through `Z` zones, **always**, readable before
+any of the work is estimated. That predictability is the product — a site where every trade hands over
+Friday is one where the next can be told to arrive Monday and believed.
+
+What it costs, reported rather than absorbed: **idle capacity**. A wagon with 3.2 crew-days inside a
+5-day takt needs one crew and uses 64% of it. `utilisation` is per wagon per zone and unrounded,
+because rounding up or averaging produces a plan that looks efficient and is not. Omitting `takt_days`
+returns the shortest feasible rhythm *and the wagon that sets it* — shortening any other trade changes
+nothing, so naming the constraint is the actionable half.
+
+Work content is `duration × crew_size`, not duration: a 4-day task with one carpenter and a 4-day task
+with six are the same duration and very different work, and takt is precisely the method that holds
+durations fixed while crews move.
+
+**Nothing was renamed or removed.** `takt.py` backs a shipped, user-facing panel; which of the three
+naming options to take is a decision filed in the roadmap, not a cleanup to perform unasked.
+
+15 of 21 vendored modules now reachable; 6 remain.
+
 ## v0.3.952 (2026-08-14) — R45-SCHED-REACH ①: the flowline, and the wrong answer it gave first
 
 `GET /projects/{pid}/schedule/flowline` serves location-based (linear) scheduling — line of balance.

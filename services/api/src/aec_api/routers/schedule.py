@@ -8,7 +8,8 @@ from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.orm import Session
 
 from .. import modules as me
-from .. import schedule_cpm, schedule_health, schedule_locations, schedule_viz, storage
+from .. import (schedule_cpm, schedule_health, schedule_locations, schedule_takt,
+                schedule_viz, storage)
 from ..db import get_db
 from ..rbac import require_role
 
@@ -143,6 +144,27 @@ def schedule_flowline_endpoint(pid: str, db: Session = Depends(get_db),
     """
     acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
     return schedule_locations.flowline(acts)
+
+
+@router.get("/projects/{pid}/schedule/takt-train")
+def schedule_takt_train_endpoint(pid: str, takt_days: int | None = None,
+                                 db: Session = Depends(get_db),
+                                 _: str = Depends(require_role("viewer"))):
+    """R45-SCHED-DEDUPE -- takt planning: a fixed rhythm through the zones, and what it costs.
+
+    **Not the same thing as `/schedule/flowline`, and the difference is a decision.** Line of balance
+    lets every trade run at its own pace and shifts the lines apart until nobody trespasses. Takt does
+    the opposite: every wagon occupies exactly one zone for exactly one takt, and the crew sizes move
+    so the durations do not. `W` wagons through `Z` zones is `(W + Z - 1)` takts, always, readable
+    before any of the work is estimated -- which is what lets a trade be told to arrive Monday and
+    believed.
+
+    It is paid for in idle capacity, and `utilisation` reports it per wagon per zone, unrounded. Omit
+    `takt_days` to get the shortest feasible rhythm plus the wagon that sets it: shortening any other
+    trade changes nothing, so naming the constraint is the actionable half.
+    """
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_takt.takt(acts, takt_days=takt_days)
 
 
 @router.post("/projects/{pid}/schedule/optioneer")
