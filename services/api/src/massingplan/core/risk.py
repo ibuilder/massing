@@ -26,6 +26,7 @@ from enum import Enum
 
 from .cpm import calculate
 from .network import Link, SchedulerOptions, Task
+from .schedule import presented_finish
 from .timeaxis import WorkCalendar, day_of
 
 
@@ -263,7 +264,12 @@ def simulate(
             sampled.append(replace(t, duration_days=drawn))
 
         run = calculate(sampled, links, calendars, data_date=data_date, options=options)
-        finish = day_of(run.project_finish)
+        # Presented, not converted here. `day_of(run.project_finish)` names the
+        # day after the last one worked, and on a Mon-Fri calendar it lands on
+        # a Saturday -- so every percentile in the forecast came out later than
+        # the finish the activity table shows, and sometimes on a day nobody
+        # works. A P80 is read straight off this against a contract date.
+        finish = presented_finish(run, sampled, calendars) or day_of(run.project_finish)
         finishes.append(finish)
         finish_ordinals.append(float(run.project_finish))
         # Criticality counts driving-path membership rather than zero float:
@@ -288,7 +294,8 @@ def simulate(
 
     return RiskResult(
         iterations=iterations,
-        deterministic_finish=day_of(baseline.project_finish),
+        deterministic_finish=presented_finish(baseline, tasks, calendars)
+        or day_of(baseline.project_finish),
         finishes=finishes,
         activities=activity_risks,
         distribution=distribution,

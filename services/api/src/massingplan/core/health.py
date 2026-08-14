@@ -178,7 +178,13 @@ def assess(
     """
     network = outcome.network  # type: ignore[attr-defined]
     data_date: date = outcome.data_date  # type: ignore[attr-defined]
-    calendars = dict(calendars or {})
+    # Fall back to the calendars the *pass* used. ``calendars`` is documented
+    # optional, and taking that at face value used to cost the caller the whole
+    # report: check 12 ended at `next(iter({}.values()))` and a bare
+    # StopIteration came out of `assess`, not a failed check. Resolving them
+    # from the result is also what makes the check correct rather than merely
+    # non-fatal, and it is what `schedule._outcome` already does.
+    calendars = dict(calendars or {}) or dict(network.calendars)
 
     links = list(links)
     tasks = list(tasks)
@@ -594,8 +600,13 @@ def _critical_path_test(
     still_driving = probe_id in set(probed.longest_path())
 
     single_calendar = len({t.calendar_id for t in tasks}) <= 1
-    if single_calendar:
-        cal = calendars.get(by_id[probe_id].calendar_id) or next(iter(calendars.values()))
+    # `next(iter(...))` with no default raises StopIteration on an empty
+    # mapping, and a check that cannot run is a skipped check, never an
+    # exception escaping the report. With no calendar the classic reduction is
+    # not available anyway, so the multi-calendar form -- which needs none --
+    # is the honest answer rather than a fallback.
+    cal = calendars.get(by_id[probe_id].calendar_id) or next(iter(calendars.values()), None)
+    if single_calendar and cal is not None:
         moved_working = cal.count_working_days(network.project_finish, probed.project_finish)
         passed = moved_working == PROBE_DAYS
         detail = (

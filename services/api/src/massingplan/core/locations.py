@@ -223,10 +223,15 @@ class LinearResult:
         return rows
 
 
-def _durations(
+def work_content(
     task: LinearTask, locations: tuple[Location, ...], issues: IssueLog
 ) -> dict[str, int]:
     """Working days per location, from quantity and rate or from the flat value.
+
+    Public because `core/takt.py` needs the identical derivation: the two
+    methods disagree about what to *do* with the work content, and must not
+    disagree about what it is. A second copy of this arithmetic would be two
+    answers to "how much work is on level 7", drifting apart quietly.
 
     The only rounding in this module, and it rounds **up**: two-thirds of a
     crew-day is a day on site. `ROUNDING_EPSILON` is applied for the same reason
@@ -289,7 +294,7 @@ def compute(
             field_name="calendar_id",
         )
 
-    durations = {t.id: _durations(t, ordered, issues) for t in tasks}
+    durations = {t.id: work_content(t, ordered, issues) for t in tasks}
     for task in tasks:
         if task.crews > 1:
             issues.warn(

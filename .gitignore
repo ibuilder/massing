@@ -162,3 +162,7 @@ AGENTS.md
 .coverage
 .coverage.*
 coverage.xml
+
+# Local shim some shells need so `powershell.exe` resolves from bash. Machine-specific:
+# it hardcodes an absolute Windows path, so it is scratch, not project source.
+powershell.bat

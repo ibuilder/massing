@@ -34,11 +34,18 @@ cannot be hand-checked, so it does not ship in v1.
 
 from __future__ import annotations
 
+import heapq
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from enum import Enum
 
+# Private, and imported deliberately. Levelling has to ask "what start does this
+# relationship permit, given where the predecessor actually ended up" -- which is
+# precisely what the forward pass asks. Re-deriving it here would put a second
+# implementation of lag spaces and the FF/SF finish conversion in the package,
+# and the two would agree until somebody fixed one of them.
+from .cpm import _forward_bound
 from .network import Link, RelationType, Task
 from .resources import Demand, ResourceAvailability
 from .timeaxis import Instant, WorkCalendar, day_of, instant_of
@@ -120,6 +127,30 @@ class LevellingResult:
     def finish_moved_days(self) -> int:
         return (self.finish_after - self.finish_before).days
 
+    @property
+    def raised_peaks(self) -> tuple[str, ...]:
+        """Resources this result left *worse* than it found them.
+
+        First-fit inside a hard horizon is a heuristic, not an optimiser, and a
+        heuristic can raise a peak: an activity that fits nowhere in its float
+        lands back at the earliest its logic allows, on a day that other moves
+        have meanwhile filled. That is a legitimate outcome and it happens on a
+        small minority of networks.
+
+        What is not legitimate is handing that back through ``APPLIED`` as
+        though it were an improvement. Both peaks were always in ``to_dict()``,
+        so the fact was reported to anyone who compared them -- and nothing in
+        the result said which way the comparison came out. A caller about to
+        persist these dates can now refuse to.
+        """
+        return tuple(
+            sorted(
+                resource
+                for resource, before in self.peak_before.items()
+                if self.peak_after.get(resource, 0.0) > before + 1e-9
+            )
+        )
+
     def to_dict(self) -> dict[str, object]:
         return {
             "horizon": self.horizon.value,
@@ -134,6 +165,7 @@ class LevellingResult:
             "finish_moved_days": self.finish_moved_days,
             "peak_before": {k: round(v, 3) for k, v in self.peak_before.items()},
             "peak_after": {k: round(v, 3) for k, v in self.peak_after.items()},
+            "raised_peaks": list(self.raised_peaks),
         }
 
 
@@ -226,18 +258,73 @@ def level(request: LevellingRequest) -> LevellingResult:
     placed: dict[str, tuple[date, date]] = {
         aid: spans_before[aid] for aid in network.order if aid in pinned
     }
+    # The same spans on the instant axis. Levelling has to hand predecessor
+    # positions back to the CPM's own bound function, and reconstructing an
+    # instant from a *presented* date is the second conversion site that
+    # `schedule._present` exists to prevent -- it is not even reversible for a
+    # zero-duration milestone, whose start and finish print as one day.
+    placed_instants: dict[str, tuple[Instant, Instant]] = {
+        aid: (network.early_start[aid], network.early_finish[aid])
+        for aid in network.order
+        if aid in pinned
+    }
     moves: list[Move] = []
 
-    for candidate in candidates:
+    lag_mode = outcome.options.lag_calendar  # type: ignore[attr-defined]
+
+    def precedence_floor(
+        aid: str, cal: WorkCalendar | None, duration: int
+    ) -> tuple[Instant | None, str]:
+        """The earliest start the *levelled* predecessors permit, and who binds it.
+
+        Delaying an activity for want of a crane delays everything downstream of
+        it. Flooring the successor at its original CPM start instead -- which is
+        what happens when this is left out -- produces a schedule that reads as
+        resource-feasible and breaks its own logic: the successor starts before
+        the predecessor it is waiting on, and no report says so.
+        """
+        if cal is None or fallback is None:
+            return None, ""
+        floor: Instant | None = None
+        driver = ""
+        for pid, rel, lag in predecessors.get(aid, ()):
+            span = placed_instants.get(pid)
+            if span is None:
+                continue
+            pred_cal = calendars.get(activity_calendar.get(pid, "")) or fallback
+            bound = _forward_bound(
+                rel,
+                lag,
+                pred_start=span[0],
+                pred_finish=span[1],
+                pred_cal=pred_cal,
+                succ_cal=cal,
+                duration=duration,
+                mode=lag_mode,
+                project_cal=fallback,
+            )
+            if floor is None or bound > floor:
+                floor, driver = bound, pid
+        return floor, driver
+
+    for candidate in _in_precedence_order(candidates, predecessors):
         aid = candidate.activity_id
         cal = calendars.get(activity_calendar.get(aid, "")) or fallback
         original_start, original_finish = spans_before[aid]
         duration = by_id[aid].duration_days
 
-        # Precedence floor: never earlier than the CPM start. Levelling may only
-        # move work later -- moving it earlier would break the logic the CPM pass
-        # already honoured.
+        # Precedence floor: never earlier than the CPM start, and never earlier
+        # than the levelled predecessors allow. Levelling may only move work
+        # later -- moving it earlier would break the logic the CPM pass already
+        # honoured.
         earliest = original_start
+        floor, driver = precedence_floor(aid, cal, duration)
+        if floor is not None and cal is not None:
+            pushed = day_of(cal.snap_start_forward(floor))
+            if pushed > earliest:
+                earliest = pushed
+            else:
+                driver = ""
         latest_allowed: date | None = None
         if request.horizon is LevellingHorizon.WITHIN_FLOAT and cal is not None:
             latest_allowed = day_of(cal.snap_start_back(network.late_start[aid]))
@@ -253,17 +340,37 @@ def level(request: LevellingRequest) -> LevellingResult:
             demands_by_activity.get(aid, []),
             latest_allowed,
         )
+        if driver and start is not None:
+            blockers = (driver, *blockers)
 
         if start is None:
-            # Could not fit inside the horizon. Place it where CPM put it and
-            # let the residual conflict be reported rather than silently moving
-            # the finish.
-            start = original_start
-            span = (start, original_finish)
+            # Could not fit inside the horizon. Fall back to the earliest the
+            # *logic* allows and let the residual resource conflict be reported
+            # rather than silently moving the finish. That is `earliest`, not
+            # the original CPM start: an unresolved crane clash is a finding,
+            # while a successor sitting before its predecessor is a wrong answer.
+            #
+            # This cannot breach the horizon. Every predecessor is placed at or
+            # before its own late start, so the bound it imposes is at or before
+            # this activity's late start -- which is what a late start means.
+            start = earliest
+            span = (
+                start,
+                original_finish if start == original_start else _finish_of(start, duration, cal),
+            )
         else:
             span = (start, _finish_of(start, duration, cal))
 
         placed[aid] = span
+        start_instant = (
+            cal.snap_start_forward(instant_of(start)) if cal is not None else instant_of(start)
+        )
+        placed_instants[aid] = (
+            start_instant,
+            cal.finish_from_start(start_instant, duration)
+            if cal is not None and duration > 0
+            else start_instant,
+        )
         _consume(usage, aid, span, demands_by_activity, calendars, activity_calendar)
 
         if span[0] != original_start and cal is not None:
@@ -282,12 +389,16 @@ def level(request: LevellingRequest) -> LevellingResult:
                 )
             )
 
+    # The finish that was actually produced, reported as produced. WITHIN_FLOAT
+    # used to overwrite this with `max(finish_before, finish_before)` -- which is
+    # `finish_before` -- under the heading of enforcing the promise. It does not
+    # enforce anything; it discards the measurement that would show the promise
+    # being broken, so the one number that could have reported a breach was the
+    # one number guaranteed never to. The horizon is kept by `latest_allowed`
+    # bounding every placement at its own late start, which is a property of the
+    # algorithm and is asserted from outside.
     spans_after = {aid: placed.get(aid, spans_before[aid]) for aid in network.order}
     finish_after = max((span[1] for span in spans_after.values()), default=finish_before)
-    if request.horizon is LevellingHorizon.WITHIN_FLOAT:
-        # Belt and braces: the horizon promises the finish does not move, and a
-        # promise the code does not enforce is a comment.
-        finish_after = max(finish_before, finish_before)
 
     unresolved = over_allocations(
         spans_after,
@@ -312,6 +423,52 @@ def level(request: LevellingRequest) -> LevellingResult:
         mode=request.mode,
         spans=spans_after if request.mode is LevellingMode.APPLIED else {},
     )
+
+
+def _in_precedence_order(
+    candidates: Sequence[LevellingCandidate],
+    predecessors: Mapping[str, Sequence[tuple[str, RelationType, int]]],
+) -> list[LevellingCandidate]:
+    """Priority order, restricted at each step to what is actually placeable.
+
+    Serial SGS picks the highest-priority activity *whose predecessors are all
+    placed*, not simply the highest-priority activity. Sorting once and walking
+    the list looks equivalent and is not: the priority rule leads on late start,
+    and a predecessor only has a strictly earlier late start when it has a
+    duration to spare. Tie a zero-duration milestone to the work that follows
+    it, or let the float and duration tiebreaks decide, and the successor is
+    placed first -- against a predecessor that has not been positioned yet, so
+    the precedence floor reads as no constraint at all.
+
+    Ties are broken by the caller's priority rank, so the result stays total and
+    the output is identical under a changed hash seed.
+    """
+    rank = {c.activity_id: n for n, c in enumerate(candidates)}
+    by_id = {c.activity_id: c for c in candidates}
+
+    waiting: dict[str, int] = {}
+    dependents: dict[str, list[str]] = {}
+    for aid in by_id:
+        blocking = [pid for pid, _rel, _lag in predecessors.get(aid, ()) if pid in by_id]
+        waiting[aid] = len(blocking)
+        for pid in blocking:
+            dependents.setdefault(pid, []).append(aid)
+
+    ready = [(rank[aid], aid) for aid, n in waiting.items() if n == 0]
+    heapq.heapify(ready)
+    ordered: list[LevellingCandidate] = []
+    while ready:
+        _, aid = heapq.heappop(ready)
+        ordered.append(by_id[aid])
+        for dep in dependents.get(aid, ()):
+            waiting[dep] -= 1
+            if waiting[dep] == 0:
+                heapq.heappush(ready, (rank[dep], dep))
+
+    if len(ordered) < len(candidates):  # pragma: no cover - calculate() rejects cycles
+        seen = {c.activity_id for c in ordered}
+        ordered.extend(c for c in candidates if c.activity_id not in seen)
+    return ordered
 
 
 def _finish_of(start: date, duration: int, cal: WorkCalendar | None) -> date:

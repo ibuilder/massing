@@ -5,43 +5,10 @@
 | | |
 |---|---|
 | Upstream | https://github.com/MassingCloud/massingplan |
-| Commit | `b703dca49b6a8f88b26fe114d2716989de4dbf5c` |
-| Synced | 2026-08-11 (was `155640a7`, 2026-08-10) |
-| Content digest | `d7d2ac5e71b0ac7e` — **recipe below** |
-| Local deviations | **NONE** — verified in both directions, see below |
-
-### How the digest is computed
-
-Written down because the previous one was not. The recorded `3b94544306fb8c13` could not be
-reproduced by any recipe tried here, so it could not be used to verify anything — **a recorded
-verification value nobody can recompute is not a verification, it is a decoration.** It is replaced
-rather than carried forward, and the method is now stated so the next sync can check it:
-
-```
-sha256 over, for each *.py in `massingplan/core` at the pin, sorted by full path:
-    basename  then  file bytes with CRLF normalised to LF
-truncated to 16 hex chars
-```
-
-CRLF normalisation matters and is not cosmetic: this repo sets `* text=auto`, so a checkout on
-Windows has CRLF on disk while `git show` emits LF. A byte-for-byte comparison against upstream
-reports **every line of every file** as changed. That is exactly what happened during this sync —
-7 files looked modified, and normalised the real answer was 1.
-
-### What changed at this pin
-
-- `schedule.py` — **additive**: new `schedule_with_network()` returns the network `schedule()` had
-  already built, so a caller needing the links stops calling `to_network()` a second time.
-  `schedule()` delegates to it, so there is still one implementation and its signature is unchanged.
-  26 insertions, 4 deletions.
-- `locations.py` — **new, and inert here**: location-based (line-of-balance) scheduling. Nothing in
-  our adapter imports it. Vendored anyway, because the pin names a tree and a *partial* copy is how
-  two implementations start — the exact hazard upstream's own drift check watches for in both
-  directions.
-
-Verified before copying: **no file exists in our copy that is absent upstream**, so there were no
-local edits to lose. That direction is the dangerous one — a fix made here and never sent up is
-invisible to a one-way check.
+| Commit | `d1e4bf16f2981c3736a12a280830ceb67c4d02f9` |
+| Synced | 2026-08-14 |
+| Content digest | `1904999dd527f385` |
+| Local deviations | **NONE** |
 
 ## What this is
 
@@ -80,13 +47,33 @@ silently reverts it.
 
 ## Re-syncing
 
-From a massingplan checkout:
+**You pull; upstream does not push.** massingplan stages a kit and never writes
+into this tree, so a re-sync happens when this repo decides it should — not
+when somebody upstream runs a script.
+
+From a massingplan checkout, build the kit:
 
 ```bash
-python scripts/vendor_to_massing.py --target C:/Server/modelmaker/services/api/src/massingplan
+python scripts/vendor_to_massing.py
 ```
 
-Or by hand:
+Then, from this repo, take it:
+
+```bash
+cp -r <massingplan>/dist/vendor/services/api/. services/api/
+```
+
+That single copy carries the engine, the adapter modules and the conformance
+gate, already in this tree's shape — `dist/vendor/services/api/` mirrors
+`services/api/`, so nothing needs rewriting.
+
+To see what has changed upstream before taking it, from massingplan:
+
+```bash
+python scripts/vendor_to_massing.py --check --massing
+```
+
+It reports drift by kind and writes nothing. Or by hand, engine only:
 
 ```bash
 rm -rf services/api/src/massingplan

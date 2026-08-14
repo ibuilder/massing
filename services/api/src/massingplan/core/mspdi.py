@@ -49,28 +49,49 @@ MSPDI_LINK_TYPES = {
 }
 LINK_TYPES_TO_MSPDI = {v: k for k, v in MSPDI_LINK_TYPES.items()}
 
+# Microsoft's ConstraintType codes, in Microsoft's order. 2 and 3 are the
+# two-sided "Must Start On" / "Must Finish On"; 4-7 are the one-sided
+# no-earlier/no-later pairs. Reading 2 as a one-sided floor -- which this table
+# did -- is not a rounding of the semantics, it is a different constraint: a
+# two-sided pin fixes the late date as well, so dropping the late half leaves
+# the early dates identical and silently *invents float*. Nothing moves, no
+# violation is raised, and the activity reports slack it does not have.
+#
+# The same slip made 3 and 6 both mean FINISH_ON_OR_AFTER, so no MSPDI file
+# could ever produce a FINISH_ON however it was written.
 MSPDI_CONSTRAINTS = {
     0: ConstraintType.NONE,  # As Soon As Possible
     1: ConstraintType.AS_LATE_AS_POSSIBLE,
-    2: ConstraintType.START_ON_OR_AFTER,  # Must Start On -> soft in MSP terms
-    3: ConstraintType.FINISH_ON_OR_AFTER,
-    4: ConstraintType.START_ON_OR_AFTER,
-    5: ConstraintType.START_ON_OR_BEFORE,
-    6: ConstraintType.FINISH_ON_OR_AFTER,
-    7: ConstraintType.FINISH_ON_OR_BEFORE,
+    2: ConstraintType.START_ON,  # Must Start On
+    3: ConstraintType.FINISH_ON,  # Must Finish On
+    4: ConstraintType.START_ON_OR_AFTER,  # Start No Earlier Than
+    5: ConstraintType.START_ON_OR_BEFORE,  # Start No Later Than
+    6: ConstraintType.FINISH_ON_OR_AFTER,  # Finish No Earlier Than
+    7: ConstraintType.FINISH_ON_OR_BEFORE,  # Finish No Later Than
 }
+# MS Project has no constraint that overrides network logic, so P6's two
+# mandatory types cannot survive the trip. They are written as the two-sided
+# pin -- the closest thing the format has -- rather than as a one-sided floor,
+# and the writer records the downgrade as an issue.
+#
+# The choice of *which* way to degrade matters. As START_ON the date stays
+# pinned and a conflict with the logic shows up where this engine always puts
+# it: negative float and a violation record. As START_ON_OR_AFTER the late
+# half is gone and the conflict shows up nowhere at all.
 CONSTRAINTS_TO_MSPDI = {
     ConstraintType.NONE: 0,
     ConstraintType.AS_LATE_AS_POSSIBLE: 1,
+    ConstraintType.START_ON: 2,
+    ConstraintType.FINISH_ON: 3,
     ConstraintType.START_ON_OR_AFTER: 4,
     ConstraintType.START_ON_OR_BEFORE: 5,
     ConstraintType.FINISH_ON_OR_AFTER: 6,
     ConstraintType.FINISH_ON_OR_BEFORE: 7,
-    ConstraintType.START_ON: 2,
-    ConstraintType.FINISH_ON: 3,
-    ConstraintType.MANDATORY_START: 4,
-    ConstraintType.MANDATORY_FINISH: 7,
+    ConstraintType.MANDATORY_START: 2,
+    ConstraintType.MANDATORY_FINISH: 3,
 }
+#: Written as something weaker than they are, and said so on the way out.
+_MANDATORY = {ConstraintType.MANDATORY_START, ConstraintType.MANDATORY_FINISH}
 
 _DURATION_PATTERN = re.compile(
     r"^P(?:(?P<days>\d+)D)?"
@@ -323,7 +344,24 @@ def _read_tasks(
         if is_summary:
             kind = ActivityKind.WBS_SUMMARY
         elif is_milestone or duration == 0:
-            kind = ActivityKind.FINISH_MILESTONE if is_milestone else ActivityKind.TASK
+            # START_MILESTONE, not FINISH_MILESTONE, and the difference is a
+            # day on every milestone in the file.
+            #
+            # MSPDI has one boolean, `<Milestone>`. It cannot say which of
+            # P6's `TT_Mile` and `TT_FinMile` it means, and MS Project has no
+            # such distinction to express: a milestone there simply *is* its
+            # date. `_present` shows a start milestone at its own date and
+            # snaps a *finish* milestone back to the previous working day --
+            # deliberately, because a P6 finish milestone marks the work
+            # before the boundary it sits on.
+            #
+            # Reading every MSPDI milestone as a finish milestone therefore
+            # displayed genuine MS Project files a day early, and made a start
+            # milestone drift one day earlier on every export-and-reimport.
+            # XER carries the distinction in both directions; MSPDI cannot,
+            # so it reads as the kind whose presentation matches what the file
+            # actually says.
+            kind = ActivityKind.START_MILESTONE if is_milestone else ActivityKind.TASK
         else:
             kind = ActivityKind.TASK
         if kind.is_milestone:
@@ -524,6 +562,11 @@ def write_mspdi(schedule: ExchangeSchedule, *, exported_at: date | None = None) 
                 f"{format_duration_hours(hours_from_days(activity.remaining_duration_days, hpd))}"
                 "</RemainingDuration>"
             )
+        # One boolean for both milestone kinds, because that is all the format
+        # has. A `FINISH_MILESTONE` written here reads back as a start
+        # milestone -- MSPDI cannot carry the distinction and MS Project has no
+        # concept to carry it into. Use XER where that matters; it has
+        # `TT_Mile` and `TT_FinMile` and round-trips both.
         out.append(f"      <Milestone>{'1' if activity.kind.is_milestone else '0'}</Milestone>")
         summary = "1" if activity.kind is ActivityKind.WBS_SUMMARY else "0"
         out.append(f"      <Summary>{summary}</Summary>")
@@ -543,6 +586,17 @@ def write_mspdi(schedule: ExchangeSchedule, *, exported_at: date | None = None) 
             if value is not None:
                 out.append(f"      <{tag}>{iso(value)}</{tag}>")
         ctype = CONSTRAINTS_TO_MSPDI.get(activity.constraint, 0)
+        if activity.constraint in _MANDATORY:
+            schedule.issues.warn(
+                "MSPDI.TASK.MANDATORY_DOWNGRADED",
+                f"activity {activity.id}: {activity.constraint.value} written as "
+                f"ConstraintType {ctype}",
+                "MS Project has no constraint that overrides logic; the date is "
+                "preserved but it will no longer override the network. Use XER "
+                "where the mandatory behaviour matters.",
+                field_name="ConstraintType",
+                raw_value=activity.constraint.value,
+            )
         out.append(f"      <ConstraintType>{ctype}</ConstraintType>")
         if activity.notes:
             out.append(f"      <Notes>{esc(activity.notes)}</Notes>")

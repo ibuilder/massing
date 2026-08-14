@@ -168,6 +168,55 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
+#### ⭐ R45 — THE VENDORED SCHEDULE ENGINE *(measured 2026-08-14 at the `d1e4bf16` re-sync)*
+
+The vendored `massingplan` engine was re-synced from pin `b703dca4` → `d1e4bf16`, which brought two
+new modules and deepened seven. Measured immediately after: **9 of the 21 vendored core modules —
+3,904 lines — have no path from the API at all.**
+
+The number is *transitive*, not a grep. A direct-import scan said 12 modules were unwired; three of
+those (`cpm`, `progress_logic`, `units`) are reached through `schedule.py`, so they are load-bearing
+and the grep would have had us "wire" code that already runs. The nine below are genuinely
+unreachable — no direct import, and nothing reachable imports them either.
+
+| Vendored module | Lines | Our counterpart | The real question |
+|---|---|---|---|
+| `health` | 634 | *(none)* | pure gain — schedule-quality scoring we do not have |
+| `compare` | 555 | *(none)* | pure gain — baseline/revision diff |
+| `levelling` | 587 | *(none)* | pure gain — resource levelling |
+| `locations` | 477 | *(none)* | pure gain — location-based (LBMS) scheduling |
+| `resources` | 254 | *(none)* | pure gain |
+| `takt` | 444 | `aec_api/takt.py` **163** | **two implementations, same `plan()`** |
+| `lastplanner` | 436 | `aec_api/pull_plan.py` **248** | overlapping |
+| `risk` | 303 | `aec_api/schedule_risk.py` **195** | overlapping |
+| `progress` | 214 | `aec_api/progress_rollup.py` **134** | overlapping |
+
+**The split matters more than the total, and it is why this is two sprints rather than one.** Five
+modules have no counterpart — wiring those is additive and cheap. Four *already have ours beside
+them*, so "add an adapter" would create the second implementation this repo has been burned by
+before. `takt` is the sharpest case: both define `plan()`. Theirs also has `crews_for`,
+`minimum_takt` and `to_network` (crew sizing, minimum feasible takt, and conversion to a CPM
+network); ours has `takt_svg`, which theirs does not. **Ours is a renderer that grew an engine; the
+answer is to keep our renderer and delete our engine**, not to run both.
+
+- **R45-SCHED-REACH ①** *(M)* — adapters for the five with no counterpart: `health`, `compare`,
+  `levelling`, `locations`, `resources`. Each gets a thin `aec_api` adapter + route, following the
+  `schedule_cpm.py` pattern (adapter converts our model to theirs, never the reverse — the vendored
+  `core` is stdlib-only *by contract* and must not learn about SQLAlchemy). Ship one at a time; each
+  is independently valuable and `health` is the highest — a schedule-quality score is the thing a GC
+  is asked for and cannot currently produce.
+- **R45-SCHED-DEDUPE ②** *(M, do AFTER ①)* — settle the four overlaps, one decision each, in the
+  order `takt` → `progress` → `risk` → `lastplanner`. For each: diff the two behaviours, keep the
+  deeper engine, keep our rendering/persistence, delete the loser, and write a test asserting there
+  is exactly one implementation. **Do not start this until ① proves the adapter pattern**, and do not
+  do it as a batch — four simultaneous deletions across the schedule surface is how a regression
+  hides.
+- **R45-VENDOR-REACH ③** *(S)* — the gate this needs and does not have.
+  `test_massingplan_vendor.py` proves the copy is *faithful* (digest, stdlib-only, no fork). Nothing
+  proves any of it is *reached*. A re-sync can therefore double the vendored tree and every check
+  stays green — which is exactly what just happened. Add a transitive-reachability assertion with an
+  explicit, shrinking allowlist of unreached modules, so the number can only go down.
+
 - ◧ **R31-CITE-HIGHLIGHT** *(NOT S — snippet display shipped v0.3.868; the data-model blocker was
   CLEARED v0.3.877; **the citation became a control in v0.3.938** — all that remains is the viewer
   `PageWords` bridge for the in-page highlight box)* — **the citation could not be resolved to
