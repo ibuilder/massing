@@ -23,6 +23,7 @@
  * model- and server-derived free text, which is the exact class the XSS gate exists for.
  */
 import type { LifecycleStrip } from "../api/types";
+import { usd } from "../ui/charts";
 
 export type TabKey = "properties" | "cost" | "schedule" | "field";
 
@@ -98,9 +99,6 @@ function row(label: string, value: string): HTMLElement {
   return r;
 }
 
-const money = (n: number) => (Number.isFinite(n) ? n : 0).toLocaleString(undefined, {
-  style: "currency", currency: "USD", maximumFractionDigits: 0,
-});
 
 /** The explanatory body for a tab that has nothing to show. States WHICH kind of nothing. */
 export function emptyBody(key: TabKey, state: TabState): HTMLElement {
@@ -128,14 +126,14 @@ export function costBody(fived: Element5d): HTMLElement {
   box.append(row("Cost code", c.code || "—"));
   if (c.name) box.append(row("Name", c.name));
   if (c.division) box.append(row("Division", c.division));
-  box.append(row("Budget", money(c.budget)));
-  box.append(row("Committed", money(c.committed)));
-  box.append(row("Actual", money(c.actual)));
-  box.append(row("Forecast (EAC)", money(c.eac)));
+  box.append(row("Budget", usd(c.budget)));
+  box.append(row("Committed", usd(c.committed)));
+  box.append(row("Actual", usd(c.actual)));
+  box.append(row("Forecast (EAC)", usd(c.eac)));
   // Stated as a signed number with its direction named, rather than left for the reader to infer a
   // sign convention. A variance whose direction is ambiguous is worse than no variance.
   const v = c.variance;
-  box.append(row("Variance", `${money(v)} ${v < 0 ? "(over budget)" : v > 0 ? "(under budget)" : ""}`.trim()));
+  box.append(row("Variance", `${usd(v)} ${v < 0 ? "(over budget)" : v > 0 ? "(under budget)" : ""}`.trim()));
   return box;
 }
 

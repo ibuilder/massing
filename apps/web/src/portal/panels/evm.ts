@@ -1,4 +1,4 @@
-import { lineChart, money as cmoney, scatterQuadrant } from "../../ui/charts";
+import { lineChart, money as cmoney, scatterQuadrant, usd } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
@@ -53,7 +53,6 @@ export async function renderEvm(ctx: PanelContext) {
     body.innerHTML = `<div class="meta">No budgeted schedule activities yet — add activities with a <b>budget</b> and <b>% complete</b> (Schedule) and <b>direct costs</b> by cost code to compute EVM.</div>`;
     return;
   }
-  const usd = (n: number | null) => (n == null ? "—" : cmoney(n));
   const idx = (v: number | null) => (v == null ? "—" : v.toFixed(2));
 
   // --- indices dashboard ---

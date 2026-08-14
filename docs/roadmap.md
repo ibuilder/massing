@@ -1341,7 +1341,30 @@ refute one, so this goes first even though it is the least visible.
   no `NaN`, nothing broken, and therefore indistinguishable from a chart whose data failed to load.
   All nine framed charts now share `noData()`, and `CHART_KINDS` + `charts.test.ts` fail the build if
   a new chart skips it.
-  **Still open:** one tick style, one legend position, one currency format.
+  **Tick / legend / currency SHIPPED v0.3.948**, and none of the three was cosmetic once measured:
+  - **Ticks.** Three charts hand-rolled the same gridline loop and the copies had already diverged —
+    `lineChart` labelled `max − (k/4)(max − min)`, `groupedBar` and `waterfall` labelled
+    `max − (k/4)·max`, a different axis whenever the minimum is not zero. And **`stackedBar` drew no
+    gridlines at all**, so a cash-flow chart beside a budget chart was read against different
+    furniture. One `yGrid`, and a source scan that fails on a local gridline loop.
+  - **Legend.** Four hand-rolled copies of the same magic coordinates → one `legendRow`. The donut
+    keeps the one legitimate position difference (under the ring, which has no plot to sit above) and
+    still goes through the helper, so swatch, size and spacing cannot drift.
+  - **Currency.** The real number was **22 declarations in six behaviours**, not the 18 a first grep
+    found — the gate enumerated the population and my grep had not. **Ten wrote
+    `` `$${Math.round(n).toLocaleString()}` ``, which renders a loss as `$-1,000`** with the currency
+    mark on the wrong side of the minus; three had already fixed it locally, so the panels disagreed
+    with themselves. `inspectorTabs.ts` used `Intl` currency *and* mapped a non-finite value to
+    **`$0`** — an absent number rendering as a plausible zero, the failure the vitals strip exists to
+    prevent. `proforma/format.ts` **exported** a competing one. All 22 now import `usd` from
+    `apps/web/src/ui/charts.ts`; `chartsGrammar` bans re-declaring it.
+    **And one of the 22 was not money at all**: the stormwater card's `usd` emitted no `$` because it
+    formats cubic feet. Converting it would have put a currency mark on a detention volume — so `qty`
+    exists, and the rule bans *declaring* a formatter rather than banning the name.
+  - `unit: "money" | "percent" | "count"` now says what a chart's numbers **are** rather than making
+    every caller remember a formatter; an explicit `fmt` still wins.
+
+  **Still open:** the series-colour split below.
   **And one correction to the audit, made deliberately:** it says colour should be "restricted to the
   four semantic hues". That is right for *status* and wrong for *series identity* — a seven-series
   S-curve needs seven distinguishable colours, and collapsing them to four makes the chart unreadable

@@ -1,5 +1,6 @@
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
+import { usd } from "../../ui/charts";
 
 /**
  * MASSING-OPT panel — the layout/massing optioneer: enter a zoning envelope + acquisition assumptions,
@@ -59,7 +60,6 @@ export async function renderMassingOpt(ctx: PanelContext) {
   const out = document.createElement("div");
   body.appendChild(out);
 
-  const usd = (n: number) => (n < 0 ? "−$" : "$") + Math.round(Math.abs(n)).toLocaleString();
 
   run.onclick = async () => {
     run.disabled = true; run.textContent = "Running…";

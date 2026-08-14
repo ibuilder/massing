@@ -1,6 +1,7 @@
 import { countNarrative, deltaChip, statusChip } from "../../ui/chips";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
+import { usd } from "../../ui/charts";
 
 /**
  * SELECTIONS money card (SPRINT D phase-3c) — the owner selections & allowances rollup surfaced in the
@@ -16,7 +17,6 @@ export async function renderSelections(ctx: PanelContext) {
   body.innerHTML = `<div class="meta">Rolling up allowances vs. actuals…</div>`;
   ctx.root.appendChild(body);
 
-  const usd = (n: number) => "$" + Math.round(n).toLocaleString();
 
   const load = async () => {
     try {

@@ -1,5 +1,5 @@
 import { escapeHtml as esc, toast } from "../../ui/feedback";
-import { progressBar, groupedBar, lineChart, money as cmoney } from "../../ui/charts";
+import { progressBar, groupedBar, lineChart, money as cmoney, qty, usd } from "../../ui/charts";
 import { promptModal } from "../../ui/modal";
 import { noProjectHtml } from "../../ui/empty";
 import type { PanelContext } from "../panelContext";
@@ -126,7 +126,6 @@ export async function renderFca(ctx: PanelContext) {
     root.appendChild(ctx.bar("🏥 Facility Condition (FCI)", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
     const pid = ctx.host.projectId();
     if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Facility Condition")); return; }
-    const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
     const bandColor = (b: string) => b === "Good" ? "var(--status-good)" : b === "Fair" ? "var(--status-warn)"
       : b === "Poor" ? "var(--status-crit)" : "var(--status-crit)";
     const intro = el("div", "meta"); intro.style.marginBottom = "8px";
@@ -214,7 +213,6 @@ export async function renderSpine(ctx: PanelContext) {
       + "connected; the gaps are where scope could fall between the model, the documents and the money.";
     root.appendChild(intro);
     const body = el("div"); body.textContent = "loading…"; root.appendChild(body);
-    const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
     void ctx.host.api.spineTraceability(pid).then((t) => {
       body.innerHTML = "";
       const cov = t.coverage;
@@ -294,7 +292,6 @@ export async function renderResilience(ctx: PanelContext) {
     const pdf = el("a", "tool-btn") as HTMLAnchorElement; pdf.textContent = "⬇ PDF"; pdf.target = "_blank"; pdf.rel = "noopener";
     pdf.href = ctx.host.api.url(`/projects/${pid}/reports/resilience.pdf`);
     acts.append(b1, b2, b3, pdf); root.appendChild(acts);
-    const usd = (n: number) => Math.round(n).toLocaleString();
 
     // Physical climate-risk rating (rollup — also feeds ESG)
     const rCard = el("div", "dash-card"); rCard.style.marginBottom = "10px";
@@ -345,7 +342,7 @@ export async function renderResilience(ctx: PanelContext) {
       if (!s.count) { sCard.insertAdjacentHTML("beforeend", `<div class="meta">No catchments yet — click <b>✎ Drainage Area</b> to add surfaces with their area + rainfall intensity.</div>`); return; }
       const chips = el("div", "meta"); chips.style.margin = "4px 0 6px";
       chips.innerHTML = `Peak runoff <b>${s.peak_runoff_cfs} cfs</b> · composite C <b>${s.composite_runoff_coefficient ?? "—"}</b> · `
-        + `${s.total_area_acres} ac · detention <b>${usd(s.detention_volume_cf)} cf</b> (${usd(s.detention_volume_gal)} gal)`;
+        + `${s.total_area_acres} ac · detention <b>${qty(s.detention_volume_cf)} cf</b> (${qty(s.detention_volume_gal)} gal)`;
       sCard.appendChild(chips);
       if (s.by_surface.length) {
         const wrap = el("div", "dash-card"); wrap.style.margin = "6px 0";
@@ -356,7 +353,7 @@ export async function renderResilience(ctx: PanelContext) {
       if (s.catchments.length) {
         const t = el("table", "portal-table") as HTMLTableElement; t.style.cssText = "width:100%;font-size:12px";
         t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Catchment</th><th scope="col">Area (sf)</th><th scope="col">C</th><th scope="col">i (in/hr)</th><th scope="col">Peak (cfs)</th></tr></thead><tbody>`
-          + s.catchments.map((x) => `<tr><td>${esc(x.name)}</td><td style="text-align:right">${usd(x.area_sf)}</td><td style="text-align:center">${x.c}</td><td style="text-align:center">${x.i_in_hr}</td><td style="text-align:right">${x.peak_cfs}</td></tr>`).join("") + `</tbody>`;
+          + s.catchments.map((x) => `<tr><td>${esc(x.name)}</td><td style="text-align:right">${qty(x.area_sf)}</td><td style="text-align:center">${x.c}</td><td style="text-align:center">${x.i_in_hr}</td><td style="text-align:right">${x.peak_cfs}</td></tr>`).join("") + `</tbody>`;
         sCard.appendChild(t);
       }
     }).catch((e) => { sCard.innerHTML = `<div class="meta">Stormwater data unavailable: ${esc((e as Error).message)}</div>`; });

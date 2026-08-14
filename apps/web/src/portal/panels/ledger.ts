@@ -1,4 +1,4 @@
-import { money as cmoney } from "../../ui/charts";
+import { money as cmoney, usd } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { promptModal } from "../../ui/modal";
@@ -33,7 +33,6 @@ export async function renderLedger(ctx: PanelContext) {
   try { tb = await ctx.host.api.trialBalance(pid); je = await ctx.host.api.journalEntries(pid).catch(() => null); }
   catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
   body.innerHTML = "";
-  const usd = (n: number) => cmoney(n);
   if (!tb.accounts.length) {
     body.innerHTML = `<div class="meta">No postable transactions yet — add <b>direct costs</b> / <b>sub `
       + `invoices</b> (cost → AP) and <b>owner invoices</b> (billing) to build the ledger.</div>`;

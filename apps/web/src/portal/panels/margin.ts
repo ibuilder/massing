@@ -2,6 +2,7 @@ import type { ResolveAction } from "../../api/types";
 import { statusChip } from "../../ui/chips";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
+import { usd } from "../../ui/charts";
 
 /**
  * UX-ACT: dispatch a resolve-action descriptor to the right portal behaviour. Shared across the ring so
@@ -72,7 +73,6 @@ export async function renderMargin(ctx: PanelContext) {
   body.innerHTML = `<div class="meta">Reconciling budget vs committed vs actual…</div>`;
   ctx.root.appendChild(body);
 
-  const usd = (n: number) => (n < 0 ? "−$" : "$") + Math.round(Math.abs(n)).toLocaleString();
   const marginCol = (n: number) => n < 0 ? "var(--status-crit)" : n > 0 ? "var(--status-good)" : "var(--fg)";
 
   try {
@@ -201,7 +201,6 @@ export async function renderCostSpine(ctx: PanelContext) {
   const body = document.createElement("div");
   body.innerHTML = `<div class="meta">Tracing cost-code identity across the stages…</div>`;
   ctx.root.appendChild(body);
-  const usd = (n: number) => (n < 0 ? "−$" : "$") + Math.round(Math.abs(n)).toLocaleString();
 
   try {
     const sp = await ctx.host.api.costSpine(pid);

@@ -1,5 +1,5 @@
 import type { ModuleDef } from "../../api/client";
-import { groupedBar } from "../../ui/charts";
+import { groupedBar, usd } from "../../ui/charts";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
@@ -582,7 +582,6 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   evBox.textContent = "Computing earned value…"; ctx.root.appendChild(evBox);
   void ctx.host.api.scheduleEarnedValue(pid).then((e) => {
     if (!e.activity_count) { evBox.textContent = "Earned value: add a Budgeted Cost + % to activities."; return; }
-    const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
     const col = e.status === "ahead" ? "var(--status-good)" : e.status === "behind" ? "var(--status-crit)" : "var(--status-warn)";
     evBox.innerHTML = `<b>Earned value</b>: ${e.percent_complete}% complete · `
       + `SPI <b style="color:${col}">${e.spi ?? "—"}</b> (${e.status.replace("_", " ")}) · `

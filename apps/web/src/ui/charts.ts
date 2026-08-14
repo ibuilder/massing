@@ -32,6 +32,37 @@ export function compact(n: number): string {
 }
 export const money = (n: number): string => (n < 0 ? "-$" : "$") + compact(Math.abs(n));
 
+/**
+ * R24-CHARTS-GRAMMAR ② — **one** full-precision currency format, for tables and inline figures.
+ *
+ * `money()` is the compact form for axis labels (`$4.3M`); this is the grouped form for a number a
+ * reader is expected to check (`$4,250,000`). Both existed in spirit and neither was shared: a
+ * `const usd = …` was redefined **eighteen times** across the panels, in five different behaviours.
+ *
+ * Ten of those eighteen were written `` `$${Math.round(n).toLocaleString()}` ``, which renders a
+ * negative as **`$-1,000`** — the currency sign on the wrong side of the minus. Three sites had
+ * already noticed and written `(n < 0 ? "−$" : "$")`, so the same panel set disagreed with itself
+ * about how a loss looks. This is that spelling, promoted.
+ *
+ * `null` renders as an em-dash, not `$0`. Absent money and no money are different facts, and the one
+ * that reads as a plausible zero is the dangerous one — the same rule the vitals strip and the run
+ * diff both follow.
+ */
+export const usd = (n: number | null | undefined): string =>
+  n == null ? "—" : (n < 0 ? "−$" : "$") + Math.round(Math.abs(n)).toLocaleString();
+
+/**
+ * A grouped count — thousands separators, no currency.
+ *
+ * Exists because one of the eighteen (`operations.ts`, the stormwater card) was a `const usd` that
+ * emitted **no dollar sign at all**, and it was right not to: it formats cubic feet and square feet.
+ * The name was the defect, not the output, and swapping it for the currency helper would have put a
+ * `$` in front of a detention volume. Worth stating, because "18 copies of a money formatter" was
+ * the obvious reading and it was wrong about one of them.
+ */
+export const qty = (n: number | null | undefined): string =>
+  n == null ? "—" : Math.round(n).toLocaleString();
+
 type Fmt = (n: number) => string;
 
 /**
@@ -72,6 +103,70 @@ export const CHART_KINDS = [
   "waterfall", "tornado", "histogram", "donut", "signedBars",
 ] as const;
 
+/**
+ * R24-CHARTS-GRAMMAR ② — one tick style, one legend position, one currency format.
+ *
+ * The no-data rule shipped first because it was costing something. These three are the rest of the
+ * audit's finding 15, and they were **not** cosmetic drift — measured before touching anything:
+ *
+ * * **Ticks.** Three charts hand-rolled the same `for (k = 0; k <= 4)` gridline loop, and the copies
+ *   had already diverged: `lineChart` labelled `max − (k/4)(max − min)` while `groupedBar` and
+ *   `waterfall` labelled `max − (k/4)·max`, which is a different axis whenever the minimum is not
+ *   zero. Meanwhile **`stackedBar` drew no gridlines at all** — just a zero rule — so a cash-flow
+ *   chart and a budget chart sitting in the same panel were read against different furniture.
+ * * **Legend.** Four hand-rolled copies of `x=L y=9 font-size=8`. Consistent today by coincidence,
+ *   and a fifth chart would have been consistent only if whoever wrote it copied the right neighbour.
+ * * **Currency.** `money()` existed and nothing made a chart *use* it. A caller had to remember to
+ *   pass `fmt: money`, so a sources-and-uses waterfall printed `1.2M` with no `$` whenever they
+ *   forgot — and a bare number in a finance panel is read as whatever unit the reader assumes.
+ *
+ * `unit` is the fix for the third, and it is a different kind of option on purpose: it says what the
+ * numbers **are**, not how to print them. `fmt` still wins when given, because a caller with a real
+ * formatting need should not have to fight the grammar — but nobody has to remember `money` again.
+ */
+export type Unit = "money" | "percent" | "count";
+
+const UNIT_FMT: Record<Unit, Fmt> = {
+  money: (n) => money(n),
+  percent: (n) => `${n.toFixed(n === Math.round(n) ? 0 : 1)}%`,
+  count: (n) => compact(n),
+};
+
+/** The one place a chart decides how to print a number: explicit `fmt`, else the unit, else compact. */
+export function fmtFor(opts: { fmt?: Fmt; unit?: Unit }): Fmt {
+  return opts.fmt ?? (opts.unit ? UNIT_FMT[opts.unit] : compact);
+}
+
+/** Gridline count — five lines, four intervals, everywhere. Exported so the gate counts against it. */
+export const Y_TICKS = 4;
+
+/**
+ * The y-axis: `Y_TICKS + 1` gridlines with a label on each, from `max` down to `min`.
+ *
+ * `min` defaults to 0 rather than being required, because that is the case three of the four callers
+ * had inlined — but it is a parameter, because `lineChart` genuinely needs a non-zero floor and
+ * silently clamping it to 0 is how the copies diverged in the first place.
+ */
+export function yGrid(box: { L: number; R: number; T: number; B: number; W: number; H: number },
+                      max: number, min: number, fmt: Fmt): string {
+  let g = "";
+  for (let k = 0; k <= Y_TICKS; k++) {
+    const gy = box.T + (k / Y_TICKS) * (box.H - box.T - box.B);
+    const gv = max - (k / Y_TICKS) * (max - min);
+    g += `<line x1="${box.L}" y1="${gy.toFixed(1)}" x2="${box.W - box.R}" y2="${gy.toFixed(1)}" stroke="${GRID}" stroke-width="0.4"/>`;
+    g += txt(box.L - 2, gy + 2, fmt(gv), { anchor: "end" });
+  }
+  return g;
+}
+
+/** The one legend: swatch + name, top-left above the plot, at the one size every chart shares. */
+export function legendRow(items: readonly { name: string; color?: string }[], x: number, y = 9): string {
+  if (!items.length) return "";
+  const spans = items.map((it, i) =>
+    `<tspan fill="${it.color ?? chartColor(i)}">■</tspan><tspan fill="${AXIS}"> ${esc(it.name)}  </tspan>`).join("");
+  return `<text x="${x}" y="${y}" font-family="system-ui,sans-serif" font-size="8">${spans}</text>`;
+}
+
 const wrap = (vb: number, inner: string, title: string, h = 150): string =>
   `<svg viewBox="0 0 300 ${vb}" role="img" aria-label="${esc(title)}" preserveAspectRatio="none" `
   + `style="width:100%;height:${h}px;display:block;background:var(--panel2);border:1px solid var(--line);border-radius:6px">`
@@ -83,8 +178,8 @@ const txt = (x: number, y: number, s: string, opts: { anchor?: string; size?: nu
 
 // --- multi-series line (EVM S-curve: PV / EV / AC) ---------------------------
 export function lineChart(series: { name: string; values: number[]; color?: string }[],
-                          opts: { title?: string; fmt?: Fmt; xlabels?: string[]; height?: number } = {}): string {
-  const fmt = opts.fmt ?? compact;
+                          opts: { title?: string; fmt?: Fmt; unit?: Unit; xlabels?: string[]; height?: number } = {}): string {
+  const fmt = fmtFor(opts);
   const W = 300, H = 150, L = 34, R = 8, T = 12, B = 18;
   if (!series.length || !series.some((s) => s.values.length)) return noData(opts.title ?? "chart", opts.height ?? 170);
   const n = Math.max(1, ...series.map((s) => s.values.length));
@@ -92,24 +187,16 @@ export function lineChart(series: { name: string; values: number[]; color?: stri
   const max = Math.max(1, ...all), min = Math.min(0, ...all);
   const x = (i: number) => L + (i / Math.max(1, n - 1)) * (W - L - R);
   const y = (v: number) => T + (1 - (v - min) / (max - min || 1)) * (H - T - B);
-  let g = "";
-  for (let k = 0; k <= 4; k++) {                                   // gridlines + y labels
-    const gy = T + (k / 4) * (H - T - B), gv = max - (k / 4) * (max - min);
-    g += `<line x1="${L}" y1="${gy.toFixed(1)}" x2="${W - R}" y2="${gy.toFixed(1)}" stroke="${GRID}" stroke-width="0.4"/>`;
-    g += txt(L - 2, gy + 2, fmt(gv), { anchor: "end" });
-  }
+  const g = yGrid({ L, R, T, B, W, H }, max, min, fmt);
   const lines = series.map((s, si) => {
     const col = s.color ?? chartColor(si);
     const pts = s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
     const dots = s.values.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="1.3" fill="${col}"><title>${esc(s.name)} ${fmt(v)}</title></circle>`).join("");
     return `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.4"/>${dots}`;
   }).join("");
-  const legend = series.map((s, si) =>
-    `<tspan fill="${s.color ?? chartColor(si)}">■</tspan><tspan fill="${AXIS}"> ${esc(s.name)}  </tspan>`).join("");
   const xl = (opts.xlabels ?? []).map((l, i) => i % Math.ceil((opts.xlabels!.length) / 6 || 1) === 0
     ? txt(x(i), H - 6, l, { anchor: "middle" }) : "").join("");
-  return wrap(H, `${g}${lines}${xl}<text x="${L}" y="9" font-family="system-ui,sans-serif" font-size="8">${legend}</text>`,
-    opts.title ?? "line chart", opts.height ?? 160);
+  return wrap(H, `${g}${lines}${xl}${legendRow(series, L)}`, opts.title ?? "line chart", opts.height ?? 160);
 }
 
 // --- CPI–SPI quadrant scatter (the EVM "bullseye") ---------------------------
@@ -145,19 +232,14 @@ export function scatterQuadrant(points: { label: string; x: number; y: number; k
 
 // --- grouped bars (budget vs committed vs actual vs EAC) ---------------------
 export function groupedBar(groups: { label: string; bars: { name: string; value: number; color?: string }[] }[],
-                           opts: { title?: string; fmt?: Fmt; height?: number } = {}): string {
-  const fmt = opts.fmt ?? compact;
+                           opts: { title?: string; fmt?: Fmt; unit?: Unit; height?: number } = {}): string {
+  const fmt = fmtFor(opts);
   const W = 300, H = 150, L = 34, R = 6, T = 14, B = 26;
   if (!groups.length) return noData(opts.title ?? "grouped bar", opts.height ?? 170);
   const max = Math.max(1, ...groups.flatMap((g) => g.bars.map((b) => b.value)));
   const gw = (W - L - R) / Math.max(1, groups.length);
   const names = groups[0]?.bars.map((b) => b.name) ?? [];
-  let g = "";
-  for (let k = 0; k <= 4; k++) {
-    const gy = T + (k / 4) * (H - T - B);
-    g += `<line x1="${L}" y1="${gy.toFixed(1)}" x2="${W - R}" y2="${gy.toFixed(1)}" stroke="${GRID}" stroke-width="0.4"/>`;
-    g += txt(L - 2, gy + 2, fmt(max - (k / 4) * max), { anchor: "end" });
-  }
+  let g = yGrid({ L, R, T, B, W, H }, max, 0, fmt);
   groups.forEach((grp, gi) => {
     const x0 = L + gi * gw, bw = (gw - 4) / Math.max(1, grp.bars.length);
     grp.bars.forEach((b, bi) => {
@@ -166,15 +248,14 @@ export function groupedBar(groups: { label: string; bars: { name: string; value:
     });
     g += txt(x0 + gw / 2, H - 14, grp.label, { anchor: "middle" });
   });
-  const legend = names.map((nm, bi) => `<tspan fill="${chartColor(bi)}">■</tspan><tspan fill="${AXIS}"> ${esc(nm)}  </tspan>`).join("");
-  return wrap(H, `${g}<text x="${L}" y="9" font-family="system-ui,sans-serif" font-size="8">${legend}</text>`,
+  return wrap(H, `${g}${legendRow(names.map((name) => ({ name })), L)}`,
     opts.title ?? "grouped bar", opts.height ?? 170);
 }
 
 // --- stacked bars (cash flow by year: operating / investing / financing) ----
 export function stackedBar(groups: { label: string; segments: { name: string; value: number; color?: string }[] }[],
-                           opts: { title?: string; fmt?: Fmt; height?: number } = {}): string {
-  const fmt = opts.fmt ?? compact;
+                           opts: { title?: string; fmt?: Fmt; unit?: Unit; height?: number } = {}): string {
+  const fmt = fmtFor(opts);
   const W = 300, H = 150, L = 34, R = 6, T = 14, B = 22;
   if (!groups.length) return noData(opts.title ?? "stacked bar", opts.height ?? 170);
   const totals = groups.map((g) => g.segments.reduce((a, s) => a + Math.max(0, s.value), 0));
@@ -182,7 +263,10 @@ export function stackedBar(groups: { label: string; segments: { name: string; va
   const max = Math.max(1, ...totals), min = Math.min(0, ...negs);
   const y = (v: number) => T + (1 - (v - min) / (max - min || 1)) * (H - T - B);
   const gw = (W - L - R) / Math.max(1, groups.length);
-  let g = `<line x1="${L}" y1="${y(0).toFixed(1)}" x2="${W - R}" y2="${y(0).toFixed(1)}" stroke="${AXIS}" stroke-width="0.5"/>`;
+  // The gridlines this chart never had. A cash-flow chart beside a budget chart was being read
+  // against different furniture; the zero rule stays on top of them because a signed chart needs it.
+  let g = yGrid({ L, R, T, B, W, H }, max, min, fmt)
+    + `<line x1="${L}" y1="${y(0).toFixed(1)}" x2="${W - R}" y2="${y(0).toFixed(1)}" stroke="${AXIS}" stroke-width="0.5"/>`;
   groups.forEach((grp, gi) => {
     const x = L + gi * gw + 3, bw = gw - 6;
     let up = 0, dn = 0;
@@ -196,15 +280,14 @@ export function stackedBar(groups: { label: string; segments: { name: string; va
     g += txt(L + gi * gw + gw / 2, H - 10, grp.label, { anchor: "middle" });
   });
   const names = groups[0]?.segments.map((s) => s.name) ?? [];
-  const legend = names.map((nm, si) => `<tspan fill="${chartColor(si)}">■</tspan><tspan fill="${AXIS}"> ${esc(nm)}  </tspan>`).join("");
-  return wrap(H, `${g}<text x="${L}" y="9" font-family="system-ui,sans-serif" font-size="8">${legend}</text>`,
+  return wrap(H, `${g}${legendRow(names.map((name) => ({ name })), L)}`,
     opts.title ?? "stacked bar", opts.height ?? 170);
 }
 
 // --- waterfall (sources & uses / JV distribution) ---------------------------
 export function waterfall(steps: { label: string; value: number; total?: boolean }[],
-                          opts: { title?: string; fmt?: Fmt; height?: number } = {}): string {
-  const fmt = opts.fmt ?? compact;
+                          opts: { title?: string; fmt?: Fmt; unit?: Unit; height?: number } = {}): string {
+  const fmt = fmtFor(opts);
   const W = 300, H = 150, L = 34, R = 6, T = 12, B = 26;
   if (!steps.length) return noData(opts.title ?? "waterfall", opts.height ?? 170);
   let run = 0; const tops: number[] = []; const bots: number[] = [];
@@ -216,10 +299,7 @@ export function waterfall(steps: { label: string; value: number; total?: boolean
   const max = Math.max(1, peak);
   const y = (v: number) => T + (1 - v / max) * (H - T - B);
   const bw = (W - L - R) / Math.max(1, steps.length) - 4;
-  let g = "";
-  for (let k = 0; k <= 4; k++) { const gy = T + (k / 4) * (H - T - B);
-    g += `<line x1="${L}" y1="${gy.toFixed(1)}" x2="${W - R}" y2="${gy.toFixed(1)}" stroke="${GRID}" stroke-width="0.4"/>`;
-    g += txt(L - 2, gy + 2, fmt(max - (k / 4) * max), { anchor: "end" }); }
+  let g = yGrid({ L, R, T, B, W, H }, max, 0, fmt);
   steps.forEach((s, i) => {
     const x = L + i * ((W - L - R) / steps.length) + 2;
     const yt = y(tops[i] ?? 0), h = Math.max(y(bots[i] ?? 0) - yt, 1);
@@ -291,9 +371,12 @@ export function donut(slices: { label: string; value: number; color?: string }[]
     a0 = a1;
   });
   if (opts.center) g += txt(cx, cy + 4, opts.center, { anchor: "middle", size: 13, fill: "var(--text)", weight: 700 });
-  const legend = slices.map((s, i) => `<tspan fill="${s.color ?? chartColor(i)}">■</tspan><tspan fill="${AXIS}"> ${esc(s.label)} </tspan>`).join("");
+  // The donut's legend sits under the ring rather than above a plot it does not have -- the one
+  // legitimate position difference, and it still goes through `legendRow` so the swatch, the size and
+  // the spacing cannot drift from the other eight.
+  const legend = legendRow(slices.map((sl, i) => ({ name: sl.label, color: sl.color ?? chartColor(i) })), 150, 78);
   return `<svg viewBox="0 0 300 150" role="img" aria-label="${esc(opts.title ?? "donut")}" style="width:100%;height:${opts.height ?? 160}px;display:block;background:var(--panel2);border:1px solid var(--line);border-radius:6px">`
-    + `<title>${esc(opts.title ?? "donut")}</title>${g}<text x="150" y="78" font-family="system-ui,sans-serif" font-size="8">${legend}</text></svg>`;
+    + `<title>${esc(opts.title ?? "donut")}</title>${g}${legend}</svg>`;
 }
 
 // --- progress bar / gauge ---------------------------------------------------

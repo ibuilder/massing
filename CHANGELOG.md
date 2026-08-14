@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.948 (2026-08-14) — R24-CHARTS-GRAMMAR ②: one tick style, one legend, one currency
+
+The no-data rule shipped first because it was costing something. These three are the rest of the
+audit's finding 15, and none of them was cosmetic once measured.
+
+**Ticks.** Three charts hand-rolled the same `for (k = 0; k <= 4)` gridline loop, and the copies had
+already diverged: `lineChart` labelled `max − (k/4)(max − min)` while `groupedBar` and `waterfall`
+labelled `max − (k/4)·max`, which is a different axis whenever the minimum is not zero. Meanwhile
+**`stackedBar` drew no gridlines at all** — just a zero rule — so a cash-flow chart and a budget
+chart sitting in the same panel were being read against different furniture. There is now one
+`yGrid`, and a source scan that fails on a local gridline loop.
+
+**Legend.** Four hand-rolled copies of the same magic coordinates, consistent today by coincidence.
+One `legendRow`. The donut keeps the one legitimate position difference — under the ring, which has
+no plot to sit above — and still goes through the helper, so the swatch, size and spacing cannot
+drift from the other eight.
+
+**Currency — the one with a real defect behind it.** The count was **22 declarations across six
+behaviours**, not the 18 a first grep suggested; the gate enumerated the population and the grep had
+not. Ten of them wrote `` `$${Math.round(n).toLocaleString()}` ``, which renders a loss as
+**`$-1,000`**, with the currency mark on the wrong side of the minus. Three sites had already
+noticed and written `(n < 0 ? "−$" : "$")` locally, so the same panel set disagreed with itself about
+how a loss looks, and which spelling you got depended on which file you were in.
+`viewer/inspectorTabs.ts` used `Intl` currency formatting *and* mapped a non-finite value to **`$0`** —
+an absent number rendering as a plausible zero, which is the failure the vitals strip and the run
+diff both exist to prevent. `proforma/format.ts` **exported** a competing implementation. All 22 now
+import `usd` from `ui/charts.ts`, and the gate bans re-declaring one.
+
+**And one of the 22 was not a money formatter at all.** The stormwater card's `usd` emitted no `$`
+because it formats cubic feet and square feet. Converting it would have put a currency mark on a
+detention volume. That is why `qty` exists, and why the rule bans *declaring* a formatter rather than
+banning the name — the name was the defect there, and a rule chasing only the name would have made
+the output wrong in order to make the label right.
+
+Charts also gain `unit: "money" | "percent" | "count"`, which says what the numbers **are** rather
+than making every caller remember a formatter. An explicit `fmt` still wins.
+
 ## v0.3.947 (2026-08-14) — R24-RUNS-INBOX phase 1, and the shell budget that caught v0.3.946
 
 ### The run history, and a premise that was half wrong

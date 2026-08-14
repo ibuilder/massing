@@ -1,6 +1,6 @@
 import type { ApiClient, ModuleDef } from "../api/client";
 import { escapeHtml as esc, toast } from "../ui/feedback";
-import { progressBar } from "../ui/charts";
+import { progressBar, usd } from "../ui/charts";
 import { countNarrative, statusChip } from "../ui/chips";
 import { noProjectHtml } from "../ui/empty";
 import { buildPulse, pulseRailEl } from "./panels/pulse";
@@ -490,7 +490,6 @@ export class PortalUI {
     let px;
     try { px = await this.host.api.pxSummary(pid); } catch { return; }
     if (!px.schedule.activities && !px.budget.gmp) return;     // nothing to summarize yet
-    const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
     const sched = px.schedule, bud = px.budget;
     const pill = { on_track: ["On track", "var(--status-good)"], at_risk: ["At risk", "var(--status-warn)"], behind: ["Behind", "var(--status-crit)"] }[px.status];
     const card = document.createElement("div"); card.className = "dash-card"; card.style.marginBottom = "10px";
@@ -543,7 +542,6 @@ export class PortalUI {
    *  leases / feasibility). Every card jumps to its register; underwriting lives one click away. */
   private async renderDeveloperHome(root: HTMLElement, pid: string,
       el: (tag: string, cls?: string) => HTMLElement, jump: (key: string, state?: string) => void) {
-    const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
     const head = el("div", "section-title"); head.style.cssText = "display:flex;justify-content:space-between;align-items:center";
     head.append("Developer — real estate");
     const uw = el("button", "tool-btn") as HTMLButtonElement;
@@ -1305,7 +1303,6 @@ export class PortalUI {
   private async renderPortfolio() {
     this.root.innerHTML = "";
     this.root.appendChild(this.bar("Portfolio", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
-    const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
     const vcol = (v: number) => v < 0 ? "var(--status-crit)" : v > 0 ? "var(--status-good)" : "var(--muted)";
     const pill: Record<string, [string, string]> = { on_track: ["On track", "var(--status-good)"], at_risk: ["At risk", "var(--status-warn)"], behind: ["Behind", "var(--status-crit)"] };
     const status = document.createElement("div"); status.className = "meta"; status.textContent = "loading portfolio…";

@@ -1,6 +1,6 @@
 import type { ApiClient, DocCitation } from "../../api/client";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
-import { money as cmoney } from "../../ui/charts";
+import { money as cmoney, usd } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
 import type { PanelContext } from "../panelContext";
 
@@ -291,7 +291,6 @@ export async function renderAiAssist(ctx: PanelContext) {
           try {
             const s = await ctx.host.api.bidLeveling(pid);
             if (!s.packages.length) { out.textContent = "no bids yet — invite bidders above"; return; }
-            const usd = (n: number | null) => n == null ? "—" : `$${Math.round(n).toLocaleString()}`;
             out.innerHTML = `<div class="meta" style="margin-bottom:4px"><b>${s.package_count}</b> package(s) · ${s.bid_count} bid(s)</div>`
               + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr><th>Package</th><th style="text-align:right">Bids</th><th style="text-align:right">Low</th><th style="text-align:right">High</th><th style="text-align:right">Avg</th><th style="text-align:right">Spread</th></tr></thead><tbody>`
               + s.packages.map((p) => `<tr><td>${esc(p.package)}</td><td style="text-align:right">${p.bid_count}</td><td style="text-align:right">${usd(p.low)}</td><td style="text-align:right">${usd(p.high)}</td><td style="text-align:right">${usd(p.avg)}</td><td style="text-align:right">${Math.round(p.spread * 100)}%</td></tr>`).join("")

@@ -15,6 +15,7 @@ import { fetchArrayBufferWithProgress, setLoadingLabel, withLoading } from "../u
 import type { ApiClient } from "../api/client";
 import type { ModelLoader } from "./loader";
 import { trackModelLoad, type TrackerDeps } from "./loadTimings";
+import { usd } from "../ui/charts";
 
 export interface LoadProjectModelDeps {
   api: ApiClient;
@@ -91,10 +92,9 @@ export async function loadProjectModel(deps: LoadProjectModelDeps): Promise<bool
     // PROFORMA-LIVE: the finance numbers follow the model — after every (re)load, surface the
     // takeoff-priced cost + budget delta in the status line (server-cached per version; best-effort)
     void api.proformaLive(projectId).then((pl) => {
-      const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
       const delta = pl.delta_vs_budget != null
-        ? ` · ${pl.delta_vs_budget >= 0 ? "▲" : "▼"} ${money(Math.abs(pl.delta_vs_budget))} vs budget` : "";
-      deps.setStatus(`model cost ${money(pl.est_construction_cost)} · GFA ${pl.gfa_m2} m²${delta}`);
+        ? ` · ${pl.delta_vs_budget >= 0 ? "▲" : "▼"} ${usd(Math.abs(pl.delta_vs_budget))} vs budget` : "";
+      deps.setStatus(`model cost ${usd(pl.est_construction_cost)} · GFA ${pl.gfa_m2} m²${delta}`);
     }).catch(() => { /* no source IFC / offline — the readout is optional */ });
     return true;
   })) ?? false;

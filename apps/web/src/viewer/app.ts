@@ -1,3 +1,4 @@
+import { usd } from "../ui/charts";
 // Heavy viewer module — dynamically imported by main.ts on first Model-workspace open,
 // so the ~6MB three + @thatopen bundle never loads for users who only use the
 // Construction (GC portal) or Finance (proforma) workspaces.
@@ -332,7 +333,6 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     if (!connected || !projectId) return;
     let d; try { d = await api.element5d(projectId, guid); } catch { return; }
     if (!d.schedule && !d.cost) return;
-    const usd = (n: number) => "$" + Math.round(n).toLocaleString();
     let html = `<div style="font-weight:700;border-top:1px solid var(--line);padding-top:6px">5D — schedule &amp; cost</div>`;
     if (d.schedule) {
       const s = d.schedule;

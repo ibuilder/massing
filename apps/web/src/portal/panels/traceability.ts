@@ -1,4 +1,4 @@
-import { money as cmoney } from "../../ui/charts";
+import { usd } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
 import { mountElementCard } from "../../ui/elementCard";
 import { escapeHtml as esc } from "../../ui/feedback";
@@ -27,7 +27,6 @@ export async function renderTraceability(ctx: PanelContext) {
   try { s = await ctx.host.api.costTraceability(pid); }
   catch (e) { body.textContent = `failed: ${(e as Error).message}`; return; }
   body.innerHTML = "";
-  const usd = (n: number) => cmoney(n);
 
   // coverage KPIs
   const cards = el("div"); cards.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px";
