@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.956 (2026-08-14) — CodeQL: the engine's own message was being relayed to callers
+
+Two new `py/stack-trace-exposure` alerts (medium) appeared after v0.3.952–953, both mine:
+`schedule_locations.flowline` and `schedule_takt.takt` returned `_unavailable(str(exc), …)` when the
+vendored engine raised, so an engine-authored message reached the HTTP response.
+
+The messages happen to be curated domain text today (*"duplicate location id 'L1'"*), which is the
+argument for dismissing it — and it is a bad argument, because it is a claim about every message the
+vendored engine will ever raise, in a tree that re-syncs from upstream. **CodeQL is right and the fix
+is three lines**: the engine's text goes to `logging.warning`, the caller gets a stable domain
+sentence. The repo has 34 documented dismissals of a different rule where direct proof was available;
+there is none here, so this is fixed rather than dismissed.
+
+Both adapters' refusal paths — the ones users actually hit, like "only one location" or "no crew caps"
+— are unchanged, because those messages are written here and never came from an exception.
+
 ## v0.3.955 (2026-08-14) — the four R45 methods reach a screen, after three more gates said they had not
 
 v0.3.952–954 shipped four scheduling engines behind four routes and I called that done. Three separate

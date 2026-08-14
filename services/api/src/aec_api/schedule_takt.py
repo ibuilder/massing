@@ -41,12 +41,17 @@ change the crew, and the reason both fields have to be read rather than just the
 """
 from __future__ import annotations
 
+import logging
+
 from typing import Any
 
 from massingplan.core.locations import Location
 from massingplan.core.takt import TaktError, Wagon, minimum_takt, plan
 
 from .schedule_locations import _natural_key, _text
+
+
+_LOG = logging.getLogger(__name__)
 
 
 def _work_content(row: dict) -> float:
@@ -143,7 +148,12 @@ def takt(activities: list[dict], *, takt_days: int | None = None,
         floor, setter = minimum_takt(wagons, places)
         result = plan(wagons, places, takt_days=int(takt_days) if takt_days else floor)
     except TaktError as exc:
-        return _unavailable(str(exc), zones=zones, wagons=names)
+        # See `schedule_locations` for why the engine's own message is logged rather than relayed.
+        _LOG.warning("takt train refused for %d activities: %s", len(activities), exc)
+        return _unavailable(
+            "the wagons could not be arranged into a train — the activity zones are inconsistent. "
+            "See the server log for the engine's reason.",
+            zones=zones, wagons=names)
 
     return {
         "available": True,

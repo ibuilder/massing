@@ -52,6 +52,8 @@ A flowline of one location is a bar chart, and a flowline with no trades is noth
 """
 from __future__ import annotations
 
+import logging
+
 import re
 from typing import Any
 
@@ -67,6 +69,9 @@ from massingplan.core.locations import (
 #: way a forty-storey flowline comes out with L10 between L1 and L2, which reads as a logic error in
 #: the schedule rather than a sort bug in the chart.
 _NUM = re.compile(r"(\d+)")
+
+
+_LOG = logging.getLogger(__name__)
 
 
 def _natural_key(name: str) -> tuple[object, ...]:
@@ -185,8 +190,14 @@ def flowline(activities: list[dict], *, sequence: list[str] | None = None,
     try:
         result = compute(tasks, places, issues=issues)
     except LinearScheduleError as exc:
-        # The engine refusing is a real answer about the data, not a server fault.
-        return _unavailable(str(exc), locations=locs, trades=trades)
+        # The engine refusing is a real answer about the data, not a server fault -- but the message
+        # is engine-authored and `py/stack-trace-exposure` is right that it should not be relayed
+        # verbatim to a caller. The detail goes to the log; the client gets a stable sentence.
+        _LOG.warning("flowline refused for %d activities: %s", len(activities), exc)
+        return _unavailable(
+            "the schedule's locations could not be arranged into a flow — the activity locations are "
+            "inconsistent. See the server log for the engine's reason.",
+            locations=locs, trades=trades)
 
     return {
         "available": True,
