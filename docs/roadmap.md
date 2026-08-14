@@ -191,13 +191,25 @@ unreachable — no direct import, and nothing reachable imports them either.
 | `risk` | 303 | `aec_api/schedule_risk.py` **195** | overlapping |
 | `progress` | 214 | `aec_api/progress_rollup.py` **134** | overlapping |
 
-**The split matters more than the total, and it is why this is two sprints rather than one.** Five
-modules have no counterpart — wiring those is additive and cheap. Four *already have ours beside
-them*, so "add an adapter" would create the second implementation this repo has been burned by
-before. `takt` is the sharpest case: both define `plan()`. Theirs also has `crews_for`,
-`minimum_takt` and `to_network` (crew sizing, minimum feasible takt, and conversion to a CPM
-network); ours has `takt_svg`, which theirs does not. **Ours is a renderer that grew an engine; the
-answer is to keep our renderer and delete our engine**, not to run both.
+**The split matters more than the total, and it is why this is two sprints rather than one.**
+Re-checked 2026-08-14 by *capability* rather than by filename, after the `compare` row below was
+filed wrong exactly that way:
+
+* **Three are pure gain** — `levelling`, `locations`, `resources`. Grepped for the capability
+  (resource levelling, location-based/LBMS scheduling, resource assignment) across all of `aec_api`
+  and `services/data`: **nothing**. Wiring these is additive and cheap. (`health` was the fourth and
+  shipped in v0.3.950.)
+* **One is complementary but needs a decision** — `compare`; see the note above.
+* **Four already have ours beside them**, so "add an adapter" would create the second implementation
+  this repo has been burned by before.
+
+**All four overlaps share one shape, and naming it settles the sprint.** Ours are *renderers and
+persistence layers that grew a bit of engine*; theirs are engines. `pull_plan.py` is `board` /
+`metrics` / `pdf` / `signature`; `takt.py` is `plan` / `progress` / `takt_svg`;
+`progress_rollup.py` is `capture_diff` / `rollup`. `takt` is the sharpest case because both define
+`plan()` — theirs also has `crews_for`, `minimum_takt` and `to_network` (crew sizing, minimum
+feasible takt, conversion to a CPM network); ours has `takt_svg`, which theirs does not. **Keep our
+rendering, take their engine, delete ours** — in all four, one at a time.
 
 **Correction, made on the same day the table was written.** `compare` was filed as "no
 counterpart" because no `aec_api` file is *named* compare. `schedule_baselines.compute_variance`
