@@ -182,26 +182,44 @@ unreachable — no direct import, and nothing reachable imports them either.
 | Vendored module | Lines | Our counterpart | The real question |
 |---|---|---|---|
 | ~~`health`~~ | 634 | ✅ `aec_api/schedule_health.py` | **WIRED v0.3.950**, routed v0.3.951 — DCMA 14-point |
-| `compare` | 555 | ⚠ `schedule_baselines.compute_variance` | **my table was wrong here** — see the note below |
-| `levelling` | 587 | *(none)* | pure gain — resource levelling |
-| `locations` | 477 | *(none)* | pure gain — location-based (LBMS) scheduling |
-| `resources` | 254 | *(none)* | pure gain |
+| `compare` | 555 | `schedule_baselines.compute_variance` | overlaps — ours id-matches, theirs code-matches + attributes delay |
+| `levelling` | 587 | `resource_loading.level()` | overlaps — ours shifts within CPM float; theirs is serial-generation, deterministic |
+| **`locations`** | 477 | *(none — verified)* | ✅ **the one genuine pure gain**: line of balance, and **crew continuity**, which CPM structurally cannot express |
+| `resources` | 254 | `resource_loading.loading()` | overlaps — histogram, S-curves and over-allocation already served |
 | `takt` | 444 | `aec_api/takt.py` **163** | **two implementations, same `plan()`** |
 | `lastplanner` | 436 | `aec_api/pull_plan.py` **248** | overlapping |
 | `risk` | 303 | `aec_api/schedule_risk.py` **195** | overlapping |
 | `progress` | 214 | `aec_api/progress_rollup.py` **134** | overlapping |
 
-**The split matters more than the total, and it is why this is two sprints rather than one.**
-Re-checked 2026-08-14 by *capability* rather than by filename, after the `compare` row below was
-filed wrong exactly that way:
+**The split matters more than the total — and this table was wrong three times before it was right.**
 
-* **Three are pure gain** — `levelling`, `locations`, `resources`. Grepped for the capability
-  (resource levelling, location-based/LBMS scheduling, resource assignment) across all of `aec_api`
-  and `services/data`: **nothing**. Wiring these is additive and cheap. (`health` was the fourth and
-  shipped in v0.3.950.)
-* **One is complementary but needs a decision** — `compare`; see the note above.
-* **Four already have ours beside them**, so "add an adapter" would create the second implementation
-  this repo has been burned by before.
+The count went **5 pure gain → 3 → 1**. Each correction came from a different bad shortcut, and the
+sequence is the reusable part:
+
+1. **Matched on filenames.** No `aec_api` file is named `compare`, so `compare` was filed as having
+   no counterpart. `schedule_baselines.compute_variance` is one.
+2. **Matched on grep patterns I guessed.** Searching `levell|resource_level|resource_assign` missed
+   `resource_loading.py`, which defines `level()` and `loading()` — 221 lines covering *both*
+   `levelling` and `resources`. The capability was there; the words I guessed were not.
+3. **Matched on docstring keywords.** Too loose in the other direction: "level" matched
+   `bid_leveling`, which is subcontractor bid levelling, an unrelated domain.
+
+**The only method that worked was opening both modules and reading them.** Automated matching failed
+three times in three different ways, twice while explicitly trying to correct the previous failure.
+For a question of the form *"do we already have this?"*, a grep can prove a string absent and can
+never prove a capability absent.
+
+The verified picture:
+
+* **One is pure gain** — `locations`. Verified by reading it and then searching our tree for the
+  domain's own terms (*flowline*, *line of balance*, *location-based*): nothing. It answers the
+  question CPM cannot — *"where is each crew, and does anyone get in anyone else's way"* — and the
+  thing it models that CPM structurally cannot is **crew continuity**: a forward pass gives every
+  activity its earliest start, which is exactly what fragments a gang into work-a-floor-then-wait. On
+  a tower that is the same twelve trades on forty floors, and a subcontractor cannot price it.
+  **This is the whole of ① now, and it is the most differentiating item in the ring.**
+* **Seven already have ours beside them** — `compare`, `levelling`, `resources`, `takt`,
+  `lastplanner`, `risk`, `progress`. (`health` was the only other pure gain and shipped v0.3.950.)
 
 **All four overlaps share one shape, and naming it settles the sprint.** Ours are *renderers and
 persistence layers that grew a bit of engine*; theirs are engines. `pull_plan.py` is `board` /
