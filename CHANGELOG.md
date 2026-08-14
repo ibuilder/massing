@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.955 (2026-08-14) — the four R45 methods reach a screen, after three more gates said they had not
+
+v0.3.952–954 shipped four scheduling engines behind four routes and I called that done. Three separate
+gates disagreed, in sequence, each seeing one hop further out than the last:
+
+| Gate | Question | Verdict |
+|---|---|---|
+| `test_vendor_reachable` | is the vendored **module** reached? | fired twice |
+| `test_reachable` | is the module behind a **route**? | caught `schedule_health` |
+| `test_route_reachability` | does a **client method** call the route? | caught `flowline`, `takt-train` |
+| `clientCallers.test.ts` | does a **screen** call the client method? | caught all four |
+
+Each layer only sees its own hop, and from the inside a module behind no route, a route no client
+calls, and a client method no screen calls are all indistinguishable from a shipped feature. That is
+why there are four gates and not one.
+
+So this adds the missing halves: four typed client methods in `api/schedule.ts`, and
+`portal/panels/scheduleMethods.ts` — a card each for DCMA quality, flowline, takt train and levelling,
+mounted in the Schedule panel. Each runs **behind a button rather than on render**: three of them walk
+the whole activity set, and a panel that fires four full-schedule computations every time it opens is
+a panel people learn to avoid.
+
+**The rendering rule is shared by all four: read `available` before reading any number.** Every one of
+these engines can be asked something it cannot answer — no locations, a logic loop, no crew caps — and
+every one returns `available: false` with a reason. Rendering the zero instead is how "we could not
+measure" becomes "this is terrible" on somebody's screen.
+
+Two of the four — `/schedule/health` and `/schedule/level` — passed `test_route_reachability` only
+because the words "health" and "level" appear elsewhere in the web source. That is the gate's own
+documented blind spot, and they were as uncalled as the two it caught, so all four got client callers
+rather than the two that were flagged.
+
 ## v0.3.954 (2026-08-14) — R45: resource levelling, and `compare` turns out to be blocked on our own snapshot
 
 `POST /projects/{pid}/schedule/level` — deterministic resource levelling by serial schedule generation.

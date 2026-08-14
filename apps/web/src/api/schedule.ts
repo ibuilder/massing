@@ -211,6 +211,80 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ project_duration: number; activity_count: number; critical_count: number; has_cycle: boolean; critical_path: string[]; activities: { ref: string | null; name: string; duration: number; es: number; ef: number; total_float: number; critical: boolean }[] }>(
       `/projects/${pid}/schedule/cpm`);
   }
+  /**
+   * R45-SCHED-REACH — DCMA 14-point schedule quality.
+   *
+   * Read `available` before `grade`: a project with no activities and one with a logic loop both come
+   * back `available: false` with `grade: null`, because neither is a *failing* schedule. Checks the
+   * engine could not run are excluded from the score's denominator, so a clean schedule reads 100 over
+   * its runnable checks rather than a diluted number over all fourteen.
+   */
+  scheduleHealth(pid: string) {
+    return this.json<{
+      available: boolean; reason?: string; grade: string | null; score: number | null;
+      optimisable: boolean | null; assessed: number; skipped: number; failed: number;
+      checks: { number: number; name: string; status: "pass" | "fail" | "skipped"; value: number | null;
+                threshold: string; detail: string; offenders: string[]; offender_count: number }[];
+    }>(`/projects/${pid}/schedule/health`);
+  }
+
+  /**
+   * R45-SCHED-REACH — location-based (linear) scheduling: line of balance.
+   *
+   * `continuity_cost_days` is the point: per trade, what keeping that crew whole costs in days. CPM
+   * cannot express crew continuity at all, so this is the number that says whether the method is
+   * worth using on this job.
+   */
+  scheduleFlowline(pid: string) {
+    return this.json<{
+      available: boolean; reason?: string;
+      locations: { id: string; name: string; sequence: number }[]; trades: string[];
+      duration_days: number | null; continuity_cost_days: Record<string, number>;
+      segments: { task_id: string; location_id: string; start_offset: number; finish_offset: number;
+                  duration_days: number }[];
+      interference_count: number;
+    }>(`/projects/${pid}/schedule/flowline`);
+  }
+
+  /**
+   * R45-SCHED-DEDUPE — takt planning. **Not the same method as the flowline**, and the difference is a
+   * decision: every wagon occupies one zone for exactly one takt, so `(W + Z - 1)` takts is knowable
+   * before the work is estimated. Paid for in idle capacity — `utilisation` is per wagon per zone and
+   * unrounded. Omit `taktDays` for the shortest feasible rhythm plus the wagon that sets it.
+   */
+  scheduleTaktTrain(pid: string, taktDays?: number) {
+    const q = taktDays ? `?takt_days=${taktDays}` : "";
+    return this.json<{
+      available: boolean; reason?: string; zones: string[]; wagons: string[];
+      takt_days: number | null; duration_days: number | null; takt_count: number | null;
+      minimum_takt_days: number | null; minimum_takt_set_by: string | null;
+      crews: Record<string, number>; utilisation: Record<string, number>; overloaded: string[];
+      slots: { wagon_id: string; zone_id: string; takt_index: number; crews: number;
+               work_content: number }[];
+    }>(`/projects/${pid}/schedule/takt-train${q}`);
+  }
+
+  /**
+   * R45-SCHED-DEDUPE — deterministic resource levelling against per-trade crew caps.
+   *
+   * `horizon` has no safe default and is therefore explicit: `within_float` never moves the finish and
+   * **reports** what it could not solve; `extend_finish` solves everything and accepts a later finish.
+   * A job with liquidated damages wants the first; one that has blown its float wants the second.
+   * Advisory — the server returns moves and never writes them.
+   */
+  scheduleLevel(pid: string, caps: Record<string, number>,
+                horizon: "within_float" | "extend_finish" = "within_float") {
+    return this.json<{
+      available: boolean; reason?: string; horizon: string | null;
+      finish_before: string | null; finish_after: string | null; finish_moved_days: number | null;
+      moves: { activity_id: string; from_start: string; to_start: string; shifted_working_days: number;
+               blocked_by: string[]; float_remaining_days: number }[];
+      move_count: number | null; unresolved_count: number | null;
+      peak_before: Record<string, number>; peak_after: Record<string, number>;
+    }>(`/projects/${pid}/schedule/level`,
+       { method: "POST", body: JSON.stringify({ caps, horizon }) });
+  }
+
   /** EST-1: upsert QTO-driven crew-day durations as EST schedule activities (one per trade, FS chain). */
   scheduleFromEstimate(pid: string, body: { loading?: string; rate?: number; crews?: number } = {}) {
     return this.json<{ written: { ref: string; trade: string; crew_days: number; duration_days: number;

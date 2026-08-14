@@ -311,7 +311,7 @@ The engine work is done either way; only the naming is open.
   `core` is stdlib-only *by contract* and must not learn about SQLAlchemy). Ship one at a time; each
   is independently valuable and `health` is the highest — a schedule-quality score is the thing a GC
   is asked for and cannot currently produce.
-- **R45-SCHED-DEDUPE ②** *(M, do AFTER ①)* — settle the four overlaps, one decision each, in the
+- ◧ **R45-SCHED-DEDUPE ②** *(M; `takt` v0.3.953, `levelling`+`resources` v0.3.954)* — settle the overlaps, one decision each, in the
   order `takt` → `progress` → `risk` → `lastplanner`. For each: diff the two behaviours, keep the
   deeper engine, keep our rendering/persistence, delete the loser, and write a test asserting there
   is exactly one implementation. **Do not start this until ① proves the adapter pattern**, and do not

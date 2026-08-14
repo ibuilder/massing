@@ -3,6 +3,7 @@ import { groupedBar, usd } from "../../ui/charts";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
+import { renderScheduleMethods } from "./scheduleMethods";
 
 /**
  * Unified GC schedule visuals — one relational schedule drives all of it: the Last Planner pull-plan
@@ -98,6 +99,11 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   note.innerHTML = "One relational schedule — these views + the 3D <b>4D sequence</b> (Model → ⏱ 4D) share the same activities.";
   intro.append(listBtn, xerLabel, xerClearBtn, xerOut, mspOut, alertBtn, esBtn, baseBtn, lvlBtn, note);
   ctx.root.appendChild(intro);
+
+  // R45 — the four scheduling methods the vendored engine brought, each behind its own button rather
+  // than run on render: three of them walk the whole activity set, and a panel that fires four
+  // full-schedule computations every time somebody opens it is a panel people learn to avoid.
+  ctx.root.appendChild(renderScheduleMethods(ctx));
 
   // a collapsible drawer the alerts / earned-schedule buttons fill on demand (kept out of the way)
   const interopDrawer = document.createElement("div"); interopDrawer.style.cssText = "display:none;margin:0 0 8px";
