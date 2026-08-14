@@ -95,9 +95,15 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       moves: { activity: string | null; shifted_days: number; new_start: string; new_finish: string; float_remaining: number }[] }>(
       `/projects/${pid}/schedule/resource-leveling/apply`, { method: "POST", body: JSON.stringify({ cap }) });
   }
-  /** RESOURCE-LEVEL — the named-baseline library (metadata, newest first). */
+  /**
+   * RESOURCE-LEVEL — the named-baseline library (metadata, newest first).
+   *
+   * `has_logic` is false for a baseline captured before v0.3.961: those froze dates but no
+   * predecessors, so `scheduleCompare` refuses them. Variance works against every baseline.
+   */
   scheduleBaselines(pid: string) {
-    return this.json<{ baselines: { id: string; name: string; captured_at: string; count: number }[] }>(
+    return this.json<{ baselines: { id: string; name: string; captured_at: string; count: number;
+      schema?: number; has_logic?: boolean }[] }>(
       `/projects/${pid}/schedule/baselines`);
   }
   /** Capture the current schedule as a new named baseline. */
@@ -348,6 +354,47 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       top_reasons: { reason: string; count: number }[];
       undated_tasks: number; unusable_tasks: number; weeks_refused_at_commit: string[];
     }>(`/projects/${pid}/schedule/reliability`);
+  }
+
+  /**
+   * R45-SCHED-REACH — diff the live schedule against a named baseline and attribute the finish move.
+   *
+   * Not `scheduleVariance`. That one answers "did this activity's dates move"; this re-schedules the
+   * baseline through the CPM engine and answers **why the finish moved**, apportioning the move
+   * across duration growth, added logic, lag, constraints, progress and levelling. The contributions
+   * sum to `finish_move_days` exactly — render that as the check it is, not as decoration.
+   *
+   * Two things to render carefully:
+   * - `available: false` with a reason is the normal answer for a baseline captured before
+   *   v0.3.961. Those hold dates but no logic, and the reason says to capture a new one. Show the
+   *   sentence; do not fall back to a zero.
+   * - an `unexplained` contribution is usually **not** a mystery: the engine's contributions are in
+   *   working days and its total is in calendar days, and `calendar_vs_working_gap_days` is how much
+   *   of the residual is that arithmetic. Subtract it before telling anyone days are unaccounted for.
+   */
+  scheduleCompare(pid: string, opts: { baselineId?: string; match?: "id" | "code" } = {}) {
+    const q = new URLSearchParams();
+    if (opts.baselineId) q.set("baseline_id", opts.baselineId);
+    if (opts.match) q.set("match", opts.match);
+    return this.json<{
+      available: boolean; reason?: string;
+      baseline: { id: string; name: string; captured_at: string; count: number;
+                  schema: number; has_logic: boolean } | null;
+      match_key: string | null;
+      baseline_finish: string | null; current_finish: string | null;
+      finish_move_days: number | null; finish_move_working_days?: number | null;
+      calendar_vs_working_gap_days?: number | null;
+      activity_count: number | null; changed_count: number | null;
+      changes_by_kind: Record<string, number>; link_changes: number | null;
+      criticality_gained: string[]; criticality_lost: string[]; ambiguous_matches: string[];
+      driving_path: {
+        baseline_path: string[]; current_path: string[]; entered: string[]; left: string[];
+        finish_move_days: number; attribution_sums: boolean;
+        attribution: { activity_id: string | null; cause: string; days: number;
+                       evidence: string }[];
+      } | null;
+      cycle?: string[];
+    }>(`/projects/${pid}/schedule/compare${q.toString() ? `?${q}` : ""}`);
   }
 
   /** EST-1: upsert QTO-driven crew-day durations as EST schedule activities (one per trade, FS chain). */

@@ -38,17 +38,18 @@ SRC = Path(__file__).resolve().parent / "src"
 CORE = SRC / "massingplan" / "core"
 APP = SRC / "aec_api"
 
-#: Vendored core modules with no path from the API. Nine at the `d1e4bf16` sync (2026-08-14);
-#: `health` left the list the same day when `aec_api/schedule_health.py` wired it (R45-SCHED-REACH ①).
+#: Vendored core modules with no path from the API. Nine at the `d1e4bf16` sync (2026-08-14).
 #:
-#: Filed as R45 in the roadmap. Five have no counterpart in `aec_api` and are pure additive value;
-#: four (`takt`, `lastplanner`, `risk`, `progress`) already have OUR implementation beside them, so
-#: wiring those is a de-duplication decision and not an adapter — `takt.plan()` is currently defined
-#: in both trees. **Remove names from this list as they are wired; never add one without a roadmap
-#: entry saying why it is here.**
-UNREACHED = {
-    "compare",
-}
+#: **Now empty.** R45 wired all 21 over 2026-08-14: five were pure additive value with no counterpart
+#: in `aec_api`; four (`takt`, `lastplanner`, `risk`, `progress`) had OUR implementation beside them
+#: and were de-duplication decisions rather than adapters — all four still ship both, because in each
+#: case the two answer measurably different questions and choosing one is a domain call. `compare`
+#: was the last, and it was blocked on the baseline SNAPSHOT rather than on the engine.
+#:
+#: The list stays, and both directions of the ratchet stay armed: an unreachable module must be
+#: recorded here with a roadmap entry saying why, and a recorded module that becomes reachable must
+#: leave. An empty list is the state to keep, not a reason to delete the check.
+UNREACHED: set[str] = set()
 
 _FAILURES: list[str] = []
 
@@ -142,11 +143,31 @@ def main() -> int:
           note=f"these are now reachable, delete them from UNREACHED: {', '.join(now_reached)}"
                if now_reached else "every recorded name is still genuinely unreached")
 
-    # Vacuity twin. If the closure ever returned everything, both assertions above would pass while
-    # measuring nothing at all.
-    check("...and the closure is not trivially everything",
-          reach != mods or not UNREACHED,
-          note=f"{len(reach)} of {len(mods)} reachable")
+    # Vacuity twin, version 2.
+    #
+    # The first version was `reach != mods or not UNREACHED` — "if everything is reachable, the
+    # allowlist had better be empty". It did its job while modules were still being wired, and then
+    # R45 finished and reached all 21. At that point `not UNREACHED` is permanently true and the
+    # assertion can never fail again: a check whose failing branch is unreachable is not a check.
+    #
+    # What still has a failure mode is that the closure is DERIVED. Recompute it from a strictly
+    # smaller entry-point set; a real closure must come back strictly smaller. A `reachable()` that
+    # had degenerated into "return every module" — the actual hazard here, since it would make the
+    # gate report full coverage forever — returns the same set and fails this.
+    entries_sorted = sorted(entries)
+    deps = core_to_core_imports(mods)
+    seen: set[str] = set()
+    stack = entries_sorted[1:]                       # one entry point removed
+    while stack:
+        m = stack.pop()
+        if m in seen:
+            continue
+        seen.add(m)
+        stack.extend(deps.get(m, set()) - seen)
+    check("...and the closure is DERIVED — dropping an entry point shrinks it",
+          seen < reach,
+          note=f"without {entries_sorted[0]!r}: {len(seen)} of {len(reach)} — a closure that "
+               "returns everything regardless would report full coverage forever")
 
     total = sum(len((CORE / f"{m}.py").read_text(encoding="utf-8").splitlines()) for m in unreached)
     print(f"\n  vendored engine: {len(reach)}/{len(mods)} modules reachable; "

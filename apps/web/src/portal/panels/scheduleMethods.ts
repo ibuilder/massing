@@ -228,6 +228,52 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
   }));
   rc.appendChild(rOut); wrap.appendChild(rc);
 
+  // ── Delay attribution ────────────────────────────────────────────────────────────────────────
+  const cc = card("Delay attribution — why the finish moved",
+    "Not variance. The baseline is re-scheduled through the CPM engine and the finish move is "
+    + "apportioned across duration growth, added logic, lag, constraints and progress — summing to "
+    + "the move exactly, because parts that do not sum to the whole are not evidence.");
+  const cOut = document.createElement("div");
+  cc.appendChild(runner(cOut, "▶ Attribute the slip", async () => {
+    const r = await api.scheduleCompare(pid);
+    render(cOut, r, r.available ? [
+      { label: "finish move", value: r.finish_move_days === null ? "—" : `${r.finish_move_days}d`,
+        hint: r.finish_move_working_days == null ? ""
+          : `${r.finish_move_working_days} working days` },
+      { label: "vs baseline", value: r.baseline?.name ?? "—",
+        hint: r.baseline ? `captured ${r.baseline.captured_at}` : "" },
+      { label: "changed", value: `${r.changed_count ?? "—"}`,
+        hint: `of ${r.activity_count ?? "—"} activities` },
+      { label: "logic changes", value: `${r.link_changes ?? "—"}`,
+        hint: r.criticality_gained.length ? `${r.criticality_gained.length} newly critical` : "" },
+    ] : []);
+    if (!r.available || !r.driving_path) return;
+    const d = r.driving_path;
+    const t = document.createElement("div");
+    t.className = "meta"; t.style.cssText = "margin-top:4px;line-height:1.5";
+    t.textContent = d.attribution
+      .map((c) => `${c.days}d ${c.cause.replace(/_/g, " ")}`
+        + (c.activity_id ? ` (${c.activity_id})` : "")).join("  ·  ");
+    cOut.appendChild(t);
+    // The residual is usually arithmetic, not a mystery: the engine's contributions are working days
+    // and its total is calendar days. Saying so beats letting a planner hunt for the missing four.
+    const gap = r.calendar_vs_working_gap_days ?? 0;
+    if (gap) {
+      const n = document.createElement("div");
+      n.className = "meta"; n.style.cssText = "margin-top:2px;font-size:10.5px";
+      n.textContent = `${gap}d of any "unexplained" residual is weekend — the contributions above `
+        + "are working days, the total is calendar days.";
+      cOut.appendChild(n);
+    }
+    if (!d.attribution_sums) {
+      const w = document.createElement("div");
+      w.className = "meta"; w.style.cssText = "margin-top:2px;color:var(--bad,#c0392b)";
+      w.textContent = "the contributions do not sum to the finish move — do not rely on this";
+      cOut.appendChild(w);
+    }
+  }));
+  cc.appendChild(cOut); wrap.appendChild(cc);
+
   // ── Levelling ────────────────────────────────────────────────────────────────────────────────
   const lc = card("Resource levelling",
     "Deterministic: the same input always gives the same answer, so a planner can follow the "

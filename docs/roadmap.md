@@ -182,7 +182,7 @@ unreachable — no direct import, and nothing reachable imports them either.
 | Vendored module | Lines | Our counterpart | The real question |
 |---|---|---|---|
 | ~~`health`~~ | 634 | ✅ `aec_api/schedule_health.py` | **WIRED v0.3.950**, routed v0.3.951 — DCMA 14-point |
-| `compare` | 555 | `schedule_baselines.compute_variance` | ⛔ **BLOCKED — a data-model gap, not an adapter gap.** See below |
+| ~~`compare`~~ | 555 | `schedule_baselines.compute_variance` | **SHIPPED v0.3.961** — the blocker was the SNAPSHOT, and it was fixable |
 | ~~`levelling`~~ | 587 | ✅ `aec_api/schedule_levelling.py` | **SHIPPED v0.3.954** — `POST /schedule/level`; pulled `resources` in transitively |
 | ~~**`locations`**~~ | 477 | ✅ `aec_api/schedule_locations.py` | **SHIPPED v0.3.952** — line of balance + crew continuity, `GET /schedule/flowline` |
 | ~~`resources`~~ | 254 | ✅ *(via `schedule_levelling`)* | **reachable v0.3.954** — `levelling` imports it |
@@ -299,15 +299,41 @@ how a report reassures somebody wrongly. They share the word and nothing else.
 It also shows the `compare` blocker is specific rather than general: **`progress` needs only dates**,
 which `_snapshot` has, so it shipped. `compare` needs predecessors, which `_snapshot` does not.
 
-**⛔ `compare` is BLOCKED, and the blocker is ours.** `compare()` diffs two *computed schedules* — it
-needs both **networks**, because attributing a finish move means knowing which logic drove it. Our
-baseline snapshot (`schedule_baselines._snapshot`) freezes only `ref`, `name`, `start`, `finish` and
-`budget` **per record id — no predecessors, no durations.** You cannot rebuild a network from it.
+**✅ `compare` SHIPPED (v0.3.961) — and the blocker turned out to be one field, not a decision.**
 
-That is also why our `compute_variance` is date-only: it is not a weaker choice, it is everything the
-snapshot can support. **Unblocking is a schema change to the snapshot** (capture `predecessors` and
-`duration` alongside the dates), which changes what every existing stored baseline means and is
-therefore a decision rather than a wiring task. Checked by reading `_snapshot`, not inferred.
+The diagnosis above was right and the conclusion was wrong. `compare()` does need both **networks**,
+and `schedule_baselines._snapshot` did freeze only `ref`, `name`, `start`, `finish` and `budget`. But
+"changes what every existing stored baseline means" is exactly what a **schema version** exists to
+avoid. `_snapshot` now also freezes `duration`, `predecessors`, `calendar`, `constraint` and `wbs`,
+under `schema: 2`; a v1 baseline keeps meaning precisely what it always meant, and variance against it
+is untouched.
+
+**The version number is the whole safety argument, and it is not bureaucracy.** A v1 snapshot and a v2
+snapshot of a schedule that genuinely has no relationships are *indistinguishable from the data*.
+Rebuild a v1 one as a network and it comes back as a set of 1-day tasks with no predecessors — a
+fully-parallel plan that finishes on day one — which then diffs against the real schedule into a
+large, precisely-attributed delay caused by logic nobody removed. Measured, not argued: the twin in
+`services/api/test_schedule_compare.py` forces one through and gets **53 days against a true 14**,
+attributed with total confidence to named activities. So a v1 baseline is refused, with a sentence
+that says to capture a new one.
+
+Deliberately **not** frozen into a baseline: progress (`actual_start`, `actual_finish`, `percent`,
+`remaining_duration`). A baseline that already knows how the job went under-reports every later slip
+by exactly the progress recorded on the day it was captured.
+
+**⚠ A finding in the vendored engine, surfaced rather than fixed.** Its delay contributions are in
+**working** days; its `finish_move_days` total is in **calendar** days. The invariant still holds —
+the contributions sum to the move exactly — but only because the `UNEXPLAINED` bucket absorbs the
+difference, and a residual labelled *unexplained* sends a planner looking for a cause that does not
+exist. On a ten-working-day growth it is four days of weekend, every time. `/schedule/compare` now
+returns `finish_move_working_days` and `calendar_vs_working_gap_days` so the reader can subtract it.
+Not patched in `massingplan/core/` — that is a re-synced vendor drop and the fix belongs upstream.
+
+**All 21 vendored modules are now reachable.** `test_vendor_reachable.py`'s `UNREACHED` allowlist is
+empty for the first time. Its vacuity twin was rewritten in the same commit: the old one read
+`reach != mods or not UNREACHED`, which can never fail once the list empties — a check whose failing
+branch is unreachable is not a check. It now asserts the closure is **derived**, by recomputing it
+from a strictly smaller entry-point set and requiring a strictly smaller answer.
 
 **⚠ DECISION NEEDED — `takt.py` is a line-of-balance engine wearing the name "takt".**
 

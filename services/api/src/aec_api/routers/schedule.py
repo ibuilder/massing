@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from .. import modules as me
 from .. import (
+    schedule_compare,
     schedule_cpm,
     schedule_health,
     schedule_lastplanner,
@@ -264,6 +265,27 @@ def schedule_reliability_endpoint(pid: str, db: Session = Depends(get_db),
     it collapsed.
     """
     return schedule_lastplanner.reliability(db, pid)
+
+
+@router.get("/projects/{pid}/schedule/compare")
+def schedule_compare_endpoint(pid: str, baseline_id: str | None = None, match: str = "id",
+                              db: Session = Depends(get_db),
+                              _: str = Depends(require_role("viewer"))):
+    """R45-SCHED-REACH -- diff the live schedule against a named baseline and attribute the slip.
+
+    Not variance. `/schedule/variance` answers "did this activity's dates move"; this re-schedules the
+    baseline through the CPM engine and answers **why the finish moved**, apportioning the move across
+    duration growth, added logic, lag growth, constraints, progress and levelling -- with the
+    contributions summing to the finish move exactly, because a delay analysis whose parts do not sum
+    to the whole is an opinion with numbers attached.
+
+    **A baseline captured before v0.3.961 is refused** with `available: false`. Those snapshots hold
+    dates but no logic, and rebuilding one produces a fully-parallel plan that finishes on day one --
+    which diffs into a large, confidently-attributed delay caused by logic nobody removed. Variance
+    against those baselines is unaffected; capture a new baseline for an attribution.
+    """
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_compare.compare(acts, pid, baseline_id=baseline_id, match=match)
 
 
 @router.post("/projects/{pid}/schedule/optioneer")

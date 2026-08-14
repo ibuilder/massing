@@ -150,7 +150,13 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
     for (const b of list) {
       const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center;margin:2px 0";
       const link = document.createElement("a"); link.href = "#";
-      link.innerHTML = `<b>${esc(b.name)}</b> <span style="opacity:.6">${esc(b.captured_at)} · ${b.count} acts</span>`;
+      // `has_logic === false` marks a baseline captured before v0.3.961: dates but no predecessors,
+      // so delay attribution refuses it. Said here rather than left to the refusal, because the
+      // remedy is "capture a new one" and that is a thing to know BEFORE picking a baseline.
+      const noLogic = b.has_logic === false
+        ? ` · <span style="opacity:.6" title="captured before logic was frozen into baselines — `
+          + `variance works, delay attribution needs a newer one">dates only</span>` : "";
+      link.innerHTML = `<b>${esc(b.name)}</b> <span style="opacity:.6">${esc(b.captured_at)} · ${b.count} acts</span>${noLogic}`;
       link.onclick = async (e) => {
         e.preventDefault();
         try { const v = await ctx.host.api.baselineVariance(pid, b.id); const s = v.summary;

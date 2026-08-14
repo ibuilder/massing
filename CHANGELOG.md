@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.961 (2026-08-14) — delay attribution, and the blocker that was one field
+
+`GET /projects/{pid}/schedule/compare` — the live schedule diffed against a named baseline, with the
+finish move **apportioned** across duration growth, added logic, lag, constraints, progress and
+levelling. Not variance: `/schedule/variance` answers "did this activity's dates move"; this
+re-schedules the baseline through the CPM engine and answers *why the finish moved*. The
+contributions sum to the move exactly, because a delay analysis whose parts do not sum to the whole is
+an opinion with numbers attached.
+
+`compare` was the last of the 21 vendored modules and the one the roadmap recorded as **blocked on a
+decision**: a captured baseline held two dates and a budget, so there was no network to re-schedule,
+and adding one "changes what every existing stored baseline means". That is what a **schema version**
+exists to avoid. Baselines now freeze durations, predecessors, calendar and constraints under
+`schema: 2`; a v1 baseline keeps meaning exactly what it meant, and variance against it is untouched.
+
+**A v1 baseline is refused for attribution, and the refusal is the load-bearing part.** A v1 snapshot
+and a v2 snapshot of a schedule that genuinely has no relationships are indistinguishable from the
+data. Rebuilt as a network, a v1 one comes back as 1-day tasks with no predecessors — a fully-parallel
+plan finishing on day one — which diffs into a large, confidently-attributed delay caused by logic
+nobody removed. The test forces one through and measures it: **53 days against a true 14**, named
+activities and all. So it refuses, with a sentence saying to capture a new baseline.
+
+Progress is deliberately **not** frozen into a baseline. A baseline that already knows how the job
+went under-reports every later slip by exactly the progress recorded the day it was captured.
+
+**A finding in the vendored engine, surfaced rather than patched:** its per-activity contributions are
+in *working* days while its finish-move total is in *calendar* days. The sum invariant still holds —
+but only because an `UNEXPLAINED` bucket absorbs the difference, and "unexplained" reads to a planner
+as a cause nobody has found yet. On a ten-working-day growth it is four days of weekend, every time.
+The response now carries `finish_move_working_days` and `calendar_vs_working_gap_days`, and the panel
+says so in words. Not fixed in `massingplan/core/` — that is a re-synced vendor drop.
+
+**All 21 vendored modules are now reachable**, and the allowlist that tracked them is empty for the
+first time. Its vacuity twin was rewritten in the same change: the old one could never fail once the
+list emptied, and a check whose failing branch is unreachable is not a check. It now asserts the
+closure is *derived* — drop one entry point, and a real closure comes back strictly smaller.
+
 ## v0.3.960 (2026-08-14) — Last Planner reliability, and three PPCs that disagree
 
 `GET /projects/{pid}/schedule/reliability` — PPC by week with the variance reasons, plus a client
