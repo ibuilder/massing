@@ -129,7 +129,7 @@ export async function renderBudget(ctx: PanelContext) {
         + `<div class="meta" style="margin-top:4px">${esc(e.note)}</div>`);
     } catch (err) { fillEst(`<div class="meta">CBS unavailable: ${(err as Error).message}</div>`); }
   };
-  const flBtn = document.createElement("button"); flBtn.className = "tool-btn"; flBtn.textContent = "🏢 QTO by floor";
+  const flBtn = document.createElement("button"); flBtn.className = "tool-btn"; flBtn.textContent = "🏢 QTO by storey";
   flBtn.title = "Quantity + cost by storey and discipline — quantities mapped to where they are";
   flBtn.onclick = async () => {
     fillEst(`<div class="meta">Taking off by floor…</div>`);

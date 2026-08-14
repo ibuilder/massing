@@ -4,6 +4,32 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.945 (2026-08-14) — R24-TERMS: a building storey is called a storey
+
+Diagnosis #17 of the R24 audit is "three vocabularies collide". Measured before touching anything,
+and the clearest instance was **a single control disagreeing with itself**: in `budget.ts` the button
+read *"QTO by floor"*, its own tooltip two lines below read *"by storey"*, and its own table header
+read *"Storey"*. One feature, three lines, two words for one thing.
+
+**This is a consistency fix, not a naming decision** — which is the only reason it was safe to make
+without asking. `storey` is already canonical everywhere that carries meaning: the API returns a
+`storey` field per element, QUERY-DSL filters on `storey=L3`, and both rendered table headers say
+Storey. Three chrome strings were the outliers. Choosing a *new* canonical term would have been the
+user's call; the sibling question ROOM-NAMING was settled with them, and this one deliberately did not
+follow that path because nothing needed settling.
+
+`apps/web/src/shell/storeyVocabulary.test.ts` holds it, and **the exceptions matter more than the
+rule**: only phrasings meaning "per building storey" are refused. *Gross floor area* is the standard
+term and `operations.ts` uses it correctly for EUI; *floor plan* is what the drawing is called. A
+blanket ban on the word would have been a worse error than the inconsistency it replaced, and would
+have flagged two correct strings — so the twin asserts those stay legal.
+
+**The test immediately found something the hand-scan missed.** After fixing the two strings I had
+grepped for, it failed on a third — `"Rooms per floor"` in the viewer's add-rooms prompt. My
+verification grep checked *by floor* and *each floor* but not *per floor*, which my own rule bans.
+The gate was stricter than the search that produced it, which is the entire argument for writing the
+rule as a test rather than fixing the instances you happen to see.
+
 ## v0.3.944 (2026-08-14) — R43-PLAN-DRIFT closed: the cadence, and why it does not fail a build
 
 The remaining half needed a decision rather than code: **how often to ask whether upstream has

@@ -2005,13 +2005,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       // Author a room/space schedule — IfcSpace rooms gridded over each floor's footprint (add_spaces).
       // Rooms are core BIM (drive the space schedule, COBie, gbXML, area take-offs) and had no UI.
       const addRooms = toolBtn2("➕ Add rooms / spaces", async () => {
-        const nS = await askText("Add rooms", { label: "Rooms per floor", value: "4" }); if (!nS) return;
+        const nS = await askText("Add rooms", { label: "Rooms per storey", value: "4" }); if (!nS) return;
         const hS = await askText("Add rooms", { label: "Ceiling height (metres)", value: "3.0" });
         const rooms = Math.max(1, Math.round(Number(nS) || 4));
         const ch = Number(hS); await authorAndReload("add_spaces",
           { rooms_per_storey: rooms, ceiling_height: Number.isFinite(ch) && ch > 0 ? ch : 3.0 }, `${rooms} rooms/floor`);
       });
-      addRooms.title = "Author IfcSpace rooms gridded over each floor — the space schedule feeds COBie, gbXML, and area take-offs";
+      addRooms.title = "Author IfcSpace rooms gridded over each storey — the space schedule feeds COBie, gbXML, and area take-offs";
 
       // W9-6 generative fit-out: grid furniture into every space's footprint
       const furnish = toolBtn2("🪑 Furnish spaces", async () => {

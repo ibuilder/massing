@@ -1206,7 +1206,7 @@ is recorded. Filed under Decisions below.
 | 14 | empty states | R24-EMPTY-GUIDE | 🟡 `ui/empty.ts` is 24 lines, "no project" only |
 | 15 | charts have no grammar | *(none)* | ❌ dropped → `R24-CHARTS-GRAMMAR` |
 | 16 | Report Center is a list of nouns | *(none)* | ❌ dropped → `R24-REPORTS-BY-MOMENT` |
-| 17 | three vocabularies collide | R24-TERMS | ❌ open |
+| 17 | three vocabularies collide | R24-TERMS | 🟡 **storey/floor settled v0.3.945** — `storey` was already canonical in the API, QUERY-DSL and both table headers; three chrome strings disagreed, one of them with its own tooltip. Gated by `apps/web/src/shell/storeyVocabulary.test.ts`, which permits *gross floor area* and *floor plan*. The element/component and estimate/budget/cost pairs are NOT settled and are a user decision, not a cleanup |
 | 18 | site promises a lifecycle, app opens on a shell | *(none)* | 🟡 R26-VITALS (v0.3.773) is arguably a **better** answer than the audit's lifecycle strip — treat as closed |
 
 **External corroboration** (13-platform UI scan, 2026-07-29). One major construction-management
