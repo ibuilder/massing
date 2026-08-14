@@ -173,6 +173,34 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
   }));
   pc.appendChild(pOut); wrap.appendChild(pc);
 
+  // ── Monte Carlo ──────────────────────────────────────────────────────────────────────────────
+  const mc = card("Monte Carlo — how likely is the programme date?",
+    "Runs the real network, so it honours relation types, lags and work calendars. Confidence is the "
+    + "share of runs that met the CPM date; sensitivity says whether an activity's duration actually "
+    + "moves the finish, not just how often it sits on the critical path.");
+  const mOut = document.createElement("div");
+  mc.appendChild(runner(mOut, "▶ Simulate", async () => {
+    const r = await api.scheduleMonteCarlo(pid, { iterations: 2000 });
+    render(mOut, r, r.available ? [
+      { label: "P50", value: r.p50 ?? "—" },
+      { label: "P80", value: r.p80 ?? "—", hint: "80% of runs finished by here" },
+      { label: "confidence in CPM date",
+        value: r.confidence_in_deterministic === null ? "—"
+          : `${Math.round(r.confidence_in_deterministic * 100)}%`,
+        hint: r.deterministic_finish ?? "" },
+      { label: "iterations", value: `${r.iterations}`, hint: r.distribution ?? "" },
+    ] : []);
+    if (r.available && r.most_critical.length) {
+      const t = document.createElement("div");
+      t.className = "meta"; t.style.marginTop = "4px";
+      t.textContent = "drives the finish: " + r.most_critical.slice(0, 3)
+        .map((a) => `${a.name || a.id} (${Math.round(a.criticality_index * 100)}% critical, `
+                  + `sensitivity ${a.duration_sensitivity.toFixed(2)})`).join(" · ");
+      mOut.appendChild(t);
+    }
+  }));
+  mc.appendChild(mOut); wrap.appendChild(mc);
+
   // ── Levelling ────────────────────────────────────────────────────────────────────────────────
   const lc = card("Resource levelling",
     "Deterministic: the same input always gives the same answer, so a planner can follow the "

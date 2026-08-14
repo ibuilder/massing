@@ -30,8 +30,16 @@ def check(name: str, ok: bool, note: str = "") -> None:
 
 
 def act(id_: str, days: int, preds: str = "", **data: object) -> dict:
+    """`duration`, NOT `duration_days`.
+
+    `schedule_engine._duration_days` reads `data["duration"]` and falls back to `finish - start`,
+    then to **1**. This fixture said `duration_days` for its first several releases, so every activity
+    arrived as a 1-day task and the CPLI check reported a *3-day* critical path for 5+10+15 days of
+    work. Nothing failed — the assertions are about structure — but the suite was exercising a
+    schedule nobody had described. `test_duration_is_actually_read` below is the guard.
+    """
     return {"id": id_, "ref": id_.upper(), "title": f"Activity {id_}",
-            "data": {"duration_days": days, "predecessors": preds, **data}}
+            "data": {"duration": days, "predecessors": preds, **data}}
 
 
 #: A well-formed chain: every activity linked, FS, no lags, no constraints.
@@ -42,8 +50,19 @@ DANGLING = [act("a", 5), act("b", 10), act("c", 15)]
 
 
 def main() -> int:
-    # --- the reachability this item exists for -------------------------------------------------
+    # --- the guard the fixture needed and did not have -------------------------------------------
+    #
+    # `schedule_engine._duration_days` reads `data["duration"]`; anything else falls through to a
+    # 1-day default. This fixture said `duration_days` for several releases and every assertion below
+    # still passed, because they are about structure. A suite exercising a schedule nobody described
+    # is worse than a missing one: it reports coverage it does not have.
     r = health(CLEAN)
+    cpli = next(c for c in r["checks"] if c["number"] == 13)
+    check("the fixture's durations are actually read — not silently defaulted to 1 day",
+          "30-day" in cpli["detail"],
+          f"{cpli['detail'][:52]} (5+10+15; a 3-day path means the key was wrong)")
+
+    # --- the reachability this item exists for -------------------------------------------------
     check("a real schedule reaches the vendored engine and comes back assessed",
           r["available"] and r["assessed"] > 0,
           f"grade {r['grade']}, {r['assessed']} assessed / {r['skipped']} skipped")

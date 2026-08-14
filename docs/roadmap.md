@@ -188,7 +188,7 @@ unreachable — no direct import, and nothing reachable imports them either.
 | ~~`resources`~~ | 254 | ✅ *(via `schedule_levelling`)* | **reachable v0.3.954** — `levelling` imports it |
 | ~~`takt`~~ | 444 | ⚠ `aec_api/takt.py` **163** | **SHIPPED v0.3.953** as `schedule_takt.py` — and they are *different methods*, see the decision below |
 | `lastplanner` | 436 | `aec_api/pull_plan.py` **248** | overlapping |
-| `risk` | 303 | `aec_api/schedule_risk.py` **195** | overlapping |
+| ~~`risk`~~ | 303 | ⚠ `aec_api/schedule_risk.py` **195** | **SHIPPED v0.3.959** — and the two disagree by 38 days; see below |
 | `progress` | 214 | `aec_api/progress_rollup.py` **134** | overlapping |
 
 **The split matters more than the total — and this table was wrong three times before it was right.**
@@ -252,6 +252,23 @@ actually won and which we have nothing for.
 
 Wiring it needs one user-facing decision first — which identity key is the default — so it is **not**
 a drop-in adapter like `health` was.
+
+**⚠ `/schedule/risk` and `/schedule/montecarlo` disagree by 38 days on a 100-working-day chain, and
+the older one is the optimistic answer.** `schedule_risk._network` is FS-only, lag-free and
+**calendar-free** — checked, not assumed: the module contains zero occurrences of "calendar" — and it
+turns a duration into a date with `start + timedelta(days=round(days))`, i.e. *calendar* days. The CPM
+beside it reports *working*-day dates. Measured on the test fixture: ours `2026-06-22`, the vendored
+engine `2026-07-30`.
+
+A P80 that counts Saturdays is not a conservative estimate, it is a different question's answer, and
+both numbers currently render in the same portal. **Retiring `/schedule/risk` is a user-facing removal
+and therefore your call**, the same as the `takt.py` naming decision — the replacement is shipped and
+carries our PPC calibration forward, so nothing is lost by retiring it.
+
+The vendored engine also reports two things ours cannot: `confidence_in_deterministic` (on that
+fixture, the programme date had a **9%** chance) and `duration_sensitivity` per activity — whether an
+activity's duration actually *moves* the finish, as opposed to merely sitting on the critical path
+often.
 
 **The `progress` row was the fifth wrong classification, and the only one caught before acting.**
 `progress_rollup.py` measures **the building** — percent complete from as-built element presence,

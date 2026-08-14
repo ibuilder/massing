@@ -4,6 +4,53 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.959 (2026-08-14) — Monte Carlo on the real network, and two engines 38 days apart
+
+`GET /projects/{pid}/schedule/montecarlo` — schedule risk simulated over the same `Task`/`Link`
+network the CPM uses, with a client method and a card in the Schedule panel.
+
+This is the ring's **one true overlap**: `aec_api/schedule_risk.py` also runs a Monte Carlo. So it
+followed the rule the ring settled on — *keep what is ours and distinctive, take their engine*. Ours
+calibrates the pessimistic tail from the team's Last Planner PPC, and the vendored engine exposes
+`default_estimates(tasks, optimistic_factor, pessimistic_factor)`, which is exactly the seam that
+calibration belongs in. Our input, their arithmetic.
+
+**And the swap exposed a live wrong number.** `schedule_risk._network` is FS-only, lag-free and
+calendar-free — checked rather than assumed, the module contains zero occurrences of "calendar" — and
+it converts a duration to a date with `start + timedelta(days=round(days))`: *calendar* days. The CPM
+beside it reports *working*-day dates. On the test fixture, a five-link chain of 20-day activities:
+
+```
+ours     P80  2026-06-22   (calendar days)
+vendored P80  2026-07-30   (working days on a real calendar)
+                38 days apart
+```
+
+Ours is the optimistic one. A P80 that counts Saturdays is not conservative, it is a different
+question's answer — and both currently render in the same portal. Retiring `/schedule/risk` is a
+user-facing removal and is filed as a decision rather than done unasked.
+
+Two things the vendored engine reports that ours cannot: **`confidence_in_deterministic`** — on that
+fixture the programme date had a **9% chance** — and **`duration_sensitivity`** per activity, the
+correlation between an activity's sampled duration and the finish. Criticality says how *often* an
+activity sat on the critical path; sensitivity says whether its duration actually *moves* the date.
+
+### The fixtures were measuring a schedule nobody described
+
+Chasing why every percentile came back identical turned up something worse than the bug:
+`schedule_engine._duration_days` reads `data["duration"]`, and **four of this ring's test fixtures said
+`duration_days`** — a key nothing reads, so every activity fell through to a 1-day default. The tell
+was in plain sight and I had not chased it: `test_schedule_health` reported *"CPLI of 1.000 on a 3-day
+critical path"* for activities of 5, 10 and 15 days.
+
+Nothing failed, because those assertions are about structure. `test_schedule_locations` and
+`test_schedule_takt` were unaffected — their adapters read the record directly and accept both keys —
+so the genuinely weakened pair were `health` and `progress`, now fixed and each carrying a guard that
+asserts the durations arrived: the health suite now requires a **30-day** critical path, and progress
+requires the 3-day slip that only a real 5-day task can produce.
+
+19 of 21 vendored modules reachable; 2 remain.
+
 ## v0.3.958 (2026-08-14) — R45: schedule progress against a baseline, and a fifth misclassification
 
 `GET /projects/{pid}/schedule/progress-report` — BEI, finish variance and slippage of the schedule

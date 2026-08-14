@@ -305,6 +305,32 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     }>(`/projects/${pid}/schedule/progress-report${q}`);
   }
 
+  /**
+   * R45-SCHED-DEDUPE — Monte Carlo schedule risk on the **real** network.
+   *
+   * Distinct from `scheduleRisk`, which simulates an FS-only, calendar-free graph and converts
+   * durations with plain calendar arithmetic. On a 100-working-day chain the two sit ~5 weeks apart,
+   * and this is the one that does not count Saturdays. `confidence_in_deterministic` answers "how
+   * likely is the programme date, really?"; `duration_sensitivity` says whether an activity's duration
+   * actually moves the finish rather than merely sitting on the critical path often.
+   */
+  scheduleMonteCarlo(pid: string, opts: { iterations?: number; ppcPct?: number;
+                                          distribution?: "pert" | "triangular" } = {}) {
+    const q = new URLSearchParams();
+    if (opts.iterations) q.set("iterations", String(opts.iterations));
+    if (opts.ppcPct !== undefined) q.set("ppc_pct", String(opts.ppcPct));
+    if (opts.distribution) q.set("distribution", opts.distribution);
+    const qs = q.toString();
+    return this.json<{
+      available: boolean; reason?: string; iterations: number | null; distribution: string | null;
+      seed: number | null; ppc_pct: number | null; pessimistic_factor: number | null;
+      deterministic_finish: string | null; confidence_in_deterministic: number | null;
+      p10: string | null; p50: string | null; p80: string | null; p90: string | null;
+      most_critical: { id: string; name: string; criticality_index: number;
+                       mean_duration: number; duration_sensitivity: number }[];
+    }>(`/projects/${pid}/schedule/montecarlo${qs ? `?${qs}` : ""}`);
+  }
+
   /** EST-1: upsert QTO-driven crew-day durations as EST schedule activities (one per trade, FS chain). */
   scheduleFromEstimate(pid: string, body: { loading?: string; rate?: number; crews?: number } = {}) {
     return this.json<{ written: { ref: string; trade: string; crew_days: number; duration_days: number;

@@ -14,6 +14,7 @@ from .. import (
     schedule_levelling,
     schedule_locations,
     schedule_progress,
+    schedule_risk_mc,
     schedule_takt,
     schedule_viz,
     storage,
@@ -217,6 +218,31 @@ def schedule_progress_endpoint(pid: str, baseline_id: str | None = None,
     """
     acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
     return schedule_progress.progress(acts, pid, baseline_id=baseline_id)
+
+
+@router.get("/projects/{pid}/schedule/montecarlo")
+def schedule_montecarlo_endpoint(pid: str, iterations: int = 2000, ppc_pct: float | None = None,
+                                 distribution: str = "pert", seed: int | None = 12345,
+                                 db: Session = Depends(get_db),
+                                 _: str = Depends(require_role("viewer"))):
+    """R45-SCHED-DEDUPE -- Monte Carlo schedule risk on the **real** network.
+
+    Distinct from `/schedule/risk`, which simulates its own FS-only, calendar-free graph and converts
+    durations to dates with plain calendar arithmetic. This runs the same `Task`/`Link` network the CPM
+    uses, so it honours every relation type, lag and work calendar -- on a 100-working-day chain the
+    two answers sit about five weeks apart, and this is the one that does not count Saturdays.
+
+    Reports two things the older endpoint cannot: `confidence_in_deterministic` (the share of runs that
+    met the programme date -- the direct answer to "how likely is this date, really?") and
+    `duration_sensitivity` per activity (whether an activity's duration actually *moves* the finish,
+    as opposed to merely sitting on the critical path often).
+
+    `ppc_pct` carries the team's Last Planner reliability through to the pessimistic tail: below 80%
+    widens it, above narrows it. Explicit per-activity estimates are never overridden by it.
+    """
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_risk_mc.risk(acts, iterations=iterations, ppc_pct=ppc_pct,
+                                 distribution=distribution, seed=seed)
 
 
 @router.post("/projects/{pid}/schedule/optioneer")

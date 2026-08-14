@@ -41,10 +41,10 @@ BASE = {
 #: `a` finished five days late; `b` was due to start on the 9th and never did.
 ACTS = [
     {"id": "a", "ref": "A10", "title": "Mobilise",
-     "data": {"duration_days": 5, "start": "2026-03-02",
+     "data": {"duration": 5, "start": "2026-03-02",
               "actual_start": "2026-03-02", "actual_finish": "2026-03-11"}},
     {"id": "b", "ref": "A20", "title": "Excavate",
-     "data": {"duration_days": 10, "predecessors": "a", "start": "2026-03-09"}},
+     "data": {"duration": 10, "predecessors": "a", "start": "2026-03-09"}},
 ]
 DD = date(2026, 3, 25)
 
@@ -56,6 +56,13 @@ def main() -> int:
         check("a project with a baseline reaches the engine",
               r["available"] and r["activity_count"] == 2,
               f"BEI {r['baseline_execution_index']}, {r['behind']} behind")
+
+        # Same guard as test_schedule_health: `duration_days` is not the key schedule_engine reads,
+        # and a fixture that silently defaults to 1-day tasks measures a schedule nobody described.
+        # `a` is a 5-day task finishing 3 working days late; a defaulted fixture cannot produce that.
+        check("the fixture's durations are actually read — not silently defaulted to 1 day",
+              r["worst_slippage_days"] == 3,
+              f"{r['worst_slippage_days']}d slip on a 5-day task with a 5-day baseline window")
 
         # The defect the first draft shipped: a dataclass under a key promising a number.
         try:
