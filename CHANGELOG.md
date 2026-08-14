@@ -4,6 +4,48 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.950 (2026-08-14) — R45-SCHED-REACH ①: DCMA 14-point, reachable at last
+
+`massingplan/core/health.py` has implemented the Defense Contract Management Agency's fourteen
+schedule-quality checks since the `d1e4bf16` sync — 634 lines of the closest thing the industry has to
+a shared definition of *"is this schedule trustworthy?"* — and **nothing in this application could
+call it.** Checked first, not assumed: no DCMA implementation existed anywhere outside the vendored
+tree, so this is pure gain rather than a second implementation.
+
+`aec_api/schedule_health.py` is the adapter, and it is thin on purpose. The dependency runs one way:
+we convert our records into engine types, never the reverse, because `massingplan.core` is stdlib-only
+*by contract*. That contract is the same one whose other half — hardening untrusted XML at the
+application layer — was quietly deleted in the very sync that shipped this module. It only works if
+both sides keep it.
+
+**Most of the adapter is deciding what a score is allowed to claim.** Three states, and neither of the
+first two is a grade of F:
+
+- **No activities** → unavailable. An unplanned project is not a failing one, and returning `F` for
+  one produces a number that reads as a finding.
+- **A cyclic network** → unavailable, with the cycle. No dates were computed, so every check would be
+  scoring absent data; grading it would be grading a crash.
+- **Assessed** → the engine's report verbatim.
+
+`grade` and `score` come back `None` in the first two, never `"F"` and `0` — a zero meaning "we did
+not measure" is indistinguishable from a zero meaning "this is terrible", and only one of those should
+ruin somebody's afternoon.
+
+The engine's own honesty rule is asserted rather than trusted: skipped checks are excluded from the
+denominator, so a clean schedule scores **100 over 10 runnable checks, not 71 over 14**. The four
+skipped (9, 10, 11, 14) need baselines, actuals or resources; those arguments stay optional, because
+passing empty stand-ins to make the checks "run" would convert an honest gap into a passed check.
+
+The test carries the twin that matters — a schedule with dangling logic must come back **failing**, or
+every other assertion is satisfied by an adapter that returns a canned grade A. It also asserts the
+optional arguments are wired rather than accepted-and-dropped, by watching checks 10 and 14 move from
+*skipped* to *run*.
+
+**The v0.3.949 ratchet earned its keep on its first real use.** Wiring `health` made
+`test_vendor_reachable` fail — *"these are now reachable, delete them from UNREACHED: health"* — which
+is exactly the direction most allowlists never check. 13 of 21 vendored modules now reachable; 8
+(3,270 lines) remain, filed as R45.
+
 ## v0.3.949 (2026-08-14) — the vendored engine re-synced, the guard it removed restored, and the check that missed both
 
 ### The sync, and the regression it carried

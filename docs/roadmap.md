@@ -181,7 +181,7 @@ unreachable — no direct import, and nothing reachable imports them either.
 
 | Vendored module | Lines | Our counterpart | The real question |
 |---|---|---|---|
-| `health` | 634 | *(none)* | pure gain — schedule-quality scoring we do not have |
+| ~~`health`~~ | 634 | ✅ `aec_api/schedule_health.py` | **WIRED v0.3.950** — DCMA 14-point |
 | `compare` | 555 | *(none)* | pure gain — baseline/revision diff |
 | `levelling` | 587 | *(none)* | pure gain — resource levelling |
 | `locations` | 477 | *(none)* | pure gain — location-based (LBMS) scheduling |
@@ -199,8 +199,24 @@ before. `takt` is the sharpest case: both define `plan()`. Theirs also has `crew
 network); ours has `takt_svg`, which theirs does not. **Ours is a renderer that grew an engine; the
 answer is to keep our renderer and delete our engine**, not to run both.
 
-- **R45-SCHED-REACH ①** *(M)* — adapters for the five with no counterpart: `health`, `compare`,
-  `levelling`, `locations`, `resources`. Each gets a thin `aec_api` adapter + route, following the
+- ◧ **R45-SCHED-REACH ①** *(M; `health` SHIPPED v0.3.950)* — adapters for the five with no
+  counterpart: ~~`health`~~, `compare`, `levelling`, `locations`, `resources`.
+
+  **`health` is done** — `services/api/src/aec_api/schedule_health.py` exposes the DCMA 14-point assessment
+  (no equivalent existed anywhere outside the vendored tree; checked before building, not assumed).
+  The adapter is thin by design and its whole content is the three states a score can be in:
+  **assessed**, **no activities**, and **a loop**. Neither of the last two is a grade of F — an
+  unplanned project is not a failing one, and a cyclic network has no computed dates for a check to
+  read, so grading it would be grading a crash. `grade` and `score` come back `None`, never `"F"`
+  and `0`.
+  The engine's own honesty rule is asserted rather than trusted: a skipped check is excluded from the
+  denominator, so a clean schedule scores **100 over 10 runnable checks, not 71 over 14**. The four
+  skipped ones (9, 10, 11, 14) need baselines, actuals or resources, and the adapter keeps those
+  arguments optional — passing empty stand-ins to make them "run" would convert an honest gap into a
+  passed check.
+  `services/api/test_schedule_health.py` includes the twin that matters: a schedule with dangling
+  logic must come back **failing**, or every other assertion is satisfied by an adapter returning a
+  canned grade A. Each gets a thin `aec_api` adapter + route, following the
   `schedule_cpm.py` pattern (adapter converts our model to theirs, never the reverse — the vendored
   `core` is stdlib-only *by contract* and must not learn about SQLAlchemy). Ship one at a time; each
   is independently valuable and `health` is the highest — a schedule-quality score is the thing a GC

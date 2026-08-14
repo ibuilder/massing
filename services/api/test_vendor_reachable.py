@@ -38,7 +38,8 @@ SRC = Path(__file__).resolve().parent / "src"
 CORE = SRC / "massingplan" / "core"
 APP = SRC / "aec_api"
 
-#: Vendored core modules with no path from the API, as of the `d1e4bf16` sync (2026-08-14).
+#: Vendored core modules with no path from the API. Nine at the `d1e4bf16` sync (2026-08-14);
+#: `health` left the list the same day when `aec_api/schedule_health.py` wired it (R45-SCHED-REACH ①).
 #:
 #: Filed as R45 in the roadmap. Five have no counterpart in `aec_api` and are pure additive value;
 #: four (`takt`, `lastplanner`, `risk`, `progress`) already have OUR implementation beside them, so
@@ -47,7 +48,6 @@ APP = SRC / "aec_api"
 #: entry saying why it is here.**
 UNREACHED = {
     "compare",
-    "health",
     "lastplanner",
     "levelling",
     "locations",
