@@ -1,0 +1,94 @@
+# R43-PLAN-DRIFT — has the vendored massingplan engine's upstream moved?
+#
+# Weekly, and it NOTIFIES rather than failing. Upstream moving is not a defect in this tree: a red
+# build caused by someone else's commit cannot be fixed by editing our code, and a red nobody can act
+# on teaches people that red means nothing. The companion check — did WE edit the vendored copy? —
+# does block, because that one is our defect, and it lives in `services/api/test_massingplan_vendor.py`
+# where it runs on every CI run offline.
+#
+# Weekly rather than daily or per-commit: the pin moves a few times a month, so a daily job is noise
+# and noise is how a notification stops being read.
+#
+# ONE issue, reopened and commented rather than a new issue each week. Fifty-two open issues saying
+# the same thing is not a signal either.
+name: Vendor drift (massingplan)
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"     # Mondays 06:17 UTC — off the hour, where scheduled-job congestion lives
+  workflow_dispatch: {}       # so it can be run on demand without waiting a week
+
+permissions:
+  contents: read
+  issues: write               # the whole point: it opens/updates an issue
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Ask upstream where it is
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd services/api
+          python vendor_drift.py --json | tee drift.json
+          echo "verdict=$(python -c "import json;print(json.load(open('drift.json'))['verdict'])")" >> "$GITHUB_OUTPUT"
+          echo "pinned=$(python -c "import json;print(json.load(open('drift.json'))['pinned'] or '-')")"   >> "$GITHUB_OUTPUT"
+          echo "upstream=$(python -c "import json;print(json.load(open('drift.json'))['upstream'] or '-')")" >> "$GITHUB_OUTPUT"
+          echo "detail=$(python -c "import json;print(json.load(open('drift.json'))['detail'])")"          >> "$GITHUB_OUTPUT"
+
+      # UNKNOWN is reported, not swallowed. A query that failed knows nothing about upstream, and a
+      # job that quietly stopped working would otherwise post good news every Monday forever.
+      - name: Open or update the drift issue
+        if: steps.check.outputs.verdict != 'clean'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERDICT: ${{ steps.check.outputs.verdict }}
+          PINNED: ${{ steps.check.outputs.pinned }}
+          UPSTREAM: ${{ steps.check.outputs.upstream }}
+          DETAIL: ${{ steps.check.outputs.detail }}
+        run: |
+          TITLE="Vendored massingplan: upstream drift check"
+          BODY=$(printf '%s\n' \
+            "**Verdict: \`$VERDICT\`** — $DETAIL" \
+            "" \
+            "| | |" \
+            "|---|---|" \
+            "| Pinned here | \`$PINNED\` |" \
+            "| Upstream head | \`$UPSTREAM\` |" \
+            "| Checked | $(date -u +%Y-%m-%dT%H:%MZ) |" \
+            "" \
+            "\`drifted\` means upstream has commits we have not taken. It is **not** a defect in this" \
+            "tree and nothing is broken — re-sync when the change is wanted, per the recipe in" \
+            "\`services/api/src/massingplan/VENDOR.md\`, and update the pin and content digest there." \
+            "" \
+            "\`unknown\` means the check could not reach upstream. That is reported rather than treated" \
+            "as clean on purpose: a job that has silently stopped working would otherwise post good" \
+            "news every week. Look at the run log before assuming the pin is fine." \
+            "" \
+            "_Posted by \`.github/workflows/vendor-drift.yml\`. This issue is reused, not duplicated._")
+          NUM=$(gh issue list --state all --search "$TITLE in:title" --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$NUM" ]; then
+            gh issue reopen "$NUM" 2>/dev/null || true
+            gh issue comment "$NUM" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY" --label "dependencies" 2>/dev/null \
+              || gh issue create --title "$TITLE" --body "$BODY"
+          fi
+
+      # Closing on clean is what keeps the issue meaningful: an issue that is only ever opened
+      # becomes permanent furniture and stops being read.
+      - name: Close the issue when the pin is current again
+        if: steps.check.outputs.verdict == 'clean'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NUM=$(gh issue list --state open --search "Vendored massingplan: upstream drift check in:title" \
+                  --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$NUM" ]; then
+            gh issue comment "$NUM" --body "Pin is current with upstream again — closing."
+            gh issue close "$NUM"
+          fi

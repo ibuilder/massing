@@ -789,7 +789,7 @@ the only item here with real scope.
   the api venv is **3.10.6**, where `from enum import StrEnum` raises. Their guard commit is the
   difference between a clear message and a baffling one on the first local run.
 
-- ◧ **R43-PLAN-DRIFT** *(S — Lane C; the local half SHIPPED v0.3.943, cadence still open)* —
+- ✅ **R43-PLAN-DRIFT** *(S — Lane C; local half v0.3.943, cadence DECIDED + shipped v0.3.944)* —
   **pin cadence for the vendored massingplan engine.** What does not exist is a way to notice when
   the pin stops being correct. The decision outstanding is cadence, not correctness.
 
@@ -798,7 +798,20 @@ the only item here with real scope.
   `155640a7`, 2026-08-10"*. A pin copied into prose drifted from the pin in the tree, and nothing
   noticed. Corrected 2026-08-13.
 
-  **The half that was never blocked is now a test.** *Has upstream moved?* needs a cadence, a network
+  **CADENCE DECIDED v0.3.944: weekly, non-blocking, one reused issue.**
+  `.github/workflows/vendor-drift.yml` runs `services/api/vendor_drift.py` on a Monday schedule and
+  opens/updates a single issue; it never fails a build, because upstream moving is not a defect in
+  this tree and a red nobody can fix by editing our code teaches people to ignore red. Weekly rather
+  than daily because the pin moves a few times a month and noise is how a notification stops being
+  read. The issue is **closed again** when the pin catches up, so it does not become furniture.
+
+  **UNKNOWN is a first-class verdict.** A failed upstream query reports "could not tell", never "no
+  drift" — otherwise a job that has silently stopped working posts good news every Monday forever.
+  `services/api/test_vendor_drift.py` proves all three verdicts are reachable and that the exit code
+  stays 0 when drifted. `read_pin` is single-sourced in `vendor_drift.py` and imported by the local
+  gate, so the two checks cannot disagree about which commit VENDOR.md names.
+
+  **The half that was never blocked is a test.** *Has upstream moved?* needs a cadence, a network
   and a decision. *Has anyone edited the copy HERE?* needs none of those — only the recipe VENDOR.md
   already writes down. `services/api/test_massingplan_vendor.py` executes that recipe, comparing
   against the digest **parsed from VENDOR.md** rather than a second copy in the test, so a re-sync

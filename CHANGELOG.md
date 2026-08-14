@@ -4,6 +4,45 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.944 (2026-08-14) — R43-PLAN-DRIFT closed: the cadence, and why it does not fail a build
+
+The remaining half needed a decision rather than code: **how often to ask whether upstream has
+moved.** The answer is **weekly, non-blocking, into a single reused issue** — and the reasoning is
+the deliverable, because each part of it is easy to get wrong in a way that looks like rigour.
+
+**It notifies, it does not block.** Upstream moving is not a defect in this tree. A red build caused
+by someone else's commit cannot be fixed by editing our code, and a red nobody can act on is the
+fastest way to teach a team that red means nothing. The companion check — *did we edit the vendored
+copy?* — **does** block, because that one is our defect, and it runs offline on every CI run.
+`test_vendor_drift.py` asserts the exit code stays 0 even when drifted, because "make it fail the
+build" is the obvious-looking hardening and it is wrong here.
+
+**Weekly, not daily.** The pin moves a few times a month. A daily job is noise, and noise is how a
+notification stops being read.
+
+**One issue, reopened and commented — and closed again when the pin catches up.** Fifty-two issues
+saying the same thing is not a signal; neither is an issue that is only ever opened, which becomes
+permanent furniture.
+
+### UNKNOWN is a first-class verdict, and that is the point
+
+If the upstream query fails — offline, rate-limited, a renamed branch, a token without access — the
+honest answer is **"could not tell"**, never "no drift". A two-valued verdict cannot express that,
+so `check_drift` returns three values and the workflow renders UNKNOWN as loudly as DRIFTED.
+Collapsing them is how a job that has quietly stopped working posts good news every Monday forever —
+the failure this repo has met more often than any other, under a different name each time.
+
+`test_vendor_drift.py` proves all three verdicts are reachable (a vacuity guard: every individual
+assertion would still pass on a function that could only answer one thing), that a failed query
+reports UNKNOWN with its reason attached, and that a short pin like the historical `155640a7` is
+refused rather than truncated into an answer.
+
+### One parse, two callers
+
+`read_pin` / `read_digest` live in `vendor_drift.py` and `test_massingplan_vendor.py` now imports
+them instead of carrying its own regex. Two independent parses of the same table could disagree about
+which commit VENDOR.md names, and **neither would notice**, because each would be self-consistent.
+
 ## v0.3.943 (2026-08-13) — a vendored copy that can prove it was not edited
 
 ### R43-PLAN-DRIFT — the half that was never blocked
