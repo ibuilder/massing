@@ -317,12 +317,31 @@ instances:
   the files that batch was already fighting over.
 
 
-- **R43-VIEWER-CONFORMANCE** *(S — Lane E; MassingViewer issue #512)* — **run their conformance
-  suite against our live API.** Their `kernel-remote` score is 0.0.0 and has only ever passed against
-  a stub its own author wrote, so it is a green check with no subject. Needs :8093 up with a real
-  project; report the RAW `remote` column **including refusals**, because a suite that skips what it
-  cannot reach reports the same number as one that passes. This is the last thing blocking the
-  MassingViewer adoption, and it is blocked on us, not on them.
+- ◧ **R43-VIEWER-CONFORMANCE** *(S — Lane E; MassingViewer issue #512; **RUN 2026-08-13**, full
+  result in [`docs/internal/viewer-conformance-2026-08-13.md`](internal/viewer-conformance-2026-08-13.md))*
+  — **run their conformance suite against our live API.**
+
+  **Done: :8093 up, real project, real model.** `samples/school_str.ifc` (8.6 MB) uploaded, converted
+  to `frag`, **500 elements queryable**. `/health` checked before use, because a stale server also
+  answers 200.
+
+  **1 of the 7 endpoints `RemoteKernel` calls works as-is.** Two are absent (`spatial-tree`,
+  `elements/properties`); three differ by path or scoping (`export.ifc` sits under `/model/`, `jobs`
+  is project-scoped not global, `geometry` is a rules runner); one — `/edit` — exists and takes
+  `recipe` where the kernel sends `{op, params}`. That last is the only item with real design content,
+  because `recipe` is our GUID-stable edit vocabulary. **Narrow and mechanical, not architectural.**
+
+  **This entry was unfair to them and the correction is worth keeping.** It said their suite "has only
+  ever passed against a stub its own author wrote, so it is a green check with no subject." Their file
+  says in its own header that it runs against cassettes and proves the adapter satisfies *the protocol
+  as documented, not that massing's service speaks it* — and their `docs/kernels/authoring.md` records
+  the live run as outstanding. It is a correctly-scoped test that names its own gap; the missing half
+  was ours, and it is now supplied.
+
+  **One refusal read as a match and was not.** `elements/properties` answered `404 "element not
+  found"` — a domain message, which normally means a route matched and rejected the input. There is no
+  such route: `/elements/{guid}` matched with `guid="properties"`. Resolved against the OpenAPI table
+  rather than the status line, because probing alone gets this one wrong.
 
 ### Band 3 — gap-checks (hours, not days; each may close for free)
 
