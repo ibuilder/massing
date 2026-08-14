@@ -4,6 +4,48 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.947 (2026-08-14) — R24-RUNS-INBOX phase 1, and the shell budget that caught v0.3.946
+
+### The run history, and a premise that was half wrong
+
+The R24 audit's finding 05 is *"analyses are modals, so they have no history"*, and the roadmap
+recorded the state as **"no runs concept in the web app"**. That premise was half wrong, and the wrong
+half is the expensive one to assume: `models.py:Job` already stores every field a run needs — `params`
+(inputs), `actor` (who), `created_at`/`finished_at` (when), `result` (the artifact) — and
+`routers/jobs.py` has served them for a long time. There was never a missing table.
+
+So the item splits, and only the cheap half ships here. **History and comparison** is pure computation
+over data the server already returns: `apps/web/src/ui/runs.ts` groups runs by kind, newest first, and
+diffs each against the previous *comparable* run; `apps/web/src/ui/runsInbox.ts` renders it. Reachable
+from the job tray's footer and from ⌘K. **Routing clash, IDS, cost and energy through the queue** —
+the change that would actually give those four analyses rows here — is four call sites and their
+handlers, and it stays open.
+
+Two decisions the module exists to get right, both mutation-checked:
+
+- **A metric present in one run and absent in the other has a `null` delta, never zero.** Absence-as-zero
+  turns a detector that simply stopped reporting `count` into a confident, precise, entirely invented
+  −412 — worse than no number, because it reads as a finding.
+- **A failed run is never a baseline**, though it is still listed. A run with no result is not a run
+  whose every metric fell to zero, and using one as the comparison point fills the screen with `—` in
+  a way that looks like the analysis broke rather than one attempt.
+
+Because most projects have never queued anything, the empty state names *which half is missing* rather
+than implying the feature is broken.
+
+### The budget caught v0.3.946 on the public build
+
+v0.3.946 turned the Pages deploy red: the public shell measured **320.5 KB against a 320 KB budget**.
+Half a kilobyte, and the gate was right to stop it — that budget is derived, not observed. It has to
+stay consistent with `DEMO_MAX_BYTES` in `services/api/test_file_sizes.py`, because the two ratchet the
+same artefact from opposite ends and an inconsistent pair is unsatisfiable. Raising it to make room
+would have quietly broken that relationship.
+
+So the eager path was trimmed instead, which is what the failure message asks for. Four things that are
+only ever reached by a click now load on the click: the Report Center, the run history, the element
+card, and the toolbar's tool table (which loads with the viewer chunk, where it already belonged).
+Public shell **322.0 → 312.0 KB**, with 8 KB of headroom; the default build is 194.0 KB against 220.
+
 ## v0.3.946 (2026-08-14) — R24-CMDK-VERBS: two of the palette's six sections could not be filled
 
 `R24-CMDK-GROUPS` (v0.3.780) gave the command palette its sections, and `GROUP_ORDER` has named

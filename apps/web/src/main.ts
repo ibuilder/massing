@@ -15,16 +15,14 @@ import { maybeResumeTour, maybeRolePrompt, maybeWelcome, showWelcome, valueMomen
 import { mountChecklist, reopenChecklist } from "./ui/checklist";
 import { FieldCapture } from "./field/field";
 import { modalShell, confirmModal } from "./ui/modal";
-import { openReportCenter } from "./reportCenter";
 import { askText } from "./ui/prompt";
 import { buildMenu, closeMenus } from "./ui/menus";
 // R26-V-LIVE: the repeatable render audit. Lazy + dev-only — it attaches window.__liveAudit() and
 // nothing else; no app behaviour depends on it, and it stays out of the production bundle.
 if (import.meta.env.DEV) void import("./dev/liveAudit").then((m) => m.installLiveAudit());
 import { initCommandPalette, type Command } from "./ui/palette";
-import { askFallback, elementCommands, reportCommands, verbCommands } from "./ui/paletteProviders";
-import { mountElementCard, shortGuid } from "./ui/elementCard";
-import { TOOLS } from "./viewer/toolbarLayout";
+import { askFallback, elementCommands, reportCommands, verbCommands, type VerbSpec } from "./ui/paletteProviders";
+import { shortGuid } from "./ui/elementCard";
 import { buildAuthControl } from "./account/accountUI";
 import { icon } from "./ui/icons";
 import { jobLabel, mountJobTray } from "./ui/jobTray";
@@ -1825,7 +1823,7 @@ async function startup() {
     toolbar.insertBefore(conn, statusEl);
     const reports = document.createElement("button");
     reports.className = "tool-btn"; reports.style.marginLeft = "6px"; reports.textContent = "📊"; reports.title = "Report Center — exportable reports";
-    reports.onclick = () => void openReportCenter(api, projectId);
+    reports.onclick = () => openReports();
     toolbar.insertBefore(reports, statusEl);
     const gear = document.createElement("button");
     gear.className = "tool-btn"; gear.style.marginLeft = "6px"; gear.textContent = "⚙"; gear.title = "Settings";
@@ -1943,6 +1941,21 @@ function openModuleFromPalette(key: string) {
 // verbs were not in it at all. The providers are pure and live in `ui/paletteProviders.ts`; this is
 // where they meet the app. See that file for why verbs dispatch to the real toolbar button.
 
+/** Open the Report Center, loading it on demand — it is a modal, so the import can wait for a click. */
+const openReports = (focusId?: string): void => {
+  void import("./reportCenter").then((m) => m.openReportCenter(api, projectId, focusId));
+};
+
+/**
+ * The toolbar's tool table, loaded with the viewer chunk rather than the shell.
+ *
+ * `commands()` is synchronous, so this is memoised the same way the report catalog is: kick the
+ * import off at startup and read whatever has landed. Before it lands the Do section is short, which
+ * is the correct behaviour anyway — the toolbar buttons it dispatches to do not exist yet either.
+ */
+let _tools: VerbSpec[] = [];
+void import("./viewer/toolbarLayout").then((m) => { _tools = m.TOOLS; }).catch(() => { /* Do stays short */ });
+
 /** The server's report catalog, fetched once. Empty until it lands — the section simply has no rows. */
 let _reportCatalog: { id: string; name: string; group: string }[] = [];
 void api.reports().then((r) => { _reportCatalog = r.reports; }).catch(() => { /* section stays empty */ });
@@ -1961,7 +1974,9 @@ function _clickTool(title: string): void {
 function _openElementByGuid(guid: string): void {
   if (!projectId) { toast("Open a project first", "info"); return; }
   const pid = projectId;
-  showResult("Element " + shortGuid(guid), (body) => { void mountElementCard(body, api, pid, guid); });
+  showResult("Element " + shortGuid(guid), (body) => {
+    void import("./ui/elementCard").then((m) => m.mountElementCard(body, api, pid, guid));
+  });
 }
 
 function _openElementsOfClass(ifcClass: string): void {
@@ -1996,17 +2011,18 @@ const _palette = _embed ? null : initCommandPalette({
     // toggle while watching the model, and reaching them through an overlay that closes itself is a
     // worse interaction than the button already on screen.
     const installed = _installedTitles();
-    cmds.push(...verbCommands(TOOLS, {
+    cmds.push(...verbCommands(_tools, {
       groups: ["author", "measure", "analyse"],
       present: (t) => installed.has(t),
       run: _clickTool,
     }));
-    cmds.push(...reportCommands(_reportCatalog, (id) => void openReportCenter(api, projectId, id)));
+    cmds.push(...reportCommands(_reportCatalog, (id) => openReports(id)));
     cmds.push(
       { id: "act:new", label: "New project", hint: "Action", run: () => void newProject() },
       { id: "act:ifc", label: "Open IFC…", hint: "Action", run: () => openModelFile("ifc") },
       { id: "act:ref", label: "Open mesh / point cloud / GIS / reality capture…", hint: "Action", run: () => openModelFile("ref") },
-      { id: "act:reports", label: "Open Report Center", hint: "Action", run: () => void openReportCenter(api, projectId) },
+      { id: "act:reports", label: "Open Report Center", hint: "Action", run: () => openReports() },
+      { id: "act:runs", label: "Run history", hint: "Action", run: () => openRunsInbox() },
       { id: "act:save", label: "Save Project (.mmproj)", hint: "Action", run: () => saveProjectBundle() },
       { id: "act:help", label: "Keyboard shortcuts / help", hint: "Action", run: () => toast(SHORTCUTS + " · ⌘K palette", "info", 6000) },
     );
@@ -2057,7 +2073,29 @@ const _jobs = _embed ? null : mountJobTray({
   onSettled: (j) => notify(
     j.state === "error" ? `${jobLabel(j.kind)} failed — ${j.error ?? "no detail"}` : `${jobLabel(j.kind)} finished`,
     j.state === "error" ? "error" : "success"),
+  onHistory: () => openRunsInbox(),
 });
+
+// R24-RUNS-INBOX phase 1 — the tray answers "what is happening now"; this answers "what happened
+// before, and what changed". Pure computation over the jobs the queue already records, in
+// `ui/runs.ts`; the four analyses the audit named still run in the foreground and are not queued yet,
+// which the empty state says out loud rather than leaving the reader to wonder.
+function openRunsInbox(): void {
+  if (!projectId) { toast("Open a project first", "info"); return; }
+  const pid = projectId;
+  showResult("Run history", (body) => {
+    body.textContent = "Loading…";
+    // 200, not the tray's 25: this is a history, and the whole point is reaching back past what the
+    // tray shows. The server caps it well below anything that would hurt.
+    // Lazy: the history is a modal nobody opens on most sessions, and `ui/runs.ts` +
+    // `ui/runsInbox.ts` are dead weight in the shell until they do. The public Pages build measures
+    // the shell against a 320 KB budget derived from the demo corpus ceiling, and an eager import
+    // here spent 2 KB of it on a screen that had not been asked for.
+    void Promise.all([import("./ui/runsInbox"), api.jobs(pid, 200)])
+      .then(([mod, jobs]) => mod.renderRunsInbox(body, jobs, jobLabel))
+      .catch((e: Error) => { body.textContent = `Couldn't load run history: ${e.message}`; });
+  });
+}
 /** Call after enqueuing work so the badge appears immediately rather than at the next open. */
 export const refreshJobs = (): void => _jobs?.poke();
 

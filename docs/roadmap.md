@@ -1193,8 +1193,8 @@ is recorded. Filed under Decisions below.
 | 01 | catalog is the wrong front door | R24-SPINE | ✅ rooms are primary nav (`shell/roomTabs.ts`), default since v0.3.715 |
 | 02 | pillars are a mode switch | R24-SPINE | ✅ workspaces demoted to weighting, `shell/spine.ts` `WORKSPACE_ROOM` |
 | 03 | roles gate the UI invisibly | R24-ROLE-EXPLAIN | ✅ v0.3.685 |
-| 04 | long jobs, foreground UI | R24-JOB-TRAY | ❌ **and cheaper than logged** — see below |
-| 05 | analyses are modals → no history | R24-RUNS-INBOX | ❌ no runs concept in the web app |
+| 04 | long jobs, foreground UI | R24-JOB-TRAY | ✅ **shipped; this row was stale** — `apps/web/src/ui/jobTray.ts` is 373 lines, mounted at `apps/web/src/main.ts:2052`, 28 tests. The ❌ survived its own implementation |
+| 05 | analyses are modals → no history | R24-RUNS-INBOX | ◧ **v0.3.947** — history + run-over-run diff in `apps/web/src/ui/runs.ts` / `apps/web/src/ui/runsInbox.ts`. The premise "no runs concept" was **half wrong**: `Job` already stores params, actor, timestamps and result. Routing clash/IDS/cost/energy *through* the queue is the open half |
 | 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | 🟡 `apps/web/src/ui/lifecycleStrip.ts` + `inspectorTabs.ts` built; now **two** call sites — the viewer inspector and `apps/web/src/ui/elementCard.ts`, mounted from `apps/web/src/portal/panels/traceability.ts:75`. Four surfaces still unwired |
 | 07 | onboarding teaches the chrome | FIRST-RUN | 🟡 improved v0.3.777; still not the lot → building → deal chain |
 | 08 | persona picker only relabels | *(none)* | ⚠️ reversed on purpose — see Decisions |
@@ -1272,9 +1272,28 @@ refute one, so this goes first even though it is the least visible.
   like it walks to a GlobalId while actually asserting one. That is the fabrication shape this repo
   has spent a day naming, and it would have been shipped as the on-stage demo. Whoever picked up
   Sprint 2 would have started in the client and found nothing to render.
-- **R24-RUNS-INBOX** *(M)* — clash, IDS, cost and energy become durable Runs (inputs, timestamp,
-  author, artifact, **diff against the previous run**) with a per-project inbox. Most externally
-  validated item in the ring — see the corroboration note above.
+- ◧ **R24-RUNS-INBOX** *(M; history half v0.3.947)* — clash, IDS, cost and energy become durable Runs
+  (inputs, timestamp, author, artifact, **diff against the previous run**) with a per-project inbox.
+  Most externally validated item in the ring — see the corroboration note above.
+
+  **The recorded premise, "no runs concept in the web app", was half wrong — and the wrong half is
+  the expensive one to assume.** `models.py:Job` already stores every field a run needs: `params`
+  (inputs), `actor` (who), `created_at`/`finished_at` (when), `result` (the artifact), and
+  `routers/jobs.py` has served them for a long time. There was never a missing table, so the item
+  splits into a cheap half and a risky one:
+
+  - ✅ **History and comparison** — `apps/web/src/ui/runs.ts` (pure) and
+    `apps/web/src/ui/runsInbox.ts` (render). Runs group by kind, newest first, each diffed against
+    the previous **comparable** run. Reachable from the job tray's footer and from ⌘K.
+    The decision the module exists to get right: **a metric present in one run and absent in the
+    other has a `null` delta, never zero.** Absence-as-zero turns a detector that stopped reporting
+    `count` into a confident, precise, invented −412 — worse than no number, because it reads as a
+    finding. Same reasoning refuses a **failed** run as a baseline: a run with no result is not a run
+    whose every metric fell to zero. Both are mutation-checked.
+  - ❌ **Routing the analyses through the queue** — clash, IDS, cost and energy still run in the
+    request thread behind a modal, so they never become rows. Four call sites and their handlers;
+    the larger and riskier half. Until it lands the inbox is genuinely **empty on most projects**,
+    and its empty state says which half is missing rather than implying the feature is broken.
 
 ### Sprint 3 — the front door earns its keyboard
 

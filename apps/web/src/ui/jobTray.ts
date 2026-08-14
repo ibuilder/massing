@@ -308,6 +308,15 @@ export function mountJobTray(opts: {
   fetch: () => Promise<Job[]>;
   artifactUrl?: (j: Job) => string;
   onSettled?: (j: Job) => void;
+  /**
+   * R24-RUNS-INBOX — open the run history. A footer row rather than a header button, because the
+   * tray answers *what is happening now* and the history answers *what happened before*; putting the
+   * second at the top would push the first down for the question nobody opened the tray to ask.
+   *
+   * The tray's own button hides when there are no jobs at all, so this is not the only way in — the
+   * palette carries a `Run history` action that is reachable whether or not anything has ever run.
+   */
+  onHistory?: () => void;
 }): JobTrayMount {
   const btn = document.createElement("button");
   btn.id = "jobs-btn";
@@ -342,10 +351,23 @@ export function mountJobTray(opts: {
       : "Background jobs";
     // Pure DOM: no innerHTML on a path that renders server-supplied job kinds.
     btn.textContent = active ? `⚙ ${active}` : "⚙";
-    if (!panel.hidden) renderJobTray(panel, shown, {
-      artifactUrl: opts.artifactUrl,
-      onDismiss: (j) => { dismissed.add(j.id); draw(); },
-    });
+    if (!panel.hidden) {
+      renderJobTray(panel, shown, {
+        artifactUrl: opts.artifactUrl,
+        onDismiss: (j) => { dismissed.add(j.id); draw(); },
+      });
+      if (opts.onHistory) {
+        const foot = document.createElement("button");
+        foot.type = "button";
+        foot.className = "tool-btn";
+        foot.id = "jobs-history";
+        foot.textContent = "Run history →";
+        foot.title = "Every run on this project, compared against the run before it";
+        foot.style.cssText = "display:block;width:calc(100% - 16px);margin:4px 8px 8px;text-align:left";
+        foot.onclick = () => { setOpen(false); opts.onHistory!(); };
+        panel.appendChild(foot);
+      }
+    }
   };
 
   const poller = createJobPoller({
