@@ -53,7 +53,6 @@ A flowline of one location is a bar chart, and a flowline with no trades is noth
 from __future__ import annotations
 
 import logging
-
 import re
 from typing import Any
 

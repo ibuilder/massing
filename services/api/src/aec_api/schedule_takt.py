@@ -42,14 +42,12 @@ change the crew, and the reason both fields have to be read rather than just the
 from __future__ import annotations
 
 import logging
-
 from typing import Any
 
 from massingplan.core.locations import Location
 from massingplan.core.takt import TaktError, Wagon, minimum_takt, plan
 
 from .schedule_locations import _natural_key, _text
-
 
 _LOG = logging.getLogger(__name__)
 

@@ -8,8 +8,15 @@ from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.orm import Session
 
 from .. import modules as me
-from .. import (schedule_cpm, schedule_health, schedule_levelling, schedule_locations,
-                schedule_takt, schedule_viz, storage)
+from .. import (
+    schedule_cpm,
+    schedule_health,
+    schedule_levelling,
+    schedule_locations,
+    schedule_takt,
+    schedule_viz,
+    storage,
+)
 from ..db import get_db
 from ..rbac import require_role
 

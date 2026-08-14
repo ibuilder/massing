@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.957 (2026-08-14) — ruff, which I never ran locally
+
+The API gate had been red since v0.3.952 and it was never a test. **`ruff check` — three `I001`
+import-order errors**, all mine, all from inserting `import logging` with a blank line after it and
+splitting the stdlib import group in two.
+
+I ran the web lint before every push in this run and never once ran ruff, so five releases went out
+with a lint failure I could have caught in four seconds. The command CI uses is in the
+security-monitoring skill and in `ci.yml`:
+
+```
+cd services/api && python -m ruff check src/ ../data/src/
+```
+
+`--fix` resolved all three; the only changes are import blocks, verified by reading the diff — nothing
+semantic moved. All four adapter suites, `test_reachable`, `test_route_reachability`,
+`test_vendor_reachable` and `test_route_order` re-run green afterwards.
+
+CodeQL is back to **0 open alerts** after v0.3.956, and the web job has been green since v0.3.955, so
+this should be the last red on the run.
+
 ## v0.3.956 (2026-08-14) — CodeQL: the engine's own message was being relayed to callers
 
 Two new `py/stack-trace-exposure` alerts (medium) appeared after v0.3.952–953, both mine:
