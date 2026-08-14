@@ -49,9 +49,7 @@ APP = SRC / "aec_api"
 UNREACHED = {
     "compare",
     "lastplanner",
-    "levelling",
     "progress",
-    "resources",
     "risk",
 }
 

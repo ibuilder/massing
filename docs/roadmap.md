@@ -182,10 +182,10 @@ unreachable — no direct import, and nothing reachable imports them either.
 | Vendored module | Lines | Our counterpart | The real question |
 |---|---|---|---|
 | ~~`health`~~ | 634 | ✅ `aec_api/schedule_health.py` | **WIRED v0.3.950**, routed v0.3.951 — DCMA 14-point |
-| `compare` | 555 | `schedule_baselines.compute_variance` | overlaps — ours id-matches, theirs code-matches + attributes delay |
-| `levelling` | 587 | `resource_loading.level()` | overlaps — ours shifts within CPM float; theirs is serial-generation, deterministic |
+| `compare` | 555 | `schedule_baselines.compute_variance` | ⛔ **BLOCKED — a data-model gap, not an adapter gap.** See below |
+| ~~`levelling`~~ | 587 | ✅ `aec_api/schedule_levelling.py` | **SHIPPED v0.3.954** — `POST /schedule/level`; pulled `resources` in transitively |
 | ~~**`locations`**~~ | 477 | ✅ `aec_api/schedule_locations.py` | **SHIPPED v0.3.952** — line of balance + crew continuity, `GET /schedule/flowline` |
-| `resources` | 254 | `resource_loading.loading()` | overlaps — histogram, S-curves and over-allocation already served |
+| ~~`resources`~~ | 254 | ✅ *(via `schedule_levelling`)* | **reachable v0.3.954** — `levelling` imports it |
 | ~~`takt`~~ | 444 | ⚠ `aec_api/takt.py` **163** | **SHIPPED v0.3.953** as `schedule_takt.py` — and they are *different methods*, see the decision below |
 | `lastplanner` | 436 | `aec_api/pull_plan.py` **248** | overlapping |
 | `risk` | 303 | `aec_api/schedule_risk.py` **195** | overlapping |
@@ -252,6 +252,16 @@ actually won and which we have nothing for.
 
 Wiring it needs one user-facing decision first — which identity key is the default — so it is **not**
 a drop-in adapter like `health` was.
+
+**⛔ `compare` is BLOCKED, and the blocker is ours.** `compare()` diffs two *computed schedules* — it
+needs both **networks**, because attributing a finish move means knowing which logic drove it. Our
+baseline snapshot (`schedule_baselines._snapshot`) freezes only `ref`, `name`, `start`, `finish` and
+`budget` **per record id — no predecessors, no durations.** You cannot rebuild a network from it.
+
+That is also why our `compute_variance` is date-only: it is not a weaker choice, it is everything the
+snapshot can support. **Unblocking is a schema change to the snapshot** (capture `predecessors` and
+`duration` alongside the dates), which changes what every existing stored baseline means and is
+therefore a decision rather than a wiring task. Checked by reading `_snapshot`, not inferred.
 
 **⚠ DECISION NEEDED — `takt.py` is a line-of-balance engine wearing the name "takt".**
 

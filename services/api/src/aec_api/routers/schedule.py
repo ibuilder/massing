@@ -8,8 +8,8 @@ from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.orm import Session
 
 from .. import modules as me
-from .. import (schedule_cpm, schedule_health, schedule_locations, schedule_takt,
-                schedule_viz, storage)
+from .. import (schedule_cpm, schedule_health, schedule_levelling, schedule_locations,
+                schedule_takt, schedule_viz, storage)
 from ..db import get_db
 from ..rbac import require_role
 
@@ -165,6 +165,30 @@ def schedule_takt_train_endpoint(pid: str, takt_days: int | None = None,
     """
     acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
     return schedule_takt.takt(acts, takt_days=takt_days)
+
+
+@router.post("/projects/{pid}/schedule/level")
+def schedule_level_endpoint(pid: str, body: dict = Body(default={}),
+                            db: Session = Depends(get_db),
+                            _: str = Depends(require_role("viewer"))):
+    """R45-SCHED-DEDUPE -- deterministic resource levelling by serial schedule generation.
+
+    POST because it takes `caps` -- `{"caps": {"Carpentry": 8}, "horizon": "within_float"}` -- and a
+    crew limit is too long and too structured to live in a query string. Advisory only: the engine
+    never writes, it returns the moves for a caller to accept.
+
+    Distinct from `resource_loading.level()`, which shifts non-critical work inside its CPM float to
+    shave a peak and gives up when float runs out. This places every activity at the earliest instant
+    its resources are genuinely free, so it resolves conflicts the smoother can only report.
+
+    `horizon` is the trade-off and has no safe default: `within_float` never moves the finish and
+    **reports** what it therefore could not solve; `extend_finish` solves everything and accepts a
+    later finish. A job with liquidated damages wants the first; one that has already blown its float
+    wants the truth of the second.
+    """
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_levelling.levelling(
+        acts, caps=body.get("caps") or {}, horizon=str(body.get("horizon") or "within_float"))
 
 
 @router.post("/projects/{pid}/schedule/optioneer")

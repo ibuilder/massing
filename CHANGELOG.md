@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.954 (2026-08-14) — R45: resource levelling, and `compare` turns out to be blocked on our own snapshot
+
+`POST /projects/{pid}/schedule/level` — deterministic resource levelling by serial schedule generation.
+
+It overlaps `resource_loading.level()` without replacing it, because they answer different questions.
+Ours shifts non-critical work **inside its CPM float** to shave a peak and gives up when float runs
+out. The vendored engine places every activity at the earliest instant its resources are genuinely
+free, so it resolves conflicts the smoother can only report — and tells you what that cost.
+
+**Determinism is the feature, not a nice property.** The problem is NP-hard, so this is a constructive
+heuristic rather than an optimiser: it gives up optimality and buys *the same input always producing
+the same answer*, which a planner can follow by hand. The priority key ends in the activity id
+precisely so set and dict iteration order cannot leak into placement — an optimiser whose answer
+changes between runs cannot be reviewed, approved, or defended in a claim.
+
+**The horizon has no safe default and is therefore explicit.** On the test fixture — three parallel
+carpentry tasks at 4 crews against a cap of 8 — `within_float` moves nothing and reports **5
+unresolved**; `extend_finish` resolves them and moves the finish **7 days**. A job with liquidated
+damages wants the first; one that has already blown its float wants the truth of the second. Reporting
+"0 unresolved" for the first would be claiming a fix that never happened.
+
+An **uncapped** trade is left unconstrained rather than capped at a guess, and a cap naming a trade
+nobody works is refused rather than silently ignored.
+
+### `compare` is blocked, and the blocker is ours
+
+Wiring it was next; it cannot be. `compare()` diffs two *computed schedules* and needs both
+**networks** — attributing a finish move means knowing which logic drove it. Our baseline snapshot
+freezes `ref`, `name`, `start`, `finish` and `budget` per record id: **no predecessors, no durations.**
+A network cannot be rebuilt from that.
+
+That also explains our own `compute_variance` being date-only — not a weaker choice, just everything
+the snapshot supports. Unblocking means capturing logic in the snapshot, which changes what every
+stored baseline means, so it is filed as a decision rather than done unasked.
+
+17 of 21 vendored modules now reachable — `levelling` pulled `resources` in with it. 4 remain.
+
 ## v0.3.953 (2026-08-14) — R45-SCHED-DEDUPE ②: takt was never implemented, only named
 
 `GET /projects/{pid}/schedule/takt-train`. The R45 table filed `takt` as *"two implementations, same
