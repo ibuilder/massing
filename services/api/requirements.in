@@ -41,7 +41,7 @@ scipy>=1.18.0
 # erroring. `test_sections.py` is what actually catches it — it asserts the SVG contains drawn
 # geometry, so it goes red instead of the drawings going empty.
 networkx>=3.6.1
-shapely>=2.0
+shapely>=2.1.2
 reportlab>=5.0.0
 pyhanko>=0.25            # PAdES certificate-based PDF digital signatures (esign.py)
 pypdf>=6.15.0           # CVE-2026-71852/-71870 floor (was 6.14.2 for -59935/-59936); contract/spec text extraction for the review engine (review.py)
