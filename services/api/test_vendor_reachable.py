@@ -50,7 +50,6 @@ UNREACHED = {
     "compare",
     "lastplanner",
     "levelling",
-    "locations",
     "progress",
     "resources",
     "risk",

@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.952 (2026-08-14) — R45-SCHED-REACH ①: the flowline, and the wrong answer it gave first
+
+`GET /projects/{pid}/schedule/flowline` serves location-based (linear) scheduling — line of balance.
+This was the **one** vendored module with no counterpart anywhere in the codebase, and the count only
+got there after three wrong tables; see the previous entry.
+
+CPM answers *"when can this activity start"*. It cannot answer *"where is each crew, and does anyone
+get in anyone else's way"*, and the thing it **structurally** cannot express is **crew continuity**: a
+forward pass gives every activity its earliest start, which is exactly what fragments a gang into
+work-a-floor-then-wait. A subcontractor cannot price that. `continuity_cost_days` reports, per trade,
+what keeping that crew whole costs in days — the number that decides whether the view is worth using.
+
+It needs no new data: `schedule_activity` already carries `trade` (the crew that flows) and `location`
+(the place it flows through).
+
+**The defect worth recording is one I shipped into the first draft and caught by running it.** The
+engine takes tasks in *handover* order. The adapter sorted them **alphabetically**, so Drywall preceded
+Framing — and it produced a complete flowline: a duration, nine segments, per-trade continuity costs.
+Nothing errored. The numbers were simply about a building nobody is going to build, and they were
+wrong in a way no schema or type check could see: `{Framing: 4, Paint: 2}` where the truth is
+`{Paint: 6}`.
+
+Handover order is now derived from **when each trade actually starts** in the existing schedule. When
+the records carry no dates to derive it from, the call is **refused** with that reason rather than
+falling back to alphabetical, because a confident wrong flowline is worse than none. An explicit
+`trade_order` overrides both — the sequence is a planner's call.
+
+Locations sort naturally, so `Level 10` comes after `Level 2` rather than between `Level 1` and it —
+the classic way a forty-storey flowline reads as a logic error when it is really a sort bug.
+
+**The v0.3.949 ratchet fired for the second time**, again in the direction most allowlists never check:
+wiring `locations` made `test_vendor_reachable` fail until the name left `UNREACHED`. 14 of 21 vendored
+modules now reachable; 7 remain (2,793 lines), all of them overlaps rather than gaps.
+
 ## v0.3.951 (2026-08-14) — the DCMA assessment gets a route, because v0.3.950 shipped it without one
 
 `GET /projects/{pid}/schedule/health` now serves the fourteen checks. It mirrors the existing

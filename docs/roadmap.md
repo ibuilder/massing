@@ -184,7 +184,7 @@ unreachable — no direct import, and nothing reachable imports them either.
 | ~~`health`~~ | 634 | ✅ `aec_api/schedule_health.py` | **WIRED v0.3.950**, routed v0.3.951 — DCMA 14-point |
 | `compare` | 555 | `schedule_baselines.compute_variance` | overlaps — ours id-matches, theirs code-matches + attributes delay |
 | `levelling` | 587 | `resource_loading.level()` | overlaps — ours shifts within CPM float; theirs is serial-generation, deterministic |
-| **`locations`** | 477 | *(none — verified)* | ✅ **the one genuine pure gain**: line of balance, and **crew continuity**, which CPM structurally cannot express |
+| ~~**`locations`**~~ | 477 | ✅ `aec_api/schedule_locations.py` | **SHIPPED v0.3.952** — line of balance + crew continuity, `GET /schedule/flowline` |
 | `resources` | 254 | `resource_loading.loading()` | overlaps — histogram, S-curves and over-allocation already served |
 | `takt` | 444 | `aec_api/takt.py` **163** | **two implementations, same `plan()`** |
 | `lastplanner` | 436 | `aec_api/pull_plan.py` **248** | overlapping |

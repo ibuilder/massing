@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.orm import Session
 
 from .. import modules as me
-from .. import schedule_cpm, schedule_health, schedule_viz, storage
+from .. import schedule_cpm, schedule_health, schedule_locations, schedule_viz, storage
 from ..db import get_db
 from ..rbac import require_role
 
@@ -124,6 +124,25 @@ def schedule_health_endpoint(pid: str, db: Session = Depends(get_db),
     """
     acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
     return schedule_health.health(acts)
+
+
+@router.get("/projects/{pid}/schedule/flowline")
+def schedule_flowline_endpoint(pid: str, db: Session = Depends(get_db),
+                               _: str = Depends(require_role("viewer"))):
+    """R45-SCHED-REACH -- location-based (linear) scheduling: line of balance.
+
+    CPM answers "when can this activity start". It cannot answer "where is each crew, and does anyone
+    get in anyone else's way", and the thing it structurally cannot express is **crew continuity** --
+    a forward pass gives every activity its earliest start, which is exactly what fragments a gang
+    into work-a-floor-then-wait. `continuity_cost_days` is the price of keeping each crew whole, per
+    trade, and it is the number that decides whether this view is worth using on a given job.
+
+    Built from the `trade` and `location` fields the schedule already carries, so it needs no extra
+    data. Reads `available` first: a project whose activities carry no location, or only one, comes
+    back `available: false` with a reason rather than a drawn-but-meaningless diagram.
+    """
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_locations.flowline(acts)
 
 
 @router.post("/projects/{pid}/schedule/optioneer")
