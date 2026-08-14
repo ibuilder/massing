@@ -182,7 +182,7 @@ unreachable — no direct import, and nothing reachable imports them either.
 | Vendored module | Lines | Our counterpart | The real question |
 |---|---|---|---|
 | ~~`health`~~ | 634 | ✅ `aec_api/schedule_health.py` | **WIRED v0.3.950** — DCMA 14-point |
-| `compare` | 555 | *(none)* | pure gain — baseline/revision diff |
+| `compare` | 555 | ⚠ `schedule_baselines.compute_variance` | **my table was wrong here** — see the note below |
 | `levelling` | 587 | *(none)* | pure gain — resource levelling |
 | `locations` | 477 | *(none)* | pure gain — location-based (LBMS) scheduling |
 | `resources` | 254 | *(none)* | pure gain |
@@ -198,6 +198,30 @@ before. `takt` is the sharpest case: both define `plan()`. Theirs also has `crew
 `minimum_takt` and `to_network` (crew sizing, minimum feasible takt, and conversion to a CPM
 network); ours has `takt_svg`, which theirs does not. **Ours is a renderer that grew an engine; the
 answer is to keep our renderer and delete our engine**, not to run both.
+
+**Correction, made on the same day the table was written.** `compare` was filed as "no
+counterpart" because no `aec_api` file is *named* compare. `schedule_baselines.compute_variance`
+already computes a baseline-to-current diff, so the classification was made on a filename rather than
+on a capability — the exact error this ring exists to stop, committed while writing the ring.
+
+Having read both, they are **complementary rather than duplicated**, and the distinction is worth
+more than the correction:
+
+* **Ours matches on the internal record id.** That is right for a baseline *captured in the app*,
+  where ids are stable, and it is what `compute_variance` is for.
+* **Theirs matches on the planner's activity code**, with `NAME_AND_WBS` as a fallback and ambiguous
+  pairs deliberately left unmatched. Its docstring names exactly why: a re-baseline exported from P6
+  carries entirely new `task_id` values, so an id-match "finds nothing in common and reports every
+  activity as removed-and-added — a diff that is technically correct and completely useless."
+
+**So our variance is silently useless in the one case a GC needs it most: comparing against a
+schedule somebody else exported.** It does not error; it reports total churn. That is the finding,
+and it is bigger than the wiring. Theirs also carries link changes, criticality gained/lost, a
+driving-path delta and delay *attribution* — the forensic half, which is where a delay argument is
+actually won and which we have nothing for.
+
+Wiring it needs one user-facing decision first — which identity key is the default — so it is **not**
+a drop-in adapter like `health` was.
 
 - ◧ **R45-SCHED-REACH ①** *(M; `health` SHIPPED v0.3.950)* — adapters for the five with no
   counterpart: ~~`health`~~, `compare`, `levelling`, `locations`, `resources`.
