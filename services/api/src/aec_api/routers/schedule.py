@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from .. import modules as me
 from .. import (
     schedule_compare,
+    schedule_compression,
     schedule_cpm,
     schedule_earned,
     schedule_health,
@@ -18,10 +19,12 @@ from .. import (
     schedule_levelling,
     schedule_locations,
     schedule_modelled,
+    schedule_portfolio,
     schedule_progress,
     schedule_risk_mc,
     schedule_takt,
     schedule_viz,
+    schedule_weather,
     schedule_windows,
     storage,
 )
@@ -381,6 +384,94 @@ def schedule_earned_endpoint(pid: str, baseline_id: str | None = None,
     """
     acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
     return schedule_earned.earned(acts, pid, baseline_id=baseline_id)
+
+
+@router.post("/projects/{pid}/schedule/compress")
+def schedule_compress_endpoint(pid: str, body: dict = Body(default={}),
+                               db: Session = Depends(get_db),
+                               _: str = Depends(require_role("viewer"))):
+    """R46 -- what finishing `target_days` earlier would take, and cost.
+
+    **Not `/schedule/optimize`**, which is a rule-based advisory that never re-schedules: it reports
+    `duration x 0.25` for each long critical activity, a fixed fraction of the activity's own length.
+    That figure cannot see the path behind the activity. Measured on a four-activity network with a
+    near-parallel path, the advisory says **5 days** and the finish actually moves **3** -- and the
+    error grows with the number of near-parallel paths.
+
+    This re-schedules after every single day of compression, so `days_saved` is what the PROJECT
+    finish moved, not what came off the activity, and the plan is built cheapest-useful-day-first.
+
+    `cost_per_day` and `max_days` are **required per activity**. `max_days` is a fact about the work
+    -- a pour cures in the time it cures -- and a default of "as far as you like" produces a plan
+    that finishes on any date somebody asks for. A plan reaching eight of ten days asked for is
+    returned as eight, with `meets_target: false`.
+
+    Body: `{target_days, costs: [{activity_id, cost_per_day, max_days}], fast_trackable?: [[a, b]]}`.
+    """
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_compression.compress(acts, body.get("target_days") or 0,
+                                         costs=body.get("costs"),
+                                         fast_trackable=body.get("fast_trackable"))
+
+
+@router.post("/projects/{pid}/schedule/weather")
+def schedule_weather_endpoint(pid: str, body: dict = Body(default={}),
+                              db: Session = Depends(get_db),
+                              _: str = Depends(require_role("viewer"))):
+    """R46 -- the weather allowance a programme already carries, made visible.
+
+    Weather loss is almost never modelled; it is padded into durations, where a five-day pour becomes
+    seven and nobody afterwards can say which two days were weather. That matters when the weather
+    arrives, because a contractor claiming an extension has to show the allowance was exceeded.
+
+    Modelled as non-working days on the calendar, which is what it is. **No allowance is invented** --
+    days per month come from the contract, a met-office table or the specification, and a request
+    with none is refused rather than defaulted. The days added are listed, not just counted, because
+    an allowance is argued with.
+
+    Body: `{days_by_month: {"3": 3, "apr": 2}, start?, finish?}`.
+    """
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_weather.weather(acts, body.get("days_by_month") or {},
+                                    start=_d(body.get("start")), finish=_d(body.get("finish")))
+
+
+@router.post("/projects/{pid}/schedule/portfolio")
+def schedule_portfolio_endpoint(pid: str, body: dict = Body(default={}),
+                                db: Session = Depends(get_db),
+                                actor: str = Depends(require_role("viewer"))):
+    """R46 -- several projects, the links between them, and ONE pass over one network.
+
+    A programme above a certain size is not one schedule. Scheduling the projects in sequence
+    propagates a delay only in whichever order somebody listed them -- enabling then fit-out picks up
+    the slip, the other order does not, and neither is more correct. Merging first is the only way
+    the direction of the arrow decides it rather than the order of the list.
+
+    An external link is kept as its own kind of thing: an internal link is a sequencing decision one
+    team can change, an external one is a commitment between two parties, and a report that cannot
+    tell them apart cannot say which delays crossed a boundary.
+
+    **Membership is checked on EVERY project named, not just `{pid}`.** A portfolio view that
+    required access to one project and returned dates from four would be a cross-tenant read wearing
+    a feature's name.
+
+    Body: `{project_ids: [...], external?: [{predecessor_project, predecessor_id,
+    successor_project, successor_id, type?, lag_days?}]}`. `{pid}` is always included.
+    """
+    from ..rbac import require_role as _rr
+
+    wanted = [str(x) for x in (body.get("project_ids") or []) if str(x).strip()]
+    ids = [pid] + [x for x in wanted if x != pid]
+    projects = []
+    for other in ids:
+        if other != pid:
+            # Re-run the SAME dependency against each additional project. Checking only `{pid}`
+            # would make this route a cross-tenant read.
+            _rr("viewer")(pid=other, db=db, user=actor)          # raises 403 if not a member
+        projects.append({
+            "id": other, "name": other,
+            "activities": me.list_records(db, "schedule_activity", other, limit=1_000_000)})
+    return schedule_portfolio.portfolio(projects, body.get("external"))
 
 
 @router.post("/projects/{pid}/schedule/optioneer")

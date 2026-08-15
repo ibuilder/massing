@@ -4,6 +4,49 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.967 (2026-08-15) — R46 complete: 29 of 29, and an acceleration figure that overstates
+
+The last three vendored modules are wired. **Every module the `a740241c` sync brought is now
+reachable**, and `test_vendor_reachable`'s allowlist is empty again — this time at 29 of 29.
+
+**`POST /schedule/compress` — and the number `/schedule/optimize` cannot get right.** That route is a
+rule-based advisory, honest about it in its own docstring: it never re-schedules, and reports
+`duration × 0.25` for each long critical activity. A fraction of the activity's own length cannot see
+the path *behind* the activity, and shortening a driving activity by five days when it is only three
+days ahead of the next path buys three. The other two are spent and gone.
+
+Measured on a four-activity network with a near-parallel path: **the advisory says 5 days, the finish
+moves 3.** The error grows with the number of near-parallel paths, and it is largest exactly where the
+schedule is tightest and the decision is most expensive. This re-schedules after every single day, so
+`days_saved` is the project-finish movement, and the plan is cheapest-useful-day-first — an algorithm
+picking its whole shopping list from the *original* critical path keeps spending on an activity that
+stopped driving three days ago.
+
+`cost_per_day` and `max_days` are **required per activity**. `max_days` is a fact about the work — a
+pour cures in the time it cures — and a default of "as far as you like" produces a plan that finishes
+on any date somebody asks for. A plan reaching eight of ten days is returned as eight.
+
+**`POST /schedule/weather`** — the allowance a programme already carries, modelled as non-working days
+instead of padded into durations, where a five-day pour becomes seven and nobody can afterwards say
+which two days were weather. That matters when the weather arrives: a contractor claiming an extension
+has to show the allowance was exceeded, and an allowance buried in durations cannot be shown at all.
+**No allowance is invented** — a request with none is refused, because a default is a number nobody
+agreed inserted into a programme somebody signs. The days are listed, not just counted. And the
+without-allowance run strips **only** the weather days: removing every calendar exception would delete
+Christmas and report a fortnight of it as weather recovered.
+
+**`POST /schedule/portfolio`** — several projects in one pass over one merged network. Scheduling them
+in sequence propagates a delay only in whichever order somebody listed them; merging first is the only
+way the direction of the arrow decides it. A cross-project cycle — one that neither schedule has alone
+— is found and refused, which is among the things scheduling them together is for.
+
+**It reads other projects' data, so it is gated on every one of them.** `test_route_authz` proves each
+`/projects/{pid}` route enforces membership on its own `{pid}`; that is all it can see, and this route
+takes more ids in its body. The dependency is re-run per project, and
+`services/api/test_portfolio_authz.py` exercises it through the real app: **403 for a project the
+caller is not a member of, 200 when they are.** The twin matters — without it, a route that refused
+everything would pass.
+
 ## v0.3.966 (2026-08-15) — a PMXML import that imported nothing, and the SPI that reads 1.0 on a late job
 
 **A Primavera PMXML export used to import zero activities.** The branch warned

@@ -398,6 +398,75 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
 
   /**
+   * R46 — what finishing `targetDays` earlier would take, and cost.
+   *
+   * Not `scheduleOptimize`, which is a rule-based advisory that never re-schedules: it reports
+   * `duration × 0.25` per long critical activity, which cannot see the path behind it. On a
+   * four-activity network with a near-parallel path the advisory says 5 days and the finish moves 3.
+   *
+   * `days_saved` is what the PROJECT finish moved, not what came off the activity. Render
+   * `meets_target: false` plainly — eight of the ten days asked for is the answer, not an error.
+   * `costs` are required; there is no default for how far an activity can be shortened.
+   */
+  scheduleCompress(pid: string, body: {
+    target_days: number;
+    costs: { activity_id: string; cost_per_day: number; max_days: number }[];
+    fast_trackable?: [string, string][];
+  }) {
+    return this.json<{
+      available: boolean; reason?: string; rejected_costs: string[];
+      activities_without_costs: number | null; target_days: number | null;
+      finish_before: string | null; best_finish: string | null;
+      days_available: number | null; meets_target: boolean | null; total_cost: number | null;
+      options: { kind: string; activity_id: string; days_shortened?: number; cost?: number;
+        days_saved: number; cost_per_day_saved: number | null;
+        finish_before: string; finish_after: string }[];
+      notes: string[];
+    }>(`/projects/${pid}/schedule/compress`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  /**
+   * R46 — the weather allowance a programme already carries, made explicit.
+   *
+   * No allowance is invented: days per month come from the contract or a met-office table, and a
+   * request with none is refused rather than defaulted to a "typical year". The days are listed,
+   * not just counted — an allowance is argued with.
+   */
+  scheduleWeather(pid: string, body: { days_by_month: Record<string, number>;
+                                       start?: string; finish?: string }) {
+    return this.json<{
+      available: boolean; reason?: string; allowance_days: number | null;
+      by_month: Record<string, number>; days: string[];
+      window_start: string | null; window_finish: string | null;
+      finish_without_allowance: string | null; rejected_months: string[];
+      weather_days_only: boolean | null; distribution: string | null;
+    }>(`/projects/${pid}/schedule/weather`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  /**
+   * R46 — several projects scheduled together, with the links between them honoured.
+   *
+   * One pass over one merged network. Scheduling projects in sequence propagates a delay only in
+   * whichever order they were listed. **Membership is checked server-side on every id you send**, so
+   * a 403 here means the caller is not a member of one of them — surface that, do not retry.
+   */
+  schedulePortfolio(pid: string, body: {
+    project_ids: string[];
+    external?: { predecessor_project: string; predecessor_id: string;
+                 successor_project: string; successor_id: string;
+                 type?: string; lag_days?: number }[];
+  }) {
+    return this.json<{
+      available: boolean; reason?: string;
+      projects: { id: string; name: string; activities: number }[];
+      external_links: { predecessor: string; successor: string; type: string; lag_days: number }[];
+      rejected_links: string[]; projects_without_activities: string[];
+      programme_finish: string | null; project_count: number | null;
+      external_link_count: number | null;
+    }>(`/projects/${pid}/schedule/portfolio`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  /**
    * R46 — Earned Schedule: how far along in TIME.
    *
    * Not a duplicate of `evm`'s SPI. Classic `SPI = EV/PV` converges on exactly **1.0** at completion

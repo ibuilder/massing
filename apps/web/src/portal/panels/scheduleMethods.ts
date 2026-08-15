@@ -19,6 +19,7 @@
  * a reason rather than a zero. Rendering the zero is how "we could not measure" becomes "this is
  * terrible" on somebody's screen.
  */
+import { usd } from "../../ui/charts";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 
@@ -227,6 +228,124 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
     }
   }));
   rc.appendChild(rOut); wrap.appendChild(rc);
+
+  // -- Compression ------------------------------------------------------------------------------
+  const cc2 = card("Compression \u2014 what an earlier finish costs",
+    "Not the acceleration advisory, which reports a fixed fraction of each activity's duration and "
+    + "never re-schedules. This re-schedules after every day bought, so the days are what the "
+    + "PROJECT finish moved. Costs are required \u2014 there is no default for how far work compresses.");
+  const tgtIn = document.createElement("input");
+  tgtIn.type = "number"; tgtIn.min = "1"; tgtIn.value = "10"; tgtIn.className = "tool-btn";
+  tgtIn.style.cssText = "width:78px;text-align:left;cursor:text";
+  tgtIn.title = "days to try to recover";
+  const cstIn = document.createElement("input");
+  cstIn.type = "text"; cstIn.className = "tool-btn";
+  cstIn.placeholder = "costs, e.g. A20=1200/10, A30=800/5";
+  cstIn.style.cssText = "min-width:250px;text-align:left;cursor:text";
+  cstIn.title = "activity = cost per day / max days";
+  const cOut2 = document.createElement("div");
+  const cRow = document.createElement("div");
+  cRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0";
+  cRow.append(tgtIn, cstIn, runner(cOut2, "\u25b6 Price the date", async () => {
+    // `A20=1200/10` -> {activity_id:"A20", cost_per_day:1200, max_days:10}. Parsed here so a
+    // malformed entry is a visible client error rather than a silent empty list on the server.
+    const costs: { activity_id: string; cost_per_day: number; max_days: number }[] = [];
+    for (const part of cstIn.value.split(",")) {
+      const [k, v] = part.split("=");
+      const [rate, cap] = (v ?? "").split("/");
+      const r2 = Number((rate ?? "").trim()), m = Number((cap ?? "").trim());
+      if (k?.trim() && Number.isFinite(r2) && Number.isFinite(m) && m > 0) {
+        costs.push({ activity_id: k.trim(), cost_per_day: r2, max_days: m });
+      }
+    }
+    const r = await api.scheduleCompress(pid, { target_days: Number(tgtIn.value) || 0, costs });
+    render(cOut2, r, r.available ? [
+      { label: "days bought", value: r.days_available == null ? "\u2014" : `${r.days_available}d`,
+        hint: r.meets_target ? "target met" : `of ${r.target_days}d asked` },
+      { label: "cost", value: r.total_cost == null ? "\u2014" : usd(r.total_cost) },
+      { label: "new finish", value: r.best_finish ?? "\u2014", hint: `from ${r.finish_before}` },
+      { label: "not eligible", value: `${r.activities_without_costs ?? "\u2014"}`,
+        hint: "activities with no cost entry" },
+    ] : []);
+    if (!r.available) return;
+    const t = document.createElement("div");
+    t.className = "meta"; t.style.cssText = "margin-top:4px;line-height:1.5";
+    t.textContent = r.options.map((o) => `${o.activity_id}: ${o.days_saved}d`
+      + (o.cost_per_day_saved == null ? "" : ` @ ${usd(o.cost_per_day_saved)}/d`)).join("  \u00b7  ")
+      + (r.rejected_costs.length ? `  \u2014  not used: ${r.rejected_costs.join("; ")}` : "");
+    cOut2.appendChild(t);
+  }));
+  cc2.appendChild(cRow); cc2.appendChild(cOut2); wrap.appendChild(cc2);
+
+  // -- Weather allowance ------------------------------------------------------------------------
+  const wac = card("Weather allowance \u2014 the lost days already in the programme",
+    "Usually padded into durations, where a five-day pour becomes seven and nobody can say which "
+    + "two days were weather. Modelled here as non-working days. Nothing is invented: the days per "
+    + "month come from the contract or a met-office table.");
+  const wIn = document.createElement("input");
+  wIn.type = "text"; wIn.className = "tool-btn";
+  wIn.placeholder = "days per month, e.g. jan=4, feb=3, mar=2";
+  wIn.style.cssText = "min-width:250px;text-align:left;cursor:text";
+  const waOut = document.createElement("div");
+  const waRow = document.createElement("div");
+  waRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0";
+  waRow.append(wIn, runner(waOut, "\u25b6 Model the allowance", async () => {
+    const days_by_month: Record<string, number> = {};
+    for (const part of wIn.value.split(",")) {
+      const [k, v] = part.split("=");
+      const n = Number((v ?? "").trim());
+      if (k?.trim() && Number.isFinite(n)) days_by_month[k.trim()] = n;
+    }
+    const r = await api.scheduleWeather(pid, { days_by_month });
+    render(waOut, r, r.available ? [
+      { label: "allowance", value: r.allowance_days == null ? "\u2014" : `${r.allowance_days}d`,
+        hint: "non-working days added" },
+      { label: "window", value: r.window_start ?? "\u2014", hint: `to ${r.window_finish}` },
+      { label: "months", value: `${Object.keys(r.by_month).length}` },
+    ] : []);
+    if (!r.available) return;
+    const t = document.createElement("div");
+    t.className = "meta"; t.style.cssText = "margin-top:4px;line-height:1.5";
+    // The days themselves, because an allowance is argued with.
+    t.textContent = r.days.join("  \u00b7  ")
+      + (r.rejected_months.length ? `  \u2014  ignored: ${r.rejected_months.join("; ")}` : "");
+    waOut.appendChild(t);
+    const d = document.createElement("div");
+    d.className = "meta"; d.style.cssText = "margin-top:2px;font-size:10.5px";
+    d.textContent = r.distribution ?? "";
+    waOut.appendChild(d);
+  }));
+  wac.appendChild(waRow); wac.appendChild(waOut); wrap.appendChild(wac);
+
+  // -- Portfolio --------------------------------------------------------------------------------
+  const pfc = card("Programme \u2014 several projects, scheduled together",
+    "A slip in enabling works reaches fit-out only if the two are scheduled in one pass. Doing them "
+    + "in sequence propagates a delay only in whichever order they were listed. Membership is "
+    + "checked on every project \u2014 a 403 means you are not a member of one of them.");
+  const pfIn = document.createElement("input");
+  pfIn.type = "text"; pfIn.className = "tool-btn";
+  pfIn.placeholder = "other project ids, comma separated";
+  pfIn.style.cssText = "min-width:250px;text-align:left;cursor:text";
+  const pfOut = document.createElement("div");
+  const pfRow = document.createElement("div");
+  pfRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0";
+  pfRow.append(pfIn, runner(pfOut, "\u25b6 Schedule the programme", async () => {
+    const ids = pfIn.value.split(",").map((x) => x.trim()).filter(Boolean);
+    const r = await api.schedulePortfolio(pid, { project_ids: ids });
+    render(pfOut, r, r.available ? [
+      { label: "programme finish", value: r.programme_finish ?? "\u2014" },
+      { label: "projects", value: `${r.project_count ?? "\u2014"}` },
+      { label: "external links", value: `${r.external_link_count ?? "\u2014"}`,
+        hint: "commitments between parties" },
+    ] : []);
+    if (!r.available) return;
+    const t = document.createElement("div");
+    t.className = "meta"; t.style.cssText = "margin-top:4px;line-height:1.5";
+    t.textContent = r.projects.map((p) => `${p.name} (${p.activities})`).join("  \u00b7  ")
+      + (r.rejected_links.length ? `  \u2014  ignored: ${r.rejected_links.join("; ")}` : "");
+    pfOut.appendChild(t);
+  }));
+  pfc.appendChild(pfRow); pfc.appendChild(pfOut); wrap.appendChild(pfc);
 
   // ── Earned Schedule ──────────────────────────────────────────────────────────────────────────
   const esc2 = card("Earned Schedule — how far along in time",

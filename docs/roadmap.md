@@ -193,9 +193,9 @@ have, so unlike R45 there is no de-duplication decision hiding in this list:
 | ~~`modelled`~~ | 477 | **SHIPPED v0.3.965** — `schedule_modelled.py`. Collapsed as-built refuses on our data and says why; the refusal is the finding |
 | `p6xml` | 760 | Primavera PMXML. **XER cannot carry baselines**; PMXML can, as additional `<Project>` elements, along with the global calendars a restricted XER omits — which is the gap behind our own baseline-schema work |
 | ~~`earned`~~ | 302 | **SHIPPED v0.3.966** — `schedule_earned.py`. Measured 0.556 on a job SPI would call 1.0 |
-| `compression` | 439 | What finishing three weeks earlier would take, and cost. Levelling answers "with the crews I have"; nothing answers the question actually asked in the meeting |
-| `weather` | 250 | The weather allowance a programme already carries, made explicit instead of padded invisibly into durations |
-| `portfolio` | 345 | Several schedules, cross-project logic, one resource pool — a programme above a certain size is never one schedule |
+| ~~`compression`~~ | 439 | **SHIPPED v0.3.967** — and it measured `/schedule/optimize` overstating: advisory 5d, finish moves 3d |
+| ~~`weather`~~ | 250 | **SHIPPED v0.3.967** — `schedule_weather.py`; refuses to invent an allowance |
+| ~~`portfolio`~~ | 345 | **SHIPPED v0.3.967** — membership checked per project, proven 403/200 |
 
 **⚠ FOUND WHILE WIRING THESE TWO: `eot.py` names four AACE methods and performs none of them.** All
 four return an identical number on the same input — the method is recorded as a label and the
@@ -205,7 +205,7 @@ network operations. Pinned in `services/api/test_schedule_windows.py`; `schedule
 to them, or keep its own number and cite theirs, is a domain decision** — the EOT figure ends up in
 arbitration, and changing what it means is not a refactor. Both still ship.
 
-Recorded in `services/api/test_vendor_reachable.py`, which fails the build until each is either wired
+**R46 IS COMPLETE (v0.3.967): 29 of 29 reachable, allowlist empty.** Recorded in `services/api/test_vendor_reachable.py`, which fails the build until each is either wired
 or argued for. **The `mspdi` rewrite and the `xer` injection audit landed with no adapter change and
 no test movement** — checked by running the schedule suites, not assumed from the diff being large.
 

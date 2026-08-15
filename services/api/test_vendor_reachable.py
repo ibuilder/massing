@@ -53,20 +53,18 @@ APP = SRC / "aec_api"
 #:   * ~~`modelled`~~ — SHIPPED v0.3.965 as `schedule_modelled.py`.
 #:   * ~~`p6xml`~~   — SHIPPED v0.3.966. The PMXML branch of `schedule_import` used to return
 #:                    ZERO activities with a warning; it now reads the format properly.
-#:   * `compression` — what finishing three weeks earlier would take, and cost.
+#:   * ~~`compression`~~ — SHIPPED v0.3.967 as `schedule_compression.py`.
 #:   * ~~`earned`~~  — SHIPPED v0.3.966 as `schedule_earned.py`.
-#:   * `portfolio` — several schedules, cross-project logic, one resource pool.
-#:   * `weather`   — the weather allowance a programme already carries, made explicit.
+#:   * ~~`portfolio`~~ — SHIPPED v0.3.967 as `schedule_portfolio.py`.
+#:   * ~~`weather`~~   — SHIPPED v0.3.967 as `schedule_weather.py`.
+#:
+#: **Empty again, and this time all 29.** R46 wired every module the a740241c sync brought.
 #:
 #: `xmlsafe` is NOT here: the same sync's parse-bomb and entity hardening reaches us transitively
 #: through `mspdi` and `xer`, so the security fix was live the moment the files landed.
 #:
 #: **Remove names as they are wired; never add one without a roadmap entry saying why.**
-UNREACHED: set[str] = {
-    "compression",
-    "portfolio",
-    "weather",
-}
+UNREACHED: set[str] = set()
 
 _FAILURES: list[str] = []
 
