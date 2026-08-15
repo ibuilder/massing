@@ -87,19 +87,34 @@ def _snapshot(db: Session, pid: str) -> dict[str, dict]:
     return snap
 
 
+def logic_gap(base: dict) -> str | None:
+    """Why this baseline cannot be re-scheduled, or `None` if it can.
+
+    A **sentence, returned as data** — not an exception message. A caller that needs to show the
+    reason must not have to stringify an exception to get it: `str(exc)` on a response path is how
+    an engine's own words reach a user, and it is a finding this repo has already had twice
+    (`py/stack-trace-exposure`, v0.3.956 and again here). Composing it here keeps the refusal text
+    ours by construction rather than by care.
+    """
+    if int(base.get("schema") or 1) < SCHEMA:
+        return (f"this baseline was captured before logic was frozen into baselines "
+                f"(schema {int(base.get('schema') or 1)}, needs {SCHEMA}); it can still be used for "
+                "variance, but a delay attribution needs a baseline captured since")
+    return None
+
+
 def to_records(base: dict) -> list[dict]:
     """A v2 snapshot back in the activity-record shape `schedule_engine.build_network` reads.
 
     Raises `ValueError` on a v1 snapshot. Rebuilding one would succeed — every activity would come
     back as a 1-day task with no predecessors — and produce a fully-parallel schedule that a diff
     would then blame on logic somebody removed. Refusing is the only honest answer available from
-    data that was never captured.
+    data that was never captured. Callers that report the reason should ask `logic_gap` first; this
+    raise is the backstop for the ones that do not.
     """
-    if int(base.get("schema") or 1) < SCHEMA:
-        raise ValueError(
-            f"baseline {base.get('name') or base.get('id')!r} was captured before logic was frozen "
-            f"into baselines (schema {base.get('schema') or 1}, needs {SCHEMA}); it can still be "
-            "used for variance, but a delay attribution needs a baseline captured since")
+    gap = logic_gap(base)
+    if gap is not None:
+        raise ValueError(gap)
     out = []
     for rid, a in (base.get("activities") or {}).items():
         data = {k: v for k, v in a.items() if k not in ("ref", "name")}

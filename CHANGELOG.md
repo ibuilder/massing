@@ -4,6 +4,44 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.962 (2026-08-14) — the same defect, three times, now a gate
+
+CodeQL flagged `py/stack-trace-exposure` on v0.3.961 within the hour: `_unavailable(str(exc))` in the
+new compare adapter. **That is the identical defect fixed in v0.3.956** — written again, in a module
+authored after the fix, by someone who had read it.
+
+Fixed structurally rather than carefully. The refusal reason is now composed as **data**
+(`schedule_baselines.logic_gap()` returns the sentence) instead of being recovered from an exception,
+so there is no shape in which exception text can reach that response.
+
+Grepping the same file then found a **third** instance — `str(e)[:120]` on the CV-progress apply
+path, shipped for several releases and never flagged, because **CodeQL's alert list is diff-scoped**:
+it reports what a push changed, not what a file contains. Now logged server-side with a stable
+sentence returned.
+
+Three occurrences of one defect is not a lapse of attention, so it is now
+`services/api/test_no_exception_relay.py`: an AST gate over all 444 `aec_api` modules that fails when
+an `except … as e:` handler **returns** a value built from `e`'s text.
+
+It distinguishes carefully, because a checker that cries wolf gets switched off:
+
+* `str(exc)`, `f"{exc}"`, `exc.args`, `exc.detail` — **flagged**, that is the library's words.
+* `list(exc.cycle)` — allowed. A structured field our own engine chose to expose is the recommended
+  alternative, not the defect. Flagging it would have hit every honest refusal path in R45.
+* `type(exc).__name__` — allowed. The class is "ValueError", never the path it was raised about, and
+  flagging it pushes people back toward `str(exc)`.
+
+Twenty pre-existing relays remain, **recorded with a reason each rather than suppressed**, and the
+reasons were verified rather than assumed: every route in `routers/connections.py` carries
+`Depends(require_admin_user)`, read from the source, so those are an administrator being shown the
+error from a connection string that administrator just typed — a different risk class from an
+anonymous caller receiving a driver's trace, and deleting the text would make "test this connection"
+useless at its only job. `calc_fields` relays `SyntaxError.msg` from parsing the user's own formula.
+
+The list ratchets in **both** directions: a new relay that is not recorded fails, and a recorded
+entry that no longer relays fails too, so it cannot decay into a graveyard of names that were fixed
+long ago. The gate is mutation-checked — restoring the v0.3.961 defect fails it by name.
+
 ## v0.3.961 (2026-08-14) — delay attribution, and the blocker that was one field
 
 `GET /projects/{pid}/schedule/compare` — the live schedule diffed against a named baseline, with the

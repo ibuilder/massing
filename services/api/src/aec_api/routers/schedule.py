@@ -2,6 +2,7 @@
 short-interval **lookahead** + **milestone** schedules the field and PM run from."""
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Body, Depends, Response
@@ -24,6 +25,7 @@ from .. import (
 from ..db import get_db
 from ..rbac import require_role
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _BASELINE_KEY = "{pid}/schedule_baseline.json"
@@ -594,8 +596,12 @@ def _apply_estimate(db: Session, pid: str, activity_key: str, percent: float, ac
     try:
         me.update_record(db, "schedule_activity", pid, rid, {"percent": percent}, actor, None)
         return {"applied": True, "activity_id": rid}
-    except Exception as e:                                  # noqa: BLE001 — write error shouldn't 500 the bridge
-        return {"applied": False, "apply_error": str(e)[:120]}
+    except Exception:                                       # noqa: BLE001 — write error shouldn't 500 the bridge
+        # Logged server-side, NOT relayed. `str(e)[:120]` was here for several releases and CodeQL
+        # never flagged it — its alert list is diff-scoped, so it sees what a push CHANGED. Found by
+        # grepping the file after it flagged the identical shape 40 lines away in new code.
+        logger.exception("cv-progress apply failed for %s/%s", pid, rid)
+        return {"applied": False, "apply_error": "the progress write failed; it was not applied"}
 
 
 @router.post("/projects/{pid}/cv-progress/ingest")

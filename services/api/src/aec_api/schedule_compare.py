@@ -70,11 +70,16 @@ def compare(
             "no baseline to compare against" if baseline_id is None
             else f"no baseline with id {baseline_id!r}")
 
-    try:
-        base_records = schedule_baselines.to_records(base)
-    except ValueError as exc:
-        # The refusal that keeps a v1 snapshot from being scheduled as a parallel plan.
-        return _unavailable(str(exc), baseline=schedule_baselines._meta(base))
+    # The refusal that keeps a v1 snapshot from being scheduled as a parallel plan. Asked as a
+    # question, NOT caught as an exception: the first draft did `_unavailable(str(exc))`, and CodeQL
+    # flagged it as `py/stack-trace-exposure` within the hour — the same finding as v0.3.956, in a
+    # module written after that fix. `str(exc)` on a response path relays whatever raised, and the
+    # only durable defence is a shape where no exception text can reach the response at all.
+    gap = schedule_baselines.logic_gap(base)
+    if gap is not None:
+        return _unavailable(gap, baseline=schedule_baselines._meta(base))
+
+    base_records = schedule_baselines.to_records(base)
     if not base_records:
         return _unavailable("the baseline is empty — nothing was captured in it",
                             baseline=schedule_baselines._meta(base))
