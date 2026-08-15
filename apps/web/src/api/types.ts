@@ -744,3 +744,30 @@ export interface DocCitation {
   /** True when a stored source document exists, so the citation can be opened. */
   openable?: boolean;
 }
+
+/**
+ * The bid tab — a levelled `bid_package`.
+ *
+ * Lives here rather than inline in `client.ts` because that file is under an extraction ratchet
+ * that only goes down, and a response type is a DTO. `non_responsive` is the half decided BEFORE
+ * price: no addenda acknowledged means the bid is against superseded documents, no bid bond may
+ * mean no contract, and neither has anything to do with being cheap.
+ */
+export interface BidLevelingDetail {
+  package: string;
+  vendors: string[];
+  base_stats: { count: number; low?: number; high?: number; median?: number; average?: number;
+    spread_pct?: number };
+  outliers: string[];
+  scope_rows: { item: string; example: string; included_by: string[]; excluded_by: string[];
+    gap: boolean }[];
+  gaps: { item: string; included_by: string[]; excluded_or_silent: string[] }[];
+  recommendation: { apparent_low: string; base: number; is_outlier: boolean;
+    missing_scope: string[]; responsiveness: string[]; note: string } | null;
+  /** Bidders disqualified before price is compared at all. */
+  non_responsive: { bidder: string; issues: string[] }[];
+  bids: { bidder: string; ref?: string; base?: number; alternates: string[]; bond: boolean;
+    responsiveness: string[]; qualifications: string[] }[];
+  source: string;
+  message?: string;
+}

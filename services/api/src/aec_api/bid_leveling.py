@@ -71,6 +71,33 @@ def _outliers(bids: list[dict]) -> list[str]:
     return [name for name, v in vals if abs(v - median) / median > 0.25]
 
 
+def _yes(v: Any) -> bool:
+    """A `["No", "Yes"]` select, read as a select rather than as a truthy object.
+
+    `bool(d["bond_provided"])` was here, and `bond_provided` is a select whose options are the
+    **strings** `"No"` and `"Yes"`. `bool("No")` is `True`, so a bidder who explicitly answered *No*
+    reported as bonded while one who left the field blank reported as not bonded — the two cases
+    inverted exactly where it matters, since an explicit No is the one somebody typed on purpose.
+    """
+    return str(v).strip().lower() in ("yes", "y", "true", "1")
+
+
+def _responsiveness(d: dict) -> list[str]:
+    """Conditions that disqualify a bid before its number is compared to anything.
+
+    A bidder who acknowledged no addenda has not bid the current documents; one with no bid bond may
+    be unable to enter the contract. Neither has anything to do with being cheap, and a grid sorted
+    by price puts them at the top. `addenda_acknowledged` is captured by the register and, until
+    now, read by nothing.
+    """
+    issues = []
+    if not str(d.get("addenda_acknowledged") or "").strip():
+        issues.append("no addenda acknowledged")
+    if not _yes(d.get("bond_provided")):
+        issues.append("no bid bond")
+    return issues
+
+
 def _normalize(bid: dict) -> dict:
     d = bid.get("data", {}) if "data" in bid else bid
     base = _num(d.get("base_bid")) if d.get("base_bid") not in (None, "") else _num(d.get("amount"))
@@ -82,7 +109,8 @@ def _normalize(bid: dict) -> dict:
         "inclusions": _as_list(d.get("inclusions")),
         "exclusions": _as_list(d.get("exclusions")),
         "qualifications": _as_list(d.get("qualifications")),
-        "bond": bool(d.get("bond_provided")),
+        "bond": _yes(d.get("bond_provided")),
+        "responsiveness": _responsiveness(d),
     }
 
 
@@ -119,7 +147,8 @@ def level(bids: list[dict]) -> dict[str, Any]:
     norm = [_normalize(b) for b in bids]
     norm = [b for b in norm if b["bidder"] != "(unnamed)" or b["base"] is not None]
     if not norm:
-        return {"vendors": [], "message": "No bids to level — capture bid submissions for this package first."}
+        return {"vendors": [], "non_responsive": [],
+                "message": "No bids to level — capture bid submissions for this package first."}
 
     base_stats = _stats([b["base"] for b in norm if b["base"] is not None])
     outliers = set(_outliers(norm))
@@ -168,13 +197,21 @@ def level(bids: list[dict]) -> dict[str, Any]:
         rec = {"apparent_low": apparent_low["bidder"], "base": apparent_low["base"],
                "is_outlier": apparent_low["bidder"] in outliers,
                "missing_scope": missing,
-               "note": ("Lowest base bid." if not missing else
+               # Responsiveness is decided BEFORE price, so the apparent low carries its own.
+               "responsiveness": apparent_low["responsiveness"],
+               "note": ("Lowest base bid." if not (missing or apparent_low["responsiveness"]) else
                         "Lowest base, but does not clearly include scope other bidders carry — "
-                        "level for these before award.")}
+                        "level for these before award." if missing else
+                        "Lowest base, but not responsive — check this before comparing price.")}
 
     return {"vendors": vendors, "base_stats": base_stats, "outliers": sorted(outliers),
             "scope_rows": rows, "gaps": gaps, "recommendation": rec,
+            # Surfaced as its own list: these disqualify regardless of price, so they must not be
+            # something a reader has to notice inside a table sorted by number.
+            "non_responsive": [{"bidder": b["bidder"], "issues": b["responsiveness"]}
+                               for b in norm if b["responsiveness"]],
             "bids": [{"bidder": b["bidder"], "ref": b["ref"], "base": b["base"],
                       "alternates": b["alternates"], "bond": b["bond"],
+                      "responsiveness": b["responsiveness"],
                       "qualifications": b["qualifications"]} for b in norm],
             "source": "claude+rules" if ai_map else "rules"}

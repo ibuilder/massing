@@ -85,7 +85,63 @@ const appFiles = walk(SRC).filter((p) => {
   return !rel.includes("/src/api/");
 });
 
-const appText = appFiles.map((p) => readFileSync(p, "utf8")).join("\n");
+/**
+ * Comments stripped before scanning — a source-grep gate must not read its own documentation.
+ *
+ * `budget.ts` gained a bid-tab card whose comment says the engine is *"not `procurementLevel`
+ * (materials, compared on unit price)"*. The dispatch-by-name check below matches a name in
+ * backticks, so that sentence registered as a call site and the ratchet reported `procurementLevel`
+ * as newly wired. Nothing called it; a comment explaining what it is **not** was counted as
+ * something calling it.
+ *
+ * That is the same shape this repo has hit before, and the fix is the scanner rather than the
+ * wording: a comment that has to avoid naming its neighbour to keep a test green is a comment the
+ * next person will rewrite back.
+ *
+ * **A scanner, not three regexes, and the first draft proves why.** The regex version opened a block
+ * comment on the `/*` inside `photoIn.accept = "image/*"` and ate the next hundred lines, taking a
+ * real `api.uploadVerificationPhoto(...)` call with it. The fix for one false positive had created a
+ * false NEGATIVE — strictly worse, because an uncounted caller reads as dead code somebody may then
+ * delete. It was caught only because this ratchet fails in **both** directions; a one-way "did
+ * anything become unreachable" check would have accepted it silently.
+ *
+ * So this tracks string state. Regex literals are not tracked, and deliberately: a `/` opens a
+ * comment here only when followed by `/` or `*`, neither of which can begin a valid regex, and a
+ * slash inside a pattern is written `\/`.
+ */
+export function stripComments(src: string): string {
+  let out = "";
+  let i = 0;
+  let quote: string | null = null;
+  while (i < src.length) {
+    const c = src[i];
+    const next = src[i + 1];
+    if (quote) {
+      out += c;
+      if (c === "\\") { out += next ?? ""; i += 2; continue; }
+      if (c === quote) quote = null;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") { quote = c; out += c; i++; continue; }
+    if (c === "/" && next === "/") {
+      while (i < src.length && src[i] !== "\n") i++;
+      continue;
+    }
+    if (c === "/" && next === "*") {
+      i += 2;
+      while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) i++;
+      i += 2;
+      out += " ";
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+const appText = appFiles.map((p) => stripComments(readFileSync(p, "utf8"))).join("\n");
 
 const api = new ApiClient("http://localhost:0");
 const surface = [...surfaceOf(api)].sort();
@@ -209,6 +265,13 @@ const uncalledCountable = uncalled.filter((m) => !(m in KNOWN_UNCALLED));
 //: wrong one the gate says so by name. Do not add a line without saying in the commit why another
 //: unreachable endpoint is worth shipping.
 const UNCALLED: readonly string[] = [
+  // `job(pid, jobId)` — fetch ONE job. Uncalled all along; it read as reached only because
+  // `shell/spine.ts` has a comment saying "`label` and `job` mirror `rooms.ROOMS`", and the
+  // dispatch-by-name matcher counted a backticked word in prose as a call site. Stripping comments
+  // uncovered it. The app polls `jobs(pid, limit)` and filters, which is correct for the runs inbox
+  // and wasteful for tracking a job you just started; wiring it belongs with whoever owns
+  // `main.ts` (Lane A), not with a session passing through.
+  "job",
   "addBasePlate", "addCurtainWall", "addMepFitting", "addRebarCage",
   "addShearTab", "addTopicComment", "applyDetailingRules", "arrayElement",
   "assignMaterialSet", "assumptionsRegister", "attachDocument",
@@ -259,6 +322,31 @@ describe("client methods the application actually calls", () => {
     expect(surface.length, "the client surface came back empty").toBeGreaterThan(600);
     expect(uncalled.length, "EVERY method reads as uncalled — the matcher is broken, not the app")
       .toBeLessThan(surface.length);
+  });
+
+  it("does not read a COMMENT as a call site — but still reads real code", () => {
+    // Both directions, because stripComments is easy to make too eager. A version that stripped
+    // everything would silence the whole gate and every method would read as uncalled — which the
+    // test above catches — but a version that ate one line too many would just quietly lose callers.
+    const src = [
+      "/** not `procurementLevel` — this method is the other one. */",
+      "// see `buyoutSchedule` for the time-phased version",
+      "const url = \"https://example.test/a//b\";",
+      // The one that broke the first draft: a `/*` inside a STRING is not a comment opener. The
+      // regex version opened a block comment here and ate every line to the next `*/`, silently
+      // deleting a real `api.uploadVerificationPhoto(...)` call a hundred lines down.
+      "photoIn.accept = \"image/*\";",
+      "await api.levelBids(pid);",
+      "dispatch([\"scheduleCompare\"]);",
+    ].join("\n");
+    const out = stripComments(src);
+    expect(out, "a backticked name in a comment counted as a call site — the exact false positive "
+      + "that reported procurementLevel as newly wired").not.toContain("procurementLevel");
+    expect(out, "a line comment naming a method still counted").not.toContain("buyoutSchedule");
+    expect(out, "real calls must survive").toContain(".levelBids(");
+    expect(out, "dispatch-by-name must survive").toContain("\"scheduleCompare\"");
+    expect(out, "`//` inside a string truncated the line — a URL is not a comment")
+      .toContain("example.test/a//b");
   });
 
   it("the set of unreachable client methods is exactly the committed one", () => {

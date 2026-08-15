@@ -495,6 +495,15 @@ export async function renderAiAssist(ctx: PanelContext) {
       + ` · high ${cmoney(bs.high ?? 0)} · spread ${bs.spread_pct ?? 0}%`
       + (r.outliers.length ? ` · <span style="color:var(--status-warn)">outliers: ${r.outliers.join(", ")}</span>` : "");
     out.append(head);
+    // Responsiveness before price. A bidder who acknowledged no addenda has not bid the current
+    // documents and one with no bond may not be able to sign — neither has anything to do with
+    // being cheap, so neither can be left for a reader to notice inside a table sorted by number.
+    if (r.non_responsive?.length) {
+      const nr = el("div"); nr.style.cssText = "margin:4px 0;font-size:12px;color:var(--status-warn)";
+      nr.textContent = "⛔ Not responsive — resolve before comparing price: "
+        + r.non_responsive.map((x) => `${x.bidder} (${x.issues.join(", ")})`).join(" · ");
+      out.append(nr);
+    }
     if (r.recommendation) {
       const rec = el("div"); rec.style.cssText = "margin:4px 0;font-size:12px";
       rec.innerHTML = `<b>Recommend:</b> ${r.recommendation.apparent_low} @ ${cmoney(r.recommendation.base)} — `

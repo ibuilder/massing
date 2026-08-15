@@ -4,6 +4,42 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.963 (2026-08-14) — a select read as a truthy object, and a scanner that read its own comment
+
+**`bool("No")` is `True`.** `bid_leveling` read `bond_provided` as `bool(d.get("bond_provided"))`,
+and that field is a select whose options are the strings `"No"` and `"Yes"`. So a bidder who
+explicitly answered **No** reported as bonded, while one who left the field blank reported as not
+bonded — the two cases inverted precisely where it matters, because an explicit No is the answer
+somebody typed on purpose. A bid bond is what lets a bidder enter the contract at all.
+
+`addenda_acknowledged` is captured by the `bid_submission` register and was read by **nothing**. A
+bidder who acknowledged no addenda has not bid the current documents. Both are now
+`non_responsive` — reported as their own list ahead of the grid, and carried on the recommendation,
+because responsiveness is decided before price and neither has anything to do with being cheap. A
+table sorted by number puts exactly these bidders at the top.
+
+### The reachability scanner read a comment as a call site, then ate a real one
+
+`clientCallers.test.ts` counts a client method as reached if the app calls it *or* names it as a
+string literal. A comment saying a module is *"not `procurementLevel`"* therefore registered as
+something calling `procurementLevel` — **a source-grep gate reading its own documentation**, a shape
+this repo has hit before. The fix belongs in the scanner: a comment that must avoid naming its
+neighbour to keep a test green is a comment the next person rewrites back.
+
+The first fix was three regexes and was **worse than the bug**. The `/*` inside the string
+`photoIn.accept = "image/*"` opened a phantom block comment that swallowed the next hundred lines,
+deleting a real `api.uploadVerificationPhoto(...)` call. A false positive traded for a false
+negative — strictly worse, since an uncounted caller reads as dead code somebody may then delete. It
+was caught only because this ratchet fails in **both** directions; a one-way "did anything become
+unreachable" check would have accepted it silently. It is now a small scanner that tracks string
+state, with a twin asserting comments are stripped *and* that real calls, dispatch-by-name and `//`
+inside a URL all survive.
+
+Stripping comments then uncovered a genuinely dark method: **`job(pid, jobId)` has no caller at
+all**, and read as reached only because `shell/spine.ts` contains the sentence "`label` and `job`
+mirror `rooms.ROOMS`". Recorded with its condition rather than wired, since the caller belongs in
+`main.ts`.
+
 ## v0.3.962 (2026-08-14) — the same defect, three times, now a gate
 
 CodeQL flagged `py/stack-trace-exposure` on v0.3.961 within the hour: `_unavailable(str(exc))` in the

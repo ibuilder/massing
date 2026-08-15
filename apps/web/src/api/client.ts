@@ -35,6 +35,7 @@ import type {
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, PreflightSummary, ProfessionalLicense,
   ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
+  BidLevelingDetail,
   SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload } from "./types";
 
 
@@ -2327,14 +2328,7 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
 
   /** Deep bid leveling for one package: base stats, scope matrix, gaps, scope-adjusted recommendation. */
   bidLevelingDetail(pid: string, packageId: string) {
-    return this.json<{ package: string; vendors: string[];
-      base_stats: { count: number; low?: number; high?: number; median?: number; average?: number; spread_pct?: number };
-      outliers: string[];
-      scope_rows: { item: string; example: string; included_by: string[]; excluded_by: string[]; gap: boolean }[];
-      gaps: { item: string; included_by: string[]; excluded_or_silent: string[] }[];
-      recommendation: { apparent_low: string; base: number; is_outlier: boolean; missing_scope: string[]; note: string } | null;
-      bids: { bidder: string; ref?: string; base?: number; alternates: string[]; bond: boolean; qualifications: string[] }[];
-      source: string; message?: string }>(`/projects/${pid}/bids/leveling/${packageId}`);
+    return this.json<BidLevelingDetail>(`/projects/${pid}/bids/leveling/${packageId}`);
   }
 
   // --- portfolio benchmarking (cross-project) --------------------------------
