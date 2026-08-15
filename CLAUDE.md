@@ -79,3 +79,36 @@ that were proposed and never built. **Backticks are therefore reserved for files
 dead, historical or merely proposed name goes in plain quotes, since a backticked name reads as a live
 citation whether or not anything backs it. Read that test's docstring before editing this list; the
 lessons that cost the most live there, next to the check, not here.
+
+## MassingViewer — the extraction, and what it means for `apps/web/src/viewer`
+
+**MassingCloud/MassingViewer is live, public, MIT**, and is where this repository's Design Room engine is being
+extracted to. It is not a fork and not a second viewer: massing is intended to consume it as a dependency and
+delete its own copy. Written here on 2026-08-15 because nothing in these instructions mentioned it, and an agent
+working in the viewer directory could not have known.
+
+**Ready now, on its side.** 25 published packages, all permissive and checked against *this* repository's allowed
+licence list; a facade, "@massing/embed", exposing viewport, kernel, drawings, markup, ribbon and plugin host; a
+seam ledger reporting 27 of 27 movable capabilities covered, each claim asserted against the built facade rather
+than ticked in a table. Packaging is validated from real tarballs, so the swap is not blocked on anything
+technical.
+
+**Blocked on one thing:** the packages are not on npm yet. Until they are, this repository keeps its own viewer
+and nothing here should change on account of the extraction.
+
+**What an agent working in `apps/web/src/viewer` should know.** Twenty-eight commits have touched that directory
+since extraction began on 2026-08-06, and `apps/web/src/viewer/app.ts` has gone from 5,064 lines to 3,444 —
+largely R39-DECOMP-VIEWER, which is the same decomposition the extraction plan asks for and is being done here
+first. That is good and it is also divergence: every one of those commits is a change the swap will have to
+reconcile. So:
+
+- **Keep shipping.** Blocking this roadmap for the extraction would make the extraction expensive and it would
+  die. Landing viewer work here is the correct default.
+- **Prefer changes that survive the swap** — new behaviour behind the existing seams, rather than new coupling
+  into `apps/web/src/viewer/app.ts`.
+- **Two breaking changes are coming together, deliberately**, so this repository absorbs one: creating a viewport
+  becomes asynchronous (WebGPU first, WebGL2 fallback), and single-model `showModel` becomes add/remove with
+  per-model state. Selection stays keyed by IFC GlobalId across models, which is what `planPaneSelection` and the
+  spec pane already rely on.
+- **Never reference an element by a transient viewer id** across that boundary. GlobalId is the only identity
+  that survives a reload, a re-tessellation, or a second model.
