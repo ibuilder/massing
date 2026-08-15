@@ -4,6 +4,50 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.969 (2026-08-15) — two rounding conventions inside one G702, and a penny between them
+
+`R43-MASSINGBILL-CORE` recommended adopting `massingbill/core/money.py` to fix a float money path in
+`payapp.py`. **That premise was already stale** — v0.3.927 replaced it with exact `Decimal` quantized
+HALF-UP, under the title *"money is Decimal end to end"*.
+
+It was right about `payapp.py` and wrong about the tree. Checking the other five G702 sites the item
+itself names found **three that still computed retainage as `round(amount * pct / 100, 2)` on binary
+floats** — `cost.py` twice and `routers/cost.py` once. `round()` is ROUND_HALF_EVEN; an invoice
+rounds half away from zero. Measured on the real code:
+
+| completed | rate | `cost.py` | `payapp` |
+|---|---|---|---|
+| 2.50 | 5% | **0.12** | **0.13** |
+| 12.50 | 1% | **0.12** | **0.13** |
+| 162.50 | 1% | **1.62** | **1.63** |
+
+**Four of six sampled cases differed by a penny**, and the same pay application could show either
+number depending on which path produced it. A pay app out by a penny is rejected, so this is the
+document failing rather than a rounding curiosity. It is `correct-twice-missed-once` exactly: N−1
+fixed sites prove nothing about the Nth, and the release note said the tree was done.
+
+`aec_api/money.py` — which has carried `q2`, `to_cents` and a penny-accurate `allocate` since
+v0.3.191 — gains `retainage()` and `rate()`, and the three float sites now call them. Additive: no
+existing helper changed, and `payapp.py` was left alone because it was already correct and touching a
+shipped billing path without a defect to fix is risk for nothing.
+
+**Neither "massingbill/core/money.py" nor a new module was adopted, and that is the finding.** The
+correct implementation already existed here; what was missing was that three sites had never been
+pointed at it. `test_money_spine.py` pins the divergence that existed, the convergence now, and the
+fact that `payapp`'s own quantize helpers still agree with `money`'s — a duality tolerable only while
+it agrees, so the agreement is asserted rather than assumed.
+
+Also pinned: an explicit **0%** retainage rate stays 0% (a truthiness test made it 5%, withholding
+$1,000 on a $20,000 line the owner had agreed to hold nothing on), while a *missing* rate still gets
+the contract default.
+
+*Two process notes, both mine.* The first draft of the test asserted `abs(old - new) == 0.01` and
+failed, because `1.63 - 1.62` is `0.010000000000000009` — comparing float differences with `==`, in a
+test about float money. And I wrote this fix as a **new** `money.py`, destroying the existing one;
+`test_money` and `test_money_wire` failed in 0.3 seconds with `no attribute 'q2'`, which is the only
+reason it was caught. Second time in one session that a "new" module overwrote a tracked file. The
+restore was clean and the shipped change is the additive one.
+
 ## v0.3.968 (2026-08-15) — the third sync in two days, and it changed the three shipped yesterday
 
 `massingplan` re-synced `a740241c` → **`ccadd04b`**. MIT, read from the LICENSE file; copy verbatim,

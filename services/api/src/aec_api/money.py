@@ -50,3 +50,34 @@ def allocate(total: float | int | str | Decimal, weights: list[float]) -> list[f
     for i in order[:remainder]:
         floors[i] += 1
     return [c / 100 for c in floors]
+
+
+#: Retainage withheld when a line does not state its own rate.
+#:
+#: Zero is a VALUE here, not an absence. `cost.py` used `or DEFAULT_RETAINAGE`, which read an
+#: explicit 0% as unset and withheld 5% on a line the owner had agreed to hold nothing on.
+DEFAULT_RETAINAGE = 5.0
+
+
+def rate(raw: object, default: float = DEFAULT_RETAINAGE) -> Decimal:
+    """A retainage percentage, honouring an explicit zero.
+
+    Separate from `_d` because the absence rule differs: a missing AMOUNT is zero money, a missing
+    RATE is the contract default, and an explicit 0% is neither.
+    """
+    return _d(default) if raw in (None, "") else _d(raw)
+
+
+def retainage(amount: float | int | str | Decimal, pct: float | int | str | Decimal) -> float:
+    """Retainage in cents: exact multiply, then ONE half-up quantize.
+
+    Added v0.3.969. `cost.py` (twice) and `routers/cost.py` (once) computed this as
+    `round(amount * pct / 100, 2)` on binary floats. `round()` is ROUND_HALF_EVEN where an invoice
+    rounds half away from zero, so those sites disagreed with `payapp.py` — which had been fixed in
+    v0.3.927 — by a penny on 4 of 6 sampled cases (2.50 at 5% gives 0.12 there, 0.13 here). Two
+    conventions inside one G702, and a pay application out by a penny is rejected.
+
+    Quantizing the operands before multiplying would round twice and compound down a schedule of
+    values, which is why the multiply happens in Decimal and the cent is spent once, at the end.
+    """
+    return q2(_d(amount) * _d(pct) / Decimal(100))

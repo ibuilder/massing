@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
-from .. import cost
+from .. import cost, money
 from .. import modules as me
 from ..db import get_db
 from ..models import Project
@@ -557,7 +557,10 @@ def subcontractor_billing(pid: str, db: Session = Depends(get_db), _: str = Depe
         row["applications"] += 1
         if state in ("approved", "paid"):
             row["billed"] = round(row["billed"] + amt, 2)
-            row["retainage"] = round(row["retainage"] + amt * ret_pct / 100, 2)
+            # v0.3.969 — same fix as cost.py: exact retainage, quantized HALF-UP once, then
+            # accumulated. The float form disagreed with `payapp` by a penny and drifted as well.
+            row["retainage"] = money.q2(
+                money.retainage(amt, ret_pct) + row["retainage"])
         if state == "paid":
             row["paid"] = round(row["paid"] + amt * (1 - ret_pct / 100), 2)
     for row in rows.values():

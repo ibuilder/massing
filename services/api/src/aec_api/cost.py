@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from . import modules as me
+from . import money
 
 DEFAULT_RETAINAGE = 5.0
 
@@ -53,13 +54,17 @@ def g703(db: Session, pid: str) -> dict[str, Any]:
         # Zero is a VALUE here, not an absence. Found the first time a fixture used a 0% rate; every
         # prior test used the default, where the bug is invisible because the fallback and the real
         # value coincide.
+        # v0.3.969 — was `round(completed * ret_pct / 100, 2)` on binary floats. `round()` is
+        # ROUND_HALF_EVEN, so it disagreed with `payapp`'s HALF-UP by a penny on 4 of 5 sampled
+        # cases (2.50 @ 5% -> 0.12 here, 0.13 there). Two conventions inside one G702, and a pay
+        # application out by a penny is rejected.
         raw_pct = d.get("retainage_pct")
-        ret_pct = DEFAULT_RETAINAGE if raw_pct in (None, "") else _n(raw_pct)
-        retainage = round(completed * ret_pct / 100, 2)
+        ret_pct = money.rate(raw_pct)
+        retainage = money.retainage(completed, ret_pct)
         # MOD-G702: the same line's retainage on the PREVIOUS period alone. G702 line 7 needs it, and
         # computing it there from the global default while line 5 used the per-line rate is what made
         # a 10%-retainage contract report a negative payment due.
-        retainage_prev = round(prev * ret_pct / 100, 2)
+        retainage_prev = money.retainage(prev, ret_pct)
         line = {
             "item_no": d.get("item_no"), "description": d.get("description"),
             "cost_code": d.get("cost_code"), "scheduled_value": scheduled,

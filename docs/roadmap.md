@@ -1028,7 +1028,28 @@ the only item here with real scope.
   are subdirectories. **The re-check was sloppier than the thing it checked**, and a wrong correction
   is worse than a wrong original because it arrives wearing a verification badge.
 
-- ◧ **R43-MASSINGBILL-CORE** *(M — Lane C; kit reviewed 2026-08-10 at their pin `3af9124c`)* —
+- ◧ **R43-MASSINGBILL-CORE** *(M — Lane C; **money half CLOSED v0.3.969, and not the way this entry said**)* —
+
+  **The premise below was stale by the time it was acted on, and checking it found a live defect.**
+  This entry recommends taking "core/money.py" to fix a float path in `payapp.py`. v0.3.927 had
+  already replaced that path with exact `Decimal` quantized HALF-UP. But it fixed **one file**: the
+  other G702 sites this entry itself names kept `round(amount * pct / 100, 2)` on floats —
+  `cost.py` twice, `routers/cost.py` once — and `round()` is ROUND_HALF_EVEN where an invoice rounds
+  half away from zero. **Four of six sampled cases differed by a penny** (2.50 @ 5% → 0.12 vs 0.13).
+  Two conventions inside one G702; a pay app out by a penny is rejected.
+
+  Closed by pointing the three float sites at `services/api/src/aec_api/money.py`, which has carried
+  the half-up quantize since v0.3.191 — additive, `payapp.py` untouched, the five existing G702
+  suites as the parity gate, and
+  `services/api/test_money_spine.py` pinning both the convergence and the divergence it replaced.
+
+  **Neither "massingbill/core/money.py" nor a new module was adopted** (plain quotes: it is upstream's file, and a backtick reads as a citation into this tree). The correct implementation was already here; three sites had simply never been pointed at it. Integer cents is not more correct than quantized `Decimal`, it is a
+  different correct answer, and swapping one for the other on a shipped billing path is risk without
+  reward.
+
+  **The requisition half is untouched** and still needs the per-site decision described below.
+
+- ◧ **R43-MASSINGBILL-CORE — the original review** *(kit reviewed 2026-08-10 at their pin `3af9124c`)* —
   **the core now exists and is MIT; their "pure addition" claim does NOT survive checking.** They
   shipped `massingbill/core/` — four stdlib-only modules (`money`, `retainage`, `requisition`,
   `enums`) with a CI job that pip-installs nothing at all, so "zero deps" is measured rather than
