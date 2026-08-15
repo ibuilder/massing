@@ -12,6 +12,7 @@ from .. import modules as me
 from .. import (
     schedule_compare,
     schedule_cpm,
+    schedule_earned,
     schedule_health,
     schedule_lastplanner,
     schedule_levelling,
@@ -356,6 +357,30 @@ def schedule_collapsed_endpoint(pid: str, body: dict = Body(default={}),
     """
     acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
     return schedule_modelled.collapsed(acts, body.get("events") or [])
+
+
+@router.get("/projects/{pid}/schedule/earned")
+def schedule_earned_endpoint(pid: str, baseline_id: str | None = None,
+                             db: Session = Depends(get_db),
+                             _: str = Depends(require_role("viewer"))):
+    """R46 -- Earned Schedule: how far along in TIME, where SPI stops working.
+
+    `evm.py` computes the ANSI/EIA-748 set and its own docstring defers this to "later phases".
+    Classic `SPI = EV / PV` is a cost ratio used as a time signal, and it has a terminal defect: EV
+    converges on PV at completion whatever the dates did, so **SPI returns to exactly 1.0 on a
+    project that finished a year late**. It does not degrade -- it arrives at "perfectly on schedule".
+
+    `SPI(t) = ES / AT` compares two durations and stays below 1.0 at completion on a late project.
+    Both ship; `evm.py` is untouched.
+
+    **This is the one baseline method that works on a pre-v0.3.961 snapshot**, because it needs only
+    dates. `compare`, `windows` and `impacted` all need frozen logic and refuse those.
+
+    Working days throughout. `performance_index` is `null` when no time has passed -- never 1.0,
+    which would say a project that has not started is exactly on schedule.
+    """
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_earned.earned(acts, pid, baseline_id=baseline_id)
 
 
 @router.post("/projects/{pid}/schedule/optioneer")

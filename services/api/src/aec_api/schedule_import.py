@@ -47,6 +47,7 @@ from massingplan.core.issues import IssueLog, Severity
 from massingplan.core.model import ExchangeSchedule
 from massingplan.core.mspdi import MSPDIError, read_mspdi
 from massingplan.core.network import RelationType
+from massingplan.core.p6xml import P6XMLError, read_p6xml
 from massingplan.core.xer import XERError, read_xer
 
 #: How a relationship reads in the `predecessors` field the module engine stores
@@ -180,20 +181,26 @@ def parse_full(text: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
             pass  # not well-formed — let read_mspdi raise its own, better-worded MSPDIError
         schedule = read_mspdi(text)
     elif detected == "pmxml":
-        # Handled by the data service's parser, which does not read logic.
-        # Named, not hidden.
-        issues.warn(
-            "IMPORT.PMXML_NO_LOGIC",
-            "PMXML is parsed by the legacy reader, which does not carry relationships",
-            "activities imported without logic; export as .xer for a full import",
-        )
-        return [], {
-            "format": "pmxml",
-            "fell_back": True,
-            "activities": 0,
-            "relationships": 0,
-            "issues": issues.to_list(),
-        }
+        # R46 — PMXML is now READ, not counted. This branch used to warn and return zero activities,
+        # so a planner who exported the format that carries baselines got an import of nothing and a
+        # note telling them to re-export as XER. `p6xml.read_p6xml` returns the same
+        # `ExchangeSchedule` the XER reader does, so everything downstream is unchanged.
+        #
+        # Same defused pre-parse as MSPDI, for the same reason and on the same argument: this path
+        # takes a file from a user, so it REJECTS a document using entity or DTD features rather
+        # than sanitising one. `xmlsafe` in the vendored engine hardens the reader itself; this
+        # rejects before the reader is reached at all, and the two are not redundant — one is a
+        # property of the parser, the other of this upload path.
+        try:
+            _defused_et.fromstring(text)
+        except DefusedXmlException as exc:
+            raise P6XMLError(
+                "PMXML refused: the document uses XML entity or DTD features that are disabled for "
+                f"uploaded files ({type(exc).__name__})."
+            ) from exc
+        except _defused_et.ParseError:
+            pass  # not well-formed — let read_p6xml raise its own, better-worded P6XMLError
+        schedule = read_p6xml(text)
     else:
         raise ValueError(
             "unrecognised schedule format -- expected a Primavera .xer, a "

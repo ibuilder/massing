@@ -398,6 +398,32 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
 
   /**
+   * R46 — Earned Schedule: how far along in TIME.
+   *
+   * Not a duplicate of `evm`'s SPI. Classic `SPI = EV/PV` converges on exactly **1.0** at completion
+   * whatever the dates did — it arrives at "perfectly on schedule" for a job that finished a year
+   * late. `SPI(t) = ES / AT` compares two durations and stays below 1.0. Render both if you show
+   * both, and label which is which.
+   *
+   * `performance_index` is `null` when no time has passed — show an em-dash, never 1.0, which would
+   * say a project that has not started is exactly on schedule. Everything is in **working days**.
+   *
+   * This is the one baseline method that accepts a pre-v0.3.961 snapshot: it needs only dates.
+   */
+  scheduleEarned(pid: string, baselineId?: string) {
+    return this.json<{
+      available: boolean; reason?: string;
+      baseline: { id: string; name: string; captured_at: string; count: number;
+                  schema: number; has_logic: boolean } | null;
+      data_date: string | null; planned_duration_days: number | null;
+      actual_time_days: number | null; earned_days: number | null;
+      earned_duration_days: number | null; baseline_duration_days: number | null;
+      schedule_variance_days: number | null; performance_index: number | null;
+      unit: string; baseline_undated: number | null; unbaselined_activities: number | null;
+    }>(`/projects/${pid}/schedule/earned${baselineId ? `?baseline_id=${baselineId}` : ""}`);
+  }
+
+  /**
    * R46 — contemporaneous windows analysis (AACE 29R-03 MIP 3.3): where the time went, period by
    * period.
    *

@@ -51,9 +51,10 @@ APP = SRC / "aec_api"
 #:
 #:   * ~~`windows`~~  — SHIPPED v0.3.965 as `schedule_windows.py`.
 #:   * ~~`modelled`~~ — SHIPPED v0.3.965 as `schedule_modelled.py`.
-#:   * `p6xml`     — Primavera PMXML. XER cannot carry baselines; this can, plus global calendars.
+#:   * ~~`p6xml`~~   — SHIPPED v0.3.966. The PMXML branch of `schedule_import` used to return
+#:                    ZERO activities with a warning; it now reads the format properly.
 #:   * `compression` — what finishing three weeks earlier would take, and cost.
-#:   * `earned`    — Earned Schedule: how far along in TIME, as opposed to `progress`'s BEI.
+#:   * ~~`earned`~~  — SHIPPED v0.3.966 as `schedule_earned.py`.
 #:   * `portfolio` — several schedules, cross-project logic, one resource pool.
 #:   * `weather`   — the weather allowance a programme already carries, made explicit.
 #:
@@ -63,8 +64,6 @@ APP = SRC / "aec_api"
 #: **Remove names as they are wired; never add one without a roadmap entry saying why.**
 UNREACHED: set[str] = {
     "compression",
-    "earned",
-    "p6xml",
     "portfolio",
     "weather",
 }

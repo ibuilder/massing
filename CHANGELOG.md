@@ -4,6 +4,48 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.966 (2026-08-15) — a PMXML import that imported nothing, and the SPI that reads 1.0 on a late job
+
+**A Primavera PMXML export used to import zero activities.** The branch warned
+*"PMXML is parsed by the legacy reader, which does not carry relationships"* and returned
+`activities: 0`, with a note telling the planner to re-export as XER. So the one Primavera format
+that **can** carry baselines and global calendars — the thing XER structurally cannot do, and the
+gap behind our own baseline-schema work — was the one that imported as nothing.
+
+`p6xml.read_p6xml` returns the same `ExchangeSchedule` the XER reader does, so it drops straight into
+the existing path: activities, relationships, durations, calendars. The upload gets the same defused
+pre-parse as MSPDI, and for the same reason — this path takes a file from a user, so it **rejects** a
+document using XML entity or DTD features rather than sanitising one. That is not redundant with
+`xmlsafe` in the vendored reader: one is a property of the parser, the other of this upload path.
+
+Worth recording because it nearly shipped wrong: the first fixture used
+`<PredecessorActivityId>A1010</...>` and produced **zero relationships while passing every other
+assertion**. Real PMXML links activities by numeric `ObjectId` and carries the planner's code
+alongside. The fixture was written from what the format "should" look like; the corrected one was
+written from the reader. A fixture that parses cleanly and yields nothing is the exact shape of the
+defect this release closes.
+
+**`GET /schedule/earned` — Earned Schedule.** `evm.py`'s own docstring defers it: *"the time-based
+Earned Schedule extension come in later phases"*. This is that phase, and `evm.py` is untouched.
+
+Classic `SPI = EV / PV` is a cost ratio used as a time signal, and it has a terminal defect: EV
+converges on PV at completion whatever the dates did, so **SPI returns to exactly 1.0 on a project
+that finished late**. It does not degrade — it arrives at "perfectly on schedule" for a job everyone
+watched run over. Measured on a schedule that finished **24 working days** past its baseline,
+`SPI(t) = ES / AT` reads **0.556**. The twin matters as much: a project that ran to plan reads 1.034,
+so an index that was simply always pessimistic would have failed here.
+
+**It is the one baseline method that works on a pre-v0.3.961 snapshot.** `compare`, `windows` and
+`impacted` all need frozen logic and refuse the older ones; Earned Schedule needs only dates, which
+every baseline ever captured carries. Refusing them would have been a refusal the data does not
+require.
+
+Activities with no baseline entry are excluded from both sides and **counted** — progress on work the
+plan never contained inflates the index for doing unplanned things, and the count says how much was
+set aside. `performance_index` is `null` when no time has passed, never 1.0.
+
+**26 of 29 vendored modules now reachable.** Three left: `compression`, `weather`, `portfolio`.
+
 ## v0.3.965 (2026-08-15) — four delay methods that were one number, and two of them now real
 
 **`eot.py` offers four AACE delay-analysis methods, refuses to produce a number without one, and

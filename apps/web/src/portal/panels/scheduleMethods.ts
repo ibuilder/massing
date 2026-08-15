@@ -228,6 +228,38 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
   }));
   rc.appendChild(rOut); wrap.appendChild(rc);
 
+  // ── Earned Schedule ──────────────────────────────────────────────────────────────────────────
+  const esc2 = card("Earned Schedule — how far along in time",
+    "Classic SPI is a cost ratio used as a time signal, and it returns to exactly 1.0 at completion "
+    + "however late the job was. SPI(t) compares two durations and stays below 1.0. Works on any "
+    + "captured baseline — this one needs only dates.");
+  const eOut = document.createElement("div");
+  esc2.appendChild(runner(eOut, "▶ Measure", async () => {
+    const r = await api.scheduleEarned(pid);
+    render(eOut, r, r.available ? [
+      // null renders as an em-dash, never 1.0 — "exactly on schedule" is the worst value to invent.
+      { label: "SPI(t)", value: r.performance_index == null ? "—" : r.performance_index.toFixed(3),
+        hint: r.performance_index == null ? "no time elapsed"
+          : r.performance_index < 1 ? "behind" : "at or ahead of plan" },
+      { label: "SV(t)", value: r.schedule_variance_days == null ? "—"
+          : `${r.schedule_variance_days > 0 ? "+" : ""}${r.schedule_variance_days}d`,
+        hint: "working days" },
+      { label: "elapsed / earned", value: `${r.actual_time_days ?? "—"} / ${r.earned_days ?? "—"}`,
+        hint: `of ${r.planned_duration_days ?? "—"}d planned` },
+      { label: "vs baseline", value: r.baseline?.name ?? "—",
+        hint: r.baseline?.has_logic === false ? "dates-only baseline — fine for this method" : "" },
+    ] : []);
+    if (r.available && ((r.unbaselined_activities ?? 0) || (r.baseline_undated ?? 0))) {
+      const n = document.createElement("div");
+      n.className = "meta"; n.style.cssText = "margin-top:4px;font-size:10.5px";
+      n.textContent = `excluded: ${r.unbaselined_activities ?? 0} activity(ies) not in the baseline`
+        + `, ${r.baseline_undated ?? 0} baseline row(s) undated — counting work the plan never `
+        + "contained would inflate the index";
+      eOut.appendChild(n);
+    }
+  }));
+  esc2.appendChild(eOut); wrap.appendChild(esc2);
+
   // ── Windows analysis ─────────────────────────────────────────────────────────────────────────
   const wc = card("Windows analysis — where the time went, period by period",
     "AACE 29R-03 MIP 3.3, over the captured baseline library. As-planned-vs-as-built compares two "

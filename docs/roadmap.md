@@ -192,7 +192,7 @@ have, so unlike R45 there is no de-duplication decision hiding in this list:
 | ~~`windows`~~ | 300 | **SHIPPED v0.3.965** — `schedule_windows.py`, over the captured baseline library |
 | ~~`modelled`~~ | 477 | **SHIPPED v0.3.965** — `schedule_modelled.py`. Collapsed as-built refuses on our data and says why; the refusal is the finding |
 | `p6xml` | 760 | Primavera PMXML. **XER cannot carry baselines**; PMXML can, as additional `<Project>` elements, along with the global calendars a restricted XER omits — which is the gap behind our own baseline-schema work |
-| `earned` | 302 | Earned Schedule — how far along in **time**, as against `progress`'s BEI. The metric that keeps working in the last third of a job, where SPI degenerates to 1.0 |
+| ~~`earned`~~ | 302 | **SHIPPED v0.3.966** — `schedule_earned.py`. Measured 0.556 on a job SPI would call 1.0 |
 | `compression` | 439 | What finishing three weeks earlier would take, and cost. Levelling answers "with the crews I have"; nothing answers the question actually asked in the meeting |
 | `weather` | 250 | The weather allowance a programme already carries, made explicit instead of padded invisibly into durations |
 | `portfolio` | 345 | Several schedules, cross-project logic, one resource pool — a programme above a certain size is never one schedule |
