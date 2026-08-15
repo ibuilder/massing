@@ -38,18 +38,40 @@ SRC = Path(__file__).resolve().parent / "src"
 CORE = SRC / "massingplan" / "core"
 APP = SRC / "aec_api"
 
-#: Vendored core modules with no path from the API. Nine at the `d1e4bf16` sync (2026-08-14).
+#: Vendored core modules with no path from the API.
 #:
-#: **Now empty.** R45 wired all 21 over 2026-08-14: five were pure additive value with no counterpart
-#: in `aec_api`; four (`takt`, `lastplanner`, `risk`, `progress`) had OUR implementation beside them
-#: and were de-duplication decisions rather than adapters — all four still ship both, because in each
-#: case the two answer measurably different questions and choosing one is a domain call. `compare`
-#: was the last, and it was blocked on the baseline SNAPSHOT rather than on the engine.
+#: Emptied on 2026-08-14 when R45 wired all 21 at the `d1e4bf16` sync — and **refilled the next day
+#: by a re-sync**, which is the entire argument for this file. `a740241c` brought 2,873 lines of new
+#: capability plus a rewritten MSPDI writer, and `test_massingplan_vendor` stayed green throughout
+#: because the copy was faithful. Faithfulness and usefulness are different claims; only this one
+#: notices that the engine grew and the application did not.
 #:
-#: The list stays, and both directions of the ratchet stay armed: an unreachable module must be
-#: recorded here with a roadmap entry saying why, and a recorded module that becomes reachable must
-#: leave. An empty list is the state to keep, not a reason to delete the check.
-UNREACHED: set[str] = set()
+#: Filed as **R46** in the roadmap. Unlike R45's list, none of these overlap anything we already
+#: have — they are new methods, not duplicate ones:
+#:
+#:   * `windows`   — contemporaneous windows analysis (AACE 29R-03 MIP 3.3): where the time went,
+#:                   window by window. `compare` answers a re-baseline; this answers a claim.
+#:   * `modelled`  — impacted as-planned and collapsed as-built. These ALTER the network, where
+#:                   `windows` only observes it — the distinction an expert report turns on.
+#:   * `p6xml`     — Primavera PMXML. XER cannot carry baselines; this can, plus global calendars.
+#:   * `compression` — what finishing three weeks earlier would take, and cost.
+#:   * `earned`    — Earned Schedule: how far along in TIME, as opposed to `progress`'s BEI.
+#:   * `portfolio` — several schedules, cross-project logic, one resource pool.
+#:   * `weather`   — the weather allowance a programme already carries, made explicit.
+#:
+#: `xmlsafe` is NOT here: the same sync's parse-bomb and entity hardening reaches us transitively
+#: through `mspdi` and `xer`, so the security fix was live the moment the files landed.
+#:
+#: **Remove names as they are wired; never add one without a roadmap entry saying why.**
+UNREACHED: set[str] = {
+    "compression",
+    "earned",
+    "modelled",
+    "p6xml",
+    "portfolio",
+    "weather",
+    "windows",
+}
 
 _FAILURES: list[str] = []
 

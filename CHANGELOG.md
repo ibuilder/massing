@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.964 (2026-08-15) — the vendor re-sync that proved its own gate
+
+`massingplan` re-synced `d1e4bf16` → **`a740241c`**: eight new modules, 2,986 lines, a rewritten
+MSPDI writer and an injection audit across every writer. MIT, read from the LICENSE file. Copy
+verbatim, no local deviations.
+
+**R45 finished yesterday with all 21 modules reachable and the allowlist empty for the first time.
+This sync refilled it, and `test_massingplan_vendor` stayed green throughout** — the digest matched,
+`core` still imports nothing but the standard library, nobody forked a file. It was
+`test_vendor_reachable` that failed the build. Faithfulness and usefulness are different claims
+about a vendor drop, and only the second one notices that the engine grew and the application did
+not. The second gate justified itself on the very next sync rather than in the argument for it.
+
+**The security fix was already live.** `xmlsafe.py` — parse-bomb and XML-entity hardening — reaches
+us transitively through `mspdi` and `xer`, so it took effect the moment the files landed. It is not
+on the unreached list and needs no adapter. The XER/MSPDI import paths are the ones users point at
+untrusted files, so this is the half of the sync that mattered most and it needed nothing.
+
+The `mspdi` rewrite (1,265 lines differ) and the `xer` injection audit landed with **no adapter
+change and no test movement** — verified by running the schedule suites, not inferred from the diff
+being large.
+
+Seven modules now have no path from the API, recorded as **R46** with what each answers. None
+duplicates anything we have, so unlike R45 there is no de-duplication decision hiding in the list:
+`windows` (contemporaneous windows analysis — where the eighty days went, window by window, which is
+the question a claim asks and `compare` cannot), `modelled` (impacted as-planned / collapsed
+as-built, which *alter* the network where `windows` only observes it), `p6xml` (PMXML carries
+baselines and global calendars; **XER cannot**), `earned` (Earned Schedule — how far along in time,
+where SPI degenerates to 1.0 in the last third), `compression` (what finishing three weeks earlier
+would take, and cost), `weather`, and `portfolio`.
+
 ## v0.3.963 (2026-08-14) — a select read as a truthy object, and a scanner that read its own comment
 
 **`bool("No")` is `True`.** `bid_leveling` read `bond_provided` as `bool(d.get("bond_provided"))`,

@@ -36,6 +36,8 @@ from .model import (
 )
 from .network import ActivityKind, RelationType
 from .units import days_from_hours, hours_from_days
+from .xmlsafe import parse as parse_xml
+from .xmlsafe import text as xml_text
 
 MSPDI_NS = "http://schemas.microsoft.com/project"
 
@@ -187,14 +189,16 @@ def format_duration_hours(hours: float) -> str:
 
 def read_mspdi(content: str) -> ExchangeSchedule:
     """Read an MSPDI document into the hub model."""
+    # This used to call `ElementTree.fromstring` directly, under a note saying
+    # the application layer hardened untrusted uploads. It does not: the only
+    # control there is a byte limit, and a billion-laughs payload is a few
+    # hundred bytes. See `xmlsafe` for the measurement.
     try:
-        root = ElementTree.fromstring(content)  # noqa: S314 - see the note below
+        root = parse_xml(content)
     except ElementTree.ParseError as exc:
         raise MSPDIError(f"not well-formed XML: {exc}") from exc
-    # `defusedxml` would be the safer parser for untrusted input, but `core` is
-    # pure stdlib by contract so the application layer is where an untrusted
-    # upload gets hardened. Recorded here so the trade-off is visible rather
-    # than accidental.
+    except ValueError as exc:
+        raise MSPDIError(str(exc)) from exc
 
     schedule = ExchangeSchedule(source_format="mspdi")
     issues = schedule.issues
@@ -487,8 +491,17 @@ def write_mspdi(schedule: ExchangeSchedule, *, exported_at: date | None = None) 
     stamp = exported_at or date.today()
 
     def esc(value: str) -> str:
+        """Escape the characters that change meaning; remove the illegal ones.
+
+        Two different problems and both have to be handled here. Escaping `&`,
+        `<` and `>` stops a name closing an element and opening another.
+        `xmlsafe.text` removes the C0 controls XML 1.0 forbids outright -- a
+        vertical tab is not expressible even as `&#x0B;`, so a name carrying
+        one produced a file that no parser would open, MS Project's included.
+        """
         return (
-            value.replace("&", "&amp;")
+            xml_text(value)
+            .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace('"', "&quot;")

@@ -168,6 +168,39 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
+#### ⭐ R46 — THE SECOND SYNC, ONE DAY LATER *(measured 2026-08-15 at the `a740241c` re-sync)*
+
+R45 finished on 2026-08-14 with **all 21 vendored modules reachable** and `UNREACHED` empty for the
+first time. Upstream shipped again the next day. `a740241c` brings **eight new modules and 2,986
+lines**, plus a rewritten MSPDI writer and an injection audit across every writer — and
+`test_massingplan_vendor` stayed green through all of it, because the copy is faithful. It is
+`test_vendor_reachable` that failed the build.
+
+**That is the argument for the second gate, demonstrated on the very next sync rather than argued
+for.** Faithfulness and usefulness are different claims about a vendor drop; a digest check can only
+ever make the first, and an engine can double in size behind a green one.
+
+`xmlsafe.py` (113 lines) is the exception and is already **live**: the parse-bomb and XML-entity
+hardening reaches us transitively through `mspdi` and `xer`, so it took effect the moment the files
+landed. No adapter needed, and none of the schedule suites moved.
+
+The seven that need one, in the order they are worth building — none of them duplicates anything we
+have, so unlike R45 there is no de-duplication decision hiding in this list:
+
+| Module | Lines | What it answers that nothing here does |
+|---|---|---|
+| `windows` | 300 | Contemporaneous windows analysis (AACE 29R-03 MIP 3.3) — *where the eighty days went, window by window.* `compare` answers a re-baseline; a claim needs this. **The highest-value one.** |
+| `modelled` | 477 | Impacted as-planned and collapsed as-built. These **alter the network**, where `windows` only observes it — the distinction an expert report turns on, and both are named in every delay protocol |
+| `p6xml` | 760 | Primavera PMXML. **XER cannot carry baselines**; PMXML can, as additional `<Project>` elements, along with the global calendars a restricted XER omits — which is the gap behind our own baseline-schema work |
+| `earned` | 302 | Earned Schedule — how far along in **time**, as against `progress`'s BEI. The metric that keeps working in the last third of a job, where SPI degenerates to 1.0 |
+| `compression` | 439 | What finishing three weeks earlier would take, and cost. Levelling answers "with the crews I have"; nothing answers the question actually asked in the meeting |
+| `weather` | 250 | The weather allowance a programme already carries, made explicit instead of padded invisibly into durations |
+| `portfolio` | 345 | Several schedules, cross-project logic, one resource pool — a programme above a certain size is never one schedule |
+
+Recorded in `services/api/test_vendor_reachable.py`, which fails the build until each is either wired
+or argued for. **The `mspdi` rewrite and the `xer` injection audit landed with no adapter change and
+no test movement** — checked by running the schedule suites, not assumed from the diff being large.
+
 #### ⭐ R45 — THE VENDORED SCHEDULE ENGINE *(measured 2026-08-14 at the `d1e4bf16` re-sync)*
 
 The vendored `massingplan` engine was re-synced from pin `b703dca4` → `d1e4bf16`, which brought two
