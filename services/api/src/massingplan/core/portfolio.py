@@ -127,8 +127,13 @@ class PortfolioResult:
     external_links: tuple[ExternalLink, ...]
     crossing_activities: tuple[str, ...]
     issues: IssueLog = field(default_factory=IssueLog)
-    #: Kept so a project can be re-run alone for its own float.
+    #: Kept so a project can be re-run alone for its own float, against the
+    #: same calendars, data date and options the portfolio used. Passing those
+    #: back in by hand is the kind of thing a caller gets subtly wrong once.
     _projects: Mapping[str, Project] = field(default_factory=dict)
+    _calendars: Mapping[str, WorkCalendar] | None = None
+    _data_date: date | None = None
+    _options: SchedulerOptions | None = None
 
     @property
     def programme_finish(self) -> date:
@@ -158,6 +163,14 @@ class PortfolioResult:
 
         Only meaningful for a project with no external links -- with them, the
         standalone dates are a different schedule, not a different float.
+
+        **The portfolio's own calendars, data date and options are the
+        defaults.** Omitting them used to fall through to `schedule_network`'s
+        synthesised Mon-Fri calendar, so a 12-day activity on a Mon-Sat
+        programme finished 13 June inside the portfolio and 16 June here -- two
+        sets of numbers differing for a reason nothing reported, from the one
+        method whose entire purpose is comparing them. The arguments remain,
+        for a caller who genuinely wants a different basis.
         """
         project = self._projects.get(project_id)
         if project is None:
@@ -165,9 +178,9 @@ class PortfolioResult:
         return schedule_network(
             list(project.tasks),
             list(project.links),
-            calendars,
-            data_date=data_date,
-            options=options,
+            self._calendars if calendars is None else calendars,
+            data_date=self._data_date if data_date is None else data_date,
+            options=self._options if options is None else options,
         ).to_rows()
 
     def summary(self) -> dict[str, object]:
@@ -300,6 +313,9 @@ def schedule_portfolio(
         crossing_activities=tuple(sorted(crossing)),
         issues=issues,
         _projects=by_project,
+        _calendars=calendars,
+        _data_date=data_date,
+        _options=options,
     )
 
 

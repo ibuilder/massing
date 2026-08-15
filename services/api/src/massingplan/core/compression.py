@@ -274,7 +274,6 @@ def plan(
             used = spent.get(cost.activity_id, 0)
             if used >= cost.max_days:
                 continue
-            task = by_id[cost.activity_id]
             trial = [
                 replace(t, duration_days=t.duration_days - 1) if t.id == cost.activity_id else t
                 for t in current_tasks
@@ -302,13 +301,18 @@ def plan(
                     list(current_links),
                 )
             )
-            del task
 
         # -- overlap one more day on each offered pair -----------------------
         for pair in sorted(fast_trackable):
             predecessor, successor = pair
             used = overlapped.get(pair, 0)
-            room = by_id[predecessor].duration_days - 1
+            # The *current* duration, not the original. `by_id` is built once
+            # from the tasks as they arrived, and a predecessor that has been
+            # crashed inside this loop is shorter than that -- so both the room
+            # left to overlap and the lag would be computed against a duration
+            # the network no longer has.
+            current_by_id = {t.id: t for t in current_tasks}
+            room = current_by_id[predecessor].duration_days - 1
             if used >= room:
                 continue
             trial_links = [
@@ -316,7 +320,7 @@ def plan(
                     predecessor,
                     successor,
                     RelationType.SS,
-                    by_id[predecessor].duration_days - (used + 1),
+                    current_by_id[predecessor].duration_days - (used + 1),
                 )
                 if (link.predecessor, link.successor) == pair
                 else link
@@ -412,7 +416,13 @@ def apply(
         replace(t, duration_days=t.duration_days - crash_to[t.id]) if t.id in crash_to else t
         for t in tasks
     ]
-    by_id = {t.id: t for t in tasks}
+    # Keyed on the **crashed** tasks, not the originals. An activity that is both
+    # shortened and overlapped had its lag computed from the duration it no
+    # longer has: crash A from 10 to 4 and overlap A->B by two days, and the
+    # link came out `SS(8)` -- so B started five working days *after* A
+    # finished. The caller asked for an overlap and got a gap, on a schedule
+    # that computes cleanly and looks entirely valid.
+    by_id = {t.id: t for t in out_tasks}
     out_links = [
         Link(
             link.predecessor,

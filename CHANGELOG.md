@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.968 (2026-08-15) — the third sync in two days, and it changed the three shipped yesterday
+
+`massingplan` re-synced `a740241c` → **`ccadd04b`**. MIT, read from the LICENSE file; copy verbatim,
+no local deviations. Four modules changed and **three of them are ones this repository wired hours
+earlier** — `compression`, `modelled` and `portfolio` — after an upstream review. The fourth is
+`xmlsafe`, whose commit message is *"Stop lexing XML by hand, and fix a character set that was wrong
+both ways"*: that module is on the XER, MSPDI and PMXML upload paths, so it is the half that mattered
+most, and it reached us transitively again with no adapter change.
+
+**Nothing on our side needed changing.** The R46 adapters, the delay-analysis suites, the XXE and
+PMXML tests, the reachability ratchet and the per-project portfolio authz check all pass unaltered
+against the new engine. That is the useful result: three adapters written against code that was
+revised underneath them, and the seams held.
+
+Worth recording because it is the point of the whole R45/R46 arc — this is the **third** massingplan
+sync in two days, and each time `test_massingplan_vendor` (is the copy faithful?) and
+`test_vendor_reachable` (can the application call it?) have answered different questions. The first
+sync grew the engine behind a green digest. The second refilled an allowlist that had just been
+emptied. This one revised three modules a day after they were wired, and the only reason that is a
+non-event is that both gates run on every push.
+
 ## v0.3.967 (2026-08-15) — R46 complete: 29 of 29, and an acceleration figure that overstates
 
 The last three vendored modules are wired. **Every module the `a740241c` sync brought is now

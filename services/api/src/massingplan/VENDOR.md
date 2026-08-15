@@ -5,9 +5,9 @@
 | | |
 |---|---|
 | Upstream | https://github.com/MassingCloud/massingplan |
-| Commit | `a740241c0be9c1ac9789b72f1183301e6058f19e` |
+| Commit | `ccadd04b5c60479d3e6e0b91edece8691417af73` |
 | Synced | 2026-08-15 |
-| Content digest | `8cbc89168ed83335` |
+| Content digest | `caf415171a497f99` |
 | Local deviations | **NONE** |
 
 ## What this is
