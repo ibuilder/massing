@@ -228,6 +228,125 @@ export function renderScheduleMethods(ctx: PanelContext): HTMLElement {
   }));
   rc.appendChild(rOut); wrap.appendChild(rc);
 
+  // ── Windows analysis ─────────────────────────────────────────────────────────────────────────
+  const wc = card("Windows analysis — where the time went, period by period",
+    "AACE 29R-03 MIP 3.3, over the captured baseline library. As-planned-vs-as-built compares two "
+    + "end states; a project eighty days late did not lose them in one step, and a claim has to say "
+    + "which period lost which.");
+  const wOut = document.createElement("div");
+  wc.appendChild(runner(wOut, "▶ Analyse windows", async () => {
+    const r = await api.scheduleWindows(pid);
+    render(wOut, r, r.available ? [
+      { label: "total slip", value: r.total_slip_days == null ? "—" : `${r.total_slip_days}d`,
+        hint: `${r.first_finish} → ${r.last_finish}` },
+      { label: "worst window", value: r.worst_window == null ? "—" : `#${r.worst_window + 1}`,
+        hint: r.worst_window_slip_days == null ? "" : `lost ${r.worst_window_slip_days}d` },
+      { label: "windows", value: `${r.window_count}`,
+        hint: `${r.path_changes ?? 0} driving-path change(s)` },
+      { label: "sums", value: r.windows_sum ? "✓" : "✗",
+        hint: "the periods add to the whole" },
+    ] : []);
+    if (!r.available) {
+      if (r.hint) {
+        const h = document.createElement("div");
+        h.className = "meta"; h.style.marginTop = "4px"; h.textContent = r.hint;
+        wOut.appendChild(h);
+      }
+      return;
+    }
+    const t = document.createElement("div");
+    t.className = "meta"; t.style.cssText = "margin-top:4px;line-height:1.5";
+    // Acceleration renders as a negative, deliberately — a series that showed only the slips would
+    // not sum to the total, and the sum is the invariant this method rests on.
+    t.textContent = r.windows.map((w) => `${w.opened}→${w.closed}: `
+      + `${w.slip_days > 0 ? "+" : ""}${w.slip_days}d`
+      + (w.driving_path_changed ? " (path changed)" : "")).join("  ·  ");
+    wOut.appendChild(t);
+    const causes = Object.entries(r.by_cause);
+    if (causes.length) {
+      const c = document.createElement("div");
+      c.className = "meta"; c.style.cssText = "margin-top:2px;font-size:10.5px";
+      c.textContent = "by cause: " + causes.map(([k, v]) => `${v}d ${k.replace(/_/g, " ")}`).join(", ");
+      wOut.appendChild(c);
+    }
+    // Named, because an analysis over 2 of 8 snapshots answers a question about a different job.
+    if (r.skipped_without_logic.length || r.skipped_cyclic.length) {
+      const sk = document.createElement("div");
+      sk.className = "meta"; sk.style.cssText = "margin-top:2px;font-size:10.5px";
+      sk.textContent = [
+        r.skipped_without_logic.length
+          ? `not analysed (captured before logic was stored): ${r.skipped_without_logic.join(", ")}` : "",
+        r.skipped_cyclic.length ? `skipped (logic loop): ${r.skipped_cyclic.join(", ")}` : "",
+      ].filter(Boolean).join(" · ");
+      wOut.appendChild(sk);
+    }
+  }));
+  wc.appendChild(wOut); wrap.appendChild(wc);
+
+  // ── Modelled delay ───────────────────────────────────────────────────────────────────────────
+  const mdc = card("Modelled delay — impacted as-planned / collapsed as-built",
+    "The two methods that ALTER the network rather than observing it (AACE MIP 3.6 / 3.9). Enter "
+    + "the delays as 'activity:days' — the duration is yours, because nothing in the field record "
+    + "says what an event cost.");
+  const evIn = document.createElement("input");
+  evIn.type = "text"; evIn.placeholder = "delays, e.g. A20=10, A30=6";
+  evIn.className = "tool-btn";
+  evIn.style.cssText = "min-width:240px;text-align:left;cursor:text";
+  const mdOut = document.createElement("div");
+  // Parsed client-side so a malformed entry is a visible error here, not a silent empty list there.
+  const parseEvents = () => {
+    const out: Record<string, unknown>[] = [];
+    for (const [i, part] of evIn.value.split(",").entries()) {
+      const [k, v] = part.split("=");
+      const days = Number((v ?? "").trim());
+      if (k?.trim() && Number.isFinite(days) && days > 0) {
+        out.push({ id: `E${i + 1}`, name: `Delay to ${k.trim()}`, impacts: k.trim(), days });
+      }
+    }
+    return out;
+  };
+  const showModelled = (r: Awaited<ReturnType<typeof api.scheduleImpacted>>) => {
+    render(mdOut, r, r.available ? [
+      { label: "delay", value: r.total_days == null ? "—" : `${r.total_days}d`,
+        hint: `working days · ${r.total_calendar_days}d elapsed` },
+      { label: "concurrency", value: r.concurrency_days == null ? "—" : `${r.concurrency_days}d`,
+        hint: r.is_concurrent ? "counted once, not twice" : "events were independent" },
+      { label: "finish moves", value: r.impacted_finish ?? "—", hint: `from ${r.unimpacted_finish}` },
+      { label: "method", value: r.mip?.split(" ").slice(2, 4).join(" ") ?? "—",
+        hint: r.baseline ? `vs ${r.baseline.name}` : "" },
+    ] : []);
+    if (!r.available) {
+      if (r.missing_from_as_built?.length) {
+        const m = document.createElement("div");
+        m.className = "meta"; m.style.marginTop = "4px";
+        m.textContent = `not in the as-built network: ${r.missing_from_as_built.join(", ")}`;
+        mdOut.appendChild(m);
+      }
+      return;
+    }
+    const per = document.createElement("div");
+    per.className = "meta"; per.style.cssText = "margin-top:4px;line-height:1.5";
+    per.textContent = r.per_event.map((e) => `${e.impacts}: ${e.days}d`).join("  ·  ")
+      + `  —  individually ${r.sum_of_individual_days}d, together ${r.total_days}d`;
+    mdOut.appendChild(per);
+    const src = document.createElement("div");
+    src.className = "meta"; src.style.cssText = "margin-top:2px;font-size:10.5px";
+    src.textContent = `Durations are ${r.days_source === "caller" ? "yours, not derived" : r.days_source}`
+      + " — detection records that an event happened, never what it cost."
+      + (r.rejected_events.length ? ` Not used: ${r.rejected_events.join("; ")}` : "");
+    mdOut.appendChild(src);
+  };
+  const mdRow = document.createElement("div");
+  mdRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0";
+  mdRow.append(evIn,
+    runner(mdOut, "▶ Impact the baseline", async () => {
+      showModelled(await api.scheduleImpacted(pid, parseEvents()));
+    }),
+    runner(mdOut, "▶ Collapse the as-built", async () => {
+      showModelled(await api.scheduleCollapsed(pid, parseEvents()));
+    }));
+  mdc.appendChild(mdRow); mdc.appendChild(mdOut); wrap.appendChild(mdc);
+
   // ── Delay attribution ────────────────────────────────────────────────────────────────────────
   const cc = card("Delay attribution — why the finish moved",
     "Not variance. The baseline is re-scheduled through the CPM engine and the finish move is "

@@ -16,10 +16,12 @@ from .. import (
     schedule_lastplanner,
     schedule_levelling,
     schedule_locations,
+    schedule_modelled,
     schedule_progress,
     schedule_risk_mc,
     schedule_takt,
     schedule_viz,
+    schedule_windows,
     storage,
 )
 from ..db import get_db
@@ -288,6 +290,72 @@ def schedule_compare_endpoint(pid: str, baseline_id: str | None = None, match: s
     """
     acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
     return schedule_compare.compare(acts, pid, baseline_id=baseline_id, match=match)
+
+
+@router.get("/projects/{pid}/schedule/windows")
+def schedule_windows_endpoint(pid: str, match: str = "id",
+                              _: str = Depends(require_role("viewer"))):
+    """R46 -- contemporaneous windows analysis (AACE 29R-03 MIP 3.3): where the time went, period by
+    period.
+
+    **`eot.py` offers four AACE methods and performs none of them.** Measured on one input, all four
+    return the same number: the method is recorded as a label and the arithmetic is events-minus-float
+    in every branch. This performs one of them for real.
+
+    The series comes from the captured baseline library -- up to twelve dated snapshots, each carrying
+    the logic to be re-scheduled since v0.3.961. A pre-v0.3.961 baseline is EXCLUDED and named: it
+    holds dates but no predecessors, and re-scheduling one would put a fully-parallel plan inside a
+    single window, moving time into a period it did not happen in.
+
+    Windows sum to the total slip exactly, and acceleration is reported as a negative rather than
+    dropped -- a claim that counts only the slips overstates itself.
+    """
+    return schedule_windows.windows(pid, match=match)
+
+
+@router.post("/projects/{pid}/schedule/impacted")
+def schedule_impacted_endpoint(pid: str, body: dict = Body(default={}),
+                               _: str = Depends(require_role("viewer"))):
+    """R46 -- impacted as-planned (AACE 29R-03 MIP 3.6): insert the delay events into the CAPTURED
+    BASELINE and reschedule.
+
+    Additive and prospective. It answers "what should this delay have cost" and is silent on what
+    happened afterwards. Runs against the baseline and refuses if there is none -- impacting a
+    progressed schedule is a different method with a different name.
+
+    **Concurrency is measured, not asserted.** `concurrency_days` is how much the individual impacts
+    exceed their combined impact: two five-day delays running concurrently move the finish five days,
+    not ten, and that overlap is the five nobody is entitled to twice.
+
+    `days` per event comes from the CALLER and the response says so (`days_source`). `notice_clock`
+    detects that an event happened and never what it cost, deliberately. `responsibility` is carried
+    through untouched -- whose delay it was is a contractual question.
+
+    Body: `{events: [{id, name, days, impacts, onset?, responsibility?}], baseline_id?}`.
+    """
+    return schedule_modelled.impacted(pid, body.get("events") or [],
+                                      baseline_id=body.get("baseline_id"))
+
+
+@router.post("/projects/{pid}/schedule/collapsed")
+def schedule_collapsed_endpoint(pid: str, body: dict = Body(default={}),
+                                db: Session = Depends(get_db),
+                                _: str = Depends(require_role("viewer"))):
+    """R46 -- collapsed as-built (AACE 29R-03 MIP 3.9): remove the delay events from the AS-BUILT and
+    reschedule the remainder -- the "but-for" programme.
+
+    Subtractive. It answers "when would this have finished without them".
+
+    **It requires the events to already BE activities in the as-built network**, and today ours are
+    not: `notice_clock` detects events from the field record, and the `schedule_activity` register
+    does not carry them as tasks. The refusal names which are missing rather than working around it,
+    because inserting the events and then removing them is impacted as-planned wearing this method's
+    name -- and a report that did that could not say what it had done.
+
+    Body: `{events: [{id, name, days, impacts, ...}]}`.
+    """
+    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
+    return schedule_modelled.collapsed(acts, body.get("events") or [])
 
 
 @router.post("/projects/{pid}/schedule/optioneer")

@@ -189,13 +189,21 @@ have, so unlike R45 there is no de-duplication decision hiding in this list:
 
 | Module | Lines | What it answers that nothing here does |
 |---|---|---|
-| `windows` | 300 | Contemporaneous windows analysis (AACE 29R-03 MIP 3.3) — *where the eighty days went, window by window.* `compare` answers a re-baseline; a claim needs this. **The highest-value one.** |
-| `modelled` | 477 | Impacted as-planned and collapsed as-built. These **alter the network**, where `windows` only observes it — the distinction an expert report turns on, and both are named in every delay protocol |
+| ~~`windows`~~ | 300 | **SHIPPED v0.3.965** — `schedule_windows.py`, over the captured baseline library |
+| ~~`modelled`~~ | 477 | **SHIPPED v0.3.965** — `schedule_modelled.py`. Collapsed as-built refuses on our data and says why; the refusal is the finding |
 | `p6xml` | 760 | Primavera PMXML. **XER cannot carry baselines**; PMXML can, as additional `<Project>` elements, along with the global calendars a restricted XER omits — which is the gap behind our own baseline-schema work |
 | `earned` | 302 | Earned Schedule — how far along in **time**, as against `progress`'s BEI. The metric that keeps working in the last third of a job, where SPI degenerates to 1.0 |
 | `compression` | 439 | What finishing three weeks earlier would take, and cost. Levelling answers "with the crews I have"; nothing answers the question actually asked in the meeting |
 | `weather` | 250 | The weather allowance a programme already carries, made explicit instead of padded invisibly into durations |
 | `portfolio` | 345 | Several schedules, cross-project logic, one resource pool — a programme above a certain size is never one schedule |
+
+**⚠ FOUND WHILE WIRING THESE TWO: `eot.py` names four AACE methods and performs none of them.** All
+four return an identical number on the same input — the method is recorded as a label and the
+arithmetic never changes, because nothing in it re-schedules a network. Three of the four *are*
+network operations. Pinned in `services/api/test_schedule_windows.py`; `schedule_windows` and
+`schedule_modelled` now perform three of the four for real. **Whether `/schedule/eot` should delegate
+to them, or keep its own number and cite theirs, is a domain decision** — the EOT figure ends up in
+arbitration, and changing what it means is not a refactor. Both still ship.
 
 Recorded in `services/api/test_vendor_reachable.py`, which fails the build until each is either wired
 or argued for. **The `mspdi` rewrite and the `xer` injection audit landed with no adapter change and

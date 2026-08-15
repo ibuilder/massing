@@ -49,10 +49,8 @@ APP = SRC / "aec_api"
 #: Filed as **R46** in the roadmap. Unlike R45's list, none of these overlap anything we already
 #: have — they are new methods, not duplicate ones:
 #:
-#:   * `windows`   — contemporaneous windows analysis (AACE 29R-03 MIP 3.3): where the time went,
-#:                   window by window. `compare` answers a re-baseline; this answers a claim.
-#:   * `modelled`  — impacted as-planned and collapsed as-built. These ALTER the network, where
-#:                   `windows` only observes it — the distinction an expert report turns on.
+#:   * ~~`windows`~~  — SHIPPED v0.3.965 as `schedule_windows.py`.
+#:   * ~~`modelled`~~ — SHIPPED v0.3.965 as `schedule_modelled.py`.
 #:   * `p6xml`     — Primavera PMXML. XER cannot carry baselines; this can, plus global calendars.
 #:   * `compression` — what finishing three weeks earlier would take, and cost.
 #:   * `earned`    — Earned Schedule: how far along in TIME, as opposed to `progress`'s BEI.
@@ -66,11 +64,9 @@ APP = SRC / "aec_api"
 UNREACHED: set[str] = {
     "compression",
     "earned",
-    "modelled",
     "p6xml",
     "portfolio",
     "weather",
-    "windows",
 }
 
 _FAILURES: list[str] = []
@@ -165,31 +161,43 @@ def main() -> int:
           note=f"these are now reachable, delete them from UNREACHED: {', '.join(now_reached)}"
                if now_reached else "every recorded name is still genuinely unreached")
 
-    # Vacuity twin, version 2.
+    # Vacuity twin, version 3, and version 2's failure is worth keeping.
     #
-    # The first version was `reach != mods or not UNREACHED` — "if everything is reachable, the
-    # allowlist had better be empty". It did its job while modules were still being wired, and then
-    # R45 finished and reached all 21. At that point `not UNREACHED` is permanently true and the
-    # assertion can never fail again: a check whose failing branch is unreachable is not a check.
+    # v1 was `reach != mods or not UNREACHED`. It worked while modules were being wired and then R45
+    # emptied the list, at which point `not UNREACHED` is permanently true and the assertion can
+    # never fail: a check whose failing branch is unreachable is not a check.
     #
-    # What still has a failure mode is that the closure is DERIVED. Recompute it from a strictly
-    # smaller entry-point set; a real closure must come back strictly smaller. A `reachable()` that
-    # had degenerated into "return every module" — the actual hazard here, since it would make the
-    # gate report full coverage forever — returns the same set and fails this.
-    entries_sorted = sorted(entries)
+    # v2 dropped the alphabetically-first entry point and required the closure to shrink. That held
+    # until R46 wired `windows`, which imports `compare` — so removing `compare` as a DIRECT entry
+    # point stopped shrinking anything, and a correct gate failed. The check was measuring an
+    # accident of which name sorts first, not the property it meant.
+    #
+    # The property is that the closure is DERIVED from its entry points. Asserted two ways that do
+    # not depend on any particular name: no entry points must give nothing, and any single one must
+    # give strictly less than all of them. A `reachable()` degenerated into "return every module" —
+    # the real hazard, since it would report full coverage forever — fails both.
     deps = core_to_core_imports(mods)
-    seen: set[str] = set()
-    stack = entries_sorted[1:]                       # one entry point removed
-    while stack:
-        m = stack.pop()
-        if m in seen:
-            continue
-        seen.add(m)
-        stack.extend(deps.get(m, set()) - seen)
-    check("...and the closure is DERIVED — dropping an entry point shrinks it",
-          seen < reach,
-          note=f"without {entries_sorted[0]!r}: {len(seen)} of {len(reach)} — a closure that "
-               "returns everything regardless would report full coverage forever")
+
+    def closure(seeds: set[str]) -> set[str]:
+        seen: set[str] = set()
+        stack = list(seeds)
+        while stack:
+            m = stack.pop()
+            if m in seen:
+                continue
+            seen.add(m)
+            stack.extend(deps.get(m, set()) - seen)
+        return seen
+
+    check("...and the closure is DERIVED — no entry points reaches nothing",
+          closure(set()) == set(),
+          note="an empty seed set that still returned modules would mean the walk invents them")
+
+    smallest = min((closure({e}) for e in entries), key=len) if entries else set()
+    check("...and one entry point reaches strictly less than all of them",
+          bool(entries) and smallest < reach,
+          note=f"the narrowest single entry point reaches {len(smallest)} of {len(reach)} — a "
+               "closure that returns everything regardless would report full coverage forever")
 
     total = sum(len((CORE / f"{m}.py").read_text(encoding="utf-8").splitlines()) for m in unreached)
     print(f"\n  vendored engine: {len(reach)}/{len(mods)} modules reachable; "

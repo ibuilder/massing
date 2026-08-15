@@ -4,6 +4,67 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.965 (2026-08-15) — four delay methods that were one number, and two of them now real
+
+**`eot.py` offers four AACE delay-analysis methods, refuses to produce a number without one, and
+performs none of them.** Measured, not argued — one input, a 10-day weather event and a 6-day change
+against a baseline and an actual finish:
+
+| declared method | `eot_days` |
+|---|---|
+| `as_planned_vs_as_built` — *"the weakest"* | **16.0** |
+| `impacted_as_planned` | **16.0** |
+| `time_impact` — *"preferred by most protocols"* | **16.0** |
+| `windows` — *"most defensible, most data-hungry"* | **16.0** |
+
+One number, four labels. The method is recorded and then not used — the arithmetic is
+events-minus-float in every branch, and nothing re-schedules a network, which is what three of those
+four methods *are*. A user who picks the most defensible method gets the answer the weakest one
+gives, and the label travels into a claim as though it had been earned. Pinned in
+`services/api/test_schedule_windows.py` so it cannot close unnoticed — or widen.
+
+**`GET /schedule/windows`** — contemporaneous windows analysis (AACE 29R-03 MIP 3.3), performed. The
+series comes from the captured baseline library: up to twelve dated snapshots, each carrying the
+logic to be re-scheduled since v0.3.961. That capability was added for `compare`; this is the second
+thing it bought and the more valuable one. The answer is *which period lost the time*, which
+as-planned-vs-as-built structurally cannot give. Windows sum to the total slip exactly, and a window
+that pulled time back is reported as a **negative** rather than dropped — a claim that counts only
+the slips overstates itself, and the sum would not hold.
+
+A pre-v0.3.961 baseline is **excluded and named**. Re-scheduling one produces a fully-parallel plan,
+which here would not merely be wrong but wrong *inside one window*, moving time into a period it did
+not happen in. Likewise a snapshot with a logic loop: named, skipped, and the rest of the series
+still analysed.
+
+**`POST /schedule/impacted` and `POST /schedule/collapsed`** — impacted as-planned (MIP 3.6, additive)
+and collapsed as-built (MIP 3.9, subtractive), the two that **alter** the network. Impacted runs
+against the captured baseline and refuses if there is none: impacting a progressed schedule is a
+different method with a different name.
+
+**Concurrency is now measured rather than named.** `eot.analyse` declines to apportion it, correctly,
+because it has no network to measure it on. With one it is arithmetic: two overlapping delays of 8
+and 6 days move the finish 8, not 14, and the 6 is the entitlement nobody gets twice. The independent
+case reports zero — without that twin, a number that was always positive would look like a finding on
+every project.
+
+**Collapsed as-built is refused on our data, and the refusal is the finding.** The method removes
+activities that are already in the as-built network; ours are detected from the field record by
+`notice_clock` and are not in `schedule_activity` as tasks. Inserting them and then removing them is
+impacted as-planned wearing the subtractive method's name, and a report that did that could not say
+what it had done. The refusal names which events are missing, and the method runs correctly when the
+precondition really is met.
+
+`days_source: "caller"` is on every result. Nothing in the field record says what a delay cost —
+`notice_clock` deliberately returns no `days` field — so the most contested input on the page is
+typed, and the response says so. `responsibility` is carried through untouched.
+
+**The reachability ratchet's vacuity twin failed, and it was the twin that was wrong.** It dropped the
+alphabetically-first entry point and required the closure to shrink; wiring `windows`, which imports
+`compare`, meant dropping `compare` as a *direct* entry point no longer shrank anything. It was
+measuring which name sorts first, not the property it meant. Now asserted two ways that depend on no
+particular name: no entry points must reach nothing, and any single one must reach strictly less than
+all of them.
+
 ## v0.3.964 (2026-08-15) — the vendor re-sync that proved its own gate
 
 `massingplan` re-synced `d1e4bf16` → **`a740241c`**: eight new modules, 2,986 lines, a rewritten

@@ -397,6 +397,60 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     }>(`/projects/${pid}/schedule/compare${q.toString() ? `?${q}` : ""}`);
   }
 
+  /**
+   * R46 — contemporaneous windows analysis (AACE 29R-03 MIP 3.3): where the time went, period by
+   * period.
+   *
+   * The headline is `worst_window` + `worst_window_slip_days`: *which period lost the time*, which
+   * an as-planned-vs-as-built comparison structurally cannot answer. `windows_sum` is the invariant
+   * — render it as the check it is. A negative `slip_days` is acceleration and must be shown as
+   * such, never dropped: a claim that counts only the slips overstates itself.
+   *
+   * `skipped_without_logic` lists baselines captured before v0.3.961. Show them — an analysis over
+   * 2 of 8 snapshots is answering a question about a different job.
+   */
+  scheduleWindows(pid: string, match: "id" | "code" = "id") {
+    return this.json<{
+      available: boolean; reason?: string; hint?: string;
+      updates: string[]; skipped_without_logic: string[]; skipped_cyclic: string[];
+      method: string | null; window_count: number | null;
+      first_finish: string | null; last_finish: string | null;
+      total_slip_days: number | null; windows_sum: boolean | null;
+      worst_window: number | null; worst_window_slip_days: number | null;
+      path_changes: number | null; by_cause: Record<string, number>; issue_count: number | null;
+      windows: { index: number; opened: string; closed: string; opening_finish: string;
+        closing_finish: string; slip_days: number; driving_path_changed: boolean;
+        driving_path: string[];
+        attribution: { activity_id: string | null; cause: string; days: number;
+                       evidence: string }[] }[];
+    }>(`/projects/${pid}/schedule/windows?match=${match}`);
+  }
+
+  /**
+   * R46 — impacted as-planned (MIP 3.6, additive) and collapsed as-built (MIP 3.9, subtractive).
+   *
+   * `concurrency_days` is the number worth rendering loudest: how much the individual impacts
+   * exceed their combined impact. Two five-day delays running concurrently move the finish five
+   * days, not ten, and that overlap is the entitlement nobody gets twice.
+   *
+   * `days_source` is `"caller"` — say so on the screen. Nothing in the field record says what a
+   * delay cost, so the most contested input is typed. `rejected_events` names events that could not
+   * be used; a silently dropped event is an entitlement quietly shrinking.
+   *
+   * Per-event `days` are WORKING days and `calendar_days` sits beside them. Do not add across the
+   * two: mixing the axes is what makes concurrency come out negative.
+   */
+  scheduleImpacted(pid: string, events: Record<string, unknown>[], baselineId?: string) {
+    return this.json<ModelledDelay>(`/projects/${pid}/schedule/impacted`,
+      { method: "POST", body: JSON.stringify({ events, baseline_id: baselineId }) });
+  }
+
+  /** R46 — the subtractive twin. Refuses unless the events are already activities in the as-built. */
+  scheduleCollapsed(pid: string, events: Record<string, unknown>[]) {
+    return this.json<ModelledDelay>(`/projects/${pid}/schedule/collapsed`,
+      { method: "POST", body: JSON.stringify({ events }) });
+  }
+
   /** EST-1: upsert QTO-driven crew-day durations as EST schedule activities (one per trade, FS chain). */
   scheduleFromEstimate(pid: string, body: { loading?: string; rate?: number; crews?: number } = {}) {
     return this.json<{ written: { ref: string; trade: string; crew_days: number; duration_days: number;
@@ -421,4 +475,30 @@ export interface TaktProgressResult {
     lead_actual_floors_per_week: number; planned_floors_per_week: number;
     total_variance_floors: number; overall_status: "ahead" | "behind" | "on-takt" };
   ppc: { commitments: number; completed: number; ppc: number; missed: number; rating: string };
+}
+
+/** R46 — a modelled delay counterfactual, with the AACE method that produced it attached. */
+export interface ModelledDelay {
+  available: boolean;
+  reason?: string;
+  baseline: { id: string; name: string; captured_at: string; count: number } | null;
+  rejected_events: string[];
+  missing_from_as_built?: string[];
+  /** Always "caller": nothing in the field record says what a delay cost. */
+  days_source: string | null;
+  method: string | null;
+  mip: string | null;
+  unimpacted_finish: string | null;
+  impacted_finish: string | null;
+  /** Working days. `total_calendar_days` is the same move in elapsed time — never add the two. */
+  total_days: number | null;
+  total_calendar_days: number | null;
+  sum_of_individual_days: number | null;
+  /** How much the individual impacts overstate the combined one. The five nobody gets twice. */
+  concurrency_days: number | null;
+  is_concurrent: boolean | null;
+  per_event: { id: string; name: string; duration_days: number; impacts: string;
+    onset: string | null; responsibility: string; finish_without: string; finish_with: string;
+    days: number; calendar_days: number }[];
+  notes: string[];
 }
