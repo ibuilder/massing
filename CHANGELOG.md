@@ -4,6 +4,52 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.975 (2026-08-16) — the answers leg gets somewhere to live, and `admissible` becomes reachable
+
+`R22-PROVENANCE`'s last leg. `provenance_report` reported ANSWERS as `not_captured` — not *"you have
+not filled this in"* but *"this system has nowhere to put it"*: `cited_answer` was an in-flight
+contract consumed by decision_gate / persona_answer / rfi_qa and discarded with the response. **No
+project could satisfy that leg, so a project-scoped verdict could never read `admissible`** however
+well-cited the deal was. A verdict with no reachable passing branch is not a strict check, it is a
+check that has stopped being one.
+
+**`answer_record` is the store the old note asked for by name.** A register in Project Governance
+beside Assumptions and the Decision Log, holding the question, the answer, what it was about, the
+engine that produced it, and a **table of citations** with source type, document, sheet, page and
+revision. `from_project` gathers the leg through `provenance_report.answer_rows`; the verdict is no
+longer forced down and now fails on the legs' own evidence.
+
+**Three gates turned this build, and none of them was the schema.**
+
+The register first went into a section that does not exist — `Quality & Compliance`. `test_module_rooms`
+caught it as *"every module in it is unreachable from the spine"*. Moved to `Quality` it hit the
+**8-module section cap**, whose message is *"split it on the seam — what JOB differs, not the count"*.
+Quality verifies physical work; Project Governance records what was concluded and on what basis, which
+is this register's job. Then `test_module_fields`' island ratchet refused a register with no reference
+at all — correctly, because a cited answer that cannot be walked back to the document it cites is the
+exact thing this exists to prevent. It gained `source_document` and `source_rfi` rather than a raised
+ceiling.
+
+**Two seams asserted rather than assumed.** The register-to-leg mapping (`answer` → `text`, the
+citations table → `citations`) is the same shape as the `ESTIMATE_TO_BOE` defect: unmapped it does not
+raise — every answer simply looks uncited, and the report states with confidence that nothing in the
+project is cited. Mutation-checked, 2 named FAILs. And `not_captured` is now unreachable from a project
+report, so it is asserted where it still can be reached — with the register absent — because a status
+nothing can produce is dead code no test would miss.
+
+The Alembic revision needed a column the copied template predated (`schema_version`, added to every
+`mod_*` table in `e2c6f31b9a44`): the neighbour you copy carries its own age, and `alembic check` is
+what says so.
+
+*Not done, and named rather than implied:* `decision_gate`, `persona_answer` and `rfi_qa` do not yet
+auto-record what they answer. The register is written through the generic register surface; wiring
+those three is the next slice.
+
+**Also from the R22 premise-check:** `R22-AGENT-PACKS` moved from Lane C to Lane A. Its packs, audit
+trail and attribution fix are all shipped and its own text already said the remainder — the governance
+console — is shell work. A code sitting in a lane that cannot finish it makes the lane look busier
+than it is.
+
 ## v0.3.974 (2026-08-16) — one PPC rule, and an engine that could not read its own register
 
 `R45-SCHED-DEDUPE ②`'s last overlap. **Your call, taken: the vendored engine's rule wins.** One rule

@@ -147,6 +147,14 @@ from aec_api import provenance_report as _pr  # noqa: E402
 from aec_api.db import Base as _Base, SessionLocal as _SL, engine as _eng  # noqa: E402
 from aec_api.models import Project as _P, Scenario as _S  # noqa: E402
 
+# The module registry is NOT loaded on import — `me.TABLES` is empty until something calls
+# `load_registry()`, which the running app does when routes are mounted. `from_project` gates
+# the estimate and answers legs on membership in TABLES, so a test that skips this is asserting
+# against an app that has not finished starting: both legs would read absent for the wrong
+# reason, and the answers assertions below would pass on a defect.
+from aec_api import modules as _me  # noqa: E402
+from aec_api import modules_registry as _mr  # noqa: E402
+_mr.load_registry()
 _Base.metadata.create_all(_eng)
 with _SL() as _db:
     _db.add(_P(id="pp1", name="Prov"))
@@ -155,6 +163,7 @@ with _SL() as _db:
     _db.commit()
     FP = _pr.from_project(_db, "pp1")
     EMPTY = _pr.from_project(_db, "no-project")
+    _db2 = _db
 
 check("from_project finds the project's scenario", FP["scenario_id"] == "s1", FP.get("scenario_id"))
 check("  the ASSUMPTIONS leg is real — gathered, not supplied",
@@ -166,28 +175,90 @@ check("THE ESTIMATE LEG IS NOW GATHERED — no_data, no longer not_captured",
       leg(FP, "estimate")["status"] == STATUS_NO_DATA, leg(FP, "estimate")["status"])
 check("  and is no longer excused as un-storable",
       "estimate" not in _pr.NOT_CAPTURED_REASON, sorted(_pr.NOT_CAPTURED_REASON))
-check("THE ANSWERS LEG IS not_captured — agent answers are never persisted",
-      leg(FP, "answers")["status"] == _pr.STATUS_NOT_CAPTURED, leg(FP, "answers")["status"])
-check("  naming what would make it gatherable", "store of answered claims"
-      in leg(FP, "answers")["note"], leg(FP, "answers")["note"])
-check("ONE leg remains un-storable, and is listed separately from merely-absent legs",
-      FP["legs_not_captured"] == ["answers"], FP.get("legs_not_captured"))
+# v0.3.975: the ANSWERS leg is GATHERABLE. `answer_record` is the store the old note asked for by
+# name — "a store of answered claims is what would make this leg gatherable" — so these assertions
+# flipped from pinning a schema gap to asserting the capability that closed it. The distinction the
+# leg exists to draw survives: `no_data` (nobody recorded an answer) is still a different status
+# from `not_captured` (nowhere to put one), and this fixture has no answers, so it reads `no_data`.
+check("THE ANSWERS LEG IS now gatherable, and an empty one reads no_data",
+      leg(FP, "answers")["status"] == _pr.STATUS_NO_DATA, leg(FP, "answers")["status"])
+check("  ...and is NOT excused as un-storable any more",
+      FP["legs_not_captured"] == [], FP.get("legs_not_captured"))
+check("  the reason text is kept, because a closed gap that leaves no trace reads as never-there",
+      "store of answered claims" in _pr.NOT_CAPTURED_REASON["answers"],
+      "the sentence that named the fix is what makes the fix legible later")
 
-check("A PROJECT VERDICT CANNOT READ admissible TODAY — and says why",
+# The verdict is no longer FORCED down. It was, and correctly, while one leg could not be satisfied
+# by any project — but a permanently-unreachable `admissible` is a check with no passing branch.
+check("a project with an uncited estimate still cannot read admissible — on EVIDENCE now",
       FP["verdict"] != VERDICT_ADMISSIBLE, FP["verdict"])
-check("  attributing it to the SCHEMA, not to the deal",
-      "statement about this schema, not about the deal" in FP["note"], FP["note"][:120])
+check("  attributing it to the legs, not to the schema",
+      "gatherable since v0.3.975" in FP["note"] and "on evidence" in FP["note"],
+      FP["note"][:140])
 check("  which is the honest alternative to scoring only the leg that works",
       "hidden by scoring only the leg" in FP["note"])
+
+# --- the answer_record -> leg mapping, the seam most likely to go quietly wrong -------------------
+#
+# `_leg_answers` reads `text` and `citations`; the register stores `answer` and a `citations` TABLE
+# field of rows. Handing rows over unmapped does not raise — every answer simply looks uncited, and a
+# report stating that every answer lacks a citation is confident, plausible and wrong. This is the
+# same defect shape as ESTIMATE_TO_BOE, asserted against `_leg_answers`' real output.
+_ROWS = [
+    {"ref": "ANS-001", "title": "t",
+     "data": {"answer": "Type X gypsum, 5/8in", "target": "3kJf...", "engine": "rfi_qa",
+              "citations": [{"source_type": "document", "document_id": "SPEC-092900", "page": 4}]}},
+    {"ref": "ANS-002", "title": "t",
+     "data": {"answer": "No fire rating required here", "engine": "persona_answer",
+              "citations": []}},
+]
+_mapped = _pr.answer_rows(_ROWS)
+check("the register's `answer` reaches the leg as `text`",
+      [r["text"] for r in _mapped] == ["Type X gypsum, 5/8in", "No fire rating required here"],
+      f'{[r["text"][:20] for r in _mapped]} — unmapped, every row would be textless and the leg '
+      "would name them all as uncited")
+
+_lg = _pr._leg_answers(_mapped)
+check("  and the leg counts BOTH, naming only the one with no citation",
+      _lg["counted"] == 2 and _lg["uncited_count"] == 1
+      and _lg["uncited"] == ["No fire rating required here"],
+      f'{_lg["status"]} counted={_lg["counted"]} uncited={_lg["uncited"]}')
+
+check("  a fully-cited set reads `cited`, so the leg can actually pass — the twin",
+      _pr._leg_answers(_pr.answer_rows(_ROWS[:1]))["status"] == STATUS_OK,
+      "a leg that could only ever report gaps would make `admissible` unreachable again, by a "
+      "different mechanism than the schema gap that was just closed")
+
+check("  and an empty citations table is preserved as empty, not dropped",
+      _mapped[1]["citations"] == [],
+      "an answer nobody cited is exactly what this report exists to name; silently omitting the "
+      "row would hide it")
 
 check("a project with no scenario still answers, rather than erroring",
       EMPTY["scenario_id"] is None and EMPTY["verdict"] == VERDICT_INCOMPLETE, EMPTY["verdict"])
 check("  its assumptions leg is no_data — a source EXISTS and is empty",
       leg(EMPTY, "assumptions")["status"] == STATUS_NO_DATA, leg(EMPTY, "assumptions")["status"])
-check("  so no_data and not_captured coexist in one report, meaning different things",
-      {leg(EMPTY, "assumptions")["status"], leg(EMPTY, "answers")["status"]}
-      == {STATUS_NO_DATA, _pr.STATUS_NOT_CAPTURED},
+# All three legs are gatherable since v0.3.975, so a PROJECT report no longer produces
+# `not_captured` — which is the outcome, and also removes the only place the two statuses used to be
+# seen side by side. The distinction is the whole design, so it is asserted where it can still be
+# reached rather than dropped: with the register absent, the leg must fall back to `not_captured`.
+# Without this, `not_captured` becomes dead code that nothing can produce and nothing would notice.
+check("every leg of a project report is now GATHERABLE — none reads not_captured",
+      _pr.STATUS_NOT_CAPTURED not in {x["status"] for x in EMPTY["legs"]},
       [(x["leg"], x["status"]) for x in EMPTY["legs"]])
+
+_saved = dict(_me.TABLES)
+try:
+    _me.TABLES.pop("answer_record", None)
+    _NOREG = _pr.from_project(_db2, "no-project")
+finally:
+    _me.TABLES.clear()
+    _me.TABLES.update(_saved)
+check("  ...and with the register absent it falls back to not_captured — the twin",
+      leg(_NOREG, "answers")["status"] == _pr.STATUS_NOT_CAPTURED
+      and "store of answered claims" in leg(_NOREG, "answers")["note"],
+      f'{leg(_NOREG, "answers")["status"]} — "nowhere to put it" and "nobody filled it in" are '
+      "different sentences, and a status nothing can produce cannot carry either")
 
 _eng.dispose()
 for _f in ("./test_provenance_report.db",):

@@ -1,0 +1,127 @@
+{
+  "key": "answer_record",
+  "name": "Answered Claims",
+  "section": "Project Governance",
+  "icon": "⌘",
+  "ref_prefix": "ANS",
+  "title_field": "question",
+  "pinnable": false,
+  "workspace": "construction",
+  "fields": [
+    {
+      "name": "question",
+      "label": "Question asked",
+      "type": "textarea",
+      "required": true,
+      "fieldset": "Claim"
+    },
+    {
+      "name": "answer",
+      "label": "Answer given",
+      "type": "textarea",
+      "required": true,
+      "fieldset": "Claim"
+    },
+    {
+      "name": "target",
+      "label": "What it is about",
+      "type": "text",
+      "help": "The element GlobalId, record ref or document this answer concerns.",
+      "fieldset": "Claim"
+    },
+    {
+      "name": "source_document",
+      "label": "Source document (linked)",
+      "type": "reference",
+      "module": "document",
+      "help": "The document this answer was drawn from. Free-text citations live in the table below; this is the one a reader can open.",
+      "fieldset": "Claim"
+    },
+    {
+      "name": "source_rfi",
+      "label": "Answering RFI (linked)",
+      "type": "reference",
+      "module": "rfi",
+      "help": "When the answer settled an RFI, the RFI it settled.",
+      "fieldset": "Claim"
+    },
+    {
+      "name": "engine",
+      "label": "Answered by",
+      "type": "select",
+      "options": [
+        "decision_gate",
+        "persona_answer",
+        "rfi_qa",
+        "cited_query",
+        "human"
+      ],
+      "fieldset": "Claim"
+    },
+    {
+      "name": "asked_by",
+      "label": "Asked by",
+      "type": "text",
+      "fieldset": "Provenance"
+    },
+    {
+      "name": "answered_at",
+      "label": "Answered on",
+      "type": "date",
+      "fieldset": "Provenance"
+    },
+    {
+      "name": "confidence",
+      "label": "Provenance confidence",
+      "type": "percent",
+      "help": "From cited_answer.provenance_confidence - how well the citations hold up against the current revision. Never a measure of whether the answer is correct.",
+      "fieldset": "Provenance"
+    },
+    {
+      "name": "citations",
+      "label": "Citations",
+      "type": "table",
+      "help": "Empty is a legitimate and reportable state: an answer nobody cited is exactly what the provenance report exists to name.",
+      "columns": [
+        {
+          "name": "source_type",
+          "label": "Source",
+          "type": "select",
+          "options": [
+            "document",
+            "ifc",
+            "record",
+            "rule"
+          ]
+        },
+        {
+          "name": "document_id",
+          "label": "Document / GlobalId / record",
+          "type": "text"
+        },
+        {
+          "name": "sheet",
+          "label": "Sheet",
+          "type": "text"
+        },
+        {
+          "name": "page",
+          "label": "Page",
+          "type": "number"
+        },
+        {
+          "name": "revision",
+          "label": "Revision",
+          "type": "text"
+        }
+      ],
+      "fieldset": "Provenance"
+    }
+  ],
+  "list_columns": [
+    "question",
+    "engine",
+    "answered_at",
+    "confidence"
+  ]
+}

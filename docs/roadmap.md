@@ -762,9 +762,9 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE · R43-PLAN-DRIFT |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE · R43-PLAN-DRIFT |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -1266,7 +1266,10 @@ stakes we are missing.
   never noticing `approval_risk.py`, which the eventual build should probably feed. Third
   collision found on 2026-07-31, after `report_builders/` (five hardcoded builders, not the no-code
   builder R22-REPORT-BUILDER describes).
-- ◧ **R22-AGENT-PACKS** *(M — `agent_packs.py` shipped; audit half CLOSED 2026-08-06; console is Lane A/E)* — **named agent packs + org "Skills" + a governance console** over the
+- ◧ **R22-AGENT-PACKS** *(M — **Lane C part COMPLETE**: `agent_packs.py` shipped, audit half CLOSED
+  2026-08-06, attribution fixed at the call site. **Dropped from the Lane C cell 2026-08-16** —
+  its own text already said the remainder is the governance console, which is Lane A/E. Leaving a
+  code in a lane that cannot finish it makes the lane look busier than it is)* — **named agent packs + org "Skills" + a governance console** over the
   MCP layer we already ship. We expose raw capability; the market ships "Submittal Review Agent",
   which a superintendent understands. Pure packaging of existing tools, plus per-run audit logging —
   the gating factor for enterprise adoption. Our version reads the IFC, so a submittal check can test
@@ -1288,7 +1291,7 @@ stakes we are missing.
 
 **Tier 2 — evidence, provenance and procurement**
 
-- ◧ **R22-PROVENANCE** *(L — assumptions + estimate legs done; ANSWERS leg is the remainder)* — **cite to file, page and revision.** Every proforma assumption, estimate
+- ✅ **R22-PROVENANCE** *(L — all three legs gatherable; assumptions + estimate v0.3.8xx, ANSWERS v0.3.975)* — **cite to file, page and revision.** Every proforma assumption, estimate
   line and agent answer traceable to a source page. Three of thirteen platforms *lead* with this; it
   is what makes AI output admissible in an IC memo or a claim.
 
@@ -1304,10 +1307,39 @@ stakes we are missing.
   cost. That is a full, plausible, quietly-wrong ledger. The mapping is now stated in one place and
   `services/api/test_provenance_estimate_leg.py` asserts it against `boe_ledger`'s **real output**,
   not a fixture written to agree with it; mutation-checked by emptying the map (4 named FAILs).
-  **The ANSWERS leg stays `not_captured` and the verdict still cannot read `admissible`** — agent
-  answers are not persisted at all (`cited_answer` is an in-flight contract with no store behind it),
-  and a leg reading `no_data` because nobody filled it in is a different problem from having nowhere
-  to put it. A store of answered claims is the remaining schema change.
+  **ANSWERS LEG CLOSED v0.3.975 — `admissible` is reachable for the first time.** The store the note
+  below asked for by name now exists: `services/api/modules/answer_record/module.json`, a register in
+  Project Governance beside Assumptions and the Decision Log, holding the question, the answer, what
+  it was about, the engine that produced it and a **table of citations**. `from_project` gathers the
+  leg through `provenance_report.answer_rows`, and the verdict is no longer forced down.
+
+  *The verdict was forced down until now, and correctly* — one leg no project could satisfy makes
+  `admissible` unreachable, and a permanently-unreachable verdict is a check with no passing branch.
+  It now fails on the legs' own evidence instead.
+
+  **Three things the build turned on, none of them the schema.** The register first went into a
+  section that does not exist (`Quality & Compliance`), which `test_module_rooms` caught as *"every
+  module in it is unreachable from the spine"*. Moved to Quality it hit the **8-module section cap**,
+  whose message is *"split it on the seam — what JOB differs"*; Quality verifies physical work,
+  Project Governance records what was concluded and on what basis, which is this register's job.
+  And `test_module_fields`' island ratchet refused a register with no reference at all — correctly,
+  since a cited answer that cannot be walked back to the document it cites is the thing this exists
+  to prevent, so it gained `source_document` and `source_rfi` rather than a raised ceiling.
+
+  **Two seams asserted rather than assumed.** The register-to-leg mapping (`answer` → `text`,
+  the citations table → `citations`) is the same shape as the `ESTIMATE_TO_BOE` defect: unmapped it
+  does not raise, every answer merely looks uncited, and the report states with confidence that
+  nothing is cited. Mutation-checked, 2 named FAILs. And `not_captured` is now unreachable from a
+  project report, so it is asserted where it still can be reached — with the register absent — because
+  a status nothing can produce is dead code that no test would miss.
+
+  *Not done, and named rather than implied:* `decision_gate`, `persona_answer` and `rfi_qa` do not yet
+  auto-record what they answer. The register is written through the generic register surface; wiring
+  the three engines to record automatically is the next slice.
+
+  Original: agent answers were not persisted at all (`cited_answer` is an in-flight contract with no
+  store behind it), and a leg reading `no_data` because nobody filled it in is a different problem
+  from having nowhere to put it. A store of answered claims was the remaining schema change.
 
 - **R22-REPORT-BUILDER** *(M)* — **RESCOPED 2026-07-31; the original premise was false.** The entry
   read "132 modules of structured data with **no end-user query surface**". There is one, and it is

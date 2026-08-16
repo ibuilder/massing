@@ -144,6 +144,28 @@ def estimate_lines(records: list[dict] | None) -> list[dict[str, Any]]:
     return out
 
 
+def answer_rows(records: list[dict] | None) -> list[dict[str, Any]]:
+    """`answer_record` rows in the shape `_leg_answers` reads.
+
+    The mapping is written down here for the same reason `ESTIMATE_TO_BOE` is: the register stores
+    `answer`, `citations` is a table field of rows, and the leg reads `text` and a list of citation
+    dicts. Handing the rows over unmapped would not raise — every row would simply look uncited, and
+    a report claiming every answer lacks a citation is a confident, plausible, wrong verdict.
+    """
+    out: list[dict[str, Any]] = []
+    for rec in (records or []):
+        data = (rec.get("data") or {}) if isinstance(rec, dict) else {}
+        cites = [c for c in (data.get("citations") or []) if isinstance(c, dict)]
+        out.append({
+            "text": data.get("answer") or rec.get("title") or "",
+            "target": data.get("target") or data.get("source_document") or "",
+            "citations": cites,
+            "ref": rec.get("ref"),
+            "engine": data.get("engine"),
+        })
+    return out
+
+
 def from_project(db, project_id: str, scenario_id: str | None = None) -> dict[str, Any]:
     """The admissibility verdict for a project, from what this system actually persists.
 
@@ -174,8 +196,21 @@ def from_project(db, project_id: str, scenario_id: str | None = None) -> dict[st
         me.list_records(db, "estimate", project_id, limit=100000) if "estimate" in me.TABLES else [])
     led = boe_ledger.ledger(lines) if lines else None
 
-    out = report(ap, led, None)
+    # R22-PROVENANCE, v0.3.975: the ANSWERS leg is gatherable. `answer_record` is the store the
+    # `NOT_CAPTURED_REASON` below asked for by name — "a store of answered claims is what would make
+    # this leg gatherable". The reason text is kept, past-tense, because a closed gap that leaves no
+    # trace reads as though it was never there.
+    answers = (answer_rows(me.list_records(db, "answer_record", project_id, limit=100000))
+               if "answer_record" in me.TABLES else None)
+
+    out = report(ap, led, answers)
+    # A register that exists but is absent from THIS deployment is still `not_captured` — an engine
+    # cannot gather what the schema does not hold, and that is a different sentence from "nobody
+    # filled it in". Derived from the registry rather than hardcoded, so removing the module
+    # restores the honest refusal instead of silently reporting `no_data`.
     for name in ("answers",):
+        if name == "answers" and "answer_record" in me.TABLES:
+            continue
         lg = next(x for x in out["legs"] if x["leg"] == name)
         lg["status"] = STATUS_NOT_CAPTURED
         lg["note"] = NOT_CAPTURED_REASON[name]
@@ -184,11 +219,19 @@ def from_project(db, project_id: str, scenario_id: str | None = None) -> dict[st
                                 if x["status"] == STATUS_NOT_CAPTURED]
     out["project_id"] = project_id
     out["scenario_id"] = getattr(scen, "id", None)
-    out["verdict"] = VERDICT_INCOMPLETE if out["verdict"] == VERDICT_ADMISSIBLE else out["verdict"]
+    # The verdict is no longer forced down. Until v0.3.975 it was, and correctly: one leg could not
+    # be satisfied by ANY project, so `admissible` was unreachable and pretending otherwise would
+    # have been the worst kind of green. Now that the leg is gatherable, a project that cites its
+    # assumptions, its estimate AND its answers can genuinely read `admissible` — and one that does
+    # not still cannot, on the leg's own evidence rather than on a schema gap.
+    if "answer_record" not in me.TABLES:
+        out["verdict"] = VERDICT_INCOMPLETE if out["verdict"] == VERDICT_ADMISSIBLE else out["verdict"]
     out["note"] = (
-        "a project-scoped verdict still cannot read `admissible`: the ANSWERS leg is NOT_CAPTURED — "
-        "agent answers are not persisted, so the system has nowhere to store that evidence and no "
-        "project can satisfy it. That is a statement about this schema, not about the deal. The "
+        "the ANSWERS leg is gatherable since v0.3.975: `answer_record` persists an answer, what it "
+        "was about and the citations behind it, so a verdict can now read `admissible` on evidence "
+        "rather than being held down by a schema gap. An answers leg reading `no_data` means nobody "
+        "recorded an answer, which is a different problem from having nowhere to put one — the two "
+        "are still reported differently. The "
         "estimate leg IS now gathered from the `estimate` register, whose line items carry `source`, "
         "`quote_ref` and `basis_date`; an estimate leg reading `no_data` means nobody filled them in, "
         "which is a different problem from having nowhere to put them, and the two are reported "
