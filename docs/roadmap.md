@@ -309,9 +309,39 @@ portal renders the flattering one.** `lean.ppc` additionally reports `0.0` and a
 work"* for a project with **no commitments at all**, and defaults a missing variance reason to
 `"Unspecified"` — quietly filling the learning loop with a value nobody entered.
 
-`services/api/test_ppc_divergence.py` pins all three so the spread cannot widen unnoticed.
-**Consolidating them is your decision, not a cleanup** — a GC reports PPC to an owner, so changing what
-the number means is a contractual act. All three still ship.
+**DECIDED 2026-08-16: the vendored engine's rule wins, and v0.3.974 applied it.**
+
+One rule everywhere: met or not met with no partial credit; an **unanswered commitment makes the
+period unmeasurable**, so PPC is `None` rather than a number; and nothing promised is `None` too,
+because a team that made no commitments has not broken any.
+
+There are still **three functions, because there are two registers and a route** — `lean.ppc` scores
+`weekly_plan`, `pull_plan.metrics` scores `pull_plan_task`, `schedule_lastplanner` scores the same
+records through the vendored engine. Collapsing them would merge two registers holding different
+work. What had to agree was the RULE. `services/api/test_ppc_divergence.py` now asserts the
+agreement, with a **closed** week as the twin — three engines that always answered `None` would look
+consolidated and be broken.
+
+**Two findings the consolidation turned up, neither of which this table knew about.**
+
+*The engine could not read its own register.* `schedule_lastplanner` grouped on a field called
+`week`. `pull_plan_task/module.json` declares **`planned_week`**; `week` is `weekly_plan`'s field, a
+different register. So `GET /schedule/reliability` answered *"none of the N pull-plan tasks carry a
+week"* on **every real project**, while its only test passed on a hand-written fixture supplying
+`week`. A fixture cannot catch this by construction — it is written from the same wrong belief as the
+reader, so it agrees with the reader and disagrees with the database.
+`services/api/test_ppc_field_conformance.py` asserts the engine's field names against the register's
+own `module.json`, a reader neither of them wrote. Mutation-checked: 4 named FAILs, and the gate
+reproduces the exact pre-fix refusal.
+
+*`pull_plan.metrics` disagreed with itself.* The trend line divided by every commitment including
+unanswered ones; the headline divided by the assessed only. On a week with 1 done, 1 missed and 3
+still open that is **20% in the chart and 50% in the tile, on the same panel**. The existing test
+could not see it: its fixture had no unanswered commitment, so both forms happened to agree.
+
+The web chart also stopped plotting `?? 0` for a null week — drawing "not measurable yet" as a zero
+bar is the confusion the null exists to remove, and worse in a chart, because a reader sees a
+collapse rather than a gap.
 
 **⚠ `/schedule/risk` and `/schedule/montecarlo` disagree by 38 days on a 100-working-day chain, and
 the older one is the optimistic answer.** `schedule_risk._network` is FS-only, lag-free and
@@ -325,7 +355,12 @@ A P80 that counts Saturdays is not a conservative estimate, it is a different qu
 `takt.py` naming decision — the replacement is shipped and carries our PPC calibration forward, so
 nothing is lost by retiring it.
 
-**STILL YOUR CALL, and v0.3.972 nearly took it away.** That release deleted the wrong ENGINE, which
+**DECIDED 2026-08-16: keep the alias.** The path stays, serving `/schedule/montecarlo` verbatim
+with a `deprecated` note; `scheduleRisk` stays as a one-line client alias, recorded in
+`KNOWN_UNCALLED` as deliberately callerless. **This question is closed — do not re-open it as a
+cleanup.**
+
+**It nearly went the other way in v0.3.972.** That release deleted the wrong ENGINE, which
 the ring's rule authorises, and in the same stroke deleted the PATH, which this paragraph had
 reserved for you. The path was put back the same day as a **deprecated alias** serving
 `/schedule/montecarlo` verbatim, so nothing 404s and the wrong number is still gone. The response
@@ -449,9 +484,8 @@ The engine work is done either way; only the naming is open.
   `core` is stdlib-only *by contract* and must not learn about SQLAlchemy). Ship one at a time; each
   is independently valuable and `health` is the highest — a schedule-quality score is the thing a GC
   is asked for and cannot currently produce.
-- ◧ **R45-SCHED-DEDUPE ②** *(M; `takt` v0.3.953, `levelling`+`resources` v0.3.954, `progress`
-  v0.3.955, **`risk` v0.3.972 — the first one that was a real overlap and the first real deletion**;
-  `lastplanner` remains)* — settle the overlaps, one decision each, in the
+- ✅ **R45-SCHED-DEDUPE ②** *(M; `takt` v0.3.953, `levelling`+`resources` v0.3.954, `progress`
+  v0.3.955, `risk` v0.3.972, **`lastplanner` v0.3.974 — COMPLETE, and with it the whole R45 ring**)* — settle the overlaps, one decision each, in the
   order `takt` → `progress` → `risk` → `lastplanner`.
 
   **`risk` SHIPPED v0.3.972, and the diff found a second defect the entry did not know about.**
@@ -730,7 +764,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE · R43-PLAN-DRIFT · R45-SCHED-DEDUPE ② |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE · R43-PLAN-DRIFT |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |

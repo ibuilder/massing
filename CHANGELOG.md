@@ -4,6 +4,53 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.974 (2026-08-16) — one PPC rule, and an engine that could not read its own register
+
+`R45-SCHED-DEDUPE ②`'s last overlap. **Your call, taken: the vendored engine's rule wins.** One rule
+everywhere — met or not met with no partial credit; an **unanswered commitment makes the period
+unmeasurable**, so PPC is `null` rather than a number; and nothing promised is `null` too, because a
+team that made no commitments has not broken any.
+
+Still **three functions, because there are two registers and a route** — `lean.ppc` scores
+`weekly_plan`, `pull_plan.metrics` scores `pull_plan_task`, `schedule_lastplanner` scores the same
+records through `massingplan.core.lastplanner`. Collapsing them would merge two registers holding
+different work. What had to agree was the rule, and `test_ppc_divergence.py` now asserts the
+agreement — with a **closed** week as the twin, because three engines that always answered `null`
+would look consolidated and be broken.
+
+**The consolidation turned up two defects nobody was looking for.**
+
+**The engine could not read its own register.** `schedule_lastplanner` grouped commitments on a field
+called `week`. `pull_plan_task/module.json` declares **`planned_week`** — `week` is `weekly_plan`'s
+field, a *different register*. So `GET /schedule/reliability` answered *"none of the N pull-plan tasks
+carry a week"* on **every real project**: routed, reachable, tested, and structurally unable to read
+the records it exists for. Its only test passed on a hand-written fixture supplying `week`.
+
+*A fixture cannot catch this by construction.* It is written from the same wrong belief as the reader,
+so it agrees with the reader and disagrees with the database. `test_ppc_field_conformance.py` asserts
+the engine's field names against the register's own `module.json` — a reader neither of them wrote.
+Mutation-checked: 4 named FAILs, and the gate reproduces the exact pre-fix refusal message.
+
+**`pull_plan.metrics` disagreed with itself.** The trend line divided by every commitment including
+the unanswered ones; the headline divided by the assessed only. On one week with 1 done, 1 missed and
+3 still open, that is **20% in the chart and 50% in the tile — same week, same panel**. The existing
+test could not see it: its fixture had no unanswered commitment, so both forms happened to agree.
+
+Also: `lean.ppc` no longer reports `0.0` and a rating of *"needs work"* for a project with no
+commitments, and no longer defaults a missing variance reason to the string `"Unspecified"` — which
+sorted beside real reasons as though somebody had entered it, in the list a team is asked to act on.
+And the web PPC-trend chart stopped plotting `?? 0` for a null week: drawing "not measurable yet" as a
+zero bar is the confusion the null exists to remove, and worse in a chart, because a reader sees a
+collapse rather than a gap. Unmeasurable weeks are dropped and counted underneath instead.
+
+**`GET /schedule/risk` keeps serving as a deprecated alias** — your call, taken, and the roadmap
+question is closed rather than left open.
+
+**The R45 ring is complete.** Of its four "overlaps", three were never overlaps at all — `takt` was
+line-of-balance wearing the takt name, `progress` measures the schedule where `progress_rollup`
+measures the building, and PPC needed one rule rather than one function. Only `risk` was two
+implementations of one thing. The table had been built from names.
+
 ## v0.3.973 (2026-08-16) — 877 dead functions, then 35, then 13, and one of them was replayable
 
 `R37-TRIAGE` said the dead-code list *"should be re-derived, not triaged"*. Re-derived — and the

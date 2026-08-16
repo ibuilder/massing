@@ -440,12 +440,28 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
         + `<span>Perfect hand-offs <b style="color:${chipColor(m.perfect_handoff_pct)}">${m.perfect_handoff_pct ?? "—"}%</b> <span class="meta">(${m.clean_handoffs}/${m.handoffs})</span></span>`
         + `<span>Make-ready runway <b>${m.make_ready_runway_weeks}</b> wk</span>`;
       ppAnalytics.appendChild(chips);
-      // PPC trend by week
-      if (m.ppc_trend.length) {
+      // PPC trend by week. v0.3.974: a week whose commitments are not all answered has a NULL PPC,
+      // and it is dropped rather than plotted as `?? 0` — drawing "not measurable yet" as a zero bar
+      // is the same confusion the null exists to remove, and it is worse in a chart because a reader
+      // sees a collapse rather than a gap. The dropped weeks are counted underneath instead.
+      const measurable = m.ppc_trend.filter((r) => r.ppc_pct != null);
+      const pending = m.ppc_trend.length - measurable.length;
+      if (measurable.length) {
         const wrap = document.createElement("div"); wrap.className = "dash-card"; wrap.style.margin = "6px 0";
-        wrap.innerHTML = groupedBar(m.ppc_trend.map((r) => ({ label: r.week, bars: [{ name: "PPC", value: r.ppc_pct ?? 0 }] })),
+        wrap.innerHTML = groupedBar(measurable.map((r) => ({ label: r.week, bars: [{ name: "PPC", value: r.ppc_pct as number }] })),
           { title: "PPC trend by week (%)", fmt: (n) => `${Math.round(n)}%` });
+        if (pending) {
+          const note = document.createElement("div"); note.className = "meta"; note.style.marginTop = "2px";
+          note.textContent = `${pending} week${pending === 1 ? "" : "s"} not yet measurable — every `
+            + `commitment has to be answered before the week scores.`;
+          wrap.appendChild(note);
+        }
         ppAnalytics.appendChild(wrap);
+      } else if (m.ppc_trend.length) {
+        const note = document.createElement("div"); note.className = "meta"; note.style.margin = "6px 0";
+        note.textContent = `PPC trend: ${m.ppc_trend.length} week`
+          + `${m.ppc_trend.length === 1 ? " is" : "s are"} still open, so there is nothing to plot yet.`;
+        ppAnalytics.appendChild(note);
       }
       // variance Pareto
       if (m.variance_pareto.length) {

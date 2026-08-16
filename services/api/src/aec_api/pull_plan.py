@@ -44,6 +44,33 @@ def _pct(n: int, d: int) -> float | None:
     return round(100 * n / d, 1) if d else None
 
 
+def _ppc(done: int, committed: int, unassessed: int) -> float | None:
+    """Plan Percent Complete, or `None` while the period is still unmeasurable.
+
+    **This is the project's one PPC rule (v0.3.974), and it replaces two that disagreed inside this
+    very function.** The trend line divided `done` by every commitment including the unanswered ones
+    (mid-week pessimism: a week with 1 done, 1 missed and 3 still open read **20%**); the headline
+    divided by the assessed only (a week with one answered commitment, done, read **100%**). On the
+    fixture above those two are **20% and 50% on the same week, on the same panel**.
+
+    Neither is right, and the choice between them is not a rounding argument:
+
+    * dividing by everything says a team is failing on Wednesday because Friday has not happened;
+    * dividing by the assessed says a team is perfect because only the easy one has been answered.
+
+    Last Planner's own answer is that **an unassessed commitment makes the period unmeasurable**.
+    Met or not met, no partial credit, and no number at all until every promise has been answered —
+    which is what `massingplan.core.lastplanner` computes and what `GET /schedule/reliability`
+    reports. A GC reports PPC to an owner, so a missing measurement shown as a good one is worse
+    than a blank.
+    """
+    if committed <= 0:
+        return None                      # nothing was promised; that is not 0% reliability
+    if unassessed > 0:
+        return None                      # the period is not over
+    return round(100 * done / committed, 1)
+
+
 def board(db, pid: str, milestone: str | None = None) -> dict[str, Any]:
     """The phase pull-plan board: trade swimlanes × weeks, the hand-off sequence, the constraint /
     make-ready log, and readiness / commitment / PPC stats."""
@@ -95,7 +122,14 @@ def board(db, pid: str, milestone: str | None = None) -> dict[str, Any]:
     swimlanes = [{"trade": tr, "tasks": sorted(ts, key=lambda c: c["week"])}
                  for tr, ts in sorted(trades.items())]
     total = len(tasks)
-    commit_total = done + not_done
+    # v0.3.974: the denominator is every COMMITMENT. `committed` already counts all of
+    # COMMIT_STATES (committed + done + not_done), so it IS the total and the open ones are the
+    # remainder — the first version of this change added them together and double-counted, which
+    # `test_pull_plan` caught by asserting a number rather than a shape.
+    # It used to be `done + not_done` — the assessed-only form, which reads 100% on a period
+    # where one promise of twenty has been answered and it happened to go well.
+    commit_total = committed
+    commit_open = committed - done - not_done
     return {
         "total": total, "milestones": sorted(milestones), "milestone_filter": milestone,
         "weeks": week_order, "swimlanes": swimlanes,
@@ -106,11 +140,14 @@ def board(db, pid: str, milestone: str | None = None) -> dict[str, Any]:
                        "open_constraints": sum(constraint_counts.values())},
         "readiness": {"ready": ready, "constrained": constrained,
                       "ready_pct": _pct(ready, total)},
-        "commitment": {"committed": committed, "done": done, "not_done": not_done,
-                       "ppc_pct": _pct(done, commit_total)},
+        "commitment": {"committed": commit_total, "done": done, "not_done": not_done,
+                       "unassessed": commit_open,
+                       "ppc_pct": _ppc(done, commit_total, commit_open)},
         "note": "Last Planner phase board: work is pulled backward from the milestone, made ready by "
                 "removing constraints, committed weekly, then scored by PPC. Every trade edits its own "
-                "sticky notes; PPC = completed ÷ committed.",
+                "sticky notes; PPC = completed / committed, and is null until every commitment in "
+                "the period has been answered — an unassessed promise makes the period unmeasurable, "
+                "not perfect.",
     }
 
 
@@ -154,24 +191,31 @@ def metrics(db, pid: str, milestone: str | None = None) -> dict[str, Any]:
         st = t.get("workflow_state") or "pulled"
         w = d.get("planned_week") or "(unscheduled)"
         if st in COMMIT_STATES:
-            row = wk.setdefault(w, {"committed": 0, "done": 0})
+            row = wk.setdefault(w, {"committed": 0, "done": 0, "unassessed": 0})
             row["committed"] += 1
             if st == "done":
                 row["done"] += 1
+            elif st != "not_done":
+                # Still "committed": promised, not yet answered. Counted, never guessed at.
+                row["unassessed"] += 1
         if st == "not_done" and d.get("variance_reason"):
             variance[d["variance_reason"]] = variance.get(d["variance_reason"], 0) + 1
     ppc_trend = [{"week": w, "committed": r["committed"], "done": r["done"],
-                  "ppc_pct": _pct(r["done"], r["committed"])}
+                  "unassessed": r["unassessed"], "ppc_pct": _ppc(r["done"], r["committed"],
+                                                                 r["unassessed"])}
                  for w, r in sorted(wk.items()) if w != "(unscheduled)"]
     done = sum(1 for t in tasks if (t.get("workflow_state") or "") == "done")
     not_done = sum(1 for t in tasks if (t.get("workflow_state") or "") == "not_done")
+    open_commitments = sum(1 for t in tasks if (t.get("workflow_state") or "") == "committed")
 
     return {
         "total": total, "milestone_filter": milestone,
         "tasks_made_ready": made_ready, "tmr_pct": tmr_pct,
         "make_ready_runway_weeks": len(runway_weeks), "runway": runway_weeks,
         "perfect_handoff_pct": handoff_pct, "clean_handoffs": clean, "handoffs": handoff_total,
-        "ppc_pct": _pct(done, done + not_done), "committed": done + not_done, "done": done,
+        "ppc_pct": _ppc(done, done + not_done + open_commitments, open_commitments),
+        "committed": done + not_done + open_commitments, "done": done,
+        "unassessed": open_commitments,
         "ppc_trend": ppc_trend,
         "variance_pareto": [{"reason": k, "count": v} for k, v in sorted(variance.items(), key=lambda kv: -kv[1])],
         "note": "Last Planner reliability metrics: TMR = tasks made ready ÷ planned (are we clearing "

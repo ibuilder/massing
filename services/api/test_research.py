@@ -142,7 +142,14 @@ recs = [{"data": {"status": "Complete"}}, {"data": {"status": "Complete"}},
 m = lean.ppc(recs)
 assert m["commitments"] == 5 and m["completed"] == 4 and m["ppc"] == 0.8, m
 assert m["rating"] == "good" and m["top_variance_reasons"][0]["reason"] == "Materials", m
-assert lean.ppc([])["ppc"] == 0.0
+# v0.3.974: an empty period is UNMEASURABLE, not 0% reliability. This asserted `== 0.0` and was
+# pinning the defect: a team that made no commitments has not broken any, and a dashboard
+# reading "0% — needs work" on a project that has not started is a false accusation.
+empty = lean.ppc([])
+assert empty["ppc"] is None and empty["rating"] is None, empty
+# ...and the 5-commitment case above still scores, so the null is the OPEN case and not a
+# function that stopped answering.
+assert m["ppc"] == 0.8, m
 
 # --- endpoints + R5 ----------------------------------------------------------
 with TestClient(app) as c:

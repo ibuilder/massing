@@ -75,6 +75,31 @@ def _enum(cls: Any, v: Any, default: Any) -> Any:
         return default
 
 
+#: The week a commitment belongs to, IN THE ORDER THE REGISTER DECLARES IT.
+#:
+#: `pull_plan_task/module.json` names this field **`planned_week`**. Until v0.3.974 this module read
+#: a bare `week`, which is `weekly_plan`'s field name — a different register. So `reliability()`
+#: found zero weeks on every real project and answered "none of the N pull-plan tasks carry a week",
+#: while its only test passed on a hand-written fixture that supplied `week`.
+#:
+#: A routed, tested engine that is structurally unable to read its own register is the failure a
+#: fixture cannot see, which is why `test_ppc_field_conformance.py` derives the field names from
+#: `module.json` instead of restating them.
+#:
+#: `week` is kept as an accepted alias rather than swapped out: it costs nothing, and an importer or
+#: a `weekly_plan`-shaped caller writing that key should not silently produce an empty report.
+WEEK_FIELDS = ("planned_week", "week")
+
+
+def _week(data: dict) -> date | None:
+    """The commitment's week, from whichever of `WEEK_FIELDS` the record carries."""
+    for key in WEEK_FIELDS:
+        got = _date(data.get(key))
+        if got is not None:
+            return got
+    return None
+
+
 def _constraints(row: dict) -> tuple[Constraint, ...]:
     """Constraints attached to a task, if the record carries any.
 
@@ -149,7 +174,7 @@ def reliability(db: Any, pid: str) -> dict[str, Any]:
     undated = 0
     unusable = 0
     for row in rows:
-        wk = _date((row.get("data") or {}).get("week"))
+        wk = _week(row.get("data") or {})
         if wk is None:
             undated += 1
             continue
@@ -161,8 +186,8 @@ def reliability(db: Any, pid: str) -> dict[str, Any]:
 
     if not by_week:
         return _unavailable(
-            f"none of the {len(rows)} pull-plan tasks carry a week, so they cannot be grouped into "
-            "weekly commitments", undated=undated)
+            f"none of the {len(rows)} pull-plan tasks carry a {' or '.join(WEEK_FIELDS)}, so they "
+            "cannot be grouped into weekly commitments", undated=undated)
 
     weeks: list[WeeklyPlan] = []
     refused: list[str] = []

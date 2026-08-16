@@ -1,19 +1,39 @@
-"""Three PPC implementations, one dashboard, and they do not agree.
+"""Three PPC implementations, two registers, and — since v0.3.974 — ONE rule.
 
-This file exists because the disagreement is **real, shipped, and invisible from any one of them**.
-Each module is internally consistent; the defect only appears when the same week is put through all
-three. That is the shape a per-module test cannot catch by construction.
+This file used to pin a disagreement. Its own header said the numbers were measured rather than
+asserted, and that if any changed, somebody had to decide whether the change was intended — because
+consolidating them is a **domain decision** (a GC reports PPC to an owner), not a cleanup.
 
-The numbers below are measured, not asserted from reading. If any of them changes, this fails and
-somebody has to decide whether the change was intended — which is the whole purpose, because
-consolidating them is a **domain decision** (a GC reports PPC to an owner) and not a cleanup.
+**That decision was made: the vendored engine's rule wins.** So this file now asserts the agreement,
+and keeps the old numbers as the thing that changed, because a consolidation nobody can see the size
+of is indistinguishable from a refactor.
+
+## The rule
+
+* met or not met — no partial credit;
+* an **unanswered** commitment makes the period unmeasurable, so PPC is `None`, never a number;
+* nothing promised is `None` too — a team that made no commitments has not broken any.
+
+## Why there are still three functions
+
+There are **two registers and a route**, not three opinions. `lean.ppc` scores `weekly_plan`;
+`pull_plan.metrics` scores `pull_plan_task`; `schedule_lastplanner.reliability` scores the same
+`pull_plan_task` records through `massingplan.core.lastplanner`. Collapsing them would merge two
+registers that hold different work. What had to agree is the RULE, and that is what is asserted here.
+
+Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_ppc_divergence.py
 """
 from __future__ import annotations
 
-from aec_api import modules as me
-from aec_api import schedule_lastplanner as lp
-from aec_api.lean import ppc as lean_ppc
-from aec_api.pull_plan import _pct
+import sys
+
+sys.path.insert(0, "src")
+
+from aec_api import modules as me  # noqa: E402
+from aec_api import schedule_lastplanner as lp  # noqa: E402
+from aec_api.lean import NO_REASON_RECORDED  # noqa: E402
+from aec_api.lean import ppc as lean_ppc  # noqa: E402
+from aec_api.pull_plan import _ppc  # noqa: E402
 
 _FAILURES: list[str] = []
 _REAL_LIST = me.list_records
@@ -25,82 +45,118 @@ def check(name: str, ok: bool, note: str = "") -> None:
         _FAILURES.append(name)
 
 
-#: One week. Two commitments answered (one done, one missed), three still planned.
+#: One week, five commitments. Two answered (one done, one missed), three still open.
 #: The honest reading is "not measurable yet" — nobody knows how the week went.
-MIXED = (
-    [{"data": {"status": "Complete", "workflow_state": "done", "week": "2026-03-02", "trade": "Concrete"}}]
-    + [{"data": {"status": "Missed", "workflow_state": "not_done", "week": "2026-03-02",
+#: `planned_week` is the field the register declares; the old fixture said `week`, which is
+#: `weekly_plan`'s field, and that is how the adapter shipped unable to read its own register.
+OPEN_WEEK = (
+    [{"data": {"status": "Complete", "workflow_state": "done",
+               "planned_week": "2026-03-02", "trade": "Concrete"}}]
+    + [{"data": {"status": "Missed", "workflow_state": "not_done", "planned_week": "2026-03-02",
                  "variance_reason": "materials", "trade": "Concrete"}}]
-    + [{"data": {"status": "Planned", "workflow_state": "planned", "week": "2026-03-02", "trade": "Concrete"}}] * 3
+    + [{"data": {"status": "Planned", "workflow_state": "committed",
+                 "planned_week": "2026-03-02", "trade": "Concrete"}}] * 3
 )
+
+#: The same week once every promise has been answered: 3 done, 2 missed.
+CLOSED_WEEK = (
+    [{"data": {"status": "Complete", "workflow_state": "done",
+               "planned_week": "2026-03-02", "trade": "Concrete"}}] * 3
+    + [{"data": {"status": "Missed", "workflow_state": "not_done", "planned_week": "2026-03-02",
+                 "variance_reason": "materials", "trade": "Concrete"}}] * 2
+)
+
+
+def vendored(rows: list[dict]) -> dict:
+    me.list_records = lambda db, mod, pid, limit=0: [        # type: ignore[assignment]
+        {"id": f"t{i}", "ref": f"T{i}", "title": "c", "data": r["data"]}
+        for i, r in enumerate(rows)]
+    try:
+        return lp.reliability(None, "p1")
+    finally:
+        me.list_records = _REAL_LIST                          # type: ignore[assignment]
+
+
+def counts(rows: list[dict]) -> tuple[int, int, int]:
+    """(done, committed, unassessed) in `pull_plan.metrics`' terms."""
+    st = [r["data"]["workflow_state"] for r in rows]
+    done = st.count("done")
+    return done, len(st), len(st) - done - st.count("not_done")
 
 
 def main() -> int:
     try:
-        # --- lean.ppc: denominator is EVERY record ------------------------------------------------
-        lean = lean_ppc(MIXED)
-        check("lean.ppc counts unanswered commitments as failures",
-              lean["ppc"] == 0.2 and lean["commitments"] == 5,
-              f"1 done of 5 records = {lean['ppc']} — the three still planned drag it down, "
-              "so mid-week every team reads as failing")
+        # ================= AN OPEN WEEK IS UNMEASURABLE, EVERYWHERE =================
+        lean_open = lean_ppc(OPEN_WEEK)
+        pull_open = _ppc(*counts(OPEN_WEEK))
+        vend_open = vendored(OPEN_WEEK)["trend"][0]["ppc"]
 
-        # --- pull_plan: denominator is ASSESSED ONLY ------------------------------------------------
-        done = sum(1 for r in MIXED if r["data"]["workflow_state"] == "done")
-        not_done = sum(1 for r in MIXED if r["data"]["workflow_state"] == "not_done")
-        pull = _pct(done, done + not_done)
-        check("pull_plan.metrics counts only assessed ones",
-              pull == 50.0,
-              f"1 done of {done + not_done} assessed = {pull}% — the three planned are simply "
-              "not in the denominator")
+        check("all three report an open week as UNMEASURABLE, not as a number",
+              lean_open["ppc"] is None and pull_open is None and vend_open is None,
+              f"lean={lean_open['ppc']}  pull_plan={pull_open}  vendored={vend_open}. "
+              "Before v0.3.974: lean 20%, pull_plan 50%, vendored None — and the portal rendered "
+              "the 50%")
 
-        # --- the vendored engine: unmeasurable ------------------------------------------------------
-        me.list_records = lambda db, mod, pid, limit=0: [  # type: ignore[assignment]
-            {"id": f"t{i}", "ref": f"T{i}", "title": "c", "data": r["data"]}
-            for i, r in enumerate(MIXED)]
-        vend = lp.reliability(None, "p1")
-        week = vend["trend"][0]
-        check("core/lastplanner reports the week as UNMEASURABLE, not as a number",
-              week["ppc"] is None and week["unassessed"] == 3,
-              f"3 unassessed of {week['committed']} committed -> ppc=None; "
-              "a missing measurement reported as a good one is worse than no measurement")
+        check("...and each says HOW MANY are unanswered, so the blank is legible",
+              lean_open["unassessed"] == 3 and counts(OPEN_WEEK)[2] == 3
+              and vendored(OPEN_WEEK)["trend"][0]["unassessed"] == 3,
+              "'unmeasurable' with no count reads as a bug; with a count it reads as a status")
 
-        # --- the divergence itself ------------------------------------------------------------------
-        check("the three disagree on the SAME week, and the spread is not a rounding argument",
-              lean["ppc"] * 100 != pull and week["ppc"] is None,
-              f"lean {lean['ppc'] * 100:.0f}%  ·  pull_plan {pull:.0f}%  ·  vendored None "
-              "— and the portal renders the pull_plan one")
+        # ================= A CLOSED WEEK AGREES ON THE NUMBER =================
+        #
+        # The twin, and the one that matters: if they all returned None always, the check above
+        # would pass on three broken engines.
+        lean_closed = lean_ppc(CLOSED_WEEK)["ppc"]
+        pull_closed = _ppc(*counts(CLOSED_WEEK))
+        vend_closed = vendored(CLOSED_WEEK)["trend"][0]["ppc"]
 
-        check("...and the rendered number is the FLATTERING one",
-              pull > lean["ppc"] * 100,
-              f"{pull:.0f}% shown vs {lean['ppc'] * 100:.0f}% computed elsewhere for the same week")
+        check("a CLOSED week produces a number, and the three agree on it — the twin",
+              lean_closed == 0.6 and pull_closed == 60.0 and vend_closed == 0.6,
+              f"3 of 5 met: lean={lean_closed}  pull_plan={pull_closed}%  vendored={vend_closed}. "
+              "Without this, three engines that always answered None would look consolidated")
 
-        # --- two more lean.ppc defects, pinned ---------------------------------------------------------
+        check("...and the two scales are stated, not silently mixed",
+              lean_closed == vend_closed and pull_closed == lean_closed * 100,
+              "lean and the engine report a FRACTION, pull_plan reports a PERCENT — the same rule "
+              "on two scales, which is a rendering choice and not a second opinion")
+
+        # ================= nothing promised is not zero =================
         empty = lean_ppc([])
-        check("lean.ppc reports 0.0 and 'needs work' for a project with NO commitments",
-              empty["ppc"] == 0.0 and empty["rating"] == "needs work",
-              "a team that made no promises is not a team that broke them — pinned as a known defect, "
-              "not endorsed")
+        check("a project with NO commitments is unmeasurable, not 'needs work'",
+              empty["ppc"] is None and empty["rating"] is None and empty["commitments"] == 0,
+              "reported 0.0 and 'needs work' until v0.3.974 — a team that made no promises is not "
+              "a team that broke them")
 
+        check("...and pull_plan agrees on an empty period",
+              _ppc(0, 0, 0) is None,
+              "one rule, so the empty case cannot diverge either")
+
+        # ================= reasons are never invented =================
         no_reason = lean_ppc([{"data": {"status": "Missed"}}])
-        check("lean.ppc DEFAULTS a missing variance reason instead of demanding one",
-              no_reason["top_variance_reasons"] == [{"reason": "Unspecified", "count": 1}],
-              "the reasons are the entire learning loop; a default quietly fills it with a value "
-              "nobody entered")
+        check("a missed commitment with no stated reason is recorded as an ABSENCE",
+              no_reason["top_variance_reasons"] == [{"reason": NO_REASON_RECORDED, "count": 1}]
+              and no_reason["reasons_not_recorded"] == 1,
+              f"{no_reason['top_variance_reasons']} — it defaulted to the string 'Unspecified' "
+              "until v0.3.974, which sorted beside real reasons as though somebody had entered it")
 
-        # The vendored engine's equivalent is an explicit enum member, which is a recorded absence
-        # rather than a string that looks like data.
-        check("...where the vendored engine records it as NOT_RECORDED, an explicit absence",
-              any(x["reason"] == "materials" for x in vend["top_reasons"]),
-              f"{vend['top_reasons']} — reasons come back as enum values, not free text")
+        check("...and the vendored engine records the same absence as an enum member",
+              any(x["reason"] == "materials" for x in vendored(CLOSED_WEEK)["top_reasons"]),
+              "reasons come back as enum values there, not free text")
 
+        # ================= the adapter reads the REGISTER's field =================
+        check("the vendored adapter groups on `planned_week`, the field the register declares",
+              vendored(OPEN_WEEK)["available"] is True,
+              "it read a bare `week` until v0.3.974 — `weekly_plan`'s field name — so on every real "
+              "project it answered 'none of the N tasks carry a week'. "
+              "`test_ppc_field_conformance.py` is the gate that keeps this true")
+
+        if _FAILURES:
+            print(f"FAILED: {', '.join(_FAILURES)}")
+            return 1
+        print("ppc_divergence: all checks passed — one rule, two registers")
+        return 0
     finally:
-        me.list_records = _REAL_LIST  # type: ignore[assignment]
-
-    if _FAILURES:
-        print(f"FAILED: {', '.join(_FAILURES)}")
-        return 1
-    print("test_ppc_divergence OK")
-    return 0
+        me.list_records = _REAL_LIST                          # type: ignore[assignment]
 
 
 if __name__ == "__main__":
