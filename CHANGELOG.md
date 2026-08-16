@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.973 (2026-08-16) — 877 dead functions, then 35, then 13, and one of them was replayable
+
+`R37-TRIAGE` said the dead-code list *"should be re-derived, not triaged"*. Re-derived — and the
+derivation is worth more than the list.
+
+| population rule | candidates |
+|---|---|
+| public functions in `aec_api` never referenced by name | **877** of 1,993 |
+| …excluding decorated functions (FastAPI handlers are reached by decorator, never by name) | **35** |
+| …counting string literals as references, across `services/api`, `services/data` and the test tree | **13** |
+
+**877 to 13 without changing a single threshold.** Every reduction corrected *what counts as a
+caller*. The first number — "44% of this package is dead" — is what the obvious query returns, and it
+would have been confidently wrong by a factor of 67.
+
+**One of the 13 justified the exercise on its own.** `auth.verify_stepup_token` ran identical
+signature, expiry, action and password-fingerprint checks to `verify_stepup_claims` and returned
+**only the subject** — so a caller reaching for it could not spend the `jti`, and the step-up
+assertion stayed **replayable**. A step-up attests *"a human confirmed THIS act"*; `rbac.consume_stepup`
+spends the jti against `stepup_spent` precisely so a captured token cannot seal a stack of documents.
+Nothing called the weak one, which is the reason to delete it rather than a reason to leave it: two
+verifiers where one silently drops replay protection is a footgun whether or not anyone has picked it
+up yet.
+
+`services/api/test_stepup_single_verifier.py` asserts the **property** — every step-up verifier
+returns something a caller can spend — not the absence of a name. A grep for a deleted name passes
+forever and reads as coverage. It also re-asserts what must not have been lost with it: a step-up for
+one act does not satisfy another, a changed password invalidates an outstanding assertion, a tampered
+signature is refused, and garbage returns `None` rather than raising.
+
+**Three roadmap items closed on measurement, not on re-reading.** `R41-CLASH-TRIAGE` (grouping,
+dedup, grazing filter and consequence ranking all built; the 18:1 scale test is in the manifest and
+passes), `R45-VENDOR-REACH ③` (29 of 29 vendored modules reachable, allowlist empty, asserted in both
+directions) and `R45-SCHED-REACH ①` (all five adapters routed — `resources` is adapted inside
+`schedule_levelling.py`, which is why a filename check would have called it unfinished). All three
+were done and none carried the ✅, which costs every later reader a premise-check.
+
 ## v0.3.972 (2026-08-16) — two Monte Carlos, and the one that counted Saturdays is gone
 
 `R45-SCHED-DEDUPE ②` asks for one decision per overlap: *diff the two behaviours, keep the deeper

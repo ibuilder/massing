@@ -413,8 +413,22 @@ cleanup. The three options:
 
 The engine work is done either way; only the naming is open.
 
-- ◧ **R45-SCHED-REACH ①** *(M; `health` SHIPPED v0.3.950)* — adapters for the five with no
-  counterpart: ~~`health`~~, `compare`, `levelling`, `locations`, `resources`.
+- ✅ **R45-SCHED-REACH ①** *(COMPLETE — all five adapters exist and are routed; marked 2026-08-16
+  after enumerating the routes rather than trusting the strikethroughs)* — adapters for the five with
+  no counterpart: ~~`health`~~, ~~`compare`~~, ~~`levelling`~~, ~~`locations`~~, ~~`resources`~~.
+
+  `health` → `GET /schedule/health` (v0.3.950) · `locations` → `GET /schedule/flowline` ·
+  `levelling` → `POST /schedule/level` · `resources` → `GET /schedule/resource-loading` and
+  `/schedule/resource-leveling` · `compare` → `GET /schedule/compare` (v0.3.961, which needed
+  `schedule_baselines` SCHEMA 2 first — a v1 snapshot holds dates but no logic, and re-scheduling one
+  produces a fully-parallel plan).
+
+  **`resources` has no "schedule_resources.py" and that is not a gap** *(plain quotes — backticking
+  a filename in order to say it does not exist still makes it a citation, which is how this very
+  sentence failed `test_claude_md_gates` on its first run)* — it is adapted inside
+  `services/api/src/aec_api/schedule_levelling.py`, which is why a file-name check would have called
+  this item unfinished. The reach gate counts routes, not filenames, which is the reason it can see
+  this and a naming sweep cannot.
 
   **`health` is done** — `services/api/src/aec_api/schedule_health.py` exposes the DCMA 14-point assessment
   (no equivalent existed anywhere outside the vendored tree; checked before building, not assumed).
@@ -468,7 +482,15 @@ The engine work is done either way; only the naming is open.
   is exactly one implementation. **Do not start this until ① proves the adapter pattern**, and do not
   do it as a batch — four simultaneous deletions across the schedule surface is how a regression
   hides.
-- **R45-VENDOR-REACH ③** *(S)* — the gate this needs and does not have.
+- ✅ **R45-VENDOR-REACH ③** *(COMPLETE — `services/api/test_vendor_reachable.py`, shipped with R46;
+  marked 2026-08-16.)* **29 of 29 vendored modules reachable, allowlist EMPTY.** It went further than
+  this entry asked: the allowlist is asserted in *both* directions — an unrecorded-and-unreached
+  module fails, and a recorded module that becomes reachable *also* fails, so the list cannot rot into
+  a graveyard. Two vacuity twins hold it up: the closure is derived (an empty seed set must reach
+  nothing) and one entry point must reach strictly less than all of them, so a walk that returned
+  everything regardless would report full coverage forever. Original ask below.
+
+  — the gate this needs and does not have.
   `test_massingplan_vendor.py` proves the copy is *faithful* (digest, stdlib-only, no fork). Nothing
   proves any of it is *reached*. A re-sync can therefore double the vendored tree and every check
   stays green — which is exactly what just happened. Add a transitive-reachability assertion with an
@@ -708,7 +730,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE · R43-PLAN-DRIFT · R45-SCHED-REACH ① · R45-SCHED-DEDUPE ② · R45-VENDOR-REACH ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE · R43-PLAN-DRIFT · R45-SCHED-DEDUPE ② |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -2148,7 +2170,7 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   instead of hand-rolling a traverse. The OBB work then remains a real feature at its stated size:
   fitting an oriented box on top of these two sites would compute a beautiful oriented box over a 2 km
   ground plane.
-- **R41-CLASH-TRIAGE** *(M — Lane C)* — **a reduction stage between detection and workflow.** A
+- ✅ **R41-CLASH-TRIAGE** *(Lane C — COMPLETE; marked 2026-08-16 after re-verifying rather than re-reading. `clash_intel.analyze` is reached from `services/api/src/aec_api/routers/analysis.py`, `services/api/test_clash_reduction_scale.py` is in the `run_tests.py` manifest and passes, and the 18:1 measurement below still holds. The entry's own text already said all four asks were built; what it never got was the ✅, which is how a done item keeps costing the next reader a premise-check)* — **a reduction stage between detection and workflow.** A
   competitor's headline is not detection quality but **22,843 raw clashes reduced to 103 groups**:
   group by geometric and semantic similarity, drop duplicates, filter grazing false positives, then
   rank survivors by construction consequence. We have detection including soft and sequence clash, and
@@ -2827,8 +2849,41 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   repo's own known god-files, and SCALE-SEAM already split `client.ts` by domain after this index
   was taken. Credit what shipped; keep the rest.
 
-- ◧ **R37-TRIAGE** *(M — Lane C; do FIRST, before any deletion or split)* — **steps 1–3 triaged in
-  v0.3.865–867 on measurements rather than recollection:** cycles ALREADY-CLOSED and gated on both
+- ◧ **R37-TRIAGE** *(M — Lane C; do FIRST, before any deletion or split)*
+
+  **STEP 3 RE-DERIVED v0.3.973, and the derivation is the finding.** The entry said the dead-code
+  list "should be re-derived, not triaged". Done, and the useful output is not the list but *how far
+  a wrong population misses by*:
+
+  | population rule | candidates |
+  |---|---|
+  | public functions in `aec_api` never referenced by name | **877** of 1,993 |
+  | …excluding decorated functions (FastAPI handlers are reached by decorator, never by name) | **35** |
+  | …and counting string literals as references, over `services/api` **and** `services/data` **and** the test tree | **13** |
+
+  **877 → 13 without changing a single threshold.** Every reduction was a correction to *what counts
+  as a caller*, and the first number would have been shipped as "44% of this package is dead" by
+  anyone who ran the obvious query. This is [[derive-the-population-and-the-reach]] with a
+  67-to-1 error bar on it. **The 13 are candidates, not corpses** — string dispatch through a
+  registry and `__all__` re-exports can still hide a caller, so each needs reading before deletion.
+
+  The list: `discipline_names` · `excluded_import_names` · `input_fields` · `map_procore_change_event`
+  · `map_procore_rfi` · `map_procore_submittal` · `project_with_source` · `quadrant` ·
+  `register_recipe` · `scorecard_inputs` · `search_filter` · `sync_property` ·
+  ~~`verify_stepup_token`~~ *(deleted v0.3.973 — see below)*.
+
+  **One of the 13 was worth the whole exercise.** `auth.verify_stepup_token` ran identical signature,
+  expiry, action and password-fingerprint checks to `verify_stepup_claims` and returned **only the
+  subject** — so a caller reaching for it could not spend the `jti`, and the step-up assertion it
+  verified stayed **replayable**. A step-up exists to attest *"a human confirmed THIS act"*, and
+  `rbac.consume_stepup` spends the jti against `stepup_spent` precisely so a captured token cannot
+  seal a stack of documents. Nothing called the weak one, which is the reason to delete it rather
+  than a reason to leave it: two verifiers where one silently drops replay protection is a footgun
+  whether or not anyone has picked it up. `services/api/test_stepup_single_verifier.py` asserts the
+  *property* — every step-up verifier returns something a caller can spend — rather than the absence
+  of a name, because a grep for a deleted name passes forever and reads as coverage.
+
+  **Steps 1–3 triaged in v0.3.865–867 on measurements rather than recollection:** cycles ALREADY-CLOSED and gated on both
   sides; the oversized-files list names the wrong files (`app.ts` sits at 97% of ceiling, the named
   candidates at 13–19%); the dead-code list should be re-derived, not triaged. Step 4 is explicitly
   Lane A and not routed here; step 5 is opportunistic. What remains needs a dependency decision.

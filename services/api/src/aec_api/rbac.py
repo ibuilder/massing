@@ -196,8 +196,10 @@ def require_platform_admin(db: Session = Depends(get_db),
 def consume_stepup(db: Session, token: str, act: str, pw_hash: str, actor: str) -> bool:
     """Verify a step-up assertion AND spend it. True exactly once per assertion.
 
-    `verify_stepup_token` alone makes the assertion time-bounded, not single-use: inside its 5-minute
-    TTL the same token seals any number of documents. That gap matters for a professional seal
+    Verification alone makes the assertion time-bounded, not single-use: inside its 5-minute TTL the
+    same token seals any number of documents. (This named "verify_stepup_token" until v0.3.973, when
+    that second verifier was deleted for returning only the subject — a caller holding no `jti` could
+    not spend anything, which is exactly the gap this paragraph describes.) That gap matters for a professional seal
     specifically, because the claim a seal makes is per-document — "this human was in responsible
     charge of THIS work" — and a reusable assertion can only support the weaker "a human re-proved
     their password recently". An agent that captured one token could seal a stack.

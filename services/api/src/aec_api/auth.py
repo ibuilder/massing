@@ -194,32 +194,17 @@ def create_stepup_token(sub: str, act: str, pw_hash: str, ttl: int = _STEPUP_TTL
     return f"{payload}.{sig}"
 
 
-def verify_stepup_token(token: str, act: str, pw_hash: str) -> str | None:
-    """Return the subject if `token` is a valid, unexpired step-up assertion for `act`, else None.
-
-    `act` is checked with `compare_digest` and the caller must pass the action it is about to
-    perform — a step-up for a cheap action must never satisfy an expensive one.
-    """
-    try:
-        payload_b64, sig_b64 = token.split(".")
-        expected = _b64(hmac.new(_SECRET, payload_b64.encode(), hashlib.sha256).digest())
-        if not hmac.compare_digest(sig_b64, expected):
-            return None
-        payload = json.loads(base64.urlsafe_b64decode(payload_b64 + "=="))
-        if payload.get("purpose") != "stepup" or payload.get("exp", 0) < time.time():
-            return None
-        if not hmac.compare_digest(str(payload.get("act") or ""), act):
-            return None
-        if not hmac.compare_digest(str(payload.get("fp") or ""), _pw_fingerprint(pw_hash)):
-            return None
-        return payload.get("sub")
-    except Exception:
-        return None
-
-
 def verify_stepup_claims(token: str, act: str, pw_hash: str) -> dict | None:
-    """The verified step-up payload (`sub`, `jti`, …), or None. Signature checks are identical to
-    `verify_stepup_token`; this returns the whole claim set so the caller can SPEND the `jti`.
+    """The verified step-up payload (`sub`, `jti`, …), or None.
+
+    **The only step-up verifier.** A second one, "verify_stepup_token", returned just the subject and
+    was removed in v0.3.973 with zero callers: identical signature checks, but a caller holding only
+    `sub` **cannot spend the `jti`**, so the assertion it verified stayed replayable. Two verifiers
+    where one silently drops replay protection is a footgun whether or not anyone has picked it up
+    yet — and "it has no callers" is the reason to delete it, not a reason to leave it.
+
+    Returns the whole claim set so the caller can spend the `jti` — which `rbac.consume_stepup` does,
+    against the `stepup_spent` table.
 
     Kept separate rather than changing that function's return type: it is the shape every existing
     caller and test already depends on, and a silent widening is how a boolean check starts reading a
