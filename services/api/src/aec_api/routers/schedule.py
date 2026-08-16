@@ -237,10 +237,15 @@ def schedule_montecarlo_endpoint(pid: str, iterations: int = 2000, ppc_pct: floa
                                  _: str = Depends(require_role("viewer"))):
     """R45-SCHED-DEDUPE -- Monte Carlo schedule risk on the **real** network.
 
-    Distinct from `/schedule/risk`, which simulates its own FS-only, calendar-free graph and converts
-    durations to dates with plain calendar arithmetic. This runs the same `Task`/`Link` network the CPM
-    uses, so it honours every relation type, lag and work calendar -- on a 100-working-day chain the
-    two answers sit about five weeks apart, and this is the one that does not count Saturdays.
+    **The only Monte Carlo left.** "/schedule/risk" and "aec_api/schedule_risk.py" were deleted in
+    v0.3.972 rather than kept beside this one, because the older simulator was wrong twice on the same
+    records: it converted durations to dates with plain CALENDAR arithmetic (37 days adrift of this
+    route on a 100-working-day chain -- it counts Saturdays), and its predecessor index was built from
+    `ref`/`wbs` only, so logic written with record ids -- which `schedule_cpm` resolves -- vanished and
+    the whole network simulated as fully PARALLEL, with no error and a P80 four months early.
+
+    This runs the same `Task`/`Link` network the CPM uses, so it honours every relation type, lag and
+    work calendar.
 
     Reports two things the older endpoint cannot: `confidence_in_deterministic` (the share of runs that
     met the programme date -- the direct answer to "how likely is this date, really?") and
@@ -250,9 +255,8 @@ def schedule_montecarlo_endpoint(pid: str, iterations: int = 2000, ppc_pct: floa
     `ppc_pct` carries the team's Last Planner reliability through to the pessimistic tail: below 80%
     widens it, above narrows it. Explicit per-activity estimates are never overridden by it.
     """
-    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
-    return schedule_risk_mc.risk(acts, iterations=iterations, ppc_pct=ppc_pct,
-                                 distribution=distribution, seed=seed)
+    return schedule_risk_mc.for_project(db, pid, iterations=iterations, ppc_pct=ppc_pct,
+                                        distribution=distribution, seed=seed)
 
 
 @router.get("/projects/{pid}/schedule/reliability")
@@ -302,9 +306,10 @@ def schedule_windows_endpoint(pid: str, match: str = "id",
     """R46 -- contemporaneous windows analysis (AACE 29R-03 MIP 3.3): where the time went, period by
     period.
 
-    **`eot.py` offers four AACE methods and performs none of them.** Measured on one input, all four
-    return the same number: the method is recorded as a label and the arithmetic is events-minus-float
-    in every branch. This performs one of them for real.
+    **`eot.py` offered four AACE methods and performed none of them** — measured on one input, all
+    four returned the same number, because the method was recorded as a label and the arithmetic was
+    events-minus-float in every branch. This performs one of them for real, and since v0.3.971
+    `POST /schedule/eot` REFUSES the windows method and names this route instead.
 
     The series comes from the captured baseline library -- up to twelve dated snapshots, each carrying
     the logic to be re-scheduled since v0.3.961. A pre-v0.3.961 baseline is EXCLUDED and named: it
@@ -646,44 +651,28 @@ def risk_board_endpoint(pid: str, db: Session = Depends(get_db),
     return risk_board.board(db, pid)
 
 
-@router.get("/projects/{pid}/schedule/risk")
-def schedule_risk_endpoint(pid: str, iterations: int = 1000, seed: int | None = None,
-                           ppc: float | None = None,
-                           db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """SCHED-RISK: Monte Carlo over the CPM network — P10/P50/P80/P90 completion, per-activity
-    criticality index, delay-driver ranking, and the P80 buffer vs the deterministic date.
-    `ppc` overrides the calibration; by default the team's own pull-plan PPC (when it exists)
-    calibrates the pessimistic tail — an unreliable plan honestly slips more."""
-    from .. import schedule_risk
-    acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
-    ppc_val = ppc
-    if ppc_val is None:
-        try:                                         # the team's own Last Planner reliability
-            from .. import pull_plan
-            board = pull_plan.board(db, pid)
-            ppc_val = (board.get("metrics") or {}).get("ppc_pct")
-        except Exception:  # noqa: BLE001 — no pull-plan data → uncalibrated defaults
-            ppc_val = None
-    # R27-RISK-CALIBRATE: the spread from THIS project's own finished work, where there is enough of
-    # it. `calibrated` rides alongside the simulation rather than silently replacing its inputs — a
-    # forecast whose provenance is invisible cannot be argued with, so the caller sees which rung the
-    # calibration landed on (trade / project / the supplied three-point) and how many finished
-    # activities backed it.
-    out = schedule_risk.simulate(acts, iterations=iterations, seed=seed, ppc_pct=ppc_val)
-    from .. import risk_calibrate
-    sample = risk_calibrate.samples(acts)
-    out["calibration"] = {
-        "n_finished": sample["n"],
-        "in_progress_excluded": len(sample["in_progress"]),
-        "outliers_excluded": sample["outliers"],
-        "by_trade": {t: risk_calibrate.calibrate(acts, trade=t)
-                     for t in sorted(sample["by_trade"])},
-        "note": ("Measured actual÷planned ratios from FINISHED activities only. Work that has started "
-                 "and not finished is excluded: its measured duration is however far it has got, "
-                 "always shorter than the truth, and including it would bias every forecast "
-                 "optimistic. A trade with fewer than the minimum sample falls back to the "
-                 "project-wide spread, and says so."),
-    }
+@router.get("/projects/{pid}/schedule/risk", deprecated=True)
+def schedule_risk_alias(pid: str, iterations: int = 1000, seed: int | None = 12345,
+                        ppc: float | None = None, db: Session = Depends(get_db),
+                        _: str = Depends(require_role("viewer"))):
+    """DEPRECATED alias for `/schedule/montecarlo`. Kept serving; deliberately not removed.
+
+    The engine behind this path was deleted in v0.3.972 because it was wrong twice -- it added plain
+    CALENDAR days (37 adrift on a 100-working-day chain) and its predecessor index read `ref`/`wbs`
+    only, so logic written with record ids vanished and the network simulated fully parallel. The
+    PATH stays, because the roadmap records retiring it as **the user's call**, and an endpoint
+    disappearing is a different kind of change from an endpoint being corrected. Deleting it was
+    taken back for exactly that reason.
+
+    So this returns what `/schedule/montecarlo` returns, and says so on the response. The response
+    SHAPE therefore changed: dates (`p50`, `p80`) rather than day counts (`p50_days`, `p80_days`).
+    That is unavoidable -- the old shape was the wrong answer's shape -- and it is a smaller change
+    than a 404 while the removal is undecided.
+    """
+    out = schedule_risk_mc.for_project(db, pid, iterations=iterations, ppc_pct=ppc, seed=seed)
+    out["deprecated"] = ("superseded by GET /projects/{pid}/schedule/montecarlo, which this now "
+                         "serves verbatim. Retiring this path is a user-facing removal and has not "
+                         "been decided.")
     return out
 
 
@@ -1182,6 +1171,20 @@ def schedule_eot(pid: str, body: dict = Body(default={}), db: Session = Depends(
     exist because the same facts give different answers under different methods; an EOT figure without
     its method cannot be weighed by whoever reads it, and this one ends up in a claim. Omitting it
     returns `method_required` **listing the methods** rather than picking one.
+
+    **The method now changes the number (v0.3.971), which it did not until then.** All four were
+    validated, echoed back in three fields and then never read: every branch computed the same
+    additive sum, so a claim could carry the words "windows analysis" over arithmetic that was
+    nothing of the kind. Today:
+
+    * `impacted_as_planned` sums each event's impact beyond float — unbounded by what the job did,
+      which is the published criticism of the method and is reported as `over_claimed_days`;
+    * `as_planned_vs_as_built` caps that at the movement of the completion date, needs
+      `actual_finish`, and refuses without it rather than falling back to the additive figure;
+    * `windows` and `time_impact` need a dated SERIES of schedules, which this route is not given.
+      They return `method_needs_schedule_updates`; windows names
+      `GET /projects/{pid}/schedule/windows`, and time-impact names nothing because nothing performs
+      it yet.
 
     Two further refusals, both of which a claim reviewer depends on:
 

@@ -4,6 +4,140 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.972 (2026-08-16) — two Monte Carlos, and the one that counted Saturdays is gone
+
+`R45-SCHED-DEDUPE ②` asks for one decision per overlap: *diff the two behaviours, keep the deeper
+engine, keep our rendering, delete the loser, and write a test asserting there is exactly one
+implementation.* This is the `risk` decision. `aec_api/schedule_risk.py` and its test are deleted;
+`schedule_risk_mc.py` over the vendored engine is the only simulator left.
+
+**`GET /schedule/risk` still serves, as a deprecated alias, and that is a correction.** This release
+first deleted the path along with the engine. The roadmap had recorded retiring it as *"a user-facing
+removal and therefore your call"* — a decision a previous session escalated and nobody answered. The
+engine was this item's to delete; the path was not. It now returns exactly what
+`/schedule/montecarlo` returns, with a `deprecated` note naming the successor, so nothing 404s while
+the removal stays undecided. The response *shape* did change — dates rather than day counts — which
+is unavoidable, since the old shape was the wrong answer's shape. `scheduleRisk` survives as a
+one-line client alias and is recorded in `KNOWN_UNCALLED` as deliberately callerless.
+
+*An item that authorises a deletion does not authorise every deletion it touches.*
+
+**Two measured defects, not one, and the second is the worse.**
+
+* **It added calendar days.** On five 20-day activities in series from 2026-03-02 — a hundred working
+  days — the deleted engine put the deterministic finish on **2026-06-10**. The surviving one, running
+  the same `Task`/`Link` network on the same work calendars the CPM uses, puts it on **2026-07-17**.
+  Thirty-seven days apart, in the same portal, under two labels that both said "schedule risk".
+* **Its predecessor index was built from `ref` and `wbs` only, never the record `id`.** `schedule_cpm`
+  resolves both. So a schedule whose logic was written with record ids chained correctly in the CPM
+  and simulated as **fully parallel** in the risk run — no error, no warning, a P80 four months early
+  on a job with four months of chain in it.
+
+**Deleting the loser is not a licence to drop what it was carrying**, which is where a dedupe usually
+loses something quietly. Three things moved across rather than out:
+
+* `project_ppc` — the team's Last Planner reliability, now looked up in **one** place. It existed
+  twice, in the route and in the MCP tool, which is how two callers of one forecast come to calibrate
+  differently and nobody notices.
+* the `risk_calibrate` block — the spread measured from **this project's finished work**, reported
+  beside the forecast so its provenance can be argued with.
+* `buffer_p80_days`, which `risk_board` raises as a finding — now counted in **working** days on the
+  schedule's own calendar. The old buffer counted Saturdays and read high on a job that was fine, so
+  its severity thresholds were re-derived rather than carried over.
+
+The route, the MCP tool and the risk board now assemble through one `for_project`. The schedule panel
+reports dates rather than day counts, and shows **duration sensitivity** beside criticality —
+criticality says how often an activity sat on the path, sensitivity says whether its duration actually
+moves the finish, and either alone misleads about where to spend attention.
+
+`test_schedule_risk_single.py` asserts one implementation *and* both defects, because the argument for
+a deletion is the thing most likely to be doubted later — and because a test that only greps for a
+filename would pass against a re-import under another name. Its population scan named the wrong file
+on the first run (matching "montecarlo" caught `risk_board.py`, which merely links to the route); the
+twin that plants a second simulator is what keeps that honest.
+
+## v0.3.971 (2026-08-16) — four delay methods, one number, and a label that said otherwise
+
+*Cut in the same release as v0.3.972 and carries no separate tag: the first full suite over this
+work came back red on four unrelated suites (a known parallel flake — all four pass solo), so
+rather than pay a second 36-minute verification the next item was folded in and both were
+verified together. The in-code references to v0.3.971 name this entry, not a tag.*
+
+`eot.py` refuses to emit an extension of time without naming its analysis method, on the correct
+argument that *"the same facts give different answers under different methods"*. It then validated
+`method` against the closed set, echoed it back in three fields — and **never read it again**. Every
+branch computed the same additive sum, so `as_planned_vs_as_built` and `windows` returned identical
+figures on identical facts.
+
+A required field that changes nothing is worse than no field. It tells the reader the number came
+from a windows analysis when it came from adding up event durations, and this is the number the
+entry itself says ends up in arbitration.
+
+**`test_eot.py` was the evidence rather than the guard.** It reached for `time_impact` and `windows`
+at random for its arithmetic assertions — which is only possible while the choice cannot matter. Its
+checks now name `impacted_as_planned`; the behaviour under that method is unchanged.
+
+**Two methods are now computed differently and two are refused.**
+
+* `impacted_as_planned` sums each event's impact beyond available float, bounded by nothing — which
+  is the published criticism of AACE MIP 3.6 and is now reported on the response as
+  `over_claimed_days` rather than left to be read about.
+* `as_planned_vs_as_built` caps that at the movement of the completion date. It needs `actual_finish`
+  and **refuses without it** instead of quietly answering the additive question under this method's
+  name. Slip that no event explains is `unattributed_slip_days` and is granted to nobody.
+* `windows` and `time_impact` need a dated **series** of schedules, which one baseline finish and one
+  CPM snapshot are not. They return `method_needs_schedule_updates`; windows names
+  `GET /projects/{pid}/schedule/windows`, which performs it against the captured baseline library.
+  Time-impact names nothing, because nothing performs it yet — pointing at a route that does
+  something else is how this defect started.
+
+Measured: on a 10-day critical employer-risk event against a job that finished 4 days late, additive
+grants 10 and as-planned-vs-as-built grants 4. **The twin matters more than the finding**: on a job
+where nothing was recovered the two agree exactly, so the difference is the cap and not different
+arithmetic — without it, a version returning different garbage per method would have passed.
+Mutation-checked (2 named FAILs, and the four numbers collapse back to one).
+
+The assertion in `test_schedule_windows.py` that pinned the old behaviour said that if it ever failed
+because the numbers diverged, *that was the fix landing and it should be replaced rather than
+relaxed*. This is that replacement.
+
+## v0.3.970 (2026-08-15) — the PO hop was blocked on a register that already exists under another name
+
+`R41-COMMERCIAL-DRIFT`'s last hop read: *"`purchase_order` still does not exist and
+`procurement_package` carries `est_cost`/`award_amount` with **zero reference fields** — an island
+nothing can walk into or out of."*
+
+**`commitment` is that register.** It is titled *"Commitments (POs)"*, carries `po_date`, `amount`,
+`vendor`, `retainage_pct` and `cost_code` — and **already references `subcontract`**. So the hop
+needed no schema change, exactly like the three before it. The blocker was the name.
+
+That is the third time in this ring a capability was filed as missing because it was called something
+else: `takt.py` was a line-of-balance engine wearing the takt name, `bid_leveling.py` was filed as
+absent while shipped and routed, and now the PO register. **A grep for a name proves a string absent,
+never a capability** — the check that works is reading what the registers actually hold.
+
+`contract_to_po` joins the walk. Two design calls, both asserted rather than described:
+
+**Every PO against a subcontract is summed**, not just the largest. A subcontract is routinely bought
+out across several commitments, and comparing the contract to the biggest one would report the rest
+as money that vanished.
+
+**Change orders are excluded from this hop**, unlike `contract_to_invoiced`. A CO raises the contract
+sum and is normally followed by its own PO; comparing the CO-inclusive sum against POs raised before
+it would report every mid-job change as an under-commitment until the paperwork caught up — a timing
+artefact, not drift. The test asserts the two hops start from different figures (105,000 vs 113,000)
+rather than trusting the comment.
+
+A project with no commitments gets `incomparable`, never a zero-dollar drift: a subcontract nobody
+has raised a PO against has not drifted by $0, it is unmeasured. And the new argument is optional, so
+every existing three-argument caller keeps the walk it had — asserted by **comparing the two calls**
+rather than by predicting either, after the first version of that twin guessed wrong about its own
+fixture.
+
+*One test-hygiene fix in passing:* the suite asserted `hops_compared + hops_incomparable == 6`, a
+literal that had no way to notice a third hop was added. It is now derived from the rows — every hop
+must land in exactly one bucket, which survives a fourth.
+
 ## v0.3.969 (2026-08-15) — two rounding conventions inside one G702, and a penny between them
 
 `R43-MASSINGBILL-CORE` recommended adopting `massingbill/core/money.py` to fix a float money path in

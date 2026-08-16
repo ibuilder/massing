@@ -3840,7 +3840,8 @@ stopped being a category when a sample became a real `.mass`.
   not that the estimate was right) and is verified against **two independently-built accumulations** in
   the source.
 * ✅ **R27-RISK-CALIBRATE** *(shipped v0.3.710)* — **the distribution comes from your own history, not a guess.**
-  [schedule_risk.py](../services/api/src/aec_api/schedule_risk.py) already runs Monte Carlo over the CPM
+  "schedule_risk.py" (deleted v0.3.972 — de-linked, not rewritten: this file is a historical record
+  and the module really did exist when this was written) already ran Monte Carlo over the CPM
   network and reports P10/P50/P80/P90 — the *shape* is done. What it lacks is a defensible
   distribution: durations come from caller-supplied three-point estimates, i.e. somebody's opinion
   entered three times. The industry answer is calibration against a large historical corpus, which we

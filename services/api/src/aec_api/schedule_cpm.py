@@ -39,7 +39,6 @@ from datetime import date
 from typing import Any
 
 from massingplan.core.graph import ScheduleCycleError
-from massingplan.core.network import RelationType
 from massingplan.core.schedule import schedule_network
 
 from . import schedule_engine
@@ -109,33 +108,3 @@ def _cyclic(tasks: list, activities: list[dict], issues: Any, cycle: list[str]) 
             },
         ],
     }
-
-
-# ---------------------------------------------------------------------------
-# Kept for `schedule_risk.py`, which imports both privately. Re-exported from
-# the adapter rather than reimplemented, so there is one definition of what a
-# duration and a predecessor token mean.
-# ---------------------------------------------------------------------------
-
-
-def _duration(a: dict) -> int:
-    """Duration in days for one activity's `data` blob.
-
-    Now inclusive of both endpoints when derived from dates: an activity
-    recorded as starting and finishing on the same day is one day of work. The
-    previous `(finish - start).days` made every such activity zero-duration,
-    which silently removed it from the critical path.
-    """
-    return schedule_engine._duration_days(a)
-
-
-def _preds(raw: Any) -> list[str]:
-    """Predecessor refs from a token string, ignoring type and lag.
-
-    `schedule_risk` only needs the graph shape. The full parse -- relationship
-    type and lag -- is `schedule_engine.parse_predecessor_tokens`.
-    """
-    return [ref for ref, _type, _lag in schedule_engine.parse_predecessor_tokens(raw)]
-
-
-__all__ = ["RelationType", "compute"]

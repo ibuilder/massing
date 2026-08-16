@@ -1,15 +1,18 @@
 """R45-SCHED-DEDUPE ② — Monte Carlo schedule risk on the real network.
 
-The one true overlap in the ring: `aec_api/schedule_risk.py` also runs a Monte Carlo. These assertions
-cover what the vendored engine gives that ours cannot, and the calibration of ours that must survive
-the swap.
+The one true overlap in the ring: "aec_api/schedule_risk.py" also ran a Monte Carlo. These assertions
+cover what the vendored engine gives that the deleted one could not, and the calibration that had to
+survive the swap.
+
+**The second engine was deleted in v0.3.972**, so the comparison below no longer runs live — it is
+recorded instead, with the surviving half still measured. `test_schedule_risk_single.py` is the gate
+that keeps it at one implementation.
 """
 from __future__ import annotations
 
 import json
 from datetime import date
 
-from aec_api import schedule_risk as ours
 from aec_api.schedule_risk_mc import PPC_TARGET, ppc_tail_factor, risk
 
 _FAILURES: list[str] = []
@@ -56,21 +59,27 @@ def main() -> int:
           "criticality says how OFTEN an activity was on the path; sensitivity says whether its "
           "duration MOVES the finish")
 
-    # --- the finding: ours computes its dates on a different calendar ------------------------------
+    # --- the finding that settled the overlap, now recorded rather than re-run ---------------------
     #
-    # `schedule_risk` converts a duration to a date with `start + timedelta(days=...)` — CALENDAR days.
-    # The vendored engine walks a work calendar. Both numbers appear in the same portal.
-    o = ours.simulate(CHAIN, iterations=500)
-    theirs_p80 = date.fromisoformat(r["p80"])
-    ours_p80 = date.fromisoformat(o["p80_finish"]) if o.get("p80_finish") else None
-    gap = (theirs_p80 - ours_p80).days if ours_p80 else None
-    check("the two engines disagree, and the gap is the weekend arithmetic",
-          gap is not None and gap > 20,
-          f"ours {ours_p80} (calendar days) vs vendored {theirs_p80} (working days) = {gap} days apart")
+    # The deleted engine converted a duration to a date with `start + timedelta(days=...)` — CALENDAR
+    # days — while the vendored one walks a work calendar. On THIS fixture it put the deterministic
+    # finish on 2026-06-10 against 2026-07-17 here. Both numbers appeared in the same portal.
+    #
+    # Recorded as a constant because the module it measured no longer exists. Re-running it is not
+    # possible and faking it would be worse; what IS still checkable is the surviving half, and that
+    # is what the assertion below does — if this date ever moves, the recorded gap is stale too.
+    DELETED_ENGINE_FINISH = date(2026, 6, 10)   # "schedule_risk.simulate", removed v0.3.972
+    theirs_det = date.fromisoformat(r["deterministic_finish"])
+    check("the surviving engine still finishes this chain on a working-day calendar",
+          theirs_det == date(2026, 7, 17),
+          f"{theirs_det} — 100 working days from 2026-03-02. The deleted engine said "
+          f"{DELETED_ENGINE_FINISH}, {(theirs_det - DELETED_ENGINE_FINISH).days} days adrift, "
+          "because it counted Saturdays")
 
-    check("...and ours is the one that counts Saturdays",
-          ours_p80 is not None and ours_p80 < theirs_p80,
-          "a P80 that treats weekends as working days is not conservative, it is a different question")
+    check("...and the recorded gap is the weekend arithmetic, not a rounding difference",
+          (theirs_det - DELETED_ENGINE_FINISH).days > 20,
+          "a P80 that treats weekends as working days is not conservative, it is a different "
+          "question's answer")
 
     # --- our PPC calibration, which must survive the swap -------------------------------------------
     check("PPC below target widens the tail; above it narrows",

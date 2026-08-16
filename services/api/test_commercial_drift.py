@@ -117,9 +117,14 @@ check("  while its OTHER hop still works — absence is per-hop",
       or hop(row["s3"], "contract_to_invoiced")["from"] == 30_000)
 check("incomparable hops are COUNTED, not dropped",
       R["hops_incomparable"] >= 1, R["hops_incomparable"])
-check("  separately from the ones that were compared",
-      R["hops_compared"] + R["hops_incomparable"] == 6,
-      (R["hops_compared"], R["hops_incomparable"]))
+# DERIVED from the rows, not a literal. This read `== 6` (3 subcontracts x 2 hops) and adding the
+# PO hop in v0.3.970 made it 9 — a hardcoded total that had no way to notice a hop was added, which
+# is the same drift the roadmap's own item-count line was rewritten to avoid. Every hop must land in
+# exactly one bucket; that is the claim, and it survives a fourth hop.
+_total_hops = sum(len(r["hops"]) for r in R["rows"])
+check("  separately from the ones that were compared, and every hop lands in exactly one bucket",
+      R["hops_compared"] + R["hops_incomparable"] == _total_hops,
+      (R["hops_compared"], R["hops_incomparable"], _total_hops))
 
 # --- 4. the roll-up cannot see what this sees ------------------------------------------------------
 # Two subcontracts that net to zero on a shared cost code, one over and one under. A per-code total
@@ -132,6 +137,59 @@ deltas = sorted(hop(r, "bid_to_contract")["delta"] for r in NET["rows"])
 check("TWO AWARDS THAT NET TO ZERO ARE BOTH REPORTED — the per-code roll-up cannot see this",
       deltas == [-15_000, 15_000], deltas)
 check("  and both count as drifted", NET["drifted_count"] == 2, NET["drifted_count"])
+
+# ---------------------------------------------------------------------------------------------
+# The PO hop (v0.3.970). The roadmap recorded this as blocked on a `purchase_order` register that
+# "still does not exist". `commitment` IS that register — titled "Commitments (POs)", carrying
+# po_date/amount/vendor, and ALREADY referencing `subcontract`. The blocker was the name, which is
+# the third time in this ring that a capability was filed as missing because it was called something
+# else. So the assertion is that the hop walks on the register as it stands, unchanged.
+PO = cd.walk(
+    [{"id": "pb", "data": {"base_bid": 100_000}}],
+    [{"id": "ps", "data": {"vendor": "Ace", "value": 105_000, "change_orders": 8_000,
+                           "awarded_from": "pb"}}],
+    [],
+    # TWO POs against one subcontract. A subcontract is routinely bought out in more than one, and
+    # comparing the contract to the LARGEST would report the rest as money that vanished.
+    [{"id": "p1", "data": {"subcontract": "ps", "amount": 70_000}},
+     {"id": "p2", "data": {"subcontract": "ps", "amount": 32_000}}])
+po_row = PO["rows"][0]
+check("the PO hop walks on `commitment` as it stands — no schema change",
+      hop(po_row, "contract_to_po")["status"] == "compared",
+      hop(po_row, "contract_to_po"))
+check("  every PO against the subcontract is summed, not just the largest",
+      po_row["committed"] == 102_000 and po_row["po_count"] == 2,
+      f'{po_row["committed"]} from {po_row["po_count"]} POs')
+check("  a contract signed at one number and PO'd at another is reported",
+      hop(po_row, "contract_to_po")["delta"] == -3_000,
+      hop(po_row, "contract_to_po")["delta"])
+
+# Change orders are EXCLUDED from this hop, unlike contract_to_invoiced. A CO raises the contract sum
+# and is usually followed by its own PO; comparing the CO-inclusive sum against POs raised before it
+# would report every mid-job change as an under-commitment until the paperwork caught up — a timing
+# artefact, not drift. Asserted by the numbers rather than by reading the comment.
+check("  change orders are EXCLUDED from contract_to_po but INCLUDED in contract_to_invoiced",
+      hop(po_row, "contract_to_po")["from"] == 105_000
+      and hop(po_row, "contract_to_invoiced")["from"] == 113_000,
+      f'{hop(po_row, "contract_to_po")["from"]} vs {hop(po_row, "contract_to_invoiced")["from"]}')
+
+NO_PO = cd.walk([{"id": "pb", "data": {"base_bid": 100_000}}],
+                [{"id": "ps", "data": {"value": 105_000, "awarded_from": "pb"}}], [])
+check("a project with NO commitments gets `incomparable`, never a zero-dollar drift",
+      hop(NO_PO["rows"][0], "contract_to_po")["status"] == "incomparable"
+      and hop(NO_PO["rows"][0], "contract_to_po")["delta"] is None,
+      "a subcontract nobody has raised a PO against has not drifted by $0 — it is unmeasured")
+# The parity twin, asserted by COMPARING THE TWO CALLS rather than by predicting either. My first
+# version guessed `contract_to_invoiced` would be "compared" and it is not — that fixture has no
+# invoices. Comparing the results cannot be wrong about the fixture.
+_three_arg = cd.walk([{"id": "pb", "data": {"base_bid": 100_000}}],
+                     [{"id": "ps", "data": {"value": 105_000, "awarded_from": "pb"}}], [])
+_four_arg = cd.walk([{"id": "pb", "data": {"base_bid": 100_000}}],
+                    [{"id": "ps", "data": {"value": 105_000, "awarded_from": "pb"}}], [], [])
+check("  and the pre-existing hops are IDENTICAL with and without the new argument — the parity twin",
+      [hop(_three_arg["rows"][0], h) for h in ("bid_to_contract", "contract_to_invoiced")]
+      == [hop(_four_arg["rows"][0], h) for h in ("bid_to_contract", "contract_to_invoiced")],
+      "every existing caller passes three arguments and must keep the walk it had")
 
 check("rows are ordered by the largest movement, so the worst reads first",
       R["rows"][0]["subcontract_id"] == "s1", [r["subcontract_id"] for r in R["rows"]])

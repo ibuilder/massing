@@ -229,7 +229,7 @@ unreachable — no direct import, and nothing reachable imports them either.
 | ~~`resources`~~ | 254 | ✅ *(via `schedule_levelling`)* | **reachable v0.3.954** — `levelling` imports it |
 | ~~`takt`~~ | 444 | ⚠ `aec_api/takt.py` **163** | **SHIPPED v0.3.953** as `schedule_takt.py` — and they are *different methods*, see the decision below |
 | ~~`lastplanner`~~ | 436 | ⚠ `pull_plan.py` + `lean.py` | **SHIPPED v0.3.960** — and it found THREE disagreeing PPCs; see below |
-| ~~`risk`~~ | 303 | ⚠ `aec_api/schedule_risk.py` **195** | **SHIPPED v0.3.959** — and the two disagree by 38 days; see below |
+| ~~`risk`~~ | 303 | ⚠ "aec_api/schedule_risk.py" **195** *(DELETED v0.3.972)* | **SHIPPED v0.3.959** — and the two disagreed by 37–38 days, which is what settled it; see below |
 | `progress` | 214 | `aec_api/progress_rollup.py` **134** | overlapping |
 
 **The split matters more than the total — and this table was wrong three times before it was right.**
@@ -320,10 +320,21 @@ turns a duration into a date with `start + timedelta(days=round(days))`, i.e. *c
 beside it reports *working*-day dates. Measured on the test fixture: ours `2026-06-22`, the vendored
 engine `2026-07-30`.
 
-A P80 that counts Saturdays is not a conservative estimate, it is a different question's answer, and
-both numbers currently render in the same portal. **Retiring `/schedule/risk` is a user-facing removal
-and therefore your call**, the same as the `takt.py` naming decision — the replacement is shipped and
-carries our PPC calibration forward, so nothing is lost by retiring it.
+A P80 that counts Saturdays is not a conservative estimate, it is a different question's answer.
+**Retiring `/schedule/risk` is a user-facing removal and therefore your call**, the same as the
+`takt.py` naming decision — the replacement is shipped and carries our PPC calibration forward, so
+nothing is lost by retiring it.
+
+**STILL YOUR CALL, and v0.3.972 nearly took it away.** That release deleted the wrong ENGINE, which
+the ring's rule authorises, and in the same stroke deleted the PATH, which this paragraph had
+reserved for you. The path was put back the same day as a **deprecated alias** serving
+`/schedule/montecarlo` verbatim, so nothing 404s and the wrong number is still gone. The response
+SHAPE did change — dates rather than day counts — which is unavoidable, because the old shape was the
+wrong answer's shape. The decision left to you is narrow: **delete the path, or keep the alias.**
+
+The lesson is not "read the roadmap harder". It is that *an item authorising a deletion does not
+authorise every deletion it touches*: R45-SCHED-DEDUPE ② says "delete the loser", and the loser had
+two halves with different owners.
 
 The vendored engine also reports two things ours cannot: `confidence_in_deterministic` (on that
 fixture, the programme date had a **9%** chance) and `duration_sensitivity` per activity — whether an
@@ -424,8 +435,35 @@ The engine work is done either way; only the naming is open.
   `core` is stdlib-only *by contract* and must not learn about SQLAlchemy). Ship one at a time; each
   is independently valuable and `health` is the highest — a schedule-quality score is the thing a GC
   is asked for and cannot currently produce.
-- ◧ **R45-SCHED-DEDUPE ②** *(M; `takt` v0.3.953, `levelling`+`resources` v0.3.954)* — settle the overlaps, one decision each, in the
-  order `takt` → `progress` → `risk` → `lastplanner`. For each: diff the two behaviours, keep the
+- ◧ **R45-SCHED-DEDUPE ②** *(M; `takt` v0.3.953, `levelling`+`resources` v0.3.954, `progress`
+  v0.3.955, **`risk` v0.3.972 — the first one that was a real overlap and the first real deletion**;
+  `lastplanner` remains)* — settle the overlaps, one decision each, in the
+  order `takt` → `progress` → `risk` → `lastplanner`.
+
+  **`risk` SHIPPED v0.3.972, and the diff found a second defect the entry did not know about.**
+  "aec_api/schedule_risk.py" and its test are deleted (plain quotes: the name no longer resolves, and
+  a backtick reads as a live citation); `schedule_risk_mc.py` over the vendored engine is the only
+  simulator left, asserted by `services/api/test_schedule_risk_single.py` rather than claimed.
+  **`GET /schedule/risk` still serves**, as a deprecated alias — see the ⚠ note above; the engine was
+  this item's to delete and the path was not.
+
+  * **It added calendar days.** Five 20-day activities in series from 2026-03-02 — a hundred working
+    days — finished **2026-06-10** on the deleted engine and **2026-07-17** on the survivor. Thirty-
+    seven days apart, in one portal, under two labels that both said "schedule risk".
+  * **Its predecessor index read `ref`/`wbs` only, never the record `id`** — which `schedule_cpm`
+    resolves. Logic written with record ids therefore chained in the CPM and simulated **fully
+    parallel** in the risk run: no error, and a P80 four months early.
+
+  **The part worth carrying to `lastplanner`:** deleting the loser is not a licence to drop what it
+  was carrying. Three things moved across rather than out — the PPC lookup (which existed *twice*,
+  in the route and the MCP tool, so two callers of one forecast could calibrate differently), the
+  measured-spread `risk_calibrate` block, and `buffer_p80_days`, re-derived in **working** days with
+  `risk_board`'s severity thresholds re-cut to match rather than carried over.
+
+  Three of the four overlaps turned out **not** to be overlaps at all — `takt` was line-of-balance
+  wearing the takt name, `progress` measures the schedule where `progress_rollup` measures the
+  building. Only `risk` was two implementations of one thing. That ratio is the finding: *the table
+  was built from names.* For each: diff the two behaviours, keep the
   deeper engine, keep our rendering/persistence, delete the loser, and write a test asserting there
   is exactly one implementation. **Do not start this until ① proves the adapter pattern**, and do not
   do it as a batch — four simultaneous deletions across the schedule surface is how a regression
@@ -670,7 +708,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-CMDK-VERBS · R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② · BOE-MAPPING-DEDUP *(the second copy of the estimate-to-BoE mapping; call the seam)* |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R40-EOT ② · R39-UPLOAD-CAP-APP ①◧ · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE · R43-PLAN-DRIFT · R45-SCHED-REACH ① · R45-SCHED-DEDUPE ② · R45-VENDOR-REACH ③ |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-AGENT-PACKS · R22-PROVENANCE · R22-PIPELINE · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-CLASH-TRIAGE · R41-COMMERCIAL-DRIFT · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE · R43-PLAN-DRIFT · R45-SCHED-REACH ① · R45-SCHED-DEDUPE ② · R45-VENDOR-REACH ③ |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -1951,7 +1989,34 @@ expansion (IFC already covers the named authoring tools; the image is a landscap
   glyphs, and its tests are mostly about *nothing disappearing* and only then about the bar being
   short. A ribbon inherits that gate — `unlaidTitles()` staying empty matters more than any tab
   layout. Design question before build.
-- ◧ **R40-EOT ②** *(M–L, Lane C — `eot.py` shipped; the SOURCED path shipped 2026-08-07)* — extension-of-time entitlement, with its method stated. Every input
+- ✅ **R40-EOT** *(Lane C — `eot.py` shipped; the SOURCED path shipped 2026-08-07; **the method became
+  arithmetic rather than a label in v0.3.971 — COMPLETE**)*
+
+  **The last half was a defect this entry could not see, because the entry's own premise-check found
+  the refusals correct and stopped there.** `eot.analyse()` validated `method` against the closed set,
+  echoed it back in `method`, `method_meaning` and `note` — and never read it again. Every branch
+  computed the same additive sum, so `as_planned_vs_as_built` and `windows` returned **identical
+  numbers on identical facts**, under an engine whose stated reason for existing is that they do not.
+
+  A required field that changes nothing is worse than no field: it tells a reader the figure came
+  from a windows analysis when it came from adding up event durations. `test_eot.py` was the evidence
+  rather than the guard — it named `time_impact` and `windows` at random for arithmetic checks, which
+  is only possible while the choice cannot matter.
+
+  Fixed by computing two and refusing two. `impacted_as_planned` sums impact beyond float and reports
+  its own `over_claimed_days`; `as_planned_vs_as_built` caps at the actual movement of completion,
+  requires `actual_finish`, and names `unattributed_slip_days` rather than granting them.
+  `windows` and `time_impact` return `method_needs_schedule_updates` — windows naming
+  `GET /projects/{pid}/schedule/windows`, time-impact naming nothing, because nothing performs it
+  and pointing at a route that does something else is how this started. Measured 10 vs 4 on a
+  mitigated job; the twin asserts they agree exactly when the cap does not bind, so the difference
+  is the cap and not different arithmetic. `services/api/test_eot_methods.py`.
+
+  **The general lesson:** a premise-check that reads the refusals is not a premise-check of the
+  computation. Every refusal this entry asked for was genuinely there, and the number they guarded
+  was still one number wearing four names.
+
+  Original entry follows. Extension-of-time entitlement, with its method stated. Every input
   exists (`schedule_cpm.compute` gives ES/EF/LS/LF and free float, with total float derivable as
   LS−ES; `schedule_baselines` gives named baselines and per-activity variance; `notice_clock`
   already types weather/constructive-change/suspension delay events). What is missing is the step
@@ -2109,7 +2174,7 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   groups rather than forming them, and reported a clean pass. **An applied mutation that alters no
   behaviour reads exactly like a gate that cannot fail**; the measured numbers coming back identical
   is what caught it.
-- ◧ **R41-COMMERCIAL-DRIFT** *(M → S/M — Lane C; the document walker SHIPPED 2026-08-07, the PO hop remains)* — **diff the money across documents, not across our own
+- ✅ **R41-COMMERCIAL-DRIFT** *(Lane C; walker SHIPPED 2026-08-07, PO hop SHIPPED v0.3.970 — COMPLETE)* — **diff the money across documents, not across our own
   estimates.** R25-ESTIMATE-DIFF compares two of *our* numbers. The gap is the chain **bid → executed
   contract → purchase order → invoice**, each hop diffed against the one before it with findings ranked
   by dollar impact: scope added between bid and contract, invoice lines drifting from a locked buyout
@@ -2134,9 +2199,19 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   `base_bid` alone makes the accepted ones look like scope from nowhere.
   A hop missing a figure on either side is `incomparable` and counted separately — not a zero-dollar
   difference. All three refusals mutation-checked (4 / 6 / 2 named FAILs).
-  **Remaining: the PO hop.** `purchase_order` still does not exist and `procurement_package` carries
-  `est_cost`/`award_amount` with **zero reference fields** — an island nothing can walk into or out
-  of. That register plus one more hop closes the entry.
+  **PO HOP SHIPPED v0.3.970 — and the blocker was a NAME.** This read *"`purchase_order` still does
+  not exist"*. **`commitment` is that register**: titled "Commitments (POs)", carrying `po_date`,
+  `amount`, `vendor`, `retainage_pct`, `cost_code` — and already referencing `subcontract`. No schema
+  change, exactly like the three hops before it. `procurement_package` remains an island and is not
+  needed for this walk.
+
+  Third time in this ring that a capability was filed as missing because it was called something
+  else — `takt.py`, `bid_leveling.py`, and now this. **A grep for a name proves a string absent,
+  never a capability.**
+
+  Change orders are excluded from `contract_to_po` (a CO is normally followed by its own PO, so a
+  CO-inclusive comparison reports a timing artefact as drift) and every PO against a subcontract is
+  summed rather than the largest taken. **The entry is closed.**
 
   **PREMISE-CHECKED 2026-08-06 (no build): three of the four hops exist AND are already linked, and
   the cost-code axis of this diff is done. The item is much smaller than written.**

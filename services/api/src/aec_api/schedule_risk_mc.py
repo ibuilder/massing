@@ -45,6 +45,7 @@ forecast anyone can act on — the same reasoning as the levelling priority key.
 """
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from massingplan.core.graph import ScheduleCycleError
@@ -140,8 +141,75 @@ def risk(activities: list[dict], *, iterations: int = 2000, seed: int | None = 1
         # Criticality says how OFTEN an activity was on the path; sensitivity says whether its
         # duration actually MOVES the finish. Both, because either alone misleads.
         "most_critical": [a.to_dict() for a in top],
+        # Working days between the programme date and P80 — the number a GC actually acts on, and
+        # the one `risk_board` raises as a finding. Working days because the engine's dates are on
+        # the activity calendars; a calendar-day buffer overstates every span that crosses a weekend,
+        # which is the defect that made the older simulator wrong.
+        "buffer_p80_days": _buffer_days(result, calendars),
         "issues": [i.to_dict() for i in issues],
     }
+
+
+def _buffer_days(result: Any, calendars: dict) -> int | None:
+    """P80 minus the deterministic finish, counted on the schedule's own working calendar."""
+    det, p80 = result.deterministic_finish, result.percentile(80)
+    if det is None or p80 is None or p80 <= det:
+        return 0 if det is not None and p80 is not None else None
+    cal = calendars.get(schedule_engine.DEFAULT_CALENDAR) or next(iter(calendars.values()), None)
+    working = getattr(cal, "working_weekdays", None) or {0, 1, 2, 3, 4}
+    return sum(1 for n in range(det.toordinal() + 1, p80.toordinal() + 1)
+               if date.fromordinal(n).weekday() in working)
+
+
+def project_ppc(db: Any, project_id: str) -> float | None:
+    """The team's own Last Planner reliability, or `None`.
+
+    One implementation. It existed twice before v0.3.972 — once in the `/schedule/risk` route and
+    once in the `schedule_risk` MCP tool — which is the shape that lets two callers of "the same"
+    forecast calibrate differently and nobody notice.
+    """
+    try:
+        from . import pull_plan
+        return (pull_plan.board(db, project_id).get("metrics") or {}).get("ppc_pct")
+    except Exception:  # noqa: BLE001 — no pull-plan data is uncalibrated defaults, not an error
+        return None
+
+
+def for_project(db: Any, project_id: str, *, iterations: int = 2000, ppc_pct: float | None = None,
+                distribution: str = "pert", seed: int | None = 12345) -> dict[str, Any]:
+    """The simulation as the product runs it, assembled in exactly one place.
+
+    Added v0.3.972 with the deletion of `schedule_risk.py`. Three things travelled with the engine
+    that was removed and are kept here rather than lost, because "keep the deeper engine" was never
+    a licence to drop what the shallower one was carrying:
+
+    * the team's own PPC calibrates the tail when the caller does not state one;
+    * `risk_calibrate` reports the spread measured from **this project's finished work** beside the
+      forecast — provenance the reader can argue with, rather than a number from nowhere;
+    * `buffer_p80_days`, which is what `risk_board` raises.
+
+    The measured spread rides *alongside* the simulation and never silently replaces its inputs.
+    """
+    from . import modules as me
+    from . import risk_calibrate
+
+    acts = me.list_records(db, "schedule_activity", project_id, limit=1_000_000)
+    out = risk(acts, iterations=iterations, seed=seed, distribution=distribution,
+               ppc_pct=ppc_pct if ppc_pct is not None else project_ppc(db, project_id))
+
+    sample = risk_calibrate.samples(acts)
+    out["calibration"] = {
+        "n_finished": sample["n"],
+        "in_progress_excluded": len(sample["in_progress"]),
+        "outliers_excluded": sample["outliers"],
+        "by_trade": {t: risk_calibrate.calibrate(acts, trade=t) for t in sorted(sample["by_trade"])},
+        "note": ("Measured actual/planned ratios from FINISHED activities only. Work that has started "
+                 "and not finished is excluded: its measured duration is however far it has got, "
+                 "always shorter than the truth, and including it would bias every forecast "
+                 "optimistic. A trade with fewer than the minimum sample falls back to the "
+                 "project-wide spread, and says so."),
+    }
+    return out
 
 
 def _iso(d: Any) -> str | None:
@@ -162,6 +230,7 @@ def _unavailable(reason: str, **extra: Any) -> dict[str, Any]:
         "confidence_in_deterministic": None,
         "p10": None, "p50": None, "p80": None, "p90": None,
         "most_critical": [],
+        "buffer_p80_days": None,
         "issues": [],
         **extra,
     }

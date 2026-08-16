@@ -3,8 +3,9 @@
 ## The finding this module exists to answer
 
 `aec_api/eot.py` offers four AACE methods and refuses to produce a number without one, on the correct
-argument that *"an EOT number without its method cannot be weighed"*. **It does not perform them.**
-Measured on one input — a 10-day weather event, a 6-day change, a baseline and an actual finish:
+argument that *"an EOT number without its method cannot be weighed"*. **When this module was written
+it did not perform any of them.** Measured on one input — a 10-day weather event, a 6-day change, a
+baseline and an actual finish:
 
 | declared method | eot_days |
 |---|---|
@@ -13,11 +14,16 @@ Measured on one input — a 10-day weather event, a 6-day change, a baseline and
 | `time_impact` — *"preferred by most protocols"* | **16.0** |
 | `windows` — *"most defensible, most data-hungry"* | **16.0** |
 
-One number, four labels. The method is recorded and then not used: the arithmetic is events-minus-
-float in every branch. A user who picks the most defensible method gets the answer the weakest one
-gives, and the label travels with it into a claim as though it had been earned.
+One number, four labels. The method was recorded and then not used: the arithmetic was
+events-minus-float in every branch. A user who picked the most defensible method got the answer the
+weakest one gives, and the label travelled with it into a claim as though it had been earned.
 
 This module performs one of them for real, and `schedule_modelled` performs two more.
+
+**`eot.py` itself was corrected in v0.3.971**, after these two modules made the alternative visible:
+it now computes the additive and end-state methods differently, and **refuses** `windows` and
+`time_impact` — naming this module as the thing that performs the first. That is the point of the
+table above surviving here rather than being deleted: the fix is legible only next to what it fixed.
 
 ## Where the series of updates comes from
 

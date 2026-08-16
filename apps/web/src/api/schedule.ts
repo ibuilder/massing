@@ -41,17 +41,6 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
 
   // --- municipal permit open data (multi-city) -------------------------------
-  /** Cities whose building-permit open data is readable (id, label, region, authority, geo support). */
-  scheduleRisk(pid: string, iterations = 800) {
-    return this.json<{
-      iterations: number; activity_count?: number; message?: string; has_cycle?: boolean;
-      deterministic_days?: number; p10_days?: number; p50_days?: number; p80_days?: number; p90_days?: number;
-      p50_vs_deterministic_days?: number; buffer_p80_days?: number; on_time_probability_pct?: number;
-      ppc_calibration_pct?: number | null; start_date?: string;
-      deterministic_finish?: string; p50_finish?: string; p80_finish?: string;
-      delay_drivers?: { ref: string | null; name: string | null; criticality_pct: number; mean_slip_days: number }[];
-    }>(`/projects/${pid}/schedule/risk?iterations=${iterations}`);
-  }
   /** CARBON-EC3: per-element A1–A3 + Buy Clean limit check + LEED-style inventory (404 until a model loads). */
   scheduleOptioneer(pid: string, body: {
     floors?: number; trades?: { name: string; takt_days: number; reorderable?: boolean }[];
@@ -314,12 +303,25 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /**
    * R45-SCHED-DEDUPE — Monte Carlo schedule risk on the **real** network.
    *
-   * Distinct from `scheduleRisk`, which simulates an FS-only, calendar-free graph and converts
-   * durations with plain calendar arithmetic. On a 100-working-day chain the two sit ~5 weeks apart,
-   * and this is the one that does not count Saturdays. `confidence_in_deterministic` answers "how
-   * likely is the programme date, really?"; `duration_sensitivity` says whether an activity's duration
-   * actually moves the finish rather than merely sitting on the critical path often.
+   * The ONLY Monte Carlo ENGINE. `scheduleRisk` and `/schedule/risk` survive as a deprecated alias
+   * onto this one -- retiring a public path is the user's call and has not been decided -- but the
+   * second simulator behind them was deleted in v0.3.972: it
+   * added plain calendar days (37 adrift on a 100-working-day chain — it counted Saturdays) and
+   * indexed predecessors on ref/wbs only, so logic written with record ids vanished and the network
+   * simulated fully parallel with no error. `confidence_in_deterministic` answers "how likely is the
+   * programme date, really?"; `duration_sensitivity` says whether an activity's duration actually
+   * moves the finish rather than merely sitting on the critical path often.
    */
+  /**
+   * DEPRECATED alias for `scheduleMonteCarlo`, kept because retiring the `/schedule/risk` path is a
+   * user-facing removal the roadmap records as undecided. Same response as `scheduleMonteCarlo`,
+   * plus a `deprecated` note. The SHAPE changed with v0.3.972 — dates rather than day counts —
+   * because the old shape was the wrong answer's shape.
+   */
+  scheduleRisk(pid: string, iterations = 1000) {
+    return this.scheduleMonteCarlo(pid, { iterations });
+  }
+
   scheduleMonteCarlo(pid: string, opts: { iterations?: number; ppcPct?: number;
                                           distribution?: "pert" | "triangular" } = {}) {
     const q = new URLSearchParams();
@@ -334,6 +336,11 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       p10: string | null; p50: string | null; p80: string | null; p90: string | null;
       most_critical: { id: string; name: string; criticality_index: number;
                        mean_duration: number; duration_sensitivity: number }[];
+      /** P80 minus the programme date, in WORKING days on the schedule's own calendar. */
+      buffer_p80_days: number | null;
+      /** Spread measured from THIS project's finished work, reported beside the forecast. */
+      calibration?: { n_finished: number; in_progress_excluded: number; outliers_excluded: number;
+                      by_trade: Record<string, unknown>; note: string };
     }>(`/projects/${pid}/schedule/montecarlo${qs ? `?${qs}` : ""}`);
   }
 

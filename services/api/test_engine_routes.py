@@ -82,10 +82,16 @@ with TestClient(app) as c:
 
 
     # --- RISK-CALIBRATE rides alongside the simulation ---------------------------------------------------
-    r = c.get(f"/projects/{pid}/schedule/risk", headers=H)
+    #
+    # Repointed v0.3.972: `/schedule/risk` and its engine were deleted (calendar-day dates, and a
+    # predecessor index that lost logic written with record ids). The calibration block moved onto
+    # this route rather than out — which is the half of a deletion that quietly goes missing, so it
+    # is asserted here on the surviving route.
+    r = c.get(f"/projects/{pid}/schedule/montecarlo", headers=H)
     assert r.status_code == 200, (r.status_code, r.text)
     risk = r.json()
-    assert "p80_days" in risk, sorted(risk)[:8]                 # the simulation still answers
+    assert risk["p80"], sorted(risk)[:8]                        # the simulation still answers
+    assert "buffer_p80_days" in risk, sorted(risk)               # and risk_board's number survived
     cal = risk["calibration"]
     assert cal["n_finished"] == 5, cal                          # only the finished ones counted
     assert cal["in_progress_excluded"] == 1, cal                # Framing started, has not finished
@@ -182,7 +188,7 @@ with TestClient(app) as c:
           "strip with no tabs behind it. Now: POST /schedule/status answers with a data date and REFUSES "
           "to call anything late without one; a data date in the PAST re-reads the same records honestly, "
           "reporting `future_actual_ignored` rather than counting work that had not happened yet - the "
-          "defect the code review caught. GET /schedule/risk carries `calibration` ALONGSIDE the "
+          "defect the code review caught. GET /schedule/montecarlo carries `calibration` ALONGSIDE the "
           "simulation rather than silently replacing its inputs, naming which rung each trade landed on "
           "and how many finished activities backed it, with in-progress work excluded and counted. And "
           "the element lifecycle now reports what KIND of claim each fact makes, including `has_evidence` "

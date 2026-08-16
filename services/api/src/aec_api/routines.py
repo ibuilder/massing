@@ -1,6 +1,6 @@
 """R22-ROUTINES — recurring runs, and the catch-up it refuses to perform.
 
-The engines that matter on a cadence already exist (`schedule_risk`, the report builders, the agent
+The engines that matter on a cadence already exist (`schedule_risk_mc`, the report builders, the agent
 answers) and every one of them is on-demand: somebody has to remember. This is the recurrence layer
 that turns them from a tool you remember into infrastructure — a routine states a cadence, and
 `due()` says which routines should be enqueued now.

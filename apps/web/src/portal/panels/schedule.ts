@@ -215,26 +215,33 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   riskCard.innerHTML = `<div class="section-title">🎲 Schedule risk (Monte Carlo)</div>`;
   const riskBody = document.createElement("div"); riskBody.innerHTML = `<div class="meta">simulating…</div>`;
   riskCard.appendChild(riskBody); ctx.root.appendChild(riskCard);
-  ctx.host.api.scheduleRisk(pid).then((r) => {
-    if (r.message || !r.p80_days) { riskBody.innerHTML = `<div class="meta">${r.message || "Add activities with durations + predecessors to simulate."}</div>`; return; }
-    const finish = (d?: string) => (d ? ` <span class="meta">(${d})</span>` : "");
+  // v0.3.972: repointed from "scheduleRisk", whose engine and route were deleted. That simulator
+  // added plain calendar days and lost any logic written with record ids; this one runs the same
+  // network the CPM does. Dates rather than day counts, because that is what it returns and what a
+  // GC commits to.
+  ctx.host.api.scheduleMonteCarlo(pid, { iterations: 1000 }).then((r) => {
+    if (!r.available) { riskBody.innerHTML = `<div class="meta">${esc(r.reason || "Add activities with durations + predecessors to simulate.")}</div>`; return; }
+    const odds = r.confidence_in_deterministic == null ? null : Math.round(r.confidence_in_deterministic * 100);
     riskBody.innerHTML =
       `<div style="display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 4px">`
-      + `<span>CPM <b>${r.deterministic_days}d</b>${finish(r.deterministic_finish)}</span>`
-      + `<span>P50 <b>${r.p50_days}d</b>${finish(r.p50_finish)}</span>`
-      + `<span>P80 <b style="color:var(--status-warn)">${r.p80_days}d</b>${finish(r.p80_finish)}</span>`
-      + `<span>on-time odds <b>${r.on_time_probability_pct}%</b></span>`
+      + `<span>programme <b>${esc(r.deterministic_finish ?? "—")}</b></span>`
+      + `<span>P50 <b>${esc(r.p50 ?? "—")}</b></span>`
+      + `<span>P80 <b style="color:var(--status-warn)">${esc(r.p80 ?? "—")}</b></span>`
+      + (odds == null ? "" : `<span>odds of the programme date <b>${odds}%</b></span>`)
       + `</div>`
-      + `<div class="meta">A reliable commitment needs a <b>${r.buffer_p80_days}d</b> buffer on the CPM date`
-      + (r.ppc_calibration_pct != null ? ` · tail calibrated by your PPC (${Math.round(r.ppc_calibration_pct)}%)` : "")
+      + `<div class="meta">A reliable commitment needs a <b>${r.buffer_p80_days ?? "—"}d</b> buffer`
+      + ` <span style="opacity:.7">(working days)</span>`
+      + (r.ppc_pct != null ? ` · tail calibrated by your PPC (${Math.round(r.ppc_pct)}%)` : "")
       + ` · ${r.iterations} iterations</div>`;
-    if (r.delay_drivers?.length) {
+    if (r.most_critical?.length) {
       const t = document.createElement("table"); t.className = "portal-table"; t.style.cssText = "width:100%;font-size:12px;margin-top:4px";
+      // Criticality says how OFTEN it sat on the path; sensitivity says whether its duration MOVES
+      // the finish. Both columns, because either alone misleads about where to spend attention.
       t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Delay driver</th>`
-        + `<th scope="col">On critical path</th><th scope="col">Mean slip</th></tr></thead><tbody>`
-        + r.delay_drivers.slice(0, 5).map((d) => `<tr><td>${d.name || d.ref || ""}</td>`
-          + `<td style="text-align:center">${d.criticality_pct}%</td>`
-          + `<td style="text-align:center">${d.mean_slip_days}d</td></tr>`).join("") + `</tbody>`;
+        + `<th scope="col">On critical path</th><th scope="col">Moves the finish</th></tr></thead><tbody>`
+        + r.most_critical.slice(0, 5).map((d) => `<tr><td>${esc(d.name || d.id || "")}</td>`
+          + `<td style="text-align:center">${Math.round((d.criticality_index ?? 0) * 100)}%</td>`
+          + `<td style="text-align:center">${(d.duration_sensitivity ?? 0).toFixed(2)}</td></tr>`).join("") + `</tbody>`;
       riskBody.append(t);
     }
   }).catch((e) => { riskBody.innerHTML = `<div class="meta">risk simulation failed: ${esc((e as Error).message)}</div>`; });

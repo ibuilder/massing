@@ -63,8 +63,10 @@ TOOLS: list[dict[str, Any]] = [
          "project_id": {"type": "string"}, "recipe": {"type": "string"},
          "params": {"type": "object"}}, "required": ["project_id", "recipe"]}},
     {"name": "schedule_risk",
-     "description": "Monte Carlo schedule forecast over the CPM network: P10/P50/P80/P90 completion, "
-                    "per-activity criticality index, and delay drivers; calibrated by the team's pull-plan PPC.",
+     "description": "Monte Carlo schedule forecast on the real network — every relation type, lag and "
+                    "work calendar: P10/P50/P80/P90 completion dates, per-activity criticality index AND "
+                    "duration sensitivity, and the odds of meeting the programme date; calibrated by the "
+                    "team's pull-plan PPC.",
      "input_schema": {"type": "object", "properties": {
          "project_id": {"type": "string"}, "iterations": {"type": "integer", "default": 1000}},
          "required": ["project_id"]}},
@@ -218,15 +220,10 @@ def _dispatch_inner(db: Session, name: str, args: dict[str, Any], actor: str = "
     if name == "run_recipe":
         return _run_recipe(db, pid, a["recipe"], a.get("params") or {}, user=ident)
     if name == "schedule_risk":
-        from . import schedule_risk
-        acts = me.list_records(db, "schedule_activity", pid, limit=1_000_000)
-        ppc_val = None
-        try:                                             # calibrate the tail on the team's own PPC
-            from . import pull_plan
-            ppc_val = (pull_plan.board(db, pid).get("metrics") or {}).get("ppc_pct")
-        except Exception:  # noqa: BLE001 — no pull-plan data → uncalibrated defaults
-            ppc_val = None
-        return schedule_risk.simulate(acts, iterations=int(a.get("iterations") or 1000), ppc_pct=ppc_val)
+        # v0.3.972: one simulator. This assembled its own PPC lookup beside the route's identical
+        # one, which is how two callers of "the same" forecast come to calibrate differently.
+        from . import schedule_risk_mc
+        return schedule_risk_mc.for_project(db, pid, iterations=int(a.get("iterations") or 2000))
     if name == "carbon_report":
         from . import carbon_compliance
         idx = _model_index(pid)

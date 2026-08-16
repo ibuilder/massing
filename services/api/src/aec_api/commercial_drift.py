@@ -99,9 +99,27 @@ def _hop(name: str, frm: float | None, to: float | None, **extra: Any) -> dict[s
 
 
 def walk(bids: list[dict] | None, subcontracts: list[dict] | None,
-         invoices: list[dict] | None) -> dict[str, Any]:
-    """One row per subcontract: bid → executed contract → invoiced. Pure, so it is testable flat."""
+         invoices: list[dict] | None,
+         commitments: list[dict] | None = None) -> dict[str, Any]:
+    """One row per subcontract: bid → executed contract → PO → invoiced. Pure, so it is testable flat.
+
+    `commitments` is the PO leg, added v0.3.970. The roadmap recorded this hop as blocked on a
+    `purchase_order` register that "still does not exist" — but `commitment` is that register: it is
+    titled *"Commitments (POs)"*, carries `po_date`, `amount` and `retainage_pct`, and **already
+    references `subcontract`**. So the hop needed no schema change, exactly like the three before it.
+    The blocker was the name.
+
+    Optional so every existing caller keeps working: a project with no commitments gets the same
+    three-hop walk it got before, with the PO hop reported `incomparable` rather than as a zero.
+    """
     by_bid = {str(b.get("id")): b for b in (bids or []) if isinstance(b, dict) and b.get("id")}
+    po_by_sub: dict[str, list[dict]] = {}
+    for po in commitments or []:
+        if not isinstance(po, dict):
+            continue
+        sid = str(_data(po).get("subcontract") or "")
+        if sid:
+            po_by_sub.setdefault(sid, []).append(po)
     inv_by_sub: dict[str, list[dict]] = {}
     for inv in invoices or []:
         if not isinstance(inv, dict):
@@ -126,6 +144,12 @@ def walk(bids: list[dict] | None, subcontracts: list[dict] | None,
         invs = inv_by_sub.get(sid, [])
         billed = sum(_num(_data(i).get("amount")) or 0.0 for i in invs) if invs else None
 
+        # The PO leg. Summed across every commitment pointing at this subcontract, because a
+        # subcontract is routinely bought out in more than one PO and comparing the contract to the
+        # LARGEST of them would report the rest as money that vanished.
+        pos = po_by_sub.get(sid, [])
+        committed = (sum(_num(_data(p).get("amount")) or 0.0 for p in pos) if pos else None)
+
         hops = [
             # Bid -> executed contract. Change orders are NOT in this comparison: they are agreed
             # money, and including them would report every CO as scope added between bid and contract.
@@ -133,6 +157,16 @@ def walk(bids: list[dict] | None, subcontracts: list[dict] | None,
                  award_basis=award["basis"],
                  accepted_alternates=award["accepted_alternates"],
                  linked_bid=(bid or {}).get("id")),
+            # Executed contract -> what was actually committed on paper. This is the hop the entry
+            # called blocked: a subcontract signed at one number and PO'd at another is money that
+            # left the agreement without anyone signing a change order for it.
+            #
+            # Compared against the contract value WITHOUT change orders on purpose. A CO raises the
+            # contract sum and is usually followed by its own PO; comparing the CO-inclusive sum to
+            # POs raised before it would report every mid-job change as an under-commitment until
+            # the paperwork caught up, which is a timing artefact rather than drift.
+            _hop("contract_to_po", value, committed,
+                 po_count=len(pos), change_orders_excluded=cos),
             # Contract (as agreed today, COs included) -> what has been invoiced against it.
             _hop("contract_to_invoiced",
                  (round(value + cos, 2) if value is not None else None), billed,
@@ -145,6 +179,8 @@ def walk(bids: list[dict] | None, subcontracts: list[dict] | None,
             "contract_value": value,
             "change_orders": cos,
             "contract_sum_to_date": round(value + cos, 2) if value is not None else None,
+            "committed": committed,
+            "po_count": len(pos),
             "invoiced": billed,
             "hops": hops,
             "incomparable_hops": [h["hop"] for h in hops if h["status"] == STATUS_INCOMPARABLE],
@@ -177,6 +213,10 @@ def for_project(db, project_id: str) -> dict[str, Any]:
     def load(key: str) -> list[dict]:
         return me.list_records(db, key, project_id, limit=100000) if key in me.TABLES else []
 
-    out = walk(load("bid_submission"), load("subcontract"), load("sub_invoice"))
+    # `commitment` IS the PO register — "Commitments (POs)", carrying po_date/amount/vendor and a
+    # `subcontract` reference. The roadmap had this hop blocked on a `purchase_order` register that
+    # "still does not exist"; the capability existed under the other name.
+    out = walk(load("bid_submission"), load("subcontract"), load("sub_invoice"),
+               load("commitment"))
     out["project_id"] = project_id
     return out

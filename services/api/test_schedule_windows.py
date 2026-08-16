@@ -1,8 +1,9 @@
-"""R46 ① — the windows adapter, and the four EOT methods that were one number.
+"""R46 ① — the windows adapter, and the four EOT methods that used to be one number.
 
-Read `the four AACE methods in eot.py return an IDENTICAL number` first. It is the reason this module
-exists, it is measured rather than argued, and it is pinned here so the gap cannot close by accident
-and go unnoticed — or widen.
+This module exists because `eot.py` named four AACE methods and computed one number under all of
+them. **That is now fixed (v0.3.971)** and the assertion below is the replacement the original
+promised: it asserts the numbers DIVERGE, and that the two methods needing a dated series refuse
+here rather than answering with the additive sum. The full account is `test_eot_methods.py`.
 
 The rest is about the series: a window is an interval between two dated snapshots, so the assertions
 that matter are the ones about which snapshots take part and what happens to the ones that cannot.
@@ -70,16 +71,23 @@ def main() -> int:
         answers = {m: eot.analyse(ev, acts, method=m, baseline_finish="2026-06-01",
                                   actual_finish="2026-07-15")["eot_days"]
                    for m in eot.METHODS}
-        check("the four AACE methods in eot.py return an IDENTICAL number",
-              len(set(answers.values())) == 1 and len(answers) == 4,
-              f"{answers} — the label travels into a claim as though it had been earned. Pinned, "
-              "NOT endorsed: if this ever fails because the numbers diverged, that is the fix "
-              "landing and this assertion should be replaced, not relaxed")
+        check("the four AACE methods no longer give one answer",
+              len(answers) == 4 and len(set(answers.values())) > 1,
+              f"{answers} — this assertion read `return an IDENTICAL number` until v0.3.971 and "
+              "said that if it ever failed, that was the fix landing and it should be REPLACED "
+              "rather than relaxed. This is that replacement. The two that still agree agree "
+              "HONESTLY on this fixture: the job slipped 44 days and the events explain 16, so the "
+              "as-planned-vs-as-built cap does not bind. `test_eot_methods.py` carries the case "
+              "where it does — 10 additive against a 4-day slip")
 
-        check("...and eot.py never re-schedules a network, which is why they cannot differ",
-              "schedule_network" not in (eot.analyse.__doc__ or "")
-              and not hasattr(eot, "schedule_network"),
-              "impacted-as-planned and windows are network operations; nothing here builds one")
+        check("...and the two methods that need a dated series refuse HERE rather than answering",
+              answers[eot.METHOD_WINDOWS] is None and answers[eot.METHOD_TIME_IMPACT] is None,
+              "eot.py still never re-schedules a network — which is now the REASON they refuse, "
+              "where before it was the reason they could not differ")
+
+        check("...and the windows refusal names this module as the thing that does perform it",
+              "schedule/windows" in (eot.SERIES_ROUTE[eot.METHOD_WINDOWS] or ""),
+              "a refusal that does not say where the answer lives is only half a finding")
 
         # --- the adapter, on a real series ------------------------------------------------------
         stub(SERIES)

@@ -176,6 +176,12 @@ const KNOWN_UNCALLED: Record<string, string> = {
   // one-click destroy beside that is a footgun, and "it has no caller" is not a reason to give it
   // one. EXPIRY: wire it once baseline deletion is behind a confirm-and-audit step.
   clearBaseline: "until baseline deletion is behind a confirm-and-audit step",
+
+  // v0.3.972: a deprecated alias for `scheduleMonteCarlo`, which is what the panel now calls. It has
+  // no caller BY DESIGN and must not be given one. It exists because retiring the `/schedule/risk`
+  // path is a user-facing removal the roadmap records as the user's call — the second SIMULATOR
+  // behind it was deleted, the path was not. EXPIRY: delete both when that call is made.
+  scheduleRisk: "a deprecated alias kept until the user decides whether /schedule/risk is retired",
 };
 
 const uncalled = surface.filter((m) => !NOT_ENDPOINTS.has(m) && !reached(m));

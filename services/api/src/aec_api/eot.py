@@ -81,6 +81,40 @@ DEFAULT_ENTITLEMENT = {
 STATUS_OK = "analysed"
 STATUS_NO_METHOD = "method_required"
 STATUS_NO_BASELINE = "baseline_required"
+STATUS_NO_ACTUAL = "actual_finish_required"
+STATUS_NEEDS_SERIES = "method_needs_schedule_updates"
+
+#: What this engine ACTUALLY does under each method.
+#:
+#: Added v0.3.971, and the defect it closes is the reason it exists. Until then `analyse()` validated
+#: `method` against the closed set, echoed it back in three fields, and **never read it again** —
+#: every branch computed the same additive sum, so all four methods returned the same number on the
+#: same facts. A required field that changes nothing is worse than no field: it tells the reader the
+#: figure came from a windows analysis when it came from adding up event durations, which is exactly
+#: the unreadability the module docstring above says this exists to prevent.
+#:
+#: `test_eot.py` was the evidence rather than the guard — it reached for `time_impact` and `windows`
+#: at random for its arithmetic checks, which is only possible while the choice cannot matter.
+BASIS_ADDITIVE = "additive"
+BASIS_END_STATES = "end_states"
+BASIS_SERIES = "series"
+
+METHOD_BASIS = {
+    METHOD_IMPACTED_AS_PLANNED: BASIS_ADDITIVE,
+    METHOD_AS_PLANNED_VS_AS_BUILT: BASIS_END_STATES,
+    METHOD_TIME_IMPACT: BASIS_SERIES,
+    METHOD_WINDOWS: BASIS_SERIES,
+}
+
+#: A series method needs a DATED SEQUENCE of schedules. `analyse()` is given one baseline finish and
+#: one CPM snapshot, so it cannot perform either — refusing is the only honest branch, and naming the
+#: route that can is more use than a number that cannot be weighed. `time_impact` maps to `None`
+#: deliberately: nothing performs it yet, and pointing at a route that does something else is how
+#: this defect started.
+SERIES_ROUTE = {
+    METHOD_WINDOWS: "GET /projects/{pid}/schedule/windows",
+    METHOD_TIME_IMPACT: None,
+}
 
 STATUS_MEANING = {
     STATUS_OK: "an EOT was computed, and the method it was computed by is stated with it",
@@ -90,6 +124,12 @@ STATUS_MEANING = {
     STATUS_NO_BASELINE: "no baseline was supplied, so there is nothing to measure the delay against. "
                         "This is an absence of the contract's plan-of-record, not a finding of zero "
                         "delay",
+    STATUS_NO_ACTUAL: "as-planned-vs-as-built compares two END STATES, so it needs the as-built "
+                      "finish. Falling back to the additive sum would answer a different method's "
+                      "question under this method's name",
+    STATUS_NEEDS_SERIES: "this method needs a dated SERIES of schedules, not one baseline and one "
+                         "snapshot. It is refused rather than approximated — an additive sum wearing "
+                         "a windows label is the defect this engine carried until v0.3.971",
 }
 
 
@@ -164,11 +204,41 @@ def analyse(events: list[dict] | None, activities: list[dict] | None = None,
                 "reason": f"method must be one of {sorted(METHODS)} — the same facts give different "
                           "answers under different methods, so an unmethodded EOT cannot be weighed"}
 
+    basis = METHOD_BASIS[method]
+
+    # Refused BEFORE the baseline is asked for: there is no point demanding an input for an analysis
+    # that will not be run. A series method needs the schedule as it stood at each point in time, and
+    # nothing in this function's arguments carries that.
+    if basis == BASIS_SERIES:
+        route = SERIES_ROUTE.get(method)
+        return {
+            "status": STATUS_NEEDS_SERIES, "eot_days": None, "method": method,
+            "method_basis": basis, "method_meaning": METHODS[method],
+            "status_meaning": STATUS_MEANING[STATUS_NEEDS_SERIES],
+            "performed_by": route,
+            "reason": (
+                f"{method} needs a dated series of schedules; this function is given one baseline "
+                "finish and one CPM snapshot. "
+                + (f"It is performed by {route}, which reads the captured baseline library."
+                   if route else
+                   "Nothing performs it yet — it needs the schedule updates most projects never "
+                   "kept, and naming a route that does something else is how a method became a "
+                   "label.")),
+        }
+
     b_finish, a_finish = _d(baseline_finish), _d(actual_finish)
     if b_finish is None:
         return {"status": STATUS_NO_BASELINE, "eot_days": None, "method": method,
+                "method_basis": basis,
                 "status_meaning": STATUS_MEANING[STATUS_NO_BASELINE],
                 "reason": "no baseline finish date — there is nothing to measure the delay against"}
+    if basis == BASIS_END_STATES and a_finish is None:
+        return {"status": STATUS_NO_ACTUAL, "eot_days": None, "method": method,
+                "method_basis": basis,
+                "status_meaning": STATUS_MEANING[STATUS_NO_ACTUAL],
+                "reason": "as-planned-vs-as-built measures the gap between two end states and the "
+                          "as-built end is missing. Running the additive sum instead would put one "
+                          "method's number under another method's name"}
 
     by_id = {a.get("id"): a for a in (activities or []) if a.get("id")}
     rows: list[dict] = []
@@ -211,13 +281,45 @@ def analyse(events: list[dict] | None, activities: list[dict] | None = None,
     # Naming the pairs is a finding; splitting them by a silent rule would be a fabrication.
     concurrent = _concurrency(events or [])
 
-    granted = sum(r["eot_days"] or 0 for r in rows)
+    # The additive figure: impact beyond available float, on excusable events only. This is what the
+    # engine computed under EVERY method until v0.3.971, and it is what impacted-as-planned means.
+    additive = sum(r["eot_days"] or 0 for r in rows)
     variance = (a_finish - b_finish).days if a_finish else None
+    attributed = sum(r.get("impact_days") or 0 for r in rows)
+    slip = float(max(0, variance)) if variance is not None else None
+
+    # WHERE THE METHOD BECOMES ARITHMETIC RATHER THAN A LABEL.
+    #
+    # Additive inserts each event and sums; it is bounded by nothing, which is the published
+    # criticism of MIP 3.6 — a contractor who mitigates has still had the events inserted at full
+    # value. End-states measures what the job actually did, so the same events on the same schedule
+    # give a smaller number the moment any of that delay was recovered.
+    #
+    # Neither is "right". They answer different questions, which is the entire reason the taxonomy
+    # exists and the reason this engine now refuses to let one number wear both names.
+    if basis == BASIS_END_STATES:
+        granted = min(additive, slip)
+        capped = additive > slip
+    else:
+        granted = additive
+        capped = False
+
+    # Reported under BOTH methods, so the weakness of whichever one was chosen is visible on THIS
+    # job rather than left to be read about: days claimed beyond what the completion date moved, and
+    # slip that no event explains. The second is never granted to either party — unexplained slip is
+    # an entitlement finding nobody demonstrated.
+    over_claimed = round(max(0.0, attributed - slip), 2) if slip is not None else None
+    unattributed = round(max(0.0, slip - attributed), 2) if slip is not None else None
 
     return {
         "status": STATUS_OK,
         "method": method,
+        "method_basis": basis,
         "method_meaning": METHODS[method],
+        "additive_days": round(additive, 2),
+        "capped_by_actual_slip": capped,
+        "over_claimed_days": over_claimed,
+        "unattributed_slip_days": unattributed,
         "status_meaning": STATUS_MEANING[STATUS_OK],
         "baseline_finish": b_finish.isoformat(),
         "actual_finish": a_finish.isoformat() if a_finish else None,
@@ -232,10 +334,16 @@ def analyse(events: list[dict] | None, activities: list[dict] | None = None,
                                      NON_EXCUSABLE, UNCLASSIFIED)},
         "unclassified_count": sum(1 for r in rows if r.get("entitlement") == UNCLASSIFIED),
         "concurrency": concurrent,
-        "note": ("EOT is the sum of impact beyond available float on EXCUSABLE events only. "
-                 f"Method: {method}. Concurrency is named, never apportioned — whether overlapping "
-                 "employer-risk and contractor-risk delay yields time, money, both or neither is a "
-                 "contract and jurisdiction question the protocols themselves disagree on."),
+        "note": (
+            "EOT is the impact beyond available float on EXCUSABLE events only, "
+            + ("summed as inserted — this method is not bounded by what the job actually did, so a "
+               "delay the contractor recovered still counts at full value."
+               if basis == BASIS_ADDITIVE else
+               "capped at the movement of the completion date — this method cannot grant more time "
+               "than the job actually lost, however many days were inserted.")
+            + f" Method: {method}. Concurrency is named, never apportioned — whether overlapping "
+              "employer-risk and contractor-risk delay yields time, money, both or neither is a "
+              "contract and jurisdiction question the protocols themselves disagree on."),
     }
 
 

@@ -24,8 +24,7 @@ from aec_api import schedule_cpm  # noqa: E402
 from aec_api.eot import (  # noqa: E402
     EXCUSABLE_COMPENSABLE,
     EXCUSABLE_NON_COMPENSABLE,
-    METHOD_TIME_IMPACT,
-    METHOD_WINDOWS,
+    METHOD_IMPACTED_AS_PLANNED,
     METHODS,
     NON_EXCUSABLE,
     STATUS_NO_BASELINE,
@@ -79,16 +78,21 @@ check("  stating why an unmethodded number cannot be weighed",
                                      baseline_finish="2026-08-16")["reason"])
 
 check("no baseline is refused too — that is an absent plan-of-record, not zero delay",
-      analyse(EV, ROWS, method=METHOD_TIME_IMPACT)["status"] == STATUS_NO_BASELINE)
+      analyse(EV, ROWS, method=METHOD_IMPACTED_AS_PLANNED)["status"] == STATUS_NO_BASELINE)
 
 # --- 2. the ordinary computation ------------------------------------------------------------------------
-r = analyse(EV, ROWS, method=METHOD_TIME_IMPACT, baseline_finish="2026-08-16",
+#
+# EVERY arithmetic assertion below named `time_impact` or `windows` until v0.3.971, picked at random —
+# which was only possible because the method was a label and all four branches computed one number.
+# They now name `impacted_as_planned`, the method this engine actually performs, and the behaviour
+# under it is unchanged. The four-methods-one-number defect itself is in `test_eot_methods.py`.
+r = analyse(EV, ROWS, method=METHOD_IMPACTED_AS_PLANNED, baseline_finish="2026-08-16",
             actual_finish="2026-10-16")
 check("a 10-day employer-risk delay on the CRITICAL path grants 10 days",
       r["eot_days"] == 10.0, r["eot_days"])
-check("  the method travels with the number", r["method"] == METHOD_TIME_IMPACT, r["method"])
+check("  the method travels with the number", r["method"] == METHOD_IMPACTED_AS_PLANNED, r["method"])
 check("  and its meaning travels too, so a reader can weigh it",
-      "current AT THAT EVENT" in r["method_meaning"], r["method_meaning"])
+      "Prospective" in r["method_meaning"], r["method_meaning"])
 check("  the revised finish is derived, not asserted", r["revised_finish"] == "2026-08-26",
       r["revised_finish"])
 check("  actual variance is reported SEPARATELY from entitlement — 61 days slipped, 10 are excusable",
@@ -97,7 +101,7 @@ check("  actual variance is reported SEPARATELY from entitlement — 61 days sli
 
 # --- 3. FLOAT ABSORBS, and absorbed is not "no delay" ------------------------------------------------------
 absorbed = analyse([{"id": "E2", "kind": "change_constructive", "days": 4, "activity_id": "B"}],
-                   ROWS, method=METHOD_TIME_IMPACT, baseline_finish="2026-08-16")
+                   ROWS, method=METHOD_IMPACTED_AS_PLANNED, baseline_finish="2026-08-16")
 row = absorbed["events"][0]
 check("a 4-day delay on an activity with 7 days of float grants nothing",
       absorbed["eot_days"] == 0.0, absorbed["eot_days"])
@@ -108,7 +112,7 @@ check("  and a reason distinguishing the two",
       "not the same as no delay" in row["reason"], row["reason"])
 
 partial = analyse([{"id": "E3", "kind": "change_constructive", "days": 12, "activity_id": "B"}],
-                  ROWS, method=METHOD_TIME_IMPACT, baseline_finish="2026-08-16")
+                  ROWS, method=METHOD_IMPACTED_AS_PLANNED, baseline_finish="2026-08-16")
 check("a delay EXCEEDING float grants only the excess (12 - 7 = 5)",
       partial["eot_days"] == 5.0, partial["eot_days"])
 
@@ -127,7 +131,7 @@ check("  a stated entitlement overrides the typical mapping",
       classify({"kind": "weather_delay", "entitlement": NON_EXCUSABLE})["entitlement"] == NON_EXCUSABLE)
 
 uncl = analyse([{"id": "E4", "kind": "delay_other", "days": 8, "activity_id": "C"}],
-               ROWS, method=METHOD_TIME_IMPACT, baseline_finish="2026-08-16")
+               ROWS, method=METHOD_IMPACTED_AS_PLANNED, baseline_finish="2026-08-16")
 check("an unclassified event grants NO time until somebody classifies it",
       uncl["eot_days"] == 0.0 and uncl["unclassified_count"] == 1, uncl)
 check("  and it is counted, so the gap is visible rather than absent",
@@ -138,7 +142,7 @@ CONC = [{"id": "OWNER", "kind": "change_constructive", "days": 10, "activity_id"
          "start": "2026-03-01"},
         {"id": "CONTRACTOR", "kind": "delay_other", "entitlement": NON_EXCUSABLE, "days": 8,
          "activity_id": "C", "start": "2026-03-05"}]
-c = analyse(CONC, ROWS, method=METHOD_WINDOWS, baseline_finish="2026-08-16")
+c = analyse(CONC, ROWS, method=METHOD_IMPACTED_AS_PLANNED, baseline_finish="2026-08-16")
 check("overlapping opposing-risk delays are DETECTED", c["concurrency"]["count"] == 1,
       c["concurrency"])
 check("  the pair is named on both sides", {c["concurrency"]["pairs"][0]["a"],
@@ -150,21 +154,21 @@ check("  AND EXPLICITLY NOT APPORTIONED", c["concurrency"]["apportioned"] is Fal
 check("  the note says why splitting it would be a fabrication",
       "manufacture" in c["concurrency"]["note"], c["concurrency"]["note"])
 check("no-overlap says events lacking a start were UNEXAMINED, not clear",
-      "unexamined, not clear" in analyse(EV, ROWS, method=METHOD_WINDOWS,
+      "unexamined, not clear" in analyse(EV, ROWS, method=METHOD_IMPACTED_AS_PLANNED,
                                          baseline_finish="2026-08-16")["concurrency"]["note"])
 
 # --- 6. malformed input is refused, never coerced -------------------------------------------------------------
 for bad in (None, "ten", float("inf"), True):
     rr = analyse([{"id": "X", "kind": "change_constructive", "days": bad, "activity_id": "C"}],
-                 ROWS, method=METHOD_TIME_IMPACT, baseline_finish="2026-08-16")
+                 ROWS, method=METHOD_IMPACTED_AS_PLANNED, baseline_finish="2026-08-16")
     check(f"days={bad!r} yields no impact rather than a guessed one",
           rr["events"][0]["eot_days"] is None and rr["eot_days"] == 0.0,
           rr["events"][0])
 check("an event on an activity not in the schedule still computes, with float unknown",
       analyse([{"id": "Y", "kind": "change_constructive", "days": 3, "activity_id": "ZZZ"}],
-              ROWS, method=METHOD_TIME_IMPACT, baseline_finish="2026-08-16")["eot_days"] == 3.0)
+              ROWS, method=METHOD_IMPACTED_AS_PLANNED, baseline_finish="2026-08-16")["eot_days"] == 3.0)
 check("no events at all is a clean zero with a stated method, not an error",
-      analyse([], ROWS, method=METHOD_WINDOWS, baseline_finish="2026-08-16")["eot_days"] == 0.0)
+      analyse([], ROWS, method=METHOD_IMPACTED_AS_PLANNED, baseline_finish="2026-08-16")["eot_days"] == 0.0)
 
 print()
 if FAILED:

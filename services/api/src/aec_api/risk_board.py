@@ -34,23 +34,29 @@ def board(db, pid: str) -> dict[str, Any]:
 
     # 1) Monte-Carlo schedule risk — the P80 buffer + the top delay driver
     try:
-        from . import schedule_risk
+        from . import schedule_risk_mc
         if acts:
-            sim = schedule_risk.simulate(acts, iterations=300, seed=7)
-            det, buf = sim.get("deterministic_days"), sim.get("buffer_p80_days")
-            if det and buf is not None and det > 0:
-                ratio = buf / det
-                sev = "high" if ratio >= 0.25 else "medium" if ratio >= 0.10 else "low"
+            # v0.3.972: the same simulator the route and the MCP tool use. The buffer is now WORKING
+            # days on the schedule's own calendar, so the severity thresholds below compare like with
+            # like — the old engine's buffer counted Saturdays and read high on a job that was fine.
+            sim = schedule_risk_mc.risk(acts, iterations=300, seed=7)
+            buf = sim.get("buffer_p80_days")
+            conf = sim.get("confidence_in_deterministic")
+            if buf:
+                sev = "high" if buf >= 20 else "medium" if buf >= 8 else "low"
                 add("schedule-risk", sev, f"P80 completion needs a {buf}-day buffer",
-                    f"Deterministic {det}d vs P80 {sim.get('p80_days')}d — a reliable commitment "
-                    f"carries the buffer.", f"/projects/{pid}/schedule/risk", metric=buf)
-                top = (sim.get("activities") or [None])[0]
-                if top and top.get("criticality_pct", 0) >= 60:
-                    add("schedule-risk", "medium",
-                        f"{top.get('ref') or top.get('name')} drives the slip",
-                        f"On the critical path in {top['criticality_pct']}% of simulations "
-                        f"(mean slip {top.get('mean_slip_days', 0)}d) — protect or split it.",
-                        f"/projects/{pid}/schedule/risk")
+                    f"Programme finish {sim.get('deterministic_finish')} vs P80 {sim.get('p80')}"
+                    + (f" — the programme date is met in {round(conf * 100)}% of simulations"
+                       if conf is not None else "")
+                    + ". A reliable commitment carries the buffer.",
+                    f"/projects/{pid}/schedule/montecarlo", metric=buf)
+            top = (sim.get("most_critical") or [None])[0]
+            if top and (top.get("criticality_index") or 0) >= 0.6:
+                add("schedule-risk", "medium",
+                    f"{top.get('name') or top.get('id')} drives the slip",
+                    f"On the critical path in {round((top['criticality_index']) * 100)}% of "
+                    "simulations — protect or split it.",
+                    f"/projects/{pid}/schedule/montecarlo")
         lanes["schedule_risk"] = "ok"
     except Exception:  # noqa: BLE001
         lanes["schedule_risk"] = "error"

@@ -1,6 +1,8 @@
 """R27-RISK-CALIBRATE — the spread comes from this project's own history, not from a guess.
 
-`schedule_risk.simulate` already runs Monte Carlo over the CPM network and reports P10/P50/P80/P90.
+`schedule_risk_mc.risk` runs Monte Carlo over the CPM network and reports P10/P50/P80/P90.
+(It was "schedule_risk.simulate" until v0.3.972, when that second simulator was deleted — the
+name is in plain quotes because backticks are reserved here for files that exist.)
 The *shape* has never been the problem. What it multiplies is: durations come from caller-supplied
 optimistic / likely / pessimistic estimates, which on most projects is one person's opinion entered
 three times. Percentiles computed from that are precise about an opinion and say nothing about risk.
