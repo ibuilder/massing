@@ -36,7 +36,8 @@ import type {
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, PreflightSummary, ProfessionalLicense,
   ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
   BidLevelingDetail,
-  SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload } from "./types";
+  SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload,
+  DiligenceReadiness, ReviewCycles } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
@@ -2414,14 +2415,12 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
       `/projects/${pid}/lifecycle/seed`, { method: "POST" });
   }
   diligenceReadiness(pid: string) {
-    return this.json<{
-      due_diligence: { total: number; cleared: number; flagged: number;
-        by_category: Record<string, { total: number; cleared: number; flagged: number; open: number }>;
-        high_risk: { ref: string; item: string; risk: string; category: string; state: string }[] };
-      entitlements: { total: number; by_state: Record<string, number>; approved: number;
-        pending: number; denied: number;
-        expiring_within_180d: { ref: string; application: string; expires: string }[] };
-      go: boolean }>(`/projects/${pid}/diligence/readiness`);
+    return this.json<DiligenceReadiness>(`/projects/${pid}/diligence/readiness`);
+  }
+  /** R22-ENTITLEMENT review rounds, split by whose court held them. See {@link ReviewCycles}. */
+  entitlementReviewCycles(pid: string, application?: string) {
+    return this.json<ReviewCycles>(`/projects/${pid}/entitlements/review-cycles`
+      + (application ? `?application=${encodeURIComponent(application)}` : ""));
   }
 
   // --- operations: CMMS + metered energy ----------------------------------------

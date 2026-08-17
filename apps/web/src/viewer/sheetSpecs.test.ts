@@ -145,21 +145,48 @@ describe("the control is WIRED INTO the rail, not merely constructed", () => {
    * say "verified" about something I did not see.
    */
   const app = readFileSync(resolve(REPO, "apps/web/src/viewer/app.ts"), "utf8");
+  const sect = readFileSync(resolve(REPO, "apps/web/src/viewer/tools/drawingsSection.ts"), "utf8");
 
-  it("placeBtn is constructed AND appended to a rail group", () => {
-    expect(app, "the control must exist").toMatch(/const placeBtn = toolBtn2\(/);
-    const group = app.match(/railGroup\("export"[^\]]*\]/s)?.[0] ?? "";
+  /**
+   * **R39-DECOMP-VIEWER ⑦ moved this gate's subject and the gate went red — correctly.** Its own
+   * failure message said *"the rail moved and this gate is now blind"*, which is exactly what had
+   * happened: the buttons are built in `tools/drawingsSection.ts` now and only *appended* in
+   * `app.ts`. A gate that names a file is only ever as good as that address, and an extraction is
+   * precisely the event that invalidates one.
+   *
+   * Re-pointing it at the new file alone would have made it weaker than before, because the chain
+   * has a new link that can break silently: the module could construct `placeBtn` and forget to
+   * **return** it, and `app.ts` would append an array that never contained it. So the check now
+   * follows all three hops — built, returned, appended — which is a stronger claim than the single
+   * file could make.
+   */
+  it("placeBtn is constructed, RETURNED, and appended to a rail group", () => {
+    expect(sect, "the control must exist").toMatch(/const placeBtn = d\.toolBtn2\(/);
+
+    const ret = sect.match(/return \[[^\]]*\]/s)?.[0] ?? "";
+    expect(ret, "the section returns no button array — this gate cannot see the seam")
+      .not.toBe("");
+    expect(ret, "placeBtn is built but not returned — it would never reach the rail")
+      .toContain("placeBtn");
+
+    const group = app.match(/railGroup\("export"[^)]*\)/s)?.[0] ?? "";
     expect(group, "railGroup(\"export\", …) not found — the rail moved and this gate is now blind")
       .not.toBe("");
-    expect(group, "placeBtn is built but never appended — the defect this repo keeps shipping")
-      .toContain("placeBtn");
+    // The array the section returns is what the rail group receives. Whatever the caller names it,
+    // the group must be fed the section's output rather than a hand-listed subset that can drift.
+    expect(group, "the rail group no longer consumes the section's returned buttons")
+      .toMatch(/drawingBtns|buildDrawingsSection/);
   });
 
   it("the sheet buttons go through sheetSpecs, not hand-rolled query strings", () => {
     // The three inline URLSearchParams builders are what sent `number`/`title`/`scale` into the void.
-    // If one comes back, this fails before it can silently drop parameters again.
-    const sheetUrls = app.match(/drawings\/sheet\.(svg|pdf|dxf)\?\$\{/g) ?? [];
-    expect(sheetUrls, "a hand-built sheet URL bypasses the SHEET_PARAMS allowlist").toEqual([]);
-    expect(app).toContain("sheetPath(projectId!");
+    // If one comes back, this fails before it can silently drop parameters again. Both files are
+    // scanned: the construction moved, but `app.ts` must not grow a replacement either.
+    for (const [name, src] of [["app.ts", app], ["drawingsSection.ts", sect]] as const) {
+      const sheetUrls = src.match(/drawings\/sheet\.(svg|pdf|dxf)\?\$\{/g) ?? [];
+      expect(sheetUrls, `a hand-built sheet URL in ${name} bypasses the SHEET_PARAMS allowlist`)
+        .toEqual([]);
+    }
+    expect(sect).toContain("sheetPath(d.projectId!");
   });
 });

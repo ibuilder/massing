@@ -1100,10 +1100,27 @@ stakes we are missing.
 
 **Tier 1 — closes the mission's own gaps**
 
-- ◧ **R22-ENTITLEMENT** *(M/L — ①② shipped: `approval_conditions.py`, `condition_checks.py`)* — **permit & entitlement workflow**: jurisdiction submittal packages,
-  review cycles, comment responses, and **conditions of approval carried into the model as
-  constraints**. Today there is a hole between "acquisition" and "construction" in our own mission
-  statement — we underwrite the deal and we build it, and nothing spans approval.
+- ◧ **R22-ENTITLEMENT** *(M/L — ①②③ shipped: `approval_conditions.py`, `condition_checks.py`,
+  `approval_cycles.py` + the `review_cycle` register)* — **permit & entitlement workflow**: jurisdiction
+  submittal packages, review cycles, comment responses, and **conditions of approval carried into the
+  model as constraints**. Today there is a hole between "acquisition" and "construction" in our own
+  mission statement — we underwrite the deal and we build it, and nothing spans approval.
+
+  ③ **review cycles, shipped v0.3.978.** The premise-check is worth keeping: both registers existed
+  (`entitlement`, `permit`) and neither modelled **rounds** — `permit` has a single `under_review`
+  state, so a third round is indistinguishable from a first and the only recoverable duration was
+  `applied_date → issued_date`. One number, for a process that is a back-and-forth. That number cannot
+  answer the question a seven-month permit actually raises, which is never *how long* but **whose court
+  did it sit in**: an agency holding three rounds for 40 days and an applicant taking 55 to answer them
+  produce identical elapsed time and opposite remedies. `approval_cycles.cycles()` splits
+  `days_with_agency` from `days_with_applicant` and states the share. An open round is **counted and
+  named, never scored** — treating a missing comments-received date as zero would report a submission
+  the agency has held for ninety days as instantaneous, which is the most flattering possible lie
+  about the party you are about to argue with. Days are **calendar**, stated on the response, because
+  a statutory review clock does not pause for a weekend and construction durations elsewhere here are
+  working days.
+  **Remaining:** submittal *packages* (the documents that go to the authority) and comment-response
+  round-tripping into RFI/issue records.
 
   ⚠️ **Two name collisions sit on this item; gap-check on SEMANTICS before touching it.**
   `tiers.py` is **subscription tiers** (free/pro/enterprise), nothing to do with land use — it was
@@ -2082,10 +2099,42 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   feeling, not a number. Instrument the load journey (fetch → parse → first frame, keyed by model
   size) and POST the timings to the platform's own API — no third-party telemetry, nothing new to
   approve — so p50/p95 by model-size bucket is a queryable fact before any perf work is prioritised.
-- 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **started 2026-08-06: the ratchet is pinned and the seams
-  are measured; the extraction is NOT begun, and the reason is below**)* — `apps/web/src/viewer/app.ts`
+- 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **seven slices shipped; `app.ts` is 5,160 → 3,311, a 36%
+  cut. The `builders` map is entirely gone.** The paragraph below saying the extraction "is NOT begun"
+  was true on 2026-08-06 and stayed on the page until 2026-08-17, through six shipped slices — a
+  roadmap entry describing work as un-started while the work is being done is worse than a missing
+  entry, because it sends the next reader to re-derive a plan that was already executed. Kept only
+  because the *reason* it gives is still the live constraint.)* — `apps/web/src/viewer/app.ts`
   is the last of the three god-files still standing (client.ts was split by SCALE-SEAM, portal.ts is
   REL-4).
+
+  **Shipped:** ① exports (51) · ② clash/QA (851) · ③ analyse (238) · ④ authoring (91) ·
+  ⑤ project-browser panel (216) · ⑥ `loadProjectModel` (37) · ⑦ **drawings & sheets (142, v0.3.978)**.
+  Each ratcheted `services/api/test_file_sizes.py` down, never reset. `services/api/test_file_sizes.py`
+  carries the per-slice history; that comment, not this list, is the record.
+
+  **⑦ is the one that proved the accessor rule, which ①–⑥ only prepared for.** `exportsSection.ts`
+  says outright that it "touches neither" mutable capture and that its deps type is *shaped so the
+  next one can*. The drawings group is that next one: `activeStorey` and `activeStoreyZ` are `let`,
+  reassigned by the level selector. Passing either by value compiles clean and freezes the level at
+  panel-build time — which is before any level exists — so every plan, DXF and sheet would silently
+  render the whole building instead of the level on screen. Threading them as accessors then made
+  `tsc` reject `if (d.activeStorey()) q.set(…, d.activeStorey())`, because two calls cannot narrow
+  where one `let` did: the compiler asking the right question, since two calls genuinely can differ.
+
+  **⑦ also broke a gate, and that is the transferable part.** `sheetSpecs.test.ts` asserted against
+  `app.ts` that `placeBtn` is built *and* appended — a gate written because that button nearly shipped
+  constructed-and-unreachable. Moving the code moved the gate's subject, and it failed with its own
+  message: *"the rail moved and this gate is now blind."* **An extraction is exactly the event that
+  invalidates a gate's address.** Re-pointing it at the new file alone would have left it weaker than
+  before, because the seam adds a link that can fail silently — build the button, forget to *return*
+  it. It now follows all three hops (built → returned → appended) and each is mutation-checked.
+
+  **Next, and the reason it is not obvious:** the `builders` map is gone but **~950 lines still sit
+  directly in `buildToolsPanel`** above it, which is where ⑦ came from. The remaining coherent groups
+  there are fabrication detail (steel connections, rebar cage + ACI check), MEP/fire equipment
+  placement, and annotation/dimension/tag. None needs a renderer, so all three are extractable on the
+  same recipe.
 
   **⚠️ The recipe as written does not apply, and this is the finding that matters more than the
   split.** It says *"the suite as the parity gate"*. **Nothing in the suite imports

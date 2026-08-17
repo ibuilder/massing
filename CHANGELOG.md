@@ -4,6 +4,92 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.978 (2026-08-17) — whose court did the permit sit in
+
+**R22-ENTITLEMENT ③.** A permit that took seven months prompts exactly one question, and it is never
+"how long". It is *whose court did it sit in.* An agency that held three review rounds for 40 days
+and an applicant who took 55 days to answer them produce **identical elapsed time**, a completely
+different conversation, and a different remedy.
+
+Until now this system could not tell those two apart. Both registers for approval already existed —
+`entitlement` (application type, agency, hearing date, public process) and `permit`
+(applied → under_review → issued) — and `approval_conditions.py` / `condition_checks.py` already carry
+conditions of approval into the model as constraints. What neither register modelled is **rounds**.
+`permit` has a single `under_review` state, so a third round is indistinguishable from a first and the
+only recoverable duration is `applied_date → issued_date`: one number for a process that is a
+back-and-forth.
+
+**New: the `review_cycle` register and `approval_cycles.py`.** Each round carries submitted,
+comments-received and response-sent dates, so the elapsed time splits into the leg the agency held and
+the leg the applicant held. `agency_share_pct` is the number an argument actually quotes.
+`GET /projects/{pid}/entitlements/review-cycles` serves it, optionally filtered to one application.
+
+**The refusals are the design, and each one is mutation-checked:**
+
+- **An open round is unmeasurable, not zero days.** A round sitting with the agency has no
+  comments-received date, and scoring that absence as 0 would report a submission held for ninety days
+  as instantaneous — the most flattering possible lie about the party you are about to argue with.
+  Open rounds are counted and *named* (`rounds_open`, `open_detail`, `held_by`), never scored. Same
+  rule v0.3.974 settled for PPC, for the same reason.
+- **A share of an unknown total is not a share** — `agency_share_pct` is `None`, never 0, when either
+  side has no closed leg.
+- **Days are calendar days, and the axis is stated on the response.** A statutory review period does
+  not pause for a weekend, and an applicant who sat on comments over a holiday still sat on them. This
+  is the opposite choice from `schedule_compare`, which counts working days because a *construction*
+  duration is worked. Mixing the two silently is how `eot.py` produced four identical numbers.
+- **Rounds out of order are reported, not sorted away.** Round 3 dated before round 2 means a mis-keyed
+  date or rounds that are not what they look like, and quietly sorting destroys the only evidence.
+
+**The test's load-bearing case is a pair of applications with the same total elapsed time** (60 days,
+2026-01-01 → 2026-03-02) and opposite causes: 54/6 against 9/51. If those ever collapse into one
+number the module has stopped answering the only question it exists for. Measuring the applicant leg
+from submission instead of from comments-received fails three named checks; scoring an open leg as 0
+fails the share check; sorting the rounds fails the out-of-order check.
+
+One real defect was caught by writing the refusal test before believing the engine: the undated-rounds
+count was returned under a mismatched key, so `rounds_undated` stayed 0 while a stray field appeared
+beside it. Asserting the *count* rather than just the status is what saw it.
+
+**The route has a client caller, because a gate insisted.** `test_route_reachability` failed the
+moment the route landed: *"a route the product cannot call is a feature nobody can use."* It offers
+two ways out — wire it, or freeze it with a reason — and wiring it was clearly right, so the split now
+renders in **Diligence & Entitlements**, beside the go/no-go banner that counts applications by state
+without saying who was holding them. A refusal renders *as* a refusal there; "0 days with the agency"
+would be a confident wrong answer about the party the reader is preparing to argue with.
+
+---
+
+**R39-DECOMP-VIEWER ⑦ — the drawings group leaves `app.ts`.** 142 lines to
+`viewer/tools/drawingsSection.ts`: 3,444 → **3,311**, and the whole `sheetSpecs` import left with
+them. Slices ①–⑥ had already emptied the `builders` map (5,160 → 3,444); this is the first group
+lifted out of the ~1,100 lines still sitting directly in `buildToolsPanel` above it.
+
+**It is the slice that finally exercised the accessor rule.** `exportsSection.ts` said outright that
+it "touches neither" mutable capture and that its deps type was shaped so the next one could. This is
+that one: `activeStorey` and `activeStoreyZ` are `let`, reassigned by the level selector. Passing
+either by value compiles clean and freezes the level at panel-build time — which is *before any level
+exists* — so every plan, DXF and sheet would quietly render the whole building instead of the level on
+screen. As accessors, `tsc` then rejected `if (d.activeStorey()) q.set(…, d.activeStorey())`: two
+calls cannot narrow where one `let` did, which is the compiler asking the right question, since two
+calls genuinely can differ.
+
+**Moving the code broke a gate, and that is the part worth keeping.** `sheetSpecs.test.ts` asserted
+against `app.ts` that `placeBtn` is built *and* appended — written because that button nearly shipped
+constructed-and-unreachable. It failed with its own message: *"the rail moved and this gate is now
+blind."* An extraction is exactly the event that invalidates a gate's address. Re-pointing it at the
+new file alone would have left it **weaker** than before, because the seam adds a link that can fail
+silently — build the button, forget to `return` it. It now follows all three hops (built → returned →
+appended), each mutation-checked.
+
+**Two ratchets moved down, neither raised.** `app.ts` 3,444 → 3,311. And `client.ts` failed the
+extraction ratchet when the new API method pushed it to 3,706 — the pin working as designed. Its own
+history records the same event at ⑫, when a response type went to `types.ts`; this did that twice,
+moving both the new `ReviewCycles` type **and** the `DiligenceReadiness` one beside it, so 3,685 →
+**3,683**. The pin bought a second DTO out of the file rather than merely admitting the first.
+
+**Docs:** the register count went 138 → 139 in six places across four files. The doc gate flagged one
+of them.
+
 ## v0.3.977 (2026-08-17) — the roadmap gets its own hygiene, and a gate that can see a duplicate
 
 Docs and one test. No product code changed.

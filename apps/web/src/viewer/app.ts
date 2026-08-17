@@ -20,7 +20,7 @@ import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
 import { DeltaStore, deltaCommitter, deltaIndicator } from "./deltaCommit";
-import { type ViewSpec, railSheetOptions, sheetPath, viewsForCanvas } from "./sheetSpecs";
+import { buildDrawingsSection } from "./tools/drawingsSection";
 import { makeWaitForPublish } from "./publishWait";
 import { buildElementProps, buildRawProps } from "./propsView";
 import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
@@ -2202,148 +2202,15 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       autoDetailBtn.title = "Run the condition→content rule library over the model — exterior windows/doors get "
         + "IBC/ASTM flashing details + specs, rated walls get assembly keynotes. Same rules validate as IDS QA.";
 
-      // W11 C1: generate a schematic plan drawing (SVG) from the model, at the active level if one is set.
-      // Routes through the mode switch rather than toggling the pane itself: two independent
-      // controls over one element is how "both visible" and "neither visible" become reachable.
-      const planPaneBtn = toolBtn2("◫ Plan as canvas", () => {
-        const to = modeSwitch.active === "sheets" ? "model" : "sheets";
-        const r = modeSwitch.switchTo(to);
-        if (!r.ok) { notify(r.reason ?? "cannot open the plan", "error"); return; }
-        planPaneBtn.classList.toggle("on", modeSwitch.active === "sheets");
+      // R39-DECOMP-VIEWER ⑧ — the drawing set moved to `tools/drawingsSection.ts` (142 lines).
+      // `activeStorey` / `activeStoreyZ` cross as ACCESSORS because both are `let` here and change
+      // with the level selector: a value copy would compile clean and freeze the level at
+      // panel-build time, which is before any level exists — every plan, DXF and sheet would
+      // quietly render the whole building. `tsc` cannot see that one, so it is removed by shape.
+      const drawingBtns = buildDrawingsSection({
+        toolBtn2, api, projectId, pid, notify, container, modeSwitch,
+        activeStorey: () => activeStorey, activeStoreyZ: () => activeStoreyZ,
       });
-      planPaneBtn.title = "Make the generated plan the canvas (same as the Sheets tab). It re-cuts "
-        + "when you change the active level, and selection syncs both ways — click linework in the "
-        + "plan to select in 3D.";
-      const planBtn = toolBtn2("🖨 Generate plan (SVG)", () => {
-        const q = new URLSearchParams({ scale: "100" });
-        if (activeStorey) q.set("storey", activeStorey);
-        window.open(api.url(`/projects/${projectId}/drawings/plan.svg?${q.toString()}`), "_blank");
-      });
-      planBtn.title = "Generate a schematic plan drawing (SVG, 1:100) from the model geometry — walls/columns/"
-        + "slabs as class-styled poché with dimensions + keynotes. The active level scopes it.";
-
-      // W11 C3: compose an issuable sheet (ARCH-D border + titleblock) around the plan.
-      // Options come from sheetSpecs.ts, which can emit nothing the route does not declare — these
-      // three used to send `number`/`title`/`scale`, which sheet.* drops. See that file's header.
-      const openSheet = (fmt: "svg" | "pdf", views?: ViewSpec[]) => window.open(
-        api.url(sheetPath(projectId!, fmt, railSheetOptions(activeStorey, views))), "_blank");
-      const sheetBtn = toolBtn2("📄 Issue sheet (A-101)", () => openSheet("svg"));
-      sheetBtn.title = "Compose an issuable construction sheet — ARCH-D border + titleblock (project, sheet "
-        + "number, scale, north arrow) with the plan placed in a scaled viewport. The deliverable.";
-
-      // W11 C3b: the submittable PDF of the sheet (reportlab, permit-ready).
-      const pdfBtn = toolBtn2("⤓ Sheet PDF (A-101)", () => openSheet("pdf"));
-      // R36 slice 3 — place WHAT IS ON THE CANVAS; the first point at which 2D and 3D are peers on paper.
-      const placeBtn = toolBtn2("🖼 Place this view on a sheet",
-        () => openSheet("pdf", viewsForCanvas(modeSwitch.active === "sheets" ? "2d" : "3d", activeStoreyZ)));
-      placeBtn.title = "Sheet PDF of the view you are looking at — the active level's plan in 2D, a true "
-        + "isometric in 3D. Both are vector drawings that keep their GlobalIds, not screenshots.";
-      pdfBtn.title = "Download the sheet as a PDF (ARCH-D, titleblock, plan poché + dimensions + keynotes) — "
-        + "the submittable construction-document deliverable, rendered server-side.";
-
-      // W11 C4: computed door / window / room schedules from the model.
-      const openSchedules = async () => {
-        let sc;
-        try { sc = await api.drawingSchedules(pid); }
-        catch (e) { notify(`schedules failed: ${(e as Error).message}`, "error"); return; }
-        showResult("Schedules (door / window / room)", (body) => {
-          for (const [kind, label] of [["doors", "Door schedule"], ["windows", "Window schedule"], ["rooms", "Room schedule"]] as const) {
-            const t = sc[kind];
-            body.appendChild(resultNote(`<b>${label}</b> — ${t.rows.length} row(s)`, ""));
-            if (!t.rows.length) continue;
-            const tbl = document.createElement("table"); tbl.className = "kv-table"; tbl.style.marginBottom = "6px";
-            const hr = document.createElement("tr");
-            for (const c of t.columns) { const th = document.createElement("th"); th.textContent = c; hr.appendChild(th); }
-            tbl.appendChild(hr);
-            for (const row of t.rows.slice(0, 60)) {
-              const tr = document.createElement("tr");
-              for (const cell of row) { const td = document.createElement("td"); td.textContent = cell; tr.appendChild(td); }
-              tbl.appendChild(tr);
-            }
-            body.appendChild(tbl);
-          }
-        });
-      };
-      const schedBtn = toolBtn2("📋 Schedules", openSchedules);
-      schedBtn.title = "Computed door / window / room schedules (marks, sizes, types, levels, areas) — the "
-        + "tabular half of the CD set, straight from the model. Also at GET /drawings/schedule.svg.";
-
-      // W11 C6: the schedules laid out on an issuable ARCH-D sheet (PDF) — the submittable tabular sheet.
-      const schedPdfBtn = toolBtn2("⤓ Schedules sheet (A-601 PDF)", () => {
-        window.open(api.url(`/projects/${projectId}/drawings/schedule.pdf?number=A-601`), "_blank");
-      });
-      schedPdfBtn.title = "Lay the door / window / room schedules on an ARCH-D titleblock sheet and download "
-        + "as a submittable PDF — the tabular half of the CD set as an issuable sheet.";
-
-      // W11 D6: the 3-part MasterFormat project manual (the spec book), seeded from classifications.
-      const manualBtn = toolBtn2("📖 Project manual (spec book)", () => withLoading(container, "Assembling the project manual", async () => {
-        let man;
-        try { man = await api.specManual(projectId!); }
-        catch { toast("Needs a source IFC", "error"); return; }
-        showResult("Project manual — 3-part MasterFormat spec book", (body) => {
-          body.appendChild(resultNote(`<b>${man!.division_count}</b> division(s) · <b>${man!.section_count}</b> section(s), `
-            + `seeded from MasterFormat classifications. ${man!.note}`, man!.section_count ? "ok" : ""));
-          if (!man!.section_count) {
-            body.appendChild(resultNote("No MasterFormat-classified elements yet — classify elements in the "
-              + "🏷 Detailing tool (advanced) to seed the manual.", ""));
-          }
-          for (const div of man!.divisions) {
-            const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "font-weight:600;margin:8px 0 2px";
-            h.textContent = `DIVISION ${div.division} — ${div.title}`;
-            body.appendChild(h);
-            for (const s of div.sections) {
-              body.appendChild(kvTable([
-                { k: `§ ${s.code}`, v: `${s.title} — ${s.element_count} element(s)`, strong: true },
-                { k: "Part 2 — Products", v: s.part2_products.join(", ") },
-                { k: "Part 3 — Execution", v: s.part3_execution.join("; ") },
-              ]));
-            }
-          }
-          const dl = toolBtn2("⤓ Download manual (.txt)", () => window.open(api.url(`/projects/${projectId}/spec/manual.txt`), "_blank"));
-          body.appendChild(dl);
-        });
-      }));
-      manualBtn.title = "Generate the 3-part MasterFormat project manual — elements grouped into CSI "
-        + "divisions → sections (Part 1 General / Part 2 Products / Part 3 Execution), seeded from the "
-        + "model's classifications + attached install docs. The spec book that accompanies the drawings.";
-
-      // W11 C5: sections & elevations — cut linework straight from the baked model geometry. The
-      // section auto-centres on the model (no offset needed); elevations project each cardinal face.
-      const sectBtn = toolBtn2("📐 Sections & elevations", () => {
-        showResult("Sections & elevations", (body) => {
-          body.appendChild(resultNote("Generate a cut <b>section</b> (through the middle of the model) or a projected "
-            + "<b>elevation</b> of each face — true linework from the model geometry, opens as SVG.", "ok"));
-          const openDrawing = (path: string) => window.open(api.url(`/projects/${projectId}/drawings/${path}`), "_blank");
-          const row = (label: string) => { const d = document.createElement("div"); d.className = "meta"; d.style.margin = "6px 0 2px"; d.textContent = label; body.appendChild(d); return d; };
-          const btnRow = () => { const r = document.createElement("div"); r.style.cssText = "display:flex;flex-wrap:wrap;gap:6px"; body.appendChild(r); return r; };
-          row("Sections (auto-centred cut)");
-          const secR = btnRow();
-          for (const [axis, lbl] of [["x", "Section X–X"], ["y", "Section Y–Y"]] as const) {
-            const b2 = document.createElement("button"); b2.className = "mini-btn"; b2.textContent = `✂ ${lbl}`;
-            b2.onclick = () => openDrawing(`section.svg?axis=${axis}&title=${encodeURIComponent(lbl)}`);
-            const dx = document.createElement("button"); dx.className = "mini-btn"; dx.textContent = "⤓ DXF"; dx.title = `${lbl} → DXF (CAD)`;
-            dx.onclick = () => openDrawing(`section.dxf?axis=${axis}`);
-            secR.append(b2, dx);
-          }
-          row("Elevations");
-          const elR = btnRow();
-          for (const dir of ["north", "south", "east", "west"] as const) {
-            const b2 = document.createElement("button"); b2.className = "mini-btn"; b2.textContent = `🧭 ${dir.charAt(0).toUpperCase()}${dir.slice(1)}`;
-            b2.onclick = () => openDrawing(`elevation.svg?direction=${dir}`);
-            const dx = document.createElement("button"); dx.className = "mini-btn"; dx.textContent = "⤓"; dx.title = `${dir} elevation → DXF (CAD)`;
-            dx.onclick = () => openDrawing(`elevation.dxf?direction=${dir}`);
-            elR.append(b2, dx);
-          }
-          row("Plan");
-          const plR = btnRow();
-          const planDxf = document.createElement("button"); planDxf.className = "mini-btn"; planDxf.textContent = "⤓ Plan DXF (CAD)";
-          planDxf.title = "Export the plan cut linework as a DXF any CAD tool can open" + (activeStorey ? ` (${activeStorey})` : "");
-          planDxf.onclick = () => { const q = new URLSearchParams(); if (activeStoreyZ) q.set("elevation", String(activeStoreyZ)); openDrawing(`plan.dxf?${q.toString()}`); };
-          plR.appendChild(planDxf);
-        });
-      });
-      sectBtn.title = "Cut sections (auto-centred on the model) and projected N/S/E/W elevations — vector "
-        + "linework from the model geometry, the other half of the drawing set alongside plans.";
 
       // W11 B6: steel connections — base plate on the selected column, shear tab on the selected beam
       // (bare LOD-300 members → LOD-350/400 fabrication assemblies).
@@ -3018,8 +2885,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       glBody.append(status, levelSel, undoRow, deltaUi.el, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
         phaseBtn, queryBtn, lodBtn, asBuiltBtn, manage, levelsMgr);
       // The drawing set: produced from the model, read as documents.
-      railGroup("export", "Drawings & sheets", [planPaneBtn, planBtn, sheetBtn, pdfBtn, placeBtn, schedBtn,
-        schedPdfBtn, manualBtn, sectBtn]);
+      railGroup("export", "Drawings & sheets", drawingBtns);
       railGroup("annotate", "Annotate", [annotateHead, annotateWrap]);
       railGroup("library", "Families & content", [libHead, libWrap]);
       // Detail IS the advanced tools — so no toggle and no heading inside it. Keeping either would

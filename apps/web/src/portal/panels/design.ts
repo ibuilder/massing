@@ -174,6 +174,44 @@ export async function renderDiligence(ctx: PanelContext) {
       + `Entitlements: ${en.approved} approved · ${en.pending} pending · ${en.denied} denied</div>`;
     body.append(banner);
 
+    // R22-ENTITLEMENT — WHOSE COURT the review time sat in. The banner above counts applications by
+    // state; this answers the question a slow one actually raises, which is never "how long" but who
+    // was holding it. Built with textContent rather than innerHTML: every value here is server text
+    // and the file's innerHtmlGuard baseline is a ratchet worth not spending.
+    void ctx.host.api.entitlementReviewCycles(pid).then((rc) => {
+      const card = el("div", "dash-card"); card.style.marginBottom = "8px";
+      const head = el("div"); head.style.fontWeight = "600";
+      head.textContent = "Review cycles — whose court the time sat in";
+      card.appendChild(head);
+      const line = el("div", "meta"); line.style.marginTop = "2px";
+      if (!rc.available) {
+        // A refusal, rendered AS a refusal. Printing "0 days with the agency" here would be a
+        // confident wrong answer about the party the reader is preparing to argue with.
+        line.textContent = rc.reason ?? "no review rounds recorded";
+        card.style.opacity = "0.75";
+      } else {
+        const share = rc.agency_share_pct === null
+          ? "share unavailable — a round is still open, and a share of an unknown total is not a share"
+          : `${rc.agency_share_pct}% of the measured time was agency time`;
+        line.textContent = `${rc.rounds} round(s) · ${rc.days_with_agency ?? "—"}d with the agency · `
+          + `${rc.days_with_applicant ?? "—"}d with us · ${share}`;
+        if (rc.rounds_open) {
+          const open = el("div", "meta");
+          open.textContent = `${rc.rounds_open} round(s) still open, counted but not scored: `
+            + rc.open_detail.map((o) => `#${o.round ?? "?"} with the `
+              + `${o.held_by === "with_agency" ? "agency" : "applicant"} since ${o.since}`).join(" · ");
+          card.appendChild(open);
+        }
+        if (rc.rounds_out_of_order.length) {
+          const ooo = el("div", "meta"); ooo.style.color = "var(--status-warn)";
+          ooo.textContent = `Dates disagree with round numbers: ${rc.rounds_out_of_order.join("; ")}`;
+          card.appendChild(ooo);
+        }
+      }
+      card.insertBefore(line, card.children[1] ?? null);
+      body.appendChild(card);
+    }).catch(() => { /* the register may not exist in this deployment; the banner still stands */ });
+
     // AUTHORITY OF THE FACTS THE GO/NO-GO RESTS ON. The banner above says whether diligence cleared;
     // this says whether the documents it cleared against are still current. A GO computed from a
     // superseded title report or a survey two years stale is a confident answer to the wrong

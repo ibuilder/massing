@@ -72,7 +72,7 @@ PER_FILE = {
     #: other modules and one got a field in only by appending to an existing line. That is the
     #: friction this ratchet is for, and it asked the intended question — the contract documents had
     #: a whole domain to leave with, so the number goes DOWN by 32 instead of up by one.
-    "apps/web/src/api/client.ts": 3_685,   # + cost group -> cost.ts;   # +1 = the withRoutines IMPORT, not an endpoint:   # ⑨ contracts -> contracts.ts; ⑧ 3,796; ⑦ 3,871; before ⑦ 3,967   # + ⑩ finance -> finance.ts (both extractions are in the merged file)   # ⑪ doc-QA -> docqa.ts: adding ONE method for R31-CITE-HIGHLIGHT hit 3,715 and failed here, which is this pin working; the review* cluster + its helper moved out instead, so 3,703 -> 3,690; ⑫ the BidLevelingDetail RESPONSE TYPE -> types.ts: widening it for `non_responsive` hit 3,694 and failed here, which is the pin working -- a DTO belongs in types.ts, so 3,690 -> 3,685
+    "apps/web/src/api/client.ts": 3_683,   # + cost group -> cost.ts;   # +1 = the withRoutines IMPORT, not an endpoint:   # ⑨ contracts -> contracts.ts; ⑧ 3,796; ⑦ 3,871; before ⑦ 3,967   # + ⑩ finance -> finance.ts (both extractions are in the merged file)   # ⑪ doc-QA -> docqa.ts: adding ONE method for R31-CITE-HIGHLIGHT hit 3,715 and failed here, which is this pin working; the review* cluster + its helper moved out instead, so 3,703 -> 3,690; ⑫ the BidLevelingDetail RESPONSE TYPE -> types.ts: widening it for `non_responsive` hit 3,694 and failed here, which is the pin working -- a DTO belongs in types.ts, so 3,690 -> 3,685   # ⑬ the SAME move again: adding `entitlementReviewCycles` for R22-ENTITLEMENT hit 3,706 and failed here. Both that response type AND the `diligenceReadiness` one beside it went to types.ts, so 3,685 -> 3,683 -- the pin bought a SECOND DTO out of the file rather than merely admitting the first
     #: R39-DECOMP-VIEWER. Pinned at its CURRENT size before any extraction, deliberately.
     #:
     #: `app.ts` had no per-file entry, so it lived under the 5,200 global — which it also *set*, being
@@ -106,7 +106,7 @@ PER_FILE = {
     #: two lines of WIRING for a new button, and wiring is what this file is for. The alternative was
     #: to push DOM construction into `sheetSpecs.ts`, whose freedom from the DOM is exactly why its
     #: eleven tests need no browser — that would be trading a real property for a number.
-    "apps/web/src/viewer/app.ts": 3_444,   # R36 Specs mode +15; net -273 across 917-920
+    "apps/web/src/viewer/app.ts": 3_311,   # R36 Specs mode +15; net -273 across 917-920; ⑦ drawings & sheets (142) -> tools/drawingsSection.ts, and the whole sheetSpecs import left app.ts with it
     # Pinned at its EXACT measured size, not above it. qaSection.ts became the file every reach fix
     # lands in and reached 1,373 lines while unpinned - the same accumulation app.ts and client.ts
     # already have entries for. Pinned before it needs splitting rather than after: a ratchet added
