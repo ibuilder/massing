@@ -4,6 +4,32 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.979 (2026-08-17) — the filename was the whole defect
+
+**`LICENSE-NOTES.md` → `THIRD-PARTY-NOTICES.md`.** GitHub's licence classifier globs `LICENSE*`,
+`LICENCE*` and `COPYING*` at the repository root and tries to identify every hit. A *notes* file
+sitting beside the real licence is therefore not a neighbouring document — it is a **second licence
+declaration that fails identification**, and the sidebar degrades from "MIT" to
+**"MIT, Unknown licenses found"**.
+
+That string is not cosmetic. Directory listings and awesome-lists assert a licence and link back
+here, so the repository has to agree with them, and "Unknown licenses found" is exactly the claim
+that makes a reviewer hesitate. **Nothing in the file's contents was ever wrong — the filename was
+the entire defect**, which is also why no gate about doc *substance* could have caught it: every
+existing check asked whether the document said enough, and none asked what its name made GitHub
+believe.
+
+**So there is now a gate, and it checks the shape rather than the one name that failed.**
+`test_doc_substance.py` asserts that exactly one root file matches the licence glob. A well-meant
+`LICENSE-THIRD-PARTY.md` or `LICENSES.md` fails it too. Mutation-checked by restoring the old
+filename, which turns the check red with the reason.
+
+Four live references followed the rename (README, `docs/deploy.md`, and the two gates that name the
+file by string — `docsPublished.test.ts` and `test_doc_substance.py`). Three historical mentions in
+`roadmap-completed.md` and the internal archive were left in place but demoted from backticks to
+plain quotes, per this repo's own rule that **backticks are reserved for files that exist**: those
+records describe what was true then, and a backticked dead name reads as a live citation.
+
 ## v0.3.978 (2026-08-17) — whose court did the permit sit in
 
 **R22-ENTITLEMENT ③.** A permit that took seven months prompts exactly one question, and it is never

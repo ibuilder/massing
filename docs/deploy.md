@@ -248,5 +248,5 @@ or front it with auth at the proxy.)
 web-ifc WASM + the Fragments worker are bundled into the web image; tiles serve from your own
 MinIO. No external CDN — the viewer runs fully offline.
 
-## Licensing — see ../LICENSE-NOTES.md
+## Licensing — see ../THIRD-PARTY-NOTICES.md
 Bonsai/Blender GPL (separate process), IfcOpenShell LGPL, That Open MIT-style.

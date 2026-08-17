@@ -67,7 +67,7 @@ SUBSTANCE: dict[str, dict[str, object]] = {
     # today: 5,887 / 9 — small on purpose, so the floor is proportionally close
     "CLAUDE.md": {"min_bytes": 3_500, "min_headings": 6},
     # today: 1,423 / 1 — the smallest listed artefact; it names our third-party licence obligations
-    "LICENSE-NOTES.md": {"min_bytes": 900, "min_headings": 1},
+    "THIRD-PARTY-NOTICES.md": {"min_bytes": 900, "min_headings": 1},
     # today: 351,011 / 146 — the historical record; deliberately NOT citation-gated, so nothing else
     # would notice it emptying
     "docs/roadmap-completed.md": {"min_bytes": 150_000, "min_headings": 60},
@@ -135,6 +135,36 @@ check(
     "no cited artefact has been reduced to a stub",
     not thin,
     "; ".join(thin) or f"all {len(SUBSTANCE)} carry content",
+)
+
+
+# ---------------------------------------------------------------------------------------------
+# ONLY ONE FILE AT THE REPO ROOT MAY LOOK LIKE A LICENCE.
+#
+# GitHub's licence classifier globs `LICENSE*` / `LICENCE*` / `COPYING*` at the repository root and
+# tries to identify each hit. A *notes* file sitting beside the real one is therefore not a
+# neighbouring document -- it is a **second licence declaration that fails identification**, and the
+# sidebar degrades from "MIT" to "MIT, Unknown licenses found".
+#
+# That string is not cosmetic. Directory listings and awesome-lists assert a licence and link back
+# here; the repo has to agree with them, and "Unknown licenses found" is precisely the claim that
+# makes a reviewer hesitate. This shipped for months as `LICENSE-NOTES.md` and was renamed to
+# `THIRD-PARTY-NOTICES.md` on 2026-08-17. Nothing in the contents was ever wrong -- **the filename
+# was the entire defect**, which is why no gate about doc *substance* could have seen it.
+#
+# The check is on the SHAPE, not on the one name that failed: any new root file matching the glob
+# fails this, including a well-meant `LICENSE-THIRD-PARTY.md` or `LICENSES.md`.
+LICENCE_GLOBS = ("LICENSE", "LICENCE", "COPYING")
+root_licence_like = sorted(
+    n for n in os.listdir(ROOT)
+    if os.path.isfile(os.path.join(ROOT, n)) and n.upper().startswith(LICENCE_GLOBS)
+)
+check(
+    "exactly one root file matches GitHub's licence glob, so the sidebar can read a clean 'MIT'",
+    root_licence_like == ["LICENSE"],
+    f"{root_licence_like} -- anything beyond ['LICENSE'] is classified as a SECOND licence and "
+    "fails identification, degrading the sidebar to 'MIT, Unknown licenses found'. Rename it so it "
+    "does not start with LICENSE/LICENCE/COPYING (THIRD-PARTY-NOTICES.md is the precedent).",
 )
 
 print(

@@ -379,7 +379,13 @@ API smoke test, and Python compile all green.
 
 Open stack (That Open MIT-style, IfcOpenShell LGPL). The Blender + Bonsai desktop editor is
 **GPL** — kept a separate process you *use*, not linked in. Optional Autodesk APS RVT→IFC is
-paid/flagged. See [LICENSE-NOTES.md](LICENSE-NOTES.md).
+paid/flagged. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+> Renamed from "LICENSE-NOTES.md" on 2026-08-17. GitHub's licence classifier globs `LICENSE*` at
+> the repo root, so a *notes* file sitting beside `LICENSE` was read as a **second, unrecognised
+> licence** — the sidebar said "MIT, Unknown licenses found", which is exactly the claim a
+> downstream listing has to trust. The filename was the whole defect; the contents were always
+> correct.
 
 ## Author
 

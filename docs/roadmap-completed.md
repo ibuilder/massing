@@ -4571,7 +4571,7 @@ while the suite ran 112 commits behind; and a lockfile copied from that same sta
 
   Covered: `docs/roadmap.md` (226 KB / 61 headings) · `docs/roadmap-directions.md` ·
   `docs/roadmap-completed.md` — deliberately **not** citation-gated, so nothing else would notice it
-  emptying · `README.md` · `CLAUDE.md` · `LICENSE-NOTES.md` ·
+  emptying · `README.md` · `CLAUDE.md` · "LICENSE-NOTES.md" ·
   `services/data/families/external/manifest.json` (the family shelf: 57 `packs`) ·
   `apps/web/src/demo/demoData.json` (1,249 endpoint keys).
 
@@ -4605,7 +4605,7 @@ while the suite ran 112 commits behind; and a lockfile copied from that same sta
   CI job, because that is the job that runs `npm ci`; in the API gate `node_modules` does not exist
   and the scan would have passed by finding nothing.
 
-  **It found the defect in our own docs.** `LICENSE-NOTES.md` listed *"That Open Engine
+  **It found the defect in our own docs.** "LICENSE-NOTES.md" listed *"That Open Engine
   (`@thatopen/*`, web-ifc) | MIT-style | Permissive"*. The `@thatopen/*` packages are MIT; **`web-ifc`
   is MPL-2.0** — weak, file-level copyleft with a real obligation attached to modifying it. Corrected,
   and the table now says it is checked rather than merely written.
