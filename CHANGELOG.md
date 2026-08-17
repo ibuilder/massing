@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.976 (2026-08-17) — one PPC rule for answers too: the leg fills itself, and it was one engine
+
+v0.3.975 gave the ANSWERS leg somewhere to live. It stayed empty on every real project, because the
+only thing that produces a cited answer never filed one — `admissible` was reachable in principle and
+unreachable in practice, which is a quieter version of the same defect.
+
+**It was ONE engine, not three.** The roadmap said `decision_gate`, `persona_answer` and `rfi_qa`
+answer. Reading them says otherwise: `decision_gate.evaluate` *consumes* a cited answer as evidence,
+`persona_answer.shape` *re-renders* one for a reader. Only `rfi_qa` calls `cited_answer.build`.
+**Wiring all three would have filed one answer three times under three engine names — and a provenance
+report is a count, so that is worse than not filing at all.**
+
+`provenance_report.record_answer` files; `rfi_qa.ask` calls it with the `db` and `pid` it already
+holds, so no signature changed. **Filing never raises and never blocks answering:** a question
+answered correctly and unfiled beats one that filed and returned nothing, so failures ride on the
+response as `recorded: false` with a *composed* reason — `str(exc)` on a response path is the v0.3.962
+defect. An answer with **no** citations is still filed, because that is precisely what the report
+exists to name; dropping it would improve every provenance report by hiding the answers most worth
+looking at.
+
+**The round trip is the assertion.** `test_answers_leg_roundtrip.py` asks and then counts it in the
+report, because both halves have their own tests and neither can see the seam between them. It also
+asserts the population in both directions — exactly one module builds a cited answer, exactly one
+calls `record_answer`. If that ever names two, the leg double-counts and every report reads better
+than the project is.
+
+**Two seam defects it caught, both invisible to either side alone.** `create_record` reads its field
+map out of `body["data"]`; passing it flat inserts a record with every field empty and does not raise
+(mutation-checked, 2 named FAILs). And `cited_answer` emits `guid` for an IFC citation and `rule_id`
+for a rule where the register declares `document_id` — a module `table` field keeps the columns it
+knows and **drops the rest**, so an unmapped key stores a citation with nothing to open.
+
+**And one in the test itself, worth recording because it nearly shipped.** It set `AEC_DB_URL` where
+the real variable is `DATABASE_URL`, so it wrote to the shared `./aec.db` while claiming isolation.
+Every assertion passed. A UNIQUE-constraint collision on the *second* run is what gave it away — a
+first green run proves nothing about isolation.
+
 ## v0.3.975 (2026-08-16) — the answers leg gets somewhere to live, and `admissible` becomes reachable
 
 `R22-PROVENANCE`'s last leg. `provenance_report` reported ANSWERS as `not_captured` — not *"you have

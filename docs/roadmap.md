@@ -1333,9 +1333,34 @@ stakes we are missing.
   project report, so it is asserted where it still can be reached — with the register absent — because
   a status nothing can produce is dead code that no test would miss.
 
-  *Not done, and named rather than implied:* `decision_gate`, `persona_answer` and `rfi_qa` do not yet
-  auto-record what they answer. The register is written through the generic register surface; wiring
-  the three engines to record automatically is the next slice.
+  **WIRED v0.3.976 — and it was ONE engine, not three.** The note below said `decision_gate`,
+  `persona_answer` and `rfi_qa` should auto-record. Reading them says otherwise: `decision_gate.evaluate`
+  *consumes* a cited answer as evidence and `persona_answer.shape` *re-renders* one for a reader. Only
+  `rfi_qa` calls `cited_answer.build`. **Wiring all three would have filed one answer three times under
+  three engine names — and a provenance report is a count, so that is worse than not filing at all.**
+
+  `provenance_report.record_answer` files; `rfi_qa.ask` calls it with the `db` and `pid` it already
+  holds, so no signature changed. Filing never raises and never blocks answering: a question answered
+  correctly and unfiled is a better outcome than one that filed and returned nothing, so every failure
+  rides on the response as `recorded: false` with a **composed** reason (the v0.3.962 rule — `str(exc)`
+  on a response path is what CodeQL flags). An answer with **no** citations is still filed, because
+  that is exactly what the report exists to name.
+
+  `services/api/test_answers_leg_roundtrip.py` asserts the **round trip** — ask, then count it in the
+  report — because both halves have their own tests and neither can see the seam between them. It also
+  asserts the population in both directions: exactly one module builds a cited answer, and exactly one
+  calls `record_answer`. If that ever names two, the leg double-counts and every report reads better
+  than the project is.
+
+  **Two seam defects the round trip caught, both invisible to either side alone.** `create_record`
+  reads its field map out of `body["data"]`; passing it flat inserts a record with every field empty
+  — mutation-checked, 2 named FAILs. And `cited_answer` emits `guid` for an IFC cite and `rule_id` for
+  a rule where the register's table declares `document_id`; a module `table` field keeps the columns
+  it knows and **drops the rest**, so an unmapped key stores a citation with nothing to open.
+
+  *And one in the test itself:* it set `AEC_DB_URL` where the real variable is `DATABASE_URL`, so it
+  wrote to the shared `./aec.db` while claiming isolation. Every assertion passed; a UNIQUE-constraint
+  collision on the second run is what gave it away.
 
   Original: agent answers were not persisted at all (`cited_answer` is an in-flight contract with no
   store behind it), and a leg reading `no_data` because nobody filled it in is a different problem

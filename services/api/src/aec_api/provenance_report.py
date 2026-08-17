@@ -166,6 +166,89 @@ def answer_rows(records: list[dict] | None) -> list[dict[str, Any]]:
     return out
 
 
+#: Every citation key the `answer_record` citations table declares. Written here rather than derived,
+#: because the WRITE side is where an unknown key silently vanishes: a module `table` field keeps the
+#: columns it knows and drops the rest, so a citation carrying `page` under some other name would
+#: store as a row with no page and read back as a citation nobody can open.
+_CITATION_COLUMNS = ("source_type", "document_id", "sheet", "page", "revision")
+
+#: `cited_answer` builds citations with keys that do not all match the register's columns — it emits
+#: `guid` for an IFC cite and `rule_id` for a rule. Both are the thing a reader would open, so both
+#: map onto `document_id` rather than being dropped. The direction is the mirror of `answer_rows`,
+#: and both live here for the reason `ESTIMATE_TO_BOE` does: a mapping split across two files is a
+#: mapping that will disagree with itself.
+_CITE_ALIASES = {"guid": "document_id", "rule_id": "document_id", "doc": "document_id",
+                 "module": "document_type", "id": "document_id"}
+
+
+def citation_row(cite: dict) -> dict[str, Any]:
+    """One `cited_answer` citation as a row of the register's citations table."""
+    row: dict[str, Any] = {}
+    for key, val in (cite or {}).items():
+        col = _CITE_ALIASES.get(key, key)
+        if col in _CITATION_COLUMNS and val not in (None, "") and col not in row:
+            row[col] = val
+    return row
+
+
+def record_answer(db, project_id: str, question: str, cited: dict | None, *,
+                  engine: str = "rfi_qa", target: str = "", asked_by: str = "",
+                  actor: str = "system") -> dict[str, Any]:
+    """Persist an answered claim so the ANSWERS leg has something to gather. Never raises.
+
+    **Recording must not be able to break answering.** A question that was answered correctly and
+    failed to file is a worse outcome than one that filed and returned nothing, so every failure here
+    is reported *as data* on the response — `recorded: False` with a composed reason — and none of it
+    reaches the caller as an exception. The reason is composed rather than relayed: `str(exc)` on a
+    response path is the v0.3.962 defect and CodeQL flags it.
+
+    An answer with **no** citations is still recorded. That is the point: `_leg_answers` counts it and
+    names it as uncited, and dropping it here would quietly improve every provenance report by hiding
+    the answers that most need looking at.
+    """
+    from . import modules as me
+    if "answer_record" not in me.TABLES:
+        return {"recorded": False,
+                "reason": "the answer_record register is not present in this deployment"}
+    claims = [c for c in ((cited or {}).get("claims") or []) if isinstance(c, dict)]
+    if not claims:
+        return {"recorded": False,
+                "reason": "the answer carried no claims, so there is nothing to file"}
+
+    rows = []
+    for claim in claims:
+        cites = [citation_row(c) for c in (claim.get("citations") or []) if isinstance(c, dict)]
+        rows.append({
+            "question": question or "",
+            "answer": str(claim.get("text") or ""),
+            "target": str(claim.get("target") or target or ""),
+            "engine": engine,
+            "asked_by": asked_by,
+            "answered_at": _today(),
+            "confidence": claim.get("confidence"),
+            "citations": [c for c in cites if c],
+        })
+
+    filed = 0
+    try:
+        for data in rows:
+            # `create_record` reads the field map out of `body["data"]` — only the POST-create shape
+            # wraps; PATCH takes the map flat. Passing it flat here does not raise, it inserts a
+            # record with every field empty, which would file an answer nobody can read.
+            me.create_record(db, "answer_record", project_id, {"data": data}, actor, None)
+            filed += 1
+    except Exception:  # noqa: BLE001 — see the docstring: a filing failure must not lose the answer
+        return {"recorded": False, "filed": filed, "of": len(rows),
+                "reason": "the answer was produced but could not be filed to the answer_record "
+                          "register; the answer itself is unaffected and is returned above"}
+    return {"recorded": True, "filed": filed, "of": len(rows)}
+
+
+def _today() -> str:
+    from datetime import date
+    return date.today().isoformat()
+
+
 def from_project(db, project_id: str, scenario_id: str | None = None) -> dict[str, Any]:
     """The admissibility verdict for a project, from what this system actually persists.
 
