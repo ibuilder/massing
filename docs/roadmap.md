@@ -624,11 +624,18 @@ ranked list serialises work with no reason to be serial. For a ranked view of th
 releases were each one item chosen in the moment: that worked, but it is not a sequence anybody else
 could pick up. Reorder it freely — the reasoning is given so disagreeing with it is cheap.
 
-| # | Sprint | Why here | Size |
-|---|---|---|---|
-| 1 | **R22-ENTITLEMENT** | The only genuinely open R22 item, and the largest hole in the product's own story: the mission is acquisition → construction and **nothing spans approval**. Everything else on this list improves what already exists. | M/L |
-| 2 | **R39-DECOMP-VIEWER ③** — split `apps/web/src/viewer/app.ts` | Not a preference: the file sits at **97% of its size ceiling** with ~136 lines of headroom, and one v0.3.861 feature spent 42 of them. The next feature that touches it reds the build, and *that* feature will be somebody's urgent work. | L |
-| 3 | **R37-TRIAGE tail** — the 12 remaining dead-code candidates | Bounded and evidence-backed (the population went 877 → 13 in v0.3.973), but each needs reading before deletion because string dispatch and `__all__` re-exports can still hide a caller. Lowest value of the three — the one candidate that mattered is already fixed. | S |
+**All three ran, v0.3.978–980.** Kept below with outcomes, because the *predictions* are the part
+worth checking: two of the three were mis-sized, and both in the same direction.
+
+| # | Sprint | Why here | Size | Outcome |
+|---|---|---|---|---|
+| 1 | **R22-ENTITLEMENT** | The only genuinely open R22 item, and the largest hole in the product's own story: the mission is acquisition → construction and **nothing spans approval**. Everything else on this list improves what already exists. | M/L | ✅ ③ shipped v0.3.978 — `review_cycle` + `approval_cycles.py`. Submittal *packages* and comment round-tripping remain. |
+| 2 | **R39-DECOMP-VIEWER ③** — split `apps/web/src/viewer/app.ts` | Not a preference: the file sits at **97% of its size ceiling** with ~136 lines of headroom, and one v0.3.861 feature spent 42 of them. The next feature that touches it reds the build, and *that* feature will be somebody's urgent work. | L | ✅ ⑦ shipped v0.3.978 (3,444 → 3,311). **The "why" was already false when written** — six slices had landed and the ceiling had moved with them. A justification copied forward without re-measuring. |
+| 3 | **R37-TRIAGE tail** — the 12 remaining dead-code candidates | Bounded and evidence-backed (the population went 877 → 13 in v0.3.973), but each needs reading before deletion because string dispatch and `__all__` re-exports can still hide a caller. Lowest value of the three — the one candidate that mattered is already fixed. | S | ✅ shipped v0.3.980, and **"lowest value" was wrong**: 8 of the 12 were live, one of them holding both PyInstaller builds together. The reading was the value, not the deletions. |
+
+**What the outcomes say about the sizing.** Both misjudgements came from trusting a written number
+instead of re-deriving it — a stale ceiling in row 2, a stale population in row 3. The sprint that
+*was* correctly sized is the one whose entry demanded a premise-check before starting.
 
 **Sprint 1 carries a warning its own entry already gives:** two name collisions sit on
 R22-ENTITLEMENT. `tiers.py` is *subscription* tiers and makes the item look shipped;
@@ -2464,6 +2471,67 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   · `map_procore_rfi` · `map_procore_submittal` · `project_with_source` · `quadrant` ·
   `register_recipe` · `scorecard_inputs` · `search_filter` · `sync_property` ·
   ~~`verify_stepup_token`~~ *(deleted v0.3.973 — see below)*.
+
+  **STEP 4 — all 12 read, v0.3.980. The list was wrong in both directions, and that is the result.**
+  The table above records the rule being corrected twice, 877 → 35 → 13, without moving a threshold.
+  The implication nobody drew is that **a rule corrected twice has not finished being wrong**. It
+  had not: reading the 12 found **eight live symbols**, missed for three distinct reasons —
+
+  | blind spot | the symbols | what deleting them would have done |
+  |---|---|---|
+  | **aliased imports** (`from .x import f as _f`, then `_f(...)`) | `search_filter` · `project_with_source` · `input_fields` | broken module search and three authoring routers |
+  | **Python files that are not `.py`** | `excluded_import_names`, read by `desktop.spec` **and** `sidecar.spec` | broken both PyInstaller builds |
+  | **methods reached through an instance** (`api.register_recipe(...)`) | `register_recipe` | broken the documented third-party **plugin API** |
+
+  The `.spec` case is the sharpest: that symbol *is* imported, by name, unaliased — the scanner
+  simply never opened the file, because its glob was `*.py`. **A population derived over the wrong
+  file set is not a conservative estimate, it is a confident wrong answer**, and no test here would
+  have gone red. (`map_procore_*` ×3 were plain misses — imported by `connectors.py`.)
+
+  **And the list was short by two.** A corrected rule surfaced `get_meta` and `validate_dir`, which
+  were never candidates. So the 13 was neither an upper nor a lower bound on anything.
+
+  **Deleted (3), each for saying something false about itself rather than merely for being uncalled:**
+  `evm.quadrant` — a second implementation of the CPI–SPI points `evm.ts` already derives, under a
+  docstring claiming "Used for the quadrant scatter on the dashboard" · `cde.scorecard_inputs` — a
+  wrapper "so the KPI engine has one import", which `bim_kpi.py` bypasses by calling the two
+  functions it wraps · `classification.discipline_names` — an option list nothing offered.
+
+  **Kept (10), with the evidence above, so no future sweep re-proposes them.**
+
+  ⚠️ **Two more were deleted and had to be put back, which is the sharpest lesson here.**
+  `module_schema.validate_dir` is called by `test_module_config.py`; `model_index.get_meta` is
+  imported and called at `routers/standards.py`. Both were reported dead by the new gate **because
+  the gate's comment-stripper was wrong**: it applied the TypeScript block-comment pattern
+  `/\*.*?\*/` to `.py` files, and `test_module_config.py` contains `modules/*/module.json` — a
+  literal `/*` and a literal `*/` — so the "comment" swallowed the file's imports. The full suite
+  caught `validate_dir`; `get_meta` was caught by re-grepping every deleted name **without a `head`
+  limit**, which is how it was missed the first time: `.venv` noise filled the first ten lines and
+  pushed the real caller off the end.
+
+  **Over-stripping is not the safe direction.** A false death in a dead-code gate is an instruction
+  to delete working code. Stripping is now per-language, and the incident is written into the gate
+  beside the patterns.
+
+  **The rule now lives in `services/api/test_dead_code_population.py` as a ratchet at zero** — a new
+  unreachable public function fails at the commit that adds it, instead of accumulating until
+  somebody re-derives a population and gets it wrong a fourth time. Two things are worth knowing
+  before trusting it:
+
+  - **It had to be corrected FOUR times itself**, which is the lesson repeating one level down, and
+    the last three each survived the fix for the one before. (1) `ast.walk` counted nested closures
+    and discarded same-file callers → 69 flagged. (2) Reference matching counted **prose**, so it
+    passed with zero and could not go red at all. (3) The **TypeScript** block-comment regex ran on
+    `.py` files, and `modules/*/module.json` holds a literal `/*` and `*/` → it ate the imports and
+    `validate_dir` was deleted. (4) `"""…"""` pairing shifts when an earlier `#`-strip removes a
+    triple quote, swallowing code to end-of-file → `get_meta` was deleted. Python is parsed with
+    `ast` now; regex stripping is `.ts`-only. **Two conclusions are easy to get backwards:
+    over-stripping is not the safe direction, and changing how references are gathered changes what
+    must be discounted** — the `def`-line subtraction was right for regex and wrong for `ast`, where
+    it silently deleted real same-file calls.
+  - **It still cannot see `quadrant`**, because a UI label string contains that word and string
+    literals must count (registries dispatch on them). That one needed a human, and the limit is
+    stated in the file rather than hidden by an exemption.
 
   **One of the 13 was worth the whole exercise.** `auth.verify_stepup_token` ran identical signature,
   expiry, action and password-fingerprint checks to `verify_stepup_claims` and returned **only the

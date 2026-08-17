@@ -319,12 +319,6 @@ def discipline_tree() -> dict[str, Any]:
         "colors": {d["code"]: discipline_color(d["code"]) for d in DISCIPLINES},
     }
 
-
-def discipline_names() -> list[str]:
-    """The canonical discipline names, in NCS sheet order — the option list for module selects."""
-    return [d["name"] for d in DISCIPLINES]
-
-
 def masterformat_divisions() -> list[dict[str, Any]]:
     """Division master: code, title, and the discipline each division rolls up to."""
     return [{"code": k, "title": v, "discipline": _DIV_TO_DISCIPLINE.get(k)}

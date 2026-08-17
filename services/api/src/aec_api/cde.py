@@ -220,12 +220,3 @@ def exchange_acceptance(db, pid: str) -> dict[str, Any]:
         "note": "ISO 19650-6 exchange acceptance: each shared/published container reviewed against "
                 "completeness, suitability, authorization and traceability before the next decision point.",
     }
-
-
-def scorecard_inputs(db, pid: str) -> dict[str, Any]:
-    """Compact CDE-discipline signals for the BIM KPI scorecard (C3). Kept here so the KPI engine
-    has one import for everything ISO 19650."""
-    s = status(db, pid)
-    r = requirements(db, pid)
-    return {"cde": s["discipline"], "requirements_core_complete": r["core_coverage"]["complete"],
-            "containers": s["total"], "requirements": r["total"]}

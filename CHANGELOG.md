@@ -4,6 +4,62 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.980 (2026-08-17) — a rule corrected twice had not finished being wrong
+
+**R37-TRIAGE step 4: all 12 dead-code candidates read.** The entry already recorded this population
+being corrected twice — **877 → 35 → 13**, without moving a single threshold, every reduction a fix
+to *what counts as a caller*. The implication nobody drew is that a rule corrected twice has not
+finished being wrong.
+
+It had not. Reading the 12 found **eight live symbols**, missed for three distinct reasons:
+
+- **aliased imports** — `search_filter`, `project_with_source` and `input_fields` all arrive as
+  `from .x import f as _f` and are then called as `_f(...)`. Deleting them breaks module search and
+  three authoring routers.
+- **Python files that are not `.py`** — `excluded_import_names` is imported by name, unaliased, by
+  `desktop.spec` *and* `sidecar.spec`. The scanner never opened them, because its glob was `*.py`.
+  **A population derived over the wrong file set is not a conservative estimate, it is a confident
+  wrong answer**, and this one sat one careless deletion away from breaking both PyInstaller builds
+  with nothing in the suite going red.
+- **methods reached through an instance** — `register_recipe` is the documented third-party plugin
+  API, called as `api.register_recipe(...)` by `plugins/example-wall-brand/plugin.py`.
+
+**And the list was short by two.** A corrected rule surfaced `get_meta` and `validate_dir`, which
+were never candidates — so 13 was neither an upper nor a lower bound on anything.
+
+**Three deleted, each for saying something false about itself rather than merely for being uncalled:**
+`evm.quadrant` (a second implementation of the CPI–SPI points `evm.ts` already derives, under a
+docstring claiming the dashboard uses it) · `cde.scorecard_inputs` (a wrapper "so the KPI engine has
+one import", which `bim_kpi.py` bypasses by calling the two functions it wraps) ·
+`classification.discipline_names`.
+
+**Two more were deleted and put back, and that is the sharpest lesson in this release.**
+`module_schema.validate_dir` is called by `test_module_config.py`; `model_index.get_meta` is imported
+and called in `routers/standards.py`. The new gate reported both dead **because its comment-stripper
+was wrong** — it applied the TypeScript block-comment pattern `/\*.*?\*/` to `.py` files, and
+`test_module_config.py` contains `modules/*/module.json`, which holds a literal `/*` and a literal
+`*/`. The "comment" swallowed the imports. **Over-stripping is not the safe direction**: a false death
+in a dead-code gate is an instruction to delete working code. Stripping is now per-language.
+
+The two were caught by different things, which matters. `validate_dir` was caught by the full suite.
+`get_meta` was caught only by re-grepping every deleted name **without a `head` limit** — the first
+check had one, `.venv` noise filled the first ten lines, and the real caller was pushed off the end.
+A truncated search is a search that can report absence it never established.
+
+**The rule is now `services/api/test_dead_code_population.py`, a ratchet at zero** — a new
+unreachable public function fails at the commit that adds it. Two admissions belong with it:
+
+- **It had to be corrected four times itself**, and the last three each survived the fix for the one
+  before. (1) `ast.walk` counted nested closures as public API and discarded same-file callers —
+  **69** flagged against the roadmap's 12. (2) Reference matching counted **prose**: it passed with
+  zero unreferenced while `evm.quadrant` was "reached" only by *"CPI–SPI quadrant"* in a TypeScript
+  comment, so the gate could not go red at all. (3) The TypeScript block-comment regex ran on `.py`.
+  (4) `"""…"""` pairing shifted and swallowed code to end-of-file. Python is parsed with `ast` now,
+  regex stripping is `.ts`-only, and each fix is mutation-checked.
+- **It still cannot see `quadrant`**, whose name collides with a UI label inside a string literal,
+  and string literals have to count because registries dispatch on them. That one needed a human.
+  The limit is written in the file rather than hidden behind an exemption.
+
 ## v0.3.979 (2026-08-17) — the filename was the whole defect
 
 **`LICENSE-NOTES.md` → `THIRD-PARTY-NOTICES.md`.** GitHub's licence classifier globs `LICENSE*`,

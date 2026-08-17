@@ -383,20 +383,6 @@ def snapshot(db: Session, pid: str, data_date: str | None = None) -> dict[str, A
             "earned_schedule": earned_schedule(db, pid, today)}
 
 
-def quadrant(snap: dict[str, Any]) -> dict[str, Any]:
-    """Position the project + each control account on the CPI–SPI plane (the EVM "bullseye"): the
-    four quadrants are on/over budget × ahead/behind schedule, split at (1.0, 1.0). Built from an
-    existing snapshot — no extra query. Used for the quadrant scatter on the dashboard."""
-    t = snap["totals"]
-    points: list[dict[str, Any]] = []
-    if t.get("spi") is not None and t.get("cpi") is not None:
-        points.append({"label": "Project", "spi": t["spi"], "cpi": t["cpi"], "kind": "project"})
-    for ca in snap.get("control_accounts", []):
-        if ca.get("cpi") is not None and ca.get("spi") is not None:
-            points.append({"label": ca["cost_code"], "spi": ca["spi"], "cpi": ca["cpi"], "kind": "ca"})
-    return {"points": points, "center": 1.0,
-            "note": "CPI (cost, y) vs SPI (schedule, x); split at 1.0. Upper-right = under budget + "
-                    "ahead of schedule; lower-left = over budget + behind."}
 
 
 def capture_snapshot(db: Session, pid: str, actor: str, party: str | None = None,

@@ -72,6 +72,7 @@ TESTS = ["test_provenance_report", "test_provenance_estimate_leg", "test_answers
          "test_cde", "test_openbim_quality", "test_bim_kpi", "test_mcp_standards", "test_twin",
          "test_procurement_gate", "test_sheet_extract", "test_program", "test_pull_plan",
          "test_approval_cycles",
+         "test_dead_code_population",
          "test_workspaces", "test_fca", "test_aps", "test_resilience", "test_pull_realtime", "test_disciplines",
          "test_lod", "test_naming", "test_design_engine", "test_mep", "test_resource_loading",
          "test_envelope", "test_model_query", "test_field_ai", "test_deferred",
