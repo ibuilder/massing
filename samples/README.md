@@ -26,8 +26,29 @@ Point the library elsewhere with `AEC_SAMPLES_DIR`.
 
 | Container | Elements | What it demonstrates |
 |---|---|---|
-| `riverside_school_structural.mass` | **1551** | A real structural frame — 619 reinforcing bars, 375 beams, 299 slabs, 203 columns, 15 assemblies, across 5 storeys. IFC4, from the openly-published That Open school model. This is the one to open first: it is a building an engineer would recognise, not a demo shape. |
+| `riverside_school_structural.mass` | **1551** | A real structural frame — 619 reinforcing bars, 375 beams, 299 slabs, 203 columns, 15 assemblies, across 5 storeys. IFC4. This is the one to open first: it is a building an engineer would recognise, not a demo shape. **Third-party geometry — see the provenance note below.** |
 | `maple_grove_house.mass` | 23 | Authored **in the browser** by the same edit recipes a user drives — 7 walls, 3 slabs, a roof, 2 doors, 4 windows, 6 openings. Small on purpose: it proves the authoring path end to end. |
+
+### Provenance of the school model
+
+This entry used to read "from the openly-published That Open school model", which understated the
+chain by one step. The IFC's own header says where it actually came from:
+
+```
+FILE_NAME('rstadvancedsampleproject.ifczip', ..., 'Autodesk Revit 24.3.10.22 (ENU)');
+```
+
+`rstadvancedsampleproject` is the **Revit Structure Advanced Sample Project** — Autodesk sample
+content shipped with Revit and governed by Autodesk's licence terms. That Open redistributed it as
+a test model; they did not author it, and redistributing something is not a grant of rights in it.
+
+That is fine for what this directory does — demonstrating the product against a model an engineer
+would recognise — but it is **not** ours to relicense, and it must not be copied into anything with
+its own licence grant. It was excluded from the public CC0 sample library
+(`MassingCloud/masslibrary`) for exactly this reason.
+
+The rule in "Conventions" below already says samples must be synthetic or genuinely open. This one
+is neither; it is third-party content used in place, and now it says so.
 
 **The school is structure only**, and the vitals strip says so rather than hiding it: no `IfcSpace`
 means Area reads `—` ("no space areas recorded") and $/ft² follows it, because a figure divided by a
