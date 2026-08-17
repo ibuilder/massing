@@ -326,6 +326,42 @@ describe("the roadmap lane table", () => {
       .toEqual([]);
   });
 
+  it("gives each item code exactly one bullet", () => {
+    // ADDED 2026-08-17, after two duplicates survived every other check in this file.
+    //
+    // The assertions above are about MEMBERSHIP — every code is in a lane, every lane names a real
+    // code. Neither can see a code that appears TWICE, because both are satisfied by the first
+    // occurrence and never look for a second. `R31-CITE-HIGHLIGHT` and `R22-PIPELINE` each had two
+    // bullets for months; the open-item count, the lane table and this file were all green.
+    //
+    // Worse, the first sweep for this found only ONE of the two, because it grepped for the code
+    // somebody had already noticed. Counting every bullet is what found the other — the same
+    // "enumerate the population, do not search for the names you know" lesson the roadmap keeps
+    // re-learning about itself.
+    //
+    // A secondary mention is legitimate and stays: a scan ring often notes an item it did not
+    // originate. It just must not be formatted as a `- **CODE**` bullet, or it becomes a second
+    // ITEM rather than a reference to one.
+    const seen = new Map<string, number>();
+    for (const m of ROADMAP.matchAll(/^- (?:◧ |✅ |⛔ )?\*\*([A-Z][A-Z0-9]+-[A-Z0-9-]+)\*\*/gm)) {
+      const code = m[1]!;
+      seen.set(code, (seen.get(code) ?? 0) + 1);
+    }
+    const dupes = [...seen.entries()].filter(([, n]) => n > 1).map(([c, n]) => `${c} x${n}`);
+    expect(
+      dupes,
+      "these codes have more than one bullet — a duplicated item is counted twice in every total "
+        + "and can be marked done in one place while staying open in the other. Make the secondary "
+        + "one a bold cross-reference rather than a bullet: "
+        + dupes.join(", "),
+    ).toEqual([]);
+
+    // The twin: the scan must be able to SEE a duplicate, or it passes on any file at all.
+    const planted = ["- **AAA-BBB** one", "- ◧ **AAA-BBB** two", ""].join(String.fromCharCode(10));
+    const plantedSeen = [...planted.matchAll(/^- (?:◧ |✅ |⛔ )?\*\*([A-Z][A-Z0-9]+-[A-Z0-9-]+)\*\*/gm)];
+    expect(plantedSeen.length, "the duplicate scan must match a planted pair").toBe(2);
+  });
+
   it("names no item that has left the roadmap", () => {
     // The other direction, and the one that rots quietly: an item ships, its entry is archived, and
     // the lane row goes on advertising it. An agent then claims work that no longer exists.

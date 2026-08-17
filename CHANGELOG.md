@@ -4,6 +4,47 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.977 (2026-08-17) — the roadmap gets its own hygiene, and a gate that can see a duplicate
+
+Docs and one test. No product code changed.
+
+**Thirteen completed entries archived** — `roadmap.md` goes 3,616 → 3,051 lines, and
+`roadmap-completed.md` takes 565. `RATCHET-SET` was **deliberately left in the live roadmap**: its own
+text argues that why a scalar ceiling was the wrong instrument is worth reading before anyone reaches
+for another one, and that argument is only useful where people are still choosing instruments.
+
+**Four shipped codes were still sitting in lane cells** — `BOE-MAPPING-DEDUP`, `R43-PLAN-DRIFT`,
+`R24-CMDK-VERBS`, `R41-BUNDLER-SPLIT`. Same shape as the `R22-AGENT-PACKS` finding a release earlier:
+finished work making a lane look busier than it is. Archiving without clearing these would have failed
+`roadmapLanes.test.ts` on its other direction — the table naming a code that no longer exists.
+
+**Two items each had two bullets**, and the gate could not see either. `roadmapLanes.test.ts` asserts
+MEMBERSHIP — every code is in a lane, every lane names a real code — and both assertions are satisfied
+by the first occurrence and never look for a second. `R31-CITE-HIGHLIGHT` and `R22-PIPELINE` had been
+double-counted in every total for months while the file stayed green.
+
+Neither duplicate was an accident: both secondary entries *say* they are cross-references (*"the live
+entry is the Band 2 one"*, *"folded in rather than deleted"*, because both halves found real and
+independent blockers). So nothing was deleted — the secondaries became bold cross-references instead
+of `- **CODE**` bullets, and the count became honest.
+
+**A uniqueness assertion now exists**, with a twin that plants a duplicate pair so the scan cannot pass
+vacuously. Mutation-checked: it names the offending code and its count.
+
+*And the first sweep for duplicates found only one of the two*, because it grepped for the code
+somebody had already noticed. Counting every bullet found the other — the same
+enumerate-the-population lesson this roadmap keeps re-learning about itself, committed while auditing
+it for exactly that.
+
+**A next-three-sprints block** was added to the NOW section, labelled a proposal rather than a
+decision, because five consecutive releases were each one item chosen in the moment. That worked and
+is not a sequence anybody else could pick up. The reasoning is written out so disagreeing with it is
+cheap.
+
+**Verification, stated precisely:** the full web suite (1,650 tests), all five roadmap/doc gates, and
+the backend gates that read these files. **The full backend suite was not re-run** — no Python source
+changed in this release, and the previous commit's 606/606 covers that tree.
+
 ## v0.3.976 (2026-08-17) — one PPC rule for answers too: the leg fills itself, and it was one engine
 
 v0.3.975 gave the ANSWERS leg somewhere to live. It stayed empty on every real project, because the
