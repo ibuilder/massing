@@ -106,7 +106,7 @@ PER_FILE = {
     #: two lines of WIRING for a new button, and wiring is what this file is for. The alternative was
     #: to push DOM construction into `sheetSpecs.ts`, whose freedom from the DOM is exactly why its
     #: eleven tests need no browser — that would be trading a real property for a number.
-    "apps/web/src/viewer/app.ts": 3_311,   # R36 Specs mode +15; net -273 across 917-920; ⑦ drawings & sheets (142) -> tools/drawingsSection.ts, and the whole sheetSpecs import left app.ts with it
+    "apps/web/src/viewer/app.ts": 3_096,   # R36 Specs mode +15; net -273 across 917-920; ⑦ drawings & sheets (142) -> tools/drawingsSection.ts, and the whole sheetSpecs import left app.ts with it; ⑨ fabrication detail (65) -> tools/fabricationSection.ts, the slice that finally threads `selectedGuid`; ⑩ MEP/fire/life-safety (169) -> tools/mepSection.ts, which threads `lastPoint` -- the last of the two named mutable captures
     # Pinned at its EXACT measured size, not above it. qaSection.ts became the file every reach fix
     # lands in and reached 1,373 lines while unpinned - the same accumulation app.ts and client.ts
     # already have entries for. Pinned before it needs splitting rather than after: a ratchet added

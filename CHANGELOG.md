@@ -4,6 +4,59 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.981 (2026-08-17) — the accessor rule meets the capture it was written for
+
+**R39-DECOMP-VIEWER ⑨ — fabrication detail leaves `app.ts`.** 65 lines to
+`viewer/tools/fabricationSection.ts`: base plate, shear tab, rebar cage, the ACI 318 cage check and
+the bar bending schedule. `app.ts` 3,311 → **3,255** — 5,160 → 3,255 across nine slices, a 37% cut.
+
+**This is the slice the accessor rule was written for.** Slice ⑦ threaded `activeStorey`; this one
+threads **`selectedGuid`**, the capture the decomposition plan named first and the one with the worst
+failure mode. Every tool in the group is selection-gated, so collapsing the accessor would not break
+them loudly — it would make all five **permanently inert behind a polite "select an element first"**,
+which is precisely the bug `qaSection.ts` shipped once, under a docstring explaining why it could not
+happen. Eight reads of `d.selectedGuid()`, no local binding, and `accessorNotCollapsed.test.ts`
+mutation-checked against the new file.
+
+**`tsc` rejected three things, and each rejection was correct** — which is the argument for a recipe
+whose gate is the compiler rather than a suite that never imports the file:
+
+- a dep signature narrowing `authorAndReload` to `Promise<void>`, which would have dropped the
+  `{applied, refused}` verdict and let a future caller read a **refused** edit as a successful one;
+- calling the accessor twice where narrowing was needed (`if (d.selectedGuid()) … d.selectedGuid()`)
+  — two calls genuinely can differ, so the compiler is asking the right question;
+- returning an **array**: under `noUncheckedIndexedAccess` a destructured element is
+  `T | undefined`, and these are appended straight into the rail. A named interface is the only shape
+  that carries non-optional types across the seam, and names survive re-ordering where indices do not.
+
+**R39-DECOMP-VIEWER ⑩ — MEP, fire protection and life safety.** 169 more lines to
+`viewer/tools/mepSection.ts`: MEP fitting, fire-protection equipment, fire-alarm device, telecom
+device, vertical riser, and the `IfcDistributionSystem` browser. `app.ts` 3,255 → **3,096** — 5,160
+→ 3,096 across ten slices, a **40% cut**.
+
+**This slice threads `lastPoint`, the last of the two named mutable captures**, and the most volatile
+state on any of these seams: `selectedGuid` changes when you pick an element, `lastPoint` is
+rewritten on *every click in the 3D view*, and five of the six tools place geometry at it. Each
+handler reads it once, at click time, into a local — which is the point-of-use read the rule asks
+for, not the build-time collapse it forbids. The distinction is the *when*, not the presence of a
+local, and the gate is mutation-checked against the new file.
+
+**It also exposed the recipe's own weak point, which is worth more than the slice.** The
+free-variable list was hand-written and found **12 of 17** captures — `askText`, `layerMgr`,
+`loadProjectModel`, `reloadModelPins` and `waitForPublish` were all missed. Worse: the one dep whose
+*type* was guessed (`layerMgr` as `{ rebuild(): void }`) compiled fine until a call site reached for
+`isolateGuids`. **Guessing a dep's type is the same error as guessing its name.**
+
+The fix is procedural, and it is now how these slices get done: write the module first, run `tsc`
+against it *unwired*, and thread exactly what the compiler reports missing. A compiler is a complete
+enumerator; a hand-written list never is. Checking before the splice also keeps every error
+attributable to the new file instead of mixed into `app.ts`.
+
+`tsc` additionally rejected narrowing `loadProjectModel` to `Promise<void>` — the real return is
+`Promise<boolean>`, and that boolean is whether the re-tessellation *succeeded*. Same defect class as
+the `authorAndReload` narrowing caught in ⑨: a dep type that quietly drops a verdict lets a caller
+read failure as success.
+
 ## v0.3.980 (2026-08-17) — a rule corrected twice had not finished being wrong
 
 **R37-TRIAGE step 4: all 12 dead-code candidates read.** The entry already recorded this population

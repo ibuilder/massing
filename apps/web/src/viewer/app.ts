@@ -21,6 +21,8 @@ import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
 import { DeltaStore, deltaCommitter, deltaIndicator } from "./deltaCommit";
 import { buildDrawingsSection } from "./tools/drawingsSection";
+import { buildFabricationSection } from "./tools/fabricationSection";
+import { buildMepSection } from "./tools/mepSection";
 import { makeWaitForPublish } from "./publishWait";
 import { buildElementProps, buildRawProps } from "./propsView";
 import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
@@ -2212,241 +2214,25 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         activeStorey: () => activeStorey, activeStoreyZ: () => activeStoreyZ,
       });
 
-      // W11 B6: steel connections — base plate on the selected column, shear tab on the selected beam
-      // (bare LOD-300 members → LOD-350/400 fabrication assemblies).
-      const basePlateBtn = toolBtn2("🔩 Base plate (steel column)", async () => {
-        if (!selectedGuid) { notify("select a steel column first", "error"); return; }
-        await authorAndReload("add_base_plate", { column_guid: selectedGuid, bolts: 4 }, "base plate");
+      // R39-DECOMP-VIEWER ⑨ — fabrication detail moved to `tools/fabricationSection.ts` (65 lines).
+      // `selectedGuid` crosses as an ACCESSOR. Every tool in that group is selection-gated, so a
+      // collapsed accessor would not break them loudly — it would make all five permanently inert
+      // behind a polite "select an element first", which is the shape `qaSection.ts` already shipped.
+      const fabBtns = buildFabricationSection({
+        toolBtn2, api, pid, notify, authorAndReload,
+        selectedGuid: () => selectedGuid,
       });
-      basePlateBtn.title = "Author a base plate + 4 anchor bolts under the selected steel column and group "
-        + "them into an IfcElementAssembly — the LOD 350/400 fabrication connection. GUID-stable.";
-      const shearTabBtn = toolBtn2("🔩 Shear tab (steel beam)", async () => {
-        if (!selectedGuid) { notify("select a steel beam first", "error"); return; }
-        await authorAndReload("add_shear_tab", { beam_guid: selectedGuid, bolts: 3 }, "shear tab");
-      });
-      shearTabBtn.title = "Author a shear-tab plate + bolts at the selected steel beam's end and assemble it "
-        + "with the beam — a simple beam-to-column shear connection (LOD 350/400). GUID-stable.";
-      const rebarBtn = toolBtn2("🪝 Rebar cage (concrete column)", async () => {
-        if (!selectedGuid) { notify("select a concrete column first", "error"); return; }
-        await authorAndReload("add_rebar_cage", { column_guid: selectedGuid }, "rebar cage");
-      });
-      rebarBtn.title = "Author a reinforcement cage — 4 longitudinal corner bars + stirrups (swept-disk "
-        + "IfcReinforcingBar) in the selected concrete column, assembled with it (LOD 400). GUID-stable.";
-      const cageChkBtn = toolBtn2("✓ Check cage (ACI envelope)", async () => {
-        if (!selectedGuid) { notify("select the caged concrete column first", "error"); return; }
-        try {
-          const r = await api.rebarCheckCage(pid, selectedGuid);
-          const ok = r.checked && !r.violations.length;
-          showResult("Rebar cage check", (body) => {
-            body.appendChild(resultNote(ok
-              ? `✅ cage OK — ${r.longitudinal_bars} bars · ${r.ties} ties · tie spacing within `
-                + `${r.params.tie_spacing} m (${escapeHtml(r.params.governing)})`
-              : `🔴 ${r.violations.map(escapeHtml).join(" · ")}`, ok ? "ok" : ""));
-            body.appendChild(resultNote(`Rule: ${escapeHtml(r.params.rule)} — #bars ≥ ${r.params.min_longitudinal_bars}, `
-              + `envelope ${r.params.tie_spacing} m for ${escapeHtml(r.params.bar_size)}/${escapeHtml(r.params.tie_size)}.`, ""));
-          });
-        } catch (e) { notify((e as Error).message, "error"); }
-      });
-      cageChkBtn.title = "Verify the selected column's authored cage against the ACI 318 envelope — "
-        + "longitudinal bar count and tie spacing min(16·d_bar, 48·d_tie, least dimension).";
-      const bbsBtn = toolBtn2("📋 Bar bending schedule", async () => {
-        try {
-          const r = await api.rebarBbs(pid);
-          showResult("Bar bending schedule", (body) => {
-            body.appendChild(resultNote(`<b>${r.bars}</b> bars · ${r.marks} marks · `
-              + `${r.total_length_m.toLocaleString()} m · <b>${r.total_tonnes} t</b>`
-              + (r.skipped ? ` · ${r.skipped} skipped (no swept geometry)` : ""), r.bars ? "ok" : ""));
-            if (r.rows.length) {
-              const t = document.createElement("table"); t.className = "mini-table";
-              t.style.cssText = "width:100%;font-size:11px;border-collapse:collapse";
-              t.innerHTML = `<thead><tr><th>Mark</th><th>Size</th><th>Shape</th><th>Cut (m)</th>`
-                + `<th>Count</th><th>kg/m</th><th>Total kg</th></tr></thead><tbody>`
-                + r.rows.map((x) => `<tr><td>${escapeHtml(x.mark)}</td><td>${escapeHtml(x.size || String(x.diameter_mm) + "mm")}</td>`
-                  + `<td>${escapeHtml(x.shape)}</td><td style="text-align:right">${x.cut_length_m}</td>`
-                  + `<td style="text-align:center">${x.count}</td><td style="text-align:right">${x.unit_mass_kg_m}</td>`
-                  + `<td style="text-align:right">${x.total_kg}</td></tr>`).join("") + `</tbody>`;
-              body.appendChild(t);
-              const dl = document.createElement("a"); dl.className = "file-btn"; dl.style.marginTop = "6px";
-              dl.textContent = "⬇ BBS (CSV)"; dl.href = api.rebarBbsCsvUrl(pid);
-              body.appendChild(dl);
-            } else {
-              body.appendChild(resultNote("No IfcReinforcingBar elements — author cages first (🪝).", ""));
-            }
-          });
-        } catch (e) { notify((e as Error).message, "error"); }
-      });
-      bbsBtn.title = "Group every authored IfcReinforcingBar into marks (size · shape · cut length) with "
-        + "unit mass and total tonnage — the fabricator/5D quantity, downloadable as CSV.";
+      const { basePlateBtn, shearTabBtn, rebarBtn, cageChkBtn, bbsBtn } = fabBtns;
 
-      // W11 B6: MEP fitting at the last-clicked point + a system browser.
-      const mepFittingBtn = toolBtn2("🔀 MEP fitting (elbow / tee)", async () => {
-        if (!lastPoint) { notify("click a point in the model first, then add the fitting", "error"); return; }
-        const kind = await askText("MEP fitting", { label: "Type: bend (elbow) · junction (tee) · transition", value: "bend" });
-        if (!kind) return;
-        const sys = await askText("MEP fitting", { label: "System name", value: "HVAC Supply" });
-        const pd = { bend: "BEND", elbow: "BEND", junction: "JUNCTION", tee: "JUNCTION", transition: "TRANSITION" }[kind.trim().toLowerCase()] || "BEND";
-        await authorAndReload("add_mep_fitting",
-          { ifc_class: "IfcDuctFitting", point: [lastPoint.x, -lastPoint.z], predefined: pd, system: sys?.trim() || "HVAC Supply" },
-          `MEP ${pd.toLowerCase()}`);
+      // R39-DECOMP-VIEWER ⑩ — MEP / fire / life safety moved to `tools/mepSection.ts` (169 lines).
+      // Threads `lastPoint`, the second and last mutable capture the plan names, and the most
+      // volatile state on any of these seams: it is rewritten on EVERY click in the 3D view, and
+      // five of these six tools place geometry at it.
+      const { mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn } = buildMepSection({
+        toolBtn2, api, pid, projectId, notify, container,
+        layerMgr, loadProjectModel, reloadModelPins, waitForPublish, authorAndReload,
+        lastPoint: () => lastPoint, selectedGuid: () => selectedGuid,
       });
-      mepFittingBtn.title = "Author a MEP fitting (elbow/tee/transition, with ports) at the last-clicked point "
-        + "and assign it to a distribution system — the LOD 350/400 detailing that joins loose runs. GUID-stable.";
-
-      // MEP-FP: place fire-protection equipment at the last-clicked point (onto the Fire Protection system).
-      const fireBtn = toolBtn2("🧯 Fire-protection equipment", async () => {
-        if (!lastPoint) { notify("click a point in the model first, then place the device", "error"); return; }
-        const kind = await askText("Fire protection", {
-          label: "Device: sprinkler · hose_reel · fdc (fire-dept connection) · hydrant · fire_pump", value: "sprinkler" });
-        if (!kind) return;
-        const k = kind.trim().toLowerCase().replace(/[ -]/g, "_");
-        const known = ["sprinkler", "hose_reel", "fdc", "hydrant", "fire_pump"];
-        await authorAndReload("add_fire_equipment",
-          { kind: known.includes(k) ? k : "sprinkler", point: [lastPoint.x, -lastPoint.z] },
-          `fire ${k}`);
-      });
-      fireBtn.title = "Author a fire-protection device (sprinkler head, hose reel, fire-department/siamese "
-        + "connection, hydrant, or fire pump) as the right IFC class on the Fire Protection distribution system.";
-
-      // DISC-4a: fire-alarm / life-safety device (distinct from fire protection) at the last-clicked point.
-      const faBtn = toolBtn2("🔔 Fire-alarm device", async () => {
-        if (!lastPoint) { notify("click a point in the model first, then place the device", "error"); return; }
-        const kind = await askText("Fire alarm / life safety", {
-          label: "Device: smoke_detector · heat_detector · pull_station · horn_strobe · strobe · bell · facp",
-          value: "smoke_detector" });
-        if (!kind) return;
-        const k = kind.trim().toLowerCase().replace(/[ -]/g, "_");
-        const known = ["smoke_detector", "heat_detector", "duct_detector", "pull_station", "horn_strobe", "strobe", "bell", "facp"];
-        await authorAndReload("add_fa_device",
-          { kind: known.includes(k) ? k : "smoke_detector", point: [lastPoint.x, -lastPoint.z] },
-          `fire-alarm ${k}`);
-      });
-      faBtn.title = "Author a fire-alarm / life-safety device (smoke/heat detector, manual pull station, "
-        + "horn-strobe, bell, or FACP) on the Fire Alarm system — its own discipline, apart from fire protection.";
-
-      // DISC-4a: telecom / low-voltage device at the last-clicked point.
-      const commsBtn = toolBtn2("📶 Telecom device", async () => {
-        if (!lastPoint) { notify("click a point in the model first, then place the device", "error"); return; }
-        const kind = await askText("Telecom / low-voltage", {
-          label: "Device: idf · mdf · rack · switch · wap (wireless AP) · data_outlet", value: "idf" });
-        if (!kind) return;
-        const k = kind.trim().toLowerCase().replace(/[ -]/g, "_");
-        const known = ["mdf", "idf", "rack", "switch", "wap", "data_outlet"];
-        await authorAndReload("add_comms_device",
-          { kind: known.includes(k) ? k : "idf", point: [lastPoint.x, -lastPoint.z] },
-          `telecom ${k}`);
-      });
-      commsBtn.title = "Author a telecom / low-voltage device (MDF/IDF rack, network switch, wireless access "
-        + "point, or data outlet) on the Telecommunications system (discipline T).";
-
-      // MEP-FP / MEP: a vertical riser (standpipe / stack / vent) at the last-clicked point.
-      const riserBtn = toolBtn2("⭱ Vertical riser (standpipe / stack)", async () => {
-        if (!lastPoint) { notify("click a point in the model first, then add the riser", "error"); return; }
-        const range = await askText("Vertical riser", { label: "Bottom, top elevation (m) — [E,N] is the last click", value: "0, 9" });
-        if (!range) return;
-        const parts = range.split(",").map((x) => parseFloat(x.trim()));
-        const b = parts[0] ?? NaN, t = parts[1] ?? NaN;
-        if (!isFinite(b) || !isFinite(t) || t <= b) { notify("enter bottom, top with top above bottom", "error"); return; }
-        await authorAndReload("add_riser",
-          { point: [lastPoint.x, -lastPoint.z], bottom_z: b, top_z: t, size: 0.1, system: "Fire Protection", discipline: "fire" },
-          "riser");
-      });
-      riserBtn.title = "Author a vertical MEP riser (fire standpipe / plumbing stack / vent) from a bottom to "
-        + "top elevation at the last-clicked point — the vertical complement to horizontal MEP runs.";
-      let mepConnectFrom: string | null = null;   // W10-4: first element of a port-to-port connect
-      const mepSysBtn = toolBtn2("🔀 MEP systems", async () => {
-        let s, c;
-        try { [s, c] = await Promise.all([api.mepSummary(pid), api.mepConnectivity(pid)]); }
-        catch (e) { notify(`MEP failed: ${(e as Error).message}`, "error"); return; }
-        showResult("MEP systems & connectivity", (body) => {
-          // W10-4 connectivity validation
-          body.appendChild(resultNote(`<b>Connectivity</b> — ${c!.connections} port-to-port link(s) · `
-            + `${c!.ports_connected}/${c!.ports_total} ports connected (${c!.connected_pct}%) · `
-            + `<b>${c!.dangling_count}</b> floating element(s).`, c!.dangling_count ? "" : "ok"));
-          // two-step connect: pick one element, then connect it to another
-          const cw = document.createElement("div"); cw.style.cssText = "display:flex;gap:6px;margin:4px 0;flex-wrap:wrap";
-          const pick = toolBtn2(mepConnectFrom ? "① picked — select the 2nd element" : "🔗 Connect: pick first element", () => {
-            if (!selectedGuid) { notify("select an MEP element first", "error"); return; }
-            mepConnectFrom = selectedGuid; notify("first element picked — select the second, then Connect", "info");
-          });
-          const doConn = toolBtn2("🔗 Connect to second element", async () => {
-            if (!mepConnectFrom) { notify("pick the first element first", "error"); return; }
-            if (!selectedGuid || selectedGuid === mepConnectFrom) { notify("select a different second element", "error"); return; }
-            const a = mepConnectFrom, b = selectedGuid;
-            await withLoading(container, "connecting MEP ports + republishing", async () => {
-              try {
-                await api.connectMep(pid, a, b, true);
-                const state = await waitForPublish(projectId!);
-                if (state === "done") { await loadProjectModel(); notify("connected port-to-port", "success"); }
-                else notify(`connected — publish ${state}`, state === "error" ? "error" : "info");
-                mepConnectFrom = null; await reloadModelPins();
-              } catch (e) { notify(`connect failed: ${(e as Error).message}`, "error"); }
-            });
-          });
-          cw.append(pick, doConn); body.appendChild(cw);
-          if (c!.dangling.length) {
-            const iso = toolBtn2("◎ Isolate floating elements in 3D", () => { void layerMgr.isolateGuids(c!.dangling.map((d) => d.guid)); });
-            body.appendChild(iso);
-          }
-          if (!s.systems.length) { body.appendChild(resultNote("No distribution systems yet — add duct/pipe runs + fittings.", "")); return; }
-          // MEP-FP: by-discipline rollup (fire protection is a first-class discipline beside HVAC/plumbing/electrical)
-          const discIcon: Record<string, string> = { hvac: "💨", plumbing: "🚰", electrical: "⚡", fire: "🧯", comms: "📶", other: "🔀" };
-          if (s.by_discipline && Object.keys(s.by_discipline).length) {
-            const roll = Object.entries(s.by_discipline)
-              .map(([d, v]) => `${discIcon[d] || "🔀"} ${d} (${v.systems})`).join(" · ");
-            body.appendChild(resultNote(`<b>Disciplines</b> — ${roll}.`
-              + (s.has_fire_protection ? "" : " <i>No fire-protection system yet.</i>"), s.has_fire_protection ? "ok" : ""));
-            const sizeBtn = toolBtn2("📐 MEP size check (velocity)", async () => {
-              let mz;
-              try { mz = await api.mepSizing(pid); }
-              catch (e) { notify((e as Error).message, "error"); return; }
-              if (!mz.checked) { body.appendChild(resultNote("No sized MEP runs to check — author ducts/pipes with a design size + flow first.", "")); return; }
-              body.appendChild(resultNote(`<b>MEP size check</b> — ${mz.passed} pass · <b>${mz.failed} fail</b> · ${mz.info} info`
-                + ` of ${mz.checked} run(s). Limits: air ≤ ${mz.limits.duct_max_fpm} fpm · water ≤ ${mz.limits.pipe_max_fps} ft/s.`,
-                mz.failed ? "bad" : "ok"));
-              const icon = (st: string) => st === "pass" ? "✅" : st === "fail" ? "❌" : "ℹ️";
-              body.appendChild(kvTable(mz.checks.slice(0, 20).map((c) => ({
-                k: `${icon(c.status)} ${c.class.replace("Ifc", "")}${c.system ? ` · ${c.system}` : ""}`,
-                v: `${c.size_mm}mm ${c.flow != null ? `@ ${c.flow} ${c.flow_unit ?? ""}` : ""} — ${c.note}`,
-              }))));
-              const bad = mz.checks.filter((c) => c.status === "fail").map((c) => c.guid);
-              if (bad.length) body.appendChild(toolBtn2("◎ Isolate undersized runs in 3D", () => { void layerMgr.isolateGuids(bad); }));
-              body.appendChild(resultNote(mz.disclaimer, ""));
-            });
-            sizeBtn.title = "Velocity/fill size check over authored MEP (ASHRAE air, erosion-limit water) — preliminary, not a stamped design";
-            body.appendChild(sizeBtn);
-            if (s.has_fire_protection) {
-              const covBtn = toolBtn2("🧯 Sprinkler coverage (NFPA 13)", async () => {
-                let cov;
-                try { cov = await api.sprinklerCoverage(pid, "light"); }
-                catch (e) { notify((e as Error).message, "error"); return; }
-                const ok = cov.adequate;
-                body.appendChild(resultNote(`<b>Sprinkler coverage</b> (${cov.hazard} hazard) — `
-                  + `${cov.sprinkler_heads} head(s) vs <b>${cov.required_heads}</b> required for `
-                  + `${cov.protected_area_m2.toLocaleString()} m² (≤${cov.max_coverage_m2_per_head} m²/head): `
-                  + `<b>${ok == null ? "n/a" : ok ? "adequate" : `short ${cov.shortfall}`}</b>. `
-                  + `<span class="meta">${cov.citation}. ${cov.verify}</span>`,
-                  ok == null ? "" : ok ? "ok" : "bad"));
-              });
-              covBtn.title = "NFPA-13-informed head-count vs protected-area coverage pre-check (not a hydraulic design)";
-              body.appendChild(covBtn);
-            }
-          }
-          for (const sy of s.systems) {
-            const di = discIcon[sy.discipline || "other"] || "🔀";
-            body.appendChild(kvTable([
-              { k: `${di} ${sy.name}`, v: `${sy.members} elements${sy.discipline ? ` · ${sy.discipline}` : ""}`, strong: true },
-              { k: "  segments · fittings · terminals", v: `${sy.segments} · ${sy.fittings} · ${sy.terminals}` },
-              { k: "  elements with open ports", v: String(sy.elements_with_open_ports) },
-            ]));
-          }
-          if (s.unassigned.segments || s.unassigned.fittings) {
-            body.appendChild(resultNote(`⚠ Unassigned to any system: <b>${s.unassigned.segments}</b> segment(s), `
-              + `<b>${s.unassigned.fittings}</b> fitting(s).`, "bad"));
-          }
-        });
-      });
-      mepSysBtn.title = "Browse IfcDistributionSystems — per-system segment/fitting/terminal counts, a "
-        + "connectivity signal (elements with unconnected ports), and anything not yet assigned to a system.";
 
       // W11 B6: curtain wall along a line (start = last-clicked point, end from a prompt).
       const curtainBtn = toolBtn2("🪟 Curtain wall", async () => {

@@ -2116,7 +2116,9 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   REL-4).
 
   **Shipped:** ① exports (51) · ② clash/QA (851) · ③ analyse (238) · ④ authoring (91) ·
-  ⑤ project-browser panel (216) · ⑥ `loadProjectModel` (37) · ⑦ **drawings & sheets (142, v0.3.978)**.
+  ⑤ project-browser panel (216) · ⑥ `loadProjectModel` (37) · ⑦ **drawings & sheets (142, v0.3.978)** ·
+  ⑨ **fabrication detail (65)** · ⑩ **MEP / fire / life safety (169)** — both v0.3.981.
+  `app.ts` 5,160 → **3,096**, a **40% cut**.
   Each ratcheted `services/api/test_file_sizes.py` down, never reset. `services/api/test_file_sizes.py`
   carries the per-slice history; that comment, not this list, is the record.
 
@@ -2137,11 +2139,40 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   before, because the seam adds a link that can fail silently — build the button, forget to *return*
   it. It now follows all three hops (built → returned → appended) and each is mutation-checked.
 
-  **Next, and the reason it is not obvious:** the `builders` map is gone but **~950 lines still sit
-  directly in `buildToolsPanel`** above it, which is where ⑦ came from. The remaining coherent groups
-  there are fabrication detail (steel connections, rebar cage + ACI check), MEP/fire equipment
-  placement, and annotation/dimension/tag. None needs a renderer, so all three are extractable on the
-  same recipe.
+  **⑨ is the slice that finally threads `selectedGuid`**, the capture this entry named first and the
+  one with the worst failure mode. Every tool in the fabrication group is selection-gated, so a
+  collapsed accessor would not break them loudly — it would make all five permanently inert behind a
+  polite *"select an element first"*, which is exactly the shape `qaSection.ts` shipped once already.
+  Eight reads, no local binding; `accessorNotCollapsed.test.ts` mutation-checked against the new file.
+
+  **`tsc` earned its keep three times on this slice**, which is the argument for the whole recipe:
+  it rejected a dep signature that quietly narrowed `authorAndReload` to `Promise<void>` (dropping the
+  `{applied, refused}` verdict, so a future caller could read a REFUSED edit as a success); it
+  rejected the accessor being called twice where narrowing was needed; and it rejected returning an
+  **array**, because under `noUncheckedIndexedAccess` a destructured element is `T | undefined` —
+  a named interface is the only shape that carries non-optional types across the seam.
+
+  **⑩ threads `lastPoint`, the last of the two named mutable captures** — and it is the most volatile
+  state on any of these seams. `selectedGuid` changes when you pick an element; `lastPoint` is
+  rewritten on *every click in the 3D view*, and five of the six tools place geometry at it.
+
+  **⑩ is also the slice where the recipe's own weak point showed.** The free-variable list was
+  hand-written, and it found **12 of 17** captures — `askText`, `layerMgr`, `loadProjectModel`,
+  `reloadModelPins` and `waitForPublish` were all missed. Worse, the one dep whose type was *guessed*
+  (`layerMgr` as `{ rebuild(): void }`) compiled until a call site reached for `isolateGuids`.
+  **Guessing a dep's type is the same error as guessing its name.** The fix is procedural: write the
+  module first, let `tsc` enumerate the missing names, and thread what it reports — the compiler is a
+  complete enumerator and a hand-written list never is. Doing that *before* splicing also keeps the
+  errors attributable to the new file rather than mixed into `app.ts`.
+
+  `tsc` also rejected narrowing `loadProjectModel` to `Promise<void>` — the real return is
+  `Promise<boolean>`, and the boolean is *whether the re-tessellation succeeded*. Same defect class as
+  the `authorAndReload` narrowing in ⑨: a dep type that discards a verdict lets a caller read failure
+  as success.
+
+  **Next:** **~715 lines still sit directly in `buildToolsPanel`.** The remaining coherent groups are
+  envelope authoring (curtain wall, slope, mesh) and annotation/dimension/cloud/tag. Neither needs a
+  renderer, so both are extractable on the same recipe.
 
   **⚠️ The recipe as written does not apply, and this is the finding that matters more than the
   split.** It says *"the suite as the parity gate"*. **Nothing in the suite imports
