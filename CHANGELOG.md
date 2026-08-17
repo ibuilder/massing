@@ -4,6 +4,47 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.982 (2026-08-17) — where the renderer-free seam actually stops
+
+**R39-DECOMP-VIEWER ⑫ — envelope & free-form geometry.** Curtain wall, sloped wall top, and the raw
+verts/faces mesh escape hatch → `viewer/tools/envelopeSection.ts`, 75 lines. `app.ts` 3,096 →
+**3,032** — 5,160 → 3,032 across the ring, a **41% cut**.
+
+**I corrected a claim of my own in the roadmap, and the correction is the release.** One release
+earlier I wrote that the two remaining groups were renderer-free and "both extractable on the same
+recipe". That was written without checking, and half of it was false.
+
+**The annotation group is not renderer-free.** It adds and removes objects on the live
+`viewer.world.scene.three`, raycasts through `screenToGround`, and — decisively — **assigns** to
+`annotGuide` and `guideWired`, which are `let` in `app.ts`. Reading a mutable capture through an
+accessor is cheap. *Writing* one across a seam needs a setter pair, and the module would still need a
+WebGL context to test, which is the precise untestability this whole decomposition exists to escape.
+So the renderer-free seam **ends at ⑫**. What is left needs a different technique — move the scene
+state into the module and let it own its objects — and that is a design change, not a lift, so it
+belongs in its own roadmap item rather than being forced through as slice ⑬.
+
+**The check cost nothing, which is the point.** The module was written, left in the project imported
+by nothing, and typechecked. `tsc` listed `viewer`, `screenToGround`, `annotGuide`, `guideWired` and
+four more in one pass — before a line of `app.ts` had been touched and with nothing to revert. The
+same procedure then confirmed the envelope group *is* clean: six missing names, three of them plain
+imports.
+
+**Two smaller things worth writing down:**
+
+- **⑫ is two non-contiguous ranges.** The sandboxed IFC-code runner sits between the curtain wall and
+  the slope/mesh pair, and it stays in `app.ts` — a code sandbox is a different concern with a
+  different risk profile, and folding it in for one tidy cut would trade cohesion for convenience.
+  Extraction boundaries follow meaning, not line numbers.
+- **Comments move with the code they describe.** The first cut took its ranges by line number and
+  dragged in the "Advanced toggle" and "sandboxed ifcopenshell" comments while leaving the slope
+  tool's own comment behind — a module documenting features it did not contain. Same defect as the
+  docstrings that got three functions deleted in v0.3.980, and caught the same way: by reading what
+  the output actually said.
+
+**Remaining:** ~640 lines in `buildToolsPanel`. The annotation group (~120) is the renderer-coupled
+part above; the rest is the content/family library and the rail assembly itself, which is wiring —
+the thing this file is *for*.
+
 ## v0.3.981 (2026-08-17) — the accessor rule meets the capture it was written for
 
 **R39-DECOMP-VIEWER ⑨ — fabrication detail leaves `app.ts`.** 65 lines to

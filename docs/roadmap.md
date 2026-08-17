@@ -2117,8 +2117,8 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
 
   **Shipped:** ① exports (51) · ② clash/QA (851) · ③ analyse (238) · ④ authoring (91) ·
   ⑤ project-browser panel (216) · ⑥ `loadProjectModel` (37) · ⑦ **drawings & sheets (142, v0.3.978)** ·
-  ⑨ **fabrication detail (65)** · ⑩ **MEP / fire / life safety (169)** — both v0.3.981.
-  `app.ts` 5,160 → **3,096**, a **40% cut**.
+  ⑨ **fabrication detail (65)** · ⑩ **MEP / fire / life safety (169)** — both v0.3.981 ·
+  ⑫ **envelope & free-form geometry (75, v0.3.982)**. `app.ts` 5,160 → **3,032**, a **41% cut**.
   Each ratcheted `services/api/test_file_sizes.py` down, never reset. `services/api/test_file_sizes.py`
   carries the per-slice history; that comment, not this list, is the record.
 
@@ -2170,9 +2170,31 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   the `authorAndReload` narrowing in ⑨: a dep type that discards a verdict lets a caller read failure
   as success.
 
-  **Next:** **~715 lines still sit directly in `buildToolsPanel`.** The remaining coherent groups are
-  envelope authoring (curtain wall, slope, mesh) and annotation/dimension/cloud/tag. Neither needs a
-  renderer, so both are extractable on the same recipe.
+  **⑫ took the envelope group and settled where this recipe stops.** Two findings, both from
+  checking rather than assuming:
+
+  - **The claim above — "neither needs a renderer" — was wrong, and it was mine.** It was written one
+    release earlier without checking. **The annotation group is not renderer-free**: it adds and
+    removes objects on the live `viewer.world.scene.three`, raycasts via `screenToGround`, and
+    **assigns** to `annotGuide` / `guideWired`, which are `let` in `app.ts`. Reading a mutable capture
+    through an accessor is cheap; *writing* one across a seam needs a setter pair, and the module
+    would still need a WebGL context — the exact untestability these extractions exist to escape.
+    **So the renderer-free seam ends at ⑫.** What remains needs a different technique: move the scene
+    state into the module and let it own its objects, rather than reaching back through a seam. That
+    is a bigger change than a lift and should be its own item, not a slice.
+  - **Extraction boundaries follow meaning, not line numbers.** ⑫ is two *non-contiguous* ranges: the
+    sandboxed IFC-code runner sits between the curtain wall and the slope/mesh pair and stays in
+    `app.ts`, being a different concern with a different risk profile. Folding it in for one tidy cut
+    would trade cohesion for convenience. Comments move with the code they describe — the first cut
+    mismatched them and produced a module documenting an "Advanced" toggle it did not contain.
+
+  **The unwired typecheck is what made both cheap.** Writing the module, leaving it imported by
+  nothing, and running `tsc` listed `viewer`, `screenToGround`, `annotGuide`, `guideWired` and four
+  more in a single pass — before a line of `app.ts` was touched, and with nothing to revert.
+
+  **Remaining:** ~640 lines in `buildToolsPanel`, of which the annotation group (~120) is the
+  renderer-coupled part described above. The rest is the content/family library and the rail assembly
+  itself, which is wiring — the thing this file is *for*.
 
   **⚠️ The recipe as written does not apply, and this is the finding that matters more than the
   split.** It says *"the suite as the parity gate"*. **Nothing in the suite imports

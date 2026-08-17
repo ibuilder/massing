@@ -23,6 +23,7 @@ import { DeltaStore, deltaCommitter, deltaIndicator } from "./deltaCommit";
 import { buildDrawingsSection } from "./tools/drawingsSection";
 import { buildFabricationSection } from "./tools/fabricationSection";
 import { buildMepSection } from "./tools/mepSection";
+import { buildEnvelopeSection } from "./tools/envelopeSection";
 import { makeWaitForPublish } from "./publishWait";
 import { buildElementProps, buildRawProps } from "./propsView";
 import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
@@ -2234,20 +2235,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         lastPoint: () => lastPoint, selectedGuid: () => selectedGuid,
       });
 
-      // W11 B6: curtain wall along a line (start = last-clicked point, end from a prompt).
-      const curtainBtn = toolBtn2("🪟 Curtain wall", async () => {
-        const start: [number, number] = lastPoint ? [lastPoint.x, -lastPoint.z] : [0, 0];
-        const endS = await askText("Curtain wall", { label: "End point E, N (metres) — start is the last click", value: `${(start[0] + 6).toFixed(1)}, ${start[1].toFixed(1)}` });
-        if (!endS) return;
-        const ep = endS.split(",").map((v) => Number(v.trim()));
-        const grid = await askText("Curtain wall", { label: "Bays × rows (cols, rows)", value: "3, 2" });
-        const g = (grid || "3,2").split(/[,x×]/).map((v) => Math.max(1, Math.round(Number(v.trim()) || 1)));
-        await authorAndReload("add_curtain_wall",
-          { start, end: [ep[0] ?? start[0] + 6, ep[1] ?? start[1]], cols: g[0] ?? 3, rows: g[1] ?? 2 },
-          "curtain wall");
+      // R39-DECOMP-VIEWER ⑫ — envelope & free-form geometry moved to `tools/envelopeSection.ts`
+      // (75 lines, TWO non-contiguous ranges: the sandboxed IFC-code runner between them stays here,
+      // being a different concern with a different risk profile). The annotation group was tried
+      // first and REJECTED — it writes to `annotGuide`/`guideWired` and mutates the live three.js
+      // scene, so it is not renderer-free and this recipe does not fit it.
+      const { curtainBtn, slopeBtn, meshBtn } = buildEnvelopeSection({
+        toolBtn2, api, pid, projectId, notify, container,
+        loadProjectModel, reloadModelPins, waitForPublish, authorAndReload,
+        lastPoint: () => lastPoint, selectedGuid: () => selectedGuid,
       });
-      curtainBtn.title = "Author an IfcCurtainWall along a line — vertical mullions + horizontal transoms + "
-        + "glazing panels on a bays×rows grid, aggregated as one assembly (LOD 350/400). GUID-stable.";
 
       // E4 — progressive disclosure: everyday authoring + drawings stay visible; LOD-350/400 fabrication
       // and detailing tools tuck behind an "Advanced" toggle so a first-time modeler isn't overwhelmed.
@@ -2283,67 +2280,6 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       ifcCodeBtn.title = "Run a sandboxed ifcopenshell snippet against the model — the unbounded escape hatch "
         + "for authoring the recipes can't express. Disabled unless the server sets AEC_ALLOW_IFC_CODE=1.";
 
-      // B3 — sloped-top wall (parapet slope / shed / gable): rebuild the selected wall's top to slope
-      // from start_height → end_height.
-      const slopeBtn = toolBtn2("⟋ Slope wall top", () => {
-        if (!selectedGuid) { notify("select a wall first", "error"); return; }
-        const guid = selectedGuid;
-        showResult("Slope wall top", (body) => {
-          body.appendChild(resultNote("Give the selected wall a <b>sloped top</b> — the top rises from "
-            + "the start height (at the wall's start point) to the end height (parapet slope / shed / "
-            + "gable). GUID-stable, versioned (undo restores the flat top).", ""));
-          const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;margin:4px 0";
-          const sIn = document.createElement("input"); sIn.type = "number"; sIn.className = "portal-filter"; sIn.placeholder = "start height (m)"; sIn.step = "0.1"; sIn.style.cssText = "flex:1;min-width:0;font-size:12px";
-          const eIn = document.createElement("input"); eIn.type = "number"; eIn.className = "portal-filter"; eIn.placeholder = "end height (m)"; eIn.step = "0.1"; eIn.style.cssText = "flex:1;min-width:0;font-size:12px";
-          row.append(sIn, eIn); body.appendChild(row);
-          const go = toolBtn2("⟋ Apply slope + republish", async () => {
-            const sh = parseFloat(sIn.value), eh = parseFloat(eIn.value);
-            if (!(sh > 0) || !(eh > 0)) { notify("enter positive start & end heights", "error"); return; }
-            await withLoading(container, "sloping the wall top + republishing", async () => {
-              try {
-                await api.setWallSlope(pid, guid, sh, eh, true);
-                const state = await waitForPublish(projectId!);
-                if (state === "done") { await loadProjectModel(); notify("wall top sloped", "success"); }
-                else notify(`sloped — publish ${state}`, state === "error" ? "error" : "info");
-                await reloadModelPins();
-              } catch (e) { notify(`slope failed: ${(e as Error).message}`, "error"); }
-            });
-          });
-          body.appendChild(go);
-        });
-      });
-      slopeBtn.title = "Give the selected wall a sloped top (start height → end height) — parapet slope, "
-        + "shed, or gable wall. Rebuilds the Body as a trapezoidal extrusion; GUID-stable + undo-able.";
-
-      // B4 — procedural-mesh escape hatch: author an element from a raw triangle mesh (JSON verts/faces).
-      const meshBtn = toolBtn2("△ Add mesh (verts/faces JSON)", () => {
-        showResult("Add procedural mesh", (body) => {
-          body.appendChild(resultNote("Author an element from a raw triangle mesh for geometry the "
-            + "recipes can't express. Paste <code>{\"verts\":[[x,y,z]…],\"faces\":[[i,j,k]…]}</code> "
-            + "(faces are 0-based vertex indices, coords in metres). GUID-stable + undo-able.", ""));
-          const ta = document.createElement("textarea"); ta.className = "portal-filter";
-          ta.style.cssText = "width:100%;min-height:100px;font-family:monospace;font-size:12px";
-          ta.placeholder = '{"verts":[[0,0,0],[2,0,0],[2,2,0],[0,2,0],[1,1,2]],"faces":[[0,1,4],[1,2,4],[2,3,4],[3,0,4],[0,2,1],[0,3,2]]}';
-          body.appendChild(ta);
-          const go = toolBtn2("△ Add mesh + republish", async () => {
-            let parsed: { verts?: number[][]; faces?: number[][] };
-            try { parsed = JSON.parse(ta.value); } catch { notify("invalid JSON", "error"); return; }
-            if (!parsed.verts?.length || !parsed.faces?.length) { notify("need verts and faces", "error"); return; }
-            await withLoading(container, "authoring mesh + republishing", async () => {
-              try {
-                await api.addMesh(pid, parsed.verts!, parsed.faces!, "Mesh", true);
-                const state = await waitForPublish(projectId!);
-                if (state === "done") { await loadProjectModel(); notify("mesh added", "success"); }
-                else notify(`added — publish ${state}`, state === "error" ? "error" : "info");
-                await reloadModelPins();
-              } catch (e) { notify(`mesh failed: ${(e as Error).message}`, "error"); }
-            });
-          });
-          body.appendChild(go);
-        });
-      });
-      meshBtn.title = "Author an element from a raw triangle mesh (IfcTriangulatedFaceSet) — the escape "
-        + "hatch for geometry the parametric recipes can't express.";
 
       // UX-2 — interactive annotation: place a 2D text note/tag/callout as an IfcAnnotation at the last point
       const annotBtn = toolBtn2("🏷 Add note / annotation", async () => {
