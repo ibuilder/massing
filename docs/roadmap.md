@@ -2520,10 +2520,20 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   67-to-1 error bar on it. **The 13 are candidates, not corpses** — string dispatch through a
   registry and `__all__` re-exports can still hide a caller, so each needs reading before deletion.
 
-  The list: `discipline_names` · `excluded_import_names` · `input_fields` · `map_procore_change_event`
-  · `map_procore_rfi` · `map_procore_submittal` · `project_with_source` · `quadrant` ·
-  `register_recipe` · `scorecard_inputs` · `search_filter` · `sync_property` ·
-  ~~`verify_stepup_token`~~ *(deleted v0.3.973 — see below)*.
+  The list, with the deletions struck through — **a backticked symbol reads as a live one**, which is
+  the same convention this file already applies to files, and the reason `verify_stepup_token` was
+  struck rather than removed: ~~`discipline_names`~~ · `excluded_import_names` · `input_fields` ·
+  `map_procore_change_event` · `map_procore_rfi` · `map_procore_submittal` · `project_with_source` ·
+  ~~`quadrant`~~ · `register_recipe` · ~~`scorecard_inputs`~~ · `search_filter` · `sync_property` ·
+  ~~`verify_stepup_token`~~. Deleted: `verify_stepup_token` v0.3.973; the other three v0.3.980.
+
+  **Nine are left unstruck, of which eight have a real caller** — and the ninth is worth naming
+  rather than rounding away. `sync_property` has no caller: it is a deliberate refusal stub that
+  raises `NotImplementedError` and names *itself* as the place to implement the credentialed ENERGY
+  STAR exchange. It is kept because deleting it would remove the documented extension point from a
+  module whose whole contract is "never fabricate a score", not because anything calls it. (The gate
+  counts it as referenced because that error string names it — a limitation, stated rather than
+  hidden.)
 
   **STEP 4 — all 12 read, v0.3.980. The list was wrong in both directions, and that is the result.**
   The table above records the rule being corrected twice, 877 → 35 → 13, without moving a threshold.

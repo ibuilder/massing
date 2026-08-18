@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.983 (2026-08-17) — a deleted symbol in backticks still reads as a live one
+
+Docs only. An end-of-session sweep over v0.3.978–982 found one real gap and one wrong number, both
+in the R37-TRIAGE entry.
+
+**The three functions deleted in v0.3.980 were still listed in plain backticks.** The same entry
+already strikes through `verify_stepup_token` with its deletion version — the convention existed, it
+just was not applied to the newer deletions. This repo's standing rule is that **backticks are
+reserved for things that exist**, because a backticked name reads as a live citation whether or not
+anything backs it; that rule was written for *file paths* and the gate enforces it for those, but it
+holds for symbols too and nothing enforces it there. `discipline_names`, `quadrant` and
+`scorecard_inputs` are now struck through with the rest.
+
+**And the sentence summarising what was left said "eight" when the answer is nine.** Counted rather
+than recalled: twelve candidates, three deleted, **nine unstruck — of which eight have a real
+caller.** The ninth is `sync_property`, and it is worth naming instead of rounding away: it has no
+caller at all. It is a deliberate refusal stub that raises `NotImplementedError` and names *itself*
+as the place to implement the credentialed ENERGY STAR exchange, kept because deleting it would
+remove the documented extension point from a module whose entire contract is "never fabricate a
+score". The dead-code gate counts it as referenced only because that error string contains its name
+— a limitation of the rule, now stated in the entry rather than left to be rediscovered.
+
+An unattached number drifts, and this one had drifted within a day of being written.
+
 ## v0.3.982 (2026-08-17) — where the renderer-free seam actually stops
 
 **R39-DECOMP-VIEWER ⑫ — envelope & free-form geometry.** Curtain wall, sloped wall top, and the raw
