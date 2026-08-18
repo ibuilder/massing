@@ -4,13 +4,69 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.986 (2026-08-18) — a comment that explains a pin gets believed because it is specific
+
+Three review findings, all of them claims that had drifted from what they described.
+
+**A stale comment contradicted the pin it justified — and the comment was the wrong one.**
+`requirements-dev.txt` pinned `DracoPy==2.0.0` under a comment reading *"2.0.0 publishes Windows
+wheels ONLY"* and *"1.7.0 is the newest with manylinux wheels"*, while `test_gltf_compress.py` told
+readers to install 1.7.0 and the dev venv had 1.7.0. Three sources, two stories, and nothing
+comparing them.
+
+Checked against PyPI rather than reasoned about: **2.0.0 publishes 16 manylinux wheels**, alongside
+16 Windows and 15 macOS. Both comment claims are false. They were presumably true when written —
+2.0.0 shipped Windows-first — and nothing re-read them after. **The pin was right and the prose was
+stale, which is the reverse of the natural assumption**: a comment that explains a pin gets trusted
+precisely because it is specific.
+
+The hazard was real in the other direction too. If the comment *had* been right, Linux CI would have
+had no wheel, `draco_available()` would return false, and `test_gltf_compress.py` would print SKIP
+while the job stayed green — the exact silent-pass the comment was written to prevent.
+
+**Fixed so it cannot drift again:** the test's message now *reads* the pin via `_pinned_draco()`
+instead of restating it, and asserts no literal `DracoPy==x.y.z` creeps back into that file.
+Mutation-checked by restoring the old literal, which fails by name.
+
+**And a gate that flagged its own documentation was removed rather than worked around.** The first
+version also asserted the comment named only the pinned version — and immediately failed on the
+*corrected* comment, which cites 1.7.0 while recording what the stale claim used to say. A regex
+cannot separate "the version to use" from "the version this comment is about", so that check's only
+remedy is rewording the history until it goes quiet, which destroys the record. It is gone, with the
+reasoning left in place.
+
+**A release note claimed a gate covered something it does not.** The v0.3.985 entry said all four
+floor bumps went to versions the lock already pins, citing
+`test_lock_satisfies_requirements.py`. True for the three in `requirements.in`; **false for bandit**,
+which lives in `requirements-dev.txt` — outside that gate's sources — and is not in the lock at all.
+The one bump in an unchecked file was the one presented as checked. Nothing is broken (1.9.4 exists),
+but a future dev-tool bump naming a yanked version would pass every local gate and fail CI at
+`pip install -r requirements-dev.txt`. Corrected in place.
+
+**And the v0.3.984 entry backticked `requirements.txt`** — the file whose non-existence the v0.3.985
+entry reports as its headline finding, in the same document. `test_claude_md_gates.py` does not cover
+CHANGELOG.md, so nothing failed. Diagnosing an error and leaving its live instance one screen away is
+its own lesson.
+
 ## v0.3.985 (2026-08-18) — four declared floors made honest, three refused
 
 **Four Python floor bumps applied** (dependabot #289 manifold3d, #286 fastapi, #282 shapely, #284
-bandit). Each raises a `>=` floor in `requirements.in` or `requirements-dev.txt` to a version the
-lock **already pins**, so nothing about what installs changes — the declaration simply stops
-understating what the project actually requires. `test_lock_satisfies_requirements.py` confirms:
-50 floors against 110 pins.
+bandit).
+
+**Three of them are verified; the fourth is not, and this entry originally said otherwise.** The
+`requirements.in` bumps — manifold3d, fastapi, shapely — each raise a `>=` floor to a version
+`requirements.lock` already pins, so nothing about what installs changes and
+`test_lock_satisfies_requirements.py` confirms it: 50 floors against 110 pins.
+
+**bandit is the exception.** It lives in `requirements-dev.txt`, which is **not** in that gate's
+sources (`requirements.in` + `services/data/requirements.txt`), and bandit is not in the lock at
+all — dev tools are installed unpinned by `ci.yml` and again, unconstrained, by `security.yml`. So
+the one bump in an unchecked file was the one this entry presented as checked. 1.9.4 does exist and
+is installed in the dev venv, so nothing is broken; the claim was the defect, not the change.
+
+That matters beyond the wording: a future dev-tool bump naming a **yanked** version would pass every
+local gate and then fail CI at `pip install -r requirements-dev.txt`. The floor is also inert where
+bandit actually runs, since `security.yml` installs it without a constraint.
 
 **The other three are refused, and the reason is worth keeping.** #277 numpy (lock pins 2.5.1),
 #281 trimesh (4.12.2, and a major), #288 boto3 (1.43.46) all raise the floor **above** the lock.
@@ -61,7 +117,10 @@ said "eslint 10.8.0". That is a governed doc whose versions are asserted against
 its own comment records that both versions there were wrong for weeks once before. Updated.
 
 **The seven Python PRs are a different problem, and none of them are merged here.** CI installs from
-`services/api/requirements.lock` with `--require-hashes`, **not** from `requirements.txt`. Those PRs
+`services/api/requirements.lock` with `--require-hashes`, **not** from the sources it is compiled
+from. (This entry said "requirements.txt" in backticks; there is no such file — the input is
+`services/api/requirements.in`. Corrected in v0.3.986, which found the live instance of the very
+error the v0.3.985 entry below diagnoses.) Those PRs
 only raise `>=` floors, so:
 
 - **#289 manifold3d, #286 fastapi, #282 shapely, #284 bandit** — the lock already pins versions that
