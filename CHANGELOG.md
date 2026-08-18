@@ -4,6 +4,32 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.985 (2026-08-18) — four declared floors made honest, three refused
+
+**Four Python floor bumps applied** (dependabot #289 manifold3d, #286 fastapi, #282 shapely, #284
+bandit). Each raises a `>=` floor in `requirements.in` or `requirements-dev.txt` to a version the
+lock **already pins**, so nothing about what installs changes — the declaration simply stops
+understating what the project actually requires. `test_lock_satisfies_requirements.py` confirms:
+50 floors against 110 pins.
+
+**The other three are refused, and the reason is worth keeping.** #277 numpy (lock pins 2.5.1),
+#281 trimesh (4.12.2, and a major), #288 boto3 (1.43.46) all raise the floor **above** the lock.
+Merging them would red main on that same gate — mutation-tested here by simulating #281, which fails
+with the exact package, both versions and the line number. And the deeper point: **CI installs from
+`services/api/requirements.lock` with `--require-hashes`, not from the sources.** So even if the gate
+did not exist, merging them would produce a green CI run that tested the *old* versions. A floor
+bump is a claim about what is required; only a lock regeneration changes what is *used*.
+
+**Two things the mapping turned up, both from checking rather than assuming:**
+
+- `services/api/requirements.txt` **does not exist**. The source is `requirements.in`, compiled to
+  `requirements.lock`; a first pass looking for the `.txt` found nothing and would have concluded the
+  packages were undeclared.
+- **`shapely` is declared in two different files** — `services/api/requirements.in` at `>=2.0` and
+  `services/data/requirements.txt` at `>=2.1.2`. Reading the wrong one makes #282 look already
+  applied. The edit is line-anchored and asserts it matched exactly one line, so a floor like
+  `>=2.0` cannot silently match inside `>=2.0.1`.
+
 ## v0.3.984 (2026-08-18) — the dependabot bumps were incomplete, and the lock is what CI installs
 
 **Five npm dev-dependency upgrades, applied together and verified as one state:** eslint 10.8.0 →
