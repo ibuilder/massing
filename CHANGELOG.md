@@ -4,6 +4,50 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.984 (2026-08-18) — the dependabot bumps were incomplete, and the lock is what CI installs
+
+**Five npm dev-dependency upgrades, applied together and verified as one state:** eslint 10.8.0 →
+10.8.1, globals 17.7 → 17.11, happy-dom 20.8.9 → 20.11.2, typescript-eslint 8.65 → 8.67, vite
+8.1.5 → 8.2.1 (dependabot #278, #280, #283, #285, #287). They were applied in one commit rather than
+merged one by one because all five rewrite `package-lock.json` and would have conflicted pairwise.
+
+**Dependabot could not see the whole picture, and merging its PRs as-is would have changed less than
+they claimed.** The **root** workspace declares `vite`, `eslint` and `happy-dom` too. Dependabot
+only opened PRs against `apps/web`, so:
+
+- **`eslint` would have stayed on the root's 10.8.0** — hoisted, so the apps/web bump was a *no-op
+  for linting*, which is the tool the bump exists to update;
+- **`vite` would have been installed twice** — the root's exact `8.1.5` against web's exact `8.2.1`,
+  forcing a nested second copy. This repo already has a memory about a worktree silently building
+  with a different Vite; this is the same hazard from the other direction.
+
+Both roots are now aligned and all five resolve to **single hoisted copies** at the intended
+versions, confirmed by reading `node_modules` rather than by trusting the manifest.
+
+**There is also an `overrides` block pinning eslint repo-wide, which dependabot never touches.** The
+first edit here landed on *it* instead of the devDependency — the same key exists in both sections
+and a count-limited replace takes whichever comes first in the file. npm rejected it immediately
+(`EOVERRIDE: Override for eslint@10.8.0 conflicts with direct dependency`), which is the good case:
+a loud failure rather than a silent half-upgrade. Both entries now read 10.8.1 and are asserted equal.
+
+**`toolchainDocs.test.ts` then caught the third thing:** `docs/engineering/web-standards.md` still
+said "eslint 10.8.0". That is a governed doc whose versions are asserted against the manifest, and
+its own comment records that both versions there were wrong for weeks once before. Updated.
+
+**The seven Python PRs are a different problem, and none of them are merged here.** CI installs from
+`services/api/requirements.lock` with `--require-hashes`, **not** from `requirements.txt`. Those PRs
+only raise `>=` floors, so:
+
+- **#289 manifold3d, #286 fastapi, #282 shapely, #284 bandit** — the lock already pins versions that
+  satisfy the new floors. Safe, and purely a matter of making `requirements.txt` honest.
+- **#277 numpy, #281 trimesh, #288 boto3** — these raise the floor **above** what the lock pins
+  (2.5.1, 4.12.2, 1.43.46). `test_lock_satisfies_requirements.py` already guards exactly this; it was
+  mutation-tested by simulating #281 and fails with the precise message. Merging them without
+  regenerating the lock would red main — **and CI would still install the old versions, so a green
+  run would prove nothing about trimesh 5.** They need a lock regeneration, which is its own change.
+
+Web: typecheck + lint clean, 1651/1651, build ✓. Backend 608/608.
+
 ## v0.3.983 (2026-08-17) — a deleted symbol in backticks still reads as a live one
 
 Docs only. An end-of-session sweep over v0.3.978–982 found one real gap and one wrong number, both
