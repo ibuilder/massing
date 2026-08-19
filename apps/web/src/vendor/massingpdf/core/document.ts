@@ -25,6 +25,15 @@ export function workerConfigured(): boolean {
   return Boolean(pdfjs.GlobalWorkerOptions.workerSrc);
 }
 
+/**
+ * Passed to every `getDocument`. `enableScripting` defaults to true in pdf.js; that default is
+ * CVE-2026-16633 (script from a malicious PDF runs in the hosting origin). Takeoff and overlay
+ * rendering never need AcroForm scripts. The lock already installs 6.2.108 (the patched release);
+ * this flag is the defence that still holds if a future range float or a second call site forgets
+ * the version pin.
+ */
+export const PDFJS_LOAD = { cMapPacked: true, enableScripting: false as const };
+
 /** Where the bytes come from. */
 export type PdfSource =
   | File
@@ -85,7 +94,7 @@ export class PdfDocument {
     const { bytes, name } = await readSource(source, signal);
     // pdf.js may transfer (and thus detach) the buffer it is handed. Give it a private copy so
     // `this.bytes` stays intact for the export path.
-    const task = pdfjs.getDocument({ data: bytes.slice(0), cMapPacked: true });
+    const task = pdfjs.getDocument({ data: bytes.slice(0), ...PDFJS_LOAD });
     signal?.addEventListener("abort", () => void task.destroy(), { once: true });
     const doc = await task.promise;
     return new PdfDocument(doc, task, bytes, name);

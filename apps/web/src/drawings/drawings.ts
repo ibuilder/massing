@@ -353,7 +353,10 @@ export class DrawingsUI {
           const pdfjs = await import("pdfjs-dist");
           const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
           pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-          const doc = await pdfjs.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+          const doc = await pdfjs.getDocument({
+            data: new Uint8Array(await f.arrayBuffer()),
+            enableScripting: false,
+          }).promise;
           const page = await doc.getPage(1);
           const vp = page.getViewport({ scale: 2 });
           const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;

@@ -58,6 +58,7 @@ deliberately deferred. A reader should treat every claim here as a **proposal**.
 | `proforma-asset-class-scope.md` | Research, 2026-08-01: what six institutional CRE underwriting models require that our proforma cannot express. Scope + sequencing; items 1-2 shipped, 3-6 unbuilt. |
 | `sibling-repo-import-2026-08-01.md` | Evaluation + outcome, 2026-08-01: what to import from the four sibling repos. **Executed** — the four phases shipped in v0.3.811, and the "Outcome" section records that three of them changed on contact (a premise check shrank one, a measurement moved a threshold 4x, and a Fragments-writer blocker rescoped another). Read the Outcome before the Plan. |
 | `marketing-copy.md` | Messaging drafts. Reflects shipped capability only — check before reuse, copy rots faster than code. |
+| `lib-perf-sec-2026-08-19.md` | **Research + proposal, 2026-08-19.** Web/Python pins vs upstream and OSV. One actionable ship (pdf.js 6.2.108 pin + `enableScripting: false`). No new packages. |
 
 ### Design records — current, 2026-08-09
 

@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.987 (2026-08-19) — pin pdf.js to the patched build, and turn scripting off
+
+`pdfjs-dist` resolved to 6.2.108 in the lock (the CVE-2026-16633 fix) while the
+manifest still said `^6.0.227`, which is the vulnerable line. The two `getDocument`
+call sites also left `enableScripting` at the library default (`true`).
+
+Pinned to 6.2.108. Both load sites now pass `enableScripting: false` (takeoff never
+needs AcroForm scripts). Gated by `pdfjsScripting.test.ts`.
+
+The rest of a library performance/security pass is recorded in
+`docs/internal/lib-perf-sec-2026-08-19.md`: That Open 3.4.8/3.4.7, three r185, Vite
+8.2.1, FastAPI 0.141.1 / Starlette 1.3.1 / pypdf 6.15.0 are already current; no new
+packages. The authoring round-trip is still the performance work, not another mesh
+library.
+
 ## v0.3.986 (2026-08-18) — a comment that explains a pin gets believed because it is specific
 
 Three review findings, all of them claims that had drifted from what they described.
