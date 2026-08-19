@@ -121,7 +121,9 @@ PER_FILE = {
     # hand-written file in the tree and the only one of that size with no ratchet. The qaSection entry
     # above records why the timing matters: "a ratchet added at the point of pain only ratifies the
     # pain." Nothing is wrong with this file today; that is precisely when the pin is free.
-    "apps/web/src/portal/register/register.ts": 2_546,
+    # 2_546 -> 2_513: R24-ELEMENT-CARD ② pulled the model-element tie row into elementTies.ts so
+    # the four remaining card call sites had somewhere to live without raising this pin.
+    "apps/web/src/portal/register/register.ts": 2_513,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.

@@ -1434,7 +1434,7 @@ is recorded. Filed under Decisions below.
 | 03 | roles gate the UI invisibly | R24-ROLE-EXPLAIN | ✅ v0.3.685 |
 | 04 | long jobs, foreground UI | R24-JOB-TRAY | ✅ **shipped; this row was stale** — `apps/web/src/ui/jobTray.ts` is 373 lines, mounted at `apps/web/src/main.ts:2052`, 28 tests. The ❌ survived its own implementation |
 | 05 | analyses are modals → no history | R24-RUNS-INBOX | ◧ **v0.3.947** — history + run-over-run diff in `apps/web/src/ui/runs.ts` / `apps/web/src/ui/runsInbox.ts`. The premise "no runs concept" was **half wrong**: `Job` already stores params, actor, timestamps and result. Routing clash/IDS/cost/energy *through* the queue is the open half |
-| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | 🟡 `apps/web/src/ui/lifecycleStrip.ts` + `inspectorTabs.ts` built; now **two** call sites — the viewer inspector and `apps/web/src/ui/elementCard.ts`, mounted from `apps/web/src/portal/panels/traceability.ts:75`. Four surfaces still unwired |
+| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | ✅ v0.3.987 — `apps/web/src/ui/elementCard.ts` now mounts from the viewer inspector, cost traceability, RFI / estimate / owner-invoice records (`apps/web/src/portal/register/elementTies.ts`), and a COBie/asset row (`apps/web/src/portal/panels/assets.ts`) |
 | 07 | onboarding teaches the chrome | FIRST-RUN | 🟡 improved v0.3.777; still not the lot → building → deal chain |
 | 08 | persona picker only relabels | *(none)* | ⚠️ reversed on purpose — see Decisions |
 | 09 | tools panel mixes verbs with analyses | *(none)* | ✅ **v0.3.848** — `R24-TOOLS-SPLIT` cut the 1087-line `qa` section in two; Analyse is its own rail item |
@@ -1484,16 +1484,18 @@ refute one, so this goes first even though it is the least visible.
   takes this should build the beacon and flip those two, and should not expect to write a backend test.
 ### Sprint 2 — cash the moat *(the differentiation no competitor can copy)*
 
-- ◧ ⭐ **R24-ELEMENT-CARD ②** *(S — was M, was L; ◧ added 2026-08-06 — `apps/web/src/ui/elementCard.ts` declares this item and one surface already mounts it, so "nothing exists" was never true; what is open is REACH, not capability)* — the strip exists and works, **and the extraction it
-  was blocked on is DONE.** The card's frame + loader live in `apps/web/src/ui/elementCard.ts` and one
-  non-viewer surface already mounts it (`apps/web/src/portal/panels/traceability.ts:75`).
+- ✅ **R24-ELEMENT-CARD ②** *(SHIPPED v0.3.987 — was S, was M, was L)* — the strip exists and works, **and the extraction it
+  was blocked on is DONE.** The card's frame + loader live in `apps/web/src/ui/elementCard.ts`. Call
+  sites: the viewer inspector, `apps/web/src/portal/panels/traceability.ts`, RFI / estimate /
+  owner-invoice records via `apps/web/src/portal/register/elementTies.ts`, and a COBie/asset row in
+  `apps/web/src/portal/panels/assets.ts`. Seeded `asset_register` rows now keep `element_guids`.
 
   The extraction cost two import lines: `lifecycleStrip.ts` imported **one type** and nothing else — it
   was already viewer-independent and merely *filed* under `viewer/`. Another estimate that came from
   where a file sat rather than what it contained, which is why this dropped L → M → S.
 
-  Remaining is purely call sites: **RFI, estimate line, pay app, COBie row.** No component work, no
-  dependency risk — `elementCard.ts` takes a GlobalId and an API client.
+  Remaining was purely call sites: **RFI, estimate line, pay app, COBie row.** Those four now mount
+  the same card. `elementCard.ts` still takes a GlobalId and an API client.
 - ~~**R24-TRACE-UI ②**~~ *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
   **proforma emit its own derivation**: each headline figure carrying its inputs and a
   **model-derived / overridden / market-assumption** tag, terminating in a GlobalId where one exists.
@@ -2271,8 +2273,9 @@ removed. Remaining, in priority order:
   destinations whose names do not tell a user which answers their question; all three now sit together
   under `Analyse & check`, which makes the overlap visible and worth resolving rather than hiding it.
 - **UX-GANTT** *(M)* — weekly Gantt/calendar hybrid with inline % + crew coloring + a metric strip.
-- **UX-DUP-DESTINATIONS** *(S — **checked 2026-08-06 and still genuinely OPEN**; recorded so the next
-  reader does not re-check)* — all three destinations are still present and distinct in the tree:
+- ✅ **UX-DUP-DESTINATIONS** *(SHIPPED v0.3.987)* — the three Analyse destinations stay distinct and
+  now name the job in `apps/web/src/shell/destinations.ts`: Model checks · Read the model · ISO 19650
+  scorecard. Panel bars and Design home tiles read `destLabel` / `destTitle` so they cannot drift.
 - **UX-3 library depth** — thumbnails · drag-to-place · pick-host→auto-build · appendable IFC
   libraries · CC0 seed/H1. **UX-4** one-shell layout (a11y/mobile pass).
 ## 🏔 BIG-TICKET — multi-release initiatives (open ONE track; slice + reassess)

@@ -8,7 +8,7 @@ import type { PanelContext } from "./panelContext";
 import { type RegisterFilter, RegisterUI } from "./register/register";
 import { SECTIONS_BY_PERSONA, readDensity, readFavs, readRecents, readRoomOpen, setDensity, setRoomOpen, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
-import { ALL_DESTS, type Dest, stagesFor } from "../shell/destinations";
+import { ALL_DESTS, type Dest, destLabel, destTitle, stagesFor } from "../shell/destinations";
 import { FALLBACK_ROOMS, ROOM_HOME, type SpineState, destRoom, loadSpine, portalRooms, preselectedRoom, unroomedDests, visibleRooms } from "../shell/spine";
 import type { RoomDef } from "../api/types";
 // PANEL-LAZY (PERF): the ~30 secondary portal panels are DYNAMICALLY imported at first render
@@ -645,7 +645,7 @@ export class PortalUI {
   private renderModelQa() {
     const root = this.root; root.innerHTML = "";
     const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
-    root.appendChild(this.bar("✅ Model Health", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    root.appendChild(this.bar(destTitle("__modelqa__"), () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
     const intro = el("div", "meta"); intro.style.marginBottom = "10px";
     intro.innerHTML = "The model-health checks run against the loaded 3D model, so they live in "
       + "<b>Model → Tools</b>. Open the model, then run these to verify the design is coordinated and "
@@ -696,8 +696,8 @@ export class PortalUI {
       ["🧭", "Project Lifecycle", () => goDest("__lifecycle__", () => this.renderLifecycle())],
       ["📋", "IDS Requirements", () => goDest("__ids__", () => this.renderIds())],
       ["🗂", "CDE / Standards", () => goDest("__standards__", () => this.renderStandards())],
-      ["📊", "BIM KPIs", () => goDest("__bimkpi__", () => this.renderBimKpi())],
-      ["✅", "Model Health", () => goDest("__modelqa__", () => this.renderModelQa())],
+      ["📊", destLabel("__bimkpi__"), () => goDest("__bimkpi__", () => this.renderBimKpi())],
+      ["✅", destLabel("__modelqa__"), () => goDest("__modelqa__", () => this.renderModelQa())],
     ];
     const grid = el("div"); grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px";
     for (const [ic, label, on] of tiles) {

@@ -101,4 +101,15 @@ describe("the catalog itself", () => {
     expect(ALL_DESTS.filter((d) => d.goto).map((d) => d.key).sort())
       .toEqual(["__drawings__", "__uw__"]);
   });
+
+  it("names the three Analyse destinations by the job, not as synonyms", () => {
+    // UX-DUP-DESTINATIONS: "Model Health", "Model Analysis" and "BIM KPIs" sat together and
+    // answered three different questions under names that did not say which.
+    const analyse = STAGES_BY_WS.design!.find(([s]) => s === "Analyse & check")![1];
+    const byKey = Object.fromEntries(analyse.map((d) => [d.key, d.label]));
+    expect(byKey.__modelqa__).toBe("Model checks");
+    expect(byKey.__modelanalysis__).toBe("Read the model");
+    expect(byKey.__bimkpi__).toBe("ISO 19650 scorecard");
+    expect(new Set(analyse.map((d) => d.label)).size).toBe(analyse.length);
+  });
 });

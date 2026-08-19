@@ -97,9 +97,9 @@ export const STAGES_BY_WS: Record<string, [string, Dest[]][]> = {
       { key: "__spine__", icon: "🔗", label: "Discipline Spine" },
     ]],
     ["Analyse & check", [
-      { key: "__modelqa__", icon: "✅", label: "Model Health" },
-      { key: "__modelanalysis__", icon: "🔬", label: "Model Analysis" },
-      { key: "__bimkpi__", icon: "📊", label: "BIM KPIs" },
+      { key: "__modelqa__", icon: "✅", label: "Model checks" },
+      { key: "__modelanalysis__", icon: "🔬", label: "Read the model" },
+      { key: "__bimkpi__", icon: "📊", label: "ISO 19650 scorecard" },
       { key: "__designmetrics__", icon: "📐", label: "Design Metrics" },
       { key: "__spaceutil__", icon: "🪑", label: "Space Utilization" },
       { key: "__mepfittings__", icon: "🔩", label: "MEP Fittings" },
@@ -127,7 +127,7 @@ export const STAGES_BY_WS: Record<string, [string, Dest[]][]> = {
     ]],
     ["Documents & model", [
       { key: "__documents__", icon: "📁", label: "Documents" },
-      { key: "__modelanalysis__", icon: "🔬", label: "Model Analysis" },
+      { key: "__modelanalysis__", icon: "🔬", label: "Read the model" },
     ]],
   ],
 };
@@ -162,3 +162,17 @@ export const ALL_DESTS: Dest[] = (() => {
   }
   return [...seen.values()];
 })();
+
+const DEST_BY_KEY = new Map(ALL_DESTS.map((d) => [d.key, d]));
+
+/** Label from the catalog. Panels and home tiles must not restyle these, or UX-DUP-DESTINATIONS
+ *  returns as three names for the same three jobs. */
+export function destLabel(key: string): string {
+  return DEST_BY_KEY.get(key)?.label ?? key;
+}
+
+/** Icon + label, for panel bars that used to hard-code both. */
+export function destTitle(key: string): string {
+  const d = DEST_BY_KEY.get(key);
+  return d ? `${d.icon} ${d.label}` : key;
+}
