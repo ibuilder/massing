@@ -806,65 +806,21 @@ export class PortalUI {
   }
 
   /**
-   * Fetch the five pulse inputs and insert the rail, or do nothing at all.
+   * Fetch Pulse as one mapped payload, or do nothing at all.
    *
-   * Every source is asked **in parallel and independently** — `allSettled`, not `all` — because the
-   * whole point of a pulse is that it degrades. A project with no proforma still has a schedule; if
-   * one rejection could blank the rail, the panel would be least useful exactly on the messy jobs
-   * that need it most.
-   *
-   * The mapping from each engine's payload to `PulseInput` is the only place Pulse touches shapes it
-   * does not own, so it is kept narrow and optional-chained throughout: a renamed field costs a
-   * missing card, never a thrown home panel.
+   * Mapping from engine shapes to `PulseInput` lives on the server
+   * (`GET /projects/{id}/pulse`). The shell used to fan seven GETs and optional-chain
+   * the wrong field names (`score` vs `overall_score`), so the rail was empty on a
+   * live project. Fail-open: a pulse that 500s is simply absent.
    */
   private async renderPulse(pid: string, root: HTMLElement, after?: HTMLElement) {
     try {
-      const api = this.host.api as unknown as Record<string, (p: string) => Promise<unknown>>;
-      const call = async (name: string) => {
-        if (typeof api[name] !== "function") return null;
-        try { return await api[name]!(pid); } catch { return null; }
-      };
-      // `reserveStudy(pid, opts = {})` and `proformaRenovation(pid)` both fit this single-argument
-      // fan-out unchanged — checked against the signatures, not the descriptions. A required second
-      // argument would have meant breaking the `.map` or changing a signature.
-      const [model, cost, sched, work, deal, reserve, renov] = await Promise.all(
-        ["modelHealth", "costSummary", "scheduleVariance", "workQueue", "proformaLive",
-         "reserveStudy", "proformaRenovation"].map(call));
-
-      const n = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-      const g = (o: unknown, k: string): unknown => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined);
-
-      const cards = buildPulse({
-        model: model ? { score: n(g(model, "score")), issues: n(g(model, "issues")) } : null,
-        cost: cost ? { variancePct: n(g(cost, "variance_pct")) } : null,
-        schedule: sched ? { floatDays: n(g(sched, "float_days")) } : null,
-        work: work ? {
-          open: n(g(work, "count")) ?? (Array.isArray(g(work, "items")) ? (g(work, "items") as unknown[]).length : null),
-          mine: n(g(work, "mine")),
-          overdue: Array.isArray(g(work, "overdue")) ? (g(work, "overdue") as string[]).slice(0, 3) : null,
-        } : null,
-        // Both findings hang off the deal card because both are BOOLEANS with no chart to sit in.
-        // Read strictly: `=== false` and `=== true`, never truthiness. A missing field is "the engine
-        // did not answer", which must not read as "the suggestion fails" — inventing a risk line from
-        // an absent field is worse than showing none, because a false alarm here costs trust in every
-        // other line on the card.
-        deal: deal || reserve || renov ? {
-          irrPct: n(g(deal, "irr")),
-          reserveSuggestionFails: g(reserve, "suggestion_clears_horizon") === false,
-          nothingRenovated: g(renov, "nothing_renovated") === true
-            ? (typeof g(renov, "nothing_renovated_why") === "string"
-              ? g(renov, "nothing_renovated_why") as string : "no unit completed a start")
-            : null,
-        } : null,
-      });
+      const api = this.host.api;
+      if (typeof api.projectPulse !== "function") return;
+      const input = await api.projectPulse(pid);
+      const cards = buildPulse(input ?? {});
 
       const rail = pulseRailEl(cards);
-      // The home panel may have been re-rendered while this was in flight — appending into a root
-      // that is no longer on screen would leave a rail nobody can see and a duplicate on the next
-      // pass. Check before touching the DOM.
-      // After the density row and the readiness strip when those exist; otherwise the top of home.
-      // Prepend used to win the "first thing on the dashboard" slot; the readiness strip is now
-      // that slot, and Pulse sits under it rather than covering it.
       if (rail && root.isConnected) {
         if (after?.isConnected) after.after(rail);
         else root.prepend(rail);
@@ -899,7 +855,7 @@ export class PortalUI {
     // UX-READINESS-EVERYWHERE — the 8-step brief used to live only on Design → Master Builder.
     // Mount a scoped strip on every home (GC / design / developer all pass through here) so
     // "what do I do next" is the first project question, not a destination you have to know exists.
-    // Fail-open: a brief that 500s leaves this host empty.
+    // Fail-open: a brief that 500s shows "Readiness unavailable", not a blank next-action slot.
     const readyHost = el("div");
     root.append(readyHost);
     const persona = document.body.dataset.persona || localStorage.getItem("persona") || "all";

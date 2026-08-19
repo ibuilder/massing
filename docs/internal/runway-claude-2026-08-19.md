@@ -73,7 +73,7 @@ CC0 is settled on #292. The 08-10 plan still lists it as open — ignore that bu
 5. **Bake-share is JSON when on** (#296) — `diskcache.JSONDisk` in `services/data/src/aec_data/bake_shared.py`.
    Still off unless the env dir is set. Upstream still has **no published 5.6.4**; HMAC-pickle PRs
    exist (`grantjenks/python-diskcache` #361 / #364) and a mapped fork — we did not take the fork.
-6. **This PR (989/990)** — scope maps in `master_builder_scope.py`; GET+commit ratchet; **Starlette 1.6.0**.
+6. **This PR (989–991)** — scope maps; GET+commit ratchet; Starlette 1.6.0; Pulse GET; persona order.
 
 ---
 
@@ -105,11 +105,10 @@ server-composed-HTML candidate. R43-CRUD-FRAGMENTS said converting one register 
 
 Take slices that already have a seam:
 
-1. **Done in 989:** readiness scope. Next: persona-weighted *order* of pills (superintendent:
-   delivery first) as a server `keys` list — the client already renders `brief.steps` in order.
-2. **Pulse inputs** — `portal.ts` `renderPulse` fans seven GETs and maps shapes in the browser.
-   One `GET /projects/{id}/pulse` that returns `PulseInput[]` (or nulls) deletes that mapping from
-   the shell. Fail-open stays. Do not put charts in HTML yet.
+1. **Done in 989/991:** readiness scope and persona-weighted pill order (engineer on Design:
+   design → regulatory → place) as a server `keys` list. The strip renders `brief.scope.keys`.
+2. **Done in 991:** `GET /projects/{id}/pulse` returns `PulseInput`. Mapping is
+   `project_pulse.py`; the shell only calls `projectPulse`. Fail-open stays. Do not put charts in HTML yet.
 3. **Empty-register copy** — `empty.ts` already distinguishes none / filtered / failed. Curated
    hints can move to `module.json` / a server hint table so Lane B is not editing copy in TS.
 4. **Do not** server-render the 3D viewer, Draft, or sheet canvas.
@@ -164,9 +163,8 @@ These are product calls with engineering already half-done. Prefer shipping reac
 1. **One nav in the user's head.** Rooms only. Finish `UX-DUP-DESTINATIONS` — #295 renamed the three
    Analyse jobs; they are still three destinations. One Analyse home with three named tasks is the
    remaining UX, not three more engines.
-2. **Close the first gap is now on every home.** Watch fail-open: if the brief 500s, the strip
-   vanishes. A one-line "Readiness unavailable" is better than a blank, but must not break the
-   dashboard (Pulse's rule). Optional polish.
+2. **Close the first gap is now on every home.** A brief that 500s shows "Readiness unavailable"
+   (**v0.3.991**) rather than a blank. Pulse's fail-open rule still holds for the rail.
 3. **Authoring wait is the feel problem.** Optimistic local mesh + job-tray "saving…" until
    incremental fragments exist. Status bar is ~220 px — pair toast + request id.
 4. **Element card** — #295 wired four surfaces; keep going until RFI/estimate/pay-app/asset are

@@ -4,6 +4,17 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.991 (2026-08-19) — Pulse is one GET, pills follow the persona, a 500 is not a blank
+
+Home Pulse no longer fans seven client GETs and maps the wrong field names (`score` vs
+`overall_score`, a `variance_pct` the cost summary never returned). `GET /projects/{id}/pulse`
+returns `PulseInput` from `project_pulse.py`; each engine still fail-opens on its own. The
+route does **not** POST a renovation programme with an invented body.
+
+Persona-weighted pill **order** is now the server `keys` list (engineer on Design: design →
+regulatory → place). A brief that 500s shows "Readiness unavailable" instead of a blank
+strip that reads as "nothing is next".
+
 ## v0.3.990 (2026-08-19) — Starlette 1.6.0, the FileResponse Range floor
 
 `requirements.lock` pinned Starlette 1.3.1. 1.5.1/1.6.0 fix Range handling on `FileResponse` (we

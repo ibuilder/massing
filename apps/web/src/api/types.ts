@@ -827,3 +827,15 @@ export interface MasterBuilderBrief {
   step_count: number; steps: MasterBuilderStep[]; disclaimer: string; note: string;
   scope?: { workspace: string; persona: string; keys: string[] };
 }
+
+/** `GET /projects/{id}/pulse` — already mapped to what `buildPulse` consumes. */
+export interface ProjectPulse {
+  model?: { score?: number | null; issues?: number | null; blocking?: string | null } | null;
+  cost?: { variancePct?: number | null; unpricedChanges?: number | null; exposurePct?: number | null } | null;
+  schedule?: { floatDays?: number | null; atRisk?: string | null } | null;
+  work?: { open?: number | null; mine?: number | null; overdue?: string[] | null } | null;
+  deal?: {
+    irrPct?: number | null; band?: [number, number] | null; staleSince?: string | null;
+    reserveSuggestionFails?: boolean | null; nothingRenovated?: string | null;
+  } | null;
+}

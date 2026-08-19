@@ -1089,6 +1089,19 @@ def master_builder_brief(pid: str, workspace: str | None = None, persona: str | 
     return apply_scope(payload, workspace, persona)
 
 
+@router.get("/projects/{pid}/pulse")
+def project_pulse(pid: str, db: Session = Depends(get_db),
+                  user: str = Depends(require_role("viewer"))):
+    """PROJECT PULSE — five optional cards as `PulseInput`. Mapping lives here so the
+    home shell does not re-derive `score` / `variancePct` / `floatDays` from engine
+    shapes that do not use those names. Fail-open per card; 404 only if the project
+    itself is missing."""
+    from .. import project_pulse as pulse
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    return pulse.compose(db, pid, user)
+
+
 @router.get("/projects/{pid}/master-builder/brief.md")
 def master_builder_brief_md(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MASTER-BUILDER brief as a shareable Markdown document — the printable one-page project-readiness

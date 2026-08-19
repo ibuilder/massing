@@ -1512,8 +1512,9 @@ refute one, so this goes first even though it is the least visible.
   has spent a day naming, and it would have been shipped as the on-stage demo. Whoever picked up
   Sprint 2 would have started in the client and found nothing to render.
 - ✅ **R24-READINESS-HOME** *(S — **SHIPPED v0.3.988** as the UX-READINESS-EVERYWHERE strip; scope
-  server-side v0.3.989)* — see `apps/web/src/portal/panels/readinessStrip.ts` and
-  `services/api/src/aec_api/master_builder_scope.py`. Not a second protocol.
+  server-side v0.3.989; persona **order** + unavailable line + home Pulse GET v0.3.991)* — see
+  `apps/web/src/portal/panels/readinessStrip.ts`, `services/api/src/aec_api/master_builder_scope.py`,
+  and `services/api/src/aec_api/project_pulse.py`. Not a second protocol.
 - ◧ **R24-RUNS-INBOX** *(M; history half v0.3.947)* — clash, IDS, cost and energy become durable Runs
   (inputs, timestamp, author, artifact, **diff against the previous run**) with a per-project inbox.
   Most externally validated item in the ring — see the corroboration note above.
@@ -2266,7 +2267,9 @@ removed. Remaining, in priority order:
   Builder 8-step brief is no longer Design-only. `apps/web/src/portal/panels/readinessStrip.ts` mounts
   a scoped strip on every portal home (`apps/web/src/portal/portal.ts` `renderHome`); workspace ∩
   persona is applied in `services/api/src/aec_api/master_builder_scope.py` (`test_master_builder_scope.py`
-  locksteps the TS maps). Empty-intersect falls back to the workspace set; fail-open; Full brief still
+  locksteps the TS maps). Empty-intersect falls back to the workspace set; fail-open shows
+  "Readiness unavailable" rather than a blank (**v0.3.991**). Persona order is the server `keys`
+  list. Home Pulse is `GET /projects/{id}/pulse` (`project_pulse.py`). Full brief still
   `__masterbuilder__`. The eight-card panel is unchanged.
   `Model Health` (8 references), `Model Analysis` (5) and `BIM KPIs` (5) are three
   destinations whose names do not tell a user which answers their question; all three now sit together

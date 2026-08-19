@@ -33,15 +33,18 @@ def scope_step_keys(workspace: str, persona: str) -> list[str]:
     keep = STEPS_BY_PERSONA.get(persona)
     if not keep:
         return list(ws)
-    scoped = [k for k in ws if k in keep]
+    # Persona order, then workspace membership — a superintendent still sees delivery
+    # first; an engineer on Design sees design → regulatory → place, not place first.
+    # Empty intersect still falls back to the workspace set so the strip cannot vanish.
+    scoped = [k for k in keep if k in ws]
     return scoped or list(ws)
 
 
 def apply_scope(brief: dict[str, Any], workspace: str | None, persona: str | None) -> dict[str, Any]:
     """Filter `steps` for a home strip. Overall readiness_pct / step_count stay on the full 8.
 
-    Pills follow the workspace map order, not protocol number order, so Design reads
-    place → program → design → regulatory rather than jumping regulatory ahead of design.
+    Pills follow the scoped `keys` list (persona order when a persona is set,
+    otherwise workspace order), not protocol number order.
     """
     if not workspace:
         return brief

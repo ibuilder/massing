@@ -41,6 +41,8 @@ check("design/all is place/program/design/regulatory",
       scope_step_keys("design", "all") == ["place", "program", "design", "regulatory"])
 check("superintendent on construction drops feasibility",
       scope_step_keys("construction", "superintendent") == ["delivery", "risk", "handover"])
+check("engineer on design uses persona order, not place-first workspace order",
+      scope_step_keys("design", "engineer") == ["design", "regulatory", "place"])
 check("superintendent on design falls back to the workspace set, not empty",
       scope_step_keys("design", "superintendent") == ["place", "program", "design", "regulatory"])
 check("unknown workspace uses the builder set",
