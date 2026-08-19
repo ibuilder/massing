@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1004 (2026-08-19) — the field FAB no longer sits on the queue
+
+R24-FIELD-MODE ②. Slice ①'s 56 px rules lost to the FAB's inline `52×52` / `bottom:18px`, so the
+sync strip was under the camera button. Field-mode CSS now wins; the FAB sits above the strip.
+The strip announces queue changes (`aria-live="polite"`). Capture-first home is still open.
+
 ## v0.3.1003 (2026-08-19) — one mono face, including paste-from-spreadsheet
 
 R24-MONO-DATA. The last hand-rolled `ui-monospace` stack was the register paste textarea, left

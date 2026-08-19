@@ -32,9 +32,16 @@ html[data-field-mode="1"] {
 }
 
 html[data-field-mode="1"] #field-fab {
-  width: 56px;
-  height: 56px;
-  font-size: 24px;
+  /* Inline styles on the FAB set 52×52 and bottom:18px. Without !important, slice ①'s 56 px
+     never won, and the FAB sat on the sync strip. */
+  width: 56px !important;
+  height: 56px !important;
+  font-size: 24px !important;
+  bottom: 72px !important;
+}
+
+html[data-field-mode="1"] #field-mode-toggle {
+  bottom: 136px !important;
 }
 
 html[data-field-mode="1"] #field-mode-toggle,

@@ -74,6 +74,7 @@ describe("field chrome", () => {
     expect(toggle.textContent).toBe("Office");
     expect(strip.hidden).toBe(false);
     expect(strip.textContent).toBe("2 waiting to sync");
+    expect(strip.getAttribute("aria-live")).toBe("polite");
 
     strip.click();
     expect(onOpenQueue).toHaveBeenCalledTimes(1);
@@ -94,8 +95,9 @@ describe("fieldMode.css stays off the accent contract", () => {
     expect(css).not.toMatch(/(?:color|background(?:-color)?)\s*:[^;]*var\(--accent\)/);
   });
 
-  it("asks for 56 px targets on field chrome", () => {
-    expect(css).toMatch(/#field-fab[\s\S]*width:\s*56px/);
+  it("asks for 56 px targets on field chrome, and those rules beat the FAB's inline 52 px", () => {
+    expect(css).toMatch(/#field-fab[\s\S]*width:\s*56px\s*!important/);
+    expect(css).toMatch(/#field-fab[\s\S]*bottom:\s*72px\s*!important/);
     expect(css).toMatch(/min-height:\s*56px/);
   });
 });

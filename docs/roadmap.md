@@ -1440,7 +1440,7 @@ is recorded. Filed under Decisions below.
 | 09 | tools panel mixes verbs with analyses | *(none)* | ✅ **v0.3.848** — `R24-TOOLS-SPLIT` cut the 1087-line `qa` section in two; Analyse is its own rail item |
 | 10 | finance numbers have no provenance | R24-TRACE-UI | 🟡 v0.3.775 shipped trace for *cost coverage*; the proforma chain (IRR ← NOI ← rent roll ← area ← GUID) — the audit's actual demo — is not built |
 | 11 | density | R24-DENSITY | ✅ **SHIPPED v0.3.996** — three steps on registers (`DENSITY_ROW_PX`), not dashboards only |
-| 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | ◧ **v0.3.1001** — mode flag, 56 px field chrome, outdoor contrast, always-visible sync strip, dictation (`apps/web/src/field/fieldMode.ts`). Capture-first home is still open; default remains the desktop IA |
+| 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | ◧ **v0.3.1001 + v0.3.1004** — mode, 56 px (now actually applied over inline FAB styles), outdoor contrast, always-visible sync strip, dictation, strip not under the FAB. Capture-first home is still open |
 | 13 | search is scoped to modules | R24-CMDK-VERBS | ✅ **v0.3.946** — verbs, elements, reports and an assistant fallback; `apps/web/src/ui/paletteProviders.ts`. Fixed a second defect on the way: async hits were `concat`ed onto an already-grouped list, so a record landed under a **second** RECORDS heading below Modules |
 | 14 | empty states | R24-EMPTY-GUIDE | ✅ **verified done 2026-08-14** — the "24 lines, 'no project' only" reading is stale by a wide margin. `apps/web/src/ui/empty.ts` is 156 lines and R36-EMPTY-STATE shipped the hard part: a register with no rows distinguishes **none / filtered / failed**, because those send a reader to three different places and rendering them identically was the defect. Plus acronym-safe nouns ("No rfis yet" was the bug), `textContent` throughout since the name and the error body are untrusted, and `data-empty` so a test can assert WHICH kind was decided. Curated hints in `apps/web/src/ui/emptyGuide.ts` (157 lines), wired at two `register.ts` call sites, covered by `apps/web/src/ui/empty.test.ts` and `apps/web/src/ui/emptyGuide.test.ts` |
 | 15 | charts have no grammar | *(none)* | ✅ **SHIPPED v0.3.1002** — no-data, ticks/legend/currency, then series vs status (`SERIES_PALETTE` / `STATUS_*` in `apps/web/src/ui/charts.ts`) |
@@ -1543,10 +1543,11 @@ refute one, so this goes first even though it is the least visible.
 
 ### Sprint 4 — field, and the long tail
 
-- ◧ **R24-FIELD-MODE** *(L — **slice ① SHIPPED v0.3.1001**)* — a mode, not a breakpoint.
+- ◧ **R24-FIELD-MODE** *(L — **slice ① SHIPPED v0.3.1001; slice ② SHIPPED v0.3.1004**)* — a mode, not a breakpoint.
   `?field=1` / `aec-field-mode`, 56 px targets and ~7:1 on field chrome only (`apps/web/src/field/fieldMode.css`),
   always-visible sync strip, dictation when the browser has SpeechRecognition (`apps/web/src/field/dictate.ts`).
-  Capture-first home is still open. Register density is unchanged (R24-DENSITY).
+  Slice ②: field-mode CSS beats the FAB's inline 52 px / `bottom:18px` (`!important`) so the queue
+  strip is not under the camera button; strip is `aria-live="polite"`. Capture-first *home* is still open.
 - ✅ **R24-CHARTS-GRAMMAR** *(**SHIPPED v0.3.1002**)* — no-data (v0.3.783), ticks/legend/currency
   (v0.3.948), **series vs status (v0.3.1002)**. `chartColor` is `SERIES_PALETTE` (seven categorical
   slots, none of them a traffic-light hue or `--accent`). Signed magnitude, the CPI–SPI quadrant, and
