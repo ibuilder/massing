@@ -224,6 +224,8 @@ Highlights, all **built and verified** in this repo unless noted:
 - **Field/mobile capture (offline-first)** — a mobile bottom-sheet quick-capture: snap a photo →
   punchlist / safety observation / progress photo in a couple taps. Captures queue offline (photo
   included) and **auto-sync on reconnect** (queued-count badge); pairs with the PWA/Capacitor build.
+  **Field mode** (`?field=1`) enlarges those controls to 56 px, keeps the sync queue on screen, and
+  offers dictation when the browser can hear you.
 - **Turnover** — a one-click **closeout package** (`/closeout/package.zip`: as-built IFC +
   COBie/QTO/spaces + status PDF + closeout manifest), **module-log PDFs** (RFI/submittal/CO
   registers), **multi-period pay apps** (period advance + auto **lien waivers**), **COBie tabs**

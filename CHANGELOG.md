@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1001 (2026-08-19) — field mode: 56 px, the queue, and a mic that can be missing
+
+R24-FIELD-MODE ①. A stored mode (`aec-field-mode`, `?field=1`), not a breakpoint: 56 px targets
+and outdoor contrast on the capture FAB / sheet / strip only. The offline queue is always
+visible in field mode (empty and offline are sentences). Dictation on the note when the
+browser has SpeechRecognition; no engine means no mic, never a dead button. Capture-first
+home is still open. Register density is a separate control.
+
 ## v0.3.1000 (2026-08-19) — the element card opens wherever a register names a GUID
 
 R24-ELEMENT-CARD ② reach. Opening an RFI, estimate, SOV (G703 / pay-app line), or asset-register

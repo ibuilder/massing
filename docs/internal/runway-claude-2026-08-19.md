@@ -1,4 +1,4 @@
-# Runway for Claude Code — 2026-08-19, after v0.3.1000
+# Runway for Claude Code — 2026-08-19, after v0.3.1001
 
 **Grade: live handoff.** Written so the next session picks up from measured state rather than chat
 memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still is. Security
@@ -10,7 +10,7 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 ## Land order — do this first, then write code
 
 `origin/main` was **v0.3.986** when this stack started. Three PRs still claim **v0.3.987**. This
-branch is **v0.3.988–1000**.
+branch is **v0.3.988–1001**.
 
 | Order | PR | Branch | What |
 |---:|---|---|---|
@@ -18,7 +18,7 @@ branch is **v0.3.988–1000**.
 | 2 | [#292](https://github.com/ibuilder/massing/pull/292) | `cursor/upgrade-audit-plan-6e15` | CC0 in the written licence rule |
 | 3 | [#295](https://github.com/ibuilder/massing/pull/295) | `cursor/ux-debug-reach-6e15` | Empty canvas, Place ticks, Analyse names |
 | 4 | close | [#296](https://github.com/ibuilder/massing/pull/296) | Superseded by this PR (readiness + JSONDisk) |
-| 5 | this | `cursor/runway-claude-6e15` | **988–1000** (table below) |
+| 5 | this | `cursor/runway-claude-6e15` | **988–1001** (table below) |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main` (`.claude/skills/ship-release`). This agent cannot merge.
@@ -44,6 +44,7 @@ pending `main` (`.claude/skills/ship-release`). This agent cannot merge.
 | 998 | Deal room brief: returns vs band, open diligence, next protocol gate |
 | 999 | Cost / Planning / Operate room briefs. Shared `roomBriefChrome.ts`. R36 complete except Design |
 | 1000 | Element card on every tied register record (`tiedElements.ts`). R24-ELEMENT-CARD ② shipped |
+| 1001 | R24-FIELD-MODE ① — mode flag, 56 px field chrome, always-visible sync strip, dictation |
 
 ---
 
@@ -51,7 +52,7 @@ pending `main` (`.claude/skills/ship-release`). This agent cannot merge.
 
 - Binding constraint is **adoption / feel**, not missing modules. No second big-ticket (CMMS,
   photo-pin, field-PWA) until field mode and authoring round-trip move. **Element-card reach shipped
-  v0.3.1000.** Spine rooms already exist.
+  v0.3.1000.** Field-mode slice ① shipped **v0.3.1001**. Spine rooms already exist.
 - No React, no Reflex. No new npm/PyPI packages without operator OK. Licence MIT/BSD/Apache/ISC/CC0.
 - Python lock only via `.github/workflows/lockfile.yml`. Never hand-edit hashes.
 - IFC GlobalId identity; Fragments in the browser; recipes on the server.
@@ -73,11 +74,12 @@ grey identity; R24-TERMS; zero vs one big-ticket.
 
 ## Next slices that already have a seam (prefer these)
 
-1. **R36 and R24-ELEMENT-CARD ② are done.** Do not redo either.
+1. **R36 and R24-ELEMENT-CARD ② and FIELD-MODE ① are done.** Do not redo them.
 2. **Empty-register copy** — `emptyGuide.ts` is still a TS table. Moving `what`/`from` onto
    `module.json` is Lane H + B together; do not start it as a drive-by in one lane.
-3. **R24-FIELD-MODE** — a mode, not a breakpoint. Larger than a sitting unless scoped to one surface.
-4. **Authoring wait** — optimistic local mesh + job-tray until incremental `.frag`. Large; not a
+3. **R24-FIELD-MODE remainder** — capture-first home. Not a second density control, not Lane J CSS.
+4. **R24-CHARTS-GRAMMAR** series-colour (the rest of that item), not a new chart kind.
+5. **Authoring wait** — optimistic local mesh + job-tray until incremental `.frag`. Large; not a
    drive-by.
 
 ---
@@ -104,8 +106,8 @@ Web (Node **24**):
 
 ```
 cd apps/web && npm run typecheck && npm run lint && npm run build
-npx vitest run src/portal/register/tiedElements.test.ts src/ui/elementCard.test.ts \
-  src/shell/roadmapLanes.test.ts src/shell/roadmapStale.test.ts src/shell/versionConsistency.test.ts
+npx vitest run src/field/fieldMode.test.ts src/field/dictate.test.ts src/field/fieldQueue.test.ts \
+  src/shell/roadmapLanes.test.ts src/shell/versionConsistency.test.ts
 ```
 
 ---
