@@ -1213,7 +1213,7 @@ export class RegisterUI {
     ta.placeholder = "name\tstatus\tamount\nFooting F-1\topen\t1200\n…";
     ta.setAttribute("aria-label", "Pasted spreadsheet rows");
     ta.style.cssText = "width:100%;min-height:150px;margin:8px 0;padding:8px;border:1px solid var(--line);"
-      + "border-radius:6px;background:var(--bg);color:inherit;font-family:ui-monospace,monospace;font-size:12px;white-space:pre;overflow:auto";
+      + "border-radius:6px;background:var(--bg);color:inherit;font-family:var(--mono);font-size:12px;white-space:pre;overflow:auto";
     const row = document.createElement("div");
     row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:4px";
     const cancel = document.createElement("button"); cancel.textContent = "Cancel"; cancel.className = "file-btn";
