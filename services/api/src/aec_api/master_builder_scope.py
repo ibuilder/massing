@@ -38,12 +38,16 @@ def scope_step_keys(workspace: str, persona: str) -> list[str]:
 
 
 def apply_scope(brief: dict[str, Any], workspace: str | None, persona: str | None) -> dict[str, Any]:
-    """Filter `steps` for a home strip. Overall readiness_pct / step_count stay on the full 8."""
+    """Filter `steps` for a home strip. Overall readiness_pct / step_count stay on the full 8.
+
+    Pills follow the workspace map order, not protocol number order, so Design reads
+    place → program → design → regulatory rather than jumping regulatory ahead of design.
+    """
     if not workspace:
         return brief
     keys = scope_step_keys(workspace, persona or "all")
-    want = set(keys)
+    by_key = {s.get("key"): s for s in brief.get("steps") or []}
     out = dict(brief)
-    out["steps"] = [s for s in brief.get("steps") or [] if s.get("key") in want]
+    out["steps"] = [by_key[k] for k in keys if k in by_key]
     out["scope"] = {"workspace": workspace, "persona": persona or "all", "keys": keys}
     return out

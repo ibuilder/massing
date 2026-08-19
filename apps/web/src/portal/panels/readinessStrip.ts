@@ -85,10 +85,9 @@ export async function mountReadinessStrip(
   try { brief = await opts.load(); }
   catch { return; }
 
-  const want = new Set(readinessStepKeys(opts.workspace, opts.persona));
-  // Server-scoped briefs already filtered the pills; still intersect so an old/unscoped
-  // payload cannot show construction delivery on the Design home.
-  const steps = brief.steps.filter((s) => want.has(s.key));
+  const order = readinessStepKeys(opts.workspace, opts.persona);
+  const byKey = new Map(brief.steps.map((s) => [s.key, s]));
+  const steps = order.map((k) => byKey.get(k)).filter((s): s is ReadinessStep => !!s);
   if (!steps.length) return;
 
   const wrap = document.createElement("div");

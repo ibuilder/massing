@@ -1511,8 +1511,10 @@ refute one, so this goes first even though it is the least visible.
   like it walks to a GlobalId while actually asserting one. That is the fabrication shape this repo
   has spent a day naming, and it would have been shipped as the on-stage demo. Whoever picked up
   Sprint 2 would have started in the client and found nothing to render.
-- ✅ **R24-READINESS-HOME** *(S — **SHIPPED v0.3.988** as the UX-READINESS-EVERYWHERE strip)* — see
-  `apps/web/src/portal/panels/readinessStrip.ts`. Not a second protocol.
+- ✅ **R24-READINESS-HOME** *(S — **SHIPPED v0.3.988** as the UX-READINESS-EVERYWHERE strip; scope
+  server-side v0.3.989)* — see `apps/web/src/portal/panels/readinessStrip.ts` and
+  `services/api/src/aec_api/master_builder_scope.py`. Not a second protocol.
+- ◧ **R24-RUNS-INBOX** *(M; history half v0.3.947)* — clash, IDS, cost and energy become durable Runs
   (inputs, timestamp, author, artifact, **diff against the previous run**) with a per-project inbox.
   Most externally validated item in the ring — see the corroboration note above.
 
