@@ -2,8 +2,7 @@
 on a top-level GET from another origin.
 
 The population is derived from the tree, not recalled. Each hit needs an allowlist
-reason. oauth_callback must stay GET (the provider redirects). Everything else is a
-candidate to become POST.
+reason. oauth_callback must stay GET (the provider redirects). CAM statement PDF is POST.
 
 Run: PYTHONPATH=src python test_get_commits.py
 """
@@ -21,8 +20,6 @@ ROOT = Path(__file__).resolve().parent / "src" / "aec_api"
 ALLOWED = {
     "routers/auth.py::oauth_callback":
         "OAuth providers redirect the browser with GET; the commit writes the session",
-    "routers/operations.py::cam_statement":
-        "PDF download is still GET; commit is an audit row. Convert to POST when the UI can fetch a blob",
 }
 
 
@@ -65,8 +62,8 @@ check("every GET+commit is named in ALLOWED", not extra,
       "; ".join(f"{k}:{found[k]}" for k in extra) or "none extra")
 check("ALLOWED entries still exist (no stale exemption)", not missing,
       ", ".join(missing) or "all live")
-check("the scan found the known pair, so it is measuring something",
-      set(found) >= {"routers/auth.py::oauth_callback", "routers/operations.py::cam_statement"},
+check("the scan found oauth_callback, so it is measuring something",
+      "routers/auth.py::oauth_callback" in found,
       str(sorted(found)))
 
 print()

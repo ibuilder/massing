@@ -2842,13 +2842,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
         actual_eui: number | null; eui_gap_pct: number | null } | null };
       data_coverage: { meter_months: number }; as_of: string }>(`/projects/${pid}/esg${qs}`);
   }
-  camStatementUrl(pid: string, rid: string, opts: { year?: number; buildingSf?: number } = {}) {
-    const q = new URLSearchParams();
-    if (opts.year) q.set("year", String(opts.year));
-    if (opts.buildingSf) q.set("building_sf", String(opts.buildingSf));
-    const qs = q.toString();
-    return this.url(`/projects/${pid}/cam/statement/${rid}.pdf${qs ? `?${qs}` : ""}`);
-  }
 
   // --- turnover: substantial completion (G704) + record model ------------------
   turnoverReadiness(pid: string) {

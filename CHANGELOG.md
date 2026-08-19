@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.997 (2026-08-19) — CAM statement PDF is a POST
+
+Downloading a tenant CAM statement used to be a cookie-bearing GET that `Session.commit()`'d an
+audit row. SameSite=Lax sends the session cookie on a top-level GET. The route is POST; the
+Finance UI fetches the blob and saves it. OAuth callback remains the only GET+commit.
+
 ## v0.3.996 (2026-08-19) — Field / Comfortable / Compact on registers
 
 Density is three named row heights (56 / 36 / 28 px), cycled from the portal home, and applied to
