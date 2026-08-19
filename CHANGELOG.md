@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1009 (2026-08-19) — this week's Gantt, not a month of bars
+
+UX-GANTT. The Schedule room already had a month-scale SVG. It now opens with a Mon–Sun week:
+day columns, inline %, crew size when present, and trade colour from `SERIES_PALETTE` (not
+traffic lights). Empty is a sentence. The server Gantt is still below.
+
 ## v0.3.1008 (2026-08-19) — field mode hides the seven rooms
 
 R24-FIELD-MODE ④. With field mode on, `#workspaces` (the room tablist) is `display:none`, so
