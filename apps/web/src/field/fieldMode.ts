@@ -34,6 +34,7 @@ export function applyFieldMode(root: HTMLElement = document.documentElement): vo
 export function mountFieldChrome(opts: {
   queueCount: () => number;
   onOpenQueue: () => void;
+  onFieldModeChange?: (on: boolean) => void;
 }): { refreshStrip: () => void } {
   honourFieldQuery();
   applyFieldMode();
@@ -75,6 +76,7 @@ export function mountFieldChrome(opts: {
   toggle.onclick = () => {
     setFieldMode(!readFieldMode());
     refreshStrip();
+    opts.onFieldModeChange?.(readFieldMode());
   };
 
   window.addEventListener("online", refreshStrip);
@@ -90,4 +92,10 @@ export function syncStripText(n: number, online: boolean): string {
     return n ? `Offline · ${n} waiting to sync` : "Offline · queue empty";
   }
   return n ? `${n} waiting to sync` : "Queue empty — all caught up";
+}
+
+/** Capture-first: the sheet is the landing when field mode is on AND a project is open.
+ *  No project means no sheet — openSheet would toast, which is not a home. */
+export function shouldOpenCaptureHome(fieldMode: boolean, projectId: string | null | undefined): boolean {
+  return fieldMode && Boolean(projectId);
 }

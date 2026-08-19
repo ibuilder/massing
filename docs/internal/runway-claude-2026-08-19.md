@@ -1,4 +1,4 @@
-# Runway for Claude Code — 2026-08-19, after v0.3.1005
+# Runway for Claude Code — 2026-08-19, after v0.3.1006
 
 **Grade: live handoff.** Written so the next session picks up from measured state rather than chat
 memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still is. Security

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   FIELD_MODE_KEY, applyFieldMode, honourFieldQuery, mountFieldChrome, readFieldMode,
-  setFieldMode, syncStripText,
+  setFieldMode, shouldOpenCaptureHome, syncStripText,
 } from "./fieldMode";
 
 beforeEach(() => {
@@ -85,6 +85,21 @@ describe("field chrome", () => {
     mountFieldChrome({ queueCount: () => 0, onOpenQueue: () => undefined });
     expect(document.querySelectorAll("#field-mode-toggle")).toHaveLength(1);
     expect(document.querySelectorAll("#field-sync-strip")).toHaveLength(1);
+  });
+});
+
+describe("capture-first landing", () => {
+  it("needs both field mode and a project — otherwise the sheet would only toast", () => {
+    expect(shouldOpenCaptureHome(true, "p1")).toBe(true);
+    expect(shouldOpenCaptureHome(true, null)).toBe(false);
+    expect(shouldOpenCaptureHome(false, "p1")).toBe(false);
+  });
+
+  it("notifies when the mode flips so capture can become the landing", () => {
+    const onFieldModeChange = vi.fn();
+    mountFieldChrome({ queueCount: () => 0, onOpenQueue: () => undefined, onFieldModeChange });
+    (document.getElementById("field-mode-toggle") as HTMLButtonElement).click();
+    expect(onFieldModeChange).toHaveBeenCalledWith(true);
   });
 });
 

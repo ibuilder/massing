@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1006 (2026-08-19) — field mode lands on capture when a project is open
+
+R24-FIELD-MODE ③. If field mode is on and a project is selected, the capture sheet opens
+(on load and when you flip the Field toggle). No project → no sheet (that would only toast).
+The seven-room spine is unchanged; this is not a second portal home.
+
 ## v0.3.1005 (2026-08-19) — a citation boxes the passage, not a new browser tab
 
 R31-CITE-HIGHLIGHT. Opening a source used `window.open` on a blob URL, so `citeLocate` had no
