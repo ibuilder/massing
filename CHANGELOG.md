@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1005 (2026-08-19) — a citation boxes the passage, not a new browser tab
+
+R31-CITE-HIGHLIGHT. Opening a source used `window.open` on a blob URL, so `citeLocate` had no
+page to draw on. The citation now opens the in-app takeoff viewer; `PdfDocument.textItems` is
+the `PageWords` supplier. A scan or empty text layer is a sentence, never a guessed box.
+
 ## v0.3.1004 (2026-08-19) — the field FAB no longer sits on the queue
 
 R24-FIELD-MODE ②. Slice ①'s 56 px rules lost to the FAB's inline `52×52` / `bottom:18px`, so the

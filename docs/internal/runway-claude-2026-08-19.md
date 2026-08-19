@@ -1,4 +1,4 @@
-# Runway for Claude Code — 2026-08-19, after v0.3.1004
+# Runway for Claude Code — 2026-08-19, after v0.3.1005
 
 **Grade: live handoff.** Written so the next session picks up from measured state rather than chat
 memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still is. Security
@@ -20,7 +20,8 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 | 5 | [#297](https://github.com/ibuilder/massing/pull/297) | `cursor/runway-claude-6e15` | **988–1001** vs `main` |
 | 6 | [#298](https://github.com/ibuilder/massing/pull/298) | `cursor/charts-series-colour-6e15` | **1002** vs #297 |
 | 7 | [#299](https://github.com/ibuilder/massing/pull/299) | `cursor/mono-data-token-6e15` | **1003** vs #298 |
-| 8 | this | `cursor/field-mode-chrome-6e15` | **1004** vs #299 |
+| 8 | [#300](https://github.com/ibuilder/massing/pull/300) | `cursor/field-mode-chrome-6e15` | **1004** vs #299 |
+| 9 | this | `cursor/cite-highlight-6e15` | **1005** vs #300 |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main`. This agent cannot merge.
@@ -38,6 +39,7 @@ pending `main`. This agent cannot merge.
 | 1002 | R24-CHARTS-GRAMMAR closed — series vs status |
 | 1003 | R24-MONO-DATA closed — paste textarea uses `var(--mono)`; allowance 0 |
 | 1004 | R24-FIELD-MODE ② — field CSS beats FAB inline size/position; strip `aria-live` |
+| 1005 | R31-CITE-HIGHLIGHT closed — in-app viewer + PageWords box |
 
 ---
 
@@ -62,7 +64,6 @@ PERSONA-SHAPE; IDENTITY.
 1. **R24-FIELD-MODE remainder** — capture-first *home* (not another density control, not Lane J CSS).
 2. **R24-REPORTS-BY-MOMENT** scheduling (needs jobs/delivery; larger).
 3. **R39-A11Y-JOURNEYS ②** — keyboard journeys; attributes already swept.
-4. **R31-CITE-HIGHLIGHT** — `PageWords` bridge only.
 
 ---
 
@@ -80,6 +81,7 @@ PERSONA-SHAPE; IDENTITY.
 ```
 cd apps/web && npm run typecheck && npm run lint
 npx vitest run src/ui/charts.test.ts src/ui/monoData.test.ts src/field/fieldMode.test.ts \
+  src/drawings/citeLocate.test.ts src/portal/panels/citationControl.test.ts \
   src/shell/roadmapLanes.test.ts src/shell/versionConsistency.test.ts
 cd ../services/api && PYTHONPATH=src:../data/src python3 test_file_sizes.py && python3 test_claude_md_gates.py
 ```
