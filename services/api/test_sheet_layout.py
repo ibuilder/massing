@@ -20,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data" / "src"))
 import numpy as np  # noqa: E402
 
 from aec_data import massing  # noqa: E402
-from aec_data import sheet_layout as sl
+from aec_data import sheet_layout as sl  # noqa: E402
+from aec_data.drawings import PAGES, page_pts  # noqa: E402
 from aec_data.ifc_loader import open_model  # noqa: E402
 
 # --- clip_polyline: pure geometry, hand-computed ---------------------------------------------------
@@ -47,7 +48,20 @@ massing.generate_ifc(metrics, ifc, name="SheetLay")
 model = open_model(ifc)
 meshes = sl.bake(model)
 assert meshes, "model bakes"
-assert sl.PAGES["A1"][0] > sl.PAGES["A3"][0] > sl.PAGES["A4"][0], sl.PAGES
+assert PAGES["A1"][0] > PAGES["A3"][0] > PAGES["A4"][0], PAGES
+assert PAGES["ARCH-D"][0] > PAGES["ARCH-C"][0] > PAGES["ARCH-B"][0] > PAGES["ARCH-A"][0]
+assert page_pts("ARCH-C") == (24 * 72, 18 * 72)
+d_w, d_h = page_pts("ARCH-D")
+b_w, b_h = page_pts("ARCH-B")
+a_w, a_h = page_pts("ARCH-A")
+assert (b_w, b_h) == (d_w / 2, d_h / 2), "ARCH-B is linear half of D (the usual half-size set)"
+assert (a_w, a_h) == (12 * 72, 9 * 72), "ARCH-A is 12×9, the next ARCH step, not 9×6"
+assert a_w * a_h * 2 == b_w * b_h, "each ARCH step is half the area of the one above"
+try:
+    page_pts("TABLOID")
+    raise AssertionError("unknown page must refuse, not substitute")
+except ValueError as e:
+    assert "TABLOID" in str(e) and "ARCH-C" in str(e)
 
 # fixed 1:50: geometry is clipped INSIDE the viewport rect, and the scale text is exact
 vp_fixed = {"kind": "plan", "elevation": 0.0, "rect": [0.0, 0.0, 0.5, 1.0], "scale": 50,
@@ -106,6 +120,8 @@ from aec_api.main import app  # noqa: E402
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "Layout"}).json()["id"]
     body = {"viewports": [vp_fixed], "meta": {"number": "A-102", "title": "VP"}, "page": "A1"}
+    bad = {**body, "page": "TABLOID"}
+    assert c.post(f"/projects/{pid}/drawings/layout.svg", json=bad).status_code == 422
     assert c.post(f"/projects/{pid}/drawings/layout.svg", json=body).status_code == 409  # no source IFC
     up = c.post(f"/projects/{pid}/source-ifc?publish=false",
                 files={"file": ("m.ifc", Path(ifc).read_bytes(), "application/octet-stream")})
@@ -177,10 +193,9 @@ def test_the_route_s_preset_whitelist_matches_the_library_s_real_presets():
     assert [sl.presets(n) == key for n in _PRESETS] == [True, False, False],         "every named preset but `key` must differ from it, or the whitelist has a name the library lost"
     assert sl.presets("no-such-preset") == key, "the fallback the route exists to catch"
 
-    # Same silent fallback on PAGE SIZE, and the route echoes the requested page back in its answer —
-    # so an unknown size would have returned A1 geometry stamped with a page name it does not fit.
+    # The route still keeps its own list because it echoes the requested page back; compose now
+    # refuses unknown sizes, but two lists encoding one fact WILL drift — this is the assertion.
     from aec_api.routers.analysis import _PAGES
-    from aec_data.drawings import PAGES
     assert set(_PAGES) == set(PAGES), (sorted(_PAGES), sorted(PAGES))
 
 

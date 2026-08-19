@@ -2775,10 +2775,13 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   that is there.
 
   Remaining: the **keynote → spec section** link (the spec surface now exists; keynotes do not yet
-  carry their section code), and slice 6 as specified above. **Print-as-A (v0.3.992):** the Issue /
-  Sheet PDF rail now sends `page=A1` (ISO A1). Omitting `page` still defaults to A3 on
-  `compose()`; the layout editor already offered A1/A3/A4. Tooltips no longer claim ARCH-D for
-  that path. Live PDF still needs a source IFC — the demo's "no model" cannot exercise it.
+  carry their section code), and slice 6 as specified above. **Print paper picker (v0.3.993):**
+  Issue / Sheet PDF / Place and the paper-space editor share `drawings.py` `PAGES` — ARCH-C/D/B/A and
+  ISO A0–A4. Default is **ARCH-C (24×18 in)**; that is not an ISO A size. ARCH-D is full-size US
+  CDs (36×24), ARCH-B is half of D, ARCH-A is the next ARCH step (often called quarter of D).
+  Unknown `page` is 422, never a silent A1/A3. Omitting `page` on `compose()` is still A3 so old
+  links do not change paper. 11×17 is omitted on purpose (not half of 24×36). Live PDF still
+  needs a source IFC — the demo's "no model" cannot exercise the box.
 
 - **R36-ROOM-BRIEFS** *(M — Lane B; one room per release)* — per-room, per-role landing priority:
   each room opens with the three answers its primary role needs (superintendent in Schedule: today's

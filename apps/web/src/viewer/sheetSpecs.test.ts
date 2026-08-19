@@ -1,11 +1,20 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { SHEET_PARAMS, encodeViews, railSheetOptions, sheetPath, sheetQuery, viewsForCanvas } from "./sheetSpecs";
+import {
+  DEFAULT_SHEET_PAGE, PAGE_CATALOG, PAGE_KEYS, SHEET_PAGE_STORAGE_KEY, SHEET_PARAMS,
+  encodeViews, isSheetPage, railSheetOptions, readSheetPage, sheetPath, sheetQuery,
+  viewsForCanvas, writeSheetPage,
+} from "./sheetSpecs";
 
 const REPO = resolve(__dirname, "../../../..");
+
+beforeEach(() => {
+  try { localStorage.removeItem(SHEET_PAGE_STORAGE_KEY); }
+  catch { /* node without storage */ }
+});
 
 /**
  * R36 print slice 3 — and the defect that made it necessary.
@@ -54,12 +63,23 @@ describe("the client can only send parameters the route accepts", () => {
       .toBe("LEVEL 2 PLAN");
   });
 
-  it("the rail names ISO A1 on the request, not a silent A3 / a tooltip that says ARCH-D", () => {
-    // compose() defaults to A3 when `page` is omitted. The layout editor already defaults to A1.
-    // Issue/PDF used to omit `page` while the buttons said A-101 and the hover said ARCH-D.
+  it("the rail names ARCH-C (24×18 in) by default, not a silent A3 / a tooltip that says ARCH-D", () => {
+    // compose() defaults to A3 when `page` is omitted. 24×18 in is ARCH C, not an ISO A sheet.
     const q = sheetQuery(railSheetOptions("Level 2"));
-    expect(q.get("page")).toBe("A1");
+    expect(q.get("page")).toBe("ARCH-C");
     expect(q.get("sheet")).toBe("A-101");
+  });
+
+  it("the picker writes the size the next Issue/PDF request sends", () => {
+    writeSheetPage("ARCH-B");
+    expect(readSheetPage()).toBe("ARCH-B");
+    expect(sheetQuery(railSheetOptions("Level 2")).get("page")).toBe("ARCH-B");
+  });
+
+  it("an unknown stored value falls back to ARCH-C rather than sending it", () => {
+    localStorage.setItem(SHEET_PAGE_STORAGE_KEY, "TABLOID");
+    expect(readSheetPage()).toBe(DEFAULT_SHEET_PAGE);
+    expect(isSheetPage("TABLOID")).toBe(false);
   });
 
   it("drops empty values rather than sending them blank", () => {
@@ -198,6 +218,26 @@ describe("the control is WIRED INTO the rail, not merely constructed", () => {
     expect(sect).toContain("sheetPath(d.projectId!");
     expect(sect, "Issue/PDF claimed ARCH-D while compose defaulted to A3")
       .not.toMatch(/Issue sheet[\s\S]{0,400}ARCH-D/);
-    expect(sect).toMatch(/ISO A1/);
+    expect(sect).toContain("PAGE_CATALOG");
+    expect(sect).toContain("paperPicker()");
+  });
+});
+
+describe("the page catalog matches the server and names construction sizes", () => {
+  it("PAGE_KEYS is lockstep with drawings.PAGES", () => {
+    const src = readFileSync(resolve(REPO, "services/data/src/aec_data/drawings.py"), "utf8");
+    const at = src.indexOf("PAGES = {");
+    expect(at, "PAGES dict not found — this gate cannot see the server catalog").toBeGreaterThan(-1);
+    const block = src.slice(at, src.indexOf("\n}", at) + 2);
+    const keys = [...block.matchAll(/"([^"]+)":/g)].map((m) => m[1]);
+    expect(PAGE_KEYS.slice()).toEqual(keys);
+  });
+
+  it("every catalog row is a known key, and 24×18 is ARCH-C", () => {
+    expect(PAGE_CATALOG.map((r) => r.key)).toEqual([...PAGE_KEYS]);
+    expect(PAGE_CATALOG[0]!.key).toBe("ARCH-C");
+    expect(PAGE_CATALOG.find((r) => r.key === "ARCH-C")!.label).toMatch(/24×18/);
+    expect(PAGE_CATALOG.find((r) => r.key === "ARCH-B")!.label).toMatch(/half of D/);
+    expect(PAGE_CATALOG.find((r) => r.key === "ARCH-A")!.label).toMatch(/quarter of D/);
   });
 });

@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.993 (2026-08-19) — pick the sheet paper; 24×18 is ARCH C
+
+The Drawings rail has a paper picker. Catalog is US ARCH C/D/B/A plus ISO A0–A4. **24×18 in is
+ARCH C**, not an ISO A size (A2 is 16.5×23.4). ARCH D is the usual full-size US construction set
+(36×24); half-size of D is ARCH B (18×12); the next step down is ARCH A (12×9), often called
+quarter-size of D. Default is ARCH C. 11×17 is not in the list — it is a copier size, not half of
+24×36. An unknown `page` is refused (422), never substituted. `compose()` with no `page` is still
+A3 so existing API links do not change paper.
+
 ## v0.3.992 (2026-08-19) — Issue sheet prints as ISO A1
 
 The Drawings rail's Issue / Sheet PDF buttons labelled the sheet A-101 and the hover said ARCH-D,

@@ -846,6 +846,11 @@ def _compose_sheet(db, pid: str, sheet: str, page: str, purpose: str, rev: str,
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
+    try:
+        drawings.page_pts(page)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from None
+
     model = open_model(_source_ifc(db, pid))
     meta = _sheet_meta(db, pid, sheet, purpose, rev)
     if not views:

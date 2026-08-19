@@ -1880,8 +1880,37 @@ def elevation_dxf(model: ifcopenshell.file, direction: str = "north") -> str:
 # --- sheet composer (Revit-style sheet sets & title blocks) -----------------
 _PT_PER_M = 1.0 / 0.000352778  # paper points per metre at 1:1
 
-# page sizes in points (landscape)
-PAGES = {"A3": (1190.55, 841.89), "A1": (2383.94, 1683.78), "A4": (841.89, 595.28)}
+# Page sizes in PDF points, landscape (1 in = 72 pt; ISO uses 1 pt = 0.352778 mm).
+#
+# 24×18 in is **ARCH C**, not an ISO A sheet. A2 is 16.5×23.4 in — close, not the same.
+# US CD practice (NCS / typical plotter):
+#   ARCH-D 36×24 — full-size construction set
+#   ARCH-B 18×12 — half-size of D (50% linear; the usual field/review reduction)
+#   ARCH-A 12×9  — next ARCH step (often called "quarter size" of D; not a uniform 25% of 24×36)
+#   ARCH-C 24×18 — C-size issue; area-half of D. The rail picker defaults here (compose() still
+#                  uses A3 when `page` is omitted, so old links do not change paper).
+# ISO A1 is the usual international issue size; A3 the check print; A0 site plans.
+# 11×17 (ANSI B) is a copier convenience, not 50% of 24×36 — omitted on purpose.
+_PT_PER_MM = 1.0 / 0.352778
+PAGES = {
+    "ARCH-C": (24 * 72, 18 * 72),
+    "ARCH-D": (36 * 72, 24 * 72),
+    "ARCH-B": (18 * 72, 12 * 72),
+    "ARCH-A": (12 * 72, 9 * 72),
+    "A0": (1189 * _PT_PER_MM, 841 * _PT_PER_MM),
+    "A1": (2383.94, 1683.78),
+    "A2": (594 * _PT_PER_MM, 420 * _PT_PER_MM),
+    "A3": (1190.55, 841.89),
+    "A4": (841.89, 595.28),
+}
+
+
+def page_pts(page: str) -> tuple[float, float]:
+    """Known sheet size in points, or ValueError. Never substitute a different paper."""
+    try:
+        return PAGES[page]
+    except KeyError:
+        raise ValueError(f"unknown page size {page!r}; known: {', '.join(PAGES)}") from None
 
 
 def _view_for_spec(meshes, spec: dict) -> tuple[list[np.ndarray], str, str]:
@@ -1979,7 +2008,7 @@ def _plan_extras(grid, mn, mx, ox, oy, dh, scale):
 def compose(meshes, specs: list[dict], page: str = "A3", cols: int = 2,
             margin: float = 36.0, tb_h: float = 90.0, annotate: bool = True,
             levels: list[dict] | None = None) -> dict:
-    pw, ph = PAGES.get(page, PAGES["A3"])
+    pw, ph = page_pts(page)
     rows = max(1, -(-len(specs) // cols))
     area_x0, area_y0 = margin, margin
     area_w = pw - 2 * margin

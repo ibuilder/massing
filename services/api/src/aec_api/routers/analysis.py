@@ -511,7 +511,8 @@ def estimate_diff_route(pid: str, body: dict = Body(default={}),
 
 
 _PRESETS = ("key", "quad", "plan-pair")     # asserted against sheet_layout.presets in test_sheet_layout
-_PAGES = ("A1", "A3", "A4")                 # asserted against drawings.PAGES in test_sheet_layout
+_PAGES = ("ARCH-C", "ARCH-D", "ARCH-B", "ARCH-A", "A0", "A1", "A2", "A3", "A4")
+# asserted against drawings.PAGES in test_sheet_layout — two lists, one fact.
 
 # Exported as a constant so no response text is derived from a caught exception (py/stack-trace-exposure).
 _CONSTRAINT_REFUSED = ("constraint set refused: check that every entry is an object with a known "
@@ -593,9 +594,8 @@ def sheet_regions_endpoint(pid: str, preset: str = "key", page: str = "A1",
     # than whatever the model open happened to complain about.
     if preset not in _PRESETS:
         raise HTTPException(422, f"unknown viewport preset; known: {', '.join(_PRESETS)}")
-    # `compose_viewports` has the identical silent fallback on page size, and this route ECHOES the
-    # requested page back in its answer — so an unknown size would have returned A1 geometry stamped
-    # with the name of a page it does not fit.
+    # `compose_viewports` used to silently substitute A1; it now refuses. This route still checks
+    # first because it ECHOES the requested page back — a 422 here names the typo, not a model error.
     if page not in _PAGES:
         raise HTTPException(422, f"unknown page size; known: {', '.join(_PAGES)}")
     model = open_source_ifc(db, pid)        # raises the project's own 404/409 when there is no model

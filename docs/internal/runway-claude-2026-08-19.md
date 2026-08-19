@@ -167,8 +167,9 @@ These are product calls with engineering already half-done. Prefer shipping reac
    (**v0.3.991**) rather than a blank. Pulse's fail-open rule still holds for the rail.
 3. **Authoring wait is the feel problem.** Optimistic local mesh + job-tray "saving…" until
    incremental fragments exist. Status bar is ~220 px — pair toast + request id.
-4. **Print-as-A is now ISO A1 on the Issue/PDF rail** (**v0.3.992**). Live PDF still needs a
-   source IFC; the public demo is "no model". ARCH-D remains a product call, not a silent default.
+4. **Print paper is a picker, default ARCH C (24×18 in)** (**v0.3.993**). Not an ISO A size.
+   ARCH-D is full-size; ARCH-B half of D; ARCH-A the next step (often called quarter of D).
+   Unknown `page` is refused. Live PDF still needs a source IFC.
 5. **Density on registers** (`R24-DENSITY ②`), not only dashboards — where an 8-hour GC lives.
 6. **Field mode as a mode**, not a breakpoint. Superintendent should not see the BIM rail.
 7. **Catalog ★ keyboard focus** — cheapest a11y win still open.
