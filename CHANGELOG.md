@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1002 (2026-08-19) — a series is not a traffic light
+
+R24-CHARTS-GRAMMAR ③ closes the item. `chartColor` is a seven-slot categorical ramp that does not
+include passing-green, warn-gold, failing-red, or `--accent`. Signed charts and the CPI–SPI
+quadrant still use those status hues. A mix donut that means on-track / at-risk must pass the
+hues in.
+
 ## v0.3.1001 (2026-08-19) — field mode: 56 px, the queue, and a mic that can be missing
 
 R24-FIELD-MODE ①. A stored mode (`aec-field-mode`, `?field=1`), not a breakpoint: 56 px targets

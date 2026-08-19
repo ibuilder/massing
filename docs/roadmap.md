@@ -653,7 +653,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
@@ -1443,7 +1443,7 @@ is recorded. Filed under Decisions below.
 | 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | ◧ **v0.3.1001** — mode flag, 56 px field chrome, outdoor contrast, always-visible sync strip, dictation (`apps/web/src/field/fieldMode.ts`). Capture-first home is still open; default remains the desktop IA |
 | 13 | search is scoped to modules | R24-CMDK-VERBS | ✅ **v0.3.946** — verbs, elements, reports and an assistant fallback; `apps/web/src/ui/paletteProviders.ts`. Fixed a second defect on the way: async hits were `concat`ed onto an already-grouped list, so a record landed under a **second** RECORDS heading below Modules |
 | 14 | empty states | R24-EMPTY-GUIDE | ✅ **verified done 2026-08-14** — the "24 lines, 'no project' only" reading is stale by a wide margin. `apps/web/src/ui/empty.ts` is 156 lines and R36-EMPTY-STATE shipped the hard part: a register with no rows distinguishes **none / filtered / failed**, because those send a reader to three different places and rendering them identically was the defect. Plus acronym-safe nouns ("No rfis yet" was the bug), `textContent` throughout since the name and the error body are untrusted, and `data-empty` so a test can assert WHICH kind was decided. Curated hints in `apps/web/src/ui/emptyGuide.ts` (157 lines), wired at two `register.ts` call sites, covered by `apps/web/src/ui/empty.test.ts` and `apps/web/src/ui/emptyGuide.test.ts` |
-| 15 | charts have no grammar | *(none)* | ❌ dropped → `R24-CHARTS-GRAMMAR` |
+| 15 | charts have no grammar | *(none)* | ✅ **SHIPPED v0.3.1002** — no-data, ticks/legend/currency, then series vs status (`SERIES_PALETTE` / `STATUS_*` in `apps/web/src/ui/charts.ts`) |
 | 16 | Report Center is a list of nouns | *(none)* | ❌ dropped → `R24-REPORTS-BY-MOMENT` |
 | 17 | three vocabularies collide | R24-TERMS | 🟡 **storey/floor settled v0.3.945** — `storey` was already canonical in the API, QUERY-DSL and both table headers; three chrome strings disagreed, one of them with its own tooltip. Gated by `apps/web/src/shell/storeyVocabulary.test.ts`, which permits *gross floor area* and *floor plan*. The element/component and estimate/budget/cost pairs are NOT settled and are a user decision, not a cleanup |
 | 18 | site promises a lifecycle, app opens on a shell | *(none)* | 🟡 R26-VITALS (v0.3.773) is arguably a **better** answer than the audit's lifecycle strip — treat as closed |
@@ -1547,41 +1547,13 @@ refute one, so this goes first even though it is the least visible.
   `?field=1` / `aec-field-mode`, 56 px targets and ~7:1 on field chrome only (`apps/web/src/field/fieldMode.css`),
   always-visible sync strip, dictation when the browser has SpeechRecognition (`apps/web/src/field/dictate.ts`).
   Capture-first home is still open. Register density is unchanged (R24-DENSITY).
-- 🟡 **R24-CHARTS-GRAMMAR** — **no-data rule SHIPPED v0.3.783**, the rest open. Only `histogram`
-  handled empty input; the other twelve drew their axes, gridlines and legend with nothing in them —
-  no `NaN`, nothing broken, and therefore indistinguishable from a chart whose data failed to load.
-  All nine framed charts now share `noData()`, and `CHART_KINDS` + `charts.test.ts` fail the build if
-  a new chart skips it.
-  **Tick / legend / currency SHIPPED v0.3.948**, and none of the three was cosmetic once measured:
-  - **Ticks.** Three charts hand-rolled the same gridline loop and the copies had already diverged —
-    `lineChart` labelled `max − (k/4)(max − min)`, `groupedBar` and `waterfall` labelled
-    `max − (k/4)·max`, a different axis whenever the minimum is not zero. And **`stackedBar` drew no
-    gridlines at all**, so a cash-flow chart beside a budget chart was read against different
-    furniture. One `yGrid`, and a source scan that fails on a local gridline loop.
-  - **Legend.** Four hand-rolled copies of the same magic coordinates → one `legendRow`. The donut
-    keeps the one legitimate position difference (under the ring, which has no plot to sit above) and
-    still goes through the helper, so swatch, size and spacing cannot drift.
-  - **Currency.** The real number was **22 declarations in six behaviours**, not the 18 a first grep
-    found — the gate enumerated the population and my grep had not. **Ten wrote
-    `` `$${Math.round(n).toLocaleString()}` ``, which renders a loss as `$-1,000`** with the currency
-    mark on the wrong side of the minus; three had already fixed it locally, so the panels disagreed
-    with themselves. `inspectorTabs.ts` used `Intl` currency *and* mapped a non-finite value to
-    **`$0`** — an absent number rendering as a plausible zero, the failure the vitals strip exists to
-    prevent. `proforma/format.ts` **exported** a competing one. All 22 now import `usd` from
-    `apps/web/src/ui/charts.ts`; `chartsGrammar` bans re-declaring it.
-    **And one of the 22 was not money at all**: the stormwater card's `usd` emitted no `$` because it
-    formats cubic feet. Converting it would have put a currency mark on a detention volume — so `qty`
-    exists, and the rule bans *declaring* a formatter rather than banning the name.
-  - `unit: "money" | "percent" | "count"` now says what a chart's numbers **are** rather than making
-    every caller remember a formatter; an explicit `fmt` still wins.
-
-  **Still open:** the series-colour split below.
-  **And one correction to the audit, made deliberately:** it says colour should be "restricted to the
-  four semantic hues". That is right for *status* and wrong for *series identity* — a seven-series
-  S-curve needs seven distinguishable colours, and collapsing them to four makes the chart unreadable
-  in service of a rule about badges. The split to enforce is **semantic hues for status, a
-  categorical ramp for series**, which is a different contract from `ui/colorContract.ts` (that one
-  governs CSS selectors; SVG fills are outside it entirely).
+- ✅ **R24-CHARTS-GRAMMAR** *(**SHIPPED v0.3.1002**)* — no-data (v0.3.783), ticks/legend/currency
+  (v0.3.948), **series vs status (v0.3.1002)**. `chartColor` is `SERIES_PALETTE` (seven categorical
+  slots, none of them a traffic-light hue or `--accent`). Signed magnitude, the CPI–SPI quadrant, and
+  a progress bar's complete/low states keep `STATUS_GOOD` / `STATUS_WARN` / `STATUS_CRIT`. A status
+  mix donut must pass those hues in; occupying slot 0 is not how you get "passing". SVG fills stay
+  outside `ui/colorContract.ts` (that list is CSS selectors). The audit's "four semantic hues" rule
+  stays for status and does not apply to series identity.
 - 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; scheduling still open.** The catalog was
   **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above
   them — owner monthly · lender draw · IC · precon/GMP · design issue · closeout · ownership quarter —
