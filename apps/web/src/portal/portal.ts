@@ -1284,6 +1284,7 @@ export class PortalUI {
   private async renderPortfolio() {
     this.root.innerHTML = "";
     this.root.appendChild(this.bar("Portfolio", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    this.root.appendChild(await (await import("./panels/dealBrief")).renderDealBrief(this.panelCtx()));
     const vcol = (v: number) => v < 0 ? "var(--status-crit)" : v > 0 ? "var(--status-good)" : "var(--muted)";
     const pill: Record<string, [string, string]> = { on_track: ["On track", "var(--status-good)"], at_risk: ["At risk", "var(--status-warn)"], behind: ["Behind", "var(--status-crit)"] };
     const status = document.createElement("div"); status.className = "meta"; status.textContent = "loading portfolio…";

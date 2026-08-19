@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.998 (2026-08-19) — Deal opens on the developer's three answers
+
+The Deal room (`__portfolio__`) used to open on the book-wide table. It now opens with returns vs
+the underwriting band, open diligence, and the next developer protocol gate (`dealBrief.ts`). A
+failed engine is a reason, never 0.0% IRR or "0 flagged". Schedule (995) and Work remain the
+other landed briefs; Cost / Planning / Operate / Design are still open on R36.
+
 ## v0.3.997 (2026-08-19) — CAM statement PDF is a POST
 
 Downloading a tenant CAM statement used to be a cookie-bearing GET that `Session.commit()`'d an

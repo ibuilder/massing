@@ -2781,14 +2781,16 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   links do not change paper. 11×17 is omitted on purpose (not half of 24×36). Live PDF still
   needs a source IFC — the demo's "no model" cannot exercise the box.
 
-- ◧ **R36-ROOM-BRIEFS** *(M — Lane B; one room per release; **Schedule SHIPPED v0.3.995**)* — per-room, per-role landing priority:
+- ◧ **R36-ROOM-BRIEFS** *(M — Lane B; one room per release; **Schedule SHIPPED v0.3.995**, **Deal SHIPPED v0.3.998**)* — per-room, per-role landing priority:
   each room opens with the three answers its primary role needs (superintendent in Schedule: today's
   lookahead, blockers, yesterday's variance; developer in Deal: returns vs guardrails, open
   diligence, next decision gate). Write each brief as a short spec in the room's panel file header,
   then make the panel match it. The Work room already does this by construction; it is the template.
   **Schedule:** `apps/web/src/portal/panels/scheduleBrief.ts` mounts first on `__schedule__`. The three
   engines already existed; a failed fetch is a reason (`data-unavailable`), never "0 slipped" / "0 high".
-  Remaining rooms are still open.
+  **Deal (v0.3.998):** `apps/web/src/portal/panels/dealBrief.ts` mounts first on `__portfolio__` —
+  returns vs the underwriting band, open diligence, next developer protocol gate. Remaining rooms
+  are still open.
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
 - ◧ ⭐ **SCALE-SEAM ⑧ — `client.ts` is no longer a god-file, but the split is not finished.** *(◧ added 2026-08-06: the bullet's own text says ②–⑧ have shipped and `apps/web/src/api/proforma.ts` declares ⑧ — the SLICE is done and the SERIES is not, which is exactly what ◧ means)* ②–⑧ have

@@ -6,7 +6,8 @@ import { showQrModal } from "../ui/qr";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
 import { renderTestFitTab } from "./testfitTab";
-import { downloadCamStatement } from "./downloadPdf";
+import { downloadPostedPdf, camStatementPath } from "../api/downloadPdf";
+import { toast } from "../ui/feedback";
 
 /**
  * Real-estate development finance (Proforma) view — edit the key deal drivers, solve live,
@@ -640,7 +641,11 @@ export class ProformaUI {
               + `<td class="num">${tn.balance_due >= 0 ? money(tn.balance_due) + " due" : money(-tn.balance_due) + " cr"}</td>`
               + `<td><button type="button" class="file-btn" data-cam-rid="${escapeHtml(tn.id)}">⬇ Statement</button></td></tr>`).join("");
           t.querySelectorAll<HTMLButtonElement>("[data-cam-rid]").forEach((b) => {
-            b.onclick = () => { void downloadCamStatement(this.api, pid, b.dataset.camRid || ""); };
+            b.onclick = () => {
+              const rid = b.dataset.camRid || "";
+              void downloadPostedPdf(this.api, camStatementPath(pid, rid), `cam-statement-${rid}.pdf`)
+                .catch((e) => toast(`Statement failed: ${(e as Error).message}`, "error"));
+            };
           });
           cout.appendChild(t);
         }

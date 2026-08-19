@@ -1,5 +1,3 @@
-import { toast } from "../ui/feedback";
-
 /** POST a PDF and save it. Cookie-bearing GET is how SameSite=Lax leaks a session. */
 export async function downloadPostedPdf(
   api: { url(path: string): string; authHeaders(): Record<string, string> },
@@ -20,16 +18,4 @@ export async function downloadPostedPdf(
 
 export function camStatementPath(pid: string, rid: string): string {
   return `/projects/${pid}/cam/statement/${rid}.pdf`;
-}
-
-export async function downloadCamStatement(
-  api: { url(path: string): string; authHeaders(): Record<string, string> },
-  pid: string,
-  rid: string,
-): Promise<void> {
-  try {
-    await downloadPostedPdf(api, camStatementPath(pid, rid), `cam-statement-${rid}.pdf`);
-  } catch (e) {
-    toast(`Statement failed: ${(e as Error).message}`, "error");
-  }
 }
