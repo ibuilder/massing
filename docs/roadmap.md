@@ -1370,9 +1370,10 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
 
   The `MeshStandardMaterial` clause needs no work — every remaining use is GIS context, not the BIM
   pass.
-- **R23-SYMBOL-COUNT** *(M)* — deterministic template-match symbol counting in the **existing** pdf.js
-  takeoff worker: mark one instance, normalised cross-correlation, non-maximum suppression.
-  **Zero new dependencies**, offline, auditable — which matters for quantities that feed a bid.
+- ◧ **R23-SYMBOL-COUNT** *(M — **① v0.3.1010**)* — deterministic template-match symbol counting:
+  mark one instance, normalised cross-correlation, non-maximum suppression
+  (`apps/web/src/ui/symbolCount.ts`). **Zero new dependencies**, offline, auditable.
+  Takeoff-worker wiring (the existing pdf.js takeoff) is the remainder.
 
 **Watch, not work:** WebGPU (`WebGPURenderer` exists in the pinned three, but Fragments targets WebGL
 — 2–3 year horizon) · browser-side IFC parsing (a streaming WASM parser now exists; server-side

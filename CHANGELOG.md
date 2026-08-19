@@ -4,6 +4,11 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1010 (2026-08-19) — count a symbol by matching it, not guessing
+
+R23-SYMBOL-COUNT ①. Normalised cross-correlation plus non-maximum suppression in
+`apps/web/src/ui/symbolCount.ts`. Zero new dependencies. The takeoff-worker wiring is still open.
+
 ## v0.3.1009 (2026-08-19) — this week's Gantt, not a month of bars
 
 UX-GANTT. The Schedule room already had a month-scale SVG. It now opens with a Mon–Sun week:
