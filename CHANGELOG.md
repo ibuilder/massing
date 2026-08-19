@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1008 (2026-08-19) — field mode hides the seven rooms
+
+R24-FIELD-MODE ④. With field mode on, `#workspaces` (the room tablist) is `display:none`, so
+it is also out of the tab order. Capture stays the landing (③); Office restores the spine.
+Replacing the portal home itself is still Lane A.
+
 ## v0.3.1007 (2026-08-19) — Tab to the room's job, then land
 
 R39-A11Y-JOURNEYS ②. Each of the seven rooms has one keyboard primary: Design is its tab; the

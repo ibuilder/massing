@@ -115,4 +115,8 @@ describe("fieldMode.css stays off the accent contract", () => {
     expect(css).toMatch(/#field-fab[\s\S]*bottom:\s*72px\s*!important/);
     expect(css).toMatch(/min-height:\s*56px/);
   });
+
+  it("hides the seven-room tablist in field mode so capture is the home, not a spine overlay", () => {
+    expect(css).toMatch(/html\[data-field-mode="1"\]\s+#workspaces\s*\{[^}]*display:\s*none\s*!important/);
+  });
 });
