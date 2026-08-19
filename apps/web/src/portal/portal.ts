@@ -9,7 +9,8 @@ import type { PanelContext } from "./panelContext";
 import { type RegisterFilter, RegisterUI } from "./register/register";
 import { SECTIONS_BY_PERSONA, readDensity, readFavs, readRecents, readRoomOpen, setDensity, setRoomOpen, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
-import { ALL_DESTS, type Dest, stagesFor } from "../shell/destinations";
+import { renderAnalyseHome } from "../shell/analyseHome";
+import { ALL_DESTS, destButtonActive, destsForRail, type Dest, stagesFor } from "../shell/destinations";
 import { FALLBACK_ROOMS, ROOM_HOME, type SpineState, destRoom, loadSpine, portalRooms, preselectedRoom, unroomedDests, visibleRooms } from "../shell/spine";
 import type { RoomDef } from "../api/types";
 // PANEL-LAZY (PERF): the ~30 secondary portal panels are DYNAMICALLY imported at first render
@@ -123,7 +124,8 @@ export class PortalUI {
       __evm__: () => this.renderEvm(), __resload__: () => this.renderResourceLoading(),
       __wip__: () => this.renderWip(), __ledger__: () => this.renderLedger(),
       __traceability__: () => this.renderTraceability(),
-      __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
+      __standards__: () => this.renderStandards(), __analyse__: () => this.renderAnalyse(),
+      __bimkpi__: () => this.renderBimKpi(),
       __masterbuilder__: () => this.renderMasterBuilder(), __selections__: () => this.renderSelections(),
       __margin__: () => this.renderMargin(), __assets__: () => this.renderAssets(),
       __workqueue__: () => this.renderWorkQueue(),
@@ -304,7 +306,7 @@ export class PortalUI {
   /** A rail button for a first-class destination. Shared by both shells so they cannot diverge. */
   private destButton(d: Dest, dests: Record<string, () => unknown>): HTMLButtonElement {
     const b = document.createElement("button");
-    b.className = "pnav-item pnav-home" + (this.activeKey === d.key ? " active" : "");
+    b.className = "pnav-item pnav-home" + (destButtonActive(d.key, this.activeKey) ? " active" : "");
     // Addressable by key. Without this the rail is navigable only by a human clicking it: the pinned
     // rail and the room tabs both try to reach a destination with `[data-dest="…"]`, and until now
     // the ONLY nodes carrying that attribute were the pinned rail's own buttons — so its
@@ -372,11 +374,11 @@ export class PortalUI {
       const det = document.createElement("details"); det.className = "pnav-stage-group pnav-room";
       det.dataset.room = room.id;
       const skey = `${this.wsFilter}:${room.id}`;
-      const items = byRoom.get(room.id) ?? [];
+      const items = destsForRail(byRoom.get(room.id) ?? []);
       // The active room is the rail's whole content, so it is always open — collapse memory only
       // governs the OTHER rooms, which render solely under the escape hatch.
       const said = readRoomOpen(skey);
-      det.open = room.id === active || items.some((d) => d.key === this.activeKey) || (said ?? false);
+      det.open = room.id === active || items.some((d) => destButtonActive(d.key, this.activeKey)) || (said ?? false);
       det.ontoggle = () => setRoomOpen(skey, det.open);
       det.classList.toggle("pnav-room-active", room.id === active);
       // The room's MODULES, not only its first-class destinations.
@@ -697,8 +699,7 @@ export class PortalUI {
       ["🧭", "Project Lifecycle", () => goDest("__lifecycle__", () => this.renderLifecycle())],
       ["📋", "IDS Requirements", () => goDest("__ids__", () => this.renderIds())],
       ["🗂", "CDE / Standards", () => goDest("__standards__", () => this.renderStandards())],
-      ["📊", "BIM KPIs", () => goDest("__bimkpi__", () => this.renderBimKpi())],
-      ["✅", "Model Health", () => goDest("__modelqa__", () => this.renderModelQa())],
+      ["🔬", "Analyse", () => goDest("__analyse__", () => this.renderAnalyse())],
     ];
     const grid = el("div"); grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px";
     for (const [ic, label, on] of tiles) {
@@ -772,6 +773,7 @@ export class PortalUI {
     } catch { /* no dashboard yet — tiles above are enough */ }
   }
 
+  private renderAnalyse() { renderAnalyseHome(this.panelCtx()); }
   private async renderProgram() { return (await import("./panels/standards")).renderProgram(this.panelCtx()); }
   private async renderBimKpi() { return (await import("./panels/standards")).renderBimKpi(this.panelCtx()); }
   private async renderMasterBuilder() { return (await import("./panels/masterBuilder")).renderMasterBuilder(this.panelCtx()); }

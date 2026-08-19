@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.994 (2026-08-19) — one Analyse home, three named tasks
+
+Design's rail no longer lists Model Health, Model Analysis and BIM KPIs as siblings. One **Analyse**
+destination opens a home that names the question each already-built panel answers. The three dests
+still render (readiness hops unchanged). Not a fourth scorecard.
+
 ## v0.3.993 (2026-08-19) — pick the sheet paper; 24×18 is ARCH C
 
 The Drawings rail has a paper picker. Catalog is US ARCH C/D/B/A plus ISO A0–A4. **24×18 in is
