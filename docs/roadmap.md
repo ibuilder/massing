@@ -652,7 +652,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX · UX-DUP-DESTINATIONS · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
@@ -1511,7 +1511,8 @@ refute one, so this goes first even though it is the least visible.
   like it walks to a GlobalId while actually asserting one. That is the fabrication shape this repo
   has spent a day naming, and it would have been shipped as the on-stage demo. Whoever picked up
   Sprint 2 would have started in the client and found nothing to render.
-- ◧ **R24-RUNS-INBOX** *(M; history half v0.3.947)* — clash, IDS, cost and energy become durable Runs
+- ✅ **R24-READINESS-HOME** *(S — **SHIPPED v0.3.988** as the UX-READINESS-EVERYWHERE strip)* — see
+  `apps/web/src/portal/panels/readinessStrip.ts`. Not a second protocol.
   (inputs, timestamp, author, artifact, **diff against the previous run**) with a per-project inbox.
   Most externally validated item in the ring — see the corroboration note above.
 
@@ -2259,14 +2260,11 @@ which 7 were project accounting, and `Model & standards` held 14 mixing project 
 findings. Split into Build/Money and Model & standards/Analyse & check — **max group 14 → 7**, nothing
 removed. Remaining, in priority order:
 
-- ⭐ **UX-READINESS-EVERYWHERE** *(M; superseded by **R24-READINESS-HOME**, kept for its evidence)* — **the app already contains its own "simple stupid" front door
-  and hides it.** The Master Builder panel is a live 8-step readiness synthesis: each step reads
-  ready / partial / gap against real project data, names exactly what is missing ("needs: Jurisdiction
-  so code editions + loads resolve"), and offers **→ Close this gap** straight to the tool that fixes
-  it — plus an honest disclaimer that labels reflect what is *present*, not what is *correct*. That is
-  precisely the "tell me what to do next" surface a builder/developer/architect/engineer wants on
-  opening a project, and it is reachable from exactly ONE destination inside ONE workspace (Design).
-  Promote the readiness strip to every workspace dashboard, scoped per persona.
+- ✅ **UX-READINESS-EVERYWHERE** / **R24-READINESS-HOME** *(M — **SHIPPED v0.3.988**)* — the Master
+  Builder 8-step brief is no longer Design-only. `apps/web/src/portal/panels/readinessStrip.ts` mounts
+  a scoped strip on every portal home (`apps/web/src/portal/portal.ts` `renderHome`); workspace ∩
+  persona, empty-intersect falls back to the workspace set; fail-open; Full brief still
+  `__masterbuilder__`. The eight-card panel is unchanged.
   `Model Health` (8 references), `Model Analysis` (5) and `BIM KPIs` (5) are three
   destinations whose names do not tell a user which answers their question; all three now sit together
   under `Analyse & check`, which makes the overlap visible and worth resolving rather than hiding it.

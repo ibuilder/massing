@@ -4,6 +4,28 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.988 (2026-08-19) — the readiness brief is on every home, and bake-share stores JSON
+
+Two leftovers from the upgrade audit, neither of which is a library swap.
+
+**The Master Builder 8-step brief was the product's own "what do I do next" surface, and it lived
+on one destination in Design.** A GC superintendent, a developer, or anyone who opened the workspace
+home never saw it. v0.3.988 mounts a compact strip on every portal home (construction / design /
+developer all pass through `renderHome`) and scopes the pills to that workspace, then to persona —
+intersected so a superintendent browsing Design still sees Design's questions rather than an empty
+strip. "Close this gap" hops to the first non-ready scoped step; "Full brief" still opens
+`__masterbuilder__`. Fail-open: a brief that cannot load leaves the host empty, same rule as Pulse.
+The strip sits above Pulse so the next action is above the risk numbers.
+
+Does not replace the eight-card panel. Does not invent a second protocol. The API is still
+`/projects/{id}/master-builder/brief`.
+
+**When bake-share is on, values are JSONDisk, not pickle.** `diskcache` 5.6.3 still has no published
+fix for CVE-2025-69872; the shared cache is still **off unless `AEC_BAKE_SHARE_DIR` is set**. The
+geometry payload was already nested lists of arrays, so pickle was never load-bearing here.
+`JSONDisk` is in the package we already pin. A row that cannot be JSON-encoded is refused rather than
+pickled. `mapped-diskcache` was not added. Default deployments still never construct a Cache.
+
 ## v0.3.986 (2026-08-18) — a comment that explains a pin gets believed because it is specific
 
 Three review findings, all of them claims that had drifted from what they described.

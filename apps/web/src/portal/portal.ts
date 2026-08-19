@@ -4,6 +4,7 @@ import { progressBar, usd } from "../ui/charts";
 import { countNarrative, statusChip } from "../ui/chips";
 import { noProjectHtml } from "../ui/empty";
 import { buildPulse, pulseRailEl } from "./panels/pulse";
+import { mountReadinessStrip } from "./panels/readinessStrip";
 import type { PanelContext } from "./panelContext";
 import { type RegisterFilter, RegisterUI } from "./register/register";
 import { SECTIONS_BY_PERSONA, readDensity, readFavs, readRecents, readRoomOpen, setDensity, setRoomOpen, toggleFav } from "./prefs";
@@ -816,7 +817,7 @@ export class PortalUI {
    * does not own, so it is kept narrow and optional-chained throughout: a renamed field costs a
    * missing card, never a thrown home panel.
    */
-  private async renderPulse(pid: string, root: HTMLElement) {
+  private async renderPulse(pid: string, root: HTMLElement, after?: HTMLElement) {
     try {
       const api = this.host.api as unknown as Record<string, (p: string) => Promise<unknown>>;
       const call = async (name: string) => {
@@ -861,7 +862,13 @@ export class PortalUI {
       // The home panel may have been re-rendered while this was in flight — appending into a root
       // that is no longer on screen would leave a rail nobody can see and a duplicate on the next
       // pass. Check before touching the DOM.
-      if (rail && root.isConnected) root.prepend(rail);
+      // After the density row and the readiness strip when those exist; otherwise the top of home.
+      // Prepend used to win the "first thing on the dashboard" slot; the readiness strip is now
+      // that slot, and Pulse sits under it rather than covering it.
+      if (rail && root.isConnected) {
+        if (after?.isConnected) after.after(rail);
+        else root.prepend(rail);
+      }
     } catch {
       /* a pulse that cannot be built is simply absent */
     }
@@ -889,13 +896,27 @@ export class PortalUI {
     densRow.append(densBtn);
     root.append(densRow);
 
-    // PROJECT PULSE — five numbers, each with a sentence naming what is at risk. Appended before the
-    // rest of the home panel so the state of the job is the first thing read, not the last.
+    // UX-READINESS-EVERYWHERE — the 8-step brief used to live only on Design → Master Builder.
+    // Mount a scoped strip on every home (GC / design / developer all pass through here) so
+    // "what do I do next" is the first project question, not a destination you have to know exists.
+    // Fail-open: a brief that 500s leaves this host empty.
+    const readyHost = el("div");
+    root.append(readyHost);
+    const persona = document.body.dataset.persona || localStorage.getItem("persona") || "all";
+    void mountReadinessStrip(readyHost, {
+      load: () => this.host.api.masterBuilderBrief(pid),
+      workspace: this.wsFilter,
+      persona,
+      onOpen: (dest) => this.goToDest(dest),
+    });
+
+    // PROJECT PULSE — five numbers, each with a sentence naming what is at risk. Sits under the
+    // readiness strip so "what is next" is above "what is at risk".
     //
     // Deliberately fire-and-forget and fully fail-open: a summary must never be able to break the
     // page it summarises. If an engine is slow or missing, the rail simply does not appear — which
     // is also why `pulseRailEl` returns null for an empty pulse rather than an empty heading.
-    void this.renderPulse(pid, root);
+    void this.renderPulse(pid, root, readyHost);
 
     // cross-module search
     const search = el("input") as HTMLInputElement;
