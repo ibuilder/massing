@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SHEET_PARAMS, encodeViews, sheetPath, sheetQuery, viewsForCanvas } from "./sheetSpecs";
+import { SHEET_PARAMS, encodeViews, railSheetOptions, sheetPath, sheetQuery, viewsForCanvas } from "./sheetSpecs";
 
 const REPO = resolve(__dirname, "../../../..");
 
@@ -52,6 +52,14 @@ describe("the client can only send parameters the route accepts", () => {
     expect(q.get("sheet")).toBe("A-101");
     expect(q.get("purpose"), "the per-level description belongs in purpose — there is no title field")
       .toBe("LEVEL 2 PLAN");
+  });
+
+  it("the rail names ISO A1 on the request, not a silent A3 / a tooltip that says ARCH-D", () => {
+    // compose() defaults to A3 when `page` is omitted. The layout editor already defaults to A1.
+    // Issue/PDF used to omit `page` while the buttons said A-101 and the hover said ARCH-D.
+    const q = sheetQuery(railSheetOptions("Level 2"));
+    expect(q.get("page")).toBe("A1");
+    expect(q.get("sheet")).toBe("A-101");
   });
 
   it("drops empty values rather than sending them blank", () => {
@@ -188,5 +196,8 @@ describe("the control is WIRED INTO the rail, not merely constructed", () => {
         .toEqual([]);
     }
     expect(sect).toContain("sheetPath(d.projectId!");
+    expect(sect, "Issue/PDF claimed ARCH-D while compose defaulted to A3")
+      .not.toMatch(/Issue sheet[\s\S]{0,400}ARCH-D/);
+    expect(sect).toMatch(/ISO A1/);
   });
 });

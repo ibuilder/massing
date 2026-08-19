@@ -118,14 +118,15 @@ export function viewsForCanvas(mode: "2d" | "3d", storeyElevation: number | null
 /**
  * The rail's sheet options for the level currently being worked in.
  *
- * Lives here rather than in `app.ts` for the ordinary reason — that file is on a size ratchet with no
- * headroom — and for a better one: this is the shape of a request, and the request shape is what was
- * wrong. Keeping it beside `SHEET_PARAMS` means the only place that decides what to send is the only
- * place that knows what may be sent.
+ * `page` is sent as ISO **A1**. Omitting it used to fall through to `compose()`'s **A3** default
+ * while the buttons were labelled A-101 and the tooltips said ARCH-D — three different papers,
+ * none of them named on the request. A1 is the issue size the layout editor already defaults to.
+ * ARCH-D (24×36 in) is a different standard and a product call, not a silent default.
  */
 export function railSheetOptions(storey: string | null, views?: ViewSpec[]): SheetOptions {
   return {
     sheet: "A-101",
+    page: "A1",
     storey,
     views,
     purpose: storey ? `${storey.toUpperCase()} PLAN` : "FLOOR PLAN",

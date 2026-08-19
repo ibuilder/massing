@@ -2275,8 +2275,12 @@ removed. Remaining, in priority order:
   destinations whose names do not tell a user which answers their question; all three now sit together
   under `Analyse & check`, which makes the overlap visible and worth resolving rather than hiding it.
 - **UX-GANTT** *(M)* — weekly Gantt/calendar hybrid with inline % + crew coloring + a metric strip.
-- **UX-DUP-DESTINATIONS** *(S — **checked 2026-08-06 and still genuinely OPEN**; recorded so the next
-  reader does not re-check)* — all three destinations are still present and distinct in the tree:
+- **UX-DUP-DESTINATIONS** *(S — **checked 2026-08-19 and still OPEN**)* — Design's
+  `Analyse & check` still has three destinations whose names do not tell a user which answers
+  their question: `__modelqa__` (Model Health / model checks), `__modelanalysis__` (Model Analysis /
+  read the model), `__bimkpi__` (BIM KPIs / ISO 19650 scorecard). #295 renamed the labels; it did
+  **not** collapse the dests. Remaining work is **one Analyse home with three named tasks**, not a
+  fourth engine and not deleting the three renderers. Do not invent a new scorecard.
 - **UX-3 library depth** — thumbnails · drag-to-place · pick-host→auto-build · appendable IFC
   libraries · CC0 seed/H1. **UX-4** one-shell layout (a11y/mobile pass).
 ## 🏔 BIG-TICKET — multi-release initiatives (open ONE track; slice + reassess)
@@ -2771,7 +2775,10 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   that is there.
 
   Remaining: the **keynote → spec section** link (the spec surface now exists; keynotes do not yet
-  carry their section code), and slice 6 as specified above.
+  carry their section code), and slice 6 as specified above. **Print-as-A (v0.3.992):** the Issue /
+  Sheet PDF rail now sends `page=A1` (ISO A1). Omitting `page` still defaults to A3 on
+  `compose()`; the layout editor already offered A1/A3/A4. Tooltips no longer claim ARCH-D for
+  that path. Live PDF still needs a source IFC — the demo's "no model" cannot exercise it.
 
 - **R36-ROOM-BRIEFS** *(M — Lane B; one room per release)* — per-room, per-role landing priority:
   each room opens with the three answers its primary role needs (superintendent in Schedule: today's

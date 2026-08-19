@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.992 (2026-08-19) — Issue sheet prints as ISO A1
+
+The Drawings rail's Issue / Sheet PDF buttons labelled the sheet A-101 and the hover said ARCH-D,
+while the request omitted `page` so `compose()` silently used **A3**. The paper-space editor already
+defaulted to A1. The rail now sends `page=A1`. ARCH-D (24×36 in) is a different standard and stays
+a product call, not a silent default. `compose()` with no `page` is still A3.
+
 ## v0.3.991 (2026-08-19) — Pulse is one GET, pills follow the persona, a 500 is not a blank
 
 Home Pulse no longer fans seven client GETs and maps the wrong field names (`score` vs

@@ -80,23 +80,18 @@ export function buildDrawingsSection(d: DrawingsDeps): HTMLButtonElement[] {
   planBtn.title = "Generate a schematic plan drawing (SVG, 1:100) from the model geometry — walls/columns/"
     + "slabs as class-styled poché with dimensions + keynotes. The active level scopes it.";
 
-  // W11 C3: compose an issuable sheet (ARCH-D border + titleblock) around the plan.
-  // Options come from sheetSpecs.ts, which can emit nothing the route does not declare — these
-  // three used to send `number`/`title`/`scale`, which sheet.* drops. See that file's header.
+  // W11 C3: compose an issuable sheet (ISO A1 border + titleblock) around the plan.
   const openSheet = (fmt: "svg" | "pdf", views?: ViewSpec[]) => window.open(
     d.api.url(sheetPath(d.projectId!, fmt, railSheetOptions(d.activeStorey(), views))), "_blank");
   const sheetBtn = d.toolBtn2("📄 Issue sheet (A-101)", () => openSheet("svg"));
-  sheetBtn.title = "Compose an issuable construction sheet — ARCH-D border + titleblock (project, sheet "
+  sheetBtn.title = "Compose an issuable construction sheet — ISO A1 paper + titleblock (project, sheet "
     + "number, scale, north arrow) with the plan placed in a scaled viewport. The deliverable.";
-
-  // W11 C3b: the submittable PDF of the sheet (reportlab, permit-ready).
   const pdfBtn = d.toolBtn2("⤓ Sheet PDF (A-101)", () => openSheet("pdf"));
-  // R36 slice 3 — place WHAT IS ON THE CANVAS; the first point at which 2D and 3D are peers on paper.
   const placeBtn = d.toolBtn2("🖼 Place this view on a sheet",
     () => openSheet("pdf", viewsForCanvas(d.modeSwitch.active === "sheets" ? "2d" : "3d", d.activeStoreyZ())));
   placeBtn.title = "Sheet PDF of the view you are looking at — the active level's plan in 2D, a true "
-    + "isometric in 3D. Both are vector drawings that keep their GlobalIds, not screenshots.";
-  pdfBtn.title = "Download the sheet as a PDF (ARCH-D, titleblock, plan poché + dimensions + keynotes) — "
+    + "isometric in 3D. Both are vector drawings that keep their GlobalIds, not screenshots. ISO A1.";
+  pdfBtn.title = "Download the sheet as a PDF (ISO A1, titleblock, plan poché + dimensions + keynotes) — "
     + "the submittable construction-document deliverable, rendered server-side.";
 
   // W11 C4: computed door / window / room schedules from the model.

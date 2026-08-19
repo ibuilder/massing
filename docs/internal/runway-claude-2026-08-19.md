@@ -167,8 +167,8 @@ These are product calls with engineering already half-done. Prefer shipping reac
    (**v0.3.991**) rather than a blank. Pulse's fail-open rule still holds for the rail.
 3. **Authoring wait is the feel problem.** Optimistic local mesh + job-tray "saving…" until
    incremental fragments exist. Status bar is ~220 px — pair toast + request id.
-4. **Element card** — #295 wired four surfaces; keep going until RFI/estimate/pay-app/asset are
-   verified live, then the remaining call sites in the item.
+4. **Print-as-A is now ISO A1 on the Issue/PDF rail** (**v0.3.992**). Live PDF still needs a
+   source IFC; the public demo is "no model". ARCH-D remains a product call, not a silent default.
 5. **Density on registers** (`R24-DENSITY ②`), not only dashboards — where an 8-hour GC lives.
 6. **Field mode as a mode**, not a breakpoint. Superintendent should not see the BIM rail.
 7. **Catalog ★ keyboard focus** — cheapest a11y win still open.

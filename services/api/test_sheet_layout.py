@@ -47,6 +47,7 @@ massing.generate_ifc(metrics, ifc, name="SheetLay")
 model = open_model(ifc)
 meshes = sl.bake(model)
 assert meshes, "model bakes"
+assert sl.PAGES["A1"][0] > sl.PAGES["A3"][0] > sl.PAGES["A4"][0], sl.PAGES
 
 # fixed 1:50: geometry is clipped INSIDE the viewport rect, and the scale text is exact
 vp_fixed = {"kind": "plan", "elevation": 0.0, "rect": [0.0, 0.0, 0.5, 1.0], "scale": 50,
