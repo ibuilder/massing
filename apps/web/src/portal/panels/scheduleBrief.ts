@@ -1,5 +1,6 @@
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
+import { fail, mountBrief } from "./roomBriefChrome";
 
 /**
  * R36-ROOM-BRIEFS — Schedule (superintendent).
@@ -13,7 +14,7 @@ import type { PanelContext } from "../panelContext";
  *    (the 409), never "0 slipped".
  *
  * The three engines already exist (`scheduleLookahead`, `scheduleAlerts`, `scheduleVariance`).
- * This file only puts them first. Remaining rooms (Deal, …) are still open on R36.
+ * This file only puts them first.
  */
 export const SCHEDULE_BRIEF_QUESTIONS = [
   { key: "lookahead", title: "Today's lookahead" },
@@ -23,40 +24,9 @@ export const SCHEDULE_BRIEF_QUESTIONS = [
 
 type Alert = { level: string; title: string; detail: string; ref?: string };
 
-function card(title: string): { root: HTMLElement; body: HTMLElement } {
-  const root = document.createElement("div");
-  root.className = "dash-card";
-  root.style.cssText = "flex:1 1 220px;min-width:200px;margin:0";
-  const h = document.createElement("div");
-  h.className = "section-title";
-  h.style.margin = "0 0 4px";
-  h.textContent = title;
-  const body = document.createElement("div");
-  body.className = "meta";
-  body.textContent = "Loading…";
-  root.append(h, body);
-  return { root, body };
-}
-
-function fail(body: HTMLElement, reason: string): void {
-  body.dataset.unavailable = "1";
-  body.textContent = reason;
-}
-
 export async function renderScheduleBrief(ctx: PanelContext): Promise<HTMLElement> {
   const pid = ctx.host.projectId()!;
-  const wrap = document.createElement("div");
-  wrap.dataset.scheduleBrief = "1";
-  wrap.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px";
-
-  const byKey = Object.fromEntries(
-    SCHEDULE_BRIEF_QUESTIONS.map((q) => {
-      const c = card(q.title);
-      c.root.dataset.brief = q.key;
-      wrap.appendChild(c.root);
-      return [q.key, c] as const;
-    }),
-  );
+  const { wrap, byKey } = mountBrief("scheduleBrief", SCHEDULE_BRIEF_QUESTIONS);
   const laCard = byKey.lookahead!;
   const blCard = byKey.blockers!;
   const vaCard = byKey.variance!;
@@ -101,7 +71,6 @@ export async function renderScheduleBrief(ctx: PanelContext): Promise<HTMLElemen
       for (const a of blockers.slice(0, 6)) {
         const row = document.createElement("div");
         row.style.margin = "2px 0";
-        // Alerts name activities from the live schedule / an imported P6 file.
         row.innerHTML = `<b>${esc(a.title)}</b> — ${esc(a.detail)}`
           + (a.ref ? ` <span style="opacity:.6">[${esc(a.ref)}]</span>` : "");
         blCard.body.appendChild(row);

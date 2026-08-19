@@ -1,5 +1,6 @@
 import type { PanelContext } from "../panelContext";
 import { firstOpenStep, type ReadinessStep } from "./readinessStrip";
+import { fail, mountBrief } from "./roomBriefChrome";
 
 /**
  * R36-ROOM-BRIEFS — Deal (developer).
@@ -11,8 +12,7 @@ import { firstOpenStep, type ReadinessStep } from "./readinessStrip";
  * 2. **Open diligence** — go/no-go plus flagged studies. A failed fetch is a reason, never "0 flagged".
  * 3. **Next decision gate** — first non-ready developer protocol step. A 500 is "unavailable".
  *
- * Engines already exist (`projectPulse`, `diligenceReadiness`, `masterBuilderBrief`). Remaining
- * rooms after Schedule + Deal are still open on R36.
+ * Engines already exist (`projectPulse`, `diligenceReadiness`, `masterBuilderBrief`).
  */
 export const DEAL_BRIEF_QUESTIONS = [
   { key: "returns", title: "Returns vs guardrails" },
@@ -20,40 +20,9 @@ export const DEAL_BRIEF_QUESTIONS = [
   { key: "gate", title: "Next decision gate" },
 ] as const;
 
-function card(title: string): { root: HTMLElement; body: HTMLElement } {
-  const root = document.createElement("div");
-  root.className = "dash-card";
-  root.style.cssText = "flex:1 1 220px;min-width:200px;margin:0";
-  const h = document.createElement("div");
-  h.className = "section-title";
-  h.style.margin = "0 0 4px";
-  h.textContent = title;
-  const body = document.createElement("div");
-  body.className = "meta";
-  body.textContent = "Loading…";
-  root.append(h, body);
-  return { root, body };
-}
-
-function fail(body: HTMLElement, reason: string): void {
-  body.dataset.unavailable = "1";
-  body.textContent = reason;
-}
-
 export async function renderDealBrief(ctx: PanelContext): Promise<HTMLElement> {
   const pid = ctx.host.projectId()!;
-  const wrap = document.createElement("div");
-  wrap.dataset.dealBrief = "1";
-  wrap.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px";
-
-  const byKey = Object.fromEntries(
-    DEAL_BRIEF_QUESTIONS.map((q) => {
-      const c = card(q.title);
-      c.root.dataset.brief = q.key;
-      wrap.appendChild(c.root);
-      return [q.key, c] as const;
-    }),
-  );
+  const { wrap, byKey } = mountBrief("dealBrief", DEAL_BRIEF_QUESTIONS);
   const retCard = byKey.returns!;
   const dilCard = byKey.diligence!;
   const gateCard = byKey.gate!;
@@ -68,7 +37,7 @@ export async function renderDealBrief(ctx: PanelContext): Promise<HTMLElement> {
     fail(retCard.body, `Returns unavailable: ${(pulse.reason as Error).message}`);
   } else if (!pulse.value.deal || pulse.value.deal.irrPct == null) {
     retCard.body.textContent = "No IRR yet — there is no underwriting scenario to measure against.";
-    } else {
+  } else {
     const d = pulse.value.deal;
     const irr = d.irrPct as number;
     const band = d.band;

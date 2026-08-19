@@ -1,4 +1,4 @@
-# Runway for Claude Code — 2026-08-19, after v0.3.998
+# Runway for Claude Code — 2026-08-19, after v0.3.999
 
 **Grade: live handoff.** Written so the next session picks up from measured state rather than chat
 memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still is. Security
@@ -10,7 +10,7 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 ## Land order — do this first, then write code
 
 `origin/main` was **v0.3.986** when this stack started. Three PRs still claim **v0.3.987**. This
-branch is **v0.3.988–998**.
+branch is **v0.3.988–999**.
 
 | Order | PR | Branch | What |
 |---:|---|---|---|
@@ -18,7 +18,7 @@ branch is **v0.3.988–998**.
 | 2 | [#292](https://github.com/ibuilder/massing/pull/292) | `cursor/upgrade-audit-plan-6e15` | CC0 in the written licence rule |
 | 3 | [#295](https://github.com/ibuilder/massing/pull/295) | `cursor/ux-debug-reach-6e15` | Empty canvas, Place ticks, Analyse names, element cards |
 | 4 | close | [#296](https://github.com/ibuilder/massing/pull/296) | Superseded by this PR (readiness + JSONDisk) |
-| 5 | this | `cursor/runway-claude-6e15` | **988–998** (table below) |
+| 5 | this | `cursor/runway-claude-6e15` | **988–999** (table below) |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main` (`.claude/skills/ship-release`). This agent cannot merge.
@@ -42,6 +42,7 @@ pending `main` (`.claude/skills/ship-release`). This agent cannot merge.
 | 996 | Density Field 56 / Comfortable 36 / Compact 28 on registers; catalog ★ focus ring |
 | 997 | CAM statement PDF is **POST** + blob download. OAuth callback is the only GET+commit |
 | 998 | Deal room brief: returns vs band, open diligence, next protocol gate |
+| 999 | Cost / Planning / Operate room briefs. Shared `roomBriefChrome.ts`. R36 complete except Design |
 
 ---
 
@@ -58,6 +59,7 @@ pending `main` (`.claude/skills/ship-release`). This agent cannot merge.
 - Do **not** turn `AEC_BAKE_SHARE_DIR` on by default. Do **not** add `mapped-diskcache`. Do **not**
   take trimesh 5 until `test_sections.py` is revalidated.
 - MassingViewer swap waits on npm; keep shipping here behind existing seams.
+- Design room brief: **do not add one** while `ROOM_HOME.design` is `null` (the viewer is the home).
 
 **Operator still owns:** SEC-BRANCH; hosted vs on-prem defaults; seven-room vs workspace fossils;
 grey identity; R24-TERMS; zero vs one big-ticket.
@@ -66,8 +68,7 @@ grey identity; R24-TERMS; zero vs one big-ticket.
 
 ## Next slices that already have a seam (prefer these)
 
-1. **R36 remaining rooms** — Cost, Planning, Operate, Design. Template:
-   `scheduleBrief.ts` / `dealBrief.ts`. One room per release. Fail-open, never a plausible zero.
+1. **R36 done** for portal homes. Do not invent a Design-room brief in `portal/panels/`.
 2. **Empty-register copy** — `emptyGuide.ts` is still a TS table. Moving `what`/`from` onto
    `module.json` is Lane H + B together; do not start it as a drive-by in one lane.
 3. **R24-FIELD-MODE** — a mode, not a breakpoint. Larger than a sitting unless scoped to one surface.
@@ -107,7 +108,9 @@ Web (Node **24**):
 
 ```
 cd apps/web && npm run typecheck && npm run lint && npm run build
-npx vitest run src/portal/panels/scheduleBrief.test.ts src/portal/panels/dealBrief.test.ts src/portal/prefs.test.ts
+npx vitest run src/portal/panels/scheduleBrief.test.ts src/portal/panels/dealBrief.test.ts \
+  src/portal/panels/costBrief.test.ts src/portal/panels/planningBrief.test.ts \
+  src/portal/panels/operateBrief.test.ts src/portal/prefs.test.ts
 ```
 
 ---
@@ -115,4 +118,5 @@ npx vitest run src/portal/panels/scheduleBrief.test.ts src/portal/panels/dealBri
 ## Explicitly out of scope unless the operator says otherwise
 
 Growing `app.ts` / `client.ts`, merging without rebase, unifying Analyse dests (done), enabling
-bake-share by default, ARCH-D as the only US size, a fourth Analyse engine, React/Reflex.
+bake-share by default, ARCH-D as the only US size, a fourth Analyse engine, React/Reflex,
+a Design-room brief while the canvas is still the Design home.

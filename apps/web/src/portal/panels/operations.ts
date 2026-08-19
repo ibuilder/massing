@@ -3,6 +3,7 @@ import { progressBar, groupedBar, lineChart, money as cmoney, qty, usd } from ".
 import { promptModal } from "../../ui/modal";
 import { noProjectHtml } from "../../ui/empty";
 import type { PanelContext } from "../panelContext";
+import { renderOperateBrief } from "./operateBrief";
 
 /**
  * Operations & facility panels, extracted from portal.ts (portal.ts decomposition).
@@ -17,6 +18,7 @@ export async function renderOperations(ctx: PanelContext) {
     root.appendChild(ctx.bar("🔧 Operations — Maintenance", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
     const pid = ctx.host.projectId();
     if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("Operations")); return; }
+    root.appendChild(await renderOperateBrief(ctx));
     const intro = el("div", "meta"); intro.style.marginBottom = "8px";
     intro.textContent = "Post-turnover maintenance: PM schedules generate preventive work orders "
       + "before failures happen; KPIs show whether the building is run proactively (PM compliance) "

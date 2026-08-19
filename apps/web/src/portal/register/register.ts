@@ -2543,5 +2543,4 @@ export class RegisterUI {
     wrap.append(cv, clear);
     return () => (dirty ? cv.toDataURL("image/png") : "");
   }
-
 }

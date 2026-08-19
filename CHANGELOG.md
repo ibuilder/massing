@@ -4,6 +4,15 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.999 (2026-08-19) — Cost, Planning, and Operate open on three answers
+
+R36-ROOM-BRIEFS for the remaining portal homes. Cost (`__budget__`) opens vs GMP, unpriced
+exposure, and buyout. Planning (`__benchmarks__`) opens on the RFI clock, the submittal clock,
+and own-history cost medians. Operate (`__operations__`) opens on overdue work orders, PM
+compliance, and FCI. No GMP / no history / `pm_compliance_pct: null` / no FCA elements are
+sentences, never 0%. Shared card chrome is `roomBriefChrome.ts`. Design stays the viewer
+(`ROOM_HOME.design` is null).
+
 ## v0.3.998 (2026-08-19) — Deal opens on the developer's three answers
 
 The Deal room (`__portfolio__`) used to open on the book-wide table. It now opens with returns vs
