@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1000 (2026-08-19) — the element card opens wherever a register names a GUID
+
+R24-ELEMENT-CARD ② reach. Opening an RFI, estimate, SOV (G703 / pay-app line), or asset-register
+(COBie Component) record that is tied to model elements now mounts the same lifecycle card as the
+viewer and the cost-trace lookup. There is no `pay_app` module and no COBie worksheet UI — those
+two named surfaces are SOV and the asset register. A failed lifecycle is the identity line, never
+a six-blank strip. The register file shrank (`tiedElements.ts`); the pin is 2,516.
+
 ## v0.3.999 (2026-08-19) — Cost, Planning, and Operate open on three answers
 
 R36-ROOM-BRIEFS for the remaining portal homes. Cost (`__budget__`) opens vs GMP, unpriced

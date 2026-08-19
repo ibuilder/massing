@@ -27,7 +27,8 @@
 > and **12%** of features carry 80% of daily use across 615 measured subscriptions (Pendo, 2019). So the
 > design rule is **defer, never delete**: route each person to the ten things they touch today, keep the
 > rest one keystroke away. See the [design audit & interface plan](docs/internal/archive/design-audit.md) and the **R24
-> interface ring** in [the roadmap](docs/roadmap.md).
+> interface ring** in [the roadmap](docs/roadmap.md). The element card (GUID + lifecycle) now opens
+> from the viewer, the cost trace, and any register record that names a model element (v0.3.1000).
 
 **What it is** — three pillars on one IFC-keyed model, reached through seven rooms — **Deal · Design · Planning · Schedule · Cost · Work · Operate** — that stay in the same place for every role:
 

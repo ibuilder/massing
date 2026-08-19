@@ -1,4 +1,4 @@
-# Runway for Claude Code — 2026-08-19, after v0.3.999
+# Runway for Claude Code — 2026-08-19, after v0.3.1000
 
 **Grade: live handoff.** Written so the next session picks up from measured state rather than chat
 memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still is. Security
@@ -10,15 +10,15 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 ## Land order — do this first, then write code
 
 `origin/main` was **v0.3.986** when this stack started. Three PRs still claim **v0.3.987**. This
-branch is **v0.3.988–999**.
+branch is **v0.3.988–1000**.
 
 | Order | PR | Branch | What |
 |---:|---|---|---|
 | 1 | [#294](https://github.com/ibuilder/massing/pull/294) | `cursor/lib-perf-sec-6e15` | pdfjs 6.2.108; `enableScripting: false` |
 | 2 | [#292](https://github.com/ibuilder/massing/pull/292) | `cursor/upgrade-audit-plan-6e15` | CC0 in the written licence rule |
-| 3 | [#295](https://github.com/ibuilder/massing/pull/295) | `cursor/ux-debug-reach-6e15` | Empty canvas, Place ticks, Analyse names, element cards |
+| 3 | [#295](https://github.com/ibuilder/massing/pull/295) | `cursor/ux-debug-reach-6e15` | Empty canvas, Place ticks, Analyse names |
 | 4 | close | [#296](https://github.com/ibuilder/massing/pull/296) | Superseded by this PR (readiness + JSONDisk) |
-| 5 | this | `cursor/runway-claude-6e15` | **988–999** (table below) |
+| 5 | this | `cursor/runway-claude-6e15` | **988–1000** (table below) |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main` (`.claude/skills/ship-release`). This agent cannot merge.
@@ -43,23 +43,28 @@ pending `main` (`.claude/skills/ship-release`). This agent cannot merge.
 | 997 | CAM statement PDF is **POST** + blob download. OAuth callback is the only GET+commit |
 | 998 | Deal room brief: returns vs band, open diligence, next protocol gate |
 | 999 | Cost / Planning / Operate room briefs. Shared `roomBriefChrome.ts`. R36 complete except Design |
+| 1000 | Element card on every tied register record (`tiedElements.ts`). R24-ELEMENT-CARD ② shipped |
 
 ---
 
 ## What is already decided — do not re-open
 
 - Binding constraint is **adoption / feel**, not missing modules. No second big-ticket (CMMS,
-  photo-pin, field-PWA) until spine, element-card reach, field mode, and authoring round-trip move.
+  photo-pin, field-PWA) until field mode and authoring round-trip move. **Element-card reach shipped
+  v0.3.1000.** Spine rooms already exist.
 - No React, no Reflex. No new npm/PyPI packages without operator OK. Licence MIT/BSD/Apache/ISC/CC0.
 - Python lock only via `.github/workflows/lockfile.yml`. Never hand-edit hashes.
 - IFC GlobalId identity; Fragments in the browser; recipes on the server.
 - Do **not** invent proforma GUID provenance in the client.
 - Do **not** grow `apps/web/src/viewer/app.ts` or `apps/web/src/api/client.ts` without extracting
-  first. `client.ts` pin is **3,672** (`test_file_sizes.py`).
+  first. `client.ts` pin is **3,672**. `register.ts` pin is **2,516** (`test_file_sizes.py`).
 - Do **not** turn `AEC_BAKE_SHARE_DIR` on by default. Do **not** add `mapped-diskcache`. Do **not**
   take trimesh 5 until `test_sections.py` is revalidated.
 - MassingViewer swap waits on npm; keep shipping here behind existing seams.
-- Design room brief: **do not add one** while `ROOM_HOME.design` is `null` (the viewer is the home).
+- Design room brief: **do not add one** while Design home is null (the viewer is the home).
+- There is **no `pay_app` module** (emptyGuide already recorded this — it is `owner_invoice` / SOV).
+  There is **no COBie worksheet UI** — Component.ExtIdentifier lives in the xlsx export; the in-app
+  row is `asset_register`. Do not invent a cobie register to "finish" a shipped item.
 
 **Operator still owns:** SEC-BRANCH; hosted vs on-prem defaults; seven-room vs workspace fossils;
 grey identity; R24-TERMS; zero vs one big-ticket.
@@ -68,16 +73,12 @@ grey identity; R24-TERMS; zero vs one big-ticket.
 
 ## Next slices that already have a seam (prefer these)
 
-1. **R36 done** for portal homes. Do not invent a Design-room brief in `portal/panels/`.
+1. **R36 and R24-ELEMENT-CARD ② are done.** Do not redo either.
 2. **Empty-register copy** — `emptyGuide.ts` is still a TS table. Moving `what`/`from` onto
    `module.json` is Lane H + B together; do not start it as a drive-by in one lane.
 3. **R24-FIELD-MODE** — a mode, not a breakpoint. Larger than a sitting unless scoped to one surface.
 4. **Authoring wait** — optimistic local mesh + job-tray until incremental `.frag`. Large; not a
    drive-by.
-
-Catalog ★ keyboard focus **shipped in 996** (visible `outline-offset: 2px`).
-
-GET+commit leftover **shipped in 997**. Do not re-open CAM as GET.
 
 ---
 
@@ -95,28 +96,21 @@ GET+commit leftover **shipped in 997**. Do not re-open CAM as GET.
 From `services/api` (no pytest; `PYTHONPATH=src:../data/src`):
 
 ```
-python -m ruff check src/ ../data/src/
-python test_get_commits.py
-python test_mutating_get.py
-python test_file_sizes.py
-python test_claude_md_gates.py
+python3 test_file_sizes.py
+python3 test_claude_md_gates.py
 ```
-
-`test_reserves_cam.py` needs the API venv (CAM PDF is POST now).
 
 Web (Node **24**):
 
 ```
 cd apps/web && npm run typecheck && npm run lint && npm run build
-npx vitest run src/portal/panels/scheduleBrief.test.ts src/portal/panels/dealBrief.test.ts \
-  src/portal/panels/costBrief.test.ts src/portal/panels/planningBrief.test.ts \
-  src/portal/panels/operateBrief.test.ts src/portal/prefs.test.ts
+npx vitest run src/portal/register/tiedElements.test.ts src/ui/elementCard.test.ts \
+  src/shell/roadmapLanes.test.ts src/shell/roadmapStale.test.ts src/shell/versionConsistency.test.ts
 ```
 
 ---
 
 ## Explicitly out of scope unless the operator says otherwise
 
-Growing `app.ts` / `client.ts`, merging without rebase, unifying Analyse dests (done), enabling
-bake-share by default, ARCH-D as the only US size, a fourth Analyse engine, React/Reflex,
-a Design-room brief while the canvas is still the Design home.
+Growing `app.ts` / `client.ts` / `register.ts`, merging without rebase, unifying Analyse dests (done),
+enabling bake-share by default, a Design-room brief, a COBie worksheet UI, React/Reflex.

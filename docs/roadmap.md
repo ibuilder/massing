@@ -653,7 +653,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
@@ -1434,7 +1434,7 @@ is recorded. Filed under Decisions below.
 | 03 | roles gate the UI invisibly | R24-ROLE-EXPLAIN | ✅ v0.3.685 |
 | 04 | long jobs, foreground UI | R24-JOB-TRAY | ✅ **shipped; this row was stale** — `apps/web/src/ui/jobTray.ts` is 373 lines, mounted at `apps/web/src/main.ts:2052`, 28 tests. The ❌ survived its own implementation |
 | 05 | analyses are modals → no history | R24-RUNS-INBOX | ◧ **v0.3.947** — history + run-over-run diff in `apps/web/src/ui/runs.ts` / `apps/web/src/ui/runsInbox.ts`. The premise "no runs concept" was **half wrong**: `Job` already stores params, actor, timestamps and result. Routing clash/IDS/cost/energy *through* the queue is the open half |
-| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | 🟡 `apps/web/src/ui/lifecycleStrip.ts` + `inspectorTabs.ts` built; now **two** call sites — the viewer inspector and `apps/web/src/ui/elementCard.ts`, mounted from `apps/web/src/portal/panels/traceability.ts:75`. Four surfaces still unwired |
+| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | ✅ **SHIPPED v0.3.1000** — `apps/web/src/ui/elementCard.ts` on the viewer, cost trace, and every register record that names a GUID (`apps/web/src/portal/register/tiedElements.ts`). There is no `pay_app` module (SOV line is the G703 row) and no COBie worksheet UI (asset register is the in-app Component row) |
 | 07 | onboarding teaches the chrome | FIRST-RUN | 🟡 improved v0.3.777; still not the lot → building → deal chain |
 | 08 | persona picker only relabels | *(none)* | ⚠️ reversed on purpose — see Decisions |
 | 09 | tools panel mixes verbs with analyses | *(none)* | ✅ **v0.3.848** — `R24-TOOLS-SPLIT` cut the 1087-line `qa` section in two; Analyse is its own rail item |
@@ -1484,16 +1484,12 @@ refute one, so this goes first even though it is the least visible.
   takes this should build the beacon and flip those two, and should not expect to write a backend test.
 ### Sprint 2 — cash the moat *(the differentiation no competitor can copy)*
 
-- ◧ ⭐ **R24-ELEMENT-CARD ②** *(S — was M, was L; ◧ added 2026-08-06 — `apps/web/src/ui/elementCard.ts` declares this item and one surface already mounts it, so "nothing exists" was never true; what is open is REACH, not capability)* — the strip exists and works, **and the extraction it
-  was blocked on is DONE.** The card's frame + loader live in `apps/web/src/ui/elementCard.ts` and one
-  non-viewer surface already mounts it (`apps/web/src/portal/panels/traceability.ts:75`).
-
-  The extraction cost two import lines: `lifecycleStrip.ts` imported **one type** and nothing else — it
-  was already viewer-independent and merely *filed* under `viewer/`. Another estimate that came from
-  where a file sat rather than what it contained, which is why this dropped L → M → S.
-
-  Remaining is purely call sites: **RFI, estimate line, pay app, COBie row.** No component work, no
-  dependency risk — `elementCard.ts` takes a GlobalId and an API client.
+- ✅ **R24-ELEMENT-CARD ②** *(S — **SHIPPED v0.3.1000**)* — the strip exists in `apps/web/src/ui/elementCard.ts`.
+  Call sites: viewer inspector, cost trace (`apps/web/src/portal/panels/traceability.ts`), and every
+  register record that names an element (`apps/web/src/portal/register/tiedElements.ts`) — RFI, estimate
+  (tied GUIDs plus `line_items` `guid` / `element_guid` / `ExtIdentifier`), SOV (the G703 / pay-app line;
+  there is no `pay_app` module), asset register (the in-app COBie Component row). A failed lifecycle is
+  the identity line, never a six-blank strip. More than 8 GUIDs is a named sample.
 - ~~**R24-TRACE-UI ②**~~ *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
   **proforma emit its own derivation**: each headline figure carrying its inputs and a
   **model-derived / overridden / market-assumption** tag, terminating in a GlobalId where one exists.

@@ -120,8 +120,9 @@ PER_FILE = {
     # Pinned at its EXACT measured size on 2026-08-09, BEFORE it needs splitting — the third-largest
     # hand-written file in the tree and the only one of that size with no ratchet. The qaSection entry
     # above records why the timing matters: "a ratchet added at the point of pain only ratifies the
-    # pain." Nothing is wrong with this file today; that is precisely when the pin is free.
-    "apps/web/src/portal/register/register.ts": 2_546,
+    # 2_546 → 2_516 (v0.3.1000): the model-elements block moved to tiedElements.ts so the
+    # lifecycle card could mount on every tied GUID without growing this file.
+    "apps/web/src/portal/register/register.ts": 2_516,
 }
 
 #: Exempt because a human never reads them top-to-bottom. Name them, never infer them.
