@@ -4,6 +4,10 @@
  * Each room still owns its three questions and its engines. This file only builds the three
  * cards so a fourth room does not copy the markup a third time.
  */
+import type { RoomId } from "../../ui/a11yJourney";
+import { markPrimary } from "../../ui/a11yJourney";
+import type { PanelContext } from "../panelContext";
+
 export type BriefQuestion = { key: string; title: string };
 
 export type BriefCard = { root: HTMLElement; body: HTMLElement };
@@ -45,4 +49,34 @@ export function mountBrief(
     }),
   );
   return { wrap, byKey };
+}
+
+/** Open a register from a room landing. No-ops when the catalog has not loaded that module. */
+export function openRoomModule(ctx: PanelContext, moduleKey: string): void {
+  const m = ctx.mods.find((x) => x.key === moduleKey);
+  if (!m) return;
+  ctx.activeKey = moduleKey;
+  void ctx.openModule(m);
+  ctx.buildNav();
+}
+
+/**
+ * The room's one keyboard primary — a real button on a brief card, not a clickable card.
+ * Exactly one of these should exist per room landing.
+ */
+export function briefPrimary(
+  card: BriefCard,
+  room: RoomId,
+  label: string,
+  onClick: () => void,
+): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "tool-btn";
+  b.style.marginTop = "6px";
+  b.textContent = label;
+  b.onclick = onClick;
+  markPrimary(b, room);
+  card.root.appendChild(b);
+  return b;
 }

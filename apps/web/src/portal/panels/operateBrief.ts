@@ -1,5 +1,5 @@
 import type { PanelContext } from "../panelContext";
-import { fail, mountBrief } from "./roomBriefChrome";
+import { briefPrimary, fail, mountBrief, openRoomModule } from "./roomBriefChrome";
 
 /**
  * R36-ROOM-BRIEFS — Operate (facility / CMMS).
@@ -58,5 +58,6 @@ export async function renderOperateBrief(ctx: PanelContext): Promise<HTMLElement
       + ` · ${fca.value.open_deficiencies} open deficiencies`;
   }
 
+  briefPrimary(odCard, "operate", "Open work orders", () => openRoomModule(ctx, "work_order"));
   return wrap;
 }

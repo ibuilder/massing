@@ -1,4 +1,4 @@
-# Runway for Claude Code — 2026-08-19, after v0.3.1006
+# Runway for Claude Code — 2026-08-19, after v0.3.1007
 
 **Grade: live handoff.** Written so the next session picks up from measured state rather than chat
 memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still is. Security
@@ -21,7 +21,9 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 | 6 | [#298](https://github.com/ibuilder/massing/pull/298) | `cursor/charts-series-colour-6e15` | **1002** vs #297 |
 | 7 | [#299](https://github.com/ibuilder/massing/pull/299) | `cursor/mono-data-token-6e15` | **1003** vs #298 |
 | 8 | [#300](https://github.com/ibuilder/massing/pull/300) | `cursor/field-mode-chrome-6e15` | **1004** vs #299 |
-| 9 | this | `cursor/cite-highlight-6e15` | **1005** vs #300 |
+| 9 | [#301](https://github.com/ibuilder/massing/pull/301) | `cursor/cite-highlight-6e15` | **1005** vs #300 |
+| 10 | [#302](https://github.com/ibuilder/massing/pull/302) | `cursor/field-capture-home-6e15` | **1006** vs #301 |
+| 11 | this | `cursor/a11y-journeys-6e15` | **1007** vs #302 |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main`. This agent cannot merge.
@@ -40,6 +42,8 @@ pending `main`. This agent cannot merge.
 | 1003 | R24-MONO-DATA closed — paste textarea uses `var(--mono)`; allowance 0 |
 | 1004 | R24-FIELD-MODE ② — field CSS beats FAB inline size/position; strip `aria-live` |
 | 1005 | R31-CITE-HIGHLIGHT closed — in-app viewer + PageWords box |
+| 1006 | R24-FIELD-MODE ③ — capture sheet lands when field mode + project |
+| 1007 | R39-A11Y-JOURNEYS ② closed — Tab to `[data-room-primary]` (Design tab for Design) |
 
 ---
 
@@ -61,9 +65,9 @@ PERSONA-SHAPE; IDENTITY.
 
 ## Next slices
 
-1. **R24-FIELD-MODE remainder** — capture-first *home* (not another density control, not Lane J CSS).
+1. **R24-FIELD-MODE remainder** — replacing the seven-room home (Lane A). Slice ③ only opens the sheet.
 2. **R24-REPORTS-BY-MOMENT** scheduling (needs jobs/delivery; larger).
-3. **R39-A11Y-JOURNEYS ②** — keyboard journeys; attributes already swept.
+3. Lane B still open: `R24-TERMS`, `UX-GANTT`, `R22-REPORT-BUILDER`, `R23-SYMBOL-COUNT`, `R38-SHEET-MARKUP ③`.
 
 ---
 
@@ -80,8 +84,9 @@ PERSONA-SHAPE; IDENTITY.
 
 ```
 cd apps/web && npm run typecheck && npm run lint
-npx vitest run src/ui/charts.test.ts src/ui/monoData.test.ts src/field/fieldMode.test.ts \
-  src/drawings/citeLocate.test.ts src/portal/panels/citationControl.test.ts \
+npx vitest run src/ui/a11yJourney.test.ts src/portal/panels/planningBrief.test.ts \
+  src/portal/panels/costBrief.test.ts src/portal/panels/scheduleBrief.test.ts \
+  src/portal/panels/dealBrief.test.ts src/portal/panels/operateBrief.test.ts \
   src/shell/roadmapLanes.test.ts src/shell/versionConsistency.test.ts
 cd ../services/api && PYTHONPATH=src:../data/src python3 test_file_sizes.py && python3 test_claude_md_gates.py
 ```

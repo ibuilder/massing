@@ -1,5 +1,5 @@
 import type { PanelContext } from "../panelContext";
-import { fail, mountBrief } from "./roomBriefChrome";
+import { briefPrimary, fail, mountBrief, openRoomModule } from "./roomBriefChrome";
 
 /**
  * R36-ROOM-BRIEFS — Planning (PM).
@@ -73,5 +73,6 @@ export async function renderPlanningBrief(ctx: PanelContext): Promise<HTMLElemen
     }
   }
 
+  briefPrimary(rfiCard, "planning", "Open RFIs", () => openRoomModule(ctx, "rfi"));
   return wrap;
 }
