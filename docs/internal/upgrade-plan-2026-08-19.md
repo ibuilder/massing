@@ -1,16 +1,26 @@
-# Upgrade plan — 2026-08-19, at v0.3.986
+# Upgrade plan — 2026-08-19, at v0.3.986 (CC0 decision closed in v0.3.987)
 
-**Grade: opinionated audit + decision brief. Nothing built from this file.** It is a reading of
-the tree as it sits today, for the operator to pick from. It is **not** a work list and **not**
-current after the next release. The live work list remains [`docs/roadmap.md`](../roadmap.md).
-Security controls live in [`docs/security/threat-model.md`](../security/threat-model.md); the
-security *queue* lives in [`security-roadmap.md`](security-roadmap.md).
+**Grade: opinionated audit + decision brief.** It is a reading of the tree for the operator to
+pick from. It is **not** a work list and **not** current after the next release. The live work
+list remains [`docs/roadmap.md`](../roadmap.md). Security controls live in
+[`docs/security/threat-model.md`](../security/threat-model.md); the security *queue* lives in
+[`security-roadmap.md`](security-roadmap.md).
 
-**Method (so this is falsifiable).** Architecture docs and the standing roadmap; two code
-walks of `services/api` + `services/data` and `apps/web`; measured line counts and lock pins on
-this checkout; prior internal audits (tech-debt 2026-08-09, plan 2026-08-10, design audit).
-CodeQL alerts were **not** re-queried — this environment's GitHub token returns 403 on the
-code-scanning API. Do not treat "not queried" as "zero open."
+**Method (so this is falsifiable).** Architecture docs; the standing roadmap (directions, START
+HERE, Band 1, lane table, R24, parked decisions, Gated); two code walks of `services/api` +
+`services/data` and `apps/web`; measured line counts and lock pins; prior internal audits
+(tech-debt 2026-08-09, plan 2026-08-10, design audit).
+
+**Changelog and roadmap — what was actually read, not implied.** The first draft of this brief
+did **not** read `CHANGELOG.md` cover-to-cover (~19k lines) and did **not** walk every open
+roadmap bullet. On 2026-08-19 a re-check did: the last ~40 release titles (v0.3.947–986), a
+grep of the changelog for CC0/licence-allowlist, and the roadmap decision block that still
+listed CC0 as open. That re-check found the important miss: **the Python classifier already
+accepted CC0 on 2026-08-10** (`test_licence_allowlist.py`) while the written non-negotiable and
+the open-decision bullet had not followed. Recent changelog shape: two weeks of R45 schedule
+engines, R46 vendor reach, R24 charts/runs-inbox, and lock/docs hygiene — not a missing
+architecture. CodeQL alerts were **not** re-queried (token 403). Do not treat "not queried"
+as "zero open."
 
 ---
 
@@ -166,7 +176,7 @@ HMAC webhooks, share-token curation. Standing queue: [`security-roadmap.md`](sec
 | **SEC-OPS-3** | Uncomment container memory limits | Yes for prod compose; leave sandbox CPU-only if you want crash-over-OOM locally. |
 | **SEC-G1** | Secret scanning in CI | Yes when a MIT-licensed scanner is available (`REL-6` / gitleaks). Until then the grep audits stay incomplete. |
 | **diskcache** | Replace / accept / vendor | Accept with the existing pin + re-review date unless a fix appears; one import site (`bake_shared.py`). |
-| **CC0-1.0** | Permit on the licence allowlist | Yes — you already ship CC0 family content; the written rule is narrower than reality. CC0 is more permissive than MIT. |
+| **CC0-1.0** | ~~Permit on the licence allowlist~~ | **Settled 2026-08-19.** Classifier already had it (2026-08-10); written rule now matches. |
 
 **Do not** treat a green CodeQL *run* as zero alerts. Re-query the alerts API from a token that
 can read code scanning after the next push.
@@ -251,7 +261,7 @@ Answer these before agents pick them up. A wrong call here is expensive; a delay
 | **R24-IDENTITY** | Visual identity pass vs keep grey | **Keep grey until `R24-BASELINE` has numbers.** Colour without a measurement becomes a rewrite of `style.css` with no adoption signal. |
 | **QUALITY-ROOM** | Move inspections/ITP to Work | **Leave the register in Design;** the *task* already hits the Work queue. Revisit only after watching a GC use it. |
 | **R32-TAXONOMY-LIFECYCLE** | Derive document taxonomy from rooms | Yes in principle; do not invent a fourth tree. |
-| **CC0 allowlist** | Widen vs remove shipped CC0 content | Widen. |
+| **CC0 allowlist** | Widen vs remove shipped CC0 content | **Done v0.3.987.** |
 | **massingviser vs this repo as "the" platform** | Pick one federation manager | **This repo stays the product.** Sibling cores vendor in; do not grow a second shell. |
 | **Open one BIG-TICKET** | FIELD-PWA / PHOTO-PIN / CMMS-OPS / A2 RAG | **None until field-mode + element-card reach ship.** Then FIELD-PWA if the superintendent is the next customer; CMMS if operate-phase is. Not both. |
 | **Hosted vs on-prem defaults** | Permissive LAN vs locked cloud | Ship **two overlays**. Do not change the on-prem default to punish self-hosters. |
@@ -264,9 +274,8 @@ Slices, not a calendar. Each should be one release-sized change in an existing l
 
 **A — You, this week**
 1. SEC-BRANCH choice (required checks vs review bottleneck).
-2. CC0 allowlist yes/no.
-3. Persona-shape: confirm "weight, don't hide."
-4. Pick **zero or one** big-ticket for the next quarter.
+2. Confirm “weight rooms, don’t hide them” (persona-shape).
+3. Pick **zero or one** big-ticket for the next quarter.
 
 **B — Highest user-visible return (Lane A/B)**
 1. `UX-DUP-DESTINATIONS` (Analyse home).

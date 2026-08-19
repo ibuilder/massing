@@ -3,8 +3,9 @@
 Three cherry-picked, offline pieces (this does *not* replace CodeQL or the esc() XSS discipline):
 
 - **license audit** — walk the installed Python distributions (``importlib.metadata``, stdlib) and classify
-  each declared license as **permitted** (MIT / BSD / Apache / ISC / PSF / Unlicense / Zlib — the project's
-  standing constraint) · **copyleft** (GPL / AGPL / LGPL / MPL / EPL / CDDL / EUPL — disallowed) · unknown.
+  each declared license as **permitted** (MIT / BSD / Apache / ISC / PSF / Unlicense / Zlib / CC0 /
+  BSL-1.0 — the project's standing constraint) · **copyleft** (GPL / AGPL / LGPL / MPL / EPL / CDDL /
+  EUPL — disallowed) · unknown.
   Mechanically enforces the no-AGPL rule instead of relying on review. ``python -m aec_api.supply_chain``
   prints the audit and exits non-zero if any copyleft component is found — usable as a CI/skill gate.
 - **SBOM** — a minimal CycloneDX 1.5 JSON component list (name · version · license) for the same set.

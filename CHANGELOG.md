@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.987 (2026-08-19) — CC0 is permitted, and the written rule catches up
+
+The operator confirmed adding **CC0-1.0** to the permitted licence list.
+
+The Python classifier already accepted it, from 2026-08-10: `test_licence_allowlist.py` pins
+`CC0-1.0` / `CC0 1.0 Universal` as permitted, next to Boost `BSL-1.0` and explicitly not `BUSL`.
+The families shelf already shipped CC0 content. What had not followed was the *written*
+non-negotiable (`docs/roadmap-directions.md` still said "MIT / BSD / Apache only") and the
+roadmap decision bullet that still asked for a call.
+
+This release closes that bullet, names CC0 (and ISC) in the directions, classifies a CC0
+LICENSE *title* in the npm gate so it is not an unclassified text, and records the same in
+the vendorable-core note.
+
+**Not a new dependency. Not a licence we did not already ship.** The defect was three
+statements about one fact, two of them stale.
+
 ## v0.3.986 (2026-08-18) — a comment that explains a pin gets believed because it is specific
 
 Three review findings, all of them claims that had drifted from what they described.
