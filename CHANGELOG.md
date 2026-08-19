@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.989 (2026-08-19) — the home strip's scope is a server fact, not a client filter
+
+The 8-step protocol still runs in Python. The home strip was still deciding *which* steps a
+superintendent or a designer sees. That map now lives next to `_PROTOCOL` in
+`master_builder_scope.py`, is applied on `GET /projects/{id}/master-builder/brief?workspace=&persona=`,
+and is lockstep-tested against `readinessStrip.ts` so the two layers cannot fork. The overall
+readiness percent stays on all eight steps; only the pills are scoped. Empty intersect still
+falls back to the workspace set.
+
+Bake-share directories are mode 0700 when the operator turns sharing on. GET handlers that
+`Session.commit()` are a ratchet (`test_get_commits.py`): OAuth callback stays GET; the CAM
+PDF download is named as the leftover. Handoff for the next session:
+`docs/internal/runway-claude-2026-08-19.md`.
+
 ## v0.3.988 (2026-08-19) — the readiness brief is on every home, and bake-share stores JSON
 
 Two leftovers from the upgrade audit, neither of which is a library swap.

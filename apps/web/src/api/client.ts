@@ -35,9 +35,9 @@ import type {
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, PreflightSummary, ProfessionalLicense,
   ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
-  BidLevelingDetail,
-  SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload,
-  DiligenceReadiness, ReviewCycles } from "./types";
+    BidLevelingDetail,
+    SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload,
+    DiligenceReadiness, ReviewCycles, MasterBuilderBrief } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
@@ -2008,17 +2008,13 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
       persona?: string; insight?: string; follow_ups?: string[]; persona_note?: string;
     }>(`/projects/${pid}/answer/cited-query`, { method: "POST", body: JSON.stringify({ query, property, persona }) });
   }
-  masterBuilderBrief(pid: string) {
-    type Step = { n: number; key: string; title: string; why: string; link: string; dest: string;
-      status: "ready" | "partial" | "gap";
-      findings: { label: string; detail: string }[]; gaps: string[] };
-    return this.json<{
-      project: string | null; jurisdiction: string | null; grounded_in_place: boolean;
-      place_grounding: { code_family: string | null; hemisphere: string | null; climate_band: string | null;
-        coordinates: { latitude: number; longitude: number } | null; hazards_to_verify: string[] };
-      reframe_prompt: string; readiness_pct: number; ready_steps: number; gap_steps: number;
-      step_count: number; steps: Step[]; disclaimer: string; note: string;
-    }>(`/projects/${pid}/master-builder/brief`);
+  masterBuilderBrief(pid: string, scope?: { workspace?: string; persona?: string }) {
+    const q = new URLSearchParams();
+    if (scope?.workspace) q.set("workspace", scope.workspace);
+    if (scope?.persona) q.set("persona", scope.persona);
+    const qs = q.toString();
+    return this.json<MasterBuilderBrief>(
+      `/projects/${pid}/master-builder/brief${qs ? `?${qs}` : ""}`);
   }
   /** WARN-1 — unified model-warnings feed: hygiene + normative-conformance defects, one worst-first punch list. */
   modelWarnings(pid: string) {

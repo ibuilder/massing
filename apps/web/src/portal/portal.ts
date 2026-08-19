@@ -904,7 +904,7 @@ export class PortalUI {
     root.append(readyHost);
     const persona = document.body.dataset.persona || localStorage.getItem("persona") || "all";
     void mountReadinessStrip(readyHost, {
-      load: () => this.host.api.masterBuilderBrief(pid),
+      load: () => this.host.api.masterBuilderBrief(pid, { workspace: this.wsFilter, persona }),
       workspace: this.wsFilter,
       persona,
       onOpen: (dest) => this.goToDest(dest),

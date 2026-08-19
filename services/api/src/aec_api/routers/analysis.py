@@ -1065,13 +1065,15 @@ def model_roundtrip(pid: str, db: Session = Depends(get_db),
 
 
 @router.get("/projects/{pid}/master-builder/brief")
-def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+def master_builder_brief(pid: str, workspace: str | None = None, persona: str | None = None,
+                         db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """MASTER-BUILDER — the whole project in one view: runs the 8-step Master Builder Protocol (place →
     program/HBU → feasibility → regulatory → design-integration → delivery → risk → handover) over the
     project's own data, grounds it in the project's jurisdiction, and reports a readiness status + the
     concrete gap per step (each linking to the tool that closes it). A readiness synthesis over the data
     on hand — not a substitute for licensed judgment, a plan check, or committed underwriting."""
     from .. import master_builder
+    from ..master_builder_scope import apply_scope
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
     place_context = None
@@ -1083,7 +1085,8 @@ def master_builder_brief(pid: str, db: Session = Depends(get_db), _sec: str = De
                              "ref_longitude": site.get("ref_longitude")}
     except Exception:                                # noqa: BLE001 — no/opaque model: brief still runs
         pass
-    return master_builder.brief(db, pid, place_context=place_context)
+    payload = master_builder.brief(db, pid, place_context=place_context)
+    return apply_scope(payload, workspace, persona)
 
 
 @router.get("/projects/{pid}/master-builder/brief.md")

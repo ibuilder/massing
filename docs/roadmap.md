@@ -2260,10 +2260,11 @@ which 7 were project accounting, and `Model & standards` held 14 mixing project 
 findings. Split into Build/Money and Model & standards/Analyse & check — **max group 14 → 7**, nothing
 removed. Remaining, in priority order:
 
-- ✅ **UX-READINESS-EVERYWHERE** / **R24-READINESS-HOME** *(M — **SHIPPED v0.3.988**)* — the Master
+- ✅ **UX-READINESS-EVERYWHERE** / **R24-READINESS-HOME** *(M — **SHIPPED v0.3.988**, scope server-side **v0.3.989**)* — the Master
   Builder 8-step brief is no longer Design-only. `apps/web/src/portal/panels/readinessStrip.ts` mounts
   a scoped strip on every portal home (`apps/web/src/portal/portal.ts` `renderHome`); workspace ∩
-  persona, empty-intersect falls back to the workspace set; fail-open; Full brief still
+  persona is applied in `services/api/src/aec_api/master_builder_scope.py` (`test_master_builder_scope.py`
+  locksteps the TS maps). Empty-intersect falls back to the workspace set; fail-open; Full brief still
   `__masterbuilder__`. The eight-card panel is unchanged.
   `Model Health` (8 references), `Model Analysis` (5) and `BIM KPIs` (5) are three
   destinations whose names do not tell a user which answers their question; all three now sit together

@@ -111,6 +111,11 @@ def _store():
     try:
         import diskcache
         limit = int(os.environ.get(_ENV_MB, "4096")) * 1024 * 1024
+        os.makedirs(d, mode=0o700, exist_ok=True)
+        try:
+            os.chmod(d, 0o700)
+        except OSError:
+            pass
         # JSONDisk: the pickle path is CVE-2025-69872. Geometry is arrays; JSON lists are enough.
         _cache = diskcache.Cache(
             d, size_limit=limit, eviction_policy="least-recently-used",

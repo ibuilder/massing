@@ -28,6 +28,7 @@ export interface ReadinessBrief {
   step_count: number;
   grounded_in_place: boolean;
   steps: ReadinessStep[];
+  scope?: { workspace: string; persona: string; keys: string[] };
 }
 
 /** Protocol keys this workspace actually asks. Unknown workspaces get the builder's set. */
@@ -85,6 +86,8 @@ export async function mountReadinessStrip(
   catch { return; }
 
   const want = new Set(readinessStepKeys(opts.workspace, opts.persona));
+  // Server-scoped briefs already filtered the pills; still intersect so an old/unscoped
+  // payload cannot show construction delivery on the Design home.
   const steps = brief.steps.filter((s) => want.has(s.key));
   if (!steps.length) return;
 
