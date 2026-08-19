@@ -647,6 +647,7 @@ export class RegisterUI {
           tr.appendChild(this.refCell(String(v), c, refMaps[c.name]));
         } else {
           cell(this.fmtCell(c, v));
+          if (isNumericField(c.type)) tr.lastElementChild?.classList.add("num");
         }
       }
       tr.appendChild(this.assigneeCell(pid, m, r));   // inline-editable

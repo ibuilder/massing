@@ -408,7 +408,7 @@ html, body { overflow: hidden; }   /* the app manages its own internal scrolling
   background: transparent; border: none; border-radius: 6px; padding: 2px 6px; line-height: 1; }
 .mod-fav:hover { opacity: 1; }
 .mod-fav.on { color: #ffd479; opacity: 1; }
-.mod-fav:focus-visible, .portal-mod:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.mod-fav:focus-visible, .portal-mod:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* readable analysis results modal (ui/result.ts) */
 .result-overlay { position: fixed; inset: 0; z-index: 220; background: #000a;
@@ -967,6 +967,16 @@ body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
 .dense .kpi-v { font-size: 16px; }
 .dense .kpi-l { font-size: 9px; }
 .dense .section-title { margin: 2px 0 4px; }
+
+/* R24-DENSITY ② — register (and any .portal-table) row height follows the three named steps.
+   Field is a glove target; compact packs the 8-hour GC list; comfortable is the default 36 px. */
+[data-density="field"] .portal-table td,
+[data-density="field"] .portal-table th { padding: 16px 10px; font-size: 14px; }
+[data-density="comfortable"] .portal-table td,
+[data-density="comfortable"] .portal-table th { padding: 8px 6px; font-size: 12px; }
+[data-density="compact"] .portal-table td,
+[data-density="compact"] .portal-table th { padding: 4px 6px; font-size: 11px; }
+[data-density] .portal-table td { font-variant-numeric: tabular-nums; }
 
 /* ball-in-court party pill (who owes the next action) */
 .ball-badge { display: inline-block; font-size: 10px; font-weight: 600; line-height: 15px;

@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.996 (2026-08-19) — Field / Comfortable / Compact on registers
+
+Density is three named row heights (56 / 36 / 28 px), cycled from the portal home, and applied to
+`.portal-table` so the 8-hour register is not stuck at dashboard-only compact. Numeric cells use
+tabular figures. Catalog star and module buttons show a focus ring outside the control
+(`outline-offset: 2px`), so keyboard focus is visible.
+
 ## v0.3.995 (2026-08-19) — Schedule opens on the superintendent's three answers
 
 The Schedule room used to open on import/export, then a wall of tools. It now opens with today's

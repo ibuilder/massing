@@ -7,7 +7,7 @@ import { buildPulse, pulseRailEl } from "./panels/pulse";
 import { mountReadinessStrip } from "./panels/readinessStrip";
 import type { PanelContext } from "./panelContext";
 import { type RegisterFilter, RegisterUI } from "./register/register";
-import { SECTIONS_BY_PERSONA, readDensity, readFavs, readRecents, readRoomOpen, setDensity, setRoomOpen, toggleFav } from "./prefs";
+import { SECTIONS_BY_PERSONA, cycleDensity, readDensity, readFavs, readRecents, readRoomOpen, setRoomOpen, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
 import { renderAnalyseHome } from "../shell/analyseHome";
 import { ALL_DESTS, destButtonActive, destsForRail, type Dest, stagesFor } from "../shell/destinations";
@@ -83,6 +83,7 @@ export class PortalUI {
 
   constructor(private root: HTMLElement, private host: PortalHost) {
     this.reg = new RegisterUI(this.panelCtx());
+    this.applyDensity();
     // The tab bar announces the room; the portal that hosts it responds. Registered in the
     // constructor rather than init() because the first room click usually PRECEDES init — the
     // workspace switch that triggers lazy init and the room event arrive in the same tick, and a
@@ -801,10 +802,11 @@ export class PortalUI {
 
   private async renderIds() { return (await import("./panels/standards")).renderIds(this.panelCtx()); }
 
-  /** Reflect the persisted command-center density onto the portal root so `.dense …` CSS tightens
-   *  the home dashboards. Harmless on other views (module tables carry no dash-cards). */
+  /** Reflect the persisted density onto the portal root so registers AND dashboards share it. */
   private applyDensity() {
-    this.root.classList.toggle("dense", readDensity() === "compact");
+    const d = readDensity();
+    this.root.dataset.density = d;
+    this.root.classList.toggle("dense", d === "compact");
   }
 
   /**
@@ -838,18 +840,18 @@ export class PortalUI {
     const root = this.root;
     const el = (tag: string, cls = "") => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
 
-    // command-center density: a compact/comfortable toggle that tightens the multi-card dashboards.
+    // command-center density: Field 56 / Comfortable 36 / Compact 28, applied to registers too.
     this.applyDensity();
     const densRow = el("div"); densRow.style.cssText = "display:flex;justify-content:flex-end;margin-bottom:4px";
     const densBtn = el("button", "tool-btn") as HTMLButtonElement;
     densBtn.style.cssText = "font-size:11px;padding:2px 8px";
     const paintDens = () => {
-      const compact = readDensity() === "compact";
-      densBtn.textContent = compact ? "⊟ Compact" : "⊞ Comfortable";
-      densBtn.title = compact ? "Switch to comfortable spacing" : "Switch to a denser command center";
-      densBtn.setAttribute("aria-pressed", String(compact));
+      const d = readDensity();
+      densBtn.textContent = d === "field" ? "☐ Field" : d === "compact" ? "⊟ Compact" : "⊞ Comfortable";
+      densBtn.title = "Cycle Field (56 px) → Comfortable (36 px) → Compact (28 px). Applies to registers.";
+      densBtn.setAttribute("aria-pressed", String(d !== "comfortable"));
     };
-    densBtn.onclick = () => { setDensity(readDensity() === "compact" ? "comfortable" : "compact"); this.applyDensity(); paintDens(); };
+    densBtn.onclick = () => { cycleDensity(); this.applyDensity(); paintDens(); };
     paintDens();
     densRow.append(densBtn);
     root.append(densRow);
