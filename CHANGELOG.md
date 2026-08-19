@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.995 (2026-08-19) — Schedule opens on the superintendent's three answers
+
+The Schedule room used to open on import/export, then a wall of tools. It now opens with today's
+lookahead, blockers, and yesterday's variance (`scheduleBrief.ts`), then the rest of the board.
+The three engines already existed. A failed fetch is a reason, never a plausible zero. Work remains
+the template; Deal and the other rooms are still open on R36-ROOM-BRIEFS.
+
 ## v0.3.994 (2026-08-19) — one Analyse home, three named tasks
 
 Design's rail no longer lists Model Health, Model Analysis and BIM KPIs as siblings. One **Analyse**

@@ -3,12 +3,17 @@ import { groupedBar, usd } from "../../ui/charts";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
+import { renderScheduleBrief } from "./scheduleBrief";
 import { renderScheduleMethods } from "./scheduleMethods";
 
 /**
  * Unified GC schedule visuals — one relational schedule drives all of it: the Last Planner pull-plan
  * board (make-ready, PPC, live collaboration + presence), lookahead, milestones, CPM critical path,
  * earned value, baseline/variance, and the Gantt + Line-of-Balance SVGs. Extracted from portal.ts.
+ *
+ * R36-ROOM-BRIEFS (Schedule): the superintendent's three answers land first — today's lookahead,
+ * blockers, yesterday's variance. Spec and render live in `scheduleBrief.ts`. The tools below
+ * remain; they are no longer the first thing the room is.
  */
 // M3 live-board resources of the CURRENT render. The panel has no dispose hook, so each re-render
 // closes its predecessor's SSE stream + presence timer synchronously — rapid Schedule↔Home toggling
@@ -22,6 +27,7 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   if (livePullTimer) { window.clearInterval(livePullTimer); livePullTimer = 0; }
   ctx.root.innerHTML = "";
   ctx.root.appendChild(ctx.bar("Schedule", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+  ctx.root.appendChild(await renderScheduleBrief(ctx));
   const intro = document.createElement("div"); intro.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 8px";
   const listBtn = document.createElement("button"); listBtn.className = "tool-btn"; listBtn.textContent = "✎ Activities (list)";
   listBtn.title = "Open the activity list to add / edit / import tasks";

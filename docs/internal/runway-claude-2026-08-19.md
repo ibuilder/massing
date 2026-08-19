@@ -161,7 +161,8 @@ cd apps/web && npm run typecheck && npm run lint && npx vitest run src/portal/pa
 These are product calls with engineering already half-done. Prefer shipping reach over new chrome.
 
 1. **One nav in the user's head.** Rooms only. **UX-DUP-DESTINATIONS shipped v0.3.994** — one Analyse
-   home, three named tasks. Do not add a fourth engine.
+   home, three named tasks. Do not add a fourth engine. **Schedule room brief shipped v0.3.995**
+   (R36-ROOM-BRIEFS, Schedule only).
 2. **Close the first gap is now on every home.** A brief that 500s shows "Readiness unavailable"
    (**v0.3.991**) rather than a blank. Pulse's fail-open rule still holds for the rail.
 3. **Authoring wait is the feel problem.** Optimistic local mesh + job-tray "saving…" until
