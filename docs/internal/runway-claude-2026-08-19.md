@@ -73,10 +73,7 @@ CC0 is settled on #292. The 08-10 plan still lists it as open — ignore that bu
 5. **Bake-share is JSON when on** (#296) — `diskcache.JSONDisk` in `services/data/src/aec_data/bake_shared.py`.
    Still off unless the env dir is set. Upstream still has **no published 5.6.4**; HMAC-pickle PRs
    exist (`grantjenks/python-diskcache` #361 / #364) and a mapped fork — we did not take the fork.
-6. **This PR (989)** — the same scope maps live in `services/api/src/aec_api/master_builder_scope.py`;
-   `GET /projects/{id}/master-builder/brief?workspace=&persona=` filters pills in Python and keeps
-   the 8-step score; TS maps are lockstep-tested; cache directory `chmod 0700`; GET+`db.commit`
-   population is a ratchet (`test_get_commits.py`).
+6. **This PR (989/990)** — scope maps in `master_builder_scope.py`; GET+commit ratchet; **Starlette 1.6.0**.
 
 ---
 
@@ -87,7 +84,7 @@ Checked 2026-08-19 against PyPI / advisories (not against a working CodeQL token
 | Package | Lock / pin | Take? |
 |---|---|---|
 | FastAPI | `0.141.1` | **No.** That is the current stable (2026-07-29). |
-| Starlette | `1.3.1` | **Yes, via lockfile workflow.** 1.6.0 (2026-08-08) adds `max_body_size` on routes and another FileResponse Range fix. We already serve IFC via `FileResponse` (`routers/bim.py`). Floor in `requirements.in` only after the compiled lock exists. Host-header auth already uses `scope["path"]` (`_routed_path` in `main.py`, gated by `test_security_audit.py`). |
+| Starlette | was 1.3.1; **1.6.0 in v0.3.990** | Taken. FileResponse Range + `max_body_size`. Recompile only via lockfile.yml if this lock is later edited. |
 | pypdf / cryptography | 6.15.0 / 50.0.0 | Already the CVE floors. Leave. |
 | diskcache | 5.6.3 | **No bump** (no fix on PyPI). JSONDisk + 0700 + off-by-default. Re-review if 5.6.4 publishes. |
 | boto3 | lock 1.43.46; dependabot wants `>=1.43.68` (#288) | Routine lock regen. Not a feature. |

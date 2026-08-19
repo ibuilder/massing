@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.990 (2026-08-19) — Starlette 1.6.0, the FileResponse Range floor
+
+`requirements.lock` pinned Starlette 1.3.1. 1.5.1/1.6.0 fix Range handling on `FileResponse` (we
+stream source IFC that way) and add `max_body_size` on routes. FastAPI 0.141.1 already allowed
+`starlette>=0.46.0`; the floor is now explicit in `requirements.in`. No other lock moves. Compiled
+on Python 3.12.
+
 ## v0.3.989 (2026-08-19) — the home strip's scope is a server fact, not a client filter
 
 The 8-step protocol still runs in Python. The home strip was still deciding *which* steps a

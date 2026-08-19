@@ -1962,10 +1962,12 @@ sqlalchemy==2.0.51 \
     # via
     #   -r services/api/requirements.in
     #   alembic
-starlette==1.3.1 \
-    --hash=sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0 \
-    --hash=sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6
-    # via fastapi
+starlette==1.6.0 \
+    --hash=sha256:a86dd39d14bb45f85a3d18525215a9ef0cfd1f192ac793220e72598c90335f0c \
+    --hash=sha256:d4e3ac5e546444960c710297a3c9fc3f7ebae1b7e963f3d36173b49da535be9b
+    # via
+    #   -r services/api/requirements.in
+    #   fastapi
 trimesh==4.12.2 \
     --hash=sha256:b5b5afa63c5272345f2858f7676bc8c217dc8a89f4fadf6193fe10a81b5ff2aa \
     --hash=sha256:c8ca31571ac00b112e4e160e66a2d4c3491df321f056bd33806be0485d1af9d9
