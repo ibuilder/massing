@@ -197,6 +197,19 @@ have, so unlike R45 there is no de-duplication decision hiding in this list:
 | ~~`weather`~~ | 250 | **SHIPPED v0.3.967** — `schedule_weather.py`; refuses to invent an allowance |
 | ~~`portfolio`~~ | 345 | **SHIPPED v0.3.967** — membership checked per project, proven 403/200 |
 
+**⚠ AND THE WHOLE EOT SURFACE IS DARK — measured 2026-08-20.** Both routes exist and **no client
+code references either**: `POST /schedule/eot` (caller-typed baseline) and `POST /schedule/eot/sourced`
+(R40-EOT ②, derived from a *captured* baseline and detected events). `test_route_reachability` could
+not report it — its leaf, `eot`, is 3 characters and the rule skips anything under 5, because short
+leaves match unrelated text constantly. A longer needle was tried and rejected with numbers; see the
+`MIN_SEGMENT` note in that file.
+
+**Not wired here on purpose.** The entry below reserves the EOT *semantics* as a domain decision, and
+which of the two a screen should show is the same question wearing different clothes: `sourced` is the
+auditable one — its own docstring says a caller-typed baseline "is unauditable… two people can produce
+different EOTs from one project by typing different dates" — but putting an extension-of-time figure
+in front of a user is a decision about what the product asserts in an arbitration, not a wiring task.
+
 **⚠ FOUND WHILE WIRING THESE TWO: `eot.py` names four AACE methods and performs none of them.** All
 four return an identical number on the same input — the method is recorded as a label and the
 arithmetic never changes, because nothing in it re-schedules a network. Three of the four *are*

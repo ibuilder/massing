@@ -65,6 +65,21 @@ def check(label, ok, detail=""):
 
 #: Minimum length for a path segment to count as distinctive. Shorter ones ("id", "pdf", "new") occur
 #: in unrelated text constantly and would make the rule noise.
+#:
+#: **WHAT THIS COSTS, measured 2026-08-20: 113 routes are never assessed at all** — a limit stated
+#: without its size reads as a minor caveat, and this one is 12% of the surface. `/schedule/eot` is
+#: in it (leaf `eot`), and a direct grep confirms **no client code references any EOT endpoint** —
+#: so that whole R40-EOT surface is dark and this gate structurally cannot say so.
+#:
+#: **A longer needle was tried and rejected, with numbers.** Matching the last TWO static segments
+#: ("prefab/kits") would cover short leaves — and flags **50** of the 113 as dark, almost all false:
+#: the client builds URLs as template literals, `` `/projects/${pid}/ask` ``, so "projects/ask"
+#: never appears contiguously. The `${pid}` interpolation is precisely why the leaf alone is the
+#: only part that survives, and why this rule cannot be sharpened by lengthening the needle.
+#:
+#: Of the 113, exactly **two** are genuinely uncalled: `/projects/{pid}/prefab/kits` and its
+#: `/{rid}` sibling. Listing them here rather than in KNOWN_UNCALLED, because the rule never
+#: evaluates them — an entry there would claim a check that does not run.
 MIN_SEGMENT = 5
 
 #: Frozen: routes whose last static segment appears nowhere in the web source, as of 2026-08-06.
