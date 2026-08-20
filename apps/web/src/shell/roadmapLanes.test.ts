@@ -245,7 +245,7 @@ describe("the roadmap lane table", () => {
   it("reads a plausible number of lanes and items — else every assertion below is vacuous", () => {
     // The can't-fail shape this repo keeps getting bitten by: a green check over an empty set.
     expect(LANES.length, `parsed ${LANES.length} lane rows`).toBeGreaterThanOrEqual(8);
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(40);
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(39);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {

@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1011 (2026-08-20) — box one symbol on the sheet, get the rest
+
+R23-SYMBOL-COUNT ②. Takeoff **⌘ Match** boxes one instance on the pdf.js-rendered page;
+`countOnRgba` in `apps/web/src/ui/symbolCount.ts` downsamples, NCC-matches, and places
+existing count marks. A too-small or too-large box is a sentence, never a guessed quantity.
+
 ## v0.3.1010 (2026-08-19) — count a symbol by matching it, not guessing
 
 R23-SYMBOL-COUNT ①. Normalised cross-correlation plus non-maximum suppression in

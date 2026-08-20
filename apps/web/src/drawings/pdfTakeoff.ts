@@ -10,6 +10,7 @@ import { PdfDocument, configureWorker } from "@massingcloud/pdf-viewer";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { toast } from "../ui/feedback";
 import { askText } from "../ui/prompt";
+import { countOnRgba } from "../ui/symbolCount";
 import { documentWords, locatePassage, paintCiteBox } from "./citeLocate";
 
 // PDF-ADOPT slice 1 of 3: opening and page access now go through the vendored drawing-review engine
@@ -20,7 +21,7 @@ import { documentWords, locatePassage, paintCiteBox } from "./citeLocate";
 // hazard the hand-rolled `slice(0)` below existed to dodge.
 configureWorker(workerUrl);
 
-type Mode = "pan" | "distance" | "area" | "count" | "rect" | "calibrate" | "text" | "stamp";
+type Mode = "pan" | "distance" | "area" | "count" | "symbol" | "rect" | "calibrate" | "text" | "stamp";
 interface Pt { x: number; y: number }                       // PDF user-space
 export interface Measure { id: number; kind: Mode; pts: Pt[]; value: number; unit: string; label: string; page: number; text?: string }
 
@@ -151,7 +152,8 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
       tbtn("📏 Calibrate", calOk() ? `Scale set: 1 unit shown in ${unit}` : "Set the drawing scale (required)", () => setMode("calibrate"), mode === "calibrate"),
       tbtn("📐 Distance", "Measure distance", () => setMode("distance"), mode === "distance"),
       tbtn("▱ Area", "Measure area", () => setMode("area"), mode === "area"),
-      tbtn("# Count", "Count items", () => setMode("count"), mode === "count"),
+      tbtn("# Count", "Count items one by one", () => setMode("count"), mode === "count"),
+      tbtn("⌘ Match", "Box one symbol; matching instances become counts", () => setMode("symbol"), mode === "symbol"),
       tbtn("▭ Rect", "Rectangle annotation", () => setMode("rect"), mode === "rect"),
       tbtn("𝗧 Text", "Text markup", () => setMode("text"), mode === "text"),
       tbtn("🔖 Stamp", "Place the selected stamp", () => setMode("stamp"), mode === "stamp"),
@@ -230,6 +232,7 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
     if (mode === "count" || mode === "text" || mode === "stamp") { await commit(); draft = []; }  // single-click placement
     else if (mode === "calibrate" && draft.length === 2) await calibrate();
     else if (mode === "rect" && draft.length === 2) await commit();
+    else if (mode === "symbol" && draft.length === 2) await matchSymbols();
     drawOverlay();
   });
   svg.addEventListener("dblclick", async () => { if ((mode === "distance" && draft.length >= 2) || (mode === "area" && draft.length >= 3)) await commit(); });
@@ -247,6 +250,36 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
     unit = m?.[2] || "m"; unitsPerPt = +numStr / px;
     toast(`scale set — 1 ${unit} = ${(1 / unitsPerPt).toFixed(1)} pt`, "success");
     buildBar(); renderList();
+  }
+
+  /** R23-SYMBOL-COUNT ② — box one instance on the rendered pdf.js canvas; NCC places the rest. */
+  async function matchSymbols() {
+    const [a, b] = draft;
+    draft = [];
+    if (!a || !b) { drawOverlay(); return; }
+    // Reuse the context already created in `render` — a second getContext with different
+    // attributes can return null.
+    const ctx2d = canvas.getContext("2d");
+    if (!ctx2d) { toast("couldn't read the page", "error"); return; }
+    const x0 = Math.round(Math.min(a.x, b.x) * scale);
+    const y0 = Math.round(Math.min(a.y, b.y) * scale);
+    const tw = Math.round(Math.abs(b.x - a.x) * scale);
+    const th = Math.round(Math.abs(b.y - a.y) * scale);
+    let img: ImageData;
+    try { img = ctx2d.getImageData(0, 0, canvas.width, canvas.height); }
+    catch { toast("couldn't read the page pixels", "error"); return; }
+    const found = countOnRgba(img.data, img.width, img.height, { x: x0, y: y0, w: tw, h: th });
+    if (found.reason) { toast(found.reason, "info"); drawOverlay(); return; }
+    if (!found.count) { toast("no matches for that symbol", "info"); drawOverlay(); return; }
+    for (const p of found.peaks) {
+      measures.push({
+        id: ++seq, kind: "count",
+        pts: [{ x: (p.x + tw / 2) / scale, y: (p.y + th / 2) / scale }],
+        value: 1, unit: "ea", label: `symbol ${seq}`, page: pageNum,
+      });
+    }
+    toast(`${found.count} match${found.count === 1 ? "" : "es"}`, "success");
+    drawOverlay(); renderList();
   }
   async function commit() {
     const needsCal = mode === "distance" || mode === "area";
@@ -277,7 +310,7 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
     const S = (p: Pt) => [p.x * scale, p.y * scale] as const;
     const drawShape = (kind: Mode, pts: Pt[], color: string, dash = false) => {
       if (kind === "count") { for (const p of pts) { const [x, y] = S(p); svg.append(el("circle", { cx: `${x}`, cy: `${y}`, r: "5", fill: color, "fill-opacity": "0.8" })); } return; }
-      if (kind === "rect" && pts.length === 2) { const [x0, y0] = S(pts[0]!), [x1, y1] = S(pts[1]!); svg.append(el("rect", { x: `${Math.min(x0, x1)}`, y: `${Math.min(y0, y1)}`, width: `${Math.abs(x1 - x0)}`, height: `${Math.abs(y1 - y0)}`, fill: color, "fill-opacity": "0.15", stroke: color, "stroke-width": "1.5" })); return; }  // safe: length === 2
+      if ((kind === "rect" || kind === "symbol") && pts.length === 2) { const [x0, y0] = S(pts[0]!), [x1, y1] = S(pts[1]!); svg.append(el("rect", { x: `${Math.min(x0, x1)}`, y: `${Math.min(y0, y1)}`, width: `${Math.abs(x1 - x0)}`, height: `${Math.abs(y1 - y0)}`, fill: color, "fill-opacity": "0.15", stroke: color, "stroke-width": "1.5" })); return; }  // safe: length === 2
       const d = pts.map((p, i) => `${i ? "L" : "M"}${S(p)[0]},${S(p)[1]}`).join(" ") + (kind === "area" ? " Z" : "");
       svg.append(el("path", { d, fill: kind === "area" ? color : "none", "fill-opacity": "0.15", stroke: color, "stroke-width": "1.8", ...(dash ? { "stroke-dasharray": "5 4" } : {}) }));
       for (const p of pts) { const [x, y] = S(p); svg.append(el("circle", { cx: `${x}`, cy: `${y}`, r: "3", fill: color })); }
@@ -425,7 +458,7 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
   const avail = viewport.clientWidth - 40; if (canvas.width > avail) setScale(scale * (avail / canvas.width));
   // test hook (mirrors __viewer): drive modes/clicks/commit from preview_eval
   (window as unknown as Record<string, unknown>).__takeoff = {
-    setMode, click: async (xPdf: number, yPdf: number) => { draft.push({ x: xPdf, y: yPdf }); if (mode === "count") { await commit(); draft = []; } else if (mode === "calibrate" && draft.length === 2) await calibrate(); else if (mode === "rect" && draft.length === 2) await commit(); drawOverlay(); },
+    setMode, click: async (xPdf: number, yPdf: number) => { draft.push({ x: xPdf, y: yPdf }); if (mode === "count") { await commit(); draft = []; } else if (mode === "calibrate" && draft.length === 2) await calibrate(); else if (mode === "rect" && draft.length === 2) await commit(); else if (mode === "symbol" && draft.length === 2) await matchSymbols(); drawOverlay(); },
     commit, measures, calibrated: () => calOk(), exportPdf, saveSet,
     placeText: (t: string, x: number, y: number) => { measures.push({ id: ++seq, kind: "text", pts: [{ x, y }], value: 0, unit: "", label: t, page: pageNum, text: t }); drawOverlay(); renderList(); },
     placeStamp: async (tpl: string, x: number, y: number) => { const t = await resolveStamp(tpl); measures.push({ id: ++seq, kind: "stamp", pts: [{ x, y }], value: 0, unit: "", label: t, page: pageNum, text: t }); drawOverlay(); renderList(); },

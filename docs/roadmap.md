@@ -650,7 +650,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R38-SHEET-MARKUP ③ |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER · R38-SHEET-MARKUP ③ |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
@@ -748,7 +748,7 @@ that lanes do not *overlap*; nothing asserts they *cover*, and they do not. `app
 `proforma/`, `studio/`, `tools/`, `tree/`, `pins/`, `kernel/`, `account/`, `connections/` and the
 `portal/` root files (`prefs.ts`, `offlineQueue.ts`, `panelContext.ts`) belong to no lane, which the
 carve-out check in `roadmapLanes.test.ts` correctly calls "editable by everyone" when it happens
-deliberately. The live case: **`R23-SYMBOL-COUNT` and `R38-SHEET-MARKUP ③` are Lane B and land in
+deliberately. The live case: **`R38-SHEET-MARKUP ③` is Lane B and lands in
 `apps/web/src/drawings/`, while `R36-DRAWINGS-RETURN` is Lane A and lands there too** — so `drawings/`
 is contested by two lanes right now, the same shape as the register with the extra twist that nobody
 owns it. It needs its own premise-check and possibly the same answer. It is deliberately left open:
@@ -1370,10 +1370,12 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
 
   The `MeshStandardMaterial` clause needs no work — every remaining use is GIS context, not the BIM
   pass.
-- ◧ **R23-SYMBOL-COUNT** *(M — **① v0.3.1010**)* — deterministic template-match symbol counting:
-  mark one instance, normalised cross-correlation, non-maximum suppression
-  (`apps/web/src/ui/symbolCount.ts`). **Zero new dependencies**, offline, auditable.
-  Takeoff-worker wiring (the existing pdf.js takeoff) is the remainder.
+- ✅ **R23-SYMBOL-COUNT** *(M — **SHIPPED ① v0.3.1010 / ② v0.3.1011**)* — deterministic
+  template-match symbol counting: mark one instance, normalised cross-correlation, non-maximum
+  suppression (`apps/web/src/ui/symbolCount.ts`). **Zero new dependencies**, offline, auditable.
+  ② boxes one instance on the pdf.js takeoff canvas (`apps/web/src/drawings/pdfTakeoff.ts`);
+  matching peaks become existing `count` marks. Matching is on the rendered pixels, not inside
+  the pdf.js worker.
 
 **Watch, not work:** WebGPU (`WebGPURenderer` exists in the pinned three, but Fragments targets WebGL
 — 2–3 year horizon) · browser-side IFC parsing (a streaming WASM parser now exists; server-side
@@ -2289,8 +2291,9 @@ taxonomy should be derived from those same rooms rather than invented again.
 
 **One external measurement worth keeping**, because it puts a number on an item we already hold:
 current models score **40–55% on object-counting from drawing sets**, with symbols and linework the
-weakest part. That is direct corroboration of **R23-SYMBOL-COUNT** (Lane B) and a reason to treat it as
-higher-value than its size suggests — it is the measurable floor under every takeoff claim.
+weakest part. That is direct corroboration of **R23-SYMBOL-COUNT** (Lane B; **SHIPPED v0.3.1011**)
+and a reason it was higher-value than its size suggested — it is the measurable floor under every
+takeoff claim.
 
 The framing worth adopting even though it is not a feature: **reduce verification cost, not just
 production cost.** Several items already do this without saying so; it is the sharper way to argue for
