@@ -4,6 +4,14 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1017 (2026-08-20) — a worktree build uses the pinned Vite
+
+BUILD-WORKTREE-CHUNKS closed. `npm run build` / `dev` go through `run-vite.mjs`, which
+execs the nested Vite 8 pin (found in the main clone via `git-common-dir` when the
+checkout is a worktree). Bare `vite` was resolving the workspace-root Vite 6 and
+folding three.js into the shell at exit 0. `vite.config.ts` now allows that hoisted
+`node_modules` the same way the vitest config already did.
+
 ## v0.3.1016 (2026-08-20) — `/connections` leaves client.ts
 
 SCALE-SEAM ⑫. Eleven `/connections` methods moved to `apps/web/src/api/connections.ts`.

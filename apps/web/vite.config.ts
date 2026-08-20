@@ -1,5 +1,7 @@
 import { brotliCompressSync, gzipSync } from "node:zlib";
-import { defineConfig, type Plugin } from "vite";
+import { createRequire } from "node:module";
+import path from "node:path";
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 import { vendorAlias } from "./vendorAlias";
@@ -36,6 +38,15 @@ const BASE = process.env.VITE_BASE || "/";
 // app version, baked in at build time so the in-app update check can compare against the latest
 // GitHub release (kept in sync with package.json / tauri.conf.json).
 const APP_VERSION = process.env.npm_package_version || "0.0.0";
+
+// BUILD-WORKTREE-CHUNKS: a git worktree has no node_modules of its own. Vite's default
+// fs-allow is searchForWorkspaceRoot(cwd), which is the worktree, so the main clone's
+// hoisted three/@thatopen sit outside the sandbox. Same allow list vitest.config.ts already
+// uses for pdfjs. createRequire walks to wherever the package actually resolved.
+const hoistedNodeModules = path.join(
+  path.dirname(createRequire(import.meta.url).resolve("three/package.json")),
+  "..",
+);
 
 const coiInject: Plugin = {
   name: "coi-serviceworker-inject",
@@ -114,6 +125,7 @@ return {
   },
   server: {
     port: 5173,
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), hoistedNodeModules] },
     // SharedArrayBuffer (used by web-ifc multithreaded WASM) needs cross-origin isolation.
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin",

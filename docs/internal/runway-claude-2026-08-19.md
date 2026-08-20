@@ -1,4 +1,4 @@
-# Runway for Claude Code — 2026-08-20, after v0.3.1015
+# Runway for Claude Code — 2026-08-20, after v0.3.1017
 
 **Grade: live handoff.** Written so the next session picks up from measured state rather than chat
 memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still is. Security
@@ -32,7 +32,8 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 | 17 | [#309](https://github.com/ibuilder/massing/pull/309) | `cursor/markup-promote-guid-6e15` | **1013** vs #308 |
 | 18 | [#310](https://github.com/ibuilder/massing/pull/310) | `cursor/generated-sheet-pdf-6e15` | **1014** vs #309 |
 | 19 | [#312](https://github.com/ibuilder/massing/pull/312) | `cursor/report-package-job-6e15` | **1015** vs #310 |
-| 20 | this | `cursor/scale-seam-connections-6e15` | **1016** vs #312 |
+| 20 | [#313](https://github.com/ibuilder/massing/pull/313) | `cursor/scale-seam-connections-6e15` | **1016** vs #312 |
+| 21 | this | `cursor/worktree-vite-pin-6e15` | **1017** vs #313 |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main`. This agent cannot merge.
@@ -62,6 +63,7 @@ pending `main`. This agent cannot merge.
 | 1014 | R38-SHEET-MARKUP ③ closed — PDF markup on generated sheets (live SVG wrapped when no sheet.pdf) |
 | 1015 | R24-REPORTS-BY-MOMENT ② — Assemble queues `report_package`; email-on-a-date still open |
 | 1016 | SCALE-SEAM ⑫ — `/connections` mixin; `client.ts` 3,672 → 3,629 |
+| 1017 | BUILD-WORKTREE-CHUNKS closed — `run-vite.mjs` execs the nested pin |
 
 ---
 

@@ -658,7 +658,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑫ |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | — |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -2016,31 +2016,13 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 (`apps/web/nginx.conf` + `apps/web/src/deploy/nginx.test.ts`), the multi-worker sidecar-lock boot
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
 
-- **BUILD-WORKTREE-CHUNKS** *(M — Lane J)* — **a `vite build` from a git worktree succeeds and emits
-  the wrong bundle.** One commit, two checkouts: the `three-*.js` and `thatopen-*.js` chunks vanish and
-  the eager shell goes from **334 KB to 6,581 KB — 19.7×** — at **exit 0**. `searchForWorkspaceRoot`
-  returns the worktree root rather than the repo root, deps fall back to CommonJS interop, and the
-  `advancedChunks` rules never match. **Resolution is NOT the cause** — `three` and
-  `@thatopen/components` resolve to identical absolute paths in both checkouts.
-
-  **Three things had to line up for it to stay silent**, which is the part worth keeping:
-  `apps/web/scripts/bundle-budget.mjs` *computed and printed* the lazy-chunk count without asserting
-  it; the only objection came from the PWA precache limit, an accident rather than a check anyone
-  wrote; and `VitePWA` is excluded when `VITE_PAGES=1`, so on the public-facing path even the accident
-  is absent. `apps/web/vite.config.ts` had already written the warning in its own comment — *"verify by
-  grepping the OUTPUT, never by reading the config and believing it"* — and nobody was doing it.
-
-  **Half closed in v0.3.874:** `apps/web/scripts/copy-wasm.mjs` resolves the package instead of guessing
-  directory depth (the fix already existed one file away in `apps/web/vitest.config.ts`, and
-  `copy-wasm.mjs` imported `createRequire` and left it unused), and `bundle-budget.mjs` now *asserts*
-  the vendor chunks exist. What remains is workspace-root scoping in `apps/web/vite.config.ts`,
-  deliberately not taken inside a tooling PR: shared config, blast radius across every lane, and the
-  fix is scoping rather than resolution. **Interim policy, now in the gate's own failure message:**
-  builds happen in the main clone or in CI; a worktree build is for typecheck and tests, never a
-  shippable bundle.
-
-  **Still open beside it:** `npm run budget` is absent from `.github/workflows/pages.yml` entirely, so
-  the public build has neither guard. Being fixed as a follow-up.
+- ✅ **BUILD-WORKTREE-CHUNKS** *(M — Lane J — **SHIPPED v0.3.1017**)* — a worktree `vite build` used to
+  succeed and emit the wrong bundle (19.7× eager shell) because a bare `vite` resolved the
+  workspace-root Vite 6, which ignores `rolldownOptions.advancedChunks`. `apps/web/scripts/run-vite.mjs`
+  now execs the nested pin (`apps/web/node_modules/vite`, found via `git-common-dir` from a worktree).
+  `vite.config.ts` allows the hoisted `node_modules` the same way `vitest.config.ts` already did.
+  Vendor chunks stay asserted by `bundle-budget.mjs`; `pages.yml` already runs `npm run budget`.
+  Copy-wasm depth (v0.3.874) was the other half.
 
 - ◧ **R39-UPLOAD-CAP-APP ①** *(S, Lane C — **FRONT HALF SHIPPED v0.3.876; the conversion of the
   36+ `await file.read()` call sites onto `storage.put_stream` remains, and is the rest of
