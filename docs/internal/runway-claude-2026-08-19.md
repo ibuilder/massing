@@ -1,4 +1,4 @@
-# Runway for Claude Code — 2026-08-20, after v0.3.1017
+# Runway for Claude Code — 2026-08-20, after v0.3.1018
 
 **Grade: live handoff.** Written so the next session picks up from measured state rather than chat
 memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still is. Security
@@ -33,7 +33,8 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 | 18 | [#310](https://github.com/ibuilder/massing/pull/310) | `cursor/generated-sheet-pdf-6e15` | **1014** vs #309 |
 | 19 | [#312](https://github.com/ibuilder/massing/pull/312) | `cursor/report-package-job-6e15` | **1015** vs #310 |
 | 20 | [#313](https://github.com/ibuilder/massing/pull/313) | `cursor/scale-seam-connections-6e15` | **1016** vs #312 |
-| 21 | this | `cursor/worktree-vite-pin-6e15` | **1017** vs #313 |
+| 21 | [#314](https://github.com/ibuilder/massing/pull/314) | `cursor/worktree-vite-pin-6e15` | **1017** vs #313 |
+| 22 | this | `cursor/scale-seam-sync-6e15` | **1018** vs #314 |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main`. This agent cannot merge.
@@ -64,6 +65,7 @@ pending `main`. This agent cannot merge.
 | 1015 | R24-REPORTS-BY-MOMENT ② — Assemble queues `report_package`; email-on-a-date still open |
 | 1016 | SCALE-SEAM ⑫ — `/connections` mixin; `client.ts` 3,672 → 3,629 |
 | 1017 | BUILD-WORKTREE-CHUNKS closed — `run-vite.mjs` execs the nested pin |
+| 1018 | SCALE-SEAM ⑬ — `/sync` mixin; `client.ts` 3,629 → 3,602 |
 
 ---
 
@@ -72,7 +74,7 @@ pending `main`. This agent cannot merge.
 - Binding constraint is **adoption / feel**, not missing modules. No second big-ticket.
 - No React, no Reflex. No new npm/PyPI packages without operator OK. Licence MIT/BSD/Apache/ISC/CC0.
 - Do **not** grow `apps/web/src/viewer/app.ts` or `apps/web/src/api/client.ts` without extracting
-  first. Pins: `client.ts` **3,629**, `app.ts` **3,032**, `register.ts` **2,516**.
+  first. Pins: `client.ts` **3,602**, `app.ts` **3,032**, `register.ts` **2,516**.
 - Do **not** turn `AEC_BAKE_SHARE_DIR` on by default. Do **not** add `mapped-diskcache`.
 - Design room brief: **do not add one** (`ROOM_HOME.design` is null).
 - There is **no `pay_app` module** and **no COBie worksheet UI**.
@@ -85,7 +87,7 @@ PERSONA-SHAPE; IDENTITY.
 
 ## Next slices
 
-1. **SCALE-SEAM remainder** — next route-group by size (`/sync`, `/drawing-set`, …). ⑫ is `/connections`.
+1. **SCALE-SEAM remainder** — next route-group by size (`/drawing-set`, `/drawings`, `/elements`, …). ⑬ is `/sync`.
 2. **R24-FIELD-MODE remainder** — replacing the portal home (Lane A). ④ only hides the room tabs.
 3. **R24-REPORTS-BY-MOMENT** remainder — email on a date (SMTP + recipient). Assemble is shipped.
 4. Lane B still open: `R24-TERMS` (user decision), `R22-REPORT-BUILDER` (aggregation/share is backend),

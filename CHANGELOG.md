@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1018 (2026-08-20) — `/sync` leaves client.ts
+
+SCALE-SEAM ⑬. Seven Procore pull/push + auto-sync-schedule methods moved to
+`apps/web/src/api/sync.ts` as `withSync` (`withSchedule` is already CPM).
+`client.ts` 3,629 → 3,602.
+
 ## v0.3.1017 (2026-08-20) — a worktree build uses the pinned Vite
 
 BUILD-WORKTREE-CHUNKS closed. `npm run build` / `dev` go through `run-vite.mjs`, which

@@ -657,7 +657,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑫ |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑬ |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | — |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -2753,13 +2753,13 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   **Design is skipped on purpose:** `apps/web/src/shell/spine.ts` sets Design home to null — the 3D viewer is the room. A portal brief would be a second home.
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ⑫ — `client.ts` is no longer a god-file, but the split is not finished.** *(⑫ `/connections` SHIPPED v0.3.1016; ②–⑪ already shipped)* ②–⑪ have
+- ◧ ⭐ **SCALE-SEAM ⑬ — `client.ts` is no longer a god-file, but the split is not finished.** *(⑬ `/sync` SHIPPED v0.3.1018; ②–⑫ already shipped)* ②–⑫ have
   shipped: `schedule.ts` · `model.ts` · `modules.ts` · `estimate.ts` · `procurement.ts` · `auth.ts` ·
-  `proforma.ts` (⑧) · `contracts.ts` (⑨) · `finance.ts` (⑩) · `docqa.ts` (⑪).
-  **⑫ took `/connections` out** (11 methods; `client.ts` 3,672 → 3,629). `/sync` (Procore push +
-  schedules) sits immediately below and stays — different first path segment.
+  `proforma.ts` (⑧) · `contracts.ts` (⑨) · `finance.ts` (⑩) · `docqa.ts` (⑪) · `connections.ts` (⑫).
+  **⑬ took `/projects/{pid}/sync` out** (7 methods; `client.ts` 3,629 → 3,602) as `withSync` —
+  `withSchedule` is already the CPM mixin.
 
-  **`client.ts` went 4,956 → 3,629 lines** (`wc -l`). Next is the next route-group by size; pick it by
+  **`client.ts` went 4,956 → 3,602 lines** (`wc -l`). Next is the next route-group by size; pick it by
   re-running the classification below, not by reading the section comments.
 
   **This entry read `③+` and named `/model`, `/modules` and `/estimate` as the next groups until

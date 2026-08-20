@@ -3,6 +3,7 @@
 import { withAuth } from "./auth";
 import { withAuthoring } from "./authoring";
 import { withConnections } from "./connections";
+import { withSync } from "./sync";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
 import { withContracts } from "./contracts";
@@ -35,7 +36,7 @@ import type {
   Appraisal, AuditEntry, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, PreflightSummary, ProfessionalLicense,
-  ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
+  ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate,
     BidLevelingDetail,
     SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload,
     DiligenceReadiness, ReviewCycles, MasterBuilderBrief } from "./types";
@@ -43,7 +44,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))) {
+export class ApiClient extends withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -58,34 +59,6 @@ export class ApiClient extends withConnections(withDocQa(withFinance(withContrac
       "/settings/integrations/test", { method: "POST", body: JSON.stringify({ group }) });
   }
 
-  /** Import a Procore project's RFIs / submittals / change events into the matching modules. */
-  syncProcore(pid: string, connectionId: string, procoreProjectId: string, kinds?: string[]) {
-    return this.json<{ source: string; imported_total: number; results: Record<string, { module: string; fetched: number; imported: number; skipped: number }> }>(
-      `/projects/${pid}/sync/procore`,
-      { method: "POST", body: JSON.stringify({ connection_id: connectionId, procore_project_id: procoreProjectId, ...(kinds ? { kinds } : {}) }) });
-  }
-  /** Two-way: push locally-resolved records (RFI status + answer) back to Procore. */
-  pushProcore(pid: string, connectionId: string, procoreProjectId: string, kinds: string[] = ["rfi"]) {
-    return this.json<{ pushed_total: number; results: Record<string, { pushed: number; skipped: number; errors: string[] }> }>(
-      `/projects/${pid}/sync/procore/push`,
-      { method: "POST", body: JSON.stringify({ connection_id: connectionId, procore_project_id: procoreProjectId, kinds }) });
-  }
-  // --- auto-sync schedules (project admin) ---
-  syncSchedules(pid: string) {
-    return this.json<SyncScheduleItem[]>(`/projects/${pid}/sync/schedules`);
-  }
-  createSyncSchedule(pid: string, body: { connection_id: string; procore_project_id: string; kinds?: string[]; interval_minutes?: number; push?: boolean }) {
-    return this.json<SyncScheduleItem>(`/projects/${pid}/sync/schedules`, { method: "POST", body: JSON.stringify(body) });
-  }
-  updateSyncSchedule(pid: string, sid: string, patch: { enabled?: boolean; interval_minutes?: number; kinds?: string[]; push?: boolean }) {
-    return this.json<SyncScheduleItem>(`/projects/${pid}/sync/schedules/${sid}`, { method: "PUT", body: JSON.stringify(patch) });
-  }
-  deleteSyncSchedule(pid: string, sid: string) {
-    return this.json<{ ok: boolean }>(`/projects/${pid}/sync/schedules/${sid}`, { method: "DELETE" });
-  }
-  runSyncSchedule(pid: string, sid: string) {
-    return this.json<{ imported_total?: number; error?: string }>(`/projects/${pid}/sync/schedules/${sid}/run-now`, { method: "POST" });
-  }
   /** Which optional integrations are wired (AI / email / SSO) — for status badges. */
   capabilities() {
     return this.json<{ ai: boolean; email: boolean; sso: string[]; local_mode?: boolean;
