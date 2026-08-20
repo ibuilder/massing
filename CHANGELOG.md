@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1035 (2026-08-19) — honest empty canvas, Place ticks, named Analyse destinations, element cards
+
+The upgrade audit's remaining code slice, not another library.
+
+- **Empty canvas.** A 404 / empty / unreadable `.frag` still fails open, and now names why in the
+  status bar (`apps/web/src/viewer/loadProjectModel.ts`) instead of leaving the last success sitting
+  there. Gated by `apps/web/src/viewer/loadProjectModel.test.ts`.
+- **Place pipeline.** "⊕ Place selected family" reports publish states the same way Republish already
+  did (`apps/web/src/viewer/tools/authoringSection.ts`).
+- **UX-DUP-DESTINATIONS.** Analyse rail labels are Model checks / Read the model / ISO 19650
+  scorecard. Bars and Design tiles read the catalog.
+- **R24-ELEMENT-CARD ②.** RFI, estimate, owner invoice (pay app) and asset/COBie rows mount the
+  existing card. `register.ts` dropped 33 lines onto `apps/web/src/portal/register/elementTies.ts`
+  to stay under its pin. Seeding the asset register now keeps `element_guids`.
+
+- **The three named Analyse destinations did NOT land as rail siblings.** This branch split
+  `Analyse` into `Model checks` / `Read the model` / `ISO 19650 scorecard` on the rail;
+  v0.3.994 finished the same UX-DUP-DESTINATIONS item the other way — one `Analyse` home with
+  the three reachable inside it — and that is the newer decision, with a test asserting it.
+  The naming half was already on main; only the placement was superseded. The branch's test
+  is kept, retargeted from the rail stage to `ALL_DESTS`, so the guard against synonym labels
+  survives without contradicting the newer layout.
+
 ## v0.3.1034 (2026-08-20) — `/topics` leaves client.ts
 
 SCALE-SEAM ⑳. Seven BCF methods (create, viewpoints, board, timeline, comments)

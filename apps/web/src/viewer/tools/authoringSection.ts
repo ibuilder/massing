@@ -96,7 +96,9 @@ export function buildAuthoringSection(d: AuthoringDeps): void {
           out.textContent = `adding ${label}…`;
           await api.addFamily(pid, key, pos);
           out.textContent = `${label} added · converting…`;
-          const state = await waitForPublish(pid);
+          // Same tick path Republish already had: without onTick the Place button sits on
+          // "converting…" for the whole convert, which reads as a hang.
+          const state = await waitForPublish(pid, (s) => { out.textContent = `publish: ${s}…`; });
           if (state === "done") await loadProjectModel();
           out.innerHTML = `added <b>${escapeHtml(label)}</b>${pos ? ` at ${pos[0].toFixed(1)}, ${pos[1].toFixed(1)} m` : " at origin"}<br>publish: ${escapeHtml(state)}`;
         });

@@ -13,16 +13,27 @@
 // `tools/projectPanel.test.ts`. The distinction is per-slice and has to be re-checked each time.
 import { fetchArrayBufferWithProgress, setLoadingLabel, withLoading } from "../ui/feedback";
 import type { ApiClient } from "../api/client";
-import type { ModelLoader } from "./loader";
 import { trackModelLoad, type TrackerDeps } from "./loadTimings";
 import { usd } from "../ui/charts";
+
+/** Status-bar copy for a load that correctly shows nothing. Named so a test can assert the
+ *  three failure modes stay distinct — collapsing them is how "empty" and "broken" look the same. */
+export const NO_MODEL_STATUS = {
+  missing: "no published model yet — import IFC, start blank, or open a sample",
+  empty: "published model file is empty — republish from source IFC",
+  unreadable: "could not read geometry — file is not a Fragments model",
+} as const;
 
 export interface LoadProjectModelDeps {
   api: ApiClient;
   projectId: string | null;
   projectName?: string;
   container: HTMLElement;
-  loader: ModelLoader;
+  /** Only the two methods this load uses — a full ModelLoader is a three.js object tests should not build. */
+  loader: {
+    disposeAll: () => Promise<void>;
+    loadFragments: (buffer: ArrayBuffer | Uint8Array, modelId: string) => Promise<unknown>;
+  };
   modelLabels: Map<string, string>;
   refreshFederation: () => void;
   fitToModels: () => Promise<void>;
@@ -51,7 +62,13 @@ export async function loadProjectModel(deps: LoadProjectModelDeps): Promise<bool
         api.url(`/projects/${projectId}/model.frag`), { headers: api.authHeaders() },
         (loaded, total) => setLoadingLabel(container,
           `downloading model ${Math.round(loaded / total * 100)}% (${mb(loaded)}/${mb(total)} MB)`));
-    } catch { track?.cancel(); return false; }   // 404 / no published model yet — fall through to no-model
+    } catch {
+      track?.cancel();
+      // Honest empty canvas: returning false used to leave the status bar on whatever the last
+      // success said, so a 404 looked like a loaded model that just had nothing in it.
+      deps.setStatus(NO_MODEL_STATUS.missing);
+      return false;
+    }
     // A metadata-only project (property index uploaded, geometry never published) has no .frag, so the
     // request 404s above. Guard the degenerate variants too: an empty body, or a non-.frag payload
     // (e.g. a proxy / SPA host that rewrites a 404 into a 200 HTML page) would otherwise reach the
@@ -63,7 +80,11 @@ export async function loadProjectModel(deps: LoadProjectModelDeps): Promise<bool
     // slow load, and filing it as one would fill the table with rows about projects that have
     // nothing to draw.
     track?.fetched(buffer.byteLength);
-    if (buffer.byteLength === 0) { track?.cancel(); return false; }
+    if (buffer.byteLength === 0) {
+      track?.cancel();
+      deps.setStatus(NO_MODEL_STATUS.empty);
+      return false;
+    }
     await loader.disposeAll();
     modelLabels.clear();
     const id = `project-${projectId}`;
@@ -71,7 +92,12 @@ export async function loadProjectModel(deps: LoadProjectModelDeps): Promise<bool
     setLoadingLabel(container, "preparing geometry…");
     try {
       await loader.loadFragments(buffer, id);
-    } catch { modelLabels.delete(id); track?.failed(); return false; }   // corrupt / non-.frag bytes
+    } catch {
+      modelLabels.delete(id);
+      track?.failed();
+      deps.setStatus(NO_MODEL_STATUS.unreadable);
+      return false;
+    }
     track?.parsed();
     deps.refreshFederation();
     await deps.fitToModels();
