@@ -64,6 +64,15 @@ Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 `;
 
+/** Opening of CC0 1.0 Universal — the title type-fest and our family packs use. */
+const CC0 = `CC0 1.0 Universal
+
+Statement of Purpose
+
+The laws of most jurisdictions throughout the world automatically confer
+exclusive Copyright and Related Rights (defined below) upon the creator
+`;
+
 describe("licence classification reads the title, not any mention", () => {
   it("classifies MPL-2.0 as MPL even though its text names the GPL three times", async () => {
     const { classify } = await policy();
@@ -84,6 +93,15 @@ describe("licence classification reads the title, not any mention", () => {
     expect(classify(MIT)).toBe("MIT");
     expect(classify("Copyright 2020 someone. All rights reserved."))
       .toBe("UNKNOWN");
+  });
+
+  it("classifies CC0 1.0 Universal as CC0, not UNKNOWN", async () => {
+    // type-fest ships this title; without it the npm gate counted CC0 as unclassified.
+    const { classify, declaredFamily, verdict } = await policy();
+    expect(classify(CC0)).toBe("CC0");
+    expect(declaredFamily("CC0-1.0")).toBe("PERMISSIVE-OTHER");
+    expect(verdict({ name: "type-fest", declared: "CC0-1.0", licenceText: CC0, licenceFile: "license" }).status)
+      .toBe("OK");
   });
 
   it("matches the real web-ifc licence file on disk, not a fixture of it", async () => {

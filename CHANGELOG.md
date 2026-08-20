@@ -4,12 +4,187 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.1025 (2026-08-20) — `/topics` leaves client.ts
+## v0.3.1034 (2026-08-20) — `/topics` leaves client.ts
 
 SCALE-SEAM ⑳. Seven BCF methods (create, viewpoints, board, timeline, comments)
 moved to `apps/web/src/api/topics.ts`. Three regions. `pins()` stays (`/pins`).
 `client.ts` 3,243 → 3,205.
 
+## v0.3.1033 (2026-08-20) — the level list says which cut height to use
+
+### Added
+
+- **`GET /projects/{pid}/drawings/storeys` carries a `cut_height` per level.** Every plan in the
+  product was requested at a flat `cut_height=1.2` regardless of storey — right for a normal floor,
+  and the reason a roof datum printed blank. The level list is where a caller picks what to draw, so
+  it is where the answer belongs. Additive: `name` / `elevation` / `guid` are unchanged, and
+  `cut_default_spans` / `cut_best_spans` ride alongside so the suggestion can be judged rather than
+  trusted.
+- The suggestion is **a value to pass back, never an override applied behind the caller's back** —
+  the titleblock prints the elevation it cut at, and a silently different plane would make that
+  printed number a lie.
+
+### Fixed
+
+- **The first version of this maximised element count, which is the wrong objective.** On
+  `basichouse.ifc` "Floor 0" it proposed **0.400 m** to raise the count from 84 to 106 — more
+  linework, cut below every door and window, which is not a floor plan. A plan cuts near 1.2 m
+  because that is where openings are; the convention earns its default. The override now fires on
+  exactly the condition the sheet's banner fires on (`ratio < 0.5` with `best >= 4`), so a level
+  offered a different height is precisely a level that would otherwise have been warned about —
+  one rule, not two that can drift apart. A storey with almost nothing at *any* height keeps the
+  default and its honest "NO GEOMETRY" banner rather than being handed a fake better plane.
+
+## v0.3.1032 (2026-08-20) — a ratchet measured on a branch describes a tree that never shipped
+
+### Fixed
+
+- **Main was red on the extraction ratchet**: `client.ts=3305 > 3304`. Each of the five seam
+  branches (#316–#320) measured `client.ts` on a tree containing only *its own* extraction, so
+  every ceiling was correct on its branch and none described the merged result — which carries six
+  mixin imports, not one. Corrected to 3,305.
+- **This is not a raised bound.** The file went **3,683 → 3,305** across the chain, and the gate
+  still fails on any growth from here — mutation-checked by appending one line. The lesson is
+  narrower and worth keeping: *a ratchet value computed on a feature branch is a measurement of a
+  tree that never shipped*, and in a stacked chain every one of them is stale by construction.
+
+## v0.3.1031 (2026-08-20) — pdf.js pinned exactly; the flag that was doing nothing removed
+
+### Fixed
+
+- **`pdfjs-dist` pinned to exactly `6.2.108`**, the release that fixes CVE-2026-16633 (JavaScript
+  embedded in a PDF executing in the hosting origin). A range would let a future install float off
+  the patched version, and the pin is the only thing standing between this app and that CVE.
+
+### Changed
+
+- **Removed `enableScripting: false`, and the test that vouched for it.** The incoming change added
+  that option at every `getDocument` call site. It is a pdf.js **viewer** option, not a
+  `getDocument` one: it appears nowhere in `pdfjs-dist`'s `DocumentInitParameters`, the vendored
+  fork read it nowhere, and it did not typecheck against the real types — the compiler is how it
+  surfaced. It was a security control consumed by no code, with a green test reporting "PDF
+  scripting is disabled". **A gate vouching for a no-op is worse than no gate**, because it answers
+  the question and the next auditor moves on.
+- `pdfjsScripting.test.ts` now asserts the two things that are actually true: the version spec is an
+  exact pin at or above 6.2.108, and nothing in `src/` imports pdf.js's viewer or
+  `PDFScriptingManager` — which is *why* document JavaScript has nowhere to run. Both
+  mutation-checked: floating the pin to `^6.2.108` fails, and adding a `pdfjs-dist/web/` import
+  fails.
+- Lane D (`Geometry & drawings`) now owns `apps/web/src/drawings/`, which no lane claimed; the new
+  test file pushed the unowned-file ratchet from 48 to 49 and the fix it asks for is a lane row,
+  not a higher number.
+
+## v0.3.1030 (2026-08-19) — CC0 is permitted, and the written rule catches up
+
+The operator confirmed adding **CC0-1.0** to the permitted licence list.
+
+The Python classifier already accepted it, from 2026-08-10: `test_licence_allowlist.py` pins
+`CC0-1.0` / `CC0 1.0 Universal` as permitted, next to Boost `BSL-1.0` and explicitly not `BUSL`.
+The families shelf already shipped CC0 content. What had not followed was the *written*
+non-negotiable (`docs/roadmap-directions.md` still said "MIT / BSD / Apache only") and the
+roadmap decision bullet that still asked for a call.
+
+This release closes that bullet, names CC0 (and ISC) in the directions, classifies a CC0
+LICENSE *title* in the npm gate so it is not an unclassified text, and records the same in
+the vendorable-core note.
+
+**Not a new dependency. Not a licence we did not already ship.** The defect was three
+statements about one fact, two of them stale.
+
+- The permit-list comment in `licencePolicy.mjs` read "Forbidden outright: MIT / BSD /
+  Apache / ISC / CC0" — the allowed licences under the banned heading, the exact inverse of
+  the rule enforced beside it. Introduced by this same widening edit; corrected here.
+
+## v0.3.1029 (2026-08-20) — an opening in the first half of any wall was "outside its host"
+
+### Fixed
+
+- **The opening-extent bound was wrong at both ends.** `add_wall` places a wall at the midpoint of
+  start→end and sweeps a *centred* profile, so a valid opening sits in `[-length/2, +length/2]`.
+  The check compared against `[0, length]`: every opening in the first half of any wall was
+  reported as outside its host, and a genuinely-overhanging opening on the far side was missed by
+  a full half-length. It hid because omitting `position` centres an opening at local x = 0, which
+  passes either way — only explicitly-placed openings expose it. The refusal message now names the
+  centre-relative offset and the valid range, so it says which frame it is talking about.
+- **Element lookup by GlobalId is a hash lookup, not a scan.** `by_guid` replaces
+  `next(e for e in model.by_type("IfcElement") if e.GlobalId == guid)`. Every bulk record recipe —
+  `set_phase`, `verify_asbuilt`, `set_element_pset`, `classify`, `set_lod`, `attach_document` and
+  the rest — loops a guid list calling it once per guid, so stamping N elements in a model of N
+  was O(N²). Measured on a 1,153-product model: **27.6 s → 2.4 s, 11.5×**, with an identical IFC
+  class histogram and property-set signature multiset. The `IfcElement` narrowing is kept on
+  purpose — a stamp aimed at an element must not land on a storey, a space, or the project.
+
+### Changed
+
+- Family shelf refreshed to massing-families v0.1.5 *(#290, folded in — #291 contains it)*.
+- `test_element_lookup` registered in `run_tests.py`; the manifest guard had refused the PR
+  precisely because a test file on disk that the runner never calls is not a test.
+
+## v0.3.1028 (2026-08-20) — the other five headers the same trap was eating
+
+### Fixed
+
+- Preserve cross-origin isolation headers for module workers in Nginx deployments so IFC geometry
+  loading does not stall. *(#311, john-rogers — the first outside contribution.)*
+- **And the rest of what that trap was eating.** nginx inherits `add_header` from the enclosing
+  scope only while the current scope declares none, so a location with its own `Cache-Control`
+  silently drops **all seven** server-level security headers. Three locations do this —
+  `~* \.mjs$`, `/assets/` and `/wasm/` — which meant `X-Content-Type-Options: nosniff` was absent
+  from every hashed bundle, every WASM binary and every module worker the app serves. #311 fixed
+  the two headers that caused the reported stall on one of the three; the full set now appears in
+  all three.
+
+### Changed
+
+- **`nginx.test.ts` derives the population instead of counting scopes.** The incoming test encoded
+  the partial state as the specification — `Cross-Origin-*` required in three scopes, everything
+  else in two — which passes forever with `nosniff` still missing. It now finds every location
+  block that declares an `add_header` and requires the whole set in each, so a *fourth* such
+  location fails the day it is added rather than the day someone re-audits. Mutation-checked:
+  deleting `nosniff` from `/wasm/` alone fails with a message naming that location.
+
+
+
+## v0.3.1027 (2026-08-20) — a sanitiser narrower than its input type
+
+### Fixed
+
+- **`js/incomplete-sanitization` (HIGH)**, the one CodeQL alert the merged chain introduced.
+  `charts.test.ts` escaped a status colour for a regex with `[.#]` — wrong in both directions:
+  `#` is not a metacharacter and never needed escaping, while `(`, `|`, `*` and `\` were absent.
+  Correct for today's `#rrggbb` inputs, and the day a token becomes `rgb(1,2,3)` those parens
+  compile as a **group**, so the "declared once" count silently stops meaning what it says.
+  Not exploitable — test-only, constant input — and fixed anyway, because a sanitiser narrower
+  than its input *type* is a latent wrong answer rather than a style nit.
+
+## v0.3.1026 (2026-08-20) — a plan that grazes the storey now says so
+
+### Fixed
+
+- **Blank floor plans printed as finished drawings.** `samples/basichouse.ifc` storey "Floor 1"
+  cuts at 3.600 m, passes through **2** of the 16 elements standing on that storey, and composed a
+  full sheet around them — titleblock, general notes, graphic scale, north arrow, "CUT PLANE
+  3.60 m AFF" — with no building on it and nothing said. The v0.3.913 guard asked `if not polys`,
+  a test for *exactly* zero, and the failure mode is *nearly* zero: two loops are truthy.
+  `cut_plane_quality` now measures the chosen plane against the best one available on the storey,
+  so a fraction decides rather than a boolean, and the sheet names the height that would work
+  ("at 2.500 m it would pass through 6 — set the cut height to 0.100 m").
+  Still **not** a silent re-cut: the titleblock prints the cut elevation, so moving the plane
+  quietly would make that printed number a lie. The counts are also published as
+  `data-plan-cut-spans` / `-best` / `-best-z`, measured once and shared, so the data and the
+  banner cannot drift apart.
+- `test_plan_cut_quality.py` verifies the suggested height *actually improves the drawing* rather
+  than merely being printed, and that a healthy plan is left alone.
+
+### Changed
+
+- **SCALE-SEAM ⑭** — the five drawing-markup methods leave `client.ts` for `api/markup.ts` as
+  `withMarkup`. Forced rather than chosen: teaching `addDrawingMarkup` to carry the GlobalId put
+  the file at 3,606 against a 3,602 ratchet, which is that pin working as its own comment says it
+  should — the friction buys a cluster out of the file instead of buying the pin a higher number.
+  3,606 → 3,579.
+
+## v0.3.1025 (2026-08-20) — `/models` leaves client.ts
 ## v0.3.1024 (2026-08-20) — `/mep` leaves client.ts
 
 SCALE-SEAM ⑲. Seven MEP methods (summary, connectivity, sizing, sprinkler, fittings,
@@ -28,6 +203,7 @@ SCALE-SEAM ⑰. Nine health/QA/georef/federation methods moved to
 `apps/web/src/api/models.ts` (`withModels`; `model.ts` remains `/model`).
 Four regions. `client.ts` 3,412 → 3,353.
 
+## v0.3.1022 (2026-08-20) — `/drawing-set` leaves client.ts
 ## v0.3.1021 (2026-08-20) — `/elements` leaves client.ts
 
 SCALE-SEAM ⑯. Eleven inspector/list/colour/QA/citation/cost methods moved to
@@ -45,6 +221,35 @@ SCALE-SEAM ⑭. Eleven drawing-set methods (register, issue, issuance matrix, tr
 moved to `apps/web/src/api/drawingSet.ts`. They sat in three runs with `/preflight` and
 `/pdf` between them. `client.ts` 3,602 → 3,538.
 
+## v0.3.1019 (2026-08-20) — the four checks that stood between 19 branches and main
+
+Integration pass over the v0.3.988–1018 stack. Every item here is a gate that was correctly
+red; none of them were silenced.
+
+### Fixed
+
+- **`report_package` was a job kind classified nowhere.** `register_kind` added it without an
+  entry in `_KIND_MIN_ROLE` or `EDITOR_OK_KINDS`, which is the privilege-side-door shape the
+  dispatcher gate exists to catch. Classified as editor-sufficient with its reason: the queue
+  requires `editor` while `GET /projects/{pid}/reports/{report}.pdf` serves the same content at
+  `viewer`, so the queue is stricter than the front door, and it parks an artifact rather than
+  writing project state.
+- **`addDrawingMarkup` lost its only caller.** `postSheetPin` had re-issued the POST by hand to
+  add `data.guid`. The client method now carries the guid and `postSheetPin` delegates, so the
+  endpoint and its body are constructed in one place. Its test drives the real client and still
+  asserts the encoded body, so the claim now spans seam → client → wire.
+- **The web build was broken before it began.** `vite.config.ts` resolved `three/package.json`,
+  which `three` does not list in its exports map — copied from `vitest.config.ts`, where the same
+  line works only because `pdfjs-dist` happens to expose its manifest. The hoisted `node_modules`
+  is now derived from the package entry path, which does not ask a dependency to publish its
+  manifest. CI never reached this: the test step failed first.
+- **A negative test with an expiry date.** `test_engine_routes` used `page=A0` as its unknown
+  page size; this release widened `_PAGES` to nine ARCH/ISO sizes and A0 became valid, so the
+  request reached the model open and returned 409. The invalid value is now derived from `_PAGES`.
+- **`docs/status.html` was 90 releases behind**, and the gate measuring that could no longer
+  measure: its `/v0\.3\.(\d{3})/` read `v0.3.1018` as **101**, smaller than the 928 already on the
+  page. Past v0.3.999 it reported a lag no amount of refreshing could close. Both it and the
+  CHANGELOG gate now read `\d{3,}`, and the page carries the v0.3.988–1018 wave.
 ## v0.3.1018 (2026-08-20) — `/sync` leaves client.ts
 
 SCALE-SEAM ⑬. Seven Procore pull/push + auto-sync-schedule methods moved to
@@ -279,7 +484,6 @@ fix for CVE-2025-69872; the shared cache is still **off unless `AEC_BAKE_SHARE_D
 geometry payload was already nested lists of arrays, so pickle was never load-bearing here.
 `JSONDisk` is in the package we already pin. A row that cannot be JSON-encoded is refused rather than
 pickled. `mapped-diskcache` was not added. Default deployments still never construct a Cache.
-
 ## v0.3.986 (2026-08-18) — a comment that explains a pin gets believed because it is specific
 
 Three review findings, all of them claims that had drifted from what they described.

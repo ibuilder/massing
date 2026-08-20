@@ -51,6 +51,7 @@ const TITLES = [
   [/Redistribution and use in source and binary forms/i, "BSD"],
   [/Permission to use, copy, modify, and(?:\/or)? distribute/i, "ISC"],
   [/\bThe Unlicense\b|placed .{0,40}public domain/i, "PUBLIC-DOMAIN"],
+  [/CC0 1\.0 Universal|Creative Commons Zero/i, "CC0"],
   [/Blue Oak Model License/i, "BlueOak"],
 ];
 
@@ -88,11 +89,19 @@ export function declaredFamily(declared) {
   return "OTHER";
 }
 
-export const PERMISSIVE = new Set(["MIT", "BSD", "ISC", "Apache", "PERMISSIVE-OTHER", "PUBLIC-DOMAIN", "BlueOak"]);
+export const PERMISSIVE = new Set(["MIT", "BSD", "ISC", "Apache", "PERMISSIVE-OTHER", "PUBLIC-DOMAIN", "CC0", "BlueOak"]);
 
 /**
- * Forbidden outright: the non-negotiable is "MIT / BSD / Apache only — no GPL, no AGPL, no
- * PolyForm/noncommercial". LGPL and MPL are WEAK copyleft and are reported rather than failed, which
+ * PERMITTED: MIT / BSD / Apache / ISC / CC0 (and the other permissive family names above).
+ * FORBIDDEN outright: GPL, AGPL, PolyForm/noncommercial, BUSL.
+ *
+ * Those two lines were one sentence until v0.3.1030, and it read "Forbidden outright: MIT / BSD /
+ * Apache / ISC / CC0 …" — the permit-list under the ban-list's heading, stating the exact opposite
+ * of the rule the code below enforces. It happened while widening the list to add CC0: the word
+ * that made it a permit-list was dropped in the edit. Nothing failed, because a comment cannot,
+ * and the next person to reconcile policy from prose would have had it backwards.
+ *
+ * LGPL and MPL are WEAK copyleft and are reported rather than failed, which
  * matches `test_license_gate.py`'s existing policy — `ifcopenshell` and `certifi` sit there and are
  * accepted for our distribution model. Collapsing "disallowed" into "worth a look" makes a gate
  * either useless or permanently red, and a permanently red gate gets switched off.
@@ -137,7 +146,7 @@ export function verdict({ name, declared, licenceText, licenceFile }) {
   }
   if (FORBIDDEN.has(effective) && !dual) {
     return { name, status: "FORBIDDEN", effective, declared, licenceFile,
-      reason: `${effective} — forbidden by the MIT/BSD/Apache-only rule` +
+      reason: `${effective} — forbidden by the MIT/BSD/Apache/ISC/CC0 rule` +
               (text ? ` (from the text of ${licenceFile})` : " (declared; no LICENSE file found)") };
   }
   if (WEAK_COPYLEFT.has(effective)) {
