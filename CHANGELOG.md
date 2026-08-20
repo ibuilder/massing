@@ -4,6 +4,36 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1037 (2026-08-20) — trimesh 5, and the section coverage that makes the bump checkable
+
+### Changed
+
+- **trimesh `>=4.12.2` → `>=5.0.0`** (#281), with `requirements.lock` recompiled in
+  `python:3.12-slim`: `trimesh` 4.12.2 → 5.0.0 and **nothing else moved**.
+- `services/data/requirements.txt` had recorded the condition for lifting its deliberate hold —
+  *"regenerating the lock AND validating trimesh 5 against the paths below"* — because trimesh
+  drives mesh booleans (with manifold3d) and 2D section cuts. Both halves are here.
+
+### Added
+
+- **`test_section_geometry_kinds.py`** — the validation half. `test_sections` asserts an
+  auto-centred cut draws geometry: one cut, one model, one wall. That catches a *total* failure of
+  `mesh.section` and nothing weaker. The dangerous regression is **partial** — still fine for
+  extruded boxes, broken for a swept profile or an inner loop — and it prints as a sheet that
+  composes perfectly with part of the building missing.
+  Five shape kinds (wall, slab, round column, annulus, swept L) are now cut and checked for the
+  **size the shape actually is**, not merely for presence; the annulus must keep **both** loops,
+  since losing the inner one silently draws a solid pipe; a clear plane must still return `None`
+  rather than an empty-but-truthy section, which is what R43-PLAN-EMPTY-AT-CUT relies on to tell
+  "the cut missed" from "the storey is empty"; and all five go through the real plan-drawing path.
+
+### Note
+
+- Dependabot raised this same floor once before (#229) and every check went green, because nothing
+  then compared that file against the lock — the image kept shipping 4.12.2 while the line claimed
+  5.0.0 was required. `test_lock_satisfies_requirements` reads it now, which is why #281 could not
+  merge as it stood.
+
 ## v0.3.1036 (2026-08-20) — boto3 and numpy floors raised, and the lock recompiled to match
 
 ### Changed
