@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1013 (2026-08-20) — a pin on a wall raises an RFI on that wall
+
+R38-SHEET-MARKUP ③ ②. Promoting a drawing pin copies `data.guid` onto
+`Topic.element_guids`, so the RFI is the same GlobalId the sheet and the 3D view
+already share. A pin on empty paper still raises a coordinate-only RFI.
+
 ## v0.3.1012 (2026-08-20) — a pin on a wall is that wall
 
 R38-SHEET-MARKUP ③ ①. Generated-sheet markup in the Drawings room now reads `data-guid` from the
