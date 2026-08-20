@@ -177,7 +177,15 @@ with TestClient(app) as c:
     # and a typo'd preset is REFUSED rather than silently served as the default layout
     r = c.get(f"/projects/{pid}/drawings/sheet-regions?preset=quadd", headers=H)
     assert r.status_code == 422 and "known:" in r.text, (r.status_code, r.text)
-    r = c.get(f"/projects/{pid}/drawings/sheet-regions?page=A0", headers=H)
+    # DERIVED, not hardcoded. This read `page=A0` until v0.3.1018 widened `_PAGES` from
+    # ("A1","A3","A4") to the nine ARCH/ISO sizes — A0 became VALID, the request sailed past
+    # validation into the model open, and the 422 turned into the 409 for "no source IFC". The
+    # assertion had an expiry date: a negative example that names a member of an open set stops
+    # testing refusal the moment the set legitimately grows, and it fails looking like a route bug.
+    from aec_api.routers.analysis import _PAGES
+    unknown_page = "A0" + "X" * (1 + max(len(p) for p in _PAGES))     # cannot collide with any size
+    assert unknown_page not in _PAGES
+    r = c.get(f"/projects/{pid}/drawings/sheet-regions?page={unknown_page}", headers=H)
     assert r.status_code == 422 and "page size" in r.text, (r.status_code, r.text)
 
 

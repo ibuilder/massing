@@ -149,9 +149,19 @@ const CLAIMS = laneClaims();
 describe("the roadmap is self-consistent about what has shipped", () => {
   it("extracts a plausible number of items — otherwise every assertion below is vacuous", () => {
     // The failure mode of every gate that bit this repo on 2026-08-06: a regex drifts, matches
-    // nothing, and the suite goes green by measuring an empty set. 85 bullets at time of writing.
+    // nothing, and the suite goes green by measuring an empty set. 85 bullets when written; 43
+    // after the 2026-08-20 reconciliation archived fifteen shipped items.
+    //
+    // The floor moved 50 -> 25, and the reason it is legitimate this once is worth stating,
+    // because "the gate went red so I lowered the bound" is normally the mistake: this guard is
+    // about VACUITY, not about how much work is outstanding. Archiving shrinks the population by
+    // design, so a floor seated just under today's count would go red on the next reconciliation
+    // and teach whoever hits it to lower it again — the ratchet-in-reverse. 25 still fails hard on
+    // the thing it exists to catch (a drifted ITEM regex yields ~0, not 25) while surviving a
+    // couple more archive passes. **A floor tracking a deliberately shrinking population must be
+    // set from what makes it non-vacuous, never from what the file happens to contain today.**
     expect(BULLETS.size, `only ${BULLETS.size} roadmap bullets parsed — has the format changed?`)
-      .toBeGreaterThan(50);
+      .toBeGreaterThan(25);
   });
 
   it("leaves no bullet that LOOKS like an item behind — a floor cannot see partial drift", () => {

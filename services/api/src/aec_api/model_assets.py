@@ -97,9 +97,13 @@ def seed(db, pid: str, derived: list[dict], actor: str | None = None) -> dict[st
         if tag in existing:
             skipped += 1
             continue
-        rec = me.create_record(db, "asset_register", pid, {"data": {
-            "name": a.get("name") or a["ifc_class"], "tag": tag,
-            "location": a.get("storey") or "", "model": a.get("type") or ""}}, actor, None)
+        rec = me.create_record(db, "asset_register", pid, {
+            "data": {
+                "name": a.get("name") or a["ifc_class"], "tag": tag,
+                "location": a.get("storey") or "", "model": a.get("type") or "",
+            },
+            "element_guids": [guid] if guid else None,
+        }, actor, None)
         existing.add(tag)
         created.append(rec.get("ref"))
     return {"created": len(created), "skipped": skipped, "created_refs": created,

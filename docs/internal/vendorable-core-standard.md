@@ -73,5 +73,7 @@ both full products and should stay that way. It says the part we consume must be
 separability is proven by a test rather than asserted in a README.
 
 Related: [`docs/internal/dependency-advisories.md`](dependency-advisories.md) for what we carry
-knowingly; the licence rule is unchanged and absolute — MIT / BSD / Apache-2.0 / ISC only, with GPL,
-AGPL, CC BY-NC and SSPL as hard exclusions, read from the LICENSE file and never from a README.
+knowingly; the licence rule is MIT / BSD / Apache-2.0 / ISC / CC0-1.0 (plus Unlicense, Zlib,
+BSL-1.0), with GPL, AGPL, BUSL, CC BY-NC and SSPL as hard exclusions, read from the LICENSE file
+and never from a README. CC0 for *content* was already shipping; the written rule caught up
+2026-08-19.

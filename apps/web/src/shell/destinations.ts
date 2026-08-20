@@ -187,3 +187,17 @@ export const ALL_DESTS: Dest[] = (() => {
   }
   return [...seen.values()];
 })();
+
+const DEST_BY_KEY = new Map(ALL_DESTS.map((d) => [d.key, d]));
+
+/** Label from the catalog. Panels and home tiles must not restyle these, or UX-DUP-DESTINATIONS
+ *  returns as three names for the same three jobs. */
+export function destLabel(key: string): string {
+  return DEST_BY_KEY.get(key)?.label ?? key;
+}
+
+/** Icon + label, for panel bars that used to hard-code both. */
+export function destTitle(key: string): string {
+  const d = DEST_BY_KEY.get(key);
+  return d ? `${d.icon} ${d.label}` : key;
+}

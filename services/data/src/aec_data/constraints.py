@@ -89,10 +89,21 @@ def check(model) -> dict[str, Any]:
                 z = float(local[2, 3]) * scale                # sill height in the wall's frame
                 length, _, wall_h = dims
                 o_w, _, o_h = odims
-                if x + o_w / 2 < 0 or x - o_w / 2 > length:
+                # The wall's local frame is CENTRED on its run, not started at one end: `add_wall`
+                # places a wall at the midpoint of start→end and sweeps a centred
+                # IfcRectangleProfileDef, so a valid opening sits in [-length/2, +length/2].
+                #
+                # This compared against [0, length] instead, which is wrong at both ends: every
+                # opening in the first half of any wall was reported as outside its host, and a
+                # genuinely-overhanging opening on the far side was missed by a full half-length.
+                # It went unnoticed because omitting `position` centres an opening at local x = 0,
+                # which passes either way — only explicitly-placed openings expose it.
+                half = length / 2.0
+                if x + o_w / 2 < -half or x - o_w / 2 > half:
                     issues.append(_issue(
                         "insert_outside_host", "error", op,
-                        f"placed {x:.2f} m along a {length:.2f} m wall — outside its extent"))
+                        f"placed {x:+.2f} m from the centre of a {length:.2f} m wall "
+                        f"(valid range ±{half:.2f} m) — outside its extent"))
                 elif z + o_h > wall_h + 0.05:
                     issues.append(_issue(
                         "insert_outside_host", "error", op,
