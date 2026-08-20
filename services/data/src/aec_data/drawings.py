@@ -45,6 +45,47 @@ def storey_elevations(model: ifcopenshell.file) -> list[dict[str, Any]]:
     return sorted(out, key=lambda x: x["elevation"])
 
 
+#: The conventional architectural cut — roughly waist height above the finished floor, where a plan
+#: catches door and window openings. Correct for a normal storey and wrong for the two cases that
+#: produce blank sheets: a roof/parapet datum with nothing 1.2 m above it, and a mezzanine or plant
+#: level whose elements are shorter than the default.
+DEFAULT_CUT_M = 1.2
+
+
+def storeys_with_cut(model: ifcopenshell.file) -> list[dict[str, Any]]:
+    """`storey_elevations` plus, per storey, the cut height that actually catches its geometry.
+
+    R43-PLAN-EMPTY-AT-CUT ③. The level list is where a caller decides what to draw, so it is where
+    the answer to *"what cut height should this level use?"* belongs. Every plan in the product was
+    requested at a flat `cut_height=1.2` regardless of storey, which is right for a normal floor and
+    produces a blank sheet for a roof datum — `samples/basichouse.ifc` "Floor 1" catches 2 of its 16
+    elements at 1.2 m and 6 at 0.1 m.
+
+    `cut_height` is a **suggestion the caller must pass back**, never an override applied behind its
+    back: the titleblock prints the elevation it was cut at, so a silently different plane would make
+    that printed number a lie. `cut_default_spans` / `cut_best_spans` are published beside it so the
+    suggestion can be judged rather than trusted — equal values mean the default was already fine.
+    """
+    lvls = storey_elevations(model)
+    if not lvls:
+        return lvls
+    meshes = bake(model)
+    for lvl in lvls:
+        q = cut_plane_quality(meshes, float(lvl["elevation"]), DEFAULT_CUT_M)
+        # Only override the convention when the convention FAILS — the same test the sheet's banner
+        # uses, so a level that suggests a different height is exactly a level that would have been
+        # warned about. Maximising the element count is the wrong objective on a healthy storey:
+        # 1.2 m is where doors and windows are, and on `basichouse` "Floor 0" a pure maximiser
+        # proposed **0.400 m** to gain 84 -> 106 elements — more linework, cut below every opening,
+        # which is not the drawing anyone wants. The convention earns its default.
+        unrepresentative = q["ratio"] is not None and q["best"] >= 4 and q["ratio"] < 0.5
+        best_h = round(float(q["best_z"]) - float(lvl["elevation"]), 3)
+        lvl["cut_height"] = best_h if unrepresentative else DEFAULT_CUT_M
+        lvl["cut_default_spans"] = q["at_cut"]
+        lvl["cut_best_spans"] = q["best"]
+    return lvls
+
+
 def resolve_storey(model: ifcopenshell.file, storey: str) -> float | None:
     """R38-SYNC-SELECT: a storey NAME → its elevation in metres, or None when no storey has that
     name. Matching is case-insensitive and whitespace-trimmed because the name travels through a
@@ -459,6 +500,48 @@ def _leader_callout(sx: float, sy: float, lx: float, ly: float, text: str, color
         f'font-size="10" fill="{color}">{text}</text>')
 
 
+def cut_plane_quality(meshes, elevation: float, cut_height: float,
+                      search_m: float = 2.6, step_m: float = 0.1) -> dict:
+    """How well does this cut plane represent the storey — and where would a better one sit?
+
+    R43-PLAN-EMPTY-AT-CUT ② . The original guard asked `if not polys`, i.e. did the plane find
+    **exactly** nothing. That is the rare case. The common one is a plane that *grazes*: on
+    `samples/basichouse.ifc` the upper storey cuts at 3.600 m, catches **2** of the 16 elements
+    standing on that storey, and composes a full sheet — titleblock, general notes, scale bar,
+    north arrow — around two stray slivers, saying nothing. A boolean cannot tell that from a
+    drawing, because 2 is truthy. **The failure mode is nearly-empty, and the test was for empty.**
+
+    So compare the chosen plane against the best one available on this storey. Sweeping candidate
+    heights needs only the mesh bounds, which are already computed, and it answers the question the
+    reader actually has — *what height should I have used?* — instead of only reporting that this
+    one was poor.
+
+    Returns `at_cut` / `best` counts, `best_z`, and `ratio` (None when the storey has nothing to
+    cut at any height, which is a genuinely empty storey and a different fact — see
+    [the count comment in plan_drawing_svg]). `ratio` is deliberately not thresholded here; the
+    caller owns the policy, this owns the measurement.
+    """
+    spans = []
+    for _gid, _name, mesh in meshes:
+        b = mesh.bounds
+        spans.append((float(b[0][2]), float(b[1][2])))
+
+    def n_at(z: float) -> int:
+        return sum(1 for lo, hi in spans if lo <= z <= hi)
+
+    at_cut = n_at(elevation + cut_height)
+    best_n, best_z = -1, elevation + cut_height
+    z = elevation + step_m
+    while z <= elevation + search_m + 1e-9:
+        n = n_at(z)
+        if n > best_n:
+            best_n, best_z = n, z
+        z += step_m
+    best_n = max(best_n, 0)
+    return {"at_cut": at_cut, "best": best_n, "best_z": best_z,
+            "ratio": (at_cut / best_n) if best_n > 0 else None}
+
+
 def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
                      grid: dict | None = None, dims: bool = True, width: int = 1200,
                      tags: list[dict] | None = None, callouts: list[dict] | None = None,
@@ -469,6 +552,8 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
     # a plan whose linework forgets its elements in one rendering mode would make selection sync a
     # mode-dependent feature, which is worse than not having it.
     guided = cut_baked_guided(meshes, "plan", elevation + cut_height)
+    # measured once: the header publishes it as data, the banner below decides whether to say it
+    _q0 = cut_plane_quality(meshes, elevation, cut_height)
     polys = [p for _g, _c, p in guided]
     below = below or []
     grid = grid or {"x": [], "y": []}
@@ -536,7 +621,12 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
            # that cannot drift out of step with a separate flag. **Zero here means "we cut above (or
            # below) the geometry", which is a different fact from "this storey is empty" — and until
            # now the output could not tell them apart.**
-           f'data-plan-cut-loops="{len(guided)}"'
+           f'data-plan-cut-loops="{len(guided)}" '
+           # ② the same judgement the banner makes, as data: how many elements the plane actually
+           # passes through, and the best height available on this storey. A consumer that wants to
+           # re-cut can, without re-deriving the sweep.
+           f'data-plan-cut-spans="{_q0["at_cut"]}" data-plan-cut-best="{_q0["best"]}" '
+           f'data-plan-cut-best-z="{_q0["best_z"]:.3f}"'
            f'><rect width="{width}" height="{height}" fill="#fff"/>']
 
     # grid lines + bubbles
@@ -647,14 +737,31 @@ def plan_drawing_svg(meshes, elevation: float, cut_height: float, title: str,
     # Deliberately NOT a silent retry at a lower plane. The titleblock prints the cut elevation, so
     # re-cutting somewhere else and saying nothing would make that printed number a lie — worse than
     # a blank sheet, because it is a confident wrong answer rather than an obvious missing one.
-    if not polys:
+    # R43-PLAN-EMPTY-AT-CUT ②. `if not polys` tested for EXACTLY empty, and the failure mode is
+    # NEARLY empty: a plane that grazes catches a sliver or two, `polys` is truthy, and the sheet
+    # prints in full with nothing on it. Measure the cut against the best one available on this
+    # storey instead — a fraction cannot be fooled by two stray loops the way a boolean is.
+    q = _q0                                   # same numbers the header published, never a re-measure
+    unrepresentative = q["ratio"] is not None and q["best"] >= 4 and q["ratio"] < 0.5
+    if not polys or unrepresentative:
+        # Still NOT a silent re-cut: the titleblock prints the cut elevation, so moving the plane
+        # and saying nothing would make that printed number a lie. Name the better height instead
+        # and let a person choose it — the sheet stays honest about what it actually drew.
+        headline = (f'NO GEOMETRY AT THIS CUT ({elevation + cut_height:.3f} m)' if not polys else
+                    f'THIS CUT MISSES MOST OF THE STOREY ({elevation + cut_height:.3f} m)')
+        if q["best"] > 0 and abs(q["best_z"] - (elevation + cut_height)) > 1e-6:
+            detail = (f'the plane passes through {q["at_cut"]} element(s); at '
+                      f'{q["best_z"]:.3f} m it would pass through {q["best"]} &#8212; '
+                      f'set the cut height to {q["best_z"] - elevation:.3f} m')
+        else:
+            detail = ('the cut plane is above or below this storey&#8217;s geometry &#8212; '
+                      'adjust the cut height')
         out.append(f'<text x="{ox + draw_w / 2:.0f}" y="{oy + draw_h / 2:.0f}" '
                    f'text-anchor="middle" font-family="sans-serif" font-size="15" fill="#b00">'
-                   f'NO GEOMETRY AT THIS CUT ({elevation + cut_height:.3f} m)</text>'
+                   f'{headline}</text>'
                    f'<text x="{ox + draw_w / 2:.0f}" y="{oy + draw_h / 2 + 19:.0f}" '
                    f'text-anchor="middle" font-family="sans-serif" font-size="11" fill="#777">'
-                   f'the cut plane is above or below this storey&#8217;s geometry &#8212; '
-                   f'adjust the cut height</text>')
+                   f'{detail}</text>')
     out.append(_titleblock_band(width, height, pad, title, elevation + cut_height, scale, grid))
     out.append("</svg>")
     return "".join(out)
