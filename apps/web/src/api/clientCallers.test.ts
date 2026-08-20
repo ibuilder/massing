@@ -287,7 +287,7 @@ const UNCALLED: readonly string[] = [
   "createType", "decisionGate",
   "docGraph", "draftPost", "drawingSchedulesCalc", "drawingSetPlan",
   "drawingsSyncStatus", "ebcPathways", "editType", "elements5dMap",
-  "energyExportUrl", "energyModel", "enqueueJob", "equipmentSpecCheck",
+  "energyExportUrl", "energyModel", "equipmentSpecCheck",
   "expandMacro", "feasibilityLotSupply", "feasibilitySellout", "holdSell",
   "importFamilyPack", "layoutVerify", "listMacros", "listingReso",
   "liveStream", "loanCovenants", "massingOptionRecipes", "mcpTools",
