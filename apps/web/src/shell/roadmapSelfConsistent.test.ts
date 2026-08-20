@@ -66,7 +66,7 @@ const GATED_AT = LINES.findIndex((l) => l.startsWith("## ⛔ Gated"));
 const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
 
 /** One source for the increment vocabulary — the same lesson `roadmapLanes.test.ts` records twice. */
-const MARKS = "①②③④⑤⑥⑦⑧⑨";
+const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕";
 
 /**
  * Status glyphs a bullet may carry. **`⛔` is here and is NOT in `roadmapLanes.test.ts`'s copy** —

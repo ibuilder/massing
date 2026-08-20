@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1026 (2026-08-20) — `/ai` leaves client.ts
+
+SCALE-SEAM ㉑. Six AI methods (risk summary, ask, RFI triage/draft, estimate,
+author) moved to `apps/web/src/api/ai.ts`. Five regions. `aiReadiness`
+(`/ai-readiness`) stays. Increment class widened ①–㉕.
+`client.ts` 3,205 → 3,170.
+
 ## v0.3.1025 (2026-08-20) — `/topics` leaves client.ts
 
 SCALE-SEAM ⑳. Seven BCF methods (create, viewpoints, board, timeline, comments)

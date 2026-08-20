@@ -657,7 +657,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑳ |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉑ |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | — |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -2753,11 +2753,13 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   **Design is skipped on purpose:** `apps/web/src/shell/spine.ts` sets Design home to null — the 3D viewer is the room. A portal brief would be a second home.
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ⑳ — `client.ts` is no longer a god-file, but the split is not finished.** *(⑳ `/topics` SHIPPED v0.3.1025; ②–⑲ already shipped)*
+- ◧ ⭐ **SCALE-SEAM ㉑ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉑ `/ai` SHIPPED v0.3.1026; ②–⑳ already shipped)*
+  **㉑ took `/projects/{pid}/ai` out** (6 methods in five regions; `client.ts` 3,205 → 3,170)
+  as `apps/web/src/api/ai.ts`. `aiReadiness` (`/ai-readiness`) stays. The increment marker
+  in `roadmapLanes.test.ts` now runs ①–㉕.
+
   **⑳ took `/projects/{pid}/topics` out** (7 methods in three regions; `client.ts` 3,243 → 3,205)
-  as `apps/web/src/api/topics.ts`. `pins()` stays (`/pins`). The increment marker in
-  `roadmapLanes.test.ts` currently runs ①–⑳; the next cut needs that class widened before
-  it can be named ㉑.
+  as `apps/web/src/api/topics.ts`. `pins()` stays (`/pins`).
 
   **⑲ took `/projects/{pid}/mep` out** (7 methods in four regions; `client.ts` 3,304 → 3,243)
   as `apps/web/src/api/mep.ts`. `connectMep` / `addMepFitting` stay (`editIfc`).
@@ -2774,7 +2776,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   **⑮ took `/projects/{pid}/drawings` out** (11 methods in six regions; `client.ts` 3,538 → 3,482)
   as `apps/web/src/api/drawingSheets.ts`. `markupStream` uses `liveStream` on HttpCore.
 
-  **`client.ts` went 4,956 → 3,205 lines** (`wc -l`). Next is the next route-group by size; pick it by
+  **`client.ts` went 4,956 → 3,170 lines** (`wc -l`). Next is the next route-group by size; pick it by
   re-running the classification below, not by reading the section comments.
 
   **This entry read `③+` and named `/model`, `/modules` and `/estimate` as the next groups until
