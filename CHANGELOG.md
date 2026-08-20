@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1043 (2026-08-20) — R39-DECOMP-VIEWER ⑬: federation leaves app.ts
+
+### Changed
+
+- **`viewer/app.ts` 3,032 → 2,944** — the "Data · Models (federation)" group (federated-model list
+  and the 3D version compare that overlays two published versions) moves to
+  `viewer/tools/federationSection.ts`. `app.ts` is now **5,160 → 2,944 across thirteen slices, a 43%
+  cut**; the ratchet in `test_file_sizes.py` went down with it, never reset.
+
+### Note
+
+- **⑫ said "the renderer-free seam ends at ⑫", and that was true of the group it described and too
+  broad as written.** The annotation group really is renderer-coupled — it mutates the live scene and
+  *writes* to `let` captures. The federation group is not: measured **zero** `viewer.world` / `THREE`
+  / `screenToGround` touches across 95 lines, reaching 3D only through `layerMgr`, a live object
+  slices ⑨–⑫ already hand over whole. Measuring each candidate group rather than trusting the summary
+  sentence is what found it.
+- **`layerMgr` is imported as `LayerManager`, not guessed.** ⑩ recorded the one dep whose type was
+  guessed — `{ rebuild(): void }` — which compiled until a call site reached `isolateGuids`.
+- The module was written **imported by nothing** first, so `tsc` enumerated its nine dependencies in
+  one pass. That caught a collision a hand list would not: the block holds a local `let d` (the
+  version diff) which the deps parameter `d` shadowed, so `d.api` silently read the undefined local.
+  The local is now `diff`.
+
 ## v0.3.1042 (2026-08-20) — a resubmittal now shows the review that asked for it
 
 ### Fixed

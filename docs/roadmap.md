@@ -1998,7 +1998,8 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   **Shipped:** ① exports (51) · ② clash/QA (851) · ③ analyse (238) · ④ authoring (91) ·
   ⑤ project-browser panel (216) · ⑥ `loadProjectModel` (37) · ⑦ **drawings & sheets (142, v0.3.978)** ·
   ⑨ **fabrication detail (65)** · ⑩ **MEP / fire / life safety (169)** — both v0.3.981 ·
-  ⑫ **envelope & free-form geometry (75, v0.3.982)**. `app.ts` 5,160 → **3,032**, a **41% cut**.
+  ⑫ **envelope & free-form geometry (75, v0.3.982)** · ⑬ **model federation & version compare
+  (88, v0.3.1043)**. `app.ts` 5,160 → **2,944**, a **43% cut**.
   Each ratcheted `services/api/test_file_sizes.py` down, never reset. `services/api/test_file_sizes.py`
   carries the per-slice history; that comment, not this list, is the record.
 
@@ -2072,9 +2073,17 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   nothing, and running `tsc` listed `viewer`, `screenToGround`, `annotGuide`, `guideWired` and four
   more in a single pass — before a line of `app.ts` was touched, and with nothing to revert.
 
-  **Remaining:** ~640 lines in `buildToolsPanel`, of which the annotation group (~120) is the
-  renderer-coupled part described above. The rest is the content/family library and the rail assembly
-  itself, which is wiring — the thing this file is *for*.
+  **⑬ found one more renderer-free group inside what ⑫ had written off.** ⑫'s sentence "the
+  renderer-free seam ends at ⑫" was true of the *annotation* group it was describing and too broad as
+  written: the federation group measured **zero** `viewer.world` / `THREE` / `screenToGround` touches
+  across 95 lines, reaching 3D only through `layerMgr` — a live object ⑨–⑫ already hand over whole.
+  Measuring each candidate group separately, rather than trusting the summary sentence, is what found
+  it. `layerMgr` is imported as `LayerManager` and not guessed, which is ⑩'s lesson applied.
+
+  **Remaining:** ~550 lines in `buildToolsPanel`, of which the annotation group (~120) is the
+  renderer-coupled part described above and needs its own item. The rest is the working-origin block
+  (one renderer touch), the content/family library, and the rail assembly itself, which is wiring —
+  the thing this file is *for*.
 
   **⚠️ The recipe as written does not apply, and this is the finding that matters more than the
   split.** It says *"the suite as the parity gate"*. **Nothing in the suite imports
