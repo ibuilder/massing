@@ -7,7 +7,7 @@ import {
   CHART_KINDS, NO_DATA_MARK,
   compact, money, chartColor, lineChart, groupedBar, stackedBar, waterfall,
   tornado, histogram, donut, progressBar, sparkline, signedBars, scatterQuadrant,
-  Y_TICKS, usd, qty,
+  Y_TICKS, usd, qty, SERIES_PALETTE, STATUS_GOOD, STATUS_WARN, STATUS_CRIT,
 } from "./charts";
 
 describe("number formatting", () => {
@@ -24,6 +24,7 @@ describe("number formatting", () => {
   });
   it("palette cycles", () => {
     expect(chartColor(0)).toBe(chartColor(7));   // 7 colors → wraps
+    expect(chartColor(0)).toBe(SERIES_PALETTE[0]);
   });
 });
 
@@ -338,5 +339,67 @@ describe("R24-CHARTS-GRAMMAR ② — one currency format for the whole app", () 
       expect(qty(12_500)).not.toContain("$");
       expect(qty(null)).toBe("—");
     });
+  });
+});
+
+/**
+ * R24-CHARTS-GRAMMAR ③ — series identity is not status.
+ *
+ * Slot 0 used to be `--accent` and slot 1 the same green as "passing". An S-curve then read as
+ * "PV is the thing you can act on, EV is fine". Status hues stay for signed magnitude and the
+ * quadrant; `chartColor` is a categorical ramp that does not include them.
+ */
+describe("R24-CHARTS-GRAMMAR ③ — series colour is not a traffic light", () => {
+  const SRC = readFileSync(resolve(__dirname, "charts.ts"), "utf8");
+  const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const STATUS = [STATUS_GOOD, STATUS_WARN, STATUS_CRIT] as const;
+
+  it("the categorical ramp has seven slots and none of them is a status hue or --accent", () => {
+    expect(SERIES_PALETTE).toHaveLength(7);
+    for (const c of SERIES_PALETTE) {
+      expect(STATUS, c).not.toContain(c);
+      expect(c).not.toMatch(/accent|status-/);
+    }
+  });
+
+  it("chartColor never returns a status hue", () => {
+    for (let i = 0; i < 21; i++) {
+      expect(STATUS, `slot ${i}`).not.toContain(chartColor(i));
+    }
+  });
+
+  it("a multi-series line is categorical, not good/warn/crit", () => {
+    const svg = lineChart([
+      { name: "PV", values: [0, 5, 12] },
+      { name: "EV", values: [0, 4, 10] },
+      { name: "AC", values: [0, 6, 13] },
+    ]);
+    expect(svg).toContain(SERIES_PALETTE[0]);
+    expect(svg).toContain(SERIES_PALETTE[1]);
+    expect(svg).not.toContain(STATUS_GOOD);
+    expect(svg).not.toContain(STATUS_CRIT);
+    expect(svg).not.toContain("var(--accent)");
+  });
+
+  it("signed magnitude still uses the status hues — that is what they are for", () => {
+    const sb = signedBars([-10, 5]);
+    expect(sb).toContain(STATUS_CRIT);
+    expect(sb).toContain(STATUS_GOOD);
+    const wf = waterfall([{ label: "in", value: 4 }, { label: "out", value: -2 }]);
+    expect(wf).toContain(STATUS_GOOD);
+    expect(wf).toContain(STATUS_CRIT);
+  });
+
+  it("a progress bar's complete / low states are status; mid-flight is series 0", () => {
+    expect(progressBar(100, 100, {})).toContain(STATUS_GOOD);
+    expect(progressBar(10, 100, {})).toContain(STATUS_WARN);
+    expect(progressBar(60, 100, {})).toContain(SERIES_PALETTE[0]);
+  });
+
+  it("each status hex is declared once — copies are how EV became 'passing'", () => {
+    for (const hex of STATUS) {
+      const hits = [...CODE.matchAll(new RegExp(hex.replace(/[.#]/g, "\\$&"), "g"))];
+      expect(hits, hex).toHaveLength(1);
+    }
   });
 });
