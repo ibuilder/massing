@@ -10,7 +10,6 @@
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore, type LiveStream } from "./httpCore";
-import type { DrawingMarkupItem, SheetMarkupIn } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -40,27 +39,13 @@ export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ model_loaded: boolean; version: number; signature: string | null;
       changed_at: number | null }>(`/projects/${pid}/drawings/sync-status`);
   }
-  /** Markups for one sheet — or, with no sheet, EVERY markup in the project (the MARKUP-2b grid). */
-  drawingMarkup(pid: string, sheet?: string) {
-    return this.json<DrawingMarkupItem[]>(
-      `/projects/${pid}/drawings/markup${sheet ? `?sheet=${encodeURIComponent(sheet)}` : ""}`);
-  }
-  addDrawingMarkup(pid: string, sheetId: string, x: number, y: number, note: string) {
-    return this.json<DrawingMarkupItem>(`/projects/${pid}/drawings/markup`, { method: "POST", body: JSON.stringify({ sheet_id: sheetId, x, y, note }) });
-  }
-  /** Persist the 2D editor's whole markup scene for a sheet (structured takeoff markups, promotable to
-   *  RFI like pins). `replace` clears the caller's own prior unpromoted markups for that sheet first. */
-  saveDrawingMarkups(pid: string, sheetId: string, markups: SheetMarkupIn[], replace = true) {
-    return this.json<{ saved: number; sheet_id: string }>(`/projects/${pid}/drawings/markup/bulk`,
-      { method: "POST", body: JSON.stringify({ sheet_id: sheetId, replace, markups }) });
-  }
-  deleteDrawingMarkup(pid: string, id: string) {
-    return this.json<{ ok: boolean }>(`/projects/${pid}/drawings/markup/${id}`, { method: "DELETE" });
-  }
-  promoteDrawingMarkup(pid: string, id: string) {
-    return this.json<{ markup: DrawingMarkupItem; topic: { id: string; type: string; title: string; status: string } }>(
-      `/projects/${pid}/drawings/markup/${id}/promote`, { method: "POST" });
-  }
+  // The five drawing-markup methods (drawingMarkup / addDrawingMarkup / saveDrawingMarkups /
+  // deleteDrawingMarkup / promoteDrawingMarkup) are NOT here: `api/markup.ts` owns them as
+  // SCALE-SEAM ⑭, which landed on main first. Both extractions took them, and because this
+  // mixin wraps the outer position its copy SHADOWED markup.ts's — silently dropping the
+  // `guid` argument that R38-SHEET-MARKUP ③ added, so a pin would have gone back to being a
+  // coordinate on paper. `ui/sheetGuid.test.ts` caught it by asserting the encoded body.
+  // Two seams may not both claim a route group; the one that landed first keeps it.
   /** MARKUP-2d — SSE stream of the drawing-markup change-signature; fires whenever anyone saves a
    *  markup so open sheets live-refresh (live co-markup). */
   markupStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,
