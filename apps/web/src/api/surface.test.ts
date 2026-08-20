@@ -136,6 +136,7 @@ describe("the API client's public surface", () => {
     for (const k of [
       "modules", "moduleRecords", "createModuleRecord", "updateModuleRecord",  // CRUD — used everywhere
       "topicsBoard", "createTopic", "viewpoints",                   // BCF coordination
+      "mepSummary", "mepConnectivity", "sprinklerCoverage", "mepModelExtract",
       "elementEffectiveProps", "element", "elementLifecycle", "colorFacets", "elementCosts", "costSummary",       // model + 5D
       "modelHealth", "modelQa", "projectModels",
       "documentsTree", "uploadDocument", "documentDownloadUrl",
