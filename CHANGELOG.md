@@ -4,7 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.1035 (2026-08-19) — honest empty canvas, Place ticks, named Analyse destinations, element cards
+## v0.3.1036 (2026-08-20) — boto3 and numpy floors raised, and the lock recompiled to match
+
+### Changed
+
+- **boto3 `>=1.34` → `>=1.43.68`** (#288) and **numpy `>=2.5.1` → `>=2.5.2`** (#277), with
+  `requirements.lock` recompiled in `python:3.12-slim` — the prod base image — via `lockfile.yml`.
+  Resolved: `boto3`/`botocore` 1.43.46 → 1.43.75, `numpy` 2.5.1 → 2.5.2, **and nothing else moved**,
+  which is the point of compiling without `--upgrade`.
+- **Neither PR could merge as it stood.** Both raise a floor *above* what the lock pins, and
+  `test_lock_satisfies_requirements` checks the lock against `requirements.in` **and**
+  `services/data/requirements.txt`. Verified rather than assumed: run against the old lock the gate
+  exits 1. A floor raise and a lock recompile are one change, not two.
+- **numpy was raised in `requirements.in` too**, not only where Dependabot proposed it.
+  `pip-compile`'s sole input is `requirements.in`, so a floor raised only in the data service cannot
+  move the resolution — the lock would have stayed at 2.5.1 and the gate would still have failed.
+
+## v0.3.1035 (2026-08-20) — honest empty canvas, Place ticks, element cards
 
 The upgrade audit's remaining code slice, not another library.
 
