@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1024 (2026-08-20) — the level list says which cut height to use
+
+### Added
+
+- **`GET /projects/{pid}/drawings/storeys` carries a `cut_height` per level.** Every plan in the
+  product was requested at a flat `cut_height=1.2` regardless of storey — right for a normal floor,
+  and the reason a roof datum printed blank. The level list is where a caller picks what to draw, so
+  it is where the answer belongs. Additive: `name` / `elevation` / `guid` are unchanged, and
+  `cut_default_spans` / `cut_best_spans` ride alongside so the suggestion can be judged rather than
+  trusted.
+- The suggestion is **a value to pass back, never an override applied behind the caller's back** —
+  the titleblock prints the elevation it cut at, and a silently different plane would make that
+  printed number a lie.
+
+### Fixed
+
+- **The first version of this maximised element count, which is the wrong objective.** On
+  `basichouse.ifc` "Floor 0" it proposed **0.400 m** to raise the count from 84 to 106 — more
+  linework, cut below every door and window, which is not a floor plan. A plan cuts near 1.2 m
+  because that is where openings are; the convention earns its default. The override now fires on
+  exactly the condition the sheet's banner fires on (`ratio < 0.5` with `best >= 4`), so a level
+  offered a different height is precisely a level that would otherwise have been warned about —
+  one rule, not two that can drift apart. A storey with almost nothing at *any* height keeps the
+  default and its honest "NO GEOMETRY" banner rather than being handed a fake better plane.
+
 ## v0.3.1023 (2026-08-20) — a plan that grazes the storey now says so
 
 ### Fixed
@@ -32,6 +57,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
   3,606 → 3,579.
 
 ## v0.3.1022 (2026-08-20) — `/drawing-set` leaves client.ts
+## v0.3.1021 (2026-08-20) — `/elements` leaves client.ts
+
+SCALE-SEAM ⑯. Eleven inspector/list/colour/QA/citation/cost methods moved to
+`apps/web/src/api/elements.ts`. Five regions. `elements5dMap` (`/5d/heatmap`) and
+the job tray stay. `client.ts` 3,482 → 3,412.
+
 ## v0.3.1020 (2026-08-20) — `/drawings` leaves client.ts
 
 SCALE-SEAM ⑮. Eleven sheet methods (revise, schedules, storeys, sync-status, markup + stream)
@@ -42,31 +73,6 @@ moved to `apps/web/src/api/drawingSheets.ts`. Six regions. `client.ts` 3,538 →
 SCALE-SEAM ⑭. Eleven drawing-set methods (register, issue, issuance matrix, transmittals)
 moved to `apps/web/src/api/drawingSet.ts`. They sat in three runs with `/preflight` and
 `/pdf` between them. `client.ts` 3,602 → 3,538.
-
-## v0.3.1021 (2026-08-20) — the level list says which cut height to use
-
-### Added
-
-- **`GET /projects/{pid}/drawings/storeys` carries a `cut_height` per level.** Every plan in the
-  product was requested at a flat `cut_height=1.2` regardless of storey — right for a normal floor,
-  and the reason a roof datum printed blank. The level list is where a caller picks what to draw, so
-  it is where the answer belongs. Additive: `name` / `elevation` / `guid` are unchanged, and
-  `cut_default_spans` / `cut_best_spans` ride alongside so the suggestion can be judged rather than
-  trusted.
-- The suggestion is **a value to pass back, never an override applied behind the caller's back** —
-  the titleblock prints the elevation it cut at, and a silently different plane would make that
-  printed number a lie.
-
-### Fixed
-
-- **The first version of this maximised element count, which is the wrong objective.** On
-  `basichouse.ifc` "Floor 0" it proposed **0.400 m** to raise the count from 84 to 106 — more
-  linework, cut below every door and window, which is not a floor plan. A plan cuts near 1.2 m
-  because that is where openings are; the convention earns its default. The override now fires on
-  exactly the condition the sheet's banner fires on (`ratio < 0.5` with `best >= 4`), so a level
-  offered a different height is precisely a level that would otherwise have been warned about —
-  one rule, not two that can drift apart. A storey with almost nothing at *any* height keeps the
-  default and its honest "NO GEOMETRY" banner rather than being handed a fake better plane.
 
 ## v0.3.1019 (2026-08-20) — the four checks that stood between 19 branches and main
 
