@@ -579,7 +579,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑬ · SCALE-SEAM ⑭ · SCALE-SEAM ⑮ · SCALE-SEAM ⑯ · SCALE-SEAM ⑰ · SCALE-SEAM ⑱ · SCALE-SEAM ⑲ · SCALE-SEAM ⑳ |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(the three cache locations drop all seven security headers)* · R39-CONTAINER-PR *(no PR job exercises a docker-action bump)* · R39-TSC-CACHE *(incremental tsc hides orphaned imports)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(the three cache locations drop all seven security headers)* · R39-CONTAINER-PR *(no PR job exercises a docker-action bump)* · R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -1922,14 +1922,20 @@ stronger than it is, which is this ring's whole theme:
   container job on PRs touching `**/Dockerfile` or `.github/workflows/ci.yml`. *Until it exists,
   land such bumps alone, after an unrelated push has proven the baseline, so a red build has one
   suspect and a one-commit revert.* **A skipped job is not a passed job.**
-- **R39-TSC-CACHE** *(XS, any lane)* — **a local typecheck is weaker than the CI one, silently.**
-  `apps/web/tsconfig.json` sets `"incremental": true` with a cached `tsBuildInfoFile`, so
-  `npm run typecheck` reuses program state and does not re-report unused-symbol diagnostics for a
-  file whose signature did not change. CI checks out clean and does. Measured on v0.3.1020: two type
-  imports orphaned by SCALE-SEAM ⑭ passed locally and failed CI with TS6196. Every "typecheck green"
-  quoted from a warm cache is a claim about the cache. Wanted: `predev`/`pretypecheck` clearing the
-  cache, or the flag dropped — extractions are exactly the change that leaves orphans, so the
-  weakness lands where it hurts.
+- **R39-TSC-CACHE** *(XS, any lane)* — **a local typecheck once passed where CI's identical command
+  failed, and the cause is not known.** On v0.3.1020 two type imports orphaned by SCALE-SEAM ⑭ passed
+  `npm run typecheck` locally and failed CI with TS6196. That divergence is real and recorded.
+  **The explanation first written here was wrong and is retracted**: it blamed
+  `"incremental": true` and its cached `tsBuildInfoFile` for suppressing unused-symbol diagnostics.
+  Re-tested with a deliberately unused import against a warm cache, plain `tsc --noEmit` exits 2 with
+  TS6133 every time — editing a file invalidates its own cache entry, which is precisely the case in
+  question. The original "mutation check" supporting the claim had run on a tree where the mutation
+  failed to apply, so both arms passed and the agreement was read as confirmation.
+  **Do NOT add `--incremental false` or a cache-clearing `pretypecheck` on the strength of this
+  item** — that was the proposed fix, and it is cost against a benefit nobody has demonstrated.
+  What is genuinely wanted: catch the next occurrence with the *state* preserved (keep the failing
+  tree, run both locally and in CI on the same commit) so the mechanism can be identified rather than
+  guessed. Until then this is an observation, not a defect with a known fix.
 
 **Why this ring exists.** An external audit of the deployment surface found that several controls are
 weaker than they read: a throttle that counts per process behind four workers, an upload cap that only
