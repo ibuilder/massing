@@ -245,7 +245,8 @@ describe("the roadmap lane table", () => {
   it("reads a plausible number of lanes and items — else every assertion below is vacuous", () => {
     // The can't-fail shape this repo keeps getting bitten by: a green check over an empty set.
     expect(LANES.length, `parsed ${LANES.length} lane rows`).toBeGreaterThanOrEqual(8);
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(38);
+    // 38 → 37: BUILD-WORKTREE-CHUNKS closed (✅), so it left the pickable population.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(37);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {
@@ -489,7 +490,7 @@ const NOT_A_LANE = (rel: string) =>
 //: taken from a different reader is a threshold for a different question. `surface.test.ts` records
 //: being bitten by precisely this (698 from a probe vs 696 from the gate), so the number is read back
 //: out of the assertion that enforces it.
-const UNOWNED_CEILING = 53;
+const UNOWNED_CEILING = 48;  // 53 → 48: Lane J claimed `apps/web/src/tooling/` (v0.3.1017)
 
 describe("the lane table covers the tree it governs", () => {
   const WEB = resolve(REPO, "apps/web/src");

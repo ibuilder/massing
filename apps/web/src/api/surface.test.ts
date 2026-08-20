@@ -159,6 +159,7 @@ describe("the API client's public surface", () => {
       "listUsers", "createUser", "updateUser", "resetWithToken",    // admin user management
       // ⑫ moved — one contiguous /connections run; a silent loss here is the admin connections screen
       "connections", "createConnection", "testConnection", "connectionTables",
+      "syncProcore", "pushProcore", "syncSchedules",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }

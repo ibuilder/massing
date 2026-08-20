@@ -105,8 +105,8 @@ if (missingVendor.length) {
   console.error(
     `\nbundle-budget: FAIL — vendor chunk(s) not emitted: ${missingVendor.join(", ")}.\n` +
     "The advancedChunks split did not match, so these libs are inside the eager shell and are no\n" +
-    "longer separately cacheable. If you are building from a git worktree this is expected and the\n" +
-    "build output is WRONG — build from the main clone. Otherwise the chunking config has regressed.",
+    "longer separately cacheable. Chunking has regressed, or a build ran a Vite that ignores\n" +
+    "rolldownOptions.advancedChunks. npm run build must go through scripts/run-vite.mjs.",
   );
   process.exit(1);
 }
