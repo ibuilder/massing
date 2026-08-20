@@ -340,7 +340,13 @@ describe("the page that calls itself 'current status' is not a ring behind", () 
     };
     const now = version(pkg.version);
     const html = readFileSync(resolve(REPO, "docs/status.html"), "utf8");
-    const named = [...html.matchAll(/v0\.3\.(\d{3})/g)].map((m) => Number(m[1]));
+    // `\d{3,}`, not `\d{3}`. THE THIRD WAY THIS FAMILY OF GATE HAS BEEN WRONG, and the worst:
+    // `\d{3}` matched the first three digits of a FOUR-digit release, so `v0.3.1018` was read as
+    // **101** — smaller than the v0.3.928 already on the page. Past v0.3.999 the gate could no
+    // longer see any release at all: it reported a growing lag that refreshing the page could not
+    // fix, because the newest number it was capable of reading was frozen in the 900s. A bound that
+    // cannot be satisfied by doing the right thing teaches the next reader to raise the bound.
+    const named = [...html.matchAll(/v0\.3\.(\d{3,})/g)].map((m) => Number(m[1]));
     expect(named.length, "status.html names no release at all — this assertion is vacuous")
       .toBeGreaterThan(3);
     const newest = Math.max(...named);
@@ -384,7 +390,10 @@ describe("the changelog is not a ring behind the shipped version", () => {
 
     const log = readFileSync(resolve(REPO, "CHANGELOG.md"), "utf8");
     // Both ends: `## v0.3.877` and `## v0.3.882–933` / `## v0.3.878-881`.
-    const named = [...log.matchAll(/^## v0\.3\.(\d{3})(?:\s*[–—-]\s*(\d{3}))?/gm)]
+    // `\d{3,}` on BOTH halves — same digit-boundary trap as the status gate above, and this one
+    // already had a range bug recorded in the docstring. A heading `## v0.3.1002–1018` parsed as
+    // 100–101 under the old pattern.
+    const named = [...log.matchAll(/^## v0\.3\.(\d{3,})(?:\s*[–—-]\s*(\d{3,}))?/gm)]
       .flatMap((m) => [Number(m[1]), m[2] ? Number(m[2]) : Number(m[1])]);
     expect(named.length, "CHANGELOG.md has no `## v0.3.x` headings — this assertion is vacuous")
       .toBeGreaterThan(3);

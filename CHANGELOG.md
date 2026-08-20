@@ -4,12 +4,65 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.1022 (2026-08-20) — `/models` leaves client.ts
+## v0.3.1025 (2026-08-20) — `/models` leaves client.ts
 
 SCALE-SEAM ⑰. Nine health/QA/georef/federation methods moved to
 `apps/web/src/api/models.ts` (`withModels`; `model.ts` remains `/model`).
 Four regions. `client.ts` 3,412 → 3,353.
 
+## v0.3.1024 (2026-08-20) — the level list says which cut height to use
+
+### Added
+
+- **`GET /projects/{pid}/drawings/storeys` carries a `cut_height` per level.** Every plan in the
+  product was requested at a flat `cut_height=1.2` regardless of storey — right for a normal floor,
+  and the reason a roof datum printed blank. The level list is where a caller picks what to draw, so
+  it is where the answer belongs. Additive: `name` / `elevation` / `guid` are unchanged, and
+  `cut_default_spans` / `cut_best_spans` ride alongside so the suggestion can be judged rather than
+  trusted.
+- The suggestion is **a value to pass back, never an override applied behind the caller's back** —
+  the titleblock prints the elevation it cut at, and a silently different plane would make that
+  printed number a lie.
+
+### Fixed
+
+- **The first version of this maximised element count, which is the wrong objective.** On
+  `basichouse.ifc` "Floor 0" it proposed **0.400 m** to raise the count from 84 to 106 — more
+  linework, cut below every door and window, which is not a floor plan. A plan cuts near 1.2 m
+  because that is where openings are; the convention earns its default. The override now fires on
+  exactly the condition the sheet's banner fires on (`ratio < 0.5` with `best >= 4`), so a level
+  offered a different height is precisely a level that would otherwise have been warned about —
+  one rule, not two that can drift apart. A storey with almost nothing at *any* height keeps the
+  default and its honest "NO GEOMETRY" banner rather than being handed a fake better plane.
+
+## v0.3.1023 (2026-08-20) — a plan that grazes the storey now says so
+
+### Fixed
+
+- **Blank floor plans printed as finished drawings.** `samples/basichouse.ifc` storey "Floor 1"
+  cuts at 3.600 m, passes through **2** of the 16 elements standing on that storey, and composed a
+  full sheet around them — titleblock, general notes, graphic scale, north arrow, "CUT PLANE
+  3.60 m AFF" — with no building on it and nothing said. The v0.3.913 guard asked `if not polys`,
+  a test for *exactly* zero, and the failure mode is *nearly* zero: two loops are truthy.
+  `cut_plane_quality` now measures the chosen plane against the best one available on the storey,
+  so a fraction decides rather than a boolean, and the sheet names the height that would work
+  ("at 2.500 m it would pass through 6 — set the cut height to 0.100 m").
+  Still **not** a silent re-cut: the titleblock prints the cut elevation, so moving the plane
+  quietly would make that printed number a lie. The counts are also published as
+  `data-plan-cut-spans` / `-best` / `-best-z`, measured once and shared, so the data and the
+  banner cannot drift apart.
+- `test_plan_cut_quality.py` verifies the suggested height *actually improves the drawing* rather
+  than merely being printed, and that a healthy plan is left alone.
+
+### Changed
+
+- **SCALE-SEAM ⑭** — the five drawing-markup methods leave `client.ts` for `api/markup.ts` as
+  `withMarkup`. Forced rather than chosen: teaching `addDrawingMarkup` to carry the GlobalId put
+  the file at 3,606 against a 3,602 ratchet, which is that pin working as its own comment says it
+  should — the friction buys a cluster out of the file instead of buying the pin a higher number.
+  3,606 → 3,579.
+
+## v0.3.1022 (2026-08-20) — `/drawing-set` leaves client.ts
 ## v0.3.1021 (2026-08-20) — `/elements` leaves client.ts
 
 SCALE-SEAM ⑯. Eleven inspector/list/colour/QA/citation/cost methods moved to
@@ -27,6 +80,35 @@ SCALE-SEAM ⑭. Eleven drawing-set methods (register, issue, issuance matrix, tr
 moved to `apps/web/src/api/drawingSet.ts`. They sat in three runs with `/preflight` and
 `/pdf` between them. `client.ts` 3,602 → 3,538.
 
+## v0.3.1019 (2026-08-20) — the four checks that stood between 19 branches and main
+
+Integration pass over the v0.3.988–1018 stack. Every item here is a gate that was correctly
+red; none of them were silenced.
+
+### Fixed
+
+- **`report_package` was a job kind classified nowhere.** `register_kind` added it without an
+  entry in `_KIND_MIN_ROLE` or `EDITOR_OK_KINDS`, which is the privilege-side-door shape the
+  dispatcher gate exists to catch. Classified as editor-sufficient with its reason: the queue
+  requires `editor` while `GET /projects/{pid}/reports/{report}.pdf` serves the same content at
+  `viewer`, so the queue is stricter than the front door, and it parks an artifact rather than
+  writing project state.
+- **`addDrawingMarkup` lost its only caller.** `postSheetPin` had re-issued the POST by hand to
+  add `data.guid`. The client method now carries the guid and `postSheetPin` delegates, so the
+  endpoint and its body are constructed in one place. Its test drives the real client and still
+  asserts the encoded body, so the claim now spans seam → client → wire.
+- **The web build was broken before it began.** `vite.config.ts` resolved `three/package.json`,
+  which `three` does not list in its exports map — copied from `vitest.config.ts`, where the same
+  line works only because `pdfjs-dist` happens to expose its manifest. The hoisted `node_modules`
+  is now derived from the package entry path, which does not ask a dependency to publish its
+  manifest. CI never reached this: the test step failed first.
+- **A negative test with an expiry date.** `test_engine_routes` used `page=A0` as its unknown
+  page size; this release widened `_PAGES` to nine ARCH/ISO sizes and A0 became valid, so the
+  request reached the model open and returned 409. The invalid value is now derived from `_PAGES`.
+- **`docs/status.html` was 90 releases behind**, and the gate measuring that could no longer
+  measure: its `/v0\.3\.(\d{3})/` read `v0.3.1018` as **101**, smaller than the 928 already on the
+  page. Past v0.3.999 it reported a lag no amount of refreshing could close. Both it and the
+  CHANGELOG gate now read `\d{3,}`, and the page carries the v0.3.988–1018 wave.
 ## v0.3.1018 (2026-08-20) — `/sync` leaves client.ts
 
 SCALE-SEAM ⑬. Seven Procore pull/push + auto-sync-schedule methods moved to
