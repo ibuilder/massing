@@ -176,7 +176,7 @@ if (import.meta.url === `file://${process.argv[1]}`.replace(/\\/g, "/") || proce
 
   const bad = [...by("FORBIDDEN"), ...by("CONTRADICTION")];
   if (bad.length) {
-    console.error(`\n[licences] FAIL — ${bad.length} package(s) violate the MIT/BSD/Apache-only rule:\n`);
+    console.error(`\n[licences] FAIL — ${bad.length} package(s) violate the MIT/BSD/Apache/ISC/CC0 rule:\n`);
     for (const v of bad) console.error(`    ${v.status.padEnd(14)} ${v.name}\n                   ${v.reason}`);
     console.error(
       "\n  A CONTRADICTION means the package's own LICENSE file disagrees with what it declares.\n" +

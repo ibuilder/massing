@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { ApiClient } from "../api/client";
 import { guidFromEvent, guidFromMarkupData, postSheetPin, selectInViewer } from "./sheetGuid";
 
 describe("R38-SHEET-MARKUP ③ ① — guid on generated sheets", () => {
@@ -32,19 +33,25 @@ describe("R38-SHEET-MARKUP ③ ① — guid on generated sheets", () => {
   });
 
   it("postSheetPin sends data.guid only when the click hit linework", async () => {
-    const fetchMock = vi.fn(async () => ({ ok: true }));
-    vi.stubGlobal("fetch", fetchMock);
-    const api = { url: (p: string) => `http://api${p}`, authHeaders: () => ({ Authorization: "Bearer t" }) };
+    // Asserts the ENCODED BODY, not a mock's arguments, and drives it through the real client —
+    // postSheetPin delegates to `addDrawingMarkup`, so the claim spans both hops. Stubbing the
+    // client method instead would pass even if the client dropped the guid on the floor.
+    const seen: (string | null)[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      seen.push((init?.body as string) ?? null);
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+    }));
+    const api = new ApiClient("http://x");
+
     await postSheetPin(api, "p1", "plan:L1", 10, 20, "crack", "WALL_A");
-    expect(fetchMock.mock.calls[0]).toBeTruthy();
-    const tied = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
-    expect(tied).toEqual({
+    expect(JSON.parse(String(seen[0]))).toEqual({
       sheet_id: "plan:L1", x: 10, y: 20, note: "crack", kind: "pin", data: { guid: "WALL_A" },
     });
-    fetchMock.mockClear();
+
     await postSheetPin(api, "p1", "plan:L1", 1, 2, "note", null);
-    const paper = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
-    expect(paper.data).toBeUndefined();
+    const paper = JSON.parse(String(seen[1]));
+    expect(paper.data).toBeUndefined();          // absent, not `null` — the server never has to guess
+    expect("data" in paper).toBe(false);
     vi.unstubAllGlobals();
   });
 });

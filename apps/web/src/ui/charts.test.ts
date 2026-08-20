@@ -398,7 +398,14 @@ describe("R24-CHARTS-GRAMMAR ③ — series colour is not a traffic light", () =
 
   it("each status hex is declared once — copies are how EV became 'passing'", () => {
     for (const hex of STATUS) {
-      const hits = [...CODE.matchAll(new RegExp(hex.replace(/[.#]/g, "\\$&"), "g"))];
+      // Escape every regex metacharacter, not the two characters a hex colour happens to contain.
+      // This read `[.#]`, which CodeQL flagged as incomplete (js/incomplete-sanitization) and was
+      // wrong in both directions: `#` is not a metacharacter and never needed escaping, while the
+      // ones that ARE — `(`, `|`, `*`, `\` — were absent. Correct for today's `#rrggbb` inputs,
+      // and the day a STATUS token becomes `rgb(1,2,3)` those parens compile as a GROUP, so the
+      // count silently stops meaning what it says. Not exploitable (test-only, constant input);
+      // fixed because a sanitiser narrower than its input TYPE is a latent wrong answer.
+      const hits = [...CODE.matchAll(new RegExp(hex.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"))];
       expect(hits, hex).toHaveLength(1);
     }
   });
