@@ -98,7 +98,7 @@ KNOWN_UNCALLED: set[str] = {
     # Frozen rather than wired, per this list's own contract: a ratchet records "this was looked at",
     # never "this is safe". Two are worth someone's attention — `/entitlements/conditions` is
     # R22-ENTITLEMENT's own surface, and `/schedule/make-ready` is the Last Planner constraint list.
-    "/cost/datasets", "/pipeline/funnel", "/projects/{pid}/entitlements/conditions",
+    "/cost/datasets", "/pipeline/funnel",
     "/projects/{pid}/schedule/eot/sourced",
     "/projects/{pid}/drawing-set/compiled.pdf", "/projects/{pid}/drawing-set/file-drawing-set",
     "/projects/{pid}/drawings/received-regions", "/projects/{pid}/drawings/schedule.csv",

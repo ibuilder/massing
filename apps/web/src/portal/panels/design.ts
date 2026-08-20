@@ -212,6 +212,55 @@ export async function renderDiligence(ctx: PanelContext) {
       body.appendChild(card);
     }).catch(() => { /* the register may not exist in this deployment; the banner still stands */ });
 
+    // R22-ENTITLEMENT — CONDITIONS OF APPROVAL, as tracked items rather than one paragraph. The
+    // engine and route shipped and had no client caller until v0.3.1046; the reachability gate
+    // could not see that, because the path appeared only in a doc comment (fixed in v0.3.1044).
+    //
+    // Two things this renders that a count would flatten, and both are the point:
+    //   * UNPARSED is shown SEPARATELY from open, never folded into it. A condition nobody could
+    //     read is not a condition anybody has assessed, and rolling it into "open" would make the
+    //     register look complete while the unreadable ones sit unexamined.
+    //   * an APPROVED entitlement with an empty conditions field reads "unrecorded", not "clean".
+    //     Approvals almost always carry conditions, so a blank field far more often means nobody
+    //     typed them. Printing "0 conditions" there would be the confident wrong answer.
+    // Nothing here is ever shown as satisfied — discharge is a human act, recorded elsewhere.
+    void ctx.host.api.entitlementConditions(pid).then((ec) => {
+      if (!ec.entitlements.length && !ec.unrecorded.length) return;
+      const card = el("div", "dash-card"); card.style.marginBottom = "8px";
+      const head = el("div"); head.style.fontWeight = "600";
+      head.textContent = "Conditions of approval";
+      card.appendChild(head);
+
+      const open = ec.total_open ?? 0, unparsed = ec.total_unparsed ?? 0;
+      const line = el("div", "meta"); line.style.marginTop = "2px";
+      line.textContent = `${open} open · ${unparsed} unparsed`
+        + (ec.unrecorded.length ? ` · ${ec.unrecorded.length} approved with no conditions recorded` : "");
+      card.appendChild(line);
+
+      if (unparsed) {
+        const warn = el("div", "meta");
+        warn.style.color = "var(--status-warn)";
+        warn.textContent = `${unparsed} condition(s) could not be read and are NOT satisfied — `
+          + "each needs a person to review it before it can be discharged.";
+        card.appendChild(warn);
+      }
+      if (ec.unrecorded.length) {
+        const un = el("div", "meta"); un.style.color = "var(--status-warn)";
+        un.textContent = `Approved with nothing recorded: ${ec.unrecorded.join(", ")} — `
+          + "a blank conditions field is far more often untyped than unconditioned.";
+        card.appendChild(un);
+      }
+      for (const e of ec.entitlements) {
+        if (!e.conditions.length) continue;
+        const row = el("div", "meta"); row.style.marginTop = "4px";
+        row.textContent = `${e.ref ?? e.entitlement_id} — ${e.open_count} open`
+          + (e.unparsed_count ? `, ${e.unparsed_count} unparsed` : "")
+          + (e.fully_discharged ? " · fully discharged" : "");
+        card.appendChild(row);
+      }
+      body.appendChild(card);
+    }).catch(() => { /* the entitlement register may not be installed in this deployment */ });
+
     // AUTHORITY OF THE FACTS THE GO/NO-GO RESTS ON. The banner above says whether diligence cleared;
     // this says whether the documents it cleared against are still current. A GO computed from a
     // superseded title report or a survey two years stale is a confident answer to the wrong

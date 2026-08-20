@@ -864,3 +864,35 @@ export interface MakeReady {
     }[];
   }[];
 }
+
+/** `GET /entitlements/conditions` — an approval's conditions as tracked items, never auto-satisfied. */
+export interface EntitlementConditions {
+  project_id: string;
+  entitlement_count?: number;
+  /** Approved entitlements whose conditions field is EMPTY — reported as unrecorded, not clean. */
+  unrecorded: string[];
+  total_open?: number;
+  total_unparsed?: number;
+  note: string;
+  entitlements: {
+    entitlement_id: string;
+    ref: string | null;
+    workflow_state: string | null;
+    /** `tracked` · `no_conditions` · `unrecorded`. */
+    status: string;
+    open_count: number;
+    unparsed_count: number;
+    discharged_count?: number;
+    fully_discharged?: boolean;
+    note: string;
+    conditions: {
+      seq: number;
+      text: string;
+      topic: string | null;
+      quantities: { value: number; unit: string }[];
+      /** `open` · `unparsed` · `discharged`. **Never set to discharged by the reader.** */
+      status: string;
+      note: string;
+    }[];
+  }[];
+}

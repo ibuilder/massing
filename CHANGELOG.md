@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1046 (2026-08-20) — conditions of approval reach the screen; SCALE-SEAM ㉑
+
+### Added
+
+- **`GET /entitlements/conditions` has a client caller and a surface.** R22-ENTITLEMENT ② shipped
+  the engine and route with neither — an approval's conditions split into tracked items, tagged by
+  topic, with quantities extracted beside the sentence they came from. It renders in the Design
+  room beside the review-cycles card.
+- **Two distinctions the card refuses to flatten**, because both are the point:
+  - **`unparsed` is shown separately from `open`.** A condition nobody could read is not a condition
+    anybody has assessed; folding it into "open" would make the register look complete while the
+    unreadable ones sit unexamined. Nothing is ever rendered as satisfied — discharge is a human act.
+  - **An approved entitlement with an empty conditions field reads "unrecorded", not "clean".**
+    Approvals almost always carry conditions, so a blank field far more often means nobody typed
+    them. Printing "0 conditions" there would be a confident wrong answer about compliance.
+
+### Changed
+
+- **SCALE-SEAM ㉑ — `/entitlements` leaves `client.ts` for `api/entitlements.ts`.** Forced, not
+  chosen: adding the method put the file at 3,136 against a 3,129 ratchet, and that pin's comment
+  says the friction should buy a cluster out of the file rather than buy the pin a higher number.
+  **3,129 → 3,125 — the file came down while gaining a method.**
+
 ## v0.3.1045 (2026-08-20) — Make-ready reaches the screen: "can next week's work actually start?"
 
 ### Added
