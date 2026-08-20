@@ -135,7 +135,7 @@ describe("the API client's public surface", () => {
     // asserts anything about reachability.
     for (const k of [
       "modules", "moduleRecords", "createModuleRecord", "updateModuleRecord",  // CRUD — used everywhere
-      "topicsBoard", "createTopic", "viewpoints",                   // BCF coordination
+      "topicsBoard", "createTopic", "viewpoints", "topicComments",  // BCF coordination
       "mepSummary", "mepConnectivity", "sprinklerCoverage", "mepModelExtract",
       "elementEffectiveProps", "element", "elementLifecycle", "colorFacets", "elementCosts", "costSummary",       // model + 5D
       "modelHealth", "modelQa", "projectModels",

@@ -9,6 +9,7 @@ import { withElements } from "./elements";
 import { withModels } from "./models";
 import { withDocuments } from "./documents";
 import { withMep } from "./mep";
+import { withTopics } from "./topics";
 import { withSync } from "./sync";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
@@ -44,13 +45,13 @@ import type {
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, ProfessionalLicense,
   ResponsibilityMatrix, SmartView, StampTemplate,
     BidLevelingDetail,
-    SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload,
+    SpecManual, Topic, Vec3, WorkItem, VitalsPayload,
     DiligenceReadiness, ReviewCycles, MasterBuilderBrief } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))))))) {
+export class ApiClient extends withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -1375,17 +1376,6 @@ export class ApiClient extends withMep(withDocuments(withModels(withElements(wit
   pins(pid: string) {
     return this.json<Topic[]>(`/projects/${pid}/pins`);
   }
-  createTopic(pid: string, body: Partial<Topic>) {
-    return this.json<Topic>(`/projects/${pid}/topics`, { method: "POST", body: JSON.stringify(body) });
-  }
-  viewpoints(pid: string, tid: string) {
-    return this.json<Viewpoint[]>(`/projects/${pid}/topics/${tid}/viewpoints`);
-  }
-  addViewpoint(pid: string, tid: string, body: Partial<Viewpoint>) {
-    return this.json<Viewpoint>(`/projects/${pid}/topics/${tid}/viewpoints`, {
-      method: "POST", body: JSON.stringify(body),
-    });
-  }
 
   // analysis & QA (clash + IDS validation)
   runClash(pid: string, opts: { a?: string; b?: string; min_volume?: number; create_topics?: boolean } = {}) {
@@ -1541,17 +1531,6 @@ export class ApiClient extends withMep(withDocuments(withModels(withElements(wit
   sharedDigestUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}/digest`); }
   /** The public read-only HTML page for a share token (opens with no login — the human share link). */
   sharedPageUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}`); }
-  topicsBoard(pid: string, groupBy: "status" | "priority" | "assignee" | "type" = "status", filter?: string) {
-    type T = { id: string; guid: string; type: string; title: string; status: string;
-      priority: string | null; assignee: string | null; author: string | null; labels: string[] | null;
-      element_guids: string[] | null; due_date: string | null; created_at: string | null; modified_at: string | null };
-    const q = new URLSearchParams({ group_by: groupBy });
-    if (filter) q.set("filter", filter);
-    return this.json<{
-      group_by: string; filter: string | null; total: number; column_count: number;
-      columns: { key: string; count: number; topics: T[] }[]; note: string;
-    }>(`/projects/${pid}/topics/board?${q.toString()}`);
-  }
   /** VIEW-TEMPLATES — reusable layered view presets (class visibility + isolate + stacked colors). */
   viewTemplates(pid: string) {
     return this.json<{ templates: { id: string; name: string; hide_classes: string[];
@@ -1585,23 +1564,6 @@ export class ApiClient extends withMep(withDocuments(withModels(withElements(wit
       reviewed_at: string; review_note: string | null }>(
       `/projects/${pid}/versions/${version}/review`,
       { method: "POST", body: JSON.stringify({ action, note }) });
-  }
-  topicTimeline(pid: string, tid: string) {
-    return this.json<{
-      topic_id: string; title: string; type: string; status: string;
-      events: { ts: string | null; kind: string; actor: string | null; summary: string;
-        detail?: Record<string, unknown> }[];
-      event_count: number; statuses: string[]; allowed_next: string[];
-    }>(`/projects/${pid}/topics/${tid}/timeline`);
-  }
-  topicComments(pid: string, tid: string) {
-    return this.json<{ id: string; topic_id: string; author: string | null; text: string;
-      viewpoint_id: string | null; reply_to: string | null; created_at: string }[]>(
-      `/projects/${pid}/topics/${tid}/comments`);
-  }
-  addTopicComment(pid: string, tid: string, body: { author?: string; text: string; reply_to?: string }) {
-    return this.json<{ id: string; reply_to: string | null }>(
-      `/projects/${pid}/topics/${tid}/comments`, { method: "POST", body: JSON.stringify(body) });
   }
   /** PORTAL-TXN — record a client decision through a share token (public; approve/acknowledge/decline). */
   sharedDecision(token: string, body: {

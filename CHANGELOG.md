@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1025 (2026-08-20) — `/topics` leaves client.ts
+
+SCALE-SEAM ⑳. Seven BCF methods (create, viewpoints, board, timeline, comments)
+moved to `apps/web/src/api/topics.ts`. Three regions. `pins()` stays (`/pins`).
+`client.ts` 3,243 → 3,205.
+
 ## v0.3.1024 (2026-08-20) — `/mep` leaves client.ts
 
 SCALE-SEAM ⑲. Seven MEP methods (summary, connectivity, sizing, sprinkler, fittings,
