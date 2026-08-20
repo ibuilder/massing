@@ -5,6 +5,7 @@ import { withAuthoring } from "./authoring";
 import { withConnections } from "./connections";
 import { withDrawingSet } from "./drawingSet";
 import { withDrawingSheets } from "./drawingSheets";
+import { withElements } from "./elements";
 import { withSync } from "./sync";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
@@ -36,7 +37,7 @@ export * from "./authoring";
 export * from "./library";
 import type {
   Appraisal, AuditEntry, Dashboard, DocFile,
-  DisciplineTree, DocFolderNode, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
+  DisciplineTree, DocFolderNode, DueFeed, EditMacro, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, ProfessionalLicense,
   ResponsibilityMatrix, SmartView, StampTemplate,
     BidLevelingDetail,
@@ -46,7 +47,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withDrawingSheets(withDrawingSet(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))) {
+export class ApiClient extends withElements(withDrawingSheets(withDrawingSet(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -744,16 +745,6 @@ export class ApiClient extends withDrawingSheets(withDrawingSet(withSync(withCon
     return (this._discTree ??= this.json<{ tree: DisciplineTree }>(`/reference/disciplines`).then((r) => r.tree));
   }
 
-  // properties index (Phase 1 data)
-  element(pid: string, guid: string) {
-    return this.json<ElementProps>(`/projects/${pid}/elements/${guid}`);
-  }
-  /** R26-INSPECTOR — the six-state lifecycle strip for one element (designed → verified). A state
-   *  the server could not consult comes back `unknown`, which is NOT the same as `none`. */
-  elementLifecycle(pid: string, guid: string) {
-    return this.json<LifecycleStrip>(`/projects/${pid}/elements/${guid}/lifecycle`);
-  }
-
   // ── R24-JOB-TRAY — the background queue, finally reachable ──────────────────────────────────────
   //
   // `routers/jobs.py` has offered these four endpoints for a long time and nothing in `apps/web` had
@@ -785,15 +776,6 @@ export class ApiClient extends withDrawingSheets(withDrawingSet(withSync(withCon
    *  compiled set never round-trips through JS memory. 409 while queued/running. */
   jobArtifactUrl(pid: string, jobId: string): string {
     return this.url(`/projects/${pid}/jobs/${jobId}/artifact`);
-  }
-  /** 5D for an element: its schedule activity (%-complete, dates, hard-tied?) + cost-code budget. */
-  element5d(pid: string, guid: string) {
-    return this.json<{ guid: string; ifc_class: string | null; storey: string | null; name: string | null;
-      schedule: { ref: string; name: string; trade: string | null; percent: number; start: string | null;
-        finish: string | null; state: string | null; hard_tied: boolean } | null;
-      cost: { code: string | null; ref: string | null; name: string | null; division: string | null;
-        budget: number; committed: number; actual: number; eac: number; variance: number } | null }>(
-      `/projects/${pid}/elements/${guid}/5d`);
   }
   /** Batch 5D heatmap: bucket every element GUID by schedule %-complete (by=progress) or cost
    *  variance (by=cost), for coloring the whole model. */
@@ -1139,28 +1121,6 @@ export class ApiClient extends withDrawingSheets(withDrawingSet(withSync(withCon
     return this.json<{ ai_enabled: boolean; subject: string; question: string; discipline: string; suggested_priority: string; source: string }>(
       `/projects/${pid}/ai/draft-rfi`, { method: "POST", body: JSON.stringify({ element, note }) });
   }
-  elements(pid: string, params: { ifc_class?: string; storey?: string; limit?: number } = {}) {
-    const q = new URLSearchParams(params as Record<string, string>).toString();
-    return this.json<ElementProps[]>(`/projects/${pid}/elements?${q}`);
-  }
-  /** Properties you can colour the model by (attributes + pset/qto props), for the picker. */
-  colorFacets(pid: string) {
-    return this.json<{ attributes: { prop: string; label: string; distinct: number }[];
-      properties: { prop: string; label: string; distinct: number }[] }>(
-      `/projects/${pid}/elements/facets-list`);
-  }
-  /** Bucket every element by a property → colour buckets (numeric binned, categorical grouped). */
-  colorBy(pid: string, prop: string, bins = 6) {
-    return this.json<{ prop: string; kind: "numeric" | "categorical"; total: number; colored: number;
-      unset: number; buckets: { label: string; count: number; guids: string[] }[] }>(
-      `/projects/${pid}/elements/color-by?prop=${encodeURIComponent(prop)}&bins=${bins}`);
-  }
-  /** BIM data-completeness check: per-attribute present/missing + non-compliant guids to highlight. */
-  dataQa(pid: string) {
-    return this.json<{ total: number; compliant: number; noncompliant: number; compliant_pct: number;
-      rules: { key: string; label: string; severity: string; present: number; missing: number; missing_guids: string[] }[];
-      noncompliant_guids: string[] }>(`/projects/${pid}/elements/qa`);
-  }
   /** Speckle interoperability bridge status (open-source, self-hostable; off unless configured). */
   speckleStatus() {
     return this.json<{ enabled: boolean; connected: boolean; server: string | null; server_name?: string;
@@ -1172,13 +1132,6 @@ export class ApiClient extends withDrawingSheets(withDrawingSet(withSync(withCon
     const res = await fetch(this.url(`/convert/citygml`), { method: "POST", body: fd, headers: this.authHeaders() });
     if (!res.ok) throw new Error((await res.json().catch(() => ({ detail: res.status }))).detail || `CityGML -> ${res.status}`);
     return res.json() as Promise<{ type: string; features: unknown[]; meta: { buildings: number } }>;
-  }
-  /** Code-readiness check: does the model carry the data a plan review needs (property-level). */
-  codeCheck(pid: string) {
-    return this.json<{ code: string; rules: number; checked: number; passed: number; readiness_pct: number;
-      checks: { id: string; label: string; code: string; note: string; applies: string; checked: number;
-        passed: number; failed: number; below_min: number; fail_guids: string[]; status: string }[];
-      fail_guids: string[] }>(`/projects/${pid}/elements/code-check`);
   }
   // W9-2 computed occupancy load (IBC 1004) + egress capacity (IBC 1005) — pre-check assist
   codecheckEgress(pid: string) {
@@ -1297,16 +1250,6 @@ export class ApiClient extends withDrawingSheets(withDrawingSet(withSync(withCon
       counts: { spec_sections: number; documents: number; edges: number };
       by_rel: Record<string, number>;
     }>(`/projects/${pid}/doc-graph`);
-  }
-  // the cited provenance of one element (spec sections · documents · location)
-  elementSources(pid: string, guid: string) {
-    return this.json<{
-      guid: string; found: boolean; name?: string | null; class?: string;
-      spec_sections?: { system: string | null; code: string; title: string }[];
-      documents?: { name: string; sheet: string }[];
-      container?: { guid: string | null; name: string | null; class: string } | null;
-      citations: { kind: string; ref: string; title?: string; sheet?: string; source: string }[];
-    }>(`/projects/${pid}/elements/${encodeURIComponent(guid)}/sources`);
   }
   // RFI-0 NL-QA: a plain-language question -> a cited answer from the model's own data
   rfiQa(pid: string, question: string) {
@@ -1570,13 +1513,6 @@ export class ApiClient extends withDrawingSheets(withDrawingSet(withSync(withCon
       activities: { ref: string; activity: string; trade: string | null; elements: number; verified: number;
         deviated: number; verified_pct: number; planned_pct: number | null; trust_gap: number }[] }>(
       `/projects/${pid}/verified-progress`);
-  }
-  /** Reverse deep-link — every record across pinnable modules tied to this element by GlobalId. */
-  elementRecords(pid: string, guid: string) {
-    return this.json<{ guid: string; total: number;
-      modules: { module: string; module_name: string; icon: string; count: number;
-        records: { ref: string | null; title: string; id: number; state: string | null }[] }[] }>(
-      `/projects/${pid}/elements/${encodeURIComponent(guid)}/records`);
   }
   /** Composite Model Health scorecard — one score over hygiene + ISO 19650 KPIs + clash + verified. */
   modelHealth(pid: string) {
@@ -3023,12 +2959,6 @@ export class ApiClient extends withDrawingSheets(withDrawingSet(withSync(withCon
       by_cost_code: { cost_code: string; total: number; traceable: number; coverage_pct: number;
         element_count: number; guids: string[] }[];
       note: string }>(`/projects/${pid}/cost/traceability`);
-  }
-  /** Every cost line (budget / commitment / direct cost / sub invoice) tagged to one IFC element. */
-  elementCosts(pid: string, guid: string) {
-    return this.json<{ guid: string; total: number; count: number; by_kind: Record<string, number>;
-      lines: { kind: string; ref: string | null; cost_code: string | null; amount: number }[]; note: string }>(
-      `/projects/${pid}/elements/${encodeURIComponent(guid)}/costs`);
   }
   /** Balanced double-entry journal from job cost + billing + the WIP POC adjustment. */
   journalEntries(pid: string) {
