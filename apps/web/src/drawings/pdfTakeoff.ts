@@ -10,6 +10,7 @@ import { PdfDocument, configureWorker } from "@massingcloud/pdf-viewer";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { toast } from "../ui/feedback";
 import { askText } from "../ui/prompt";
+import { documentWords, locatePassage, paintCiteBox } from "./citeLocate";
 
 // PDF-ADOPT slice 1 of 3: opening and page access now go through the vendored drawing-review engine
 // (`@massingcloud/pdf-viewer`). Markup and calibrated takeoff are still ours and move in later
@@ -55,6 +56,8 @@ export interface TakeoffOpts {
     load: () => Promise<Measure[]>;
     save: (m: Measure[], norm: (m: Measure) => { nx: number; ny: number }) => Promise<void>;
   };
+  /** R31-CITE-HIGHLIGHT — jump to this page and box the passage when `textItems` can find it. */
+  cite?: { page: number; snippet?: string; docId?: string };
 }
 
 export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {}): Promise<void> {
@@ -84,6 +87,7 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
   const measures: Measure[] = [];
   let seq = 0;
   let stampTpl = STAMPS[0] ?? "";                            // STAMPS is a non-empty literal
+  let citeHit: { box: { x: number; y: number; w: number; h: number }; ambiguous: boolean } | null = null;
   // MARKUP-2a: project stamp library (server templates), flattened to dynamic text stamps. Loaded
   // async after the shell opens; the picker re-renders with a "Project library" group when it lands.
   let libStamps: string[] = [];
@@ -269,6 +273,7 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
   const el = (n: string, a: Record<string, string>) => { const e = document.createElementNS(NS, n); for (const k in a) { const v = a[k]; if (v !== undefined) e.setAttribute(k, v); } return e; };
   function drawOverlay() {
     svg.innerHTML = "";
+    if (citeHit) paintCiteBox(svg, citeHit.box, scale, citeHit.ambiguous);
     const S = (p: Pt) => [p.x * scale, p.y * scale] as const;
     const drawShape = (kind: Mode, pts: Pt[], color: string, dash = false) => {
       if (kind === "count") { for (const p of pts) { const [x, y] = S(p); svg.append(el("circle", { cx: `${x}`, cy: `${y}`, r: "5", fill: color, "fill-opacity": "0.8" })); } return; }
@@ -408,7 +413,14 @@ export async function openPdfTakeoff(source?: PdfSource, opts: TakeoffOpts = {})
     try { for (const mm of await opts.persist.load()) { mm.id = ++seq; measures.push(mm); } }
     catch (e) { toast(`couldn't load sheet markups: ${(e as Error).message}`, "error"); }
   }
-  buildBar(); renderList(); await render();
+  buildBar(); renderList();
+  if (opts.cite?.page) pageNum = Math.max(1, Math.min(doc.numPages, opts.cite.page));
+  await render();
+  if (opts.cite?.snippet) {
+    const hit = await locatePassage(documentWords(doc, () => opts.cite?.docId), pageNum, opts.cite.snippet);
+    if (hit) { citeHit = hit; drawOverlay(); }
+    else toast("Opened the page; the passage could not be boxed (scan or no text layer).", "info");
+  }
   // fit width on first open
   const avail = viewport.clientWidth - 40; if (canvas.width > avail) setScale(scale * (avail / canvas.width));
   // test hook (mirrors __viewer): drive modes/clicks/commit from preview_eval

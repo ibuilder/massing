@@ -14,7 +14,7 @@
  * `doc_text` — including its plain-prefix truncation, which damages the TAIL and never the head.
  */
 import { describe, expect, it } from "vitest";
-import { candidates, locatePassage, normalisePassage, viewerWords, type PageWords } from "./citeLocate";
+import { candidates, documentWords, locatePassage, normalisePassage, paintCiteBox, viewerWords, type PageWords } from "./citeLocate";
 import type { Word } from "../vendor/massingpdf/index";
 
 /** Words as pdf.js yields them: one entry per run, each positioned. */
@@ -176,5 +176,32 @@ describe("viewerWords - the cache is per-DOCUMENT", () => {
     src.clear();
     await src.words(1);
     expect(v.calls).toBe(2);
+  });
+});
+
+describe("documentWords + paintCiteBox — the PageWords bridge", () => {
+  it("reads PdfDocument.textItems through the same cache as viewerWords", async () => {
+    let n = 0;
+    const doc = {
+      async textItems(): Promise<{ str: string; x: number; y: number; w: number; h: number }[]> {
+        n++;
+        return [{ str: "erected as required by the engineer", x: 10, y: 20, w: 200, h: 12 }];
+      },
+    };
+    const src = documentWords(doc);
+    await src.words(1);
+    await src.words(1);
+    expect(n).toBe(1);
+  });
+
+  it("paints a scaled rect and marks an ambiguous hit", () => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const r = paintCiteBox(svg, { x: 10, y: 20, w: 40, h: 8 }, 2, true);
+    expect(r.getAttribute("data-cite-highlight")).toBe("ambiguous");
+    expect(r.getAttribute("x")).toBe("20");
+    expect(r.getAttribute("y")).toBe("40");
+    expect(r.getAttribute("width")).toBe("80");
+    expect(r.getAttribute("stroke-dasharray")).toBe("5 4");
+    expect(svg.querySelector("[data-cite-highlight]")).toBe(r);
   });
 });
