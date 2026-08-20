@@ -4,6 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1029 (2026-08-20) — an opening in the first half of any wall was "outside its host"
+
+### Fixed
+
+- **The opening-extent bound was wrong at both ends.** `add_wall` places a wall at the midpoint of
+  start→end and sweeps a *centred* profile, so a valid opening sits in `[-length/2, +length/2]`.
+  The check compared against `[0, length]`: every opening in the first half of any wall was
+  reported as outside its host, and a genuinely-overhanging opening on the far side was missed by
+  a full half-length. It hid because omitting `position` centres an opening at local x = 0, which
+  passes either way — only explicitly-placed openings expose it. The refusal message now names the
+  centre-relative offset and the valid range, so it says which frame it is talking about.
+- **Element lookup by GlobalId is a hash lookup, not a scan.** `by_guid` replaces
+  `next(e for e in model.by_type("IfcElement") if e.GlobalId == guid)`. Every bulk record recipe —
+  `set_phase`, `verify_asbuilt`, `set_element_pset`, `classify`, `set_lod`, `attach_document` and
+  the rest — loops a guid list calling it once per guid, so stamping N elements in a model of N
+  was O(N²). Measured on a 1,153-product model: **27.6 s → 2.4 s, 11.5×**, with an identical IFC
+  class histogram and property-set signature multiset. The `IfcElement` narrowing is kept on
+  purpose — a stamp aimed at an element must not land on a storey, a space, or the project.
+
+### Changed
+
+- Family shelf refreshed to massing-families v0.1.5 *(#290, folded in — #291 contains it)*.
+- `test_element_lookup` registered in `run_tests.py`; the manifest guard had refused the PR
+  precisely because a test file on disk that the runner never calls is not a test.
+
 ## v0.3.1028 (2026-08-20) — the other five headers the same trap was eating
 
 ### Fixed
