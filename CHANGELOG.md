@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1014 (2026-08-20) — markup the plan you are looking at
+
+R38-SHEET-MARKUP ③ closed. Every generated sheet (plan / elevation / section) has
+**🖊 PDF markup**. Composed sheets still use `sheet.pdf`; the others wrap the live SVG
+in pdf-lib (`apps/web/src/ui/svgPdf.ts`) so the takeoff tools open on the room's own
+drawings.
+
 ## v0.3.1013 (2026-08-20) — a pin on a wall raises an RFI on that wall
 
 R38-SHEET-MARKUP ③ ②. Promoting a drawing pin copies `data.guid` onto

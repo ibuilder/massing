@@ -650,7 +650,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER · R38-SHEET-MARKUP ③ |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
@@ -748,11 +748,10 @@ that lanes do not *overlap*; nothing asserts they *cover*, and they do not. `app
 `proforma/`, `studio/`, `tools/`, `tree/`, `pins/`, `kernel/`, `account/`, `connections/` and the
 `portal/` root files (`prefs.ts`, `offlineQueue.ts`, `panelContext.ts`) belong to no lane, which the
 carve-out check in `roadmapLanes.test.ts` correctly calls "editable by everyone" when it happens
-deliberately. The live case: **`R38-SHEET-MARKUP ③` is Lane B and lands in
-`apps/web/src/drawings/`, while `R36-DRAWINGS-RETURN` is Lane A and lands there too** — so `drawings/`
-is contested by two lanes right now, the same shape as the register with the extra twist that nobody
-owns it. It needs its own premise-check and possibly the same answer. It is deliberately left open:
-guessing an owner for a directory two lanes are already aimed at is how the register problem was made.
+deliberately. The live case: **`R36-DRAWINGS-RETURN` is Lane A and lands in
+`apps/web/src/drawings/`**, so `drawings/` remains unowned rather than assigned by guess.
+It needs its own premise-check; guessing an owner for a directory a lane is already aimed at
+is how the register problem was made.
 
 **Shared files that need a heads-up before editing.** Every multi-session conflict so far has been one
 of these: `services/api/run_tests.py` · `services/api/src/aec_api/main.py` · `docs/roadmap.md` ·
@@ -1824,13 +1823,10 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
     the pane had been unreachable (toggle button never appended), its fetch had failed cross-origin
     since v0.3.826 (`credentials:"include"` without a credentials CORS grant), and the live route
     dropped the `storey` param entirely — three defects only a live drive could see.
-- ◧ **R38-SHEET-MARKUP ③** *(M, Lane B — **① v0.3.1012 · ② v0.3.1013**)* — the vendored markup toolset (clouds, callouts, stamps,
-  tool sets) opened on the room's OWN generated sheets, markups tied to GUIDs through the existing
-  pin-to-drawing spine. ①: a pin dropped on `data-guid` linework in `apps/web/src/drawings/drawings.ts`
-  stores that GlobalId (`apps/web/src/ui/sheetGuid.ts`) and reselects it in 3D; empty paper is
-  still a coordinate pin. ②: promote-to-RFI copies that GlobalId onto `Topic.element_guids`
-  (`services/api/src/aec_api/routers/bim.py`). PDF markup on generated plans/elevations (not just
-  composed `sheet.pdf`) remains.
+- ✅ **R38-SHEET-MARKUP ③** *(M, Lane B — **SHIPPED ① v0.3.1012 · ② v0.3.1013 · ③ v0.3.1014**)* —
+  generated-sheet pins store GlobalId (`apps/web/src/ui/sheetGuid.ts`); promote copies it onto
+  `Topic.element_guids` (`services/api/src/aec_api/routers/bim.py`); PDF markup opens on every
+  generated sheet (`apps/web/src/ui/svgPdf.ts` wraps the live SVG when there is no `sheet.pdf`).
 - Consumes: R24-ELEMENT-CARD ② and R31-CITE-HIGHLIGHT (both already coded) as the "everything
   about this thing" surface.
 

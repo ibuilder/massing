@@ -5,6 +5,7 @@ import { askText } from "../ui/prompt";
 import { sanitizeSvg } from "../ui/sanitizeSvg";
 import { escapeHtml } from "../ui/feedback";
 import { addHitTargets, guidFromEvent, guidFromMarkupData, postSheetPin, selectInViewer, syncPlanHighlight } from "../ui/sheetGuid";
+import { pdfFromPng, pngFromSvgElement } from "../ui/svgPdf";
 
 /** 2D Drawings Set — a sheet-set browser for the server-generated plans / elevations / sections
  *  (a plan room, a PDF markup layer and field pins in one view). Left: a sheet register;
@@ -206,27 +207,47 @@ export class DrawingsUI {
       btn("☰ Markups", "All markups across every sheet — totals, revisions, RFI links", () => void this.showMarkupGrid()),
       // MARKUP-2c: light-table overlay compare — the live sheet (blue) under an uploaded prior
       // revision (red); differences pop where the tints don't cancel.
-      btn("⧉ Compare", "Overlay a prior revision (SVG/PDF) on this sheet — light-table compare", () => void this.startCompare(), !!this.compareLayer));
-    if (sheet.pdf) bar.append(btn("🖊 PDF markup", "Open the sheet PDF in the 2D editor — measure / mark up / persist to the sheet (promotable to RFI)", async () => {
-      const api = this.host_.api, pid = this.host_.projectId();
-      const { openPdfUrl, saveToDocuments } = await import("./openPdf");
-      const sid = `${sheet.id}#pdf`;                          // shares the markup store; own coord space
-      await openPdfUrl(api, api.url(sheet.pdf!), "sheet.pdf", !pid ? {} : {
-        saveLabel: "Save to Documents", onSave: saveToDocuments(api, pid),
-        persist: {
-          load: async (): Promise<Measure[]> => (await api.drawingMarkup(pid, sid))
-            .filter((m) => m.data?.pts?.length)
-            .map((m) => ({ id: 0, kind: (m.kind as Measure["kind"]) || "text", pts: m.data!.pts!,
-              value: m.data!.value ?? 0, unit: m.data!.unit ?? "", label: m.note ?? "",
-              page: m.data!.page ?? 1, text: m.data!.text })),
-          save: async (ms: Measure[], norm) => { await api.saveDrawingMarkups(pid, sid, ms.map((mm) => {
-            const n = norm(mm);                                // page-normalized (0..1) shared anchor
-            return { x: mm.pts[0]?.x ?? 0, y: mm.pts[0]?.y ?? 0, note: mm.label, kind: mm.kind,
-              data: { pts: mm.pts, value: mm.value, unit: mm.unit, page: mm.page, text: mm.text, nx: n.nx, ny: n.ny } };
-          })); await this.loadPins(); },   // refresh so the new markups appear on the SVG view too
-        },
-      });
-    }));
+      btn("⧉ Compare", "Overlay a prior revision (SVG/PDF) on this sheet — light-table compare", () => void this.startCompare(), !!this.compareLayer),
+      btn("🖊 PDF markup", "Open this sheet in the 2D editor — measure / mark up / persist (promotable to RFI)", () => void this.openPdfMarkup()));
+  }
+
+  /** Composed sheets use the server PDF; generated plans/elevations/sections wrap the live SVG. */
+  private async openPdfMarkup() {
+    const sheet = this.current;
+    const api = this.host_.api, pid = this.host_.projectId();
+    if (!sheet) return;
+    const { openPdfUrl, openPdfTakeoff, saveToDocuments } = await import("./openPdf");
+    const sid = `${sheet.id}#pdf`;
+    const persist = !pid ? undefined : {
+      load: async (): Promise<Measure[]> => (await api.drawingMarkup(pid, sid))
+        .filter((m) => m.data?.pts?.length)
+        .map((m) => ({ id: 0, kind: (m.kind as Measure["kind"]) || "text", pts: m.data!.pts!,
+          value: m.data!.value ?? 0, unit: m.data!.unit ?? "", label: m.note ?? "",
+          page: m.data!.page ?? 1, text: m.data!.text })),
+      save: async (ms: Measure[], norm: (m: Measure) => { nx: number; ny: number }) => {
+        await api.saveDrawingMarkups(pid, sid, ms.map((mm) => {
+          const n = norm(mm);
+          return { x: mm.pts[0]?.x ?? 0, y: mm.pts[0]?.y ?? 0, note: mm.label, kind: mm.kind,
+            data: { pts: mm.pts, value: mm.value, unit: mm.unit, page: mm.page, text: mm.text, nx: n.nx, ny: n.ny } };
+        }));
+        await this.loadPins();
+      },
+    };
+    const opts = !pid ? {} : { saveLabel: "Save to Documents", onSave: saveToDocuments(api, pid), persist };
+    if (sheet.pdf) {
+      await openPdfUrl(api, api.url(sheet.pdf), "sheet.pdf", opts);
+      return;
+    }
+    const svg = this.svgHost.querySelector("svg");
+    if (!svg) { this.host_.setStatus("render a sheet first"); return; }
+    try {
+      const { png, w, h } = await pngFromSvgElement(svg);
+      const bytes = await pdfFromPng(png, w, h);
+      const file = new File([bytes.slice()], `${sheet.label}.pdf`, { type: "application/pdf" });
+      await openPdfTakeoff(file, opts);
+    } catch (e) {
+      this.host_.setStatus(`couldn't open PDF markup (${(e as Error).message})`);
+    }
   }
 
   // --- pan / zoom ------------------------------------------------------------
