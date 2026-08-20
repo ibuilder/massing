@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1003 (2026-08-19) — one mono face, including paste-from-spreadsheet
+
+R24-MONO-DATA. The last hand-rolled `ui-monospace` stack was the register paste textarea, left
+when the renderer still lived in a Lane A file. It now reads `var(--mono)`. The ratchet
+allowance is 0.
+
 ## v0.3.1002 (2026-08-19) — a series is not a traffic light
 
 R24-CHARTS-GRAMMAR ③ closes the item. `chartColor` is a seven-slot categorical ramp that does not
