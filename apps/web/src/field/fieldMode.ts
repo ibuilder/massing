@@ -54,6 +54,8 @@ export function mountFieldChrome(opts: {
     document.body.appendChild(strip);
   }
   strip.onclick = () => opts.onOpenQueue();
+  strip.setAttribute("aria-live", "polite");
+  strip.setAttribute("aria-atomic", "true");
 
   const paintToggle = () => {
     const on = readFieldMode();
