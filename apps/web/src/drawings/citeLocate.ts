@@ -48,16 +48,8 @@
  * flagged `ambiguous` rather than silently boxed at its first occurrence.
  */
 /*
- * ⚠️ NOT YET REACHED. Nothing outside this module's own test imports it. The panel that renders a
- * citation (`portal/panels/aiassist.ts`) still writes `"Source: p.12"` as inert `textContent`, and
- * its local citation type declares only `{ page, snippet? }` — it drops the `doc_id` and `span`
- * the backend already sends (`rfi_qa.py` → `cite_doc`). Wiring is therefore a *second* seam fix,
- * not a call.
- *
- * Recorded here rather than left implicit, because this repo's recurring defect is an engine
- * nothing calls being counted as shipped capability. The locator is tested and correct; it is not
- * yet a feature a user can see, and the vendor-surface assumptions above are exercised only against
- * a hand-built fixture, never a real PDF.
+ * Reached from `portal/panels/citationControl.ts` → the in-app takeoff viewer (`pdfTakeoff.ts`),
+ * which supplies `PageWords` via `PdfDocument.textItems`. A miss is a toast, never a guessed box.
  */
 import { findInWords } from "../vendor/massingpdf/plugins/search";
 import { splitWords, type Word } from "../vendor/massingpdf/index";
@@ -235,4 +227,36 @@ export function viewerWords(
       return w;
     },
   };
+}
+
+/**
+ * `PdfDocument.textItems` is already page-space boxes. Wrap it as `PageWords` so takeoff does not
+ * invent a second adapter.
+ */
+export function documentWords(
+  doc: { textItems(n: number): Promise<Parameters<typeof splitWords>[0]> },
+  docId?: () => string | undefined,
+): ViewerPageWords {
+  return viewerWords({ pageText: (n) => doc.textItems(n) }, docId);
+}
+
+/** Draw the located box on the takeoff SVG. Coordinates are PDF points, top-left, times `scale`. */
+export function paintCiteBox(
+  svg: SVGSVGElement,
+  box: { x: number; y: number; w: number; h: number },
+  scale: number,
+  ambiguous = false,
+): SVGRectElement {
+  const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  r.setAttribute("data-cite-highlight", ambiguous ? "ambiguous" : "1");
+  r.setAttribute("x", String(box.x * scale));
+  r.setAttribute("y", String(box.y * scale));
+  r.setAttribute("width", String(Math.max(box.w * scale, 2)));
+  r.setAttribute("height", String(Math.max(box.h * scale, 2)));
+  r.setAttribute("fill", "rgba(78, 121, 167, 0.28)");
+  r.setAttribute("stroke", "#4e79a7");
+  r.setAttribute("stroke-width", "2");
+  if (ambiguous) r.setAttribute("stroke-dasharray", "5 4");
+  svg.appendChild(r);
+  return r;
 }

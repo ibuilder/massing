@@ -1,4 +1,5 @@
 import { escapeHtml as esc, toast } from "../../ui/feedback";
+import { markPrimary } from "../../ui/a11yJourney";
 import type { PanelContext } from "../panelContext";
 import type { QueueItem } from "../../api/types";
 
@@ -39,6 +40,11 @@ export async function renderWorkQueue(ctx: PanelContext) {
     catch (e) { body.innerHTML = `<div class="meta">Couldn't load the queue: ${esc((e as Error).message)}</div>`; return; }
     body.replaceChildren();
 
+    const restoreFocus = () => {
+      const p = body.querySelector<HTMLElement>("[data-room-primary]");
+      if (p && !body.contains(document.activeElement)) p.focus();
+    };
+
     const head = document.createElement("div");
     head.className = "dash-card"; head.style.marginBottom = "10px";
     // "You have 14 things" and "14 things, 3 of them waiting on somebody else" are different
@@ -53,10 +59,20 @@ export async function renderWorkQueue(ctx: PanelContext) {
       const none = document.createElement("div");
       none.className = "dash-card";
       none.innerHTML = `<div class="meta">Nothing is in your court right now.</div>`;
+      const refresh = document.createElement("button");
+      refresh.type = "button";
+      refresh.className = "tool-btn";
+      refresh.style.marginTop = "8px";
+      refresh.textContent = "Refresh queue";
+      refresh.onclick = () => void load();
+      markPrimary(refresh, "work");
+      none.appendChild(refresh);
       body.appendChild(none);
+      restoreFocus();
       return;
     }
 
+    let marked = false;
     for (const b of q.buckets) {
       // An empty bucket is skipped EXCEPT overdue: rendering "Overdue 0" is worth the line, because
       // a missing heading makes the reader check whether it was hidden or genuinely clear.
@@ -79,7 +95,9 @@ export async function renderWorkQueue(ctx: PanelContext) {
 
         const main = document.createElement("button");
         main.className = "wq-open";
+        main.type = "button";
         main.title = `Open ${it.ref}`;
+        if (!marked) { markPrimary(main, "work"); marked = true; }
         main.innerHTML = `<span class="ic">${esc(it.icon || "•")}</span> `
           + `<b>${esc(it.ref)}</b> ${esc(it.title || "(untitled)")}`
           + `<span class="meta"> — ${esc(it.module_name)} · ${esc(it.state)}`
@@ -128,6 +146,7 @@ export async function renderWorkQueue(ctx: PanelContext) {
       }
       body.appendChild(card);
     }
+    restoreFocus();
   }
 
   await load();

@@ -97,6 +97,43 @@ with TestClient(app) as c:
     j = rr.json()
     assert j["issue_count"] == r4["issue_count"] and j["errors"] == r4["errors"], j["counts"]
 
+# --- REGRESSION: the wall frame is CENTRED, so both bounds are +/-length/2 ------------------------
+# `add_wall` places a wall at the midpoint of start->end and sweeps a centred rectangle profile, so a
+# valid opening sits in [-length/2, +length/2]. The check compared against [0, length], which was
+# wrong at BOTH ends: every opening in the first half of a wall was reported as outside its host, and
+# an opening overhanging the far end was missed by a full half-length. Only explicitly-positioned
+# openings expose it — omitting `position` centres one at local x = 0, which passes either way.
+_reg = Path(tempfile.gettempdir()) / "constraints_centred_frame.ifc"
+massing.generate_blank_ifc(str(_reg), name="Centred", storeys=1, storey_height=3.0, ground_size=20.0)
+mr = open_model(str(_reg))
+# a 4 m wall from (0,5) to (4,5): midpoint (2,5), so world x 0..4 lies inside it
+wr = edit.add_wall(mr, [0, 5], [4, 5], 3.0, 0.2, "Level 1")
+
+
+def _outside(model):
+    return [i for i in constraints.check(model)["issues"] if i["kind"] == "insert_outside_host"]
+
+
+# inside, FIRST half (local x = -1.2) — the false positive this regression exists for
+edit.add_opening(mr, wr, width=0.9, height=2.1, kind="window", sill=0.8, position=[0.8, 5.0])
+assert _outside(mr) == [], f"an opening in the first half of a wall is valid: {_outside(mr)}"
+
+# inside, SECOND half (local x = +1.2) — the case that passed even with the wrong bound
+edit.add_opening(mr, wr, width=0.9, height=2.1, kind="window", sill=0.8, position=[3.2, 5.0])
+assert _outside(mr) == [], f"an opening in the second half of a wall is valid: {_outside(mr)}"
+
+# genuinely beyond the NEAR end (local x = -5.0, i.e. 3 m off the start)
+edit.add_opening(mr, wr, width=0.9, height=2.1, kind="window", sill=0.8, position=[-3.0, 5.0])
+assert len(_outside(mr)) == 1, f"an opening off the near end must be flagged: {_outside(mr)}"
+
+# genuinely beyond the FAR end (local x = +3.5). The old bound compared this against `length` (4)
+# rather than `length/2` (2), so it went unreported — a real defect the check exists to catch.
+edit.add_opening(mr, wr, width=0.9, height=2.1, kind="window", sill=0.8, position=[5.5, 5.0])
+assert len(_outside(mr)) == 2, f"an opening off the far end must be flagged: {_outside(mr)}"
+
+if _reg.exists():
+    _reg.unlink()
+
 if _ifc.exists():
     _ifc.unlink()
 
@@ -105,4 +142,6 @@ print("AUTH-CONSTRAINTS OK - IFC's own constraint graph validated: a healthy hos
       "a column stripped of containment is an uncontained_element warning; a z=0 wall re-contained on "
       "Level 2 (elev 3.5) is a level_mismatch warning; deleting a host wall orphans its opening and "
       "deleting an opening dangles its door fill (both errors); issues sort errors > warnings > info "
-      "and the /model/constraints route 409s without a model.")
+      "and the /model/constraints route 409s without a model. REGRESSION: a wall's local frame is "
+      "centred on its run, so openings in BOTH halves are valid and the extent bound is +/-length/2 "
+      "at both ends — openings off either end are flagged, one in the first half is not.")

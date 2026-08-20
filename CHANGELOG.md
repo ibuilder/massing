@@ -4,21 +4,461 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.987 (2026-08-19) — pin pdf.js to the patched build, and turn scripting off
+## v0.3.1031 (2026-08-20) — pdf.js pinned exactly; the flag that was doing nothing removed
 
-`pdfjs-dist` resolved to 6.2.108 in the lock (the CVE-2026-16633 fix) while the
-manifest still said `^6.0.227`, which is the vulnerable line. The two `getDocument`
-call sites also left `enableScripting` at the library default (`true`).
+### Fixed
 
-Pinned to 6.2.108. Both load sites now pass `enableScripting: false` (takeoff never
-needs AcroForm scripts). Gated by `pdfjsScripting.test.ts`.
+- **`pdfjs-dist` pinned to exactly `6.2.108`**, the release that fixes CVE-2026-16633 (JavaScript
+  embedded in a PDF executing in the hosting origin). A range would let a future install float off
+  the patched version, and the pin is the only thing standing between this app and that CVE.
 
-The rest of a library performance/security pass is recorded in
-`docs/internal/lib-perf-sec-2026-08-19.md`: That Open 3.4.8/3.4.7, three r185, Vite
-8.2.1, FastAPI 0.141.1 / Starlette 1.3.1 / pypdf 6.15.0 are already current; no new
-packages. The authoring round-trip is still the performance work, not another mesh
-library.
+### Changed
 
+- **Removed `enableScripting: false`, and the test that vouched for it.** The incoming change added
+  that option at every `getDocument` call site. It is a pdf.js **viewer** option, not a
+  `getDocument` one: it appears nowhere in `pdfjs-dist`'s `DocumentInitParameters`, the vendored
+  fork read it nowhere, and it did not typecheck against the real types — the compiler is how it
+  surfaced. It was a security control consumed by no code, with a green test reporting "PDF
+  scripting is disabled". **A gate vouching for a no-op is worse than no gate**, because it answers
+  the question and the next auditor moves on.
+- `pdfjsScripting.test.ts` now asserts the two things that are actually true: the version spec is an
+  exact pin at or above 6.2.108, and nothing in `src/` imports pdf.js's viewer or
+  `PDFScriptingManager` — which is *why* document JavaScript has nowhere to run. Both
+  mutation-checked: floating the pin to `^6.2.108` fails, and adding a `pdfjs-dist/web/` import
+  fails.
+- Lane D (`Geometry & drawings`) now owns `apps/web/src/drawings/`, which no lane claimed; the new
+  test file pushed the unowned-file ratchet from 48 to 49 and the fix it asks for is a lane row,
+  not a higher number.
+
+## v0.3.1030 (2026-08-19) — CC0 is permitted, and the written rule catches up
+
+The operator confirmed adding **CC0-1.0** to the permitted licence list.
+
+The Python classifier already accepted it, from 2026-08-10: `test_licence_allowlist.py` pins
+`CC0-1.0` / `CC0 1.0 Universal` as permitted, next to Boost `BSL-1.0` and explicitly not `BUSL`.
+The families shelf already shipped CC0 content. What had not followed was the *written*
+non-negotiable (`docs/roadmap-directions.md` still said "MIT / BSD / Apache only") and the
+roadmap decision bullet that still asked for a call.
+
+This release closes that bullet, names CC0 (and ISC) in the directions, classifies a CC0
+LICENSE *title* in the npm gate so it is not an unclassified text, and records the same in
+the vendorable-core note.
+
+**Not a new dependency. Not a licence we did not already ship.** The defect was three
+statements about one fact, two of them stale.
+
+- The permit-list comment in `licencePolicy.mjs` read "Forbidden outright: MIT / BSD /
+  Apache / ISC / CC0" — the allowed licences under the banned heading, the exact inverse of
+  the rule enforced beside it. Introduced by this same widening edit; corrected here.
+
+## v0.3.1029 (2026-08-20) — an opening in the first half of any wall was "outside its host"
+
+### Fixed
+
+- **The opening-extent bound was wrong at both ends.** `add_wall` places a wall at the midpoint of
+  start→end and sweeps a *centred* profile, so a valid opening sits in `[-length/2, +length/2]`.
+  The check compared against `[0, length]`: every opening in the first half of any wall was
+  reported as outside its host, and a genuinely-overhanging opening on the far side was missed by
+  a full half-length. It hid because omitting `position` centres an opening at local x = 0, which
+  passes either way — only explicitly-placed openings expose it. The refusal message now names the
+  centre-relative offset and the valid range, so it says which frame it is talking about.
+- **Element lookup by GlobalId is a hash lookup, not a scan.** `by_guid` replaces
+  `next(e for e in model.by_type("IfcElement") if e.GlobalId == guid)`. Every bulk record recipe —
+  `set_phase`, `verify_asbuilt`, `set_element_pset`, `classify`, `set_lod`, `attach_document` and
+  the rest — loops a guid list calling it once per guid, so stamping N elements in a model of N
+  was O(N²). Measured on a 1,153-product model: **27.6 s → 2.4 s, 11.5×**, with an identical IFC
+  class histogram and property-set signature multiset. The `IfcElement` narrowing is kept on
+  purpose — a stamp aimed at an element must not land on a storey, a space, or the project.
+
+### Changed
+
+- Family shelf refreshed to massing-families v0.1.5 *(#290, folded in — #291 contains it)*.
+- `test_element_lookup` registered in `run_tests.py`; the manifest guard had refused the PR
+  precisely because a test file on disk that the runner never calls is not a test.
+
+## v0.3.1028 (2026-08-20) — the other five headers the same trap was eating
+
+### Fixed
+
+- Preserve cross-origin isolation headers for module workers in Nginx deployments so IFC geometry
+  loading does not stall. *(#311, john-rogers — the first outside contribution.)*
+- **And the rest of what that trap was eating.** nginx inherits `add_header` from the enclosing
+  scope only while the current scope declares none, so a location with its own `Cache-Control`
+  silently drops **all seven** server-level security headers. Three locations do this —
+  `~* \.mjs$`, `/assets/` and `/wasm/` — which meant `X-Content-Type-Options: nosniff` was absent
+  from every hashed bundle, every WASM binary and every module worker the app serves. #311 fixed
+  the two headers that caused the reported stall on one of the three; the full set now appears in
+  all three.
+
+### Changed
+
+- **`nginx.test.ts` derives the population instead of counting scopes.** The incoming test encoded
+  the partial state as the specification — `Cross-Origin-*` required in three scopes, everything
+  else in two — which passes forever with `nosniff` still missing. It now finds every location
+  block that declares an `add_header` and requires the whole set in each, so a *fourth* such
+  location fails the day it is added rather than the day someone re-audits. Mutation-checked:
+  deleting `nosniff` from `/wasm/` alone fails with a message naming that location.
+
+
+
+## v0.3.1027 (2026-08-20) — a sanitiser narrower than its input type
+
+### Fixed
+
+- **`js/incomplete-sanitization` (HIGH)**, the one CodeQL alert the merged chain introduced.
+  `charts.test.ts` escaped a status colour for a regex with `[.#]` — wrong in both directions:
+  `#` is not a metacharacter and never needed escaping, while `(`, `|`, `*` and `\` were absent.
+  Correct for today's `#rrggbb` inputs, and the day a token becomes `rgb(1,2,3)` those parens
+  compile as a **group**, so the "declared once" count silently stops meaning what it says.
+  Not exploitable — test-only, constant input — and fixed anyway, because a sanitiser narrower
+  than its input *type* is a latent wrong answer rather than a style nit.
+
+## v0.3.1026 (2026-08-20) — a plan that grazes the storey now says so
+
+### Fixed
+
+- **Blank floor plans printed as finished drawings.** `samples/basichouse.ifc` storey "Floor 1"
+  cuts at 3.600 m, passes through **2** of the 16 elements standing on that storey, and composed a
+  full sheet around them — titleblock, general notes, graphic scale, north arrow, "CUT PLANE
+  3.60 m AFF" — with no building on it and nothing said. The v0.3.913 guard asked `if not polys`,
+  a test for *exactly* zero, and the failure mode is *nearly* zero: two loops are truthy.
+  `cut_plane_quality` now measures the chosen plane against the best one available on the storey,
+  so a fraction decides rather than a boolean, and the sheet names the height that would work
+  ("at 2.500 m it would pass through 6 — set the cut height to 0.100 m").
+  Still **not** a silent re-cut: the titleblock prints the cut elevation, so moving the plane
+  quietly would make that printed number a lie. The counts are also published as
+  `data-plan-cut-spans` / `-best` / `-best-z`, measured once and shared, so the data and the
+  banner cannot drift apart.
+- `test_plan_cut_quality.py` verifies the suggested height *actually improves the drawing* rather
+  than merely being printed, and that a healthy plan is left alone.
+
+### Changed
+
+- **SCALE-SEAM ⑭** — the five drawing-markup methods leave `client.ts` for `api/markup.ts` as
+  `withMarkup`. Forced rather than chosen: teaching `addDrawingMarkup` to carry the GlobalId put
+  the file at 3,606 against a 3,602 ratchet, which is that pin working as its own comment says it
+  should — the friction buys a cluster out of the file instead of buying the pin a higher number.
+  3,606 → 3,579.
+
+## v0.3.1025 (2026-08-20) — `/models` leaves client.ts
+## v0.3.1023 (2026-08-20) — `/documents` leaves client.ts
+
+SCALE-SEAM ⑱. Nine document-control methods (tree, folder, health, upload/move/delete,
+download) moved to `apps/web/src/api/documents.ts`. One contiguous run.
+`client.ts` 3,353 → 3,304.
+
+## v0.3.1022 (2026-08-20) — `/models` leaves client.ts
+
+SCALE-SEAM ⑰. Nine health/QA/georef/federation methods moved to
+`apps/web/src/api/models.ts` (`withModels`; `model.ts` remains `/model`).
+Four regions. `client.ts` 3,412 → 3,353.
+
+## v0.3.1024 (2026-08-20) — the level list says which cut height to use
+
+### Added
+
+- **`GET /projects/{pid}/drawings/storeys` carries a `cut_height` per level.** Every plan in the
+  product was requested at a flat `cut_height=1.2` regardless of storey — right for a normal floor,
+  and the reason a roof datum printed blank. The level list is where a caller picks what to draw, so
+  it is where the answer belongs. Additive: `name` / `elevation` / `guid` are unchanged, and
+  `cut_default_spans` / `cut_best_spans` ride alongside so the suggestion can be judged rather than
+  trusted.
+- The suggestion is **a value to pass back, never an override applied behind the caller's back** —
+  the titleblock prints the elevation it cut at, and a silently different plane would make that
+  printed number a lie.
+
+### Fixed
+
+- **The first version of this maximised element count, which is the wrong objective.** On
+  `basichouse.ifc` "Floor 0" it proposed **0.400 m** to raise the count from 84 to 106 — more
+  linework, cut below every door and window, which is not a floor plan. A plan cuts near 1.2 m
+  because that is where openings are; the convention earns its default. The override now fires on
+  exactly the condition the sheet's banner fires on (`ratio < 0.5` with `best >= 4`), so a level
+  offered a different height is precisely a level that would otherwise have been warned about —
+  one rule, not two that can drift apart. A storey with almost nothing at *any* height keeps the
+  default and its honest "NO GEOMETRY" banner rather than being handed a fake better plane.
+
+## v0.3.1022 (2026-08-20) — `/drawing-set` leaves client.ts
+## v0.3.1021 (2026-08-20) — `/elements` leaves client.ts
+
+SCALE-SEAM ⑯. Eleven inspector/list/colour/QA/citation/cost methods moved to
+`apps/web/src/api/elements.ts`. Five regions. `elements5dMap` (`/5d/heatmap`) and
+the job tray stay. `client.ts` 3,482 → 3,412.
+
+## v0.3.1020 (2026-08-20) — `/drawings` leaves client.ts
+
+SCALE-SEAM ⑮. Eleven sheet methods (revise, schedules, storeys, sync-status, markup + stream)
+moved to `apps/web/src/api/drawingSheets.ts`. Six regions. `client.ts` 3,538 → 3,482.
+
+## v0.3.1019 (2026-08-20) — `/drawing-set` leaves client.ts
+
+SCALE-SEAM ⑭. Eleven drawing-set methods (register, issue, issuance matrix, transmittals)
+moved to `apps/web/src/api/drawingSet.ts`. They sat in three runs with `/preflight` and
+`/pdf` between them. `client.ts` 3,602 → 3,538.
+
+## v0.3.1019 (2026-08-20) — the four checks that stood between 19 branches and main
+
+Integration pass over the v0.3.988–1018 stack. Every item here is a gate that was correctly
+red; none of them were silenced.
+
+### Fixed
+
+- **`report_package` was a job kind classified nowhere.** `register_kind` added it without an
+  entry in `_KIND_MIN_ROLE` or `EDITOR_OK_KINDS`, which is the privilege-side-door shape the
+  dispatcher gate exists to catch. Classified as editor-sufficient with its reason: the queue
+  requires `editor` while `GET /projects/{pid}/reports/{report}.pdf` serves the same content at
+  `viewer`, so the queue is stricter than the front door, and it parks an artifact rather than
+  writing project state.
+- **`addDrawingMarkup` lost its only caller.** `postSheetPin` had re-issued the POST by hand to
+  add `data.guid`. The client method now carries the guid and `postSheetPin` delegates, so the
+  endpoint and its body are constructed in one place. Its test drives the real client and still
+  asserts the encoded body, so the claim now spans seam → client → wire.
+- **The web build was broken before it began.** `vite.config.ts` resolved `three/package.json`,
+  which `three` does not list in its exports map — copied from `vitest.config.ts`, where the same
+  line works only because `pdfjs-dist` happens to expose its manifest. The hoisted `node_modules`
+  is now derived from the package entry path, which does not ask a dependency to publish its
+  manifest. CI never reached this: the test step failed first.
+- **A negative test with an expiry date.** `test_engine_routes` used `page=A0` as its unknown
+  page size; this release widened `_PAGES` to nine ARCH/ISO sizes and A0 became valid, so the
+  request reached the model open and returned 409. The invalid value is now derived from `_PAGES`.
+- **`docs/status.html` was 90 releases behind**, and the gate measuring that could no longer
+  measure: its `/v0\.3\.(\d{3})/` read `v0.3.1018` as **101**, smaller than the 928 already on the
+  page. Past v0.3.999 it reported a lag no amount of refreshing could close. Both it and the
+  CHANGELOG gate now read `\d{3,}`, and the page carries the v0.3.988–1018 wave.
+## v0.3.1018 (2026-08-20) — `/sync` leaves client.ts
+
+SCALE-SEAM ⑬. Seven Procore pull/push + auto-sync-schedule methods moved to
+`apps/web/src/api/sync.ts` as `withSync` (`withSchedule` is already CPM).
+`client.ts` 3,629 → 3,602.
+
+## v0.3.1017 (2026-08-20) — a worktree build uses the pinned Vite
+
+BUILD-WORKTREE-CHUNKS closed. `npm run build` / `dev` go through `run-vite.mjs`, which
+execs the nested Vite 8 pin (found in the main clone via `git-common-dir` when the
+checkout is a worktree). Bare `vite` was resolving the workspace-root Vite 6 and
+folding three.js into the shell at exit 0. `vite.config.ts` now allows that hoisted
+`node_modules` the same way the vitest config already did.
+
+## v0.3.1016 (2026-08-20) — `/connections` leaves client.ts
+
+SCALE-SEAM ⑫. Eleven `/connections` methods moved to `apps/web/src/api/connections.ts`.
+`client.ts` 3,672 → 3,629. The increment marker vocabulary in `roadmapLanes.test.ts` now
+runs ①–⑳ so the twelfth does not silently parse as the bare series name.
+
+## v0.3.1015 (2026-08-20) — assemble the package, don't click it one by one
+
+R24-REPORTS-BY-MOMENT ②. Each package has **Assemble**: a `report_package` job builds the
+named reports into one PDF and parks it in the job tray. Unknown ids fail the job rather than
+quietly shortening the pack. Email-on-a-date is still open (needs a recipient and SMTP).
+
+## v0.3.1014 (2026-08-20) — markup the plan you are looking at
+
+R38-SHEET-MARKUP ③ closed. Every generated sheet (plan / elevation / section) has
+**🖊 PDF markup**. Composed sheets still use `sheet.pdf`; the others wrap the live SVG
+in pdf-lib (`apps/web/src/ui/svgPdf.ts`) so the takeoff tools open on the room's own
+drawings.
+
+## v0.3.1013 (2026-08-20) — a pin on a wall raises an RFI on that wall
+
+R38-SHEET-MARKUP ③ ②. Promoting a drawing pin copies `data.guid` onto
+`Topic.element_guids`, so the RFI is the same GlobalId the sheet and the 3D view
+already share. A pin on empty paper still raises a coordinate-only RFI.
+
+## v0.3.1012 (2026-08-20) — a pin on a wall is that wall
+
+R38-SHEET-MARKUP ③ ①. Generated-sheet markup in the Drawings room now reads `data-guid` from the
+SVG (same hit-twins as the plan pane). A pin dropped on linework stores the GlobalId and
+reselects it in 3D. Empty paper is still a coordinate pin. PDF markup on generated
+plans/elevations (not only composed `sheet.pdf`) is still open.
+
+## v0.3.1011 (2026-08-20) — box one symbol on the sheet, get the rest
+
+R23-SYMBOL-COUNT ②. Takeoff **⌘ Match** boxes one instance on the pdf.js-rendered page;
+`countOnRgba` in `apps/web/src/ui/symbolCount.ts` downsamples, NCC-matches, and places
+existing count marks. A too-small or too-large box is a sentence, never a guessed quantity.
+
+## v0.3.1010 (2026-08-19) — count a symbol by matching it, not guessing
+
+R23-SYMBOL-COUNT ①. Normalised cross-correlation plus non-maximum suppression in
+`apps/web/src/ui/symbolCount.ts`. Zero new dependencies. The takeoff-worker wiring is still open.
+
+## v0.3.1009 (2026-08-19) — this week's Gantt, not a month of bars
+
+UX-GANTT. The Schedule room already had a month-scale SVG. It now opens with a Mon–Sun week:
+day columns, inline %, crew size when present, and trade colour from `SERIES_PALETTE` (not
+traffic lights). Empty is a sentence. The server Gantt is still below.
+
+## v0.3.1008 (2026-08-19) — field mode hides the seven rooms
+
+R24-FIELD-MODE ④. With field mode on, `#workspaces` (the room tablist) is `display:none`, so
+it is also out of the tab order. Capture stays the landing (③); Office restores the spine.
+Replacing the portal home itself is still Lane A.
+
+## v0.3.1007 (2026-08-19) — Tab to the room's job, then land
+
+R39-A11Y-JOURNEYS ②. Each of the seven rooms has one keyboard primary: Design is its tab; the
+other six put `[data-room-primary]` on the landing (Open RFIs / budget lines / activities / the
+next Deal gate / the first work-queue row / Open work orders). Tests Tab to it, operate it, and
+assert focus did not fall on `document.body`.
+
+## v0.3.1006 (2026-08-19) — field mode lands on capture when a project is open
+
+R24-FIELD-MODE ③. If field mode is on and a project is selected, the capture sheet opens
+(on load and when you flip the Field toggle). No project → no sheet (that would only toast).
+The seven-room spine is unchanged; this is not a second portal home.
+
+## v0.3.1005 (2026-08-19) — a citation boxes the passage, not a new browser tab
+
+R31-CITE-HIGHLIGHT. Opening a source used `window.open` on a blob URL, so `citeLocate` had no
+page to draw on. The citation now opens the in-app takeoff viewer; `PdfDocument.textItems` is
+the `PageWords` supplier. A scan or empty text layer is a sentence, never a guessed box.
+
+## v0.3.1004 (2026-08-19) — the field FAB no longer sits on the queue
+
+R24-FIELD-MODE ②. Slice ①'s 56 px rules lost to the FAB's inline `52×52` / `bottom:18px`, so the
+sync strip was under the camera button. Field-mode CSS now wins; the FAB sits above the strip.
+The strip announces queue changes (`aria-live="polite"`). Capture-first home is still open.
+
+## v0.3.1003 (2026-08-19) — one mono face, including paste-from-spreadsheet
+
+R24-MONO-DATA. The last hand-rolled `ui-monospace` stack was the register paste textarea, left
+when the renderer still lived in a Lane A file. It now reads `var(--mono)`. The ratchet
+allowance is 0.
+
+## v0.3.1002 (2026-08-19) — a series is not a traffic light
+
+R24-CHARTS-GRAMMAR ③ closes the item. `chartColor` is a seven-slot categorical ramp that does not
+include passing-green, warn-gold, failing-red, or `--accent`. Signed charts and the CPI–SPI
+quadrant still use those status hues. A mix donut that means on-track / at-risk must pass the
+hues in.
+
+## v0.3.1001 (2026-08-19) — field mode: 56 px, the queue, and a mic that can be missing
+
+R24-FIELD-MODE ①. A stored mode (`aec-field-mode`, `?field=1`), not a breakpoint: 56 px targets
+and outdoor contrast on the capture FAB / sheet / strip only. The offline queue is always
+visible in field mode (empty and offline are sentences). Dictation on the note when the
+browser has SpeechRecognition; no engine means no mic, never a dead button. Capture-first
+home is still open. Register density is a separate control.
+
+## v0.3.1000 (2026-08-19) — the element card opens wherever a register names a GUID
+
+R24-ELEMENT-CARD ② reach. Opening an RFI, estimate, SOV (G703 / pay-app line), or asset-register
+(COBie Component) record that is tied to model elements now mounts the same lifecycle card as the
+viewer and the cost-trace lookup. There is no `pay_app` module and no COBie worksheet UI — those
+two named surfaces are SOV and the asset register. A failed lifecycle is the identity line, never
+a six-blank strip. The register file shrank (`tiedElements.ts`); the pin is 2,516.
+
+## v0.3.999 (2026-08-19) — Cost, Planning, and Operate open on three answers
+
+R36-ROOM-BRIEFS for the remaining portal homes. Cost (`__budget__`) opens vs GMP, unpriced
+exposure, and buyout. Planning (`__benchmarks__`) opens on the RFI clock, the submittal clock,
+and own-history cost medians. Operate (`__operations__`) opens on overdue work orders, PM
+compliance, and FCI. No GMP / no history / `pm_compliance_pct: null` / no FCA elements are
+sentences, never 0%. Shared card chrome is `roomBriefChrome.ts`. Design stays the viewer
+(`ROOM_HOME.design` is null).
+
+## v0.3.998 (2026-08-19) — Deal opens on the developer's three answers
+
+The Deal room (`__portfolio__`) used to open on the book-wide table. It now opens with returns vs
+the underwriting band, open diligence, and the next developer protocol gate (`dealBrief.ts`). A
+failed engine is a reason, never 0.0% IRR or "0 flagged". Schedule (995) and Work remain the
+other landed briefs; Cost / Planning / Operate / Design are still open on R36.
+
+## v0.3.997 (2026-08-19) — CAM statement PDF is a POST
+
+Downloading a tenant CAM statement used to be a cookie-bearing GET that `Session.commit()`'d an
+audit row. SameSite=Lax sends the session cookie on a top-level GET. The route is POST; the
+Finance UI fetches the blob and saves it. OAuth callback remains the only GET+commit.
+
+## v0.3.996 (2026-08-19) — Field / Comfortable / Compact on registers
+
+Density is three named row heights (56 / 36 / 28 px), cycled from the portal home, and applied to
+`.portal-table` so the 8-hour register is not stuck at dashboard-only compact. Numeric cells use
+tabular figures. Catalog star and module buttons show a focus ring outside the control
+(`outline-offset: 2px`), so keyboard focus is visible.
+
+## v0.3.995 (2026-08-19) — Schedule opens on the superintendent's three answers
+
+The Schedule room used to open on import/export, then a wall of tools. It now opens with today's
+lookahead, blockers, and yesterday's variance (`scheduleBrief.ts`), then the rest of the board.
+The three engines already existed. A failed fetch is a reason, never a plausible zero. Work remains
+the template; Deal and the other rooms are still open on R36-ROOM-BRIEFS.
+
+## v0.3.994 (2026-08-19) — one Analyse home, three named tasks
+
+Design's rail no longer lists Model Health, Model Analysis and BIM KPIs as siblings. One **Analyse**
+destination opens a home that names the question each already-built panel answers. The three dests
+still render (readiness hops unchanged). Not a fourth scorecard.
+
+## v0.3.993 (2026-08-19) — pick the sheet paper; 24×18 is ARCH C
+
+The Drawings rail has a paper picker. Catalog is US ARCH C/D/B/A plus ISO A0–A4. **24×18 in is
+ARCH C**, not an ISO A size (A2 is 16.5×23.4). ARCH D is the usual full-size US construction set
+(36×24); half-size of D is ARCH B (18×12); the next step down is ARCH A (12×9), often called
+quarter-size of D. Default is ARCH C. 11×17 is not in the list — it is a copier size, not half of
+24×36. An unknown `page` is refused (422), never substituted. `compose()` with no `page` is still
+A3 so existing API links do not change paper.
+
+## v0.3.992 (2026-08-19) — Issue sheet prints as ISO A1
+
+The Drawings rail's Issue / Sheet PDF buttons labelled the sheet A-101 and the hover said ARCH-D,
+while the request omitted `page` so `compose()` silently used **A3**. The paper-space editor already
+defaulted to A1. The rail now sends `page=A1`. ARCH-D (24×36 in) is a different standard and stays
+a product call, not a silent default. `compose()` with no `page` is still A3.
+
+## v0.3.991 (2026-08-19) — Pulse is one GET, pills follow the persona, a 500 is not a blank
+
+Home Pulse no longer fans seven client GETs and maps the wrong field names (`score` vs
+`overall_score`, a `variance_pct` the cost summary never returned). `GET /projects/{id}/pulse`
+returns `PulseInput` from `project_pulse.py`; each engine still fail-opens on its own. The
+route does **not** POST a renovation programme with an invented body.
+
+Persona-weighted pill **order** is now the server `keys` list (engineer on Design: design →
+regulatory → place). A brief that 500s shows "Readiness unavailable" instead of a blank
+strip that reads as "nothing is next".
+
+## v0.3.990 (2026-08-19) — Starlette 1.6.0, the FileResponse Range floor
+
+`requirements.lock` pinned Starlette 1.3.1. 1.5.1/1.6.0 fix Range handling on `FileResponse` (we
+stream source IFC that way) and add `max_body_size` on routes. FastAPI 0.141.1 already allowed
+`starlette>=0.46.0`; the floor is now explicit in `requirements.in`. No other lock moves. Compiled
+on Python 3.12.
+
+## v0.3.989 (2026-08-19) — the home strip's scope is a server fact, not a client filter
+
+The 8-step protocol still runs in Python. The home strip was still deciding *which* steps a
+superintendent or a designer sees. That map now lives next to `_PROTOCOL` in
+`master_builder_scope.py`, is applied on `GET /projects/{id}/master-builder/brief?workspace=&persona=`,
+and is lockstep-tested against `readinessStrip.ts` so the two layers cannot fork. The overall
+readiness percent stays on all eight steps; only the pills are scoped. Empty intersect still
+falls back to the workspace set.
+
+Bake-share directories are mode 0700 when the operator turns sharing on. GET handlers that
+`Session.commit()` are a ratchet (`test_get_commits.py`): OAuth callback stays GET; the CAM
+PDF download is named as the leftover. Handoff for the next session:
+`docs/internal/runway-claude-2026-08-19.md`.
+
+## v0.3.988 (2026-08-19) — the readiness brief is on every home, and bake-share stores JSON
+
+Two leftovers from the upgrade audit, neither of which is a library swap.
+
+**The Master Builder 8-step brief was the product's own "what do I do next" surface, and it lived
+on one destination in Design.** A GC superintendent, a developer, or anyone who opened the workspace
+home never saw it. v0.3.988 mounts a compact strip on every portal home (construction / design /
+developer all pass through `renderHome`) and scopes the pills to that workspace, then to persona —
+intersected so a superintendent browsing Design still sees Design's questions rather than an empty
+strip. "Close this gap" hops to the first non-ready scoped step; "Full brief" still opens
+`__masterbuilder__`. Fail-open: a brief that cannot load leaves the host empty, same rule as Pulse.
+The strip sits above Pulse so the next action is above the risk numbers.
+
+Does not replace the eight-card panel. Does not invent a second protocol. The API is still
+`/projects/{id}/master-builder/brief`.
+
+**When bake-share is on, values are JSONDisk, not pickle.** `diskcache` 5.6.3 still has no published
+fix for CVE-2025-69872; the shared cache is still **off unless `AEC_BAKE_SHARE_DIR` is set**. The
+geometry payload was already nested lists of arrays, so pickle was never load-bearing here.
+`JSONDisk` is in the package we already pin. A row that cannot be JSON-encoded is refused rather than
+pickled. `mapped-diskcache` was not added. Default deployments still never construct a Cache.
 ## v0.3.986 (2026-08-18) — a comment that explains a pin gets believed because it is specific
 
 Three review findings, all of them claims that had drifted from what they described.

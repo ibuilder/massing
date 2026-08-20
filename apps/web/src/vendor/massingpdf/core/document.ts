@@ -26,13 +26,16 @@ export function workerConfigured(): boolean {
 }
 
 /**
- * Passed to every `getDocument`. `enableScripting` defaults to true in pdf.js; that default is
- * CVE-2026-16633 (script from a malicious PDF runs in the hosting origin). Takeoff and overlay
- * rendering never need AcroForm scripts. The lock already installs 6.2.108 (the patched release);
- * this flag is the defence that still holds if a future range float or a second call site forgets
- * the version pin.
+ * Load options passed to every `getDocument`.
+ *
+ * `enableScripting: false` was here and is deliberately NOT: it is a pdf.js **viewer** option, not
+ * a `getDocument` one — `grep -r enableScripting node_modules/pdfjs-dist/types` returns nothing,
+ * and the vendored fork reads it nowhere either. It was a security control consumed by no code,
+ * with a test asserting its presence, which is worse than absent: the gate read "PDF scripting is
+ * disabled" while the real reason this app is safe is that it never instantiates the scripting
+ * engine at all. CVE-2026-16633 is mitigated by the exact version pin, which is now what is gated.
  */
-export const PDFJS_LOAD = { cMapPacked: true, enableScripting: false as const };
+export const PDFJS_LOAD = { cMapPacked: true };
 
 /** Where the bytes come from. */
 export type PdfSource =

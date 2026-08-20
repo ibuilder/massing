@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ACROSS_PROJECTS, ALL_DESTS, STAGES_BY_WS, stagesFor } from "./destinations";
+import {
+  ACROSS_PROJECTS, ALL_DESTS, ANALYSE_HOME, ANALYSE_TASK_KEYS, STAGES_BY_WS,
+  destButtonActive, destsForRail, stagesFor,
+} from "./destinations";
 import { DEST_ROOM, ROOM_IDS, destRoom, unroomedDests } from "./spine";
 
 /**
@@ -88,6 +91,34 @@ describe("the catalog itself", () => {
       expect(d.icon.length, d.key).toBeGreaterThan(0);
       expect(d.label.trim().length, d.key).toBeGreaterThan(0);
     }
+  });
+
+  it("Design's Analyse & check is one home, not three overlapping dests", () => {
+    const stage = STAGES_BY_WS.design!.find(([name]) => name === "Analyse & check");
+    expect(stage, "Analyse & check stage missing").toBeTruthy();
+    const keys = stage![1].map((d) => d.key);
+    expect(keys[0]).toBe(ANALYSE_HOME);
+    for (const k of ANALYSE_TASK_KEYS) {
+      expect(keys, `${k} must not be a rail sibling of Analyse`).not.toContain(k);
+    }
+    expect(ALL_DESTS.map((d) => d.key)).toEqual(expect.arrayContaining([...ANALYSE_TASK_KEYS, ANALYSE_HOME]));
+  });
+
+  it("the room rail hides the three tasks wherever Analyse is listed", () => {
+    const mixed = [
+      { key: ANALYSE_HOME, icon: "🔬", label: "Analyse" },
+      { key: "__modelqa__", icon: "✅", label: "Check the model" },
+      { key: "__documents__", icon: "📁", label: "Documents" },
+    ];
+    expect(destsForRail(mixed).map((d) => d.key)).toEqual([ANALYSE_HOME, "__documents__"]);
+    expect(destsForRail([{ key: "__modelqa__", icon: "✅", label: "x" }]).map((d) => d.key))
+      .toEqual(["__modelqa__"]);
+  });
+
+  it("Analyse stays lit when a task dest is open", () => {
+    expect(destButtonActive(ANALYSE_HOME, "__modelqa__")).toBe(true);
+    expect(destButtonActive(ANALYSE_HOME, ANALYSE_HOME)).toBe(true);
+    expect(destButtonActive("__documents__", "__modelqa__")).toBe(false);
   });
 
   it("uses `goto` only for destinations that genuinely live in another workspace", () => {

@@ -15,7 +15,7 @@
  *  makes that checkable rather than hoped for.
  */
 import { HttpCore, type LiveStream } from "./httpCore";
-import type { ViewerLoadTiming } from "./types";
+import type { ViewerLoadTiming, ProjectPulse } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -268,6 +268,10 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
   reportViewerLoad(pid: string, t: ViewerLoadTiming) {
     return this.json<{ recorded: boolean }>(`/projects/${pid}/model/load-timing`,
       { method: "POST", body: JSON.stringify(t) });
+  }
+  /** PROJECT PULSE — mapped inputs for the home rail. Fail-open per card; never POST renovation. */
+  projectPulse(pid: string) {
+    return this.json<ProjectPulse>(`/projects/${pid}/pulse`);
   }
   /** SMART-VIEWS — the project's saved property-driven view presets (name + selector + mode). */
   };

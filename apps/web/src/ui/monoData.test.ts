@@ -75,15 +75,12 @@ function hardCodedMono(): { file: string; line: number }[] {
 /**
  * Remaining hand-rolled stacks, and why each survives.
  *
- * The survivor is `pasteRows`, and its history is the point. It was left because `portal/portal.ts`
- * was held by another session's in-flight work when this landed — converting it would have meant
- * editing a file two people had open. That was not bad luck: `R24-MONO-DATA` is a Lane B item and
- * `portal.ts` was a Lane A file, so the collision was structural and permanent. v0.3.850 moved the
- * register renderer to `portal/register/register.ts`, which Lane B owns, and this line went with it.
- * It is now a one-line change inside the lane that wants it — and this number going UP is a build
- * failure either way.
+ * There are none. The last survivor was the paste-from-spreadsheet textarea in
+ * `portal/register/register.ts`, left because `portal.ts` used to hold the renderer and a Lane A
+ * session had that file open. v0.3.850 moved the renderer into this lane; v0.3.1003 converted the
+ * literal. ALLOWANCE is 0 so the next `ui-monospace` in first-party source fails the build.
  */
-const ALLOWANCE = 1;
+const ALLOWANCE = 0;
 
 describe("the mono face is decided once", () => {
   it("style.css defines the token", () => {

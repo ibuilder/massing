@@ -301,16 +301,25 @@ def promote_markup(pid: str, mid: str, db: Session = Depends(get_db),
     detail = m.note or ""
     if m.data and m.data.get("value"):                       # takeoff markup — include the measurement
         detail = f"{detail}\n{m.kind}: {m.data.get('value')} {m.data.get('unit', '')}".strip()
+    guid = None
+    if isinstance(m.data, dict):
+        raw = m.data.get("guid")
+        if isinstance(raw, str) and raw.strip():
+            guid = raw.strip()
+    if guid:
+        detail = f"{detail}\nGlobalId: {guid}".strip()
     t = Topic(project_id=pid, type="rfi", status="open", author=actor,
               title=(m.note or f"Drawing {m.kind or 'RFI'}")[:80],
-              description=f"Raised from a {m.kind or 'pin'} markup on sheet '{m.sheet_id}'.\n\n{detail}")
+              description=f"Raised from a {m.kind or 'pin'} markup on sheet '{m.sheet_id}'.\n\n{detail}",
+              element_guids=[guid] if guid else None)
     db.add(t)
     db.flush()
     m.topic_id = t.id
     audit.record(db, action="markup.promote", actor=actor, method="POST", topic_id=t.id,
                  path=f"/projects/{pid}/drawings/markup/{mid}/promote", detail={"sheet": m.sheet_id})
     db.commit()
-    return {"markup": _markup_out(m), "topic": {"id": t.id, "type": t.type, "title": t.title, "status": t.status}}
+    return {"markup": _markup_out(m), "topic": {"id": t.id, "type": t.type, "title": t.title,
+                                                "status": t.status, "element_guids": t.element_guids}}
 
 
 @router.get("/projects/{pid}/members")
