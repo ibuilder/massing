@@ -1990,9 +1990,9 @@ starlette==1.6.0 \
     # via
     #   -r services/api/requirements.in
     #   fastapi
-trimesh==4.12.2 \
-    --hash=sha256:b5b5afa63c5272345f2858f7676bc8c217dc8a89f4fadf6193fe10a81b5ff2aa \
-    --hash=sha256:c8ca31571ac00b112e4e160e66a2d4c3491df321f056bd33806be0485d1af9d9
+trimesh==5.0.0 \
+    --hash=sha256:0195003198baaf2550aebe612254ba2f01c385cec46c37ecc5beca8291f79a13 \
+    --hash=sha256:51ec67d7f9f74b918f2a695da5fd511b9c084e96307648ae83f45b58f13f8009
     # via -r services/api/requirements.in
 typing-extensions==4.16.0 \
     --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8 \
