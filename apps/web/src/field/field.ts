@@ -8,7 +8,7 @@ import type { ApiClient } from "../api/client";
 import { currentIdentity, ownedByMe } from "../api/identity";
 import { toast } from "./../ui/feedback";
 import { attachDictation } from "./dictate";
-import { mountFieldChrome } from "./fieldMode";
+import { mountFieldChrome, readFieldMode, shouldOpenCaptureHome } from "./fieldMode";
 import "./fieldMode.css";
 
 const QKEY = "aec-field-queue";
@@ -101,9 +101,15 @@ export class FieldCapture {
     const chrome = mountFieldChrome({
       queueCount: () => loadQueue().length,
       onOpenQueue: () => this.openQueue(),
+      onFieldModeChange: (on) => {
+        if (shouldOpenCaptureHome(on, this.projectId())) this.openSheet();
+      },
     });
     this.refreshStrip = chrome.refreshStrip;
     this.refreshBadge();
+    if (shouldOpenCaptureHome(readFieldMode(), this.projectId())) {
+      setTimeout(() => this.openSheet(), 400);
+    }
     // flush any queued captures now and whenever connectivity returns
     window.addEventListener("online", () => void this.flush());
     void this.flush();
