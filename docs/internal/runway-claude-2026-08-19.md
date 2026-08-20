@@ -1,4 +1,4 @@
-# Runway for Claude Code — 2026-08-20, after v0.3.1014
+# Runway for Claude Code — 2026-08-20, after v0.3.1015
 
 **Grade: live handoff.** Written so the next session picks up from measured state rather than chat
 memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still is. Security
@@ -30,7 +30,8 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 | 15 | [#307](https://github.com/ibuilder/massing/pull/307) | `cursor/symbol-takeoff-6e15` | **1011** vs #306 |
 | 16 | [#308](https://github.com/ibuilder/massing/pull/308) | `cursor/sheet-guid-pins-6e15` | **1012** vs #307 |
 | 17 | [#309](https://github.com/ibuilder/massing/pull/309) | `cursor/markup-promote-guid-6e15` | **1013** vs #308 |
-| 18 | this | `cursor/generated-sheet-pdf-6e15` | **1014** vs #309 |
+| 18 | [#310](https://github.com/ibuilder/massing/pull/310) | `cursor/generated-sheet-pdf-6e15` | **1014** vs #309 |
+| 19 | this | `cursor/report-package-job-6e15` | **1015** vs #310 |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main`. This agent cannot merge.
@@ -58,6 +59,7 @@ pending `main`. This agent cannot merge.
 | 1012 | R38-SHEET-MARKUP ③ ① — pin on generated-sheet linework stores GlobalId; PDF-on-plans still open |
 | 1013 | R38-SHEET-MARKUP ③ ② — promote-to-RFI copies `data.guid` onto `Topic.element_guids` |
 | 1014 | R38-SHEET-MARKUP ③ closed — PDF markup on generated sheets (live SVG wrapped when no sheet.pdf) |
+| 1015 | R24-REPORTS-BY-MOMENT ② — Assemble queues `report_package`; email-on-a-date still open |
 
 ---
 
@@ -80,9 +82,9 @@ PERSONA-SHAPE; IDENTITY.
 ## Next slices
 
 1. **R24-FIELD-MODE remainder** — replacing the portal home (Lane A). ④ only hides the room tabs.
-2. **R24-REPORTS-BY-MOMENT** scheduling (needs a job kind + delivery; larger).
+2. **R24-REPORTS-BY-MOMENT** remainder — email on a date (SMTP + recipient). Assemble is shipped.
 3. Lane B still open: `R24-TERMS` (user decision), `R22-REPORT-BUILDER` (aggregation/share is backend),
-   `R24-REPORTS-BY-MOMENT` scheduling (job kind + delivery), `R24-FIELD-MODE` portal home (Lane A).
+   `R24-FIELD-MODE` portal home (Lane A).
 
 ---
 

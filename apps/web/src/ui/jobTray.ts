@@ -42,6 +42,7 @@ const KIND_LABEL: Record<string, string> = {
   echo: "Echo (test job)",
   cobie_export: "COBie export",
   compiled_set_pdf: "Compiled drawing set",
+  report_package: "Report package",
   model_export: "Model export",
   clash_detect: "Clash detection",
   escalation_scan: "Escalation scan",

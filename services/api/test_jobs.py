@@ -192,7 +192,22 @@ assert _wait(njid).state == "done"
 
 # the real mutating kinds (write records / republish-adjacent) are flagged; read/artifact kinds aren't
 assert {"escalation_scan", "model_ci"} <= jobs._MUTATING_KINDS, jobs._MUTATING_KINDS
-assert not ({"model_export", "clash_detect", "cobie_export"} & jobs._MUTATING_KINDS), jobs._MUTATING_KINDS
+assert not ({"model_export", "clash_detect", "cobie_export", "report_package"} & jobs._MUTATING_KINDS), jobs._MUTATING_KINDS
+
+# R24-REPORTS-BY-MOMENT ②: assemble named reports into one PDF artifact
+with TestClient(app) as c:
+    pid = c.post("/projects", json={"name": "Pkg"}).json()["id"]
+    r = c.post(f"/projects/{pid}/jobs", json={"kind": "report_package",
+               "params": {"moment_id": "owner_monthly", "reports": ["executive"]}})
+    assert r.status_code == 201, r.text
+    pkg = _wait(r.json()["id"], timeout=60)
+    assert pkg.state == "done", (pkg.state, pkg.error)
+    assert pkg.result and pkg.result.get("artifact_key") and pkg.result.get("reports") == ["executive"], pkg.result
+    bad = c.post(f"/projects/{pid}/jobs", json={"kind": "report_package",
+                 "params": {"reports": ["not_a_report"]}})
+    assert bad.status_code == 201, bad.text
+    failed = _wait(bad.json()["id"], timeout=30)
+    assert failed.state == "error" and "unknown report" in (failed.error or ""), failed.error
 
 print("JOB-QUEUE OK - unknown kind 400s at submit; orphaned running job re-queued on worker start and "
       "completed (crash recovery); echo round-trips with timestamps; handler exception captured on the "
