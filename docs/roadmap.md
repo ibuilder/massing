@@ -578,7 +578,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑬ · SCALE-SEAM ⑭ · SCALE-SEAM ⑮ · SCALE-SEAM ⑯ |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑬ · SCALE-SEAM ⑭ · SCALE-SEAM ⑮ · SCALE-SEAM ⑯ · SCALE-SEAM ⑰ |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(the three cache locations drop all seven security headers)* · R39-CONTAINER-PR *(no PR job exercises a docker-action bump)* · R39-TSC-CACHE *(incremental tsc hides orphaned imports)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -2636,14 +2636,17 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ⑯ — `client.ts` is no longer a god-file, but the split is not finished.** *(⑯ `/elements` SHIPPED v0.3.1021; ②–⑮ already shipped)*
+- ◧ ⭐ **SCALE-SEAM ⑰ — `client.ts` is no longer a god-file, but the split is not finished.** *(⑰ `/models` SHIPPED v0.3.1022; ②–⑯ already shipped)*
+  **⑰ took `/projects/{pid}/models` out** (9 methods in four regions; `client.ts` 3,412 → 3,353)
+  as `apps/web/src/api/models.ts` (`withModels`). `api/model.ts` stays `/model`.
+
   **⑯ took `/projects/{pid}/elements` out** (11 methods in five regions; `client.ts` 3,482 → 3,412)
   as `apps/web/src/api/elements.ts`. `elements5dMap` (`/5d/heatmap`) and the job tray stay.
 
   **⑮ took `/projects/{pid}/drawings` out** (11 methods in six regions; `client.ts` 3,538 → 3,482)
   as `apps/web/src/api/drawingSheets.ts`. `markupStream` uses `liveStream` on HttpCore.
 
-  **`client.ts` went 4,956 → 3,412 lines** (`wc -l`). Next is the next route-group by size; pick it by
+  **`client.ts` went 4,956 → 3,353 lines** (`wc -l`). Next is the next route-group by size; pick it by
   re-running the classification below, not by reading the section comments.
 
   **This entry read `③+` and named `/model`, `/modules` and `/estimate` as the next groups until

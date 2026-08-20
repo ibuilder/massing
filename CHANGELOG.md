@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1025 (2026-08-20) — `/models` leaves client.ts
+
+SCALE-SEAM ⑰. Nine health/QA/georef/federation methods moved to
+`apps/web/src/api/models.ts` (`withModels`; `model.ts` remains `/model`).
+Four regions. `client.ts` 3,412 → 3,353.
+
 ## v0.3.1024 (2026-08-20) — the level list says which cut height to use
 
 ### Added

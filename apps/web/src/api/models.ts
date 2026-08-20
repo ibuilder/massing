@@ -1,0 +1,81 @@
+/** Discipline-model health, QA, georeferencing, and federation CRUD.
+ *
+ *  SCALE-SEAM ⑰. Route-group `/projects/{pid}/models`, taken out of `client.ts` by the route
+ *  each method calls. Named `models.ts` so it does not collide with `api/model.ts`
+ *  (`withModel` is `/model` — capabilities, query, assets, exports).
+ *
+ *  Nine methods in **four** regions — health/QA/norm-valid next to layout loads, warnings next
+ *  to the master-builder brief, georeferencing next to scan-deviation, federation CRUD next to
+ *  energy/MEP. Grouping by the nearby comments would have dragged `/quantities`, `/massing`,
+ *  `/scan`, `/validate` and `/energy` across the seam.
+ *
+ *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
+ */
+import { HttpCore } from "./httpCore";
+
+type Ctor<T> = new (...args: any[]) => T;
+
+export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
+  return class Models extends Base {
+  /** Composite Model Health scorecard — one score over hygiene + ISO 19650 KPIs + clash + verified. */
+  modelHealth(pid: string) {
+    return this.json<{ overall_score: number | null; band: string; scored_lenses: number; model_available: boolean;
+      lenses: { key: string; label: string; tool: string; score: number | null; status: string; headline: string }[] }>(
+      `/projects/${pid}/models/health`);
+  }
+  /** Model integrity scan — duplicate GUIDs, orphaned elements, overlaps, unenclosed spaces, blank names. */
+  modelQa(pid: string) {
+    type Check = { count: number; [k: string]: unknown };
+    return this.json<{ element_count: number; total_issues: number; clean: boolean;
+      checks: { duplicate_guids: Check; orphaned_elements: Check; overlapping_duplicates: Check;
+        unenclosed_spaces: Check & { total_spaces: number }; blank_names: Check & { of_elements: number } };
+      note: string }>(`/projects/${pid}/models/qa`);
+  }
+  /** NORM-VALID — normative openBIM conformance gauntlet (header/schema/IFC implementer-agreement rules). */
+  normValid(pid: string) {
+    return this.json<{
+      schema: string; passed: boolean; summary: { pass: number; warn: number; fail: number };
+      checks: { id: string; category: string; label: string; status: "pass" | "warn" | "fail";
+        count: number; sample: unknown[]; note: string }[]; note: string;
+    }>(`/projects/${pid}/models/norm-valid`);
+  }
+  /** WARN-1 — unified model-warnings feed: hygiene + normative-conformance defects, one worst-first punch list. */
+  modelWarnings(pid: string) {
+    return this.json<{
+      total: number; clean: boolean; by_severity: { fail: number; warn: number; info: number };
+      warnings: { source: string; id: string; severity: "fail" | "warn" | "info"; label: string;
+        count: number; sample: unknown[]; note?: string }[]; note: string;
+    }>(`/projects/${pid}/models/warnings`);
+  }
+  /** Shared-coordinates / setout basis — IfcMapConversion (E/N/height, true-north, scale) + CRS + LoGeoRef. */
+  modelGeoreferencing(pid: string) {
+    return this.json<{ georeferenced: boolean; level: number; level_label: string; note: string;
+      map_conversion: { eastings: number | null; northings: number | null; orthogonal_height: number | null;
+        true_north_bearing_deg: number | null; scale: number } | null;
+      crs: { name: string | null; geodetic_datum: string | null; vertical_datum: string | null;
+        map_projection: string | null; map_zone: string | null } | null;
+      site: { ref_latitude: number[] | null; ref_longitude: number[] | null; ref_elevation: number | null } | null }>(
+      `/projects/${pid}/models/georeferencing`);
+  }
+  /** Federation alignment report — do the discipline models share a storey scheme + georef origin? */
+  modelAlignment(pid: string) {
+    return this.json<{ models: { name: string; storey_count: number; error?: string;
+        storeys: { name: string; elevation: number }[]; georef: Record<string, unknown> | null }[];
+      issues: { type: string; severity: string; model: string; detail: string }[];
+      aligned: boolean; message: string }>(`/projects/${pid}/models/alignment`);
+  }
+  /** Discipline models layered on a project (for federated clash). */
+  projectModels(pid: string) {
+    return this.json<{ id: string; discipline: string; created_at: string | null }[]>(`/projects/${pid}/models`);
+  }
+  async addProjectModel(pid: string, file: File, discipline: string) {
+    const fd = new FormData(); fd.append("file", file); fd.append("discipline", discipline);
+    const res = await fetch(this.url(`/projects/${pid}/models`), { method: "POST", body: fd, headers: this.authHeaders() });
+    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `add model -> ${res.status}`); }
+    return res.json() as Promise<{ id: string; discipline: string; size: number }>;
+  }
+  deleteProjectModel(pid: string, mid: string) {
+    return this.json<{ deleted: boolean; id: string }>(`/projects/${pid}/models/${mid}`, { method: "DELETE" });
+  }
+  };
+}
