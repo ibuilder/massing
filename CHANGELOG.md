@@ -4,6 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1042 (2026-08-20) — a resubmittal now shows the review that asked for it
+
+### Fixed
+
+- **R22-ENTITLEMENT ④, comment round-tripping.** `revise()` writes a **new record with a new id**,
+  and comments live in `record_comments` keyed by `record_id` — so the reviewer who returned
+  SUB-001 *"Revise & Resubmit — anchor spacing does not match detail 5/A-501"* opened SUB-001.1 and
+  saw **an empty comment list**. The one thing needed to judge whether the resubmittal addressed
+  anything was the thing the revision dropped. Measured before the fix: 2 comments on the source,
+  **0** on the revision.
+- **Not a submittal problem — fifteen modules are `revisable`**, so a reissued RFI lost the
+  discussion that caused the reissue in exactly the same way. The fix is in `get_record`, so every
+  one of them gains it.
+- The thread now walks the `data.revises` chain (bounded, cycle-guarded — that JSON is
+  caller-writable) and reads oldest-first across revisions.
+
+### Note
+
+- **Inherited comments are labelled, never merged flat.** A comment written against rev 0 is
+  evidence about rev 0; presenting it as though it were written about the revision in hand would be
+  a confident wrong answer — worse than the omission, because it reads as current. `inherited: true`
+  and `on_ref` say which revision each came from, and a comment made *on* the current revision
+  carries neither. A record with no revision history is byte-identical to before.
+
 ## v0.3.1041 (2026-08-20) — a module can be reachable and its whole reason for existing still be unreachable
 
 ### Fixed

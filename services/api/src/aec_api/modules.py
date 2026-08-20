@@ -335,6 +335,42 @@ def view_alerts(db: Session, project_id: str, user: str) -> list[dict]:
     return out
 
 
+#: How far back the comment thread walks a revision chain. Revisions are shallow in practice
+#: (a submittal at rev 5 is unusual), so this is a loop guard rather than a policy: `data.revises`
+#: is caller-writable JSON, and a cycle there would otherwise spin `get_record` forever.
+_REVISION_WALK_MAX = 32
+
+
+def _revision_ancestry(db: Session, key: str, project_id: str, rid: str) -> list[tuple[str, str]]:
+    """`(id, ref)` of every earlier revision of `rid`, oldest first.
+
+    `revise()` writes a NEW record and links it to its source by `data.revises`, so anything keyed
+    by `record_id` — comments, above — stops at the revision in hand. Walking the chain is what lets
+    a resubmittal show the review that asked for it.
+    """
+    t = TABLES[key]
+    out: list[tuple[str, str]] = []
+    seen = {rid}
+    cur = rid
+    for _ in range(_REVISION_WALK_MAX):
+        row = db.execute(select(t.c.data, t.c.ref).where(
+            t.c.id == cur, t.c.project_id == project_id)).first()
+        if not row:
+            break
+        prev = ((row._mapping["data"] or {}) or {}).get("revises")
+        if not prev or prev in seen:            # unlinked, or a cycle in caller-written JSON
+            break
+        seen.add(prev)
+        prow = db.execute(select(t.c.ref).where(
+            t.c.id == prev, t.c.project_id == project_id)).first()
+        if not prow:                            # source deleted; the chain simply ends
+            break
+        out.append((prev, prow._mapping["ref"]))
+        cur = prev
+    out.reverse()
+    return out
+
+
 def get_record(db: Session, key: str, project_id: str, rid: str) -> dict:
     t = TABLES[key]
     r = db.execute(select(t).where(t.c.id == rid, t.c.project_id == project_id)).first()
@@ -348,13 +384,27 @@ def get_record(db: Session, key: str, project_id: str, rid: str) -> dict:
             RecordActivity.module == key, RecordActivity.record_id == rid)
         .order_by(RecordActivity.ts).all()
     ]
-    rec["comments"] = [
-        {"author": cm.author, "text": cm.text,
-         "created_at": cm.created_at.isoformat() if cm.created_at else None}
-        for cm in db.query(RecordComment).filter(
-            RecordComment.module == key, RecordComment.record_id == rid)
-        .order_by(RecordComment.created_at).all()
-    ]
+    # R22-ENTITLEMENT ④ — the thread spans the REVISION CHAIN, not just this record.
+    #
+    # `revise()` writes a new record with a new id, so comments keyed by `record_id` stayed behind:
+    # a reviewer who returned SUB-001 "Revise & Resubmit — anchor spacing does not match detail
+    # 5/A-501" opened SUB-001.1 and saw an empty list, with no way to check whether the resubmittal
+    # addressed anything. Fifteen modules are `revisable`, so the same held for every reissued RFI.
+    #
+    # Inherited comments are LABELLED rather than merged flat. A comment written against rev 0 is
+    # evidence about rev 0; showing it as though it were written about the revision in hand would be
+    # a confident wrong answer — worse than the omission, because it reads as current.
+    ancestry = _revision_ancestry(db, key, project_id, rid)
+    ref_by_id = dict(ancestry)
+    ids = [aid for aid, _ in ancestry] + [rid]
+    rec["comments"] = sorted(
+        ({"author": cm.author, "text": cm.text,
+          "created_at": cm.created_at.isoformat() if cm.created_at else None,
+          **({"inherited": True, "on_ref": ref_by_id[cm.record_id]}
+             if cm.record_id != rid else {})}
+         for cm in db.query(RecordComment).filter(
+             RecordComment.module == key, RecordComment.record_id.in_(ids)).all()),
+        key=lambda cm: (cm["created_at"] or ""))
     rec["attachments"] = list_attachments(db, key, project_id, rid)
     # resolve reference fields to a clickable brief {module, id, ref, title}
     mod = get_module(key)
