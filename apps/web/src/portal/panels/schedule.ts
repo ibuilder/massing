@@ -5,6 +5,7 @@ import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
 import { renderScheduleBrief } from "./scheduleBrief";
 import { renderScheduleMethods } from "./scheduleMethods";
+import { flattenLookahead, mondayUtc, renderWeeklyGantt } from "./weeklyGantt";
 
 /**
  * Unified GC schedule visuals — one relational schedule drives all of it: the Last Planner pull-plan
@@ -28,6 +29,16 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   ctx.root.innerHTML = "";
   ctx.root.appendChild(ctx.bar("Schedule", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
   ctx.root.appendChild(await renderScheduleBrief(ctx));
+  const weekCard = document.createElement("div");
+  ctx.root.appendChild(weekCard);
+  void ctx.host.api.scheduleLookahead(pid, 1).then((la) => {
+    weekCard.replaceWith(renderWeeklyGantt(
+      flattenLookahead(la.weeks_detail),
+      mondayUtc(new Date()),
+    ));
+  }).catch(() => {
+    weekCard.replaceWith(renderWeeklyGantt([], mondayUtc(new Date())));
+  });
   const intro = document.createElement("div"); intro.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 8px";
   const listBtn = document.createElement("button"); listBtn.className = "tool-btn"; listBtn.textContent = "✎ Activities (list)";
   listBtn.title = "Open the activity list to add / edit / import tasks";

@@ -1,4 +1,4 @@
-# Runway for Claude Code — 2026-08-19, after v0.3.1008
+# Runway for Claude Code — 2026-08-19, after v0.3.1009
 
 **Grade: live handoff.** Written so the next session picks up from measured state rather than chat
 memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still is. Security
@@ -24,7 +24,8 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 | 9 | [#301](https://github.com/ibuilder/massing/pull/301) | `cursor/cite-highlight-6e15` | **1005** vs #300 |
 | 10 | [#302](https://github.com/ibuilder/massing/pull/302) | `cursor/field-capture-home-6e15` | **1006** vs #301 |
 | 11 | [#303](https://github.com/ibuilder/massing/pull/303) | `cursor/a11y-journeys-6e15` | **1007** vs #302 |
-| 12 | this | `cursor/field-hide-spine-6e15` | **1008** vs #303 |
+| 12 | [#304](https://github.com/ibuilder/massing/pull/304) | `cursor/field-hide-spine-6e15` | **1008** vs #303 |
+| 13 | this | `cursor/weekly-gantt-6e15` | **1009** vs #304 |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main`. This agent cannot merge.
@@ -46,6 +47,7 @@ pending `main`. This agent cannot merge.
 | 1006 | R24-FIELD-MODE ③ — capture sheet lands when field mode + project |
 | 1007 | R39-A11Y-JOURNEYS ② closed — Tab to `[data-room-primary]` (Design tab for Design) |
 | 1008 | R24-FIELD-MODE ④ — hide `#workspaces` while field mode is on |
+| 1009 | UX-GANTT closed — weekly hybrid on the Schedule room |
 
 ---
 
@@ -69,7 +71,7 @@ PERSONA-SHAPE; IDENTITY.
 
 1. **R24-FIELD-MODE remainder** — replacing the portal home (Lane A). ④ only hides the room tabs.
 2. **R24-REPORTS-BY-MOMENT** scheduling (needs a job kind + delivery; larger).
-3. Lane B still open: `R24-TERMS` (user decision), `UX-GANTT`, `R22-REPORT-BUILDER`, `R23-SYMBOL-COUNT`, `R38-SHEET-MARKUP ③`.
+3. Lane B still open: `R24-TERMS` (user decision), `R22-REPORT-BUILDER`, `R23-SYMBOL-COUNT`, `R38-SHEET-MARKUP ③`.
 
 ---
 
