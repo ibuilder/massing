@@ -224,7 +224,8 @@ def compute_run(graph: dict):
 
 
 @router.post("/projects/{pid}/schedule/import-xer", status_code=201)
-async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depends(get_db),
+async def import_xer(pid: str, file: UploadFile = File(...), project_id: str | None = None,
+                     db: Session = Depends(get_db),
                      actor: str = Depends(require_role("editor"))):
     """Import a Primavera P6 export — **.xer** (tab-delimited) or **.xml (PMXML)**, auto-detected from
     the content. Parses the tasks/activities and **upserts each as an
@@ -233,6 +234,13 @@ async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depen
     activities live in one editable schedule that drives Gantt / Line-of-Balance / CPM / the 4D
     scrub. Re-importing updates the same records (preserving GC edits to others); zero-duration tasks
     are tagged as Milestones. Also keeps the start→finish window for the takt 4D date overlay.
+    **PMXML with baselines:** a P6 XML export carries baselines as additional `<Project>` elements —
+    the reason the format is worth having, since XER cannot carry them at all. Only one project can
+    be imported at a time, so a multi-project document reports every project it found in
+    `report.projects` and logs a `PMXML_MULTI_PROJECT` **error** naming the ones it did not import.
+    Pass `project_id` (an id from that list) to import a specific one. Previously the first project
+    was imported and the rest were dropped in silence.
+
     Returns counts (created/updated) + the date range + a small preview."""
     import json
 
@@ -251,7 +259,7 @@ async def import_xer(pid: str, file: UploadFile = File(...), db: Session = Depen
     report: dict = {}
     rich: list[dict] = []
     try:
-        rich, report = schedule_import.parse_full(text)
+        rich, report = schedule_import.parse_full(text, project_id=project_id)
     except ValueError:                               # not a format we read fully
         report = {"format": "unknown", "fell_back": True, "issues": []}
     except Exception as exc:                         # noqa: BLE001 — never fail the upload

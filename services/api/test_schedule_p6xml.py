@@ -68,6 +68,18 @@ XXE = PMXML.replace(
     '<?xml version="1.0"?><!DOCTYPE r [<!ENTITY x SYSTEM "file:///etc/passwd">]>')
 
 
+# R46 ④ — a real P6 export carries its baselines as EXTRA <Project> elements. Derived from the
+# single-project fixture rather than written out again, so the two cannot drift apart.
+def _with_baseline(doc: str) -> str:
+    import re as _re
+    one = _re.search(r"  <Project>.*?</Project>", doc, _re.S).group(0)
+    baseline = one.replace("<Id>", "<Id>BL-", 1).replace("<Name>", "<Name>Baseline of ", 1)
+    return doc.replace(one, one + baseline, 1)
+
+
+PMXML_WITH_BASELINE = _with_baseline(PMXML)
+
+
 def main() -> int:
     check("the document is still detected as PMXML",
           schedule_import.detect_format(PMXML) == "pmxml",
@@ -129,6 +141,33 @@ def main() -> int:
               '<?xml version="1.0"?><Project xmlns="http://schemas.microsoft.com/project">'
               "<Tasks><Task><UID>1</UID></Task></Tasks></Project>") == "mspdi",
           "P6 XML and MS Project XML are different formats that both start with '<'")
+
+    # --- R46 ④: a dropped baseline must be VISIBLE ------------------------------------------
+    recs, rep = schedule_import.parse_full(PMXML_WITH_BASELINE)
+    codes = [i.get("code") for i in rep["issues"]]
+    check("a multi-project PMXML reports EVERY project it found, not just the imported one",
+          [x["id"] for x in rep["projects"]] == ["TOWER", "BL-TOWER"], str(rep["projects"]))
+    check("and dropping the others is logged, not silent — this used to import 1 of 2 quietly",
+          "PMXML_MULTI_PROJECT" in codes, str(codes))
+    check("the issue names what was NOT imported, so the message is actionable",
+          any("BL-TOWER" in i.get("message", "") for i in rep["issues"]))
+    check("it is an ERROR: data was dropped, which is not a coercion",
+          any(i.get("code") == "PMXML_MULTI_PROJECT" and i.get("severity") == "error"
+              for i in rep["issues"]))
+
+    _, picked = schedule_import.parse_full(PMXML_WITH_BASELINE, project_id="BL-TOWER")
+    check("project_id imports THAT project, which is how a baseline gets loaded at all",
+          picked["project"] == "Baseline of Tower", str(picked["project"]))
+    check("and choosing removes the warning rather than repeating it",
+          not any(i.get("code") == "PMXML_MULTI_PROJECT" for i in picked["issues"]))
+
+    _, single = schedule_import.parse_full(PMXML)
+    check("a single-project export is unchanged: one project, no multi-project error",
+          len(single["projects"]) == 1
+          and not any(i.get("code") == "PMXML_MULTI_PROJECT" for i in single["issues"]))
+    check("and the activities still import — the baseline work did not disturb the normal path",
+          len(recs) >= 2 and single["activities"] >= 2,
+          f"{len(recs)} records, {single['activities']} activities")
 
     if _FAILURES:
         print(f"FAILED: {', '.join(_FAILURES)}")

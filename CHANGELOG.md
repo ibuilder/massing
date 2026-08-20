@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1041 (2026-08-20) — a module can be reachable and its whole reason for existing still be unreachable
+
+### Fixed
+
+- **A PMXML export with baselines imported the first project and dropped the rest in silence.**
+  P6 XML carries baselines as additional `<Project>` elements — the reason the format is worth
+  having, since XER cannot carry them at all. `schedule_import` called `read_p6xml`, which returns
+  **one** project. `read_p6xml_all`, whose own docstring says it *"is the entry point that makes
+  P6 XML worth having"*, had **zero callers**. Measured on a two-project document: `activities: 2`,
+  and no mention of the baseline anywhere in the report.
+- `report.projects` now lists every project found; importing one and not the others is logged as a
+  `PMXML_MULTI_PROJECT` **error** — data was dropped, which is not a coercion — naming what was left
+  out. `project_id` on `POST /projects/{pid}/schedule/import-xer` loads a chosen project, so a
+  baseline is loadable at all. A single-project export is unchanged and raises nothing.
+
+### Note
+
+- **`test_vendor_reachable` was green throughout, and correctly so.** `p6xml` *is* imported, so it
+  counts among 29/29 reachable. Import-reachability is a real property and it is not usefulness:
+  the module was reached, and the one function that justifies the module was not. R46's own framing
+  said this — *"faithfulness and usefulness are different claims about a vendor drop"* — and the same
+  split applies one level down, to functions inside a module a gate already calls reached.
+
 ## v0.3.1040 (2026-08-20) — trimesh 5, and the section coverage that makes the bump checkable
 
 ### Changed

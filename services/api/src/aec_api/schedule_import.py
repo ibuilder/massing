@@ -47,7 +47,7 @@ from massingplan.core.issues import IssueLog, Severity
 from massingplan.core.model import ExchangeSchedule
 from massingplan.core.mspdi import MSPDIError, read_mspdi
 from massingplan.core.network import RelationType
-from massingplan.core.p6xml import P6XMLError, read_p6xml
+from massingplan.core.p6xml import P6XMLError, read_p6xml, read_p6xml_all
 from massingplan.core.xer import XERError, read_xer
 
 #: How a relationship reads in the `predecessors` field the module engine stores
@@ -149,7 +149,7 @@ def to_records(schedule: ExchangeSchedule) -> list[dict[str, Any]]:
     return rows
 
 
-def parse_full(text: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def parse_full(text: str, project_id: str | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Parse an upload and return ``(records, report)``.
 
     ``report`` carries the detected format, counts, and the issue log -- every
@@ -159,6 +159,8 @@ def parse_full(text: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """
     detected = detect_format(text)
     issues = IssueLog()
+    projects: list[dict[str, str]] = []      # PMXML can hold several; other formats, one
+
 
     if detected == "xer":
         schedule = read_xer(text)
@@ -200,7 +202,32 @@ def parse_full(text: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
             ) from exc
         except _defused_et.ParseError:
             pass  # not well-formed — let read_p6xml raise its own, better-worded P6XMLError
-        schedule = read_p6xml(text)
+        # R46 ④ — a PMXML export carries its BASELINES as additional <Project> elements, which is
+        # the whole reason this format is worth having over XER (XER cannot carry them at all).
+        # `read_p6xml` returns ONE project, so a file holding a live schedule plus three baselines
+        # imported the first and dropped the rest **without saying so** — measured: a two-project
+        # document reported `activities: 2` and no mention of the baseline anywhere in the report.
+        #
+        # This module's own docstring calls that out as the failure it exists to prevent: "an import
+        # that quietly loses a table". A dropped project is a lost table, so it is logged as one, at
+        # ERROR — data was dropped — and the projects are named so the caller can ask for a specific
+        # one by id rather than guessing which the first was.
+        every = read_p6xml_all(text)
+        projects = [{"id": sch.project_id, "name": sch.project_name} for sch in every]
+        if project_id is not None:
+            schedule = read_p6xml(text, project_id=project_id)
+        else:
+            schedule = every[0] if every else read_p6xml(text)
+        if len(every) > 1 and project_id is None:
+            dropped = ", ".join(f"{p['name']!r} ({p['id']})" for p in projects[1:])
+            issues.error(
+                "PMXML_MULTI_PROJECT",
+                f"the document holds {len(every)} projects and only one can be imported at a time; "
+                f"imported {projects[0]['name']!r} ({projects[0]['id']}), not imported: {dropped}",
+                "re-import with project_id set to the one you want — in a P6 export the extra "
+                "projects are usually the baselines, which XER could not have carried at all",
+                table="Project",
+            )
     else:
         raise ValueError(
             "unrecognised schedule format -- expected a Primavera .xer, a "
@@ -215,6 +242,9 @@ def parse_full(text: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         "format": detected,
         "fell_back": False,
         "project": schedule.project_name,
+        # Present for every format; a PMXML with baselines lists them all, so a caller can see what
+        # it did NOT import. One entry means there was nothing to choose between.
+        "projects": projects,
         "data_date": _iso(schedule.data_date),
         "activities": len(schedule.activities),
         "relationships": len(schedule.relationships),
