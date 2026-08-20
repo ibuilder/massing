@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1019 (2026-08-20) — `/drawing-set` leaves client.ts
+
+SCALE-SEAM ⑭. Eleven drawing-set methods (register, issue, issuance matrix, transmittals)
+moved to `apps/web/src/api/drawingSet.ts`. They sat in three runs with `/preflight` and
+`/pdf` between them. `client.ts` 3,602 → 3,538.
+
 ## v0.3.1018 (2026-08-20) — `/sync` leaves client.ts
 
 SCALE-SEAM ⑬. Seven Procore pull/push + auto-sync-schedule methods moved to
