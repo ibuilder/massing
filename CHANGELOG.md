@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1024 (2026-08-20) — `/mep` leaves client.ts
+
+SCALE-SEAM ⑲. Seven MEP methods (summary, connectivity, sizing, sprinkler, fittings,
+class rollup, model-extract) moved to `apps/web/src/api/mep.ts`. Four regions.
+`connectMep` / `addMepFitting` stay on `editIfc`. `client.ts` 3,304 → 3,243.
+
 ## v0.3.1023 (2026-08-20) — `/documents` leaves client.ts
 
 SCALE-SEAM ⑱. Nine document-control methods (tree, folder, health, upload/move/delete,

@@ -8,6 +8,7 @@ import { withDrawingSheets } from "./drawingSheets";
 import { withElements } from "./elements";
 import { withModels } from "./models";
 import { withDocuments } from "./documents";
+import { withMep } from "./mep";
 import { withSync } from "./sync";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
@@ -49,7 +50,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))))))) {
+export class ApiClient extends withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -997,47 +998,6 @@ export class ApiClient extends withDocuments(withModels(withElements(withDrawing
                  opts: { height?: number; cols?: number; rows?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_curtain_wall", { start, end, ...opts }, publish);
   }
-  /** W11 B6 + MEP-FP: MEP system browser — systems (with discipline: hvac/plumbing/electrical/fire/comms)
-   * with segment/fitting/terminal counts + connectivity signal, and a by-discipline rollup. */
-  mepSummary(pid: string) {
-    return this.json<{ total_systems: number; unassigned: { segments: number; fittings: number };
-      has_fire_protection?: boolean; by_discipline?: Record<string, { systems: number; members: number }>;
-      systems: { guid: string; name: string; discipline?: string; predefined_type?: string | null;
-        members: number; segments: number; fittings: number;
-        terminals: number; other: number; elements_with_open_ports: number }[] }>(`/projects/${pid}/mep`);
-  }
-  /** W10-4: MEP connectivity validation — ports connected/open, links, dangling (floating) elements. */
-  mepConnectivity(pid: string) {
-    return this.json<{ elements: number; ports_total: number; ports_connected: number; ports_open: number;
-      connections: number; dangling_count: number; connected_pct: number;
-      dangling: { guid: string; class: string; name: string | null }[] }>(`/projects/${pid}/mep/connectivity`);
-  }
-  /** MEP-SIZE: velocity/fill size checks over authored MEP (air/water velocity vs limits), pass/fail. */
-  mepSizing(pid: string, opts?: { ductMaxFpm?: number; pipeMaxFps?: number }) {
-    const q = new URLSearchParams();
-    if (opts?.ductMaxFpm != null) q.set("duct_max_fpm", String(opts.ductMaxFpm));
-    if (opts?.pipeMaxFps != null) q.set("pipe_max_fps", String(opts.pipeMaxFps));
-    const qs = q.toString();
-    return this.json<{
-      checked: number; passed: number; failed: number; info: number; all_pass: boolean;
-      limits: { duct_max_fpm: number; pipe_max_fps: number; tray_max_fill: number };
-      checks: {
-        guid: string; class: string; system: string | null; size_mm: number; shape: string;
-        flow: number | null; flow_unit: string | null; parameter: string;
-        value_fpm?: number; value_fps?: number; value?: number | null;
-        limit_fpm?: number; limit_fps?: number; limit?: number;
-        status: "pass" | "fail" | "info"; note: string;
-      }[];
-      disclaimer: string;
-    }>(`/projects/${pid}/mep/sizing${qs ? `?${qs}` : ""}`);
-  }
-  /** MEP-FP: NFPA-13-informed sprinkler coverage pre-check (head count vs area ÷ max coverage per hazard). */
-  sprinklerCoverage(pid: string, hazard = "light") {
-    return this.json<{ hazard: string; sprinkler_heads: number; protected_area_m2: number; spaces_measured: number;
-      max_coverage_m2_per_head: number; required_heads: number; adequate: boolean | null; shortfall: number | null;
-      citation: string; note: string; verify: string }>(
-      `/projects/${pid}/mep/sprinkler-coverage?hazard=${encodeURIComponent(hazard)}`);
-  }
   /** PROD-ACTUALS: installed-rate actual vs planned + crew utilization over field productivity actuals. */
   progressActuals(pid: string, actuals: Record<string, unknown>[], planned?: Record<string, unknown>) {
     type Group = {
@@ -1053,19 +1013,6 @@ export class ApiClient extends withDocuments(withModels(withElements(withDrawing
       total_productive_hours: number; total_idle_hours: number; planned_compared: number;
       ahead: number; on_track: number; behind: number; worst: string | null; note: string;
     }>(`/projects/${pid}/progress/actuals`, { method: "POST", body: JSON.stringify({ actuals, planned }) });
-  }
-  /** MEP-FITTINGS: implied tee/cross/reducer/elbow over the port graph → QTO EA lines (deterministic, no CV). */
-  mepFittings(pid: string) {
-    return this.json<{
-      element_count: number;
-      fittings: { tee: number; cross: number; reducer: number; elbow: number };
-      total_fittings: number;
-      by_type: { type: string; count: number }[];
-      qto_lines: { item: string; fitting: string; unit: string; qty: number }[];
-      unknown_size_joints: number;
-      details: { guid: string; ifc_class: string; fitting: string; count: number; reason: string }[];
-      note: string;
-    }>(`/projects/${pid}/mep/fittings`);
   }
   /** W10-4: connect two MEP elements port-to-port (IfcRelConnectsPorts). */
   connectMep(pid: string, guidA: string, guidB: string, publish = true) {
@@ -1800,9 +1747,6 @@ export class ApiClient extends withDocuments(withModels(withElements(withDrawing
   energy(pid: string) {
     return this.json<EnergyResult>(`/projects/${pid}/energy`);
   }
-  mep(pid: string) {
-    return this.json<{ by_class: Record<string, number>; systems: Record<string, string>; total_distribution_elements: number }>(`/projects/${pid}/mep`);
-  }
 
   // W9-1 property mapping / normalization — the transform verb between IDS-validate and COBie-export
   propmapDetect(pid: string) {
@@ -2451,11 +2395,6 @@ export class ApiClient extends withDocuments(withModels(withElements(withDrawing
     return this.json<{ total: number; checked: number; compliant: number; compliance_pct: number | null;
       results: { name: string; element_type: string; compliant: boolean | null }[] }>(
       `/projects/${pid}/envelope/audit`);
-  }
-  mepModelExtract(pid: string) {
-    return this.json<{ model_scored: boolean; mep_elements: number;
-      by_class: { ifc_class: string; label: string; count: number }[] }>(
-      `/projects/${pid}/mep/model-extract`);
   }
   namingAudit(pid: string) {
     return this.json<{ containers: { total: number; compliant: number; compliance_pct: number | null };
