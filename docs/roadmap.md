@@ -1824,12 +1824,13 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
     the pane had been unreachable (toggle button never appended), its fetch had failed cross-origin
     since v0.3.826 (`credentials:"include"` without a credentials CORS grant), and the live route
     dropped the `storey` param entirely — three defects only a live drive could see.
-- ◧ **R38-SHEET-MARKUP ③** *(M, Lane B — **① v0.3.1012**)* — the vendored markup toolset (clouds, callouts, stamps,
+- ◧ **R38-SHEET-MARKUP ③** *(M, Lane B — **① v0.3.1012 · ② v0.3.1013**)* — the vendored markup toolset (clouds, callouts, stamps,
   tool sets) opened on the room's OWN generated sheets, markups tied to GUIDs through the existing
   pin-to-drawing spine. ①: a pin dropped on `data-guid` linework in `apps/web/src/drawings/drawings.ts`
   stores that GlobalId (`apps/web/src/ui/sheetGuid.ts`) and reselects it in 3D; empty paper is
-  still a coordinate pin. PDF markup on generated plans/elevations (not just composed `sheet.pdf`)
-  remains.
+  still a coordinate pin. ②: promote-to-RFI copies that GlobalId onto `Topic.element_guids`
+  (`services/api/src/aec_api/routers/bim.py`). PDF markup on generated plans/elevations (not just
+  composed `sheet.pdf`) remains.
 - Consumes: R24-ELEMENT-CARD ② and R31-CITE-HIGHLIGHT (both already coded) as the "everything
   about this thing" surface.
 
