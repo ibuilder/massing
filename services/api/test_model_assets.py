@@ -61,7 +61,14 @@ with TestClient(app) as c:
     assert len(c.get(f"/projects/{pid}/modules/asset_register").json()) == 4, "register populated"
     s2 = c.post(f"/projects/{pid}/model/assets/seed").json()
     assert s2["created"] == 0 and s2["skipped"] == 4, s2
-    assert len(c.get(f"/projects/{pid}/modules/asset_register").json()) == 4, "no duplicate assets"
+    rows = c.get(f"/projects/{pid}/modules/asset_register").json()
+    assert len(rows) == 4, "no duplicate assets"
+    # Seed used to write the tag and drop the GlobalId. The COBie/asset card is keyed by GUID, so
+    # a seeded asset that cannot mount a card is a seed that did half the job.
+    sample = rows[0]
+    if not (sample.get("element_guids") or []):
+        sample = c.get(f"/projects/{pid}/modules/asset_register/{sample['id']}").json()
+    assert sample.get("element_guids"), sample
 
 if os.path.exists(TMP):
     os.remove(TMP)

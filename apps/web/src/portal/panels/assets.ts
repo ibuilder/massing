@@ -1,3 +1,4 @@
+import { mountElementCard, shortGuid } from "../../ui/elementCard";
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
 
@@ -56,12 +57,26 @@ export async function renderAssets(ctx: PanelContext) {
     const wrap = document.createElement("div"); wrap.className = "dash-card"; wrap.style.overflowX = "auto";
     const t = document.createElement("table"); t.className = "portal-table"; t.style.cssText = "width:100%;font-size:11px";
     t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Asset</th><th scope="col" style="text-align:left">Class</th>`
-      + `<th scope="col" style="text-align:left">Discipline</th><th scope="col" style="text-align:left">Storey</th></tr></thead><tbody>`
-      + r.assets.slice(0, 100).map((a) => `<tr><td style="text-align:left">${esc(a.name)}</td>`
+      + `<th scope="col" style="text-align:left">Discipline</th><th scope="col" style="text-align:left">Storey</th>`
+      + `<th scope="col" style="text-align:left">GlobalId</th></tr></thead><tbody>`
+      + r.assets.slice(0, 100).map((a) => `<tr data-guid="${esc(a.guid ?? "")}"><td style="text-align:left">${esc(a.name)}</td>`
         + `<td style="text-align:left">${esc(a.ifc_class.replace("Ifc", ""))}</td>`
-        + `<td style="text-align:left">${esc(a.discipline)}</td><td style="text-align:left">${esc(a.storey ?? "—")}</td></tr>`).join("")
+        + `<td style="text-align:left">${esc(a.discipline)}</td><td style="text-align:left">${esc(a.storey ?? "—")}</td>`
+        + `<td class="meta" style="text-align:left;font-family:var(--mono)">${a.guid ? esc(shortGuid(a.guid)) : "—"}</td></tr>`).join("")
       + `</tbody>`;
     wrap.appendChild(t);
+    const cardHost = document.createElement("div");
+    cardHost.style.marginTop = "8px";
+    wrap.appendChild(cardHost);
+    wrap.querySelectorAll("tr[data-guid]").forEach((tr) => {
+      const g = (tr as HTMLElement).dataset.guid;
+      if (!g) return;
+      (tr as HTMLElement).style.cursor = "pointer";
+      (tr as HTMLElement).title = g;
+      tr.addEventListener("click", () => {
+        void mountElementCard(cardHost, ctx.host.api, pid, g, tr.querySelector("td")?.textContent);
+      });
+    });
     if (r.assets.length > 100) wrap.insertAdjacentHTML("beforeend", `<div class="meta" style="opacity:.7">Showing first 100 of ${r.count}.</div>`);
     body.appendChild(wrap);
   } catch (e) {

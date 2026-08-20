@@ -20,7 +20,7 @@ Violating one of these is a defect regardless of how well the code works.
 | **IFC is the source of truth** | Reference elements by **GlobalId (GUID)**, never a transient viewer id. |
 | **Never parse full IFC in the browser** | Pre-convert to Fragments server-side. Geometry streams as `.frag`; data comes from the API. |
 | **The viewer runs fully offline** | Local WASM, self-hosted tiles. No runtime network dependency. |
-| **Licences: MIT / BSD / Apache only** | No GPL, no AGPL, no PolyForm/noncommercial. This has already excluded otherwise-good libraries. |
+| **Licences: MIT / BSD / Apache / ISC / CC0-1.0** (and the other permissive names the classifier already accepts: Unlicense, Zlib, BSL-1.0 / Boost). **No GPL, no AGPL, no PolyForm/noncommercial, no BUSL.** | Code and content. CC0 is a public-domain dedication, strictly more permissive than MIT; the families shelf already shipped it. `BSL-1.0` is Boost (permitted); `BUSL` is Business Source (not). |
 | **New dependencies need explicit user approval** | Version *bumps* of existing deps are routine; a new package is not. |
 | **`@thatopen/components` + `@thatopen/fragments` are a pinned compatible pair** | `ties.test.ts` enforces it. A drifted `web-ifc` renders fine and mis-parses geometry. |
 | **No competitor product names** in README / CHANGELOG / docs / commits | Interop and format names (IFC, BCF, COBie, Revit, Bonsai) are fine — a competitor *platform* name is not. Describe rival capabilities generically. |

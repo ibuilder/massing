@@ -1,3 +1,4 @@
+import { destLabel, destTitle } from "../../shell/destinations";
 import { noProjectHtml } from "../../ui/empty";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
@@ -75,9 +76,9 @@ export async function renderProgram(ctx: PanelContext) {
 export async function renderBimKpi(ctx: PanelContext) {
     const root = ctx.root; root.innerHTML = "";
     const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
-    root.appendChild(ctx.bar("📊 BIM KPIs (ISO 19650)", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+    root.appendChild(ctx.bar(destTitle("__bimkpi__"), () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
     const pid = ctx.host.projectId();
-    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml("BIM KPIs")); return; }
+    if (!pid) { root.insertAdjacentHTML("beforeend", noProjectHtml(destLabel("__bimkpi__"))); return; }
     const intro = el("div", "meta"); intro.style.marginBottom = "8px";
     intro.textContent = "The standard information-management scorecard — ten categories graded from "
       + "the CDE, model quality and the issue / asset / closeout records. Categories with no inputs "
@@ -413,9 +414,9 @@ export async function renderIds(ctx: PanelContext) {
 export async function renderModelAnalysis(ctx: PanelContext) {
     const root = ctx.root; root.innerHTML = "";
     const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
-    root.appendChild(ctx.bar("🔬 Model Analysis", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+    root.appendChild(ctx.bar(destTitle("__modelanalysis__"), () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
     const pid = ctx.host.projectId();
-    if (!pid) { root.innerHTML = noProjectHtml("Model Analysis"); return; }
+    if (!pid) { root.innerHTML = noProjectHtml(destLabel("__modelanalysis__")); return; }
     const intro = el("div", "meta"); intro.style.marginBottom = "8px";
     intro.textContent = "Read + audit the model: IFC capabilities, element query, achieved LOD, envelope "
         + "code compliance, MEP counts and naming. Model-reading sections need a published model.";

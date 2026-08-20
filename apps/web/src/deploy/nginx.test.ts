@@ -1,15 +1,18 @@
 /**
  * Deployment-header regression gate over nginx.conf.
  *
- * Two failure modes this exists to catch, both of which ship silently:
+ * Three failure modes this exists to catch, all of which ship silently:
  *
  *   1. **The add_header inheritance trap.** An nginx location with ANY `add_header` of its own
  *      drops ALL server-level ones — so the `location = /index.html` block (which must add
  *      Cache-Control) has to repeat every security header verbatim. A header added at server
  *      level but not in that block is absent from the one response that matters most: the
- *      top-level document. This test asserts the two scopes carry an IDENTICAL security set.
+ *      top-level document. The `.mjs` worker location also defines Cache-Control, so it must
+ *      repeat COOP/COEP or geometry loading can stall despite a 200 response.
  *
- *   2. **CSP vs the entry point.** script-src deliberately has no 'unsafe-inline', which means
+ *   2. **Worker isolation.** The hashed `.mjs` geometry worker must preserve COOP/COEP.
+ *
+ *   3. **CSP vs the entry point.** script-src deliberately has no 'unsafe-inline', which means
  *      an inline <script> in index.html would be blocked by the very policy we ship — a blank
  *      app in production with a green build. The entry point is asserted inline-script-free
  *      here, next to the policy that makes it a requirement.
@@ -41,12 +44,58 @@ function headerLines(name: string): string[] {
     .map((l) => l.trim());
 }
 
+/**
+ * Every location block that declares ANY `add_header` of its own must repeat the WHOLE security
+ * set — derived from the file, not from a list kept here.
+ *
+ * nginx inherits `add_header` from the enclosing scope only while the current scope declares none.
+ * `location = /index.html` was written knowing that. Three *other* locations were not: `~* \.mjs$`,
+ * `/assets/` and `/wasm/` each declare `Cache-Control` for immutable caching, and each therefore
+ * silently dropped all seven server-level headers — including `X-Content-Type-Options: nosniff`,
+ * from exactly the responses where MIME sniffing matters most: every hashed bundle, every WASM
+ * binary, every module worker the app serves.
+ *
+ * PR #311 found the trap and restored COOP/COEP on the `.mjs` block, which fixed the reported
+ * symptom (module workers losing cross-origin isolation, so geometry loading stalls). Its test
+ * then encoded the partial state as correct — `Cross-Origin-*` required in three scopes and
+ * everything else in two — which would have passed forever with `nosniff` still missing.
+ *
+ * **A count is the wrong assertion.** It has to be re-tuned every time a location is added, and
+ * re-tuning is how a partial fix becomes the specification. This derives the population instead:
+ * find the blocks that declare an `add_header`, and require the full set in each. A fourth such
+ * location fails the day it is added, not the day someone re-audits.
+ */
+function locationsDeclaringAddHeader(): { name: string; body: string }[] {
+  const out: { name: string; body: string }[] = [];
+  const re = /^\s*location\s+([^{]+?)\s*\{/gm;
+  for (let m = re.exec(conf); m; m = re.exec(conf)) {
+    const open = conf.indexOf("{", m.index);
+    let depth = 0, i = open;
+    for (; i < conf.length; i++) {
+      if (conf[i] === "{") depth++;
+      else if (conf[i] === "}" && --depth === 0) break;
+    }
+    const body = conf.slice(open, i + 1);
+    if (/^\s*add_header\s/m.test(body)) out.push({ name: m[1]!.trim(), body });
+  }
+  return out;
+}
+
 describe("nginx security headers", () => {
-  it.each(SECURITY_HEADERS)("%s is set in both scopes with the same value", (name) => {
-    const lines = headerLines(name);
-    expect(lines.length, `${name} must appear at server level AND in location = /index.html — ` +
-      "a location-level add_header drops the inherited set").toBe(2);
-    expect(new Set(lines).size, `${name} differs between the two scopes`).toBe(1);
+  const SCOPED = locationsDeclaringAddHeader();
+
+  it("finds the location blocks that opt out of inheritance — otherwise this suite is vacuous", () => {
+    expect(SCOPED.map((s) => s.name).sort(), "parser drifted from nginx.conf's syntax")
+      .toEqual(["/assets/", "/wasm/", "= /index.html", "~* \\.mjs$"]);
+  });
+
+  it.each(SECURITY_HEADERS)("%s is present at server level and in EVERY scoped location", (name) => {
+    const missing = SCOPED.filter((s) => !s.body.includes(`add_header ${name} `)).map((s) => s.name);
+    expect(missing, `${name} is dropped by ${missing.join(", ")} — that location declares its own ` +
+      "add_header, so nginx stops inheriting the server-level set entirely").toEqual([]);
+    // one value everywhere, server level included
+    expect(new Set(headerLines(name)).size, `${name} differs between scopes`).toBe(1);
+    expect(headerLines(name).length, `${name} missing at server level`).toBe(SCOPED.length + 1);
   });
 
   it("every add_header uses `always` so headers survive error responses", () => {

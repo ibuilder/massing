@@ -10,7 +10,7 @@ import { type RegisterFilter, RegisterUI } from "./register/register";
 import { SECTIONS_BY_PERSONA, cycleDensity, readDensity, readFavs, readRecents, readRoomOpen, setRoomOpen, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
 import { renderAnalyseHome } from "../shell/analyseHome";
-import { ALL_DESTS, destButtonActive, destsForRail, type Dest, stagesFor } from "../shell/destinations";
+import { ALL_DESTS, type Dest, destButtonActive, destsForRail, destTitle, stagesFor } from "../shell/destinations";
 import { FALLBACK_ROOMS, ROOM_HOME, type SpineState, destRoom, loadSpine, portalRooms, preselectedRoom, unroomedDests, visibleRooms } from "../shell/spine";
 import type { RoomDef } from "../api/types";
 // PANEL-LAZY (PERF): the ~30 secondary portal panels are DYNAMICALLY imported at first render
@@ -649,7 +649,7 @@ export class PortalUI {
   private renderModelQa() {
     const root = this.root; root.innerHTML = "";
     const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
-    root.appendChild(this.bar("✅ Model Health", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    root.appendChild(this.bar(destTitle("__modelqa__"), () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
     const intro = el("div", "meta"); intro.style.marginBottom = "10px";
     intro.innerHTML = "The model-health checks run against the loaded 3D model, so they live in "
       + "<b>Model → Tools</b>. Open the model, then run these to verify the design is coordinated and "

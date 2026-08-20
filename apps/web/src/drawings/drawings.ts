@@ -388,6 +388,12 @@ export class DrawingsUI {
           const pdfjs = await import("pdfjs-dist");
           const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
           pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+          // No `enableScripting` here: it is a pdf.js VIEWER option, not a `getDocument` one —
+          // it appears nowhere in pdfjs-dist's DocumentInitParameters, so passing it is a no-op
+          // that does not even typecheck. This path calls getDocument and renders pages directly
+          // and never instantiates the scripting engine, so document JavaScript cannot run. The
+          // control that actually mitigates CVE-2026-16633 is the EXACT version pin, gated in
+          // `pdfjsScripting.test.ts`.
           const doc = await pdfjs.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
           const page = await doc.getPage(1);
           const vp = page.getViewport({ scale: 2 });

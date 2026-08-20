@@ -132,4 +132,22 @@ describe("the catalog itself", () => {
     expect(ALL_DESTS.filter((d) => d.goto).map((d) => d.key).sort())
       .toEqual(["__drawings__", "__uw__"]);
   });
+
+  it("names the three Analyse tasks by the job, not as synonyms", () => {
+    // UX-DUP-DESTINATIONS: "Model Health", "Model Analysis" and "BIM KPIs" sat together and
+    // answered three different questions under names that did not say which.
+    //
+    // Asserted against ALL_DESTS, not against the "Analyse & check" rail stage. This branch
+    // (v0.3.987) checked the rail, because at the time the three WERE rail siblings. v0.3.994
+    // finished the same item the other way: one `Analyse` home, with the three reachable from
+    // inside it — see "Design's Analyse & check is one home, not three overlapping dests" above,
+    // which is the newer decision and would contradict a rail-scoped version of this check.
+    // The naming half survives and is still worth guarding; only the placement moved.
+    const byKey = Object.fromEntries(ALL_DESTS.map((d) => [d.key, d.label]));
+    expect(byKey.__modelqa__).toBe("Check the model");
+    expect(byKey.__modelanalysis__).toBe("Read the model");
+    expect(byKey.__bimkpi__).toBe("ISO 19650 scorecard");
+    const labels = ANALYSE_TASK_KEYS.map((k) => byKey[k]);
+    expect(new Set(labels).size, "two Analyse tasks share a label").toBe(labels.length);
+  });
 });
