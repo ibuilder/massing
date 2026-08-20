@@ -23,12 +23,12 @@ import numpy as np
 
 from .drawings import (
     ISO_ELEVATION_DEG,
-    PAGES,
     _view_for_spec,
     axon_outlines,
     bake,
     cut_baked,
     elevation_outlines,
+    page_pts,
     storey_elevations,
 )
 from .drawings_render import render_sheet_pdf, render_sheet_svg
@@ -145,7 +145,7 @@ def compose_viewports(meshes, viewports: list[dict], page: str = "A1",
                       levels: list[dict] | None = None) -> dict:
     """Compose paper-space viewports into the `render_sheet_svg/pdf` layout dict. Fixed `scale` places
     the view at true 1:N and CLIPS to the viewport rect (crop, not shrink); no scale → fit-to-rect."""
-    pw, ph = PAGES.get(page, PAGES["A1"])
+    pw, ph = page_pts(page)
     ax, ay = margin, margin + tb_h                 # drawable area origin (y-down, titleblock on top band)
     aw, ah = pw - 2 * margin, ph - 2 * margin - tb_h
     pad, label_h = 10.0, 18.0

@@ -1,5 +1,6 @@
 import type { ApiClient, DocFolderNode } from "../api/client";
 import { openPdfTakeoff, type TakeoffOpts } from "./pdfTakeoff";
+export { openPdfTakeoff, type TakeoffOpts };
 import { escapeHtml } from "../ui/feedback";
 
 /**

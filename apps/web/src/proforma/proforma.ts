@@ -6,6 +6,8 @@ import { showQrModal } from "../ui/qr";
 import { money, pct } from "./format";
 import { renderMassingTab } from "./massingTab";
 import { renderTestFitTab } from "./testfitTab";
+import { downloadPostedPdf, camStatementPath } from "../api/downloadPdf";
+import { toast } from "../ui/feedback";
 
 /**
  * Real-estate development finance (Proforma) view — edit the key deal drivers, solve live,
@@ -637,7 +639,14 @@ export class ProformaUI {
               + `<td class="num">${tn.rentable_sf.toLocaleString()}</td><td class="num">${tn.share_pct}%</td>`
               + `<td class="num">${money(tn.share_of_expenses)}</td><td class="num">${money(tn.estimated_paid)}</td>`
               + `<td class="num">${tn.balance_due >= 0 ? money(tn.balance_due) + " due" : money(-tn.balance_due) + " cr"}</td>`
-              + `<td><a class="file-btn" href="${this.api.camStatementUrl(pid, tn.id)}" target="_blank" rel="noopener">⬇ Statement</a></td></tr>`).join("");
+              + `<td><button type="button" class="file-btn" data-cam-rid="${escapeHtml(tn.id)}">⬇ Statement</button></td></tr>`).join("");
+          t.querySelectorAll<HTMLButtonElement>("[data-cam-rid]").forEach((b) => {
+            b.onclick = () => {
+              const rid = b.dataset.camRid || "";
+              void downloadPostedPdf(this.api, camStatementPath(pid, rid), `cam-statement-${rid}.pdf`)
+                .catch((e) => toast(`Statement failed: ${(e as Error).message}`, "error"));
+            };
+          });
           cout.appendChild(t);
         }
         const note = document.createElement("div"); note.className = "meta"; note.style.marginTop = "6px";

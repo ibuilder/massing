@@ -526,6 +526,36 @@ def _echo(db: Session, params: dict) -> dict:
     return {"echo": params}
 
 
+def _report_package(db: Session, params: dict) -> dict:
+    """R24-REPORTS-BY-MOMENT ② — assemble a moment's reports into one PDF off the request thread.
+
+    Params: {project_id, reports: [id, …], moment_id?}. Caps at 16. Unknown ids fail at run, not
+    with a silent shorter package. Delivery (email on a date) is still open; this is the assemble
+    half, and the Job row is the record that it ran.
+    """
+    import uuid
+
+    from . import pdfops, reports, storage
+    pid = str(params.get("project_id") or "")
+    if not pid:
+        raise ValueError("report_package needs a project_id")
+    ids = [str(x) for x in (params.get("reports") or [])]
+    if not ids:
+        raise ValueError("no reports in the package")
+    if len(ids) > 16:
+        raise ValueError("a package is at most 16 reports")
+    unknown = [i for i in ids if i not in reports.REPORTS]
+    if unknown:
+        raise ValueError(f"unknown report(s): {unknown}")
+    parts = [reports.to_pdf(reports.build(db, pid, rid)) for rid in ids]
+    pdf = pdfops.merge(parts)
+    moment = str(params.get("moment_id") or "package")
+    key = f"{pid}/jobs/{uuid.uuid4().hex}-{moment}.pdf"
+    storage.put(key, pdf)
+    return {"artifact_key": key, "media_type": "application/pdf",
+            "filename": f"{moment}.pdf", "bytes": len(pdf), "reports": ids}
+
+
 register_kind("echo", _echo)
 register_kind("cobie_export", _cobie_export)            # read → artifact (no project-state write)
 register_kind("compiled_set_pdf", _compiled_set_pdf)   # read → artifact
@@ -533,3 +563,4 @@ register_kind("model_export", _model_export)           # read → artifact
 register_kind("clash_detect", _clash_detect)           # read-only
 register_kind("escalation_scan", _escalation_scan, mutating=True)   # WRITES records (me.update_record)
 register_kind("model_ci", _model_ci, mutating=True)    # writes the CI report; wants a consistent model read
+register_kind("report_package", _report_package)       # read → artifact

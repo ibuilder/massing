@@ -65,15 +65,33 @@ export function setRoomOpen(key: string, open: boolean): void {
   localStorage.setItem("portal-room-open", JSON.stringify(m));
 }
 
-/** Command-center density: "compact" tightens the multi-card home dashboards (less padding, smaller
- *  type, secondary meta/progress lines hidden) for users who want more on screen at once. Default
- *  "comfortable". Persisted globally (a personal viewing preference, not per project/persona). */
-export function readDensity(): "comfortable" | "compact" {
-  return localStorage.getItem("portal-density") === "compact" ? "compact" : "comfortable";
+/** Command-center + register density. Three row heights, named, not two booleans:
+ *  Field 56 px / Default 36 px / Compact 28 px. Dashboards still use `.dense` for compact only.
+ *  Persisted globally (a personal viewing preference, not per project/persona). */
+export const DENSITY_STEPS = ["field", "comfortable", "compact"] as const;
+export type Density = (typeof DENSITY_STEPS)[number];
+export const DENSITY_ROW_PX: Record<Density, number> = {
+  field: 56,
+  comfortable: 36,
+  compact: 28,
+};
+
+export function readDensity(): Density {
+  const raw = localStorage.getItem("portal-density");
+  if (raw === "field" || raw === "compact" || raw === "comfortable") return raw;
+  return "comfortable";
 }
 
-export function setDensity(d: "comfortable" | "compact"): void {
+export function setDensity(d: Density): void {
   localStorage.setItem("portal-density", d);
+}
+
+/** Field → comfortable → compact → field. */
+export function cycleDensity(): Density {
+  const cur = readDensity();
+  const next = DENSITY_STEPS[(DENSITY_STEPS.indexOf(cur) + 1) % DENSITY_STEPS.length]!;
+  setDensity(next);
+  return next;
 }
 
 /** Toggle a module's favorite flag; returns the updated set (already persisted). */

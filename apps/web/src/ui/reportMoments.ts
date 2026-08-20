@@ -136,3 +136,10 @@ export function unclaimedReports(
   const claimed = new Set(moments.flatMap((m) => m.reports));
   return catalog.map((r) => r.id).filter((id) => !claimed.has(id));
 }
+
+/** Job kind + params for assembling a moment. The server rejects unknown ids rather than shortening. */
+export const REPORT_PACKAGE_KIND = "report_package";
+
+export function packageJobParams(m: ReportMoment): { moment_id: string; reports: string[] } {
+  return { moment_id: m.id, reports: [...m.reports] };
+}

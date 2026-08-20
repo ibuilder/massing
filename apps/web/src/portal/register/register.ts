@@ -11,6 +11,7 @@ import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "../offl
 import type { PanelContext } from "../panelContext";
 import { pushRecent } from "../prefs";
 import { schemaStaleBanner } from "./schemaStale";
+import { renderTiedElements } from "./tiedElements";
 
 /**
  * How many records of a referenced module are fetched to build the id→label map for a table.
@@ -647,6 +648,7 @@ export class RegisterUI {
           tr.appendChild(this.refCell(String(v), c, refMaps[c.name]));
         } else {
           cell(this.fmtCell(c, v));
+          if (isNumericField(c.type)) tr.lastElementChild?.classList.add("num");
         }
       }
       tr.appendChild(this.assigneeCell(pid, m, r));   // inline-editable
@@ -1211,7 +1213,7 @@ export class RegisterUI {
     ta.placeholder = "name\tstatus\tamount\nFooting F-1\topen\t1200\n…";
     ta.setAttribute("aria-label", "Pasted spreadsheet rows");
     ta.style.cssText = "width:100%;min-height:150px;margin:8px 0;padding:8px;border:1px solid var(--line);"
-      + "border-radius:6px;background:var(--bg);color:inherit;font-family:ui-monospace,monospace;font-size:12px;white-space:pre;overflow:auto";
+      + "border-radius:6px;background:var(--bg);color:inherit;font-family:var(--mono);font-size:12px;white-space:pre;overflow:auto";
     const row = document.createElement("div");
     row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:4px";
     const cancel = document.createElement("button"); cancel.textContent = "Cancel"; cancel.className = "file-btn";
@@ -2247,41 +2249,10 @@ export class RegisterUI {
     this.ctx.root.appendChild(relatedBox);
     void this.renderRelated(relatedBox, m.key, rid);
 
-    // model elements — show / tie the current 3D selection (hard-ties a schedule activity for an
-    // exact 4D; also lets any record point at the elements it concerns)
-    const guids = r.element_guids ?? [];
-    const elHead = document.createElement("div"); elHead.className = "section-title";
-    elHead.textContent = `Model elements${guids.length ? ` (${guids.length})` : ""}`;
-    this.ctx.root.appendChild(elHead);
-    const elRow = document.createElement("div"); elRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin:4px 0";
-    const tagBtn = document.createElement("button"); tagBtn.className = "tool-btn";
-    tagBtn.textContent = "🔗 Tie current 3D selection";
-    tagBtn.title = "Add the element selected in the 3D model to this record";
-    tagBtn.onclick = async () => {
-      const g = this.ctx.host.selectedGuid();
-      if (!g) { this.ctx.host.setStatus("select an element in the 3D model first (Model workspace)"); return; }
-      try { const res = await this.ctx.host.api.tagElements(pid, m.key, rid, [g], "add");
-        this.ctx.host.setStatus(`tied ${res.count} element${res.count === 1 ? "" : "s"}`); void this.openRecord(m, rid); }
-      catch (e) { this.ctx.host.setStatus(`tie failed: ${(e as Error).message}`); }
-    };
-    elRow.appendChild(tagBtn);
-    if (guids.length) {
-      const showBtn = document.createElement("button"); showBtn.className = "tool-btn"; showBtn.textContent = "👁 Show in model";
-      showBtn.onclick = () => this.ctx.host.onSelectGuids(guids); elRow.appendChild(showBtn);
-      const clrBtn = document.createElement("button"); clrBtn.className = "tool-btn"; clrBtn.textContent = "✕ Clear ties";
-      clrBtn.onclick = async () => {
-        if (!(await confirmModal(`Untie all ${guids.length} elements from ${r.ref}?`, "", "Untie", true))) return;
-        try { await this.ctx.host.api.tagElements(pid, m.key, rid, [], "set"); void this.openRecord(m, rid); }
-        catch (e) { this.ctx.host.setStatus(`clear failed: ${(e as Error).message}`); }
-      };
-      elRow.appendChild(clrBtn);
-    }
-    this.ctx.root.appendChild(elRow);
-    if (m.key === "schedule_activity" && guids.length) {
-      const hint = document.createElement("div"); hint.className = "meta";
-      hint.textContent = "These elements complete on this activity's finish date in the 4D scrub.";
-      this.ctx.root.appendChild(hint);
-    }
+    this.ctx.root.appendChild(await renderTiedElements({
+      pid, moduleKey: m.key, ref: r.ref, record: r, host: this.ctx.host,
+      onReload: () => { void this.openRecord(m, rid); },
+    }));
 
     // workflow actions (server-gated by party)
     const acts = r.available_actions ?? [];
@@ -2542,5 +2513,4 @@ export class RegisterUI {
     wrap.append(cv, clear);
     return () => (dirty ? cv.toDataURL("image/png") : "");
   }
-
 }

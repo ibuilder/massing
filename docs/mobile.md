@@ -75,6 +75,8 @@ build keeps working in a desktop browser.
   runs with no network once cached.
 - **Field capture** — offline photo → punchlist/observation, syncs on reconnect (the core jobsite
   loop), persona-gated to subcontractor/GC. A persistent IndexedDB upload queue survives app restarts.
+  **Field mode** (`?field=1` / a Field toggle) is 56 px targets, outdoor contrast, an always-visible
+  sync strip, and dictation on the note when SpeechRecognition exists.
 - **Full platform, same build** — the mobile wrapper ships the *same* web app, so everything is on a
   phone: the GC portal (RFIs/submittals/change orders/daily reports), the **Schedule → Budget (GMP)**,
   **5D** cost-on-the-model + heatmap, pay apps, and the multi-user roles. Heavy authoring is desktop-first.

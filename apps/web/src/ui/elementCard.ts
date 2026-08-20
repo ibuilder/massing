@@ -10,7 +10,8 @@
  * It rendered them from **exactly one call site**: the 3D viewer's inspector (`viewer/app.ts`). So
  * the one genuinely unusual thing about this product was visible only to somebody already looking at
  * the model — which is the person who needs it least. An estimator reading a cost trace, or a PM
- * reading an RFI, saw a GlobalId and nothing else.
+ * reading an RFI, saw a GlobalId and nothing else. **v0.3.1000** mounts this card from every register
+ * record that names an element (`portal/register/tiedElements.ts`) as well as the cost-trace lookup.
  *
  * **The extraction this needed turned out not to exist.** The plan was to pull the strip out of
  * `viewer/` so other surfaces could use it without dragging in three.js. On opening the file:
