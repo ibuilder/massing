@@ -4,7 +4,7 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.1037 (2026-08-20) — trimesh 5, and the section coverage that makes the bump checkable
+## v0.3.1040 (2026-08-20) — trimesh 5, and the section coverage that makes the bump checkable
 
 ### Changed
 
@@ -34,6 +34,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
   5.0.0 was required. `test_lock_satisfies_requirements` reads it now, which is why #281 could not
   merge as it stood.
 
+## v0.3.1039 (2026-08-20) — `/precon` leaves client.ts
+
+SCALE-SEAM ㉒. Six preconstruction methods (estimate continuity, snapshot, decisions,
+assumptions, VE, alignment) moved to `apps/web/src/api/precon.ts`. One contiguous run.
+`client.ts` 3,170 → 3,128.
+
+## v0.3.1038 (2026-08-20) — `/ai` leaves client.ts
+## v0.3.1026 (2026-08-20) — `/ai` leaves client.ts
+
+SCALE-SEAM ㉑. Six AI methods (risk summary, ask, RFI triage/draft, estimate,
+author) moved to `apps/web/src/api/ai.ts`. Five regions. `aiReadiness`
+(`/ai-readiness`) stays. Increment class widened ①–㉕.
+`client.ts` 3,205 → 3,170.
 ## v0.3.1036 (2026-08-20) — boto3 and numpy floors raised, and the lock recompiled to match
 
 ### Changed
@@ -74,6 +87,7 @@ The upgrade audit's remaining code slice, not another library.
   survives without contradicting the newer layout.
 
 ## v0.3.1034 (2026-08-20) — `/topics` leaves client.ts
+## v0.3.1025 (2026-08-20) — `/topics` leaves client.ts
 
 SCALE-SEAM ⑳. Seven BCF methods (create, viewpoints, board, timeline, comments)
 moved to `apps/web/src/api/topics.ts`. Three regions. `pins()` stays (`/pins`).

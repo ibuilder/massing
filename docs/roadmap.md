@@ -2638,11 +2638,16 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ⑳ — `client.ts` is no longer a god-file, but the split is not finished.** *(⑳ `/topics` SHIPPED v0.3.1025; ②–⑲ already shipped)*
+- ◧ ⭐ **SCALE-SEAM ㉒ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉒ `/precon` SHIPPED v0.3.1027; ②–㉑ already shipped)*
+  **㉒ took `/projects/{pid}/precon` out** (6 methods, one contiguous run; `client.ts` 3,170 → 3,128)
+  as `apps/web/src/api/precon.ts`.
+
+  **㉑ took `/projects/{pid}/ai` out** (6 methods in five regions; `client.ts` 3,205 → 3,170)
+  as `apps/web/src/api/ai.ts`. `aiReadiness` (`/ai-readiness`) stays. The increment marker
+  in `roadmapLanes.test.ts` now runs ①–㉕.
+
   **⑳ took `/projects/{pid}/topics` out** (7 methods in three regions; `client.ts` 3,243 → 3,205)
-  as `apps/web/src/api/topics.ts`. `pins()` stays (`/pins`). The increment marker in
-  `roadmapLanes.test.ts` currently runs ①–⑳; the next cut needs that class widened before
-  it can be named ㉑.
+  as `apps/web/src/api/topics.ts`. `pins()` stays (`/pins`).
 
   **⑲ took `/projects/{pid}/mep` out** (7 methods in four regions; `client.ts` 3,304 → 3,243)
   as `apps/web/src/api/mep.ts`. `connectMep` / `addMepFitting` stay (`editIfc`).
@@ -2659,7 +2664,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   **⑮ took `/projects/{pid}/drawings` out** (11 methods in six regions; `client.ts` 3,538 → 3,482)
   as `apps/web/src/api/drawingSheets.ts`. `markupStream` uses `liveStream` on HttpCore.
 
-  **`client.ts` went 4,956 → 3,205 lines** (`wc -l`). Next is the next route-group by size; pick it by
+  **`client.ts` went 4,956 → 3,128 lines** (`wc -l`). Next is the next route-group by size; pick it by
   re-running the classification below, not by reading the section comments.
 
   **This entry read `③+` and named `/model`, `/modules` and `/estimate` as the next groups until
