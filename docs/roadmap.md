@@ -448,50 +448,6 @@ cleanup. The three options:
 
 The engine work is done either way; only the naming is open.
 
-- ✅ **R31-CITE-HIGHLIGHT** *(**SHIPPED v0.3.1005** — snippet v0.3.868; source stored v0.3.877; control v0.3.938; **PageWords bridge v0.3.1005**)* — a citation opens the in-app takeoff viewer (`citationControl.ts` → `pdfTakeoff.ts`), which supplies `PageWords` from `PdfDocument.textItems`. `locatePassage` boxes the snippet; a miss is a toast, never a guessed rectangle. Text-only ingest stays inert (`openable: false`).
-
-  **SHIPPED v0.3.938 — and the delay was self-inflicted, which is the lesson.** The work was one
-  afternoon once the premise was checked. What kept it open was that both citation renderers declared
-  their own inline `{ page, snippet }` type and dropped the `doc_id` and `openable` the server had
-  been sending since v0.3.877 — so the capability was invisible from both ends, and a code comment
-  plus this very entry both asserted a blocker that no longer existed. `citationContract.test.ts`
-  now asserts the shared `DocCitation` type against `doc_text.py` by set equality, so a client type
-  narrower than the response fails a build instead of quietly re-scoping a feature as blocked.
-
-  **CLEARED 2026-08-07.** The blocker was smaller and dumber than this entry knew: `ingest` ran
-  `extract_pdf_text` and then **discarded the PDF**, so even when a real document existed nothing
-  afterwards could open it. The index entry now carries `source` / `source_kind`, a posted PDF is
-  stored beside its chunks, `GET /projects/{pid}/doctext/{doc_id}/source` serves it, and every
-  citation reports `openable` as a value. A text-only ingest reports `openable: false` — there is no
-  document behind it and there never was, so that is an answer rather than a gap. **What remains is
-  only the viewer half**: `citeLocate.ts` is written against a structural interface and still needs
-  something to supply `PageWords`.
-
-  `doc_text.py` derives `doc_id` as a **slug of the document's name**, and the doctext index stores
-  `{doc_id, name, chunks, sections, ingested_at}` — no file id, no path. `ingest(pid, name, text=None,
-  pdf_bytes=None)` takes raw bytes plus a name, so **a doctext document need never have been a stored
-  file at all**; for a text ingest there is no PDF anywhere. `rfi_qa.py:182` switched citations to
-  `doc_id` in v0.3.810 describing it as "the RESOLVABLE identifier" — it is not resolvable either, so
-  that change moved the dead end rather than closing it.
-
-  Unblocking it needs a backend change first: record the source document (file id or storage key) on
-  the doctext index entry at ingest, and accept that text-only ingests can never highlight. Then the
-  viewer needs a `PageWords` bridge for `locatePassage` to read — `citeLocate.ts` is written against
-  a structural interface precisely so it does not depend on the viewer, but something must still
-  supply the words.
-
-  **Shipped instead (v0.3.868): the citation now shows the snippet it is citing**, which the server
-  has been sending all along and the UI discarded, rendering `p.12` alone. That is a page number the
-  reader had to take on trust in a draft about to go to a design team. It needs no resolution path.
-
-  Original: **the data half and the locator are both done; nothing calls them.** `doc_text.answer()` carries `doc_id` into every citation and `rfi_qa` passes the
-  passage as `span` (v0.3.810); `drawings/citeLocate.ts` finds that passage on the page and returns
-  its box, degrading through three match rungs and reporting ambiguity (v0.3.816). The remaining work
-  is one seam: `portal/panels/aiassist.ts` still renders `"Source: p.12"` as inert `textContent`, and
-  its local citation type declares only `{ page, snippet? }` — **it drops the `doc_id` and `span` the
-  server already sends.** Widen the type, make the citation a control, call the locator, draw the box.
-  *Recorded as unreachable in the module's own header so it cannot be mistaken for shipped
-  capability — the mistake this band exists to catch.*
 
 - ◧ **QTO-TRADE — the four procurement methods cannot be wired at all, and this is why.**
   *(**backend half DONE**; the remaining work is the other three methods' screens — Lane B, not C)*
@@ -530,41 +486,6 @@ The engine work is done either way; only the naming is open.
   not. **Route existence and input adequacy are different questions**, and the sweep only ever
   measured the first. The blocking work is a trade classification for QTO lines — backend, not UI.
 
-- ✅ **RATCHET-SET — the uncalled ceiling is a scalar with no floor, and it loosened silently today.**
-  *(S; `apps/web/src/api/clientCallers.test.ts`)*
-
-  **ALREADY DONE — verified 2026-08-13, and this entry was the stale thing.** The conversion landed
-  on 2026-08-07: `clientCallers.test.ts` now holds the committed `UNCALLED` set and there is no
-  surviving `toBeLessThanOrEqual` assertion anywhere in the file — the only occurrences are inside
-  the history comments explaining why the scalar was removed, which is exactly the shape that makes a
-  grep say "still there". It went further than this entry asked, too: rather than one set-equality it
-  asserts two directional `toEqual([])` checks, so *newly appeared* and *newly wired* report as
-  separate diffs instead of merging into one indistinguishable blob.
-
-  Left here rather than moved to `roadmap-completed.md` with the closing argument intact, because the
-  reasoning below is the record of *why* a scalar ceiling was the wrong instrument, and it is worth
-  reading before anyone adds another one.
-
-  The assertion is measured-less-than-or-equal-to-ceiling. **Nothing asserts the ceiling is tight**,
-  so a *higher* literal always passes. On 2026-08-07 five PRs lowered that one line from four
-  different bases; two live instances were caught only by hand: #254 carried 129 onto a main at 128,
-  and #273 carried 123 onto a main at 117 — each would have raised the ceiling with every gate green
-  and nobody able to see it.
-
-  **Merge sequencing does not fix this.** It decides *which* number lands, not whether it is true:
-  two PRs measured against one base are both correct until either merges, and then the second is
-  wrong. The second must **re-measure**, not rebase.
-
-  Replace the scalar with the committed **set of uncalled method names**, asserted equal. Tight by
-  construction (set equality has no loose direction); merge-friendly (two PRs reaching different
-  methods delete different lines instead of fighting over one); and strictly more informative — a
-  method moving into the known-uncalled exclusion becomes a visible line move rather than an
-  invisible population change.
-
-  **It does not fix the deeper problem and should not be sold as doing so.** A name leaving the list
-  still only proves a call site appeared, not that the feature works — a caller wired to an
-  incompatible input lowers the number while every gate stays green. That needs a second check:
-  a reach PR should show its endpoint returning real data with the arguments its own caller sends.
 
 - ◧ **R43-VIEWER-CONFORMANCE** *(S — Lane E; MassingViewer issue #512; **RUN 2026-08-13**, full
   result in [`docs/internal/viewer-conformance-2026-08-13.md`](internal/viewer-conformance-2026-08-13.md))*
@@ -657,8 +578,8 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑮ |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | — |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑬ · SCALE-SEAM ⑭ · SCALE-SEAM ⑮ |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(the three cache locations drop all seven security headers)* · R39-CONTAINER-PR *(no PR job exercises a docker-action bump)* · R39-TSC-CACHE *(incremental tsc hides orphaned imports)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -1369,12 +1290,6 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
 
   The `MeshStandardMaterial` clause needs no work — every remaining use is GIS context, not the BIM
   pass.
-- ✅ **R23-SYMBOL-COUNT** *(M — **SHIPPED ① v0.3.1010 / ② v0.3.1011**)* — deterministic
-  template-match symbol counting: mark one instance, normalised cross-correlation, non-maximum
-  suppression (`apps/web/src/ui/symbolCount.ts`). **Zero new dependencies**, offline, auditable.
-  ② boxes one instance on the pdf.js takeoff canvas (`apps/web/src/drawings/pdfTakeoff.ts`);
-  matching peaks become existing `count` marks. Matching is on the rendered pixels, not inside
-  the pdf.js worker.
 
 **Watch, not work:** WebGPU (`WebGPURenderer` exists in the pinned three, but Fragments targets WebGL
 — 2–3 year horizon) · browser-side IFC parsing (a streaming WASM parser now exists; server-side
@@ -1483,12 +1398,6 @@ refute one, so this goes first even though it is the least visible.
   takes this should build the beacon and flip those two, and should not expect to write a backend test.
 ### Sprint 2 — cash the moat *(the differentiation no competitor can copy)*
 
-- ✅ **R24-ELEMENT-CARD ②** *(S — **SHIPPED v0.3.1000**)* — the strip exists in `apps/web/src/ui/elementCard.ts`.
-  Call sites: viewer inspector, cost trace (`apps/web/src/portal/panels/traceability.ts`), and every
-  register record that names an element (`apps/web/src/portal/register/tiedElements.ts`) — RFI, estimate
-  (tied GUIDs plus `line_items` `guid` / `element_guid` / `ExtIdentifier`), SOV (the G703 / pay-app line;
-  there is no `pay_app` module), asset register (the in-app COBie Component row). A failed lifecycle is
-  the identity line, never a six-blank strip. More than 8 GUIDs is a named sample.
 - ~~**R24-TRACE-UI ②**~~ *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
   **proforma emit its own derivation**: each headline figure carrying its inputs and a
   **model-derived / overridden / market-assumption** tag, terminating in a GlobalId where one exists.
@@ -1506,10 +1415,6 @@ refute one, so this goes first even though it is the least visible.
   like it walks to a GlobalId while actually asserting one. That is the fabrication shape this repo
   has spent a day naming, and it would have been shipped as the on-stage demo. Whoever picked up
   Sprint 2 would have started in the client and found nothing to render.
-- ✅ **R24-READINESS-HOME** *(S — **SHIPPED v0.3.988** as the UX-READINESS-EVERYWHERE strip; scope
-  server-side v0.3.989; persona **order** + unavailable line + home Pulse GET v0.3.991)* — see
-  `apps/web/src/portal/panels/readinessStrip.ts`, `services/api/src/aec_api/master_builder_scope.py`,
-  and `services/api/src/aec_api/project_pulse.py`. Not a second protocol.
 - ◧ **R24-RUNS-INBOX** *(M; history half v0.3.947)* — clash, IDS, cost and energy become durable Runs
   (inputs, timestamp, author, artifact, **diff against the previous run**) with a per-project inbox.
   Most externally validated item in the ring — see the corroboration note above.
@@ -1535,10 +1440,6 @@ refute one, so this goes first even though it is the least visible.
 
 ### Sprint 3 — the front door earns its keyboard
 
-- ✅ **R24-DENSITY ②** *(M — **SHIPPED v0.3.996**)* — three steps (Field 56 px / Default 36 px / Compact 28 px) applied to
-  **registers**, not just the dashboards `prefs.ts` covers today. Tabular figures on numeric register cells.
-  Cycle control on the portal home; `data-density` on the portal root so `.portal-table` follows.
-  Catalog ★ / module buttons use a visible `focus-visible` ring (`outline-offset: 2px`).
 
 ### Sprint 4 — field, and the long tail
 
@@ -1548,13 +1449,6 @@ refute one, so this goes first even though it is the least visible.
   Slice ②: field-mode CSS beats the FAB's inline 52 px. Slice ③: with a project open, field mode
   **lands on the capture sheet** (`shouldOpenCaptureHome`). Slice ④: `#workspaces` is hidden while
   the mode is on, so the seven-room tablist is not field home. Replacing the portal shell is Lane A.
-- ✅ **R24-CHARTS-GRAMMAR** *(**SHIPPED v0.3.1002**)* — no-data (v0.3.783), ticks/legend/currency
-  (v0.3.948), **series vs status (v0.3.1002)**. `chartColor` is `SERIES_PALETTE` (seven categorical
-  slots, none of them a traffic-light hue or `--accent`). Signed magnitude, the CPI–SPI quadrant, and
-  a progress bar's complete/low states keep `STATUS_GOOD` / `STATUS_WARN` / `STATUS_CRIT`. A status
-  mix donut must pass those hues in; occupying slot 0 is not how you get "passing". SVG fills stay
-  outside `ui/colorContract.ts` (that list is CSS selectors). The audit's "four semantic hues" rule
-  stays for status and does not apply to series identity.
 - 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; scheduling still open.** The catalog was
   **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above
   them — owner monthly · lender draw · IC · precon/GMP · design issue · closeout · ownership quarter —
@@ -1568,8 +1462,6 @@ refute one, so this goes first even though it is the least visible.
   and SMTP. The Job row is already the record that a pack ran.
 - **R24-TERMS** *(S)* — the remaining long tail (element/component and estimate/budget/cost pairs
   are a user decision; storey/floor settled v0.3.945).
-- ✅ **R24-MONO-DATA** *(S — **SHIPPED v0.3.1003**)* — `var(--mono)` is the only first-party face;
-  the paste-rows textarea was the last `ui-monospace` literal. Allowance is 0.
 
 **Explicitly NOT in scope: the audit's visual identity** (ink canvas `#080C12`, IBM Plex Sans/Mono,
 the 24 px/192 px brand grid at 5–7%). It is the most seductive item in the document and the least
@@ -1823,10 +1715,6 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
     the pane had been unreachable (toggle button never appended), its fetch had failed cross-origin
     since v0.3.826 (`credentials:"include"` without a credentials CORS grant), and the live route
     dropped the `storey` param entirely — three defects only a live drive could see.
-- ✅ **R38-SHEET-MARKUP ③** *(M, Lane B — **SHIPPED ① v0.3.1012 · ② v0.3.1013 · ③ v0.3.1014**)* —
-  generated-sheet pins store GlobalId (`apps/web/src/ui/sheetGuid.ts`); promote copies it onto
-  `Topic.element_guids` (`services/api/src/aec_api/routers/bim.py`); PDF markup opens on every
-  generated sheet (`apps/web/src/ui/svgPdf.ts` wraps the live SVG when there is no `sheet.pdf`).
 - Consumes: R24-ELEMENT-CARD ② and R31-CITE-HIGHLIGHT (both already coded) as the "everything
   about this thing" surface.
 
@@ -2007,6 +1895,40 @@ plausible IoT reading — the connection was checked and deliberately not manufa
 `docs/internal/`, because `services/api/test_no_comparative_names.py` gates the public docs.*
 ## 🔧 R39 — DEPLOYMENT-TRUTH RING *(external engineering audit 2026-08-02, premise-checked item by item)*
 
+**Three items added 2026-08-20 from the PR-reconciliation pass** — each is a control that reads
+stronger than it is, which is this ring's whole theme:
+
+- **R39-NGINX-INHERIT ②** *(S, Lane J)* — **`nosniff` is absent from every bundle, WASM binary
+  and worker we serve.** nginx drops **all** server-level `add_header`s in any location that
+  declares one of its own. `apps/web/nginx.conf` has three such locations — `~* \.mjs$`,
+  `/assets/` and `/wasm/`, each declaring `Cache-Control` — so all **seven** security headers
+  vanish from exactly the responses where MIME sniffing matters most. Only `location = /index.html`
+  repeats the set. Found while reviewing the first outside contribution
+  ([#311](https://github.com/ibuilder/massing/pull/311)), which correctly identified the trap and
+  restored **2 of 7** headers on **1 of 3** locations — its accompanying test then froze that
+  partial state as correct by special-casing `Cross-Origin-*` to three scopes and everything else to
+  two. Take the contribution, then finish it: the gate should **derive** the locations that declare
+  an `add_header` and require the full set in each, so a *fourth* such location fails on the day it
+  is added rather than the day someone re-audits.
+- **R39-CONTAINER-PR** *(S, Lane J)* — **a Docker-action bump cannot be verified before it lands.**
+  `Container build + scan + publish` is gated `if: github.event_name == 'push' && github.ref ==
+  'refs/heads/main'`, so it reports **`skipping`** on every PR and *structurally cannot* run on one.
+  Dependabot's [#276](https://github.com/ibuilder/massing/pull/276) (`build-push-action` 6→7) and
+  [#279](https://github.com/ibuilder/massing/pull/279) (`setup-buildx-action` 3→4) both showed
+  all-green — a 21-minute API gate, a web build, CodeQL — and **not one of those greens exercised
+  the thing that changed.** A break lands directly on `main`. Wanted: a build-only, no-push
+  container job on PRs touching `**/Dockerfile` or `.github/workflows/ci.yml`. *Until it exists,
+  land such bumps alone, after an unrelated push has proven the baseline, so a red build has one
+  suspect and a one-commit revert.* **A skipped job is not a passed job.**
+- **R39-TSC-CACHE** *(XS, any lane)* — **a local typecheck is weaker than the CI one, silently.**
+  `apps/web/tsconfig.json` sets `"incremental": true` with a cached `tsBuildInfoFile`, so
+  `npm run typecheck` reuses program state and does not re-report unused-symbol diagnostics for a
+  file whose signature did not change. CI checks out clean and does. Measured on v0.3.1020: two type
+  imports orphaned by SCALE-SEAM ⑭ passed locally and failed CI with TS6196. Every "typecheck green"
+  quoted from a warm cache is a claim about the cache. Wanted: `predev`/`pretypecheck` clearing the
+  cache, or the flag dropped — extractions are exactly the change that leaves orphans, so the
+  weakness lands where it hurts.
+
 **Why this ring exists.** An external audit of the deployment surface found that several controls are
 weaker than they read: a throttle that counts per process behind four workers, an upload cap that only
 exists if requests happen to arrive through the bundled proxy. The shape is familiar — R35's theme of
@@ -2016,13 +1938,6 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 (`apps/web/nginx.conf` + `apps/web/src/deploy/nginx.test.ts`), the multi-worker sidecar-lock boot
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
 
-- ✅ **BUILD-WORKTREE-CHUNKS** *(M — Lane J — **SHIPPED v0.3.1017**)* — a worktree `vite build` used to
-  succeed and emit the wrong bundle (19.7× eager shell) because a bare `vite` resolved the
-  workspace-root Vite 6, which ignores `rolldownOptions.advancedChunks`. `apps/web/scripts/run-vite.mjs`
-  now execs the nested pin (`apps/web/node_modules/vite`, found via `git-common-dir` from a worktree).
-  `vite.config.ts` allows the hoisted `node_modules` the same way `vitest.config.ts` already did.
-  Vendor chunks stay asserted by `bundle-budget.mjs`; `pages.yml` already runs `npm run budget`.
-  Copy-wasm depth (v0.3.874) was the other half.
 
 - ◧ **R39-UPLOAD-CAP-APP ①** *(S, Lane C — **FRONT HALF SHIPPED v0.3.876; the conversion of the
   36+ `await file.read()` call sites onto `storage.put_stream` remains, and is the rest of
@@ -2059,11 +1974,6 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   end. **Two entries, one mechanism** — fix either in isolation and the other still holds the memory
   open.
 
-- ✅ **R39-A11Y-JOURNEYS ②** *(M, Lane B — **SHIPPED v0.3.1007**)* — keyboard-only acceptance journeys for the seven rooms,
-  encoded as tests rather than an audit doc: for each room, tab-reach the primary action, operate it,
-  and land focus somewhere sane (`apps/web/src/ui/a11yJourney.ts`). Design's primary is the Design tab;
-  the other six mark `[data-room-primary]` on the room brief (or the first work-queue row). The a11y
-  sweeps so far checked *attributes*; this checks a *journey*.
 - **R39-VIEWER-OBS ②** *(M, Lane E)* — the viewer has no timing record: "loads slowly" arrives as a
   feeling, not a number. Instrument the load journey (fetch → parse → first frame, keyed by model
   size) and POST the timings to the platform's own API — no third-party telemetry, nothing new to
@@ -2221,23 +2131,6 @@ which 7 were project accounting, and `Model & standards` held 14 mixing project 
 findings. Split into Build/Money and Model & standards/Analyse & check — **max group 14 → 7**, nothing
 removed. Remaining, in priority order:
 
-- ✅ **UX-READINESS-EVERYWHERE** / **R24-READINESS-HOME** *(M — **SHIPPED v0.3.988**, scope server-side **v0.3.989**)* — the Master
-  Builder 8-step brief is no longer Design-only. `apps/web/src/portal/panels/readinessStrip.ts` mounts
-  a scoped strip on every portal home (`apps/web/src/portal/portal.ts` `renderHome`); workspace ∩
-  persona is applied in `services/api/src/aec_api/master_builder_scope.py` (`test_master_builder_scope.py`
-  locksteps the TS maps). Empty-intersect falls back to the workspace set; fail-open shows
-  "Readiness unavailable" rather than a blank (**v0.3.991**). Persona order is the server `keys`
-  list. Home Pulse is `GET /projects/{id}/pulse` (`project_pulse.py`). Full brief still
-  `__masterbuilder__`. The eight-card panel is unchanged.
-  `Model Health` (8 references), `Model Analysis` (5) and `BIM KPIs` (5) are three
-  destinations whose names do not tell a user which answers their question; all three now sit together
-  under `Analyse & check`, which makes the overlap visible and worth resolving rather than hiding it.
-- ✅ **UX-GANTT** *(M — **SHIPPED v0.3.1009**)* — weekly Gantt/calendar hybrid (`apps/web/src/portal/panels/weeklyGantt.ts`)
-  with inline % + trade/crew colour from `SERIES_PALETTE` + a metric strip. The month-scale SVG Gantt remains.
-- ✅ **UX-DUP-DESTINATIONS** *(S — **SHIPPED v0.3.994**)* — Design's `Analyse & check` is one
-  `__analyse__` home (`apps/web/src/shell/analyseHome.ts`) with three named tasks that still open
-  `__modelqa__` / `__modelanalysis__` / `__bimkpi__`. #295 renamed the labels; this collapse is the
-  remaining work. Do not invent a new scorecard. Readiness hops to the task dests still work.
 - **UX-3 library depth** — thumbnails · drag-to-place · pick-host→auto-build · appendable IFC
   libraries · CC0 seed/H1. **UX-4** one-shell layout (a11y/mobile pass).
 ## 🏔 BIG-TICKET — multi-release initiatives (open ONE track; slice + reassess)
@@ -2741,16 +2634,6 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   links do not change paper. 11×17 is omitted on purpose (not half of 24×36). Live PDF still
   needs a source IFC — the demo's "no model" cannot exercise the box.
 
-- ✅ **R36-ROOM-BRIEFS** *(M — Lane B; **SHIPPED v0.3.999** — Cost / Planning / Operate; Schedule 995; Deal 998)* — per-room, per-role landing priority:
-  each room opens with the three answers its primary role needs. Shared chrome lives in
-  `apps/web/src/portal/panels/roomBriefChrome.ts`. A failed fetch is a reason (`data-unavailable`),
-  never a plausible zero. Work already did this by construction.
-  **Schedule:** `apps/web/src/portal/panels/scheduleBrief.ts` on `__schedule__`.
-  **Deal:** `apps/web/src/portal/panels/dealBrief.ts` on `__portfolio__`.
-  **Cost:** `apps/web/src/portal/panels/costBrief.ts` on `__budget__` — vs GMP, unpriced exposure, buyout.
-  **Planning:** `apps/web/src/portal/panels/planningBrief.ts` on `__benchmarks__` — RFI clock, submittal clock, cost history.
-  **Operate:** `apps/web/src/portal/panels/operateBrief.ts` on `__operations__` — overdue WOs, PM compliance (`null` is not 0%), FCI (no elements is not 0%).
-  **Design is skipped on purpose:** `apps/web/src/shell/spine.ts` sets Design home to null — the 3D viewer is the room. A portal brief would be a second home.
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
 - ◧ ⭐ **SCALE-SEAM ⑮ — `client.ts` is no longer a god-file, but the split is not finished.** *(⑮ `/drawings` SHIPPED v0.3.1020; ②–⑭ already shipped)*

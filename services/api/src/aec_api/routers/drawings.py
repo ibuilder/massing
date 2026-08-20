@@ -618,7 +618,11 @@ def list_storeys(pid: str, db: Session = Depends(get_db), _sec: str = Depends(re
     from aec_data import drawings  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
-    return drawings.storey_elevations(open_model(_source_ifc(db, pid)))
+    # R43-PLAN-EMPTY-AT-CUT ③ — each level carries the cut height that actually catches its
+    # geometry, so the caller that picks a level is the one told which plane to ask for. Additive:
+    # `name`/`elevation`/`guid` are unchanged, and `cut_height` is a suggestion to pass back to
+    # `plan.svg`, not something applied behind the caller's back.
+    return drawings.storeys_with_cut(open_model(_source_ifc(db, pid)))
 
 
 @router.get("/projects/{pid}/model/grid")
