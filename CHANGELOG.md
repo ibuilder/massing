@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1027 (2026-08-20) — `/precon` leaves client.ts
+
+SCALE-SEAM ㉒. Six preconstruction methods (estimate continuity, snapshot, decisions,
+assumptions, VE, alignment) moved to `apps/web/src/api/precon.ts`. One contiguous run.
+`client.ts` 3,170 → 3,128.
+
 ## v0.3.1026 (2026-08-20) — `/ai` leaves client.ts
 
 SCALE-SEAM ㉑. Six AI methods (risk summary, ask, RFI triage/draft, estimate,

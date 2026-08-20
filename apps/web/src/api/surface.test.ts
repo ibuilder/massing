@@ -138,6 +138,7 @@ describe("the API client's public surface", () => {
       "topicsBoard", "createTopic", "viewpoints", "topicComments",  // BCF coordination
       "mepSummary", "mepConnectivity", "sprinklerCoverage", "mepModelExtract",
       "aiAsk", "riskSummary", "draftRfi",
+      "estimateContinuity", "preconAlignment", "veLog",
       "elementEffectiveProps", "element", "elementLifecycle", "colorFacets", "elementCosts", "costSummary",       // model + 5D
       "modelHealth", "modelQa", "projectModels",
       "documentsTree", "uploadDocument", "documentDownloadUrl",
