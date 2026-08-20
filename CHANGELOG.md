@@ -4,11 +4,30 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## Unreleased
+## v0.3.1028 (2026-08-20) — the other five headers the same trap was eating
 
 ### Fixed
 
-- Preserve cross-origin isolation headers for module workers in Nginx deployments so IFC geometry loading does not stall.
+- Preserve cross-origin isolation headers for module workers in Nginx deployments so IFC geometry
+  loading does not stall. *(#311, john-rogers — the first outside contribution.)*
+- **And the rest of what that trap was eating.** nginx inherits `add_header` from the enclosing
+  scope only while the current scope declares none, so a location with its own `Cache-Control`
+  silently drops **all seven** server-level security headers. Three locations do this —
+  `~* \.mjs$`, `/assets/` and `/wasm/` — which meant `X-Content-Type-Options: nosniff` was absent
+  from every hashed bundle, every WASM binary and every module worker the app serves. #311 fixed
+  the two headers that caused the reported stall on one of the three; the full set now appears in
+  all three.
+
+### Changed
+
+- **`nginx.test.ts` derives the population instead of counting scopes.** The incoming test encoded
+  the partial state as the specification — `Cross-Origin-*` required in three scopes, everything
+  else in two — which passes forever with `nosniff` still missing. It now finds every location
+  block that declares an `add_header` and requires the whole set in each, so a *fourth* such
+  location fails the day it is added rather than the day someone re-audits. Mutation-checked:
+  deleting `nosniff` from `/wasm/` alone fails with a message naming that location.
+
+
 
 ## v0.3.1027 (2026-08-20) — a sanitiser narrower than its input type
 
