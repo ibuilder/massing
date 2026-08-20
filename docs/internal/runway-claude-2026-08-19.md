@@ -1,4 +1,4 @@
-# Runway for Claude Code — 2026-08-20, after v0.3.1026
+# Runway for Claude Code — 2026-08-20, after v0.3.1027
 
 **Grade: live handoff.** Written so the next session picks up from measured state rather than chat
 memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still is. Security
@@ -12,13 +12,13 @@ interface is git: this file, `docs/roadmap.md`, and the stacked PRs. Fetch befor
 
 ## If you are catching main up (Claude Code)
 
-`origin/main` is still **v0.3.986** (`a67c4732`). The Cursor stack is **v0.3.988–1026**, unmerged,
+`origin/main` is still **v0.3.986** (`a67c4732`). The Cursor stack is **v0.3.988–1027**, unmerged,
 draft PRs, each stacked on the previous. Your job is to **land that stack onto main**, not to
 re-implement it.
 
-1. `git fetch origin`. Tip of the stack: `origin/cursor/scale-seam-ai-6e15` (**v0.3.1026**).
+1. `git fetch origin`. Tip of the stack: `origin/cursor/scale-seam-precon-6e15` (**v0.3.1027**).
 2. Land **in table order**, one PR at a time. After each merge, rebase the remainder onto the new
-   `main`. **Keep the later version numbers** (do not rebump 1026 down to 987).
+   `main`. **Keep the later version numbers** (do not rebump 1027 down to 987).
 3. Do **not** redo rows in “What already shipped on this stack”.
 4. Do **not** merge #296 (superseded by #297). Do **not** treat #311 as part of this stack
    (cross-origin isolation / nginx — separate).
@@ -64,7 +64,8 @@ re-implement it.
 | 27 | [#320](https://github.com/ibuilder/massing/pull/320) | `cursor/scale-seam-documents-6e15` | **1023** vs #319 |
 | 28 | [#321](https://github.com/ibuilder/massing/pull/321) | `cursor/scale-seam-mep-6e15` | **1024** vs #320 |
 | 29 | [#322](https://github.com/ibuilder/massing/pull/322) | `cursor/scale-seam-topics-6e15` | **1025** vs #321 |
-| 30 | this | `cursor/scale-seam-ai-6e15` | **1026** vs #322 |
+| 30 | [#323](https://github.com/ibuilder/massing/pull/323) | `cursor/scale-seam-ai-6e15` | **1026** vs #322 |
+| 31 | this | `cursor/scale-seam-precon-6e15` | **1027** vs #323 |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main`. This agent cannot merge.
@@ -104,6 +105,7 @@ pending `main`. This agent cannot merge.
 | 1024 | SCALE-SEAM ⑲ — `/mep` mixin; `client.ts` 3,304 → 3,243 |
 | 1025 | SCALE-SEAM ⑳ — `/topics` mixin; `client.ts` 3,243 → 3,205 |
 | 1026 | SCALE-SEAM ㉑ — `/ai` mixin; `client.ts` 3,205 → 3,170 |
+| 1027 | SCALE-SEAM ㉒ — `/precon` mixin; `client.ts` 3,170 → 3,128 |
 
 ---
 
@@ -112,7 +114,7 @@ pending `main`. This agent cannot merge.
 - Binding constraint is **adoption / feel**, not missing modules. No second big-ticket.
 - No React, no Reflex. No new npm/PyPI packages without operator OK. Licence MIT/BSD/Apache/ISC/CC0.
 - Do **not** grow `apps/web/src/viewer/app.ts` or `apps/web/src/api/client.ts` without extracting
-  first. Pins: `client.ts` **3,170**, `app.ts` **3,032**, `register.ts` **2,516**.
+  first. Pins: `client.ts` **3,128**, `app.ts` **3,032**, `register.ts` **2,516**.
 - Do **not** turn `AEC_BAKE_SHARE_DIR` on by default. Do **not** add `mapped-diskcache`.
 - Design room brief: **do not add one** (`ROOM_HOME.design` is null).
 - There is **no `pay_app` module** and **no COBie worksheet UI**.
@@ -125,7 +127,7 @@ PERSONA-SHAPE; IDENTITY.
 
 ## Next slices
 
-1. **SCALE-SEAM remainder** — next route-group by size (`/precon`, `/codecheck`, `/accounting`, …). ㉑ is `/ai`.
+1. **SCALE-SEAM remainder** — next route-group by size (`/codecheck`, `/accounting`, …). ㉒ is `/precon`.
 2. **R24-FIELD-MODE remainder** — replacing the portal home (Lane A). ④ only hides the room tabs.
 3. **R24-REPORTS-BY-MOMENT** remainder — email on a date (SMTP + recipient). Assemble is shipped.
 4. Lane B still open: `R24-TERMS` (user decision), `R22-REPORT-BUILDER` (aggregation/share is backend),

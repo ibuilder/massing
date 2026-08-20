@@ -2638,7 +2638,10 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉑ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉑ `/ai` SHIPPED v0.3.1026; ②–⑳ already shipped)*
+- ◧ ⭐ **SCALE-SEAM ㉒ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉒ `/precon` SHIPPED v0.3.1027; ②–㉑ already shipped)*
+  **㉒ took `/projects/{pid}/precon` out** (6 methods, one contiguous run; `client.ts` 3,170 → 3,128)
+  as `apps/web/src/api/precon.ts`.
+
   **㉑ took `/projects/{pid}/ai` out** (6 methods in five regions; `client.ts` 3,205 → 3,170)
   as `apps/web/src/api/ai.ts`. `aiReadiness` (`/ai-readiness`) stays. The increment marker
   in `roadmapLanes.test.ts` now runs ①–㉕.
@@ -2661,7 +2664,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   **⑮ took `/projects/{pid}/drawings` out** (11 methods in six regions; `client.ts` 3,538 → 3,482)
   as `apps/web/src/api/drawingSheets.ts`. `markupStream` uses `liveStream` on HttpCore.
 
-  **`client.ts` went 4,956 → 3,170 lines** (`wc -l`). Next is the next route-group by size; pick it by
+  **`client.ts` went 4,956 → 3,128 lines** (`wc -l`). Next is the next route-group by size; pick it by
   re-running the classification below, not by reading the section comments.
 
   **This entry read `③+` and named `/model`, `/modules` and `/estimate` as the next groups until
