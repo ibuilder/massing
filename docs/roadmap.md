@@ -738,10 +738,12 @@ that rotted were all sentences no test read. Note for whoever extends it — the
 
 ### Decisions, not effort — these want your call
 
-- **CC0-1.0 on the permitted licence list.** We already ship 59 CC0 files under
-  `services/data/families/external/`, and `manifest.json` records the licence in four places — so the
-  written rule is narrower than the shipped reality. CC0 is a public-domain dedication, strictly more
-  permissive than MIT. The recommendation is to add it; **widening an allowlist is not ours to do.**
+- ~~**CC0-1.0 on the permitted licence list.**~~ — **settled 2026-08-19 (v0.3.987): add it.** The
+  Python classifier already accepted CC0-1.0 from 2026-08-10 (gated by `test_licence_allowlist.py`);
+  the *written* non-negotiable and this open-decision bullet had not followed. Operator confirmed.
+  Directions, the npm title table, and this row now match the classifier. CC0 is a public-domain
+  dedication, strictly more permissive than MIT; 59 files under
+  `services/data/families/external/` already declared it.
 - **`massingviser` vs modelmaker — which is *the* platform?** Its own description is a federated AEC
   platform in pure Python with a plugin kernel. MassingViewer raised this because both are about to
   grow a federation manager, and two federation managers is the expensive version of this question.
