@@ -7,7 +7,11 @@
 # (services/data/requirements.txt) are a strict subset of the ones below, so they need no separate lock.
 
 # --- web / API framework ---
-fastapi>=0.140.7
+fastapi>=0.141.1
+# Floor over Starlette 1.5.1 FileResponse Range fixes (GHSA / 1.6.0 max_body_size). FastAPI
+# 0.141.1 allows starlette>=0.46.0; we already stream IFC via FileResponse. Compile the lock in
+# python:3.12-slim (lockfile.yml) — this floor only takes effect once that lock is regenerated.
+starlette>=1.6.0
 uvicorn[standard]>=0.30
 sqlalchemy>=2.0
 alembic>=1.13             # DB schema migrations (source of truth going forward; see migrations/README.md)
@@ -23,7 +27,7 @@ openpyxl>=3.1
 numpy>=1.26
 ifctester>=0.8
 trimesh>=4.0
-manifold3d>=2.0
+manifold3d>=3.5.2
 scipy>=1.18.0
 # DO NOT REMOVE — it looks unused and is not. Nothing under `services/` writes `import networkx`,
 # so a grep for import sites says "zero" and the line reads like dead weight. It is the ONLY thing
@@ -41,7 +45,7 @@ scipy>=1.18.0
 # erroring. `test_sections.py` is what actually catches it — it asserts the SVG contains drawn
 # geometry, so it goes red instead of the drawings going empty.
 networkx>=3.6.1
-shapely>=2.0
+shapely>=2.1.2
 reportlab>=5.0.0
 pyhanko>=0.25            # PAdES certificate-based PDF digital signatures (esign.py)
 pypdf>=6.15.0           # CVE-2026-71852/-71870 floor (was 6.14.2 for -59935/-59936); contract/spec text extraction for the review engine (review.py)

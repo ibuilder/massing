@@ -45,11 +45,30 @@ import base64
 import io as _io
 import json
 import os
+import re
 import sys
 import tempfile
 
 sys.path.insert(0, "src")
 sys.path.insert(0, "../data/src")
+
+
+def _pinned_draco() -> str:
+    """The DracoPy version `requirements-dev.txt` actually pins, read rather than restated.
+
+    Three sources used to name a version independently: this file's skip message, the pin, and the
+    comment above the pin. On 2026-08-18 all three disagreed -- message and comment said 1.7.0, the
+    pin said 2.0.0 -- and the COMMENT was the wrong one: PyPI publishes 16 manylinux wheels for
+    2.0.0, so its stated reason ("Windows wheels ONLY") was false. Nothing compared them, so the
+    drift was invisible until someone read all three together.
+
+    Restating a version in prose is the defect. This reads the pin, so the message cannot be stale,
+    and `test_dev_pin_is_quoted_not_restated` below fails if a literal version creeps back in.
+    """
+    txt = open("requirements-dev.txt", encoding="utf-8").read()
+    m = re.search(r"^DracoPy==([0-9][^\s#]*)", txt, re.M)
+    assert m, "requirements-dev.txt no longer pins DracoPy with =="
+    return m.group(1)
 
 import ifcopenshell  # noqa: E402
 import numpy as np  # noqa: E402
@@ -218,10 +237,35 @@ check("the real _baked_by_class was restored", gltf_export._baked_by_class is _r
 check("draco is OFF by default, so the default export declares no required extension",
       "extensionsRequired" not in doc, doc.get("extensionsRequired"))
 
+# --- the three sources must not drift apart again -----------------------------------------------
+# `requirements-dev.txt` pins DracoPy, a comment above the pin explains WHY, and this file tells a
+# reader what to install. On 2026-08-18 the pin said 2.0.0 while the comment and this file said
+# 1.7.0, and the comment's justification ("2.0.0 publishes Windows wheels ONLY") was simply untrue.
+# A stale comment attached to a pin is worse than no comment: it is specific, so it gets believed.
+_draco_txt = open("requirements-dev.txt", encoding="utf-8").read()
+_this = open(__file__, encoding="utf-8").read()
+_pin = _pinned_draco()
+
+# 1. This file must not RESTATE a version -- it must read the pin. A literal `DracoPy==x.y.z` here
+#    is how the drift started, so it is the shape that is banned, not one particular number.
+_restated = [m.group(0) for m in re.finditer(r"DracoPy==[0-9][^\s\"')]*", _this)
+             if "_pinned_draco" not in _this[max(0, m.start() - 90):m.start()]]
+assert not _restated, (
+    f"this file restates a DracoPy version {_restated} instead of reading the pin via "
+    "_pinned_draco(); that is exactly how the message went stale")
+
+# 2. There is deliberately NO check that the comment names only the pinned version. The first
+#    attempt did exactly that and immediately failed on the CORRECTED comment, which cites 1.7.0
+#    while explaining what the stale claim used to say. A regex cannot tell "the version to use"
+#    from "the version this comment is about", so such a gate flags its own documentation and the
+#    fix is to reword the history until the check stops complaining -- which destroys the record.
+#    Check 1 covers the mechanism that actually failed: a version RESTATED instead of read.
+print(f"PASS  DracoPy pin ({_pin}) is READ, not restated, by this file's skip message")
+
 if not gltf_export.draco_available():
     # Loud, not silent. A skipped check that prints nothing is indistinguishable from a passing one.
     print("SKIP  Draco checks — DracoPy is not installed in this interpreter")
-    print("      (pip install DracoPy==1.7.0; it is in requirements-dev.txt, so CI runs these)")
+    print(f"      (pip install DracoPy=={_pinned_draco()}; it is in requirements-dev.txt, so CI runs these)")
 else:
     dglb = gltf_export.export_glb_bytes(path, draco=True)
     ddoc = json.loads(gltf_export.export_gltf_bytes(path, draco=True).decode("utf-8"))

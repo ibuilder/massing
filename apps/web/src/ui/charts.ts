@@ -9,13 +9,36 @@
  * waterfall (JV / sources-uses), tornado (sensitivity), histogram (Monte Carlo), donut, progress.
  */
 
-const PALETTE = ["var(--accent)", "#33d17a", "#e6a700", "#9b7cff", "#4ac6e2", "#e2554a", "#e07b39"];
-const POS = "#33d17a";
-const NEG = "#e2554a";
+/**
+ * R24-CHARTS-GRAMMAR ③ — series identity is not status.
+ *
+ * The audit asked to restrict colour to four semantic hues. That is right for *status* (good / warn /
+ * crit) and wrong for *series identity*: a seven-series S-curve collapsed onto those four is
+ * unreadable, and painting PV with `--accent` (the "you can act on this" token) plus EV with the
+ * same green as "passing" is how a chart starts lying. CSS selector paint is `colorContract.ts`;
+ * SVG fills are this contract.
+ *
+ * `chartColor` is the categorical ramp. Waterfall signs, signed bars, the CPI–SPI quadrant, and a
+ * progress bar's complete/low states use the status hues. Callers who mean status (a mix donut of
+ * on-track / at-risk) pass those hues in; they do not get them by occupying slot 0.
+ */
+export const STATUS_GOOD = "#33d17a";
+export const STATUS_WARN = "#e6a700";
+export const STATUS_CRIT = "#e2554a";
+const POS = STATUS_GOOD;
+const NEG = STATUS_CRIT;
+
+/** Paul Tol-ish categorical set with traffic-light hexes and `--accent` kept out. */
+export const SERIES_PALETTE = [
+  "#4e79a7", "#b07aa1", "#76b7b2", "#9c755f", "#79706e", "#d37295", "#86bcb6",
+] as const;
+
 const GRID = "var(--line)";
 const AXIS = "var(--muted)";
 
-export function chartColor(i: number): string { return PALETTE[i % PALETTE.length] ?? PALETTE[0]!; } // safe: PALETTE is a non-empty literal
+export function chartColor(i: number): string {
+  return SERIES_PALETTE[i % SERIES_PALETTE.length] ?? SERIES_PALETTE[0]!;
+}
 
 export function esc(s: unknown): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -212,8 +235,8 @@ export function scatterQuadrant(points: { label: string; x: number; y: number; k
   const cx = sx(c), cy = sy(c), x0 = sx(lo), x1 = sx(hi), y0 = sy(lo), y1 = sy(hi);
   const tint = (ax: number, ay: number, bx: number, by: number, fill: string): string =>
     `<rect x="${Math.min(ax, bx).toFixed(1)}" y="${Math.min(ay, by).toFixed(1)}" width="${Math.abs(bx - ax).toFixed(1)}" height="${Math.abs(by - ay).toFixed(1)}" fill="${fill}" opacity="0.1"/>`;
-  let g = tint(cx, cy, x1, y1, POS) + tint(x0, cy, cx, y1, "#e6a700")
-        + tint(cx, cy, x1, y0, "#e6a700") + tint(x0, cy, cx, y0, NEG);
+  let g = tint(cx, cy, x1, y1, POS) + tint(x0, cy, cx, y1, STATUS_WARN)
+        + tint(cx, cy, x1, y0, STATUS_WARN) + tint(x0, cy, cx, y0, NEG);
   g += `<line x1="${cx.toFixed(1)}" y1="${T}" x2="${cx.toFixed(1)}" y2="${(H - B).toFixed(1)}" stroke="${AXIS}" stroke-width="0.6" stroke-dasharray="2 2"/>`;
   g += `<line x1="${L}" y1="${cy.toFixed(1)}" x2="${(W - R).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${AXIS}" stroke-width="0.6" stroke-dasharray="2 2"/>`;
   for (const v of [lo, c, hi]) {
@@ -222,7 +245,7 @@ export function scatterQuadrant(points: { label: string; x: number; y: number; k
   }
   g += points.map((p) => {
     const proj = p.kind === "project";
-    const col = proj ? "var(--accent)" : (p.x >= c && p.y >= c ? POS : (p.x < c && p.y < c ? NEG : "#e6a700"));
+    const col = proj ? "var(--accent)" : (p.x >= c && p.y >= c ? POS : (p.x < c && p.y < c ? NEG : STATUS_WARN));
     return `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="${proj ? 3.2 : 2}" fill="${col}" stroke="var(--panel2)" stroke-width="0.6"><title>${esc(p.label)} — SPI ${p.x.toFixed(2)} / CPI ${p.y.toFixed(2)}</title></circle>`;
   }).join("");
   g += txt(W / 2, H - 1, opts.xLabel ?? "SPI (schedule) →", { anchor: "middle", size: 7 });
@@ -325,7 +348,7 @@ export function tornado(rows: { label: string; low: number; high: number }[],
   rows.forEach((r, i) => {
     const yb = T + i * 18, h = 12;
     const xl = x(Math.min(r.low, r.high)), xh = x(Math.max(r.low, r.high));
-    g += `<rect x="${xl.toFixed(1)}" y="${yb.toFixed(1)}" width="${Math.max(xh - xl, 1).toFixed(1)}" height="${h}" fill="var(--accent)" opacity="0.85"><title>${esc(r.label)}: ${fmt(r.low)} … ${fmt(r.high)}</title></rect>`;
+    g += `<rect x="${xl.toFixed(1)}" y="${yb.toFixed(1)}" width="${Math.max(xh - xl, 1).toFixed(1)}" height="${h}" fill="${chartColor(0)}" opacity="0.85"><title>${esc(r.label)}: ${fmt(r.low)} … ${fmt(r.high)}</title></rect>`;
     g += txt(L - 4, yb + 9, r.label, { anchor: "end", size: 7.5 });
   });
   return wrap(H, g, opts.title ?? "tornado", opts.height ?? Math.max(70, 20 * rows.length + 26));
@@ -344,7 +367,7 @@ export function histogram(values: number[], opts: { title?: string; bins?: numbe
   const bw = (W - L - R) / bins;
   let g = counts.map((c, i) => {
     const bh = (c / cmax) * (H - T - B), x = L + i * bw, y = (H - B) - bh;
-    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(bw - 0.4, 0.6).toFixed(1)}" height="${bh.toFixed(1)}" fill="var(--accent)" opacity="0.8"><title>${fmt(lo + i * w)}–${fmt(lo + (i + 1) * w)}: ${c}</title></rect>`;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(bw - 0.4, 0.6).toFixed(1)}" height="${bh.toFixed(1)}" fill="${chartColor(0)}" opacity="0.8"><title>${fmt(lo + i * w)}–${fmt(lo + (i + 1) * w)}: ${c}</title></rect>`;
   }).join("");
   const mx = (v: number) => L + ((v - lo) / (hi - lo || 1)) * (W - L - R);
   for (const m of opts.markers ?? []) {
@@ -382,7 +405,7 @@ export function donut(slices: { label: string; value: number; color?: string }[]
 // --- progress bar / gauge ---------------------------------------------------
 export function progressBar(value: number, max: number, opts: { label?: string; color?: string; suffix?: string } = {}): string {
   const pct = max ? Math.max(0, Math.min(1, value / max)) : 0;
-  const col = opts.color ?? (pct >= 1 ? POS : pct >= 0.5 ? "var(--accent)" : "#e6a700");
+  const col = opts.color ?? (pct >= 1 ? POS : pct >= 0.5 ? chartColor(0) : STATUS_WARN);
   return `<div style="margin:3px 0"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">`
     + `<span>${esc(opts.label ?? "")}</span><span>${Math.round(pct * 100)}%${opts.suffix ? " " + esc(opts.suffix) : ""}</span></div>`
     + `<div style="height:7px;background:var(--bg);border:1px solid var(--line);border-radius:4px;overflow:hidden">`
@@ -395,7 +418,7 @@ export function sparkline(values: number[], opts: { color?: string; width?: numb
   if (values.length < 2) return `<svg width="${w}" height="${h}"></svg>`;
   const max = Math.max(...values), min = Math.min(...values);
   const pts = values.map((v, i) => `${(i / (values.length - 1) * w).toFixed(1)},${(h - (v - min) / (max - min || 1) * h).toFixed(1)}`).join(" ");
-  return `<svg width="${w}" height="${h}" style="vertical-align:middle"><polyline points="${pts}" fill="none" stroke="${opts.color ?? "var(--accent)"}" stroke-width="1.2"/></svg>`;
+  return `<svg width="${w}" height="${h}" style="vertical-align:middle"><polyline points="${pts}" fill="none" stroke="${opts.color ?? chartColor(0)}" stroke-width="1.2"/></svg>`;
 }
 
 // --- signed bars (equity cash flow) -----------------------------------------

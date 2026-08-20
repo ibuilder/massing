@@ -33,6 +33,13 @@ deployment `diskcache.Cache` is never constructed and nothing is ever unpickled.
 it exists, comes from that environment variable alone; no request, header, or stored record
 influences it, and an environment variable is operator-supplied by definition.
 
+**When the operator does turn it on** (v0.3.988), values go through diskcache's `JSONDisk`, not the
+default pickle `Disk`. The payload was already nested lists of mesh arrays (`numpy.ndarray.tolist()`
+on the way in); a value that cannot be JSON-encoded is refused rather than pickled. That does not
+retire the advisory — pickle remains how diskcache works for any *other* Cache in the process, and
+this one is still off by default — but it does mean the bake-share path no longer deserializes with
+pickle. `mapped-diskcache` was not added; JSONDisk is already in the pinned package.
+
 Two corrections to what a first pass wanted to write here, both worth keeping as a warning about
 which facts get assumed:
 

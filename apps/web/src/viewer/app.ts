@@ -20,7 +20,10 @@ import { parseCadCommand } from "./cadCommands";
 import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
 import { DeltaStore, deltaCommitter, deltaIndicator } from "./deltaCommit";
-import { type ViewSpec, railSheetOptions, sheetPath, viewsForCanvas } from "./sheetSpecs";
+import { buildDrawingsSection } from "./tools/drawingsSection";
+import { buildFabricationSection } from "./tools/fabricationSection";
+import { buildMepSection } from "./tools/mepSection";
+import { buildEnvelopeSection } from "./tools/envelopeSection";
 import { makeWaitForPublish } from "./publishWait";
 import { buildElementProps, buildRawProps } from "./propsView";
 import { buildInspectorTabs, type InspectorData, type TabKey } from "./inspectorTabs";
@@ -2202,399 +2205,46 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       autoDetailBtn.title = "Run the condition→content rule library over the model — exterior windows/doors get "
         + "IBC/ASTM flashing details + specs, rated walls get assembly keynotes. Same rules validate as IDS QA.";
 
-      // W11 C1: generate a schematic plan drawing (SVG) from the model, at the active level if one is set.
-      // Routes through the mode switch rather than toggling the pane itself: two independent
-      // controls over one element is how "both visible" and "neither visible" become reachable.
-      const planPaneBtn = toolBtn2("◫ Plan as canvas", () => {
-        const to = modeSwitch.active === "sheets" ? "model" : "sheets";
-        const r = modeSwitch.switchTo(to);
-        if (!r.ok) { notify(r.reason ?? "cannot open the plan", "error"); return; }
-        planPaneBtn.classList.toggle("on", modeSwitch.active === "sheets");
+      // R39-DECOMP-VIEWER ⑧ — the drawing set moved to `tools/drawingsSection.ts` (142 lines).
+      // `activeStorey` / `activeStoreyZ` cross as ACCESSORS because both are `let` here and change
+      // with the level selector: a value copy would compile clean and freeze the level at
+      // panel-build time, which is before any level exists — every plan, DXF and sheet would
+      // quietly render the whole building. `tsc` cannot see that one, so it is removed by shape.
+      const drawingBtns = buildDrawingsSection({
+        toolBtn2, api, projectId, pid, notify, container, modeSwitch,
+        activeStorey: () => activeStorey, activeStoreyZ: () => activeStoreyZ,
       });
-      planPaneBtn.title = "Make the generated plan the canvas (same as the Sheets tab). It re-cuts "
-        + "when you change the active level, and selection syncs both ways — click linework in the "
-        + "plan to select in 3D.";
-      const planBtn = toolBtn2("🖨 Generate plan (SVG)", () => {
-        const q = new URLSearchParams({ scale: "100" });
-        if (activeStorey) q.set("storey", activeStorey);
-        window.open(api.url(`/projects/${projectId}/drawings/plan.svg?${q.toString()}`), "_blank");
-      });
-      planBtn.title = "Generate a schematic plan drawing (SVG, 1:100) from the model geometry — walls/columns/"
-        + "slabs as class-styled poché with dimensions + keynotes. The active level scopes it.";
 
-      // W11 C3: compose an issuable sheet (ARCH-D border + titleblock) around the plan.
-      // Options come from sheetSpecs.ts, which can emit nothing the route does not declare — these
-      // three used to send `number`/`title`/`scale`, which sheet.* drops. See that file's header.
-      const openSheet = (fmt: "svg" | "pdf", views?: ViewSpec[]) => window.open(
-        api.url(sheetPath(projectId!, fmt, railSheetOptions(activeStorey, views))), "_blank");
-      const sheetBtn = toolBtn2("📄 Issue sheet (A-101)", () => openSheet("svg"));
-      sheetBtn.title = "Compose an issuable construction sheet — ARCH-D border + titleblock (project, sheet "
-        + "number, scale, north arrow) with the plan placed in a scaled viewport. The deliverable.";
+      // R39-DECOMP-VIEWER ⑨ — fabrication detail moved to `tools/fabricationSection.ts` (65 lines).
+      // `selectedGuid` crosses as an ACCESSOR. Every tool in that group is selection-gated, so a
+      // collapsed accessor would not break them loudly — it would make all five permanently inert
+      // behind a polite "select an element first", which is the shape `qaSection.ts` already shipped.
+      const fabBtns = buildFabricationSection({
+        toolBtn2, api, pid, notify, authorAndReload,
+        selectedGuid: () => selectedGuid,
+      });
+      const { basePlateBtn, shearTabBtn, rebarBtn, cageChkBtn, bbsBtn } = fabBtns;
 
-      // W11 C3b: the submittable PDF of the sheet (reportlab, permit-ready).
-      const pdfBtn = toolBtn2("⤓ Sheet PDF (A-101)", () => openSheet("pdf"));
-      // R36 slice 3 — place WHAT IS ON THE CANVAS; the first point at which 2D and 3D are peers on paper.
-      const placeBtn = toolBtn2("🖼 Place this view on a sheet",
-        () => openSheet("pdf", viewsForCanvas(modeSwitch.active === "sheets" ? "2d" : "3d", activeStoreyZ)));
-      placeBtn.title = "Sheet PDF of the view you are looking at — the active level's plan in 2D, a true "
-        + "isometric in 3D. Both are vector drawings that keep their GlobalIds, not screenshots.";
-      pdfBtn.title = "Download the sheet as a PDF (ARCH-D, titleblock, plan poché + dimensions + keynotes) — "
-        + "the submittable construction-document deliverable, rendered server-side.";
+      // R39-DECOMP-VIEWER ⑩ — MEP / fire / life safety moved to `tools/mepSection.ts` (169 lines).
+      // Threads `lastPoint`, the second and last mutable capture the plan names, and the most
+      // volatile state on any of these seams: it is rewritten on EVERY click in the 3D view, and
+      // five of these six tools place geometry at it.
+      const { mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn } = buildMepSection({
+        toolBtn2, api, pid, projectId, notify, container,
+        layerMgr, loadProjectModel, reloadModelPins, waitForPublish, authorAndReload,
+        lastPoint: () => lastPoint, selectedGuid: () => selectedGuid,
+      });
 
-      // W11 C4: computed door / window / room schedules from the model.
-      const openSchedules = async () => {
-        let sc;
-        try { sc = await api.drawingSchedules(pid); }
-        catch (e) { notify(`schedules failed: ${(e as Error).message}`, "error"); return; }
-        showResult("Schedules (door / window / room)", (body) => {
-          for (const [kind, label] of [["doors", "Door schedule"], ["windows", "Window schedule"], ["rooms", "Room schedule"]] as const) {
-            const t = sc[kind];
-            body.appendChild(resultNote(`<b>${label}</b> — ${t.rows.length} row(s)`, ""));
-            if (!t.rows.length) continue;
-            const tbl = document.createElement("table"); tbl.className = "kv-table"; tbl.style.marginBottom = "6px";
-            const hr = document.createElement("tr");
-            for (const c of t.columns) { const th = document.createElement("th"); th.textContent = c; hr.appendChild(th); }
-            tbl.appendChild(hr);
-            for (const row of t.rows.slice(0, 60)) {
-              const tr = document.createElement("tr");
-              for (const cell of row) { const td = document.createElement("td"); td.textContent = cell; tr.appendChild(td); }
-              tbl.appendChild(tr);
-            }
-            body.appendChild(tbl);
-          }
-        });
-      };
-      const schedBtn = toolBtn2("📋 Schedules", openSchedules);
-      schedBtn.title = "Computed door / window / room schedules (marks, sizes, types, levels, areas) — the "
-        + "tabular half of the CD set, straight from the model. Also at GET /drawings/schedule.svg.";
-
-      // W11 C6: the schedules laid out on an issuable ARCH-D sheet (PDF) — the submittable tabular sheet.
-      const schedPdfBtn = toolBtn2("⤓ Schedules sheet (A-601 PDF)", () => {
-        window.open(api.url(`/projects/${projectId}/drawings/schedule.pdf?number=A-601`), "_blank");
+      // R39-DECOMP-VIEWER ⑫ — envelope & free-form geometry moved to `tools/envelopeSection.ts`
+      // (75 lines, TWO non-contiguous ranges: the sandboxed IFC-code runner between them stays here,
+      // being a different concern with a different risk profile). The annotation group was tried
+      // first and REJECTED — it writes to `annotGuide`/`guideWired` and mutates the live three.js
+      // scene, so it is not renderer-free and this recipe does not fit it.
+      const { curtainBtn, slopeBtn, meshBtn } = buildEnvelopeSection({
+        toolBtn2, api, pid, projectId, notify, container,
+        loadProjectModel, reloadModelPins, waitForPublish, authorAndReload,
+        lastPoint: () => lastPoint, selectedGuid: () => selectedGuid,
       });
-      schedPdfBtn.title = "Lay the door / window / room schedules on an ARCH-D titleblock sheet and download "
-        + "as a submittable PDF — the tabular half of the CD set as an issuable sheet.";
-
-      // W11 D6: the 3-part MasterFormat project manual (the spec book), seeded from classifications.
-      const manualBtn = toolBtn2("📖 Project manual (spec book)", () => withLoading(container, "Assembling the project manual", async () => {
-        let man;
-        try { man = await api.specManual(projectId!); }
-        catch { toast("Needs a source IFC", "error"); return; }
-        showResult("Project manual — 3-part MasterFormat spec book", (body) => {
-          body.appendChild(resultNote(`<b>${man!.division_count}</b> division(s) · <b>${man!.section_count}</b> section(s), `
-            + `seeded from MasterFormat classifications. ${man!.note}`, man!.section_count ? "ok" : ""));
-          if (!man!.section_count) {
-            body.appendChild(resultNote("No MasterFormat-classified elements yet — classify elements in the "
-              + "🏷 Detailing tool (advanced) to seed the manual.", ""));
-          }
-          for (const div of man!.divisions) {
-            const h = document.createElement("div"); h.className = "meta"; h.style.cssText = "font-weight:600;margin:8px 0 2px";
-            h.textContent = `DIVISION ${div.division} — ${div.title}`;
-            body.appendChild(h);
-            for (const s of div.sections) {
-              body.appendChild(kvTable([
-                { k: `§ ${s.code}`, v: `${s.title} — ${s.element_count} element(s)`, strong: true },
-                { k: "Part 2 — Products", v: s.part2_products.join(", ") },
-                { k: "Part 3 — Execution", v: s.part3_execution.join("; ") },
-              ]));
-            }
-          }
-          const dl = toolBtn2("⤓ Download manual (.txt)", () => window.open(api.url(`/projects/${projectId}/spec/manual.txt`), "_blank"));
-          body.appendChild(dl);
-        });
-      }));
-      manualBtn.title = "Generate the 3-part MasterFormat project manual — elements grouped into CSI "
-        + "divisions → sections (Part 1 General / Part 2 Products / Part 3 Execution), seeded from the "
-        + "model's classifications + attached install docs. The spec book that accompanies the drawings.";
-
-      // W11 C5: sections & elevations — cut linework straight from the baked model geometry. The
-      // section auto-centres on the model (no offset needed); elevations project each cardinal face.
-      const sectBtn = toolBtn2("📐 Sections & elevations", () => {
-        showResult("Sections & elevations", (body) => {
-          body.appendChild(resultNote("Generate a cut <b>section</b> (through the middle of the model) or a projected "
-            + "<b>elevation</b> of each face — true linework from the model geometry, opens as SVG.", "ok"));
-          const openDrawing = (path: string) => window.open(api.url(`/projects/${projectId}/drawings/${path}`), "_blank");
-          const row = (label: string) => { const d = document.createElement("div"); d.className = "meta"; d.style.margin = "6px 0 2px"; d.textContent = label; body.appendChild(d); return d; };
-          const btnRow = () => { const r = document.createElement("div"); r.style.cssText = "display:flex;flex-wrap:wrap;gap:6px"; body.appendChild(r); return r; };
-          row("Sections (auto-centred cut)");
-          const secR = btnRow();
-          for (const [axis, lbl] of [["x", "Section X–X"], ["y", "Section Y–Y"]] as const) {
-            const b2 = document.createElement("button"); b2.className = "mini-btn"; b2.textContent = `✂ ${lbl}`;
-            b2.onclick = () => openDrawing(`section.svg?axis=${axis}&title=${encodeURIComponent(lbl)}`);
-            const dx = document.createElement("button"); dx.className = "mini-btn"; dx.textContent = "⤓ DXF"; dx.title = `${lbl} → DXF (CAD)`;
-            dx.onclick = () => openDrawing(`section.dxf?axis=${axis}`);
-            secR.append(b2, dx);
-          }
-          row("Elevations");
-          const elR = btnRow();
-          for (const dir of ["north", "south", "east", "west"] as const) {
-            const b2 = document.createElement("button"); b2.className = "mini-btn"; b2.textContent = `🧭 ${dir.charAt(0).toUpperCase()}${dir.slice(1)}`;
-            b2.onclick = () => openDrawing(`elevation.svg?direction=${dir}`);
-            const dx = document.createElement("button"); dx.className = "mini-btn"; dx.textContent = "⤓"; dx.title = `${dir} elevation → DXF (CAD)`;
-            dx.onclick = () => openDrawing(`elevation.dxf?direction=${dir}`);
-            elR.append(b2, dx);
-          }
-          row("Plan");
-          const plR = btnRow();
-          const planDxf = document.createElement("button"); planDxf.className = "mini-btn"; planDxf.textContent = "⤓ Plan DXF (CAD)";
-          planDxf.title = "Export the plan cut linework as a DXF any CAD tool can open" + (activeStorey ? ` (${activeStorey})` : "");
-          planDxf.onclick = () => { const q = new URLSearchParams(); if (activeStoreyZ) q.set("elevation", String(activeStoreyZ)); openDrawing(`plan.dxf?${q.toString()}`); };
-          plR.appendChild(planDxf);
-        });
-      });
-      sectBtn.title = "Cut sections (auto-centred on the model) and projected N/S/E/W elevations — vector "
-        + "linework from the model geometry, the other half of the drawing set alongside plans.";
-
-      // W11 B6: steel connections — base plate on the selected column, shear tab on the selected beam
-      // (bare LOD-300 members → LOD-350/400 fabrication assemblies).
-      const basePlateBtn = toolBtn2("🔩 Base plate (steel column)", async () => {
-        if (!selectedGuid) { notify("select a steel column first", "error"); return; }
-        await authorAndReload("add_base_plate", { column_guid: selectedGuid, bolts: 4 }, "base plate");
-      });
-      basePlateBtn.title = "Author a base plate + 4 anchor bolts under the selected steel column and group "
-        + "them into an IfcElementAssembly — the LOD 350/400 fabrication connection. GUID-stable.";
-      const shearTabBtn = toolBtn2("🔩 Shear tab (steel beam)", async () => {
-        if (!selectedGuid) { notify("select a steel beam first", "error"); return; }
-        await authorAndReload("add_shear_tab", { beam_guid: selectedGuid, bolts: 3 }, "shear tab");
-      });
-      shearTabBtn.title = "Author a shear-tab plate + bolts at the selected steel beam's end and assemble it "
-        + "with the beam — a simple beam-to-column shear connection (LOD 350/400). GUID-stable.";
-      const rebarBtn = toolBtn2("🪝 Rebar cage (concrete column)", async () => {
-        if (!selectedGuid) { notify("select a concrete column first", "error"); return; }
-        await authorAndReload("add_rebar_cage", { column_guid: selectedGuid }, "rebar cage");
-      });
-      rebarBtn.title = "Author a reinforcement cage — 4 longitudinal corner bars + stirrups (swept-disk "
-        + "IfcReinforcingBar) in the selected concrete column, assembled with it (LOD 400). GUID-stable.";
-      const cageChkBtn = toolBtn2("✓ Check cage (ACI envelope)", async () => {
-        if (!selectedGuid) { notify("select the caged concrete column first", "error"); return; }
-        try {
-          const r = await api.rebarCheckCage(pid, selectedGuid);
-          const ok = r.checked && !r.violations.length;
-          showResult("Rebar cage check", (body) => {
-            body.appendChild(resultNote(ok
-              ? `✅ cage OK — ${r.longitudinal_bars} bars · ${r.ties} ties · tie spacing within `
-                + `${r.params.tie_spacing} m (${escapeHtml(r.params.governing)})`
-              : `🔴 ${r.violations.map(escapeHtml).join(" · ")}`, ok ? "ok" : ""));
-            body.appendChild(resultNote(`Rule: ${escapeHtml(r.params.rule)} — #bars ≥ ${r.params.min_longitudinal_bars}, `
-              + `envelope ${r.params.tie_spacing} m for ${escapeHtml(r.params.bar_size)}/${escapeHtml(r.params.tie_size)}.`, ""));
-          });
-        } catch (e) { notify((e as Error).message, "error"); }
-      });
-      cageChkBtn.title = "Verify the selected column's authored cage against the ACI 318 envelope — "
-        + "longitudinal bar count and tie spacing min(16·d_bar, 48·d_tie, least dimension).";
-      const bbsBtn = toolBtn2("📋 Bar bending schedule", async () => {
-        try {
-          const r = await api.rebarBbs(pid);
-          showResult("Bar bending schedule", (body) => {
-            body.appendChild(resultNote(`<b>${r.bars}</b> bars · ${r.marks} marks · `
-              + `${r.total_length_m.toLocaleString()} m · <b>${r.total_tonnes} t</b>`
-              + (r.skipped ? ` · ${r.skipped} skipped (no swept geometry)` : ""), r.bars ? "ok" : ""));
-            if (r.rows.length) {
-              const t = document.createElement("table"); t.className = "mini-table";
-              t.style.cssText = "width:100%;font-size:11px;border-collapse:collapse";
-              t.innerHTML = `<thead><tr><th>Mark</th><th>Size</th><th>Shape</th><th>Cut (m)</th>`
-                + `<th>Count</th><th>kg/m</th><th>Total kg</th></tr></thead><tbody>`
-                + r.rows.map((x) => `<tr><td>${escapeHtml(x.mark)}</td><td>${escapeHtml(x.size || String(x.diameter_mm) + "mm")}</td>`
-                  + `<td>${escapeHtml(x.shape)}</td><td style="text-align:right">${x.cut_length_m}</td>`
-                  + `<td style="text-align:center">${x.count}</td><td style="text-align:right">${x.unit_mass_kg_m}</td>`
-                  + `<td style="text-align:right">${x.total_kg}</td></tr>`).join("") + `</tbody>`;
-              body.appendChild(t);
-              const dl = document.createElement("a"); dl.className = "file-btn"; dl.style.marginTop = "6px";
-              dl.textContent = "⬇ BBS (CSV)"; dl.href = api.rebarBbsCsvUrl(pid);
-              body.appendChild(dl);
-            } else {
-              body.appendChild(resultNote("No IfcReinforcingBar elements — author cages first (🪝).", ""));
-            }
-          });
-        } catch (e) { notify((e as Error).message, "error"); }
-      });
-      bbsBtn.title = "Group every authored IfcReinforcingBar into marks (size · shape · cut length) with "
-        + "unit mass and total tonnage — the fabricator/5D quantity, downloadable as CSV.";
-
-      // W11 B6: MEP fitting at the last-clicked point + a system browser.
-      const mepFittingBtn = toolBtn2("🔀 MEP fitting (elbow / tee)", async () => {
-        if (!lastPoint) { notify("click a point in the model first, then add the fitting", "error"); return; }
-        const kind = await askText("MEP fitting", { label: "Type: bend (elbow) · junction (tee) · transition", value: "bend" });
-        if (!kind) return;
-        const sys = await askText("MEP fitting", { label: "System name", value: "HVAC Supply" });
-        const pd = { bend: "BEND", elbow: "BEND", junction: "JUNCTION", tee: "JUNCTION", transition: "TRANSITION" }[kind.trim().toLowerCase()] || "BEND";
-        await authorAndReload("add_mep_fitting",
-          { ifc_class: "IfcDuctFitting", point: [lastPoint.x, -lastPoint.z], predefined: pd, system: sys?.trim() || "HVAC Supply" },
-          `MEP ${pd.toLowerCase()}`);
-      });
-      mepFittingBtn.title = "Author a MEP fitting (elbow/tee/transition, with ports) at the last-clicked point "
-        + "and assign it to a distribution system — the LOD 350/400 detailing that joins loose runs. GUID-stable.";
-
-      // MEP-FP: place fire-protection equipment at the last-clicked point (onto the Fire Protection system).
-      const fireBtn = toolBtn2("🧯 Fire-protection equipment", async () => {
-        if (!lastPoint) { notify("click a point in the model first, then place the device", "error"); return; }
-        const kind = await askText("Fire protection", {
-          label: "Device: sprinkler · hose_reel · fdc (fire-dept connection) · hydrant · fire_pump", value: "sprinkler" });
-        if (!kind) return;
-        const k = kind.trim().toLowerCase().replace(/[ -]/g, "_");
-        const known = ["sprinkler", "hose_reel", "fdc", "hydrant", "fire_pump"];
-        await authorAndReload("add_fire_equipment",
-          { kind: known.includes(k) ? k : "sprinkler", point: [lastPoint.x, -lastPoint.z] },
-          `fire ${k}`);
-      });
-      fireBtn.title = "Author a fire-protection device (sprinkler head, hose reel, fire-department/siamese "
-        + "connection, hydrant, or fire pump) as the right IFC class on the Fire Protection distribution system.";
-
-      // DISC-4a: fire-alarm / life-safety device (distinct from fire protection) at the last-clicked point.
-      const faBtn = toolBtn2("🔔 Fire-alarm device", async () => {
-        if (!lastPoint) { notify("click a point in the model first, then place the device", "error"); return; }
-        const kind = await askText("Fire alarm / life safety", {
-          label: "Device: smoke_detector · heat_detector · pull_station · horn_strobe · strobe · bell · facp",
-          value: "smoke_detector" });
-        if (!kind) return;
-        const k = kind.trim().toLowerCase().replace(/[ -]/g, "_");
-        const known = ["smoke_detector", "heat_detector", "duct_detector", "pull_station", "horn_strobe", "strobe", "bell", "facp"];
-        await authorAndReload("add_fa_device",
-          { kind: known.includes(k) ? k : "smoke_detector", point: [lastPoint.x, -lastPoint.z] },
-          `fire-alarm ${k}`);
-      });
-      faBtn.title = "Author a fire-alarm / life-safety device (smoke/heat detector, manual pull station, "
-        + "horn-strobe, bell, or FACP) on the Fire Alarm system — its own discipline, apart from fire protection.";
-
-      // DISC-4a: telecom / low-voltage device at the last-clicked point.
-      const commsBtn = toolBtn2("📶 Telecom device", async () => {
-        if (!lastPoint) { notify("click a point in the model first, then place the device", "error"); return; }
-        const kind = await askText("Telecom / low-voltage", {
-          label: "Device: idf · mdf · rack · switch · wap (wireless AP) · data_outlet", value: "idf" });
-        if (!kind) return;
-        const k = kind.trim().toLowerCase().replace(/[ -]/g, "_");
-        const known = ["mdf", "idf", "rack", "switch", "wap", "data_outlet"];
-        await authorAndReload("add_comms_device",
-          { kind: known.includes(k) ? k : "idf", point: [lastPoint.x, -lastPoint.z] },
-          `telecom ${k}`);
-      });
-      commsBtn.title = "Author a telecom / low-voltage device (MDF/IDF rack, network switch, wireless access "
-        + "point, or data outlet) on the Telecommunications system (discipline T).";
-
-      // MEP-FP / MEP: a vertical riser (standpipe / stack / vent) at the last-clicked point.
-      const riserBtn = toolBtn2("⭱ Vertical riser (standpipe / stack)", async () => {
-        if (!lastPoint) { notify("click a point in the model first, then add the riser", "error"); return; }
-        const range = await askText("Vertical riser", { label: "Bottom, top elevation (m) — [E,N] is the last click", value: "0, 9" });
-        if (!range) return;
-        const parts = range.split(",").map((x) => parseFloat(x.trim()));
-        const b = parts[0] ?? NaN, t = parts[1] ?? NaN;
-        if (!isFinite(b) || !isFinite(t) || t <= b) { notify("enter bottom, top with top above bottom", "error"); return; }
-        await authorAndReload("add_riser",
-          { point: [lastPoint.x, -lastPoint.z], bottom_z: b, top_z: t, size: 0.1, system: "Fire Protection", discipline: "fire" },
-          "riser");
-      });
-      riserBtn.title = "Author a vertical MEP riser (fire standpipe / plumbing stack / vent) from a bottom to "
-        + "top elevation at the last-clicked point — the vertical complement to horizontal MEP runs.";
-      let mepConnectFrom: string | null = null;   // W10-4: first element of a port-to-port connect
-      const mepSysBtn = toolBtn2("🔀 MEP systems", async () => {
-        let s, c;
-        try { [s, c] = await Promise.all([api.mepSummary(pid), api.mepConnectivity(pid)]); }
-        catch (e) { notify(`MEP failed: ${(e as Error).message}`, "error"); return; }
-        showResult("MEP systems & connectivity", (body) => {
-          // W10-4 connectivity validation
-          body.appendChild(resultNote(`<b>Connectivity</b> — ${c!.connections} port-to-port link(s) · `
-            + `${c!.ports_connected}/${c!.ports_total} ports connected (${c!.connected_pct}%) · `
-            + `<b>${c!.dangling_count}</b> floating element(s).`, c!.dangling_count ? "" : "ok"));
-          // two-step connect: pick one element, then connect it to another
-          const cw = document.createElement("div"); cw.style.cssText = "display:flex;gap:6px;margin:4px 0;flex-wrap:wrap";
-          const pick = toolBtn2(mepConnectFrom ? "① picked — select the 2nd element" : "🔗 Connect: pick first element", () => {
-            if (!selectedGuid) { notify("select an MEP element first", "error"); return; }
-            mepConnectFrom = selectedGuid; notify("first element picked — select the second, then Connect", "info");
-          });
-          const doConn = toolBtn2("🔗 Connect to second element", async () => {
-            if (!mepConnectFrom) { notify("pick the first element first", "error"); return; }
-            if (!selectedGuid || selectedGuid === mepConnectFrom) { notify("select a different second element", "error"); return; }
-            const a = mepConnectFrom, b = selectedGuid;
-            await withLoading(container, "connecting MEP ports + republishing", async () => {
-              try {
-                await api.connectMep(pid, a, b, true);
-                const state = await waitForPublish(projectId!);
-                if (state === "done") { await loadProjectModel(); notify("connected port-to-port", "success"); }
-                else notify(`connected — publish ${state}`, state === "error" ? "error" : "info");
-                mepConnectFrom = null; await reloadModelPins();
-              } catch (e) { notify(`connect failed: ${(e as Error).message}`, "error"); }
-            });
-          });
-          cw.append(pick, doConn); body.appendChild(cw);
-          if (c!.dangling.length) {
-            const iso = toolBtn2("◎ Isolate floating elements in 3D", () => { void layerMgr.isolateGuids(c!.dangling.map((d) => d.guid)); });
-            body.appendChild(iso);
-          }
-          if (!s.systems.length) { body.appendChild(resultNote("No distribution systems yet — add duct/pipe runs + fittings.", "")); return; }
-          // MEP-FP: by-discipline rollup (fire protection is a first-class discipline beside HVAC/plumbing/electrical)
-          const discIcon: Record<string, string> = { hvac: "💨", plumbing: "🚰", electrical: "⚡", fire: "🧯", comms: "📶", other: "🔀" };
-          if (s.by_discipline && Object.keys(s.by_discipline).length) {
-            const roll = Object.entries(s.by_discipline)
-              .map(([d, v]) => `${discIcon[d] || "🔀"} ${d} (${v.systems})`).join(" · ");
-            body.appendChild(resultNote(`<b>Disciplines</b> — ${roll}.`
-              + (s.has_fire_protection ? "" : " <i>No fire-protection system yet.</i>"), s.has_fire_protection ? "ok" : ""));
-            const sizeBtn = toolBtn2("📐 MEP size check (velocity)", async () => {
-              let mz;
-              try { mz = await api.mepSizing(pid); }
-              catch (e) { notify((e as Error).message, "error"); return; }
-              if (!mz.checked) { body.appendChild(resultNote("No sized MEP runs to check — author ducts/pipes with a design size + flow first.", "")); return; }
-              body.appendChild(resultNote(`<b>MEP size check</b> — ${mz.passed} pass · <b>${mz.failed} fail</b> · ${mz.info} info`
-                + ` of ${mz.checked} run(s). Limits: air ≤ ${mz.limits.duct_max_fpm} fpm · water ≤ ${mz.limits.pipe_max_fps} ft/s.`,
-                mz.failed ? "bad" : "ok"));
-              const icon = (st: string) => st === "pass" ? "✅" : st === "fail" ? "❌" : "ℹ️";
-              body.appendChild(kvTable(mz.checks.slice(0, 20).map((c) => ({
-                k: `${icon(c.status)} ${c.class.replace("Ifc", "")}${c.system ? ` · ${c.system}` : ""}`,
-                v: `${c.size_mm}mm ${c.flow != null ? `@ ${c.flow} ${c.flow_unit ?? ""}` : ""} — ${c.note}`,
-              }))));
-              const bad = mz.checks.filter((c) => c.status === "fail").map((c) => c.guid);
-              if (bad.length) body.appendChild(toolBtn2("◎ Isolate undersized runs in 3D", () => { void layerMgr.isolateGuids(bad); }));
-              body.appendChild(resultNote(mz.disclaimer, ""));
-            });
-            sizeBtn.title = "Velocity/fill size check over authored MEP (ASHRAE air, erosion-limit water) — preliminary, not a stamped design";
-            body.appendChild(sizeBtn);
-            if (s.has_fire_protection) {
-              const covBtn = toolBtn2("🧯 Sprinkler coverage (NFPA 13)", async () => {
-                let cov;
-                try { cov = await api.sprinklerCoverage(pid, "light"); }
-                catch (e) { notify((e as Error).message, "error"); return; }
-                const ok = cov.adequate;
-                body.appendChild(resultNote(`<b>Sprinkler coverage</b> (${cov.hazard} hazard) — `
-                  + `${cov.sprinkler_heads} head(s) vs <b>${cov.required_heads}</b> required for `
-                  + `${cov.protected_area_m2.toLocaleString()} m² (≤${cov.max_coverage_m2_per_head} m²/head): `
-                  + `<b>${ok == null ? "n/a" : ok ? "adequate" : `short ${cov.shortfall}`}</b>. `
-                  + `<span class="meta">${cov.citation}. ${cov.verify}</span>`,
-                  ok == null ? "" : ok ? "ok" : "bad"));
-              });
-              covBtn.title = "NFPA-13-informed head-count vs protected-area coverage pre-check (not a hydraulic design)";
-              body.appendChild(covBtn);
-            }
-          }
-          for (const sy of s.systems) {
-            const di = discIcon[sy.discipline || "other"] || "🔀";
-            body.appendChild(kvTable([
-              { k: `${di} ${sy.name}`, v: `${sy.members} elements${sy.discipline ? ` · ${sy.discipline}` : ""}`, strong: true },
-              { k: "  segments · fittings · terminals", v: `${sy.segments} · ${sy.fittings} · ${sy.terminals}` },
-              { k: "  elements with open ports", v: String(sy.elements_with_open_ports) },
-            ]));
-          }
-          if (s.unassigned.segments || s.unassigned.fittings) {
-            body.appendChild(resultNote(`⚠ Unassigned to any system: <b>${s.unassigned.segments}</b> segment(s), `
-              + `<b>${s.unassigned.fittings}</b> fitting(s).`, "bad"));
-          }
-        });
-      });
-      mepSysBtn.title = "Browse IfcDistributionSystems — per-system segment/fitting/terminal counts, a "
-        + "connectivity signal (elements with unconnected ports), and anything not yet assigned to a system.";
-
-      // W11 B6: curtain wall along a line (start = last-clicked point, end from a prompt).
-      const curtainBtn = toolBtn2("🪟 Curtain wall", async () => {
-        const start: [number, number] = lastPoint ? [lastPoint.x, -lastPoint.z] : [0, 0];
-        const endS = await askText("Curtain wall", { label: "End point E, N (metres) — start is the last click", value: `${(start[0] + 6).toFixed(1)}, ${start[1].toFixed(1)}` });
-        if (!endS) return;
-        const ep = endS.split(",").map((v) => Number(v.trim()));
-        const grid = await askText("Curtain wall", { label: "Bays × rows (cols, rows)", value: "3, 2" });
-        const g = (grid || "3,2").split(/[,x×]/).map((v) => Math.max(1, Math.round(Number(v.trim()) || 1)));
-        await authorAndReload("add_curtain_wall",
-          { start, end: [ep[0] ?? start[0] + 6, ep[1] ?? start[1]], cols: g[0] ?? 3, rows: g[1] ?? 2 },
-          "curtain wall");
-      });
-      curtainBtn.title = "Author an IfcCurtainWall along a line — vertical mullions + horizontal transoms + "
-        + "glazing panels on a bays×rows grid, aggregated as one assembly (LOD 350/400). GUID-stable.";
 
       // E4 — progressive disclosure: everyday authoring + drawings stay visible; LOD-350/400 fabrication
       // and detailing tools tuck behind an "Advanced" toggle so a first-time modeler isn't overwhelmed.
@@ -2630,67 +2280,6 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       ifcCodeBtn.title = "Run a sandboxed ifcopenshell snippet against the model — the unbounded escape hatch "
         + "for authoring the recipes can't express. Disabled unless the server sets AEC_ALLOW_IFC_CODE=1.";
 
-      // B3 — sloped-top wall (parapet slope / shed / gable): rebuild the selected wall's top to slope
-      // from start_height → end_height.
-      const slopeBtn = toolBtn2("⟋ Slope wall top", () => {
-        if (!selectedGuid) { notify("select a wall first", "error"); return; }
-        const guid = selectedGuid;
-        showResult("Slope wall top", (body) => {
-          body.appendChild(resultNote("Give the selected wall a <b>sloped top</b> — the top rises from "
-            + "the start height (at the wall's start point) to the end height (parapet slope / shed / "
-            + "gable). GUID-stable, versioned (undo restores the flat top).", ""));
-          const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;margin:4px 0";
-          const sIn = document.createElement("input"); sIn.type = "number"; sIn.className = "portal-filter"; sIn.placeholder = "start height (m)"; sIn.step = "0.1"; sIn.style.cssText = "flex:1;min-width:0;font-size:12px";
-          const eIn = document.createElement("input"); eIn.type = "number"; eIn.className = "portal-filter"; eIn.placeholder = "end height (m)"; eIn.step = "0.1"; eIn.style.cssText = "flex:1;min-width:0;font-size:12px";
-          row.append(sIn, eIn); body.appendChild(row);
-          const go = toolBtn2("⟋ Apply slope + republish", async () => {
-            const sh = parseFloat(sIn.value), eh = parseFloat(eIn.value);
-            if (!(sh > 0) || !(eh > 0)) { notify("enter positive start & end heights", "error"); return; }
-            await withLoading(container, "sloping the wall top + republishing", async () => {
-              try {
-                await api.setWallSlope(pid, guid, sh, eh, true);
-                const state = await waitForPublish(projectId!);
-                if (state === "done") { await loadProjectModel(); notify("wall top sloped", "success"); }
-                else notify(`sloped — publish ${state}`, state === "error" ? "error" : "info");
-                await reloadModelPins();
-              } catch (e) { notify(`slope failed: ${(e as Error).message}`, "error"); }
-            });
-          });
-          body.appendChild(go);
-        });
-      });
-      slopeBtn.title = "Give the selected wall a sloped top (start height → end height) — parapet slope, "
-        + "shed, or gable wall. Rebuilds the Body as a trapezoidal extrusion; GUID-stable + undo-able.";
-
-      // B4 — procedural-mesh escape hatch: author an element from a raw triangle mesh (JSON verts/faces).
-      const meshBtn = toolBtn2("△ Add mesh (verts/faces JSON)", () => {
-        showResult("Add procedural mesh", (body) => {
-          body.appendChild(resultNote("Author an element from a raw triangle mesh for geometry the "
-            + "recipes can't express. Paste <code>{\"verts\":[[x,y,z]…],\"faces\":[[i,j,k]…]}</code> "
-            + "(faces are 0-based vertex indices, coords in metres). GUID-stable + undo-able.", ""));
-          const ta = document.createElement("textarea"); ta.className = "portal-filter";
-          ta.style.cssText = "width:100%;min-height:100px;font-family:monospace;font-size:12px";
-          ta.placeholder = '{"verts":[[0,0,0],[2,0,0],[2,2,0],[0,2,0],[1,1,2]],"faces":[[0,1,4],[1,2,4],[2,3,4],[3,0,4],[0,2,1],[0,3,2]]}';
-          body.appendChild(ta);
-          const go = toolBtn2("△ Add mesh + republish", async () => {
-            let parsed: { verts?: number[][]; faces?: number[][] };
-            try { parsed = JSON.parse(ta.value); } catch { notify("invalid JSON", "error"); return; }
-            if (!parsed.verts?.length || !parsed.faces?.length) { notify("need verts and faces", "error"); return; }
-            await withLoading(container, "authoring mesh + republishing", async () => {
-              try {
-                await api.addMesh(pid, parsed.verts!, parsed.faces!, "Mesh", true);
-                const state = await waitForPublish(projectId!);
-                if (state === "done") { await loadProjectModel(); notify("mesh added", "success"); }
-                else notify(`added — publish ${state}`, state === "error" ? "error" : "info");
-                await reloadModelPins();
-              } catch (e) { notify(`mesh failed: ${(e as Error).message}`, "error"); }
-            });
-          });
-          body.appendChild(go);
-        });
-      });
-      meshBtn.title = "Author an element from a raw triangle mesh (IfcTriangulatedFaceSet) — the escape "
-        + "hatch for geometry the parametric recipes can't express.";
 
       // UX-2 — interactive annotation: place a 2D text note/tag/callout as an IfcAnnotation at the last point
       const annotBtn = toolBtn2("🏷 Add note / annotation", async () => {
@@ -3018,8 +2607,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       glBody.append(status, levelSel, undoRow, deltaUi.el, load, toggle, addLvl, addRooms, furnish, typesBtn, groupsBtn,
         phaseBtn, queryBtn, lodBtn, asBuiltBtn, manage, levelsMgr);
       // The drawing set: produced from the model, read as documents.
-      railGroup("export", "Drawings & sheets", [planPaneBtn, planBtn, sheetBtn, pdfBtn, placeBtn, schedBtn,
-        schedPdfBtn, manualBtn, sectBtn]);
+      railGroup("export", "Drawings & sheets", drawingBtns);
       railGroup("annotate", "Annotate", [annotateHead, annotateWrap]);
       railGroup("library", "Families & content", [libHead, libWrap]);
       // Detail IS the advanced tools — so no toggle and no heading inside it. Keeping either would

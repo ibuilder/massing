@@ -1,0 +1,81 @@
+/* R24-FIELD-MODE ① — scoped to field chrome, not the whole app.
+   56 px targets and 7:1 text/background on the capture sheet, FAB and sync strip.
+   Register density stays whatever the user set (Field/Comfortable/Compact). */
+
+#field-mode-toggle {
+  position: fixed;
+  right: 18px;
+  bottom: 78px;
+  z-index: 160;
+  min-height: 36px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+#field-sync-strip {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 80px;
+  bottom: 0;
+  z-index: 159;
+  width: auto;
+  text-align: left;
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+html[data-field-mode="1"] {
+  --field-fg: #ffffff;
+  --field-bg: #000000;
+  --field-muted: #d4d4d4;
+}
+
+html[data-field-mode="1"] #field-fab {
+  /* Inline styles on the FAB set 52×52 and bottom:18px. Without !important, slice ①'s 56 px
+     never won, and the FAB sat on the sync strip. */
+  width: 56px !important;
+  height: 56px !important;
+  font-size: 24px !important;
+  bottom: 72px !important;
+}
+
+html[data-field-mode="1"] #field-mode-toggle {
+  bottom: 136px !important;
+}
+
+html[data-field-mode="1"] #field-mode-toggle,
+html[data-field-mode="1"] #field-sync-strip {
+  display: block;
+  min-height: 56px;
+  font-size: 16px;
+  background: var(--field-bg);
+  color: var(--field-fg);
+  border: 1px solid #fff;
+}
+
+html[data-field-mode="1"] .field-sheet > div {
+  background: var(--field-bg);
+  color: var(--field-fg);
+}
+
+html[data-field-mode="1"] .field-sheet .meta,
+html[data-field-mode="1"] .field-sheet label {
+  color: var(--field-muted);
+}
+
+html[data-field-mode="1"] .field-sheet .tool-btn,
+html[data-field-mode="1"] .field-sheet .file-btn,
+html[data-field-mode="1"] .field-sheet select,
+html[data-field-mode="1"] .field-sheet textarea,
+html[data-field-mode="1"] .field-sheet input,
+html[data-field-mode="1"] .field-sheet button {
+  min-height: 56px;
+  font-size: 16px;
+}
+
+/* Slice ④ — field mode is capture-first. The seven-room tablist is office IA; display:none
+   drops it from the tab order as well as the screen. Leave Field → Office to get it back. */
+html[data-field-mode="1"] #workspaces {
+  display: none !important;
+}

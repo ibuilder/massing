@@ -204,6 +204,8 @@ def ask(db, pid: str, model, question: str) -> dict[str, Any]:
     """Route a plain-language question to the doc-graph / decision-readiness and answer it with citations.
     Deterministic: the cited facts are the answer. Returns {question, intent, answer, citations, ...} plus
     `cited` — the same answer emitted on the CitedAnswer provenance contract."""
+    from . import provenance_report
+
     q = (question or "").strip()
     ql = q.lower()
     result: dict[str, Any]
@@ -238,6 +240,19 @@ def ask(db, pid: str, model, question: str) -> dict[str, Any]:
     result["question"] = q
     result.setdefault("citations", [])
     result["cited"] = to_cited(result)          # the CitedAnswer provenance contract, alongside legacy
+
+    # R22-PROVENANCE v0.3.976: file what was answered, so the ANSWERS leg fills itself.
+    #
+    # **This is the only PRODUCER of a CitedAnswer in the codebase**, which is why it is the only
+    # place that records. The roadmap said three engines answer; reading them says otherwise —
+    # `decision_gate.evaluate` takes a cited answer as *evidence* and `persona_answer.shape` takes
+    # one and re-renders it for a reader. Wiring either would have filed the same answer twice under
+    # two engine names, which is worse than not filing it: a provenance report is a count.
+    #
+    # Filing never raises and never blocks the answer — the outcome rides on the response as data.
+    result["recorded"] = provenance_report.record_answer(
+        db, pid, q, result["cited"], engine="rfi_qa",
+        target=str(result.get("guid") or result.get("answered_from") or ""))
     result["disclaimer"] = ("A cited-source answer from the model's own data — spec sections, documents, "
                             "and readiness checks. Not a substitute for professional review or the AHJ.")
     return result

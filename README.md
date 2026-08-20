@@ -27,7 +27,8 @@
 > and **12%** of features carry 80% of daily use across 615 measured subscriptions (Pendo, 2019). So the
 > design rule is **defer, never delete**: route each person to the ten things they touch today, keep the
 > rest one keystroke away. See the [design audit & interface plan](docs/internal/archive/design-audit.md) and the **R24
-> interface ring** in [the roadmap](docs/roadmap.md).
+> interface ring** in [the roadmap](docs/roadmap.md). The element card (GUID + lifecycle) now opens
+> from the viewer, the cost trace, and any register record that names a model element (v0.3.1000).
 
 **What it is** — three pillars on one IFC-keyed model, reached through seven rooms — **Deal · Design · Planning · Schedule · Cost · Work · Operate** — that stay in the same place for every role:
 
@@ -223,6 +224,8 @@ Highlights, all **built and verified** in this repo unless noted:
 - **Field/mobile capture (offline-first)** — a mobile bottom-sheet quick-capture: snap a photo →
   punchlist / safety observation / progress photo in a couple taps. Captures queue offline (photo
   included) and **auto-sync on reconnect** (queued-count badge); pairs with the PWA/Capacitor build.
+  **Field mode** (`?field=1`) enlarges those controls to 56 px, keeps the sync queue on screen, and
+  offers dictation when the browser can hear you.
 - **Turnover** — a one-click **closeout package** (`/closeout/package.zip`: as-built IFC +
   COBie/QTO/spaces + status PDF + closeout manifest), **module-log PDFs** (RFI/submittal/CO
   registers), **multi-period pay apps** (period advance + auto **lien waivers**), **COBie tabs**
@@ -234,7 +237,7 @@ A construction-management portal on top of the viewer — full writeup in
 [docs/gc-portal.md](docs/gc-portal.md). Highlights:
 
 - **Module engine** — every process (RFIs, Submittals, PCO/Change-Order chain, Daily
-  Reports, …) is a `module.json` → its own auto-created table. **138 modules / 37 sections**,
+  Reports, …) is a `module.json` → its own auto-created table. **139 modules / 37 sections**,
   no per-module code. Each gets CRUD, role-gated workflow, comments, CSV/PDF, pins, timeline.
 - **Two role dimensions** — capability roles (viewer→admin) + party roles
   (GC/Owner/OwnersRep/Consultant/Subcontractor) that gate workflow transitions.
@@ -365,7 +368,7 @@ POST   /projects/{id}/generate/massing         zoning → IFC massing + acquisit
 GET    /projects/{id}/drawings/sheet.pdf       issuable ARCH-D sheet
 POST   /projects/{id}/cost/estimate → /sov     price the model, then build the SOV from that estimate
 GET    /projects/{id}/codecheck/egress         edition-aware occupancy + egress, IBC-cited
-GET/POST /projects/{id}/modules/{key}          any of 138 registers, config-driven CRUD
+GET/POST /projects/{id}/modules/{key}          any of 139 registers, config-driven CRUD
 ```
 
 ## Verification
@@ -379,7 +382,13 @@ API smoke test, and Python compile all green.
 
 Open stack (That Open MIT-style, IfcOpenShell LGPL). The Blender + Bonsai desktop editor is
 **GPL** — kept a separate process you *use*, not linked in. Optional Autodesk APS RVT→IFC is
-paid/flagged. See [LICENSE-NOTES.md](LICENSE-NOTES.md).
+paid/flagged. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+> Renamed from "LICENSE-NOTES.md" on 2026-08-17. GitHub's licence classifier globs `LICENSE*` at
+> the repo root, so a *notes* file sitting beside `LICENSE` was read as a **second, unrecognised
+> licence** — the sidebar said "MIT, Unknown licenses found", which is exactly the claim a
+> downstream listing has to trust. The filename was the whole defect; the contents were always
+> correct.
 
 ## Author
 

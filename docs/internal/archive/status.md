@@ -61,4 +61,4 @@ the seeded "School" project:
 | 4 API / BCF | `services/api/src/aec_api/` |
 | 5 data export | `services/data/src/aec_data/{qto,spaces,cobie,schedule}.py` |
 | 6 editor | `apps/editor-bridge/{recipes.py,bonsai-mcp.config.json}` |
-| 7 deploy | `docs/deploy.md`, `*/Dockerfile`, `docker-compose.yml`, `auth.py`, `LICENSE-NOTES.md` |
+| 7 deploy | `docs/deploy.md`, `*/Dockerfile`, `docker-compose.yml`, `auth.py`, "LICENSE-NOTES.md" |

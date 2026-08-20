@@ -636,7 +636,7 @@ with TestClient(app) as c:
                  # demo shows them with data (and no "no fixture" console warnings)
                  "/escalations", "/margin/by-costcode", "/selections/summary",
                  "/model/assets", "/model/equipment", "/model/space-utilization",
-                 "/master-builder/brief", "/topics/board",
+                 "/master-builder/brief", "/pulse", "/topics/board",
                  "/drawing-set/issuances", "/drawing-set/issuance-matrix",
                  "/drawing-set/issuance-purposes"):
         grab(c, f"{P}{path}")

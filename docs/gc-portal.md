@@ -30,7 +30,7 @@ activity timeline. Adding a module = dropping a JSON file in `services/api/modul
 }
 ```
 
-**138 modules across 37 sections** ship today. The sections span the whole job — Acquisition,
+**139 modules across 37 sections** ship today. The sections span the whole job — Acquisition,
 Feasibility, Design Phases, Estimating, Bidding, Contracts, Coordination, Drawings, Quality, Safety,
 Progress, Change Management, Closeout, Handover and Operations among them. `GET /modules` is
 authoritative; the section→room allocation lives in `rooms.py`. Regenerate/extend via

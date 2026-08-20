@@ -2,6 +2,7 @@ import { groupedBar, money as cmoney, esc, usd } from "../../ui/charts";
 import { confidenceSummary } from "../../ui/confidenceReading";
 import { confirmModal } from "../../ui/modal";
 import type { PanelContext } from "../panelContext";
+import { renderCostBrief } from "./costBrief";
 
 /**
  * GC GMP budget dashboard — the agreed GMP broken to every cost code & bid package plus GC/GR,
@@ -34,6 +35,7 @@ export async function renderBudget(ctx: PanelContext) {
   const pid = ctx.host.projectId()!;
   ctx.root.innerHTML = "";
   ctx.root.appendChild(ctx.bar("Budget", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+  ctx.root.appendChild(await renderCostBrief(ctx));
   const vcol = (v: number) => v < 0 ? "var(--status-crit)" : v > 0 ? "var(--status-good)" : "var(--muted)";
   const jumpTo = (k: string) => { const tm = ctx.mods.find((x) => x.key === k); if (tm) { ctx.activeKey = k; void ctx.openModule(tm); ctx.buildNav(); } };
 

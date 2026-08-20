@@ -607,3 +607,34 @@ def entitlement_condition_checks(pid: str, db: Session = Depends(get_db),
             "total_exceeds": sum(x["exceeds_count"] for x in out),
             "total_not_checkable": sum(x["not_checkable_count"] for x in out),
             "note": tracked.get("note", "")}
+
+
+@router.get("/projects/{pid}/entitlements/review-cycles")
+def entitlement_review_cycles(pid: str, application: str | None = None,
+                              db: Session = Depends(get_db),
+                              _: str = Depends(require_role("viewer"))):
+    """R22-ENTITLEMENT -- the review rounds, and WHOSE COURT the time sat in.
+
+    Both approval registers already existed and neither modelled **rounds**: `permit` has a single
+    `under_review` state, so a third review round is indistinguishable from a first and the only
+    recoverable duration is applied -> issued. One number, for a process that is a back-and-forth.
+
+    That number cannot settle the argument the process generates. When a permit takes seven months
+    the question is never "how long" but *whose court did it sit in* -- an agency holding three
+    rounds for forty days and an applicant taking fifty-five to answer produce the same elapsed time,
+    a different conversation, and a different remedy. `days_with_agency` / `days_with_applicant` /
+    `agency_share_pct` are that split.
+
+    **An open round is counted and NAMED, never scored.** A round the agency still holds has no
+    comments-received date, and treating that absence as zero would report a submission held ninety
+    days as instantaneous -- the most flattering possible lie about the party you are arguing with.
+
+    **Days are CALENDAR days, and the response says so.** A statutory review period does not pause
+    for a weekend. Construction durations elsewhere here are working days; the axis is stated because
+    mixing them silently is how a delay analysis produces a confident wrong number.
+
+    Distinct from `permit_timeline`, which forecasts days-to-issue from OTHER projects' public permit
+    feeds before you apply. This measures this project's actual rounds, after.
+    """
+    from .. import approval_cycles
+    return approval_cycles.for_project(db, pid, application=application)

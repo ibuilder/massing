@@ -92,6 +92,8 @@ export interface DrawingMarkupItem {
   id: string; sheet_id: string; x: number; y: number; note: string | null;
   author: string | null; topic_id: string | null; created_at: string;
   kind?: string; data?: { pts?: { x: number; y: number }[]; value?: number; unit?: string; page?: number; text?: string; nx?: number; ny?: number;
+    /** IFC GlobalId when the pin was dropped on identified linework (R38-SHEET-MARKUP ③). */
+    guid?: string;
     /** MARKUP-2a slip-sheet: the register revision the markup was made against, and (after a sheet
      *  revise) the superseded revision it was carried forward from — "verify against current". */
     rev?: string; carried_from?: string } | null;
@@ -770,4 +772,72 @@ export interface BidLevelingDetail {
     responsiveness: string[]; qualifications: string[] }[];
   source: string;
   message?: string;
+}
+
+/**
+ * R22-PRE-ACQ — the pre-acquisition go/no-go, as the readiness route returns it.
+ *
+ * Moved out of `client.ts` by the `test_file_sizes` extraction ratchet, which fired when
+ * `entitlementReviewCycles` was added. The ratchet's stated purpose is to force the question "should
+ * this live somewhere else?", and for a response DTO the answer is already written down: new DTOs go
+ * in this file. So the pin was paid for by doing the thing it asks for rather than by raising it.
+ */
+export interface DiligenceReadiness {
+  due_diligence: { total: number; cleared: number; flagged: number;
+    by_category: Record<string, { total: number; cleared: number; flagged: number; open: number }>;
+    high_risk: { ref: string; item: string; risk: string; category: string; state: string }[] };
+  entitlements: { total: number; by_state: Record<string, number>; approved: number;
+    pending: number; denied: number;
+    expiring_within_180d: { ref: string; application: string; expires: string }[] };
+  go: boolean;
+}
+
+/**
+ * R22-ENTITLEMENT — review rounds split by whose court the time sat in.
+ *
+ * **`available: false` is a refusal, not an empty result**, and the counts are `null` rather than 0
+ * in that case: "nobody has submitted" and "the agency was instantaneous" must not render alike.
+ * `agency_share_pct` is `null` whenever either side has no closed leg — a share of an unknown total
+ * is not a share — so a caller must not coerce it with `?? 0`. `rounds_open` counts rounds that are
+ * NAMED but deliberately not scored: an open leg has no end date, and calling that zero days would
+ * report a submission the agency has held for months as instantaneous.
+ */
+export interface ReviewCycles {
+  available: boolean; status: string; reason?: string;
+  rounds: number | null; rounds_closed: number | null; rounds_open: number | null;
+  rounds_undated: number;
+  open_detail: { round: number | null; held_by: string; since: string }[];
+  days_with_agency: number | null; days_with_applicant: number | null;
+  agency_share_pct: number | null;
+  mean_agency_turnaround_days: number | null; mean_applicant_turnaround_days: number | null;
+  total_comments: number | null; rounds_out_of_order: string[];
+  /** Always "calendar" when available — a statutory review clock does not pause for a weekend. */
+  days_basis: string | null; note?: string;
+}
+
+/** GET /projects/{id}/master-builder/brief — 8 protocol steps, optionally scoped for a home strip. */
+export interface MasterBuilderStep {
+  n: number; key: string; title: string; why: string; link: string; dest: string;
+  status: "ready" | "partial" | "gap";
+  findings: { label: string; detail: string }[]; gaps: string[];
+}
+export interface MasterBuilderBrief {
+  project: string | null; jurisdiction: string | null; grounded_in_place: boolean;
+  place_grounding: { code_family: string | null; hemisphere: string | null; climate_band: string | null;
+    coordinates: { latitude: number; longitude: number } | null; hazards_to_verify: string[] };
+  reframe_prompt: string; readiness_pct: number; ready_steps: number; gap_steps: number;
+  step_count: number; steps: MasterBuilderStep[]; disclaimer: string; note: string;
+  scope?: { workspace: string; persona: string; keys: string[] };
+}
+
+/** `GET /projects/{id}/pulse` — already mapped to what `buildPulse` consumes. */
+export interface ProjectPulse {
+  model?: { score?: number | null; issues?: number | null; blocking?: string | null } | null;
+  cost?: { variancePct?: number | null; unpricedChanges?: number | null; exposurePct?: number | null } | null;
+  schedule?: { floatDays?: number | null; atRisk?: string | null } | null;
+  work?: { open?: number | null; mine?: number | null; overdue?: string[] | null } | null;
+  deal?: {
+    irrPct?: number | null; band?: [number, number] | null; staleSince?: string | null;
+    reserveSuggestionFails?: boolean | null; nothingRenovated?: string | null;
+  } | null;
 }

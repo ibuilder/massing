@@ -102,6 +102,17 @@ with TestClient(app) as c:
     assert "place_grounding" in j and j["place_grounding"]["code_family"] == "US / ICC (IBC-derived)", j
     assert c.get("/projects/no-such/master-builder/brief").status_code == 404
 
+    # Home-strip scope: pills are filtered in Python; the 8-step score stays on the full protocol.
+    rs = c.get(f"/projects/{pid}/master-builder/brief",
+               params={"workspace": "design", "persona": "superintendent"})
+    assert rs.status_code == 200, rs.status_code
+    keys = [s["key"] for s in rs.json()["steps"]]
+    assert keys == ["place", "program", "design", "regulatory"], keys
+    assert rs.json()["step_count"] == 8 and rs.json()["readiness_pct"] == j["readiness_pct"], rs.json()
+    gc = c.get(f"/projects/{pid}/master-builder/brief",
+               params={"workspace": "construction", "persona": "superintendent"})
+    assert [s["key"] for s in gc.json()["steps"]] == ["delivery", "risk", "handover"], gc.json()["steps"]
+
     # phase-2b: the shareable Markdown brief
     with SessionLocal() as db:
         md = master_builder.to_markdown(master_builder.brief(db, pid))

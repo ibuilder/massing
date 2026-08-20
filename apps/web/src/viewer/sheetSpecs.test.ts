@@ -1,11 +1,20 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import { SHEET_PARAMS, encodeViews, sheetPath, sheetQuery, viewsForCanvas } from "./sheetSpecs";
+import {
+  DEFAULT_SHEET_PAGE, PAGE_CATALOG, PAGE_KEYS, SHEET_PAGE_STORAGE_KEY, SHEET_PARAMS,
+  encodeViews, isSheetPage, railSheetOptions, readSheetPage, sheetPath, sheetQuery,
+  viewsForCanvas, writeSheetPage,
+} from "./sheetSpecs";
 
 const REPO = resolve(__dirname, "../../../..");
+
+beforeEach(() => {
+  try { localStorage.removeItem(SHEET_PAGE_STORAGE_KEY); }
+  catch { /* node without storage */ }
+});
 
 /**
  * R36 print slice 3 — and the defect that made it necessary.
@@ -52,6 +61,25 @@ describe("the client can only send parameters the route accepts", () => {
     expect(q.get("sheet")).toBe("A-101");
     expect(q.get("purpose"), "the per-level description belongs in purpose — there is no title field")
       .toBe("LEVEL 2 PLAN");
+  });
+
+  it("the rail names ARCH-C (24×18 in) by default, not a silent A3 / a tooltip that says ARCH-D", () => {
+    // compose() defaults to A3 when `page` is omitted. 24×18 in is ARCH C, not an ISO A sheet.
+    const q = sheetQuery(railSheetOptions("Level 2"));
+    expect(q.get("page")).toBe("ARCH-C");
+    expect(q.get("sheet")).toBe("A-101");
+  });
+
+  it("the picker writes the size the next Issue/PDF request sends", () => {
+    writeSheetPage("ARCH-B");
+    expect(readSheetPage()).toBe("ARCH-B");
+    expect(sheetQuery(railSheetOptions("Level 2")).get("page")).toBe("ARCH-B");
+  });
+
+  it("an unknown stored value falls back to ARCH-C rather than sending it", () => {
+    localStorage.setItem(SHEET_PAGE_STORAGE_KEY, "TABLOID");
+    expect(readSheetPage()).toBe(DEFAULT_SHEET_PAGE);
+    expect(isSheetPage("TABLOID")).toBe(false);
   });
 
   it("drops empty values rather than sending them blank", () => {
@@ -145,21 +173,71 @@ describe("the control is WIRED INTO the rail, not merely constructed", () => {
    * say "verified" about something I did not see.
    */
   const app = readFileSync(resolve(REPO, "apps/web/src/viewer/app.ts"), "utf8");
+  const sect = readFileSync(resolve(REPO, "apps/web/src/viewer/tools/drawingsSection.ts"), "utf8");
 
-  it("placeBtn is constructed AND appended to a rail group", () => {
-    expect(app, "the control must exist").toMatch(/const placeBtn = toolBtn2\(/);
-    const group = app.match(/railGroup\("export"[^\]]*\]/s)?.[0] ?? "";
+  /**
+   * **R39-DECOMP-VIEWER ⑦ moved this gate's subject and the gate went red — correctly.** Its own
+   * failure message said *"the rail moved and this gate is now blind"*, which is exactly what had
+   * happened: the buttons are built in `tools/drawingsSection.ts` now and only *appended* in
+   * `app.ts`. A gate that names a file is only ever as good as that address, and an extraction is
+   * precisely the event that invalidates one.
+   *
+   * Re-pointing it at the new file alone would have made it weaker than before, because the chain
+   * has a new link that can break silently: the module could construct `placeBtn` and forget to
+   * **return** it, and `app.ts` would append an array that never contained it. So the check now
+   * follows all three hops — built, returned, appended — which is a stronger claim than the single
+   * file could make.
+   */
+  it("placeBtn is constructed, RETURNED, and appended to a rail group", () => {
+    expect(sect, "the control must exist").toMatch(/const placeBtn = d\.toolBtn2\(/);
+
+    const ret = sect.match(/return \[[^\]]*\]/s)?.[0] ?? "";
+    expect(ret, "the section returns no button array — this gate cannot see the seam")
+      .not.toBe("");
+    expect(ret, "placeBtn is built but not returned — it would never reach the rail")
+      .toContain("placeBtn");
+
+    const group = app.match(/railGroup\("export"[^)]*\)/s)?.[0] ?? "";
     expect(group, "railGroup(\"export\", …) not found — the rail moved and this gate is now blind")
       .not.toBe("");
-    expect(group, "placeBtn is built but never appended — the defect this repo keeps shipping")
-      .toContain("placeBtn");
+    // The array the section returns is what the rail group receives. Whatever the caller names it,
+    // the group must be fed the section's output rather than a hand-listed subset that can drift.
+    expect(group, "the rail group no longer consumes the section's returned buttons")
+      .toMatch(/drawingBtns|buildDrawingsSection/);
   });
 
   it("the sheet buttons go through sheetSpecs, not hand-rolled query strings", () => {
     // The three inline URLSearchParams builders are what sent `number`/`title`/`scale` into the void.
-    // If one comes back, this fails before it can silently drop parameters again.
-    const sheetUrls = app.match(/drawings\/sheet\.(svg|pdf|dxf)\?\$\{/g) ?? [];
-    expect(sheetUrls, "a hand-built sheet URL bypasses the SHEET_PARAMS allowlist").toEqual([]);
-    expect(app).toContain("sheetPath(projectId!");
+    // If one comes back, this fails before it can silently drop parameters again. Both files are
+    // scanned: the construction moved, but `app.ts` must not grow a replacement either.
+    for (const [name, src] of [["app.ts", app], ["drawingsSection.ts", sect]] as const) {
+      const sheetUrls = src.match(/drawings\/sheet\.(svg|pdf|dxf)\?\$\{/g) ?? [];
+      expect(sheetUrls, `a hand-built sheet URL in ${name} bypasses the SHEET_PARAMS allowlist`)
+        .toEqual([]);
+    }
+    expect(sect).toContain("sheetPath(d.projectId!");
+    expect(sect, "Issue/PDF claimed ARCH-D while compose defaulted to A3")
+      .not.toMatch(/Issue sheet[\s\S]{0,400}ARCH-D/);
+    expect(sect).toContain("PAGE_CATALOG");
+    expect(sect).toContain("paperPicker()");
+  });
+});
+
+describe("the page catalog matches the server and names construction sizes", () => {
+  it("PAGE_KEYS is lockstep with drawings.PAGES", () => {
+    const src = readFileSync(resolve(REPO, "services/data/src/aec_data/drawings.py"), "utf8");
+    const at = src.indexOf("PAGES = {");
+    expect(at, "PAGES dict not found — this gate cannot see the server catalog").toBeGreaterThan(-1);
+    const block = src.slice(at, src.indexOf("\n}", at) + 2);
+    const keys = [...block.matchAll(/"([^"]+)":/g)].map((m) => m[1]);
+    expect(PAGE_KEYS.slice()).toEqual(keys);
+  });
+
+  it("every catalog row is a known key, and 24×18 is ARCH-C", () => {
+    expect(PAGE_CATALOG.map((r) => r.key)).toEqual([...PAGE_KEYS]);
+    expect(PAGE_CATALOG[0]!.key).toBe("ARCH-C");
+    expect(PAGE_CATALOG.find((r) => r.key === "ARCH-C")!.label).toMatch(/24×18/);
+    expect(PAGE_CATALOG.find((r) => r.key === "ARCH-B")!.label).toMatch(/half of D/);
+    expect(PAGE_CATALOG.find((r) => r.key === "ARCH-A")!.label).toMatch(/quarter of D/);
   });
 });

@@ -173,7 +173,7 @@ describe("every relative link in the documentation resolves", () => {
    * the tree instead, which takes milliseconds and is the only way the next reorganisation gets caught
    * on the same day it happens.
    */
-  const ROOT_DOCS = ["README.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE-NOTES.md", "CLAUDE.md"];
+  const ROOT_DOCS = ["README.md", "CONTRIBUTING.md", "SECURITY.md", "THIRD-PARTY-NOTICES.md", "CLAUDE.md"];
   const ALL = [...DOC_PATHS, ...ROOT_DOCS];
 
   it("there is a corpus to check", () => {

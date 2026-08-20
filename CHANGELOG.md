@@ -4,6 +4,883 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1028 (2026-08-20) — the other five headers the same trap was eating
+
+### Fixed
+
+- Preserve cross-origin isolation headers for module workers in Nginx deployments so IFC geometry
+  loading does not stall. *(#311, john-rogers — the first outside contribution.)*
+- **And the rest of what that trap was eating.** nginx inherits `add_header` from the enclosing
+  scope only while the current scope declares none, so a location with its own `Cache-Control`
+  silently drops **all seven** server-level security headers. Three locations do this —
+  `~* \.mjs$`, `/assets/` and `/wasm/` — which meant `X-Content-Type-Options: nosniff` was absent
+  from every hashed bundle, every WASM binary and every module worker the app serves. #311 fixed
+  the two headers that caused the reported stall on one of the three; the full set now appears in
+  all three.
+
+### Changed
+
+- **`nginx.test.ts` derives the population instead of counting scopes.** The incoming test encoded
+  the partial state as the specification — `Cross-Origin-*` required in three scopes, everything
+  else in two — which passes forever with `nosniff` still missing. It now finds every location
+  block that declares an `add_header` and requires the whole set in each, so a *fourth* such
+  location fails the day it is added rather than the day someone re-audits. Mutation-checked:
+  deleting `nosniff` from `/wasm/` alone fails with a message naming that location.
+
+
+
+## v0.3.1027 (2026-08-20) — a sanitiser narrower than its input type
+
+### Fixed
+
+- **`js/incomplete-sanitization` (HIGH)**, the one CodeQL alert the merged chain introduced.
+  `charts.test.ts` escaped a status colour for a regex with `[.#]` — wrong in both directions:
+  `#` is not a metacharacter and never needed escaping, while `(`, `|`, `*` and `\` were absent.
+  Correct for today's `#rrggbb` inputs, and the day a token becomes `rgb(1,2,3)` those parens
+  compile as a **group**, so the "declared once" count silently stops meaning what it says.
+  Not exploitable — test-only, constant input — and fixed anyway, because a sanitiser narrower
+  than its input *type* is a latent wrong answer rather than a style nit.
+
+## v0.3.1026 (2026-08-20) — a plan that grazes the storey now says so
+
+### Fixed
+
+- **Blank floor plans printed as finished drawings.** `samples/basichouse.ifc` storey "Floor 1"
+  cuts at 3.600 m, passes through **2** of the 16 elements standing on that storey, and composed a
+  full sheet around them — titleblock, general notes, graphic scale, north arrow, "CUT PLANE
+  3.60 m AFF" — with no building on it and nothing said. The v0.3.913 guard asked `if not polys`,
+  a test for *exactly* zero, and the failure mode is *nearly* zero: two loops are truthy.
+  `cut_plane_quality` now measures the chosen plane against the best one available on the storey,
+  so a fraction decides rather than a boolean, and the sheet names the height that would work
+  ("at 2.500 m it would pass through 6 — set the cut height to 0.100 m").
+  Still **not** a silent re-cut: the titleblock prints the cut elevation, so moving the plane
+  quietly would make that printed number a lie. The counts are also published as
+  `data-plan-cut-spans` / `-best` / `-best-z`, measured once and shared, so the data and the
+  banner cannot drift apart.
+- `test_plan_cut_quality.py` verifies the suggested height *actually improves the drawing* rather
+  than merely being printed, and that a healthy plan is left alone.
+
+### Changed
+
+- **SCALE-SEAM ⑭** — the five drawing-markup methods leave `client.ts` for `api/markup.ts` as
+  `withMarkup`. Forced rather than chosen: teaching `addDrawingMarkup` to carry the GlobalId put
+  the file at 3,606 against a 3,602 ratchet, which is that pin working as its own comment says it
+  should — the friction buys a cluster out of the file instead of buying the pin a higher number.
+  3,606 → 3,579.
+
+## v0.3.1025 (2026-08-20) — `/models` leaves client.ts
+## v0.3.1023 (2026-08-20) — `/documents` leaves client.ts
+
+SCALE-SEAM ⑱. Nine document-control methods (tree, folder, health, upload/move/delete,
+download) moved to `apps/web/src/api/documents.ts`. One contiguous run.
+`client.ts` 3,353 → 3,304.
+
+## v0.3.1022 (2026-08-20) — `/models` leaves client.ts
+
+SCALE-SEAM ⑰. Nine health/QA/georef/federation methods moved to
+`apps/web/src/api/models.ts` (`withModels`; `model.ts` remains `/model`).
+Four regions. `client.ts` 3,412 → 3,353.
+
+## v0.3.1024 (2026-08-20) — the level list says which cut height to use
+
+### Added
+
+- **`GET /projects/{pid}/drawings/storeys` carries a `cut_height` per level.** Every plan in the
+  product was requested at a flat `cut_height=1.2` regardless of storey — right for a normal floor,
+  and the reason a roof datum printed blank. The level list is where a caller picks what to draw, so
+  it is where the answer belongs. Additive: `name` / `elevation` / `guid` are unchanged, and
+  `cut_default_spans` / `cut_best_spans` ride alongside so the suggestion can be judged rather than
+  trusted.
+- The suggestion is **a value to pass back, never an override applied behind the caller's back** —
+  the titleblock prints the elevation it cut at, and a silently different plane would make that
+  printed number a lie.
+
+### Fixed
+
+- **The first version of this maximised element count, which is the wrong objective.** On
+  `basichouse.ifc` "Floor 0" it proposed **0.400 m** to raise the count from 84 to 106 — more
+  linework, cut below every door and window, which is not a floor plan. A plan cuts near 1.2 m
+  because that is where openings are; the convention earns its default. The override now fires on
+  exactly the condition the sheet's banner fires on (`ratio < 0.5` with `best >= 4`), so a level
+  offered a different height is precisely a level that would otherwise have been warned about —
+  one rule, not two that can drift apart. A storey with almost nothing at *any* height keeps the
+  default and its honest "NO GEOMETRY" banner rather than being handed a fake better plane.
+
+## v0.3.1022 (2026-08-20) — `/drawing-set` leaves client.ts
+## v0.3.1021 (2026-08-20) — `/elements` leaves client.ts
+
+SCALE-SEAM ⑯. Eleven inspector/list/colour/QA/citation/cost methods moved to
+`apps/web/src/api/elements.ts`. Five regions. `elements5dMap` (`/5d/heatmap`) and
+the job tray stay. `client.ts` 3,482 → 3,412.
+
+## v0.3.1020 (2026-08-20) — `/drawings` leaves client.ts
+
+SCALE-SEAM ⑮. Eleven sheet methods (revise, schedules, storeys, sync-status, markup + stream)
+moved to `apps/web/src/api/drawingSheets.ts`. Six regions. `client.ts` 3,538 → 3,482.
+
+## v0.3.1019 (2026-08-20) — `/drawing-set` leaves client.ts
+
+SCALE-SEAM ⑭. Eleven drawing-set methods (register, issue, issuance matrix, transmittals)
+moved to `apps/web/src/api/drawingSet.ts`. They sat in three runs with `/preflight` and
+`/pdf` between them. `client.ts` 3,602 → 3,538.
+
+## v0.3.1019 (2026-08-20) — the four checks that stood between 19 branches and main
+
+Integration pass over the v0.3.988–1018 stack. Every item here is a gate that was correctly
+red; none of them were silenced.
+
+### Fixed
+
+- **`report_package` was a job kind classified nowhere.** `register_kind` added it without an
+  entry in `_KIND_MIN_ROLE` or `EDITOR_OK_KINDS`, which is the privilege-side-door shape the
+  dispatcher gate exists to catch. Classified as editor-sufficient with its reason: the queue
+  requires `editor` while `GET /projects/{pid}/reports/{report}.pdf` serves the same content at
+  `viewer`, so the queue is stricter than the front door, and it parks an artifact rather than
+  writing project state.
+- **`addDrawingMarkup` lost its only caller.** `postSheetPin` had re-issued the POST by hand to
+  add `data.guid`. The client method now carries the guid and `postSheetPin` delegates, so the
+  endpoint and its body are constructed in one place. Its test drives the real client and still
+  asserts the encoded body, so the claim now spans seam → client → wire.
+- **The web build was broken before it began.** `vite.config.ts` resolved `three/package.json`,
+  which `three` does not list in its exports map — copied from `vitest.config.ts`, where the same
+  line works only because `pdfjs-dist` happens to expose its manifest. The hoisted `node_modules`
+  is now derived from the package entry path, which does not ask a dependency to publish its
+  manifest. CI never reached this: the test step failed first.
+- **A negative test with an expiry date.** `test_engine_routes` used `page=A0` as its unknown
+  page size; this release widened `_PAGES` to nine ARCH/ISO sizes and A0 became valid, so the
+  request reached the model open and returned 409. The invalid value is now derived from `_PAGES`.
+- **`docs/status.html` was 90 releases behind**, and the gate measuring that could no longer
+  measure: its `/v0\.3\.(\d{3})/` read `v0.3.1018` as **101**, smaller than the 928 already on the
+  page. Past v0.3.999 it reported a lag no amount of refreshing could close. Both it and the
+  CHANGELOG gate now read `\d{3,}`, and the page carries the v0.3.988–1018 wave.
+## v0.3.1018 (2026-08-20) — `/sync` leaves client.ts
+
+SCALE-SEAM ⑬. Seven Procore pull/push + auto-sync-schedule methods moved to
+`apps/web/src/api/sync.ts` as `withSync` (`withSchedule` is already CPM).
+`client.ts` 3,629 → 3,602.
+
+## v0.3.1017 (2026-08-20) — a worktree build uses the pinned Vite
+
+BUILD-WORKTREE-CHUNKS closed. `npm run build` / `dev` go through `run-vite.mjs`, which
+execs the nested Vite 8 pin (found in the main clone via `git-common-dir` when the
+checkout is a worktree). Bare `vite` was resolving the workspace-root Vite 6 and
+folding three.js into the shell at exit 0. `vite.config.ts` now allows that hoisted
+`node_modules` the same way the vitest config already did.
+
+## v0.3.1016 (2026-08-20) — `/connections` leaves client.ts
+
+SCALE-SEAM ⑫. Eleven `/connections` methods moved to `apps/web/src/api/connections.ts`.
+`client.ts` 3,672 → 3,629. The increment marker vocabulary in `roadmapLanes.test.ts` now
+runs ①–⑳ so the twelfth does not silently parse as the bare series name.
+
+## v0.3.1015 (2026-08-20) — assemble the package, don't click it one by one
+
+R24-REPORTS-BY-MOMENT ②. Each package has **Assemble**: a `report_package` job builds the
+named reports into one PDF and parks it in the job tray. Unknown ids fail the job rather than
+quietly shortening the pack. Email-on-a-date is still open (needs a recipient and SMTP).
+
+## v0.3.1014 (2026-08-20) — markup the plan you are looking at
+
+R38-SHEET-MARKUP ③ closed. Every generated sheet (plan / elevation / section) has
+**🖊 PDF markup**. Composed sheets still use `sheet.pdf`; the others wrap the live SVG
+in pdf-lib (`apps/web/src/ui/svgPdf.ts`) so the takeoff tools open on the room's own
+drawings.
+
+## v0.3.1013 (2026-08-20) — a pin on a wall raises an RFI on that wall
+
+R38-SHEET-MARKUP ③ ②. Promoting a drawing pin copies `data.guid` onto
+`Topic.element_guids`, so the RFI is the same GlobalId the sheet and the 3D view
+already share. A pin on empty paper still raises a coordinate-only RFI.
+
+## v0.3.1012 (2026-08-20) — a pin on a wall is that wall
+
+R38-SHEET-MARKUP ③ ①. Generated-sheet markup in the Drawings room now reads `data-guid` from the
+SVG (same hit-twins as the plan pane). A pin dropped on linework stores the GlobalId and
+reselects it in 3D. Empty paper is still a coordinate pin. PDF markup on generated
+plans/elevations (not only composed `sheet.pdf`) is still open.
+
+## v0.3.1011 (2026-08-20) — box one symbol on the sheet, get the rest
+
+R23-SYMBOL-COUNT ②. Takeoff **⌘ Match** boxes one instance on the pdf.js-rendered page;
+`countOnRgba` in `apps/web/src/ui/symbolCount.ts` downsamples, NCC-matches, and places
+existing count marks. A too-small or too-large box is a sentence, never a guessed quantity.
+
+## v0.3.1010 (2026-08-19) — count a symbol by matching it, not guessing
+
+R23-SYMBOL-COUNT ①. Normalised cross-correlation plus non-maximum suppression in
+`apps/web/src/ui/symbolCount.ts`. Zero new dependencies. The takeoff-worker wiring is still open.
+
+## v0.3.1009 (2026-08-19) — this week's Gantt, not a month of bars
+
+UX-GANTT. The Schedule room already had a month-scale SVG. It now opens with a Mon–Sun week:
+day columns, inline %, crew size when present, and trade colour from `SERIES_PALETTE` (not
+traffic lights). Empty is a sentence. The server Gantt is still below.
+
+## v0.3.1008 (2026-08-19) — field mode hides the seven rooms
+
+R24-FIELD-MODE ④. With field mode on, `#workspaces` (the room tablist) is `display:none`, so
+it is also out of the tab order. Capture stays the landing (③); Office restores the spine.
+Replacing the portal home itself is still Lane A.
+
+## v0.3.1007 (2026-08-19) — Tab to the room's job, then land
+
+R39-A11Y-JOURNEYS ②. Each of the seven rooms has one keyboard primary: Design is its tab; the
+other six put `[data-room-primary]` on the landing (Open RFIs / budget lines / activities / the
+next Deal gate / the first work-queue row / Open work orders). Tests Tab to it, operate it, and
+assert focus did not fall on `document.body`.
+
+## v0.3.1006 (2026-08-19) — field mode lands on capture when a project is open
+
+R24-FIELD-MODE ③. If field mode is on and a project is selected, the capture sheet opens
+(on load and when you flip the Field toggle). No project → no sheet (that would only toast).
+The seven-room spine is unchanged; this is not a second portal home.
+
+## v0.3.1005 (2026-08-19) — a citation boxes the passage, not a new browser tab
+
+R31-CITE-HIGHLIGHT. Opening a source used `window.open` on a blob URL, so `citeLocate` had no
+page to draw on. The citation now opens the in-app takeoff viewer; `PdfDocument.textItems` is
+the `PageWords` supplier. A scan or empty text layer is a sentence, never a guessed box.
+
+## v0.3.1004 (2026-08-19) — the field FAB no longer sits on the queue
+
+R24-FIELD-MODE ②. Slice ①'s 56 px rules lost to the FAB's inline `52×52` / `bottom:18px`, so the
+sync strip was under the camera button. Field-mode CSS now wins; the FAB sits above the strip.
+The strip announces queue changes (`aria-live="polite"`). Capture-first home is still open.
+
+## v0.3.1003 (2026-08-19) — one mono face, including paste-from-spreadsheet
+
+R24-MONO-DATA. The last hand-rolled `ui-monospace` stack was the register paste textarea, left
+when the renderer still lived in a Lane A file. It now reads `var(--mono)`. The ratchet
+allowance is 0.
+
+## v0.3.1002 (2026-08-19) — a series is not a traffic light
+
+R24-CHARTS-GRAMMAR ③ closes the item. `chartColor` is a seven-slot categorical ramp that does not
+include passing-green, warn-gold, failing-red, or `--accent`. Signed charts and the CPI–SPI
+quadrant still use those status hues. A mix donut that means on-track / at-risk must pass the
+hues in.
+
+## v0.3.1001 (2026-08-19) — field mode: 56 px, the queue, and a mic that can be missing
+
+R24-FIELD-MODE ①. A stored mode (`aec-field-mode`, `?field=1`), not a breakpoint: 56 px targets
+and outdoor contrast on the capture FAB / sheet / strip only. The offline queue is always
+visible in field mode (empty and offline are sentences). Dictation on the note when the
+browser has SpeechRecognition; no engine means no mic, never a dead button. Capture-first
+home is still open. Register density is a separate control.
+
+## v0.3.1000 (2026-08-19) — the element card opens wherever a register names a GUID
+
+R24-ELEMENT-CARD ② reach. Opening an RFI, estimate, SOV (G703 / pay-app line), or asset-register
+(COBie Component) record that is tied to model elements now mounts the same lifecycle card as the
+viewer and the cost-trace lookup. There is no `pay_app` module and no COBie worksheet UI — those
+two named surfaces are SOV and the asset register. A failed lifecycle is the identity line, never
+a six-blank strip. The register file shrank (`tiedElements.ts`); the pin is 2,516.
+
+## v0.3.999 (2026-08-19) — Cost, Planning, and Operate open on three answers
+
+R36-ROOM-BRIEFS for the remaining portal homes. Cost (`__budget__`) opens vs GMP, unpriced
+exposure, and buyout. Planning (`__benchmarks__`) opens on the RFI clock, the submittal clock,
+and own-history cost medians. Operate (`__operations__`) opens on overdue work orders, PM
+compliance, and FCI. No GMP / no history / `pm_compliance_pct: null` / no FCA elements are
+sentences, never 0%. Shared card chrome is `roomBriefChrome.ts`. Design stays the viewer
+(`ROOM_HOME.design` is null).
+
+## v0.3.998 (2026-08-19) — Deal opens on the developer's three answers
+
+The Deal room (`__portfolio__`) used to open on the book-wide table. It now opens with returns vs
+the underwriting band, open diligence, and the next developer protocol gate (`dealBrief.ts`). A
+failed engine is a reason, never 0.0% IRR or "0 flagged". Schedule (995) and Work remain the
+other landed briefs; Cost / Planning / Operate / Design are still open on R36.
+
+## v0.3.997 (2026-08-19) — CAM statement PDF is a POST
+
+Downloading a tenant CAM statement used to be a cookie-bearing GET that `Session.commit()`'d an
+audit row. SameSite=Lax sends the session cookie on a top-level GET. The route is POST; the
+Finance UI fetches the blob and saves it. OAuth callback remains the only GET+commit.
+
+## v0.3.996 (2026-08-19) — Field / Comfortable / Compact on registers
+
+Density is three named row heights (56 / 36 / 28 px), cycled from the portal home, and applied to
+`.portal-table` so the 8-hour register is not stuck at dashboard-only compact. Numeric cells use
+tabular figures. Catalog star and module buttons show a focus ring outside the control
+(`outline-offset: 2px`), so keyboard focus is visible.
+
+## v0.3.995 (2026-08-19) — Schedule opens on the superintendent's three answers
+
+The Schedule room used to open on import/export, then a wall of tools. It now opens with today's
+lookahead, blockers, and yesterday's variance (`scheduleBrief.ts`), then the rest of the board.
+The three engines already existed. A failed fetch is a reason, never a plausible zero. Work remains
+the template; Deal and the other rooms are still open on R36-ROOM-BRIEFS.
+
+## v0.3.994 (2026-08-19) — one Analyse home, three named tasks
+
+Design's rail no longer lists Model Health, Model Analysis and BIM KPIs as siblings. One **Analyse**
+destination opens a home that names the question each already-built panel answers. The three dests
+still render (readiness hops unchanged). Not a fourth scorecard.
+
+## v0.3.993 (2026-08-19) — pick the sheet paper; 24×18 is ARCH C
+
+The Drawings rail has a paper picker. Catalog is US ARCH C/D/B/A plus ISO A0–A4. **24×18 in is
+ARCH C**, not an ISO A size (A2 is 16.5×23.4). ARCH D is the usual full-size US construction set
+(36×24); half-size of D is ARCH B (18×12); the next step down is ARCH A (12×9), often called
+quarter-size of D. Default is ARCH C. 11×17 is not in the list — it is a copier size, not half of
+24×36. An unknown `page` is refused (422), never substituted. `compose()` with no `page` is still
+A3 so existing API links do not change paper.
+
+## v0.3.992 (2026-08-19) — Issue sheet prints as ISO A1
+
+The Drawings rail's Issue / Sheet PDF buttons labelled the sheet A-101 and the hover said ARCH-D,
+while the request omitted `page` so `compose()` silently used **A3**. The paper-space editor already
+defaulted to A1. The rail now sends `page=A1`. ARCH-D (24×36 in) is a different standard and stays
+a product call, not a silent default. `compose()` with no `page` is still A3.
+
+## v0.3.991 (2026-08-19) — Pulse is one GET, pills follow the persona, a 500 is not a blank
+
+Home Pulse no longer fans seven client GETs and maps the wrong field names (`score` vs
+`overall_score`, a `variance_pct` the cost summary never returned). `GET /projects/{id}/pulse`
+returns `PulseInput` from `project_pulse.py`; each engine still fail-opens on its own. The
+route does **not** POST a renovation programme with an invented body.
+
+Persona-weighted pill **order** is now the server `keys` list (engineer on Design: design →
+regulatory → place). A brief that 500s shows "Readiness unavailable" instead of a blank
+strip that reads as "nothing is next".
+
+## v0.3.990 (2026-08-19) — Starlette 1.6.0, the FileResponse Range floor
+
+`requirements.lock` pinned Starlette 1.3.1. 1.5.1/1.6.0 fix Range handling on `FileResponse` (we
+stream source IFC that way) and add `max_body_size` on routes. FastAPI 0.141.1 already allowed
+`starlette>=0.46.0`; the floor is now explicit in `requirements.in`. No other lock moves. Compiled
+on Python 3.12.
+
+## v0.3.989 (2026-08-19) — the home strip's scope is a server fact, not a client filter
+
+The 8-step protocol still runs in Python. The home strip was still deciding *which* steps a
+superintendent or a designer sees. That map now lives next to `_PROTOCOL` in
+`master_builder_scope.py`, is applied on `GET /projects/{id}/master-builder/brief?workspace=&persona=`,
+and is lockstep-tested against `readinessStrip.ts` so the two layers cannot fork. The overall
+readiness percent stays on all eight steps; only the pills are scoped. Empty intersect still
+falls back to the workspace set.
+
+Bake-share directories are mode 0700 when the operator turns sharing on. GET handlers that
+`Session.commit()` are a ratchet (`test_get_commits.py`): OAuth callback stays GET; the CAM
+PDF download is named as the leftover. Handoff for the next session:
+`docs/internal/runway-claude-2026-08-19.md`.
+
+## v0.3.988 (2026-08-19) — the readiness brief is on every home, and bake-share stores JSON
+
+Two leftovers from the upgrade audit, neither of which is a library swap.
+
+**The Master Builder 8-step brief was the product's own "what do I do next" surface, and it lived
+on one destination in Design.** A GC superintendent, a developer, or anyone who opened the workspace
+home never saw it. v0.3.988 mounts a compact strip on every portal home (construction / design /
+developer all pass through `renderHome`) and scopes the pills to that workspace, then to persona —
+intersected so a superintendent browsing Design still sees Design's questions rather than an empty
+strip. "Close this gap" hops to the first non-ready scoped step; "Full brief" still opens
+`__masterbuilder__`. Fail-open: a brief that cannot load leaves the host empty, same rule as Pulse.
+The strip sits above Pulse so the next action is above the risk numbers.
+
+Does not replace the eight-card panel. Does not invent a second protocol. The API is still
+`/projects/{id}/master-builder/brief`.
+
+**When bake-share is on, values are JSONDisk, not pickle.** `diskcache` 5.6.3 still has no published
+fix for CVE-2025-69872; the shared cache is still **off unless `AEC_BAKE_SHARE_DIR` is set**. The
+geometry payload was already nested lists of arrays, so pickle was never load-bearing here.
+`JSONDisk` is in the package we already pin. A row that cannot be JSON-encoded is refused rather than
+pickled. `mapped-diskcache` was not added. Default deployments still never construct a Cache.
+
+## v0.3.986 (2026-08-18) — a comment that explains a pin gets believed because it is specific
+
+Three review findings, all of them claims that had drifted from what they described.
+
+**A stale comment contradicted the pin it justified — and the comment was the wrong one.**
+`requirements-dev.txt` pinned `DracoPy==2.0.0` under a comment reading *"2.0.0 publishes Windows
+wheels ONLY"* and *"1.7.0 is the newest with manylinux wheels"*, while `test_gltf_compress.py` told
+readers to install 1.7.0 and the dev venv had 1.7.0. Three sources, two stories, and nothing
+comparing them.
+
+Checked against PyPI rather than reasoned about: **2.0.0 publishes 16 manylinux wheels**, alongside
+16 Windows and 15 macOS. Both comment claims are false. They were presumably true when written —
+2.0.0 shipped Windows-first — and nothing re-read them after. **The pin was right and the prose was
+stale, which is the reverse of the natural assumption**: a comment that explains a pin gets trusted
+precisely because it is specific.
+
+The hazard was real in the other direction too. If the comment *had* been right, Linux CI would have
+had no wheel, `draco_available()` would return false, and `test_gltf_compress.py` would print SKIP
+while the job stayed green — the exact silent-pass the comment was written to prevent.
+
+**Fixed so it cannot drift again:** the test's message now *reads* the pin via `_pinned_draco()`
+instead of restating it, and asserts no literal `DracoPy==x.y.z` creeps back into that file.
+Mutation-checked by restoring the old literal, which fails by name.
+
+**And a gate that flagged its own documentation was removed rather than worked around.** The first
+version also asserted the comment named only the pinned version — and immediately failed on the
+*corrected* comment, which cites 1.7.0 while recording what the stale claim used to say. A regex
+cannot separate "the version to use" from "the version this comment is about", so that check's only
+remedy is rewording the history until it goes quiet, which destroys the record. It is gone, with the
+reasoning left in place.
+
+**A release note claimed a gate covered something it does not.** The v0.3.985 entry said all four
+floor bumps went to versions the lock already pins, citing
+`test_lock_satisfies_requirements.py`. True for the three in `requirements.in`; **false for bandit**,
+which lives in `requirements-dev.txt` — outside that gate's sources — and is not in the lock at all.
+The one bump in an unchecked file was the one presented as checked. Nothing is broken (1.9.4 exists),
+but a future dev-tool bump naming a yanked version would pass every local gate and fail CI at
+`pip install -r requirements-dev.txt`. Corrected in place.
+
+**And the v0.3.984 entry backticked `requirements.txt`** — the file whose non-existence the v0.3.985
+entry reports as its headline finding, in the same document. `test_claude_md_gates.py` does not cover
+CHANGELOG.md, so nothing failed. Diagnosing an error and leaving its live instance one screen away is
+its own lesson.
+
+## v0.3.985 (2026-08-18) — four declared floors made honest, three refused
+
+**Four Python floor bumps applied** (dependabot #289 manifold3d, #286 fastapi, #282 shapely, #284
+bandit).
+
+**Three of them are verified; the fourth is not, and this entry originally said otherwise.** The
+`requirements.in` bumps — manifold3d, fastapi, shapely — each raise a `>=` floor to a version
+`requirements.lock` already pins, so nothing about what installs changes and
+`test_lock_satisfies_requirements.py` confirms it: 50 floors against 110 pins.
+
+**bandit is the exception.** It lives in `requirements-dev.txt`, which is **not** in that gate's
+sources (`requirements.in` + `services/data/requirements.txt`), and bandit is not in the lock at
+all — dev tools are installed unpinned by `ci.yml` and again, unconstrained, by `security.yml`. So
+the one bump in an unchecked file was the one this entry presented as checked. 1.9.4 does exist and
+is installed in the dev venv, so nothing is broken; the claim was the defect, not the change.
+
+That matters beyond the wording: a future dev-tool bump naming a **yanked** version would pass every
+local gate and then fail CI at `pip install -r requirements-dev.txt`. The floor is also inert where
+bandit actually runs, since `security.yml` installs it without a constraint.
+
+**The other three are refused, and the reason is worth keeping.** #277 numpy (lock pins 2.5.1),
+#281 trimesh (4.12.2, and a major), #288 boto3 (1.43.46) all raise the floor **above** the lock.
+Merging them would red main on that same gate — mutation-tested here by simulating #281, which fails
+with the exact package, both versions and the line number. And the deeper point: **CI installs from
+`services/api/requirements.lock` with `--require-hashes`, not from the sources.** So even if the gate
+did not exist, merging them would produce a green CI run that tested the *old* versions. A floor
+bump is a claim about what is required; only a lock regeneration changes what is *used*.
+
+**Two things the mapping turned up, both from checking rather than assuming:**
+
+- `services/api/requirements.txt` **does not exist**. The source is `requirements.in`, compiled to
+  `requirements.lock`; a first pass looking for the `.txt` found nothing and would have concluded the
+  packages were undeclared.
+- **`shapely` is declared in two different files** — `services/api/requirements.in` at `>=2.0` and
+  `services/data/requirements.txt` at `>=2.1.2`. Reading the wrong one makes #282 look already
+  applied. The edit is line-anchored and asserts it matched exactly one line, so a floor like
+  `>=2.0` cannot silently match inside `>=2.0.1`.
+
+## v0.3.984 (2026-08-18) — the dependabot bumps were incomplete, and the lock is what CI installs
+
+**Five npm dev-dependency upgrades, applied together and verified as one state:** eslint 10.8.0 →
+10.8.1, globals 17.7 → 17.11, happy-dom 20.8.9 → 20.11.2, typescript-eslint 8.65 → 8.67, vite
+8.1.5 → 8.2.1 (dependabot #278, #280, #283, #285, #287). They were applied in one commit rather than
+merged one by one because all five rewrite `package-lock.json` and would have conflicted pairwise.
+
+**Dependabot could not see the whole picture, and merging its PRs as-is would have changed less than
+they claimed.** The **root** workspace declares `vite`, `eslint` and `happy-dom` too. Dependabot
+only opened PRs against `apps/web`, so:
+
+- **`eslint` would have stayed on the root's 10.8.0** — hoisted, so the apps/web bump was a *no-op
+  for linting*, which is the tool the bump exists to update;
+- **`vite` would have been installed twice** — the root's exact `8.1.5` against web's exact `8.2.1`,
+  forcing a nested second copy. This repo already has a memory about a worktree silently building
+  with a different Vite; this is the same hazard from the other direction.
+
+Both roots are now aligned and all five resolve to **single hoisted copies** at the intended
+versions, confirmed by reading `node_modules` rather than by trusting the manifest.
+
+**There is also an `overrides` block pinning eslint repo-wide, which dependabot never touches.** The
+first edit here landed on *it* instead of the devDependency — the same key exists in both sections
+and a count-limited replace takes whichever comes first in the file. npm rejected it immediately
+(`EOVERRIDE: Override for eslint@10.8.0 conflicts with direct dependency`), which is the good case:
+a loud failure rather than a silent half-upgrade. Both entries now read 10.8.1 and are asserted equal.
+
+**`toolchainDocs.test.ts` then caught the third thing:** `docs/engineering/web-standards.md` still
+said "eslint 10.8.0". That is a governed doc whose versions are asserted against the manifest, and
+its own comment records that both versions there were wrong for weeks once before. Updated.
+
+**The seven Python PRs are a different problem, and none of them are merged here.** CI installs from
+`services/api/requirements.lock` with `--require-hashes`, **not** from the sources it is compiled
+from. (This entry said "requirements.txt" in backticks; there is no such file — the input is
+`services/api/requirements.in`. Corrected in v0.3.986, which found the live instance of the very
+error the v0.3.985 entry below diagnoses.) Those PRs
+only raise `>=` floors, so:
+
+- **#289 manifold3d, #286 fastapi, #282 shapely, #284 bandit** — the lock already pins versions that
+  satisfy the new floors. Safe, and purely a matter of making `requirements.txt` honest.
+- **#277 numpy, #281 trimesh, #288 boto3** — these raise the floor **above** what the lock pins
+  (2.5.1, 4.12.2, 1.43.46). `test_lock_satisfies_requirements.py` already guards exactly this; it was
+  mutation-tested by simulating #281 and fails with the precise message. Merging them without
+  regenerating the lock would red main — **and CI would still install the old versions, so a green
+  run would prove nothing about trimesh 5.** They need a lock regeneration, which is its own change.
+
+Web: typecheck + lint clean, 1651/1651, build ✓. Backend 608/608.
+
+## v0.3.983 (2026-08-17) — a deleted symbol in backticks still reads as a live one
+
+Docs only. An end-of-session sweep over v0.3.978–982 found one real gap and one wrong number, both
+in the R37-TRIAGE entry.
+
+**The three functions deleted in v0.3.980 were still listed in plain backticks.** The same entry
+already strikes through `verify_stepup_token` with its deletion version — the convention existed, it
+just was not applied to the newer deletions. This repo's standing rule is that **backticks are
+reserved for things that exist**, because a backticked name reads as a live citation whether or not
+anything backs it; that rule was written for *file paths* and the gate enforces it for those, but it
+holds for symbols too and nothing enforces it there. `discipline_names`, `quadrant` and
+`scorecard_inputs` are now struck through with the rest.
+
+**And the sentence summarising what was left said "eight" when the answer is nine.** Counted rather
+than recalled: twelve candidates, three deleted, **nine unstruck — of which eight have a real
+caller.** The ninth is `sync_property`, and it is worth naming instead of rounding away: it has no
+caller at all. It is a deliberate refusal stub that raises `NotImplementedError` and names *itself*
+as the place to implement the credentialed ENERGY STAR exchange, kept because deleting it would
+remove the documented extension point from a module whose entire contract is "never fabricate a
+score". The dead-code gate counts it as referenced only because that error string contains its name
+— a limitation of the rule, now stated in the entry rather than left to be rediscovered.
+
+An unattached number drifts, and this one had drifted within a day of being written.
+
+## v0.3.982 (2026-08-17) — where the renderer-free seam actually stops
+
+**R39-DECOMP-VIEWER ⑫ — envelope & free-form geometry.** Curtain wall, sloped wall top, and the raw
+verts/faces mesh escape hatch → `viewer/tools/envelopeSection.ts`, 75 lines. `app.ts` 3,096 →
+**3,032** — 5,160 → 3,032 across the ring, a **41% cut**.
+
+**I corrected a claim of my own in the roadmap, and the correction is the release.** One release
+earlier I wrote that the two remaining groups were renderer-free and "both extractable on the same
+recipe". That was written without checking, and half of it was false.
+
+**The annotation group is not renderer-free.** It adds and removes objects on the live
+`viewer.world.scene.three`, raycasts through `screenToGround`, and — decisively — **assigns** to
+`annotGuide` and `guideWired`, which are `let` in `app.ts`. Reading a mutable capture through an
+accessor is cheap. *Writing* one across a seam needs a setter pair, and the module would still need a
+WebGL context to test, which is the precise untestability this whole decomposition exists to escape.
+So the renderer-free seam **ends at ⑫**. What is left needs a different technique — move the scene
+state into the module and let it own its objects — and that is a design change, not a lift, so it
+belongs in its own roadmap item rather than being forced through as slice ⑬.
+
+**The check cost nothing, which is the point.** The module was written, left in the project imported
+by nothing, and typechecked. `tsc` listed `viewer`, `screenToGround`, `annotGuide`, `guideWired` and
+four more in one pass — before a line of `app.ts` had been touched and with nothing to revert. The
+same procedure then confirmed the envelope group *is* clean: six missing names, three of them plain
+imports.
+
+**Two smaller things worth writing down:**
+
+- **⑫ is two non-contiguous ranges.** The sandboxed IFC-code runner sits between the curtain wall and
+  the slope/mesh pair, and it stays in `app.ts` — a code sandbox is a different concern with a
+  different risk profile, and folding it in for one tidy cut would trade cohesion for convenience.
+  Extraction boundaries follow meaning, not line numbers.
+- **Comments move with the code they describe.** The first cut took its ranges by line number and
+  dragged in the "Advanced toggle" and "sandboxed ifcopenshell" comments while leaving the slope
+  tool's own comment behind — a module documenting features it did not contain. Same defect as the
+  docstrings that got three functions deleted in v0.3.980, and caught the same way: by reading what
+  the output actually said.
+
+**Remaining:** ~640 lines in `buildToolsPanel`. The annotation group (~120) is the renderer-coupled
+part above; the rest is the content/family library and the rail assembly itself, which is wiring —
+the thing this file is *for*.
+
+## v0.3.981 (2026-08-17) — the accessor rule meets the capture it was written for
+
+**R39-DECOMP-VIEWER ⑨ — fabrication detail leaves `app.ts`.** 65 lines to
+`viewer/tools/fabricationSection.ts`: base plate, shear tab, rebar cage, the ACI 318 cage check and
+the bar bending schedule. `app.ts` 3,311 → **3,255** — 5,160 → 3,255 across nine slices, a 37% cut.
+
+**This is the slice the accessor rule was written for.** Slice ⑦ threaded `activeStorey`; this one
+threads **`selectedGuid`**, the capture the decomposition plan named first and the one with the worst
+failure mode. Every tool in the group is selection-gated, so collapsing the accessor would not break
+them loudly — it would make all five **permanently inert behind a polite "select an element first"**,
+which is precisely the bug `qaSection.ts` shipped once, under a docstring explaining why it could not
+happen. Eight reads of `d.selectedGuid()`, no local binding, and `accessorNotCollapsed.test.ts`
+mutation-checked against the new file.
+
+**`tsc` rejected three things, and each rejection was correct** — which is the argument for a recipe
+whose gate is the compiler rather than a suite that never imports the file:
+
+- a dep signature narrowing `authorAndReload` to `Promise<void>`, which would have dropped the
+  `{applied, refused}` verdict and let a future caller read a **refused** edit as a successful one;
+- calling the accessor twice where narrowing was needed (`if (d.selectedGuid()) … d.selectedGuid()`)
+  — two calls genuinely can differ, so the compiler is asking the right question;
+- returning an **array**: under `noUncheckedIndexedAccess` a destructured element is
+  `T | undefined`, and these are appended straight into the rail. A named interface is the only shape
+  that carries non-optional types across the seam, and names survive re-ordering where indices do not.
+
+**R39-DECOMP-VIEWER ⑩ — MEP, fire protection and life safety.** 169 more lines to
+`viewer/tools/mepSection.ts`: MEP fitting, fire-protection equipment, fire-alarm device, telecom
+device, vertical riser, and the `IfcDistributionSystem` browser. `app.ts` 3,255 → **3,096** — 5,160
+→ 3,096 across ten slices, a **40% cut**.
+
+**This slice threads `lastPoint`, the last of the two named mutable captures**, and the most volatile
+state on any of these seams: `selectedGuid` changes when you pick an element, `lastPoint` is
+rewritten on *every click in the 3D view*, and five of the six tools place geometry at it. Each
+handler reads it once, at click time, into a local — which is the point-of-use read the rule asks
+for, not the build-time collapse it forbids. The distinction is the *when*, not the presence of a
+local, and the gate is mutation-checked against the new file.
+
+**It also exposed the recipe's own weak point, which is worth more than the slice.** The
+free-variable list was hand-written and found **12 of 17** captures — `askText`, `layerMgr`,
+`loadProjectModel`, `reloadModelPins` and `waitForPublish` were all missed. Worse: the one dep whose
+*type* was guessed (`layerMgr` as `{ rebuild(): void }`) compiled fine until a call site reached for
+`isolateGuids`. **Guessing a dep's type is the same error as guessing its name.**
+
+The fix is procedural, and it is now how these slices get done: write the module first, run `tsc`
+against it *unwired*, and thread exactly what the compiler reports missing. A compiler is a complete
+enumerator; a hand-written list never is. Checking before the splice also keeps every error
+attributable to the new file instead of mixed into `app.ts`.
+
+`tsc` additionally rejected narrowing `loadProjectModel` to `Promise<void>` — the real return is
+`Promise<boolean>`, and that boolean is whether the re-tessellation *succeeded*. Same defect class as
+the `authorAndReload` narrowing caught in ⑨: a dep type that quietly drops a verdict lets a caller
+read failure as success.
+
+## v0.3.980 (2026-08-17) — a rule corrected twice had not finished being wrong
+
+**R37-TRIAGE step 4: all 12 dead-code candidates read.** The entry already recorded this population
+being corrected twice — **877 → 35 → 13**, without moving a single threshold, every reduction a fix
+to *what counts as a caller*. The implication nobody drew is that a rule corrected twice has not
+finished being wrong.
+
+It had not. Reading the 12 found **eight live symbols**, missed for three distinct reasons:
+
+- **aliased imports** — `search_filter`, `project_with_source` and `input_fields` all arrive as
+  `from .x import f as _f` and are then called as `_f(...)`. Deleting them breaks module search and
+  three authoring routers.
+- **Python files that are not `.py`** — `excluded_import_names` is imported by name, unaliased, by
+  `desktop.spec` *and* `sidecar.spec`. The scanner never opened them, because its glob was `*.py`.
+  **A population derived over the wrong file set is not a conservative estimate, it is a confident
+  wrong answer**, and this one sat one careless deletion away from breaking both PyInstaller builds
+  with nothing in the suite going red.
+- **methods reached through an instance** — `register_recipe` is the documented third-party plugin
+  API, called as `api.register_recipe(...)` by `plugins/example-wall-brand/plugin.py`.
+
+**And the list was short by two.** A corrected rule surfaced `get_meta` and `validate_dir`, which
+were never candidates — so 13 was neither an upper nor a lower bound on anything.
+
+**Three deleted, each for saying something false about itself rather than merely for being uncalled:**
+`evm.quadrant` (a second implementation of the CPI–SPI points `evm.ts` already derives, under a
+docstring claiming the dashboard uses it) · `cde.scorecard_inputs` (a wrapper "so the KPI engine has
+one import", which `bim_kpi.py` bypasses by calling the two functions it wraps) ·
+`classification.discipline_names`.
+
+**Two more were deleted and put back, and that is the sharpest lesson in this release.**
+`module_schema.validate_dir` is called by `test_module_config.py`; `model_index.get_meta` is imported
+and called in `routers/standards.py`. The new gate reported both dead **because its comment-stripper
+was wrong** — it applied the TypeScript block-comment pattern `/\*.*?\*/` to `.py` files, and
+`test_module_config.py` contains `modules/*/module.json`, which holds a literal `/*` and a literal
+`*/`. The "comment" swallowed the imports. **Over-stripping is not the safe direction**: a false death
+in a dead-code gate is an instruction to delete working code. Stripping is now per-language.
+
+The two were caught by different things, which matters. `validate_dir` was caught by the full suite.
+`get_meta` was caught only by re-grepping every deleted name **without a `head` limit** — the first
+check had one, `.venv` noise filled the first ten lines, and the real caller was pushed off the end.
+A truncated search is a search that can report absence it never established.
+
+**The rule is now `services/api/test_dead_code_population.py`, a ratchet at zero** — a new
+unreachable public function fails at the commit that adds it. Two admissions belong with it:
+
+- **It had to be corrected four times itself**, and the last three each survived the fix for the one
+  before. (1) `ast.walk` counted nested closures as public API and discarded same-file callers —
+  **69** flagged against the roadmap's 12. (2) Reference matching counted **prose**: it passed with
+  zero unreferenced while `evm.quadrant` was "reached" only by *"CPI–SPI quadrant"* in a TypeScript
+  comment, so the gate could not go red at all. (3) The TypeScript block-comment regex ran on `.py`.
+  (4) `"""…"""` pairing shifted and swallowed code to end-of-file. Python is parsed with `ast` now,
+  regex stripping is `.ts`-only, and each fix is mutation-checked.
+- **It still cannot see `quadrant`**, whose name collides with a UI label inside a string literal,
+  and string literals have to count because registries dispatch on them. That one needed a human.
+  The limit is written in the file rather than hidden behind an exemption.
+
+## v0.3.979 (2026-08-17) — the filename was the whole defect
+
+**`LICENSE-NOTES.md` → `THIRD-PARTY-NOTICES.md`.** GitHub's licence classifier globs `LICENSE*`,
+`LICENCE*` and `COPYING*` at the repository root and tries to identify every hit. A *notes* file
+sitting beside the real licence is therefore not a neighbouring document — it is a **second licence
+declaration that fails identification**, and the sidebar degrades from "MIT" to
+**"MIT, Unknown licenses found"**.
+
+That string is not cosmetic. Directory listings and awesome-lists assert a licence and link back
+here, so the repository has to agree with them, and "Unknown licenses found" is exactly the claim
+that makes a reviewer hesitate. **Nothing in the file's contents was ever wrong — the filename was
+the entire defect**, which is also why no gate about doc *substance* could have caught it: every
+existing check asked whether the document said enough, and none asked what its name made GitHub
+believe.
+
+**So there is now a gate, and it checks the shape rather than the one name that failed.**
+`test_doc_substance.py` asserts that exactly one root file matches the licence glob. A well-meant
+`LICENSE-THIRD-PARTY.md` or `LICENSES.md` fails it too. Mutation-checked by restoring the old
+filename, which turns the check red with the reason.
+
+Four live references followed the rename (README, `docs/deploy.md`, and the two gates that name the
+file by string — `docsPublished.test.ts` and `test_doc_substance.py`). Three historical mentions in
+`roadmap-completed.md` and the internal archive were left in place but demoted from backticks to
+plain quotes, per this repo's own rule that **backticks are reserved for files that exist**: those
+records describe what was true then, and a backticked dead name reads as a live citation.
+
+## v0.3.978 (2026-08-17) — whose court did the permit sit in
+
+**R22-ENTITLEMENT ③.** A permit that took seven months prompts exactly one question, and it is never
+"how long". It is *whose court did it sit in.* An agency that held three review rounds for 40 days
+and an applicant who took 55 days to answer them produce **identical elapsed time**, a completely
+different conversation, and a different remedy.
+
+Until now this system could not tell those two apart. Both registers for approval already existed —
+`entitlement` (application type, agency, hearing date, public process) and `permit`
+(applied → under_review → issued) — and `approval_conditions.py` / `condition_checks.py` already carry
+conditions of approval into the model as constraints. What neither register modelled is **rounds**.
+`permit` has a single `under_review` state, so a third round is indistinguishable from a first and the
+only recoverable duration is `applied_date → issued_date`: one number for a process that is a
+back-and-forth.
+
+**New: the `review_cycle` register and `approval_cycles.py`.** Each round carries submitted,
+comments-received and response-sent dates, so the elapsed time splits into the leg the agency held and
+the leg the applicant held. `agency_share_pct` is the number an argument actually quotes.
+`GET /projects/{pid}/entitlements/review-cycles` serves it, optionally filtered to one application.
+
+**The refusals are the design, and each one is mutation-checked:**
+
+- **An open round is unmeasurable, not zero days.** A round sitting with the agency has no
+  comments-received date, and scoring that absence as 0 would report a submission held for ninety days
+  as instantaneous — the most flattering possible lie about the party you are about to argue with.
+  Open rounds are counted and *named* (`rounds_open`, `open_detail`, `held_by`), never scored. Same
+  rule v0.3.974 settled for PPC, for the same reason.
+- **A share of an unknown total is not a share** — `agency_share_pct` is `None`, never 0, when either
+  side has no closed leg.
+- **Days are calendar days, and the axis is stated on the response.** A statutory review period does
+  not pause for a weekend, and an applicant who sat on comments over a holiday still sat on them. This
+  is the opposite choice from `schedule_compare`, which counts working days because a *construction*
+  duration is worked. Mixing the two silently is how `eot.py` produced four identical numbers.
+- **Rounds out of order are reported, not sorted away.** Round 3 dated before round 2 means a mis-keyed
+  date or rounds that are not what they look like, and quietly sorting destroys the only evidence.
+
+**The test's load-bearing case is a pair of applications with the same total elapsed time** (60 days,
+2026-01-01 → 2026-03-02) and opposite causes: 54/6 against 9/51. If those ever collapse into one
+number the module has stopped answering the only question it exists for. Measuring the applicant leg
+from submission instead of from comments-received fails three named checks; scoring an open leg as 0
+fails the share check; sorting the rounds fails the out-of-order check.
+
+One real defect was caught by writing the refusal test before believing the engine: the undated-rounds
+count was returned under a mismatched key, so `rounds_undated` stayed 0 while a stray field appeared
+beside it. Asserting the *count* rather than just the status is what saw it.
+
+**The route has a client caller, because a gate insisted.** `test_route_reachability` failed the
+moment the route landed: *"a route the product cannot call is a feature nobody can use."* It offers
+two ways out — wire it, or freeze it with a reason — and wiring it was clearly right, so the split now
+renders in **Diligence & Entitlements**, beside the go/no-go banner that counts applications by state
+without saying who was holding them. A refusal renders *as* a refusal there; "0 days with the agency"
+would be a confident wrong answer about the party the reader is preparing to argue with.
+
+---
+
+**R39-DECOMP-VIEWER ⑦ — the drawings group leaves `app.ts`.** 142 lines to
+`viewer/tools/drawingsSection.ts`: 3,444 → **3,311**, and the whole `sheetSpecs` import left with
+them. Slices ①–⑥ had already emptied the `builders` map (5,160 → 3,444); this is the first group
+lifted out of the ~1,100 lines still sitting directly in `buildToolsPanel` above it.
+
+**It is the slice that finally exercised the accessor rule.** `exportsSection.ts` said outright that
+it "touches neither" mutable capture and that its deps type was shaped so the next one could. This is
+that one: `activeStorey` and `activeStoreyZ` are `let`, reassigned by the level selector. Passing
+either by value compiles clean and freezes the level at panel-build time — which is *before any level
+exists* — so every plan, DXF and sheet would quietly render the whole building instead of the level on
+screen. As accessors, `tsc` then rejected `if (d.activeStorey()) q.set(…, d.activeStorey())`: two
+calls cannot narrow where one `let` did, which is the compiler asking the right question, since two
+calls genuinely can differ.
+
+**Moving the code broke a gate, and that is the part worth keeping.** `sheetSpecs.test.ts` asserted
+against `app.ts` that `placeBtn` is built *and* appended — written because that button nearly shipped
+constructed-and-unreachable. It failed with its own message: *"the rail moved and this gate is now
+blind."* An extraction is exactly the event that invalidates a gate's address. Re-pointing it at the
+new file alone would have left it **weaker** than before, because the seam adds a link that can fail
+silently — build the button, forget to `return` it. It now follows all three hops (built → returned →
+appended), each mutation-checked.
+
+**Two ratchets moved down, neither raised.** `app.ts` 3,444 → 3,311. And `client.ts` failed the
+extraction ratchet when the new API method pushed it to 3,706 — the pin working as designed. Its own
+history records the same event at ⑫, when a response type went to `types.ts`; this did that twice,
+moving both the new `ReviewCycles` type **and** the `DiligenceReadiness` one beside it, so 3,685 →
+**3,683**. The pin bought a second DTO out of the file rather than merely admitting the first.
+
+**Docs:** the register count went 138 → 139 in six places across four files. The doc gate flagged one
+of them.
+
+## v0.3.977 (2026-08-17) — the roadmap gets its own hygiene, and a gate that can see a duplicate
+
+Docs and one test. No product code changed.
+
+**Thirteen completed entries archived** — `roadmap.md` goes 3,616 → 3,051 lines, and
+`roadmap-completed.md` takes 565. `RATCHET-SET` was **deliberately left in the live roadmap**: its own
+text argues that why a scalar ceiling was the wrong instrument is worth reading before anyone reaches
+for another one, and that argument is only useful where people are still choosing instruments.
+
+**Four shipped codes were still sitting in lane cells** — `BOE-MAPPING-DEDUP`, `R43-PLAN-DRIFT`,
+`R24-CMDK-VERBS`, `R41-BUNDLER-SPLIT`. Same shape as the `R22-AGENT-PACKS` finding a release earlier:
+finished work making a lane look busier than it is. Archiving without clearing these would have failed
+`roadmapLanes.test.ts` on its other direction — the table naming a code that no longer exists.
+
+**Two items each had two bullets**, and the gate could not see either. `roadmapLanes.test.ts` asserts
+MEMBERSHIP — every code is in a lane, every lane names a real code — and both assertions are satisfied
+by the first occurrence and never look for a second. `R31-CITE-HIGHLIGHT` and `R22-PIPELINE` had been
+double-counted in every total for months while the file stayed green.
+
+Neither duplicate was an accident: both secondary entries *say* they are cross-references (*"the live
+entry is the Band 2 one"*, *"folded in rather than deleted"*, because both halves found real and
+independent blockers). So nothing was deleted — the secondaries became bold cross-references instead
+of `- **CODE**` bullets, and the count became honest.
+
+**A uniqueness assertion now exists**, with a twin that plants a duplicate pair so the scan cannot pass
+vacuously. Mutation-checked: it names the offending code and its count.
+
+*And the first sweep for duplicates found only one of the two*, because it grepped for the code
+somebody had already noticed. Counting every bullet found the other — the same
+enumerate-the-population lesson this roadmap keeps re-learning about itself, committed while auditing
+it for exactly that.
+
+**A next-three-sprints block** was added to the NOW section, labelled a proposal rather than a
+decision, because five consecutive releases were each one item chosen in the moment. That worked and
+is not a sequence anybody else could pick up. The reasoning is written out so disagreeing with it is
+cheap.
+
+**Verification, stated precisely:** the full web suite (1,650 tests), all five roadmap/doc gates, and
+the backend gates that read these files. **The full backend suite was not re-run** — no Python source
+changed in this release, and the previous commit's 606/606 covers that tree.
+
+## v0.3.976 (2026-08-17) — one PPC rule for answers too: the leg fills itself, and it was one engine
+
+v0.3.975 gave the ANSWERS leg somewhere to live. It stayed empty on every real project, because the
+only thing that produces a cited answer never filed one — `admissible` was reachable in principle and
+unreachable in practice, which is a quieter version of the same defect.
+
+**It was ONE engine, not three.** The roadmap said `decision_gate`, `persona_answer` and `rfi_qa`
+answer. Reading them says otherwise: `decision_gate.evaluate` *consumes* a cited answer as evidence,
+`persona_answer.shape` *re-renders* one for a reader. Only `rfi_qa` calls `cited_answer.build`.
+**Wiring all three would have filed one answer three times under three engine names — and a provenance
+report is a count, so that is worse than not filing at all.**
+
+`provenance_report.record_answer` files; `rfi_qa.ask` calls it with the `db` and `pid` it already
+holds, so no signature changed. **Filing never raises and never blocks answering:** a question
+answered correctly and unfiled beats one that filed and returned nothing, so failures ride on the
+response as `recorded: false` with a *composed* reason — `str(exc)` on a response path is the v0.3.962
+defect. An answer with **no** citations is still filed, because that is precisely what the report
+exists to name; dropping it would improve every provenance report by hiding the answers most worth
+looking at.
+
+**The round trip is the assertion.** `test_answers_leg_roundtrip.py` asks and then counts it in the
+report, because both halves have their own tests and neither can see the seam between them. It also
+asserts the population in both directions — exactly one module builds a cited answer, exactly one
+calls `record_answer`. If that ever names two, the leg double-counts and every report reads better
+than the project is.
+
+**Two seam defects it caught, both invisible to either side alone.** `create_record` reads its field
+map out of `body["data"]`; passing it flat inserts a record with every field empty and does not raise
+(mutation-checked, 2 named FAILs). And `cited_answer` emits `guid` for an IFC citation and `rule_id`
+for a rule where the register declares `document_id` — a module `table` field keeps the columns it
+knows and **drops the rest**, so an unmapped key stores a citation with nothing to open.
+
+**And one in the test itself, worth recording because it nearly shipped.** It set `AEC_DB_URL` where
+the real variable is `DATABASE_URL`, so it wrote to the shared `./aec.db` while claiming isolation.
+Every assertion passed. A UNIQUE-constraint collision on the *second* run is what gave it away — a
+first green run proves nothing about isolation.
+
 ## v0.3.975 (2026-08-16) — the answers leg gets somewhere to live, and `admissible` becomes reachable
 
 `R22-PROVENANCE`'s last leg. `provenance_report` reported ANSWERS as `not_captured` — not *"you have

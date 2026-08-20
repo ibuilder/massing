@@ -1,4 +1,5 @@
 import type { ApiClient, DocCitation } from "../../api/client";
+import { citationEl } from "./citationControl";
 import { escapeHtml as esc, toast } from "../../ui/feedback";
 import { money as cmoney, usd } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
@@ -14,56 +15,6 @@ import type { PanelContext } from "../panelContext";
 const SEV_TONE: Record<string, string> = {
   high: "var(--status-crit)", medium: "var(--status-warn)", low: "var(--status-good)" };
 
-/** Render one citation, as a control when there is a document behind it (R31-CITE-HIGHLIGHT).
- *
- * Both citation renderers used this shape independently and each declared its own narrow inline
- * type, so widening one would have left the other inert — the reason this is one function.
- *
- * `openable` is the server's answer, not a guess made here: a doctext document can be ingested from
- * raw text, in which case no source file has ever existed and there is nothing to open. Those stay
- * plain text, because a control that always 404s is worse than no control.
- *
- * The snippet is written with `textContent`, never `innerHTML` — it is document prose from an
- * uploaded file, i.e. exactly the untrusted string an escape exists for.
- */
-function citationEl(api: ApiClient, pid: string, c: DocCitation): HTMLElement {
-  const wrap = document.createElement("div");
-  wrap.className = "meta";
-  wrap.style.cssText = "margin:2px 0 0 8px;border-left:2px solid var(--line);padding-left:6px";
-  const head = document.createElement(c.openable && c.doc_id ? "button" : "span");
-  const label = `p.${c.page}${c.section ? " §" + c.section : ""}${c.doc ? " — " + c.doc : ""}`;
-  head.textContent = label;
-  if (c.openable && c.doc_id) {
-    const btn = head as HTMLButtonElement;
-    btn.className = "file-btn";
-    btn.style.cssText = "padding:1px 6px;font-size:11px";
-    btn.title = "Open the source document";
-    btn.onclick = async () => {
-      const was = btn.textContent; btn.disabled = true; btn.textContent = "opening…";
-      try {
-        const blob = await api.doctextSource(pid, c.doc_id!);
-        const url = URL.createObjectURL(blob);
-        window.open(url, "_blank", "noopener");
-        // Revoked on a timer, not immediately: revoking before the new context has fetched the
-        // object leaves a blank tab. 60s is long enough for a load and short enough not to pin a
-        // large PDF in memory for the session.
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      } catch (e) {
-        toast(`Could not open source: ${(e as Error).message}`, "error");
-      } finally { btn.disabled = false; btn.textContent = was; }
-    };
-  }
-  wrap.appendChild(head);
-  if (c.snippet) {
-    const q = document.createElement("div");
-    q.style.cssText = "font-style:italic;margin-top:2px";
-    q.textContent = `“${c.snippet}”`;   // textContent: this is document text
-    wrap.appendChild(q);
-  }
-  return wrap;
-}
-
-  // --- Risk Review (preconstruction intelligence) ------------------------------------------------
 export function renderRiskReview(ctx: PanelContext) {
     const root = ctx.root; root.innerHTML = "";
     const pid = ctx.host.projectId();
@@ -463,9 +414,8 @@ export async function renderAiAssist(ctx: PanelContext) {
     // a blocker is worse than no comment: it tells the next reader not to attempt the thing that
     // now works, and this one sat directly on top of the code it was discouraging.
     //
-    // What is NOT done here, so the next reader does not have to rediscover it: the in-page
-    // HIGHLIGHT box. `citeLocate.ts` can find a passage on a page, but it needs a `PageWords`
-    // supplier the viewer does not yet expose. Opening the document is the reachable half.
+    // The citation is a control (citationEl). Opening uses the in-app viewer so citeLocate can
+    // box the passage from PdfDocument.textItems. A miss is a toast, never a guessed rectangle.
     const cite = el("div", "meta");
     if (d.citations?.length) {
       cite.textContent = "Source: " + d.citations.map((c) => `p.${c.page}`).join(", ");

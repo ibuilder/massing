@@ -24,7 +24,7 @@ transient viewer id, which is why those artifacts still agree after the model is
 quantities, COBie and the proforma are all *derived*, so they are regenerable and cannot silently
 disagree with the building.
 
-**Breadth, deferred rather than deleted.** There are 138 registers. Nobody uses 137 things; roughly one
+**Breadth, deferred rather than deleted.** There are 139 registers. Nobody uses 138 things; roughly one
 in eight features carries most daily use. So the product routes you to the ten things you touch today
 and keeps the rest one keystroke away — reachable from a room, from an element, from the work queue, or
 from **⌘K** by name.

@@ -17,7 +17,7 @@ Three properties matter more than the layout:
 1. **The rooms come from the API.** `GET /rooms` derives the allocation from a single section→room
    table. The shell does not invent a taxonomy — a module with no room is **reported**, never filed
    somewhere plausible. Guessing is how four taxonomies came to exist.
-2. **Nothing is hidden.** All 138 modules stay reachable four ways: from their room, from the element
+2. **Nothing is hidden.** All 139 modules stay reachable four ways: from their room, from the element
    they are anchored to, from the work queue when it is your turn, and from **⌘K** by name. The
    design rule is *defer, never delete*.
 3. **A workspace weights the spine, it never replaces it.** Opening Construction promotes Schedule to
@@ -109,6 +109,6 @@ looks like an answer.
 ## Related
 
 - [roles-views.md](../roles-views.md) — which role owns which room, and the rule for placing a new tool.
-- [modules.md](modules.md) — what the 138 registers are and how records work.
+- [modules.md](modules.md) — what the 139 registers are and how records work.
 - The allocation itself is enforced by `services/api/test_module_rooms.py`; the rail's reachability by
   `apps/web/src/shell/parity.test.ts`. Neither the room list nor its coverage is maintained by hand.

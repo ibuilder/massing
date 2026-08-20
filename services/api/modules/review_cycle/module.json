@@ -1,0 +1,46 @@
+{
+  "key": "review_cycle",
+  "name": "Review Cycles",
+  "section": "Approvals",
+  "icon": "↻",
+  "ref_prefix": "RC",
+  "title_field": "subject",
+  "pinnable": false,
+  "workspace": "construction",
+  "fields": [
+    {"name": "subject", "label": "What was submitted", "type": "text", "required": true,
+     "fieldset": "Round"},
+    {"name": "round", "label": "Round #", "type": "number", "required": true,
+     "help": "1 for the first submission. A resubmittal after comments is round 2, and so on.",
+     "fieldset": "Round"},
+    {"name": "permit", "label": "Permit (linked)", "type": "reference", "module": "permit",
+     "fieldset": "Round"},
+    {"name": "entitlement", "label": "Entitlement (linked)", "type": "reference",
+     "module": "entitlement", "fieldset": "Round"},
+    {"name": "agency", "label": "Reviewing agency", "type": "text", "fieldset": "Round"},
+    {"name": "reviewer", "label": "Assigned reviewer", "type": "text", "fieldset": "Round"},
+    {"name": "submitted_date", "label": "Submitted to agency", "type": "date",
+     "fieldset": "Clock"},
+    {"name": "comments_received_date", "label": "Comments received", "type": "date",
+     "help": "Blank while the round is still with the agency. The round is unmeasurable until this is filled, not zero-days.",
+     "fieldset": "Clock"},
+    {"name": "response_sent_date", "label": "Response sent", "type": "date",
+     "help": "Blank while the round is still with us.",
+     "fieldset": "Clock"},
+    {"name": "comment_count", "label": "Comments raised", "type": "number", "fieldset": "Clock"},
+    {"name": "outcome", "label": "Outcome of the round", "type": "select",
+     "options": ["comments_issued", "approved", "approved_with_conditions", "denied", "withdrawn"],
+     "fieldset": "Clock"}
+  ],
+  "workflow": {
+    "initial": "with_agency",
+    "states": ["with_agency", "with_applicant", "closed"],
+    "transitions": [
+      {"from": "with_agency", "to": "with_applicant", "action": "receive_comments", "party": ["GC"]},
+      {"from": "with_applicant", "to": "with_agency", "action": "resubmit", "party": ["GC"]},
+      {"from": "with_agency", "to": "closed", "action": "close", "party": ["GC"]},
+      {"from": "with_applicant", "to": "closed", "action": "close", "party": ["GC"]}
+    ]
+  },
+  "list_columns": ["round", "agency", "submitted_date", "comments_received_date", "outcome"]
+}
