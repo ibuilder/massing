@@ -4,6 +4,32 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1031 (2026-08-20) — pdf.js pinned exactly; the flag that was doing nothing removed
+
+### Fixed
+
+- **`pdfjs-dist` pinned to exactly `6.2.108`**, the release that fixes CVE-2026-16633 (JavaScript
+  embedded in a PDF executing in the hosting origin). A range would let a future install float off
+  the patched version, and the pin is the only thing standing between this app and that CVE.
+
+### Changed
+
+- **Removed `enableScripting: false`, and the test that vouched for it.** The incoming change added
+  that option at every `getDocument` call site. It is a pdf.js **viewer** option, not a
+  `getDocument` one: it appears nowhere in `pdfjs-dist`'s `DocumentInitParameters`, the vendored
+  fork read it nowhere, and it did not typecheck against the real types — the compiler is how it
+  surfaced. It was a security control consumed by no code, with a green test reporting "PDF
+  scripting is disabled". **A gate vouching for a no-op is worse than no gate**, because it answers
+  the question and the next auditor moves on.
+- `pdfjsScripting.test.ts` now asserts the two things that are actually true: the version spec is an
+  exact pin at or above 6.2.108, and nothing in `src/` imports pdf.js's viewer or
+  `PDFScriptingManager` — which is *why* document JavaScript has nowhere to run. Both
+  mutation-checked: floating the pin to `^6.2.108` fails, and adding a `pdfjs-dist/web/` import
+  fails.
+- Lane D (`Geometry & drawings`) now owns `apps/web/src/drawings/`, which no lane claimed; the new
+  test file pushed the unowned-file ratchet from 48 to 49 and the fix it asks for is a lane row,
+  not a higher number.
+
 ## v0.3.1030 (2026-08-19) — CC0 is permitted, and the written rule catches up
 
 The operator confirmed adding **CC0-1.0** to the permitted licence list.

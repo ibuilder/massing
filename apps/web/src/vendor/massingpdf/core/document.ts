@@ -25,6 +25,18 @@ export function workerConfigured(): boolean {
   return Boolean(pdfjs.GlobalWorkerOptions.workerSrc);
 }
 
+/**
+ * Load options passed to every `getDocument`.
+ *
+ * `enableScripting: false` was here and is deliberately NOT: it is a pdf.js **viewer** option, not
+ * a `getDocument` one — `grep -r enableScripting node_modules/pdfjs-dist/types` returns nothing,
+ * and the vendored fork reads it nowhere either. It was a security control consumed by no code,
+ * with a test asserting its presence, which is worse than absent: the gate read "PDF scripting is
+ * disabled" while the real reason this app is safe is that it never instantiates the scripting
+ * engine at all. CVE-2026-16633 is mitigated by the exact version pin, which is now what is gated.
+ */
+export const PDFJS_LOAD = { cMapPacked: true };
+
 /** Where the bytes come from. */
 export type PdfSource =
   | File
@@ -85,7 +97,7 @@ export class PdfDocument {
     const { bytes, name } = await readSource(source, signal);
     // pdf.js may transfer (and thus detach) the buffer it is handed. Give it a private copy so
     // `this.bytes` stays intact for the export path.
-    const task = pdfjs.getDocument({ data: bytes.slice(0), cMapPacked: true });
+    const task = pdfjs.getDocument({ data: bytes.slice(0), ...PDFJS_LOAD });
     signal?.addEventListener("abort", () => void task.destroy(), { once: true });
     const doc = await task.promise;
     return new PdfDocument(doc, task, bytes, name);
