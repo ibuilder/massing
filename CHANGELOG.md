@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1032 (2026-08-20) — a ratchet measured on a branch describes a tree that never shipped
+
+### Fixed
+
+- **Main was red on the extraction ratchet**: `client.ts=3305 > 3304`. Each of the five seam
+  branches (#316–#320) measured `client.ts` on a tree containing only *its own* extraction, so
+  every ceiling was correct on its branch and none described the merged result — which carries six
+  mixin imports, not one. Corrected to 3,305.
+- **This is not a raised bound.** The file went **3,683 → 3,305** across the chain, and the gate
+  still fails on any growth from here — mutation-checked by appending one line. The lesson is
+  narrower and worth keeping: *a ratchet value computed on a feature branch is a measurement of a
+  tree that never shipped*, and in a stacked chain every one of them is stale by construction.
+
 ## v0.3.1031 (2026-08-20) — pdf.js pinned exactly; the flag that was doing nothing removed
 
 ### Fixed
