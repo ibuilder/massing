@@ -5,6 +5,28 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 *controls*: [`docs/security/threat-model.md`](../security/threat-model.md). Security *queue*:
 [`security-roadmap.md`](security-roadmap.md).
 
+**Cursor Cloud cannot talk to Claude Desktop or Claude Code.** There is no shared chat. The
+interface is git: this file, `docs/roadmap.md`, and the stacked PRs. Fetch before you write.
+
+---
+
+## If you are catching main up (Claude Code)
+
+`origin/main` is still **v0.3.986** (`a67c4732`). The Cursor stack is **v0.3.988–1018**, unmerged,
+draft PRs, each stacked on the previous. Your job is to **land that stack onto main**, not to
+re-implement it.
+
+1. `git fetch origin`. Tip of the stack: `origin/cursor/scale-seam-sync-6e15` (**v0.3.1018**, #315).
+2. Land **in table order**, one PR at a time. After each merge, rebase the remainder onto the new
+   `main`. **Keep the later version numbers** (do not rebump 1018 down to 987).
+3. Do **not** redo rows in “What already shipped on this stack”.
+4. Do **not** merge #296 (superseded by #297). Do **not** treat #311 as part of this stack
+   (cross-origin isolation / nginx — separate).
+5. Three PRs still claim **v0.3.987** vs `main` (#292, #294, #295). They go **before** #297.
+6. After a merge: ruff from `services/api`, web typecheck/lint, then tag only when `HEAD` is
+   `origin/main` and CI is green. See `.claude/skills/ship-release/SKILL.md`.
+7. Do not grow `client.ts` / `app.ts` / `register.ts` past the pins below.
+
 ---
 
 ## Land order — do this first, then write code
@@ -34,7 +56,7 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 | 19 | [#312](https://github.com/ibuilder/massing/pull/312) | `cursor/report-package-job-6e15` | **1015** vs #310 |
 | 20 | [#313](https://github.com/ibuilder/massing/pull/313) | `cursor/scale-seam-connections-6e15` | **1016** vs #312 |
 | 21 | [#314](https://github.com/ibuilder/massing/pull/314) | `cursor/worktree-vite-pin-6e15` | **1017** vs #313 |
-| 22 | this | `cursor/scale-seam-sync-6e15` | **1018** vs #314 |
+| 22 | [#315](https://github.com/ibuilder/massing/pull/315) | `cursor/scale-seam-sync-6e15` | **1018** vs #314 |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main`. This agent cannot merge.

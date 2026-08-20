@@ -13,9 +13,10 @@
  *     reports "wrong vite" and refuses — which is honest, and also means the directions that
  *     say "work in a worktree" cannot produce a shippable bundle.
  *
- *     The nested pin is not an ancestor of the worktree. It lives in the *main clone's*
- *     `apps/web/node_modules`. `git rev-parse --git-common-dir` names that clone. Looking
- *     there first is what makes a worktree build the same bundler as CI.
+ *     The nested pin is not an ancestor of an *out-of-repo* worktree. It lives in the main
+ *     clone. `git rev-parse --git-common-dir` names that clone. Looking there — both
+ *     `apps/web/node_modules/vite` (nested pin) and `node_modules/vite` (hoisted pin) —
+ *     is what makes a worktree build the same bundler as CI.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
