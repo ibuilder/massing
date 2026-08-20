@@ -7,6 +7,7 @@ import { withDrawingSet } from "./drawingSet";
 import { withDrawingSheets } from "./drawingSheets";
 import { withElements } from "./elements";
 import { withModels } from "./models";
+import { withDocuments } from "./documents";
 import { withMarkup } from "./markup";
 import { withSync } from "./sync";
 import { withCost } from "./cost";
@@ -38,8 +39,8 @@ export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";
 export * from "./authoring";
 export * from "./library";
 import type {
-  Appraisal, AuditEntry, Dashboard, DocFile,
-  DisciplineTree, DocFolderNode, DueFeed, EditMacro, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
+  Appraisal, AuditEntry, Dashboard,
+  DisciplineTree, DueFeed, EditMacro, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, ProfessionalLicense,
   ResponsibilityMatrix, SmartView, StampTemplate,
     BidLevelingDetail,
@@ -49,7 +50,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))))))) {
+export class ApiClient extends withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -2440,56 +2441,6 @@ export class ApiClient extends withModels(withElements(withDrawingSheets(withDra
       { method: "POST", headers: this.authHeaders(), body: fd });
     if (!res.ok) throw new Error((await res.text()) || `inspect failed (${res.status})`);
     return res.json() as Promise<Record<string, unknown>>;
-  }
-  // --- Document control / file manager (F1-F6) ---------------------------------
-  documentsTree(pid: string) {
-    return this.json<{ project: string; total_files: number; required_gaps: string[];
-      nodes: DocFolderNode[] }>(`/projects/${pid}/documents/tree`);
-  }
-  documentsFolder(pid: string, path: string, superseded = false) {
-    const q = `?path=${encodeURIComponent(path)}${superseded ? "&superseded=true" : ""}`;
-    return this.json<{ folder: string; owner_role: string | null; valid_folder: boolean;
-      count: number; files: DocFile[] }>(`/projects/${pid}/documents/folder${q}`);
-  }
-  documentsByRole(pid: string, role: string) {
-    return this.json<{ role: string; count: number; folders: DocFolderNode[] }>(
-      `/projects/${pid}/documents/by-role?role=${encodeURIComponent(role)}`);
-  }
-  documentsHealth(pid: string) {
-    return this.json<{ total_files: number; naming_compliance_pct: number | null;
-      required_coverage_pct: number | null; revision_control_pct: number | null;
-      required_missing: string[]; by_cde_state: Record<string, number>; superseded_kept: number }>(
-      `/projects/${pid}/documents/health`);
-  }
-  documentsPhaseGaps(pid: string, phase: string) {
-    return this.json<{ phase: string; missing: number; complete: boolean;
-      items: { folder: string; description: string; present: boolean }[] }>(
-      `/projects/${pid}/documents/phase-gaps?phase=${encodeURIComponent(phase)}`);
-  }
-  async uploadDocument(pid: string, path: string, file: File,
-      meta: { title?: string; discipline?: string; doc_type?: string; cde_state?: string } = {}) {
-    const fd = new FormData();
-    fd.append("path", path); fd.append("file", file);
-    for (const [k, v] of Object.entries(meta)) if (v) fd.append(k, v);
-    const res = await fetch(this.url(`/projects/${pid}/documents/upload`),
-      { method: "POST", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.text()) || `upload failed (${res.status})`);
-    return res.json() as Promise<{ entry: DocFile; naming: { valid: boolean; issues: string[] };
-      superseded: string | null }>;
-  }
-  async moveDocument(pid: string, fid: string, path: string) {
-    const fd = new FormData(); fd.append("path", path);
-    const res = await fetch(this.url(`/projects/${pid}/documents/${fid}/move`),
-      { method: "POST", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.text()) || `move failed (${res.status})`);
-    return res.json() as Promise<DocFile>;
-  }
-  deleteDocument(pid: string, fid: string, hard = false) {
-    return this.json<{ deleted: string }>(`/projects/${pid}/documents/${fid}${hard ? "?hard=true" : ""}`,
-      { method: "DELETE" });
-  }
-  documentDownloadUrl(pid: string, fid: string) {
-    return this.url(`/projects/${pid}/documents/${fid}/download`);
   }
   lodAssessment(pid: string) {
     return this.json<{ model_scored: boolean; elements: number; using_default: boolean;
