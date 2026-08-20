@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1023 (2026-08-20) — `/documents` leaves client.ts
+
+SCALE-SEAM ⑱. Nine document-control methods (tree, folder, health, upload/move/delete,
+download) moved to `apps/web/src/api/documents.ts`. One contiguous run.
+`client.ts` 3,353 → 3,304.
+
 ## v0.3.1022 (2026-08-20) — `/models` leaves client.ts
 
 SCALE-SEAM ⑰. Nine health/QA/georef/federation methods moved to
