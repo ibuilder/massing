@@ -109,6 +109,32 @@ check("with nothing to cut at any height, ratio is None rather than 0.0",
 check("the warning is conditional, not unconditional",
       ("MISSES MOST OF THE STOREY" in svg_bad) and ("MISSES MOST OF THE STOREY" not in svg_ok))
 
+# --- ③ the level list carries a cut height a caller can act on ------------------------------------
+levels = drawings.storeys_with_cut(house)
+by_name = {str(l["name"]): l for l in levels}
+f0, f1 = by_name["Floor 0"], by_name["Floor 1"]
+
+check("a healthy storey KEEPS the 1.2 m convention rather than maximising linework",
+      f0["cut_height"] == drawings.DEFAULT_CUT_M,
+      f"Floor 0 cut={f0['cut_height']} spans={f0['cut_default_spans']}/{f0['cut_best_spans']} — "
+      "a pure maximiser proposed 0.400 m here, which cuts below every door and window")
+check("the failing storey gets an overridden cut height",
+      f1["cut_height"] != drawings.DEFAULT_CUT_M and f1["cut_height"] > 0,
+      f"Floor 1 cut={f1['cut_height']}")
+check("the override fires on EXACTLY the storeys the sheet warns about — one rule, not two",
+      (f1["cut_height"] != drawings.DEFAULT_CUT_M) == ("MISSES MOST OF THE STOREY" in svg_bad)
+      and (f0["cut_height"] != drawings.DEFAULT_CUT_M) == ("MISSES MOST OF THE STOREY" in svg_ok))
+check("and the level list still carries what every existing caller reads",
+      all({"name", "elevation", "guid"} <= set(l) for l in levels),
+      "additive only — name/elevation/guid unchanged")
+
+# a storey with almost nothing at ANY height is not dressed up as a drawing: `best >= 4` keeps the
+# suggestion quiet, and the sheet says NO GEOMETRY instead of implying a better plane exists.
+roof = [l for l in drawings.storeys_with_cut(school) if str(l["name"]) == "Roof"]
+check("a genuinely empty storey is not given a fake 'better' cut height",
+      bool(roof) and roof[0]["cut_height"] == drawings.DEFAULT_CUT_M,
+      f"{roof[0]['cut_default_spans']}/{roof[0]['cut_best_spans']} elements" if roof else "no Roof")
+
 print()
 if FAILED:
     print(f"FAILED: {'; '.join(FAILED)}")

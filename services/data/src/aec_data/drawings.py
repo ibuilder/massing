@@ -45,6 +45,47 @@ def storey_elevations(model: ifcopenshell.file) -> list[dict[str, Any]]:
     return sorted(out, key=lambda x: x["elevation"])
 
 
+#: The conventional architectural cut — roughly waist height above the finished floor, where a plan
+#: catches door and window openings. Correct for a normal storey and wrong for the two cases that
+#: produce blank sheets: a roof/parapet datum with nothing 1.2 m above it, and a mezzanine or plant
+#: level whose elements are shorter than the default.
+DEFAULT_CUT_M = 1.2
+
+
+def storeys_with_cut(model: ifcopenshell.file) -> list[dict[str, Any]]:
+    """`storey_elevations` plus, per storey, the cut height that actually catches its geometry.
+
+    R43-PLAN-EMPTY-AT-CUT ③. The level list is where a caller decides what to draw, so it is where
+    the answer to *"what cut height should this level use?"* belongs. Every plan in the product was
+    requested at a flat `cut_height=1.2` regardless of storey, which is right for a normal floor and
+    produces a blank sheet for a roof datum — `samples/basichouse.ifc` "Floor 1" catches 2 of its 16
+    elements at 1.2 m and 6 at 0.1 m.
+
+    `cut_height` is a **suggestion the caller must pass back**, never an override applied behind its
+    back: the titleblock prints the elevation it was cut at, so a silently different plane would make
+    that printed number a lie. `cut_default_spans` / `cut_best_spans` are published beside it so the
+    suggestion can be judged rather than trusted — equal values mean the default was already fine.
+    """
+    lvls = storey_elevations(model)
+    if not lvls:
+        return lvls
+    meshes = bake(model)
+    for lvl in lvls:
+        q = cut_plane_quality(meshes, float(lvl["elevation"]), DEFAULT_CUT_M)
+        # Only override the convention when the convention FAILS — the same test the sheet's banner
+        # uses, so a level that suggests a different height is exactly a level that would have been
+        # warned about. Maximising the element count is the wrong objective on a healthy storey:
+        # 1.2 m is where doors and windows are, and on `basichouse` "Floor 0" a pure maximiser
+        # proposed **0.400 m** to gain 84 -> 106 elements — more linework, cut below every opening,
+        # which is not the drawing anyone wants. The convention earns its default.
+        unrepresentative = q["ratio"] is not None and q["best"] >= 4 and q["ratio"] < 0.5
+        best_h = round(float(q["best_z"]) - float(lvl["elevation"]), 3)
+        lvl["cut_height"] = best_h if unrepresentative else DEFAULT_CUT_M
+        lvl["cut_default_spans"] = q["at_cut"]
+        lvl["cut_best_spans"] = q["best"]
+    return lvls
+
+
 def resolve_storey(model: ifcopenshell.file, storey: str) -> float | None:
     """R38-SYNC-SELECT: a storey NAME → its elevation in metres, or None when no storey has that
     name. Matching is case-insensitive and whitespace-trimmed because the name travels through a
