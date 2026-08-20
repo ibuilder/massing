@@ -4,6 +4,36 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1019 (2026-08-20) — the four checks that stood between 19 branches and main
+
+Integration pass over the v0.3.988–1018 stack. Every item here is a gate that was correctly
+red; none of them were silenced.
+
+### Fixed
+
+- **`report_package` was a job kind classified nowhere.** `register_kind` added it without an
+  entry in `_KIND_MIN_ROLE` or `EDITOR_OK_KINDS`, which is the privilege-side-door shape the
+  dispatcher gate exists to catch. Classified as editor-sufficient with its reason: the queue
+  requires `editor` while `GET /projects/{pid}/reports/{report}.pdf` serves the same content at
+  `viewer`, so the queue is stricter than the front door, and it parks an artifact rather than
+  writing project state.
+- **`addDrawingMarkup` lost its only caller.** `postSheetPin` had re-issued the POST by hand to
+  add `data.guid`. The client method now carries the guid and `postSheetPin` delegates, so the
+  endpoint and its body are constructed in one place. Its test drives the real client and still
+  asserts the encoded body, so the claim now spans seam → client → wire.
+- **The web build was broken before it began.** `vite.config.ts` resolved `three/package.json`,
+  which `three` does not list in its exports map — copied from `vitest.config.ts`, where the same
+  line works only because `pdfjs-dist` happens to expose its manifest. The hoisted `node_modules`
+  is now derived from the package entry path, which does not ask a dependency to publish its
+  manifest. CI never reached this: the test step failed first.
+- **A negative test with an expiry date.** `test_engine_routes` used `page=A0` as its unknown
+  page size; this release widened `_PAGES` to nine ARCH/ISO sizes and A0 became valid, so the
+  request reached the model open and returned 409. The invalid value is now derived from `_PAGES`.
+- **`docs/status.html` was 90 releases behind**, and the gate measuring that could no longer
+  measure: its `/v0\.3\.(\d{3})/` read `v0.3.1018` as **101**, smaller than the 928 already on the
+  page. Past v0.3.999 it reported a lag no amount of refreshing could close. Both it and the
+  CHANGELOG gate now read `\d{3,}`, and the page carries the v0.3.988–1018 wave.
+
 ## v0.3.1018 (2026-08-20) — `/sync` leaves client.ts
 
 SCALE-SEAM ⑬. Seven Procore pull/push + auto-sync-schedule methods moved to

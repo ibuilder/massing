@@ -41,12 +41,21 @@ const APP_VERSION = process.env.npm_package_version || "0.0.0";
 
 // BUILD-WORKTREE-CHUNKS: a git worktree has no node_modules of its own. Vite's default
 // fs-allow is searchForWorkspaceRoot(cwd), which is the worktree, so the main clone's
-// hoisted three/@thatopen sit outside the sandbox. Same allow list vitest.config.ts already
-// uses for pdfjs. createRequire walks to wherever the package actually resolved.
-const hoistedNodeModules = path.join(
-  path.dirname(createRequire(import.meta.url).resolve("three/package.json")),
-  "..",
-);
+// hoisted three/@thatopen sit outside the sandbox. createRequire walks to wherever the
+// package actually resolved.
+//
+// Derived from the package ENTRY, not from `three/package.json`. vitest.config.ts resolves
+// `pdfjs-dist/package.json` and this was copied from it — but that only works because
+// pdfjs-dist happens to list "./package.json" in its exports map. `three` does not, so the
+// same line throws ERR_PACKAGE_PATH_NOT_EXPORTED and the config fails to load *before* the
+// build starts. Whether a manifest is reachable is the dependency's choice, not ours;
+// locating the node_modules segment of a path we are allowed to resolve does not ask.
+const threeEntry = createRequire(import.meta.url).resolve("three");
+const nodeModulesSegment = `${path.sep}node_modules${path.sep}`;
+const segmentAt = threeEntry.lastIndexOf(nodeModulesSegment);
+const hoistedNodeModules = segmentAt === -1
+  ? path.join(process.cwd(), "node_modules")
+  : threeEntry.slice(0, segmentAt + nodeModulesSegment.length - 1);
 
 const coiInject: Plugin = {
   name: "coi-serviceworker-inject",

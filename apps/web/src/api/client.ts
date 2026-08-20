@@ -2930,8 +2930,12 @@ export class ApiClient extends withSync(withConnections(withDocQa(withFinance(wi
     return this.json<DrawingMarkupItem[]>(
       `/projects/${pid}/drawings/markup${sheet ? `?sheet=${encodeURIComponent(sheet)}` : ""}`);
   }
-  addDrawingMarkup(pid: string, sheetId: string, x: number, y: number, note: string) {
-    return this.json<DrawingMarkupItem>(`/projects/${pid}/drawings/markup`, { method: "POST", body: JSON.stringify({ sheet_id: sheetId, x, y, note }) });
+  /** Drop a pin on a sheet. `guid` is the IFC GlobalId of the linework under the click (R38-SHEET-
+   *  MARKUP ③) — omitted entirely when the click hit empty paper, so `data` is absent rather than a
+   *  null the server would have to interpret. A coordinate-only pin points at empty paper once the
+   *  element moves, which is why the guid rides on the pin and not beside it. */
+  addDrawingMarkup(pid: string, sheetId: string, x: number, y: number, note: string, guid?: string | null) {
+    return this.json<DrawingMarkupItem>(`/projects/${pid}/drawings/markup`, { method: "POST", body: JSON.stringify({ sheet_id: sheetId, x, y, note, kind: "pin", ...(guid ? { data: { guid } } : {}) }) });
   }
   /** Persist the 2D editor's whole markup scene for a sheet (structured takeoff markups, promotable to
    *  RFI like pins). `replace` clears the caller's own prior unpromoted markups for that sheet first. */

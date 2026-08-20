@@ -61,6 +61,9 @@ EDITOR_OK_KINDS = {
     "model_export": "derives an export artifact; no project state written",
     "model_ci": "MUTATING, but its direct route POST /projects/{pid}/ci/run is also editor — the "
                 "queue is therefore not a side door around a stricter endpoint",
+    "report_package": "merges reports that GET /projects/{pid}/reports/{report}.pdf already serves "
+                      "one-by-one at VIEWER, so the editor queue is stricter than the front door; "
+                      "parks a PDF artifact and writes no project state",
 }
 # MCP tools that only read. Same contract: listed means looked at, not means safe.
 READ_ONLY_TOOLS = {
