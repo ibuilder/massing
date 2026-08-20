@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { countSymbols, nccAt, nms, scanNcc, stamp } from "./symbolCount";
+import { countOnRgba, countSymbols, nccAt, nms, scanNcc, stamp } from "./symbolCount";
 
 function plus(): { needle: Float64Array; nw: number; nh: number } {
   // 3×3 plus on black
@@ -62,5 +62,44 @@ describe("R23-SYMBOL-COUNT ① — NMS + count", () => {
     hay[0] = hay[1] = hay[hw] = hay[hw + 1] = 1;
     const r = countSymbols(hay, hw, hh, needle, nw, nh, { threshold: 0.85, radius: 2 });
     expect(r.count).toBe(0);
+  });
+});
+
+function grayToRgba(gray: ArrayLike<number>, w: number, h: number): Uint8ClampedArray {
+  const d = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < w * h; i++) {
+    const v = Math.round((gray[i] ?? 0) * 255);
+    d[i * 4] = v; d[i * 4 + 1] = v; d[i * 4 + 2] = v; d[i * 4 + 3] = 255;
+  }
+  return d;
+}
+
+describe("R23-SYMBOL-COUNT ② — rgba page", () => {
+  it("a 3 px box is a reason, never a guessed count", () => {
+    const d = new Uint8ClampedArray(20 * 20 * 4);
+    const r = countOnRgba(d, 20, 20, { x: 1, y: 1, w: 3, h: 3 });
+    expect(r.count).toBe(0);
+    expect(r.reason).toMatch(/larger instance/);
+  });
+
+  it("a region bigger than one symbol is refused", () => {
+    const d = new Uint8ClampedArray(200 * 200 * 4);
+    const r = countOnRgba(d, 200, 200, { x: 0, y: 0, w: 120, h: 10 });
+    expect(r.count).toBe(0);
+    expect(r.reason).toMatch(/too large/);
+  });
+
+  it("two stamped 6×6 pluses both come back in original pixel space", () => {
+    const nw = 6, nh = 6;
+    const needle = new Float64Array(nw * nh);
+    for (let i = 0; i < nw; i++) { needle[2 * nw + i] = 1; needle[i * nw + 2] = 1; needle[i * nw + 3] = 1; }
+    const hw = 40, hh = 20;
+    const hay = new Float64Array(hw * hh);
+    stamp(hay, hw, needle, nw, nh, 2, 4);
+    stamp(hay, hw, needle, nw, nh, 24, 4);
+    const r = countOnRgba(grayToRgba(hay, hw, hh), hw, hh, { x: 2, y: 4, w: nw, h: nh }, { threshold: 0.9 });
+    expect(r.reason).toBeUndefined();
+    expect(r.count).toBe(2);
+    expect(r.peaks.map((p) => `${p.x},${p.y}`).sort()).toEqual(["2,4", "24,4"]);
   });
 });
