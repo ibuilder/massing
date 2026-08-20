@@ -6,6 +6,7 @@ import { withConnections } from "./connections";
 import { withDrawingSet } from "./drawingSet";
 import { withDrawingSheets } from "./drawingSheets";
 import { withElements } from "./elements";
+import { withModels } from "./models";
 import { withSync } from "./sync";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
@@ -47,7 +48,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withElements(withDrawingSheets(withDrawingSet(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))))) {
+export class ApiClient extends withModels(withElements(withDrawingSheets(withDrawingSet(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -1514,33 +1515,11 @@ export class ApiClient extends withElements(withDrawingSheets(withDrawingSet(wit
         deviated: number; verified_pct: number; planned_pct: number | null; trust_gap: number }[] }>(
       `/projects/${pid}/verified-progress`);
   }
-  /** Composite Model Health scorecard — one score over hygiene + ISO 19650 KPIs + clash + verified. */
-  modelHealth(pid: string) {
-    return this.json<{ overall_score: number | null; band: string; scored_lenses: number; model_available: boolean;
-      lenses: { key: string; label: string; tool: string; score: number | null; status: string; headline: string }[] }>(
-      `/projects/${pid}/models/health`);
-  }
   /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
   disciplineQuantities(pid: string) {
     return this.json<{ rebar: { count: number; weight_kg: number; tonnes: number; estimated: boolean };
       mep: { duct_m: number; pipe_m: number; cable_m: number; counts: Record<string, number> };
       structure: { element_volume_m3: number } }>(`/projects/${pid}/quantities/disciplines`);
-  }
-  /** Model integrity scan — duplicate GUIDs, orphaned elements, overlaps, unenclosed spaces, blank names. */
-  modelQa(pid: string) {
-    type Check = { count: number; [k: string]: unknown };
-    return this.json<{ element_count: number; total_issues: number; clean: boolean;
-      checks: { duplicate_guids: Check; orphaned_elements: Check; overlapping_duplicates: Check;
-        unenclosed_spaces: Check & { total_spaces: number }; blank_names: Check & { of_elements: number } };
-      note: string }>(`/projects/${pid}/models/qa`);
-  }
-  /** NORM-VALID — normative openBIM conformance gauntlet (header/schema/IFC implementer-agreement rules). */
-  normValid(pid: string) {
-    return this.json<{
-      schema: string; passed: boolean; summary: { pass: number; warn: number; fail: number };
-      checks: { id: string; category: string; label: string; status: "pass" | "warn" | "fail";
-        count: number; sample: unknown[]; note: string }[]; note: string;
-    }>(`/projects/${pid}/models/norm-valid`);
   }
   /** SCHED-OPT — deterministic schedule optioneering: ranked crew/zoning scenarios over the Takt LOB model. */
   massingOptioneer(envelope: Record<string, unknown>, opts?: { levers?: Record<string, number[]>; objective?: string; limit?: number }) {
@@ -1803,24 +1782,6 @@ export class ApiClient extends withElements(withDrawingSheets(withDrawingSet(wit
     return this.json<MasterBuilderBrief>(
       `/projects/${pid}/master-builder/brief${qs ? `?${qs}` : ""}`);
   }
-  /** WARN-1 — unified model-warnings feed: hygiene + normative-conformance defects, one worst-first punch list. */
-  modelWarnings(pid: string) {
-    return this.json<{
-      total: number; clean: boolean; by_severity: { fail: number; warn: number; info: number };
-      warnings: { source: string; id: string; severity: "fail" | "warn" | "info"; label: string;
-        count: number; sample: unknown[]; note?: string }[]; note: string;
-    }>(`/projects/${pid}/models/warnings`);
-  }
-  /** Shared-coordinates / setout basis — IfcMapConversion (E/N/height, true-north, scale) + CRS + LoGeoRef. */
-  modelGeoreferencing(pid: string) {
-    return this.json<{ georeferenced: boolean; level: number; level_label: string; note: string;
-      map_conversion: { eastings: number | null; northings: number | null; orthogonal_height: number | null;
-        true_north_bearing_deg: number | null; scale: number } | null;
-      crs: { name: string | null; geodetic_datum: string | null; vertical_datum: string | null;
-        map_projection: string | null; map_zone: string | null } | null;
-      site: { ref_latitude: number[] | null; ref_longitude: number[] | null; ref_elevation: number | null } | null }>(
-      `/projects/${pid}/models/georeferencing`);
-  }
   /** Scan-to-BIM deviation — upload an as-built point cloud (XYZ/CSV) and compare it to the model surface. */
   async scanDeviation(pid: string, file: File, tolerance = 0.05) {
     const fd = new FormData(); fd.append("file", file);
@@ -1831,26 +1792,6 @@ export class ApiClient extends withElements(withDrawingSheets(withDrawingSet(wit
       within_tolerance: number; within_pct: number | null; out_of_tolerance: number;
       mean_deviation: number; max_deviation: number; p95_deviation: number;
       histogram: { band: string; count: number }[]; note: string }>;
-  }
-  /** Federation alignment report — do the discipline models share a storey scheme + georef origin? */
-  modelAlignment(pid: string) {
-    return this.json<{ models: { name: string; storey_count: number; error?: string;
-        storeys: { name: string; elevation: number }[]; georef: Record<string, unknown> | null }[];
-      issues: { type: string; severity: string; model: string; detail: string }[];
-      aligned: boolean; message: string }>(`/projects/${pid}/models/alignment`);
-  }
-  /** Discipline models layered on a project (for federated clash). */
-  projectModels(pid: string) {
-    return this.json<{ id: string; discipline: string; created_at: string | null }[]>(`/projects/${pid}/models`);
-  }
-  async addProjectModel(pid: string, file: File, discipline: string) {
-    const fd = new FormData(); fd.append("file", file); fd.append("discipline", discipline);
-    const res = await fetch(this.url(`/projects/${pid}/models`), { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `add model -> ${res.status}`); }
-    return res.json() as Promise<{ id: string; discipline: string; size: number }>;
-  }
-  deleteProjectModel(pid: string, mid: string) {
-    return this.json<{ deleted: boolean; id: string }>(`/projects/${pid}/models/${mid}`, { method: "DELETE" });
   }
   validate(pid: string) {
     return fetch(this.url(`/projects/${pid}/validate`), { method: "POST" }).then((r) => r.json() as Promise<ValidationResult>);

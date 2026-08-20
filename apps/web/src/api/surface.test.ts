@@ -137,6 +137,7 @@ describe("the API client's public surface", () => {
       "modules", "moduleRecords", "createModuleRecord", "updateModuleRecord",  // CRUD — used everywhere
       "topicsBoard", "createTopic", "viewpoints",                   // BCF coordination
       "elementEffectiveProps", "element", "elementLifecycle", "colorFacets", "elementCosts", "costSummary",       // model + 5D
+      "modelHealth", "modelQa", "projectModels",
       "projectPulse",
       "solveProforma", "proformaLive", "portfolioCompare",           // ⑧ moved — spread over 4 regions
       // ⑧ new — added unreachable; `proformaRenovation` now has a screen (PULSE-FINDINGS, 2026-08-07)
