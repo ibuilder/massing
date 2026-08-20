@@ -157,6 +157,8 @@ describe("the API client's public surface", () => {
       "mfaVerify", "mfaStatus", "mfaEnable",                        // MFA enrolment + challenge
       "stepUp",                                                     // per-action re-auth for seals
       "listUsers", "createUser", "updateUser", "resetWithToken",    // admin user management
+      // ⑫ moved — one contiguous /connections run; a silent loss here is the admin connections screen
+      "connections", "createConnection", "testConnection", "connectionTables",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }

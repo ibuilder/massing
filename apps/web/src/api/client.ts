@@ -2,6 +2,7 @@
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
 import { withAuth } from "./auth";
 import { withAuthoring } from "./authoring";
+import { withConnections } from "./connections";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
 import { withContracts } from "./contracts";
@@ -31,7 +32,7 @@ export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";
 export * from "./authoring";
 export * from "./library";
 import type {
-  Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
+  Appraisal, AuditEntry, Dashboard, DocFile,
   DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, PreflightSummary, ProfessionalLicense,
   ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
@@ -42,7 +43,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))) {
+export class ApiClient extends withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -57,50 +58,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
       "/settings/integrations/test", { method: "POST", body: JSON.stringify({ group }) });
   }
 
-  // --- data-source connections (admin) -----------------------------------
-  connections() {
-    return this.json<{ types: string[]; connections: ConnectionItem[] }>("/connections");
-  }
-  createConnection(name: string, type: string, config: Record<string, unknown>) {
-    return this.json<ConnectionItem>("/connections", { method: "POST", body: JSON.stringify({ name, type, config }) });
-  }
-  updateConnection(id: string, name: string, type: string, config: Record<string, unknown>) {
-    return this.json<ConnectionItem>(`/connections/${id}`, { method: "PUT", body: JSON.stringify({ name, type, config }) });
-  }
-  deleteConnection(id: string) {
-    return this.json<{ ok: boolean }>(`/connections/${id}`, { method: "DELETE" });
-  }
-  testConnectionConfig(type: string, config: Record<string, unknown>) {
-    return this.json<{ ok: boolean; detail: string }>("/connections/test", { method: "POST", body: JSON.stringify({ type, config }) });
-  }
-  testConnection(id: string) {
-    return this.json<{ status: { ok: boolean; detail: string }; info: Record<string, unknown> }>(
-      `/connections/${id}/test`, { method: "POST" });
-  }
-  /** Browse a connection: tables (SQL) or projects (Procore). */
-  connectionTables(id: string) {
-    return this.json<{ kind?: string; tables?: string[]; projects?: string[]; error?: string }>(
-      `/connections/${id}/tables`);
-  }
-  /** Run a read-only SELECT against a SQL connection. */
-  connectionQuery(id: string, sql: string, limit = 200) {
-    return this.json<{ columns?: string[]; rows?: unknown[][]; row_count?: number; error?: string }>(
-      `/connections/${id}/query`, { method: "POST", body: JSON.stringify({ sql, limit }) });
-  }
-  /** Read an ACC (Autodesk Construction Cloud) project's issues. */
-  accIssues(id: string, projectId: string) {
-    return this.json<{ kind?: string; count?: number; issues?: Record<string, unknown>[]; error?: string }>(
-      `/connections/${id}/acc/projects/${projectId}/issues`);
-  }
-  /** Editable Procore->module field mapping for a connection (admin). */
-  connectionMappings(id: string) {
-    return this.json<{ mappings: Record<string, { module: string; fields: { field: string; label: string; default: string; path: string }[] }> }>(
-      `/connections/${id}/mappings`);
-  }
-  /** Save per-field Procore source-path overrides ({kind: {field: path}}). */
-  saveConnectionMappings(id: string, mappings: Record<string, Record<string, string>>) {
-    return this.json<{ ok: boolean }>(`/connections/${id}/mappings`, { method: "PUT", body: JSON.stringify({ mappings }) });
-  }
   /** Import a Procore project's RFIs / submittals / change events into the matching modules. */
   syncProcore(pid: string, connectionId: string, procoreProjectId: string, kinds?: string[]) {
     return this.json<{ source: string; imported_total: number; results: Record<string, { module: string; fetched: number; imported: number; skipped: number }> }>(

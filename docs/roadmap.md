@@ -657,7 +657,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑧ |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑫ |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -2771,10 +2771,13 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   **Design is skipped on purpose:** `apps/web/src/shell/spine.ts` sets Design home to null — the 3D viewer is the room. A portal brief would be a second home.
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ⑧ — `client.ts` is no longer a god-file, but the split is not finished.** *(◧ added 2026-08-06: the bullet's own text says ②–⑧ have shipped and `apps/web/src/api/proforma.ts` declares ⑧ — the SLICE is done and the SERIES is not, which is exactly what ◧ means)* ②–⑧ have
-  shipped: `schedule.ts` (v0.3.800, 26 methods / 207 lines) · `model.ts` (v0.3.802, 29) · `modules.ts`
-  (v0.3.803, 34) · `estimate.ts` (v0.3.804, 12) · `procurement.ts` (9) · `auth.ts` (20) · `proforma.ts` (⑧).
-  **`client.ts` went 4,956 → 3,796 lines** (`wc -l`; ⑦ left it at 3,871). ⑨ is the next route-group by size; pick it by
+- ◧ ⭐ **SCALE-SEAM ⑫ — `client.ts` is no longer a god-file, but the split is not finished.** *(⑫ `/connections` SHIPPED v0.3.1016; ②–⑪ already shipped)* ②–⑪ have
+  shipped: `schedule.ts` · `model.ts` · `modules.ts` · `estimate.ts` · `procurement.ts` · `auth.ts` ·
+  `proforma.ts` (⑧) · `contracts.ts` (⑨) · `finance.ts` (⑩) · `docqa.ts` (⑪).
+  **⑫ took `/connections` out** (11 methods; `client.ts` 3,672 → 3,629). `/sync` (Procore push +
+  schedules) sits immediately below and stays — different first path segment.
+
+  **`client.ts` went 4,956 → 3,629 lines** (`wc -l`). Next is the next route-group by size; pick it by
   re-running the classification below, not by reading the section comments.
 
   **This entry read `③+` and named `/model`, `/modules` and `/estimate` as the next groups until

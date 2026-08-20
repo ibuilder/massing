@@ -31,7 +31,8 @@ memory. It is **not** the work list — [`docs/roadmap.md`](../roadmap.md) still
 | 16 | [#308](https://github.com/ibuilder/massing/pull/308) | `cursor/sheet-guid-pins-6e15` | **1012** vs #307 |
 | 17 | [#309](https://github.com/ibuilder/massing/pull/309) | `cursor/markup-promote-guid-6e15` | **1013** vs #308 |
 | 18 | [#310](https://github.com/ibuilder/massing/pull/310) | `cursor/generated-sheet-pdf-6e15` | **1014** vs #309 |
-| 19 | this | `cursor/report-package-job-6e15` | **1015** vs #310 |
+| 19 | [#312](https://github.com/ibuilder/massing/pull/312) | `cursor/report-package-job-6e15` | **1015** vs #310 |
+| 20 | this | `cursor/scale-seam-connections-6e15` | **1016** vs #312 |
 
 After each merge: rebase the remainder, **keep the later version numbers**. Do not tag onto a red or
 pending `main`. This agent cannot merge.
@@ -60,6 +61,7 @@ pending `main`. This agent cannot merge.
 | 1013 | R38-SHEET-MARKUP ③ ② — promote-to-RFI copies `data.guid` onto `Topic.element_guids` |
 | 1014 | R38-SHEET-MARKUP ③ closed — PDF markup on generated sheets (live SVG wrapped when no sheet.pdf) |
 | 1015 | R24-REPORTS-BY-MOMENT ② — Assemble queues `report_package`; email-on-a-date still open |
+| 1016 | SCALE-SEAM ⑫ — `/connections` mixin; `client.ts` 3,672 → 3,629 |
 
 ---
 
@@ -68,7 +70,7 @@ pending `main`. This agent cannot merge.
 - Binding constraint is **adoption / feel**, not missing modules. No second big-ticket.
 - No React, no Reflex. No new npm/PyPI packages without operator OK. Licence MIT/BSD/Apache/ISC/CC0.
 - Do **not** grow `apps/web/src/viewer/app.ts` or `apps/web/src/api/client.ts` without extracting
-  first. Pins: `client.ts` **3,672**, `app.ts` **3,032**, `register.ts` **2,516**.
+  first. Pins: `client.ts` **3,629**, `app.ts` **3,032**, `register.ts` **2,516**.
 - Do **not** turn `AEC_BAKE_SHARE_DIR` on by default. Do **not** add `mapped-diskcache`.
 - Design room brief: **do not add one** (`ROOM_HOME.design` is null).
 - There is **no `pay_app` module** and **no COBie worksheet UI**.
@@ -81,9 +83,10 @@ PERSONA-SHAPE; IDENTITY.
 
 ## Next slices
 
-1. **R24-FIELD-MODE remainder** — replacing the portal home (Lane A). ④ only hides the room tabs.
-2. **R24-REPORTS-BY-MOMENT** remainder — email on a date (SMTP + recipient). Assemble is shipped.
-3. Lane B still open: `R24-TERMS` (user decision), `R22-REPORT-BUILDER` (aggregation/share is backend),
+1. **SCALE-SEAM remainder** — next route-group by size (`/sync`, `/drawing-set`, …). ⑫ is `/connections`.
+2. **R24-FIELD-MODE remainder** — replacing the portal home (Lane A). ④ only hides the room tabs.
+3. **R24-REPORTS-BY-MOMENT** remainder — email on a date (SMTP + recipient). Assemble is shipped.
+4. Lane B still open: `R24-TERMS` (user decision), `R22-REPORT-BUILDER` (aggregation/share is backend),
    `R24-FIELD-MODE` portal home (Lane A).
 
 ---

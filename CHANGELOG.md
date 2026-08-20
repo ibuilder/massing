@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1016 (2026-08-20) — `/connections` leaves client.ts
+
+SCALE-SEAM ⑫. Eleven `/connections` methods moved to `apps/web/src/api/connections.ts`.
+`client.ts` 3,672 → 3,629. The increment marker vocabulary in `roadmapLanes.test.ts` now
+runs ①–⑳ so the twelfth does not silently parse as the bare series name.
+
 ## v0.3.1015 (2026-08-20) — assemble the package, don't click it one by one
 
 R24-REPORTS-BY-MOMENT ②. Each package has **Assemble**: a `report_package` job builds the
