@@ -5,6 +5,7 @@
  * IA: a 52 px FAB, a queue you only see after opening the sheet, and notes that cannot be spoken.
  * This file is the mode flag plus the copy the always-visible strip uses. Contrast and 56 px
  * targets live in `fieldMode.css`, scoped to field chrome so office density is untouched.
+ * Slice ④ hides `#workspaces` (the seven-room tablist) while the mode is on.
  */
 export const FIELD_MODE_KEY = "aec-field-mode";
 

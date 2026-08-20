@@ -73,3 +73,9 @@ html[data-field-mode="1"] .field-sheet button {
   min-height: 56px;
   font-size: 16px;
 }
+
+/* Slice ④ — field mode is capture-first. The seven-room tablist is office IA; display:none
+   drops it from the tab order as well as the screen. Leave Field → Office to get it back. */
+html[data-field-mode="1"] #workspaces {
+  display: none !important;
+}
