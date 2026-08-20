@@ -119,7 +119,7 @@ export const FALLBACK_ROOMS: readonly RoomDef[] = [
 export const DEST_ROOM: Record<string, string> = {
   // ── Design: the building and everything that describes it ────────────────────────────────────
   __ids__: "design", __standards__: "design", __materials__: "design", __modulegraph__: "design",
-  __spine__: "design", __modelqa__: "design", __modelanalysis__: "design", __bimkpi__: "design",
+  __spine__: "design", __analyse__: "design", __modelqa__: "design", __modelanalysis__: "design", __bimkpi__: "design",
   __designmetrics__: "design", __spaceutil__: "design", __mepfittings__: "design",
   __program__: "design", __conceptrender__: "design", __documents__: "design",
   __drawings__: "design",   // the drawing set: generated from the model, so it lives with it

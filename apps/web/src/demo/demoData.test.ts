@@ -53,6 +53,7 @@ describe("the demo capture is a working backend, not a plausible one", () => {
     ["/work-queue", "the ball-in-court queue: NEXT BEST ACTION + the Work room"],
     ["/jobs", "the runs inbox"],
     ["/presence", "who else is here"],
+    ["/pulse", "the home Project Pulse rail (mapped server-side)"],
   ];
 
   for (const [path, why] of STARTUP) {

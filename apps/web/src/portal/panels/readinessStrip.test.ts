@@ -27,6 +27,8 @@ describe("readinessStepKeys scopes the protocol, and never empties the strip", (
   it("a superintendent on the GC home sees field steps, not feasibility", () => {
     expect(readinessStepKeys("construction", "superintendent")).toEqual(
       ["delivery", "risk", "handover"]);
+    expect(readinessStepKeys("design", "engineer")).toEqual(
+      ["design", "regulatory", "place"]);
   });
 
   it("a superintendent browsing Design still sees Design's steps rather than nothing", () => {
@@ -58,13 +60,15 @@ describe("firstOpenStep is the gap the button names", () => {
 });
 
 describe("mountReadinessStrip", () => {
-  it("fails open — a thrown brief leaves the host empty, not a broken dashboard", async () => {
+  it("fails open — a thrown brief names the gap instead of looking like nothing is next", async () => {
     const host = document.createElement("div");
     await mountReadinessStrip(host, {
       load: async () => { throw new Error("offline"); },
       workspace: "design", persona: "all", onOpen: () => {},
     });
-    expect(host.childNodes.length).toBe(0);
+    expect(host.querySelector("[data-readiness=unavailable]")?.textContent)
+      .toMatch(/Readiness unavailable/);
+    expect(host.querySelector("[data-readiness=strip]")).toBeNull();
   });
 
   it("renders scoped pills and hops to the first gap", async () => {
@@ -87,6 +91,24 @@ describe("mountReadinessStrip", () => {
     expect(close?.textContent).toMatch(/Place & context/);
     close!.click();
     expect(onOpen).toHaveBeenCalledWith("__modelanalysis__");
+  });
+
+  it("honours the server's scoped step order when present", async () => {
+    const host = document.createElement("div");
+    await mountReadinessStrip(host, {
+      load: async () => brief([
+        step({ key: "design", title: "Design integration", status: "ready" }),
+        step({ key: "regulatory", title: "Regulatory path", status: "gap" }),
+        step({ key: "place", title: "Place & context", status: "partial" }),
+      ], { scope: { workspace: "design", persona: "engineer",
+        keys: ["design", "regulatory", "place"] } }),
+      workspace: "design", persona: "engineer", onOpen: () => {},
+    });
+    const labels = [...host.querySelectorAll("[data-readiness=strip] button.tool-btn")]
+      .map((b) => b.textContent);
+    expect(labels[0]).toMatch(/Design integration/);
+    expect(labels[1]).toMatch(/Regulatory path/);
+    expect(labels[2]).toMatch(/Place & context/);
   });
 
   it("says when the project is not grounded, rather than implying the score is enough", async () => {

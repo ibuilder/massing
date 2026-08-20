@@ -652,8 +652,8 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX · UX-DUP-DESTINATIONS · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
@@ -1434,13 +1434,13 @@ is recorded. Filed under Decisions below.
 | 03 | roles gate the UI invisibly | R24-ROLE-EXPLAIN | ✅ v0.3.685 |
 | 04 | long jobs, foreground UI | R24-JOB-TRAY | ✅ **shipped; this row was stale** — `apps/web/src/ui/jobTray.ts` is 373 lines, mounted at `apps/web/src/main.ts:2052`, 28 tests. The ❌ survived its own implementation |
 | 05 | analyses are modals → no history | R24-RUNS-INBOX | ◧ **v0.3.947** — history + run-over-run diff in `apps/web/src/ui/runs.ts` / `apps/web/src/ui/runsInbox.ts`. The premise "no runs concept" was **half wrong**: `Job` already stores params, actor, timestamps and result. Routing clash/IDS/cost/energy *through* the queue is the open half |
-| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | 🟡 `apps/web/src/ui/lifecycleStrip.ts` + `inspectorTabs.ts` built; now **two** call sites — the viewer inspector and `apps/web/src/ui/elementCard.ts`, mounted from `apps/web/src/portal/panels/traceability.ts:75`. Four surfaces still unwired |
+| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | ✅ **SHIPPED v0.3.1000** — `apps/web/src/ui/elementCard.ts` on the viewer, cost trace, and every register record that names a GUID (`apps/web/src/portal/register/tiedElements.ts`). There is no `pay_app` module (SOV line is the G703 row) and no COBie worksheet UI (asset register is the in-app Component row) |
 | 07 | onboarding teaches the chrome | FIRST-RUN | 🟡 improved v0.3.777; still not the lot → building → deal chain |
 | 08 | persona picker only relabels | *(none)* | ⚠️ reversed on purpose — see Decisions |
 | 09 | tools panel mixes verbs with analyses | *(none)* | ✅ **v0.3.848** — `R24-TOOLS-SPLIT` cut the 1087-line `qa` section in two; Analyse is its own rail item |
 | 10 | finance numbers have no provenance | R24-TRACE-UI | 🟡 v0.3.775 shipped trace for *cost coverage*; the proforma chain (IRR ← NOI ← rent roll ← area ← GUID) — the audit's actual demo — is not built |
-| 11 | density | R24-DENSITY | 🟡 two steps not three (`portal/prefs.ts:71`), dashboards only, **not registers** — which is where the 8-hour user lives |
-| 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | 🟡 `field/field.ts` is a real offline queue with GPS, still inside the desktop IA |
+| 11 | density | R24-DENSITY | ✅ **SHIPPED v0.3.996** — three steps on registers (`DENSITY_ROW_PX`), not dashboards only |
+| 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | ◧ **v0.3.1001** — mode flag, 56 px field chrome, outdoor contrast, always-visible sync strip, dictation (`apps/web/src/field/fieldMode.ts`). Capture-first home is still open; default remains the desktop IA |
 | 13 | search is scoped to modules | R24-CMDK-VERBS | ✅ **v0.3.946** — verbs, elements, reports and an assistant fallback; `apps/web/src/ui/paletteProviders.ts`. Fixed a second defect on the way: async hits were `concat`ed onto an already-grouped list, so a record landed under a **second** RECORDS heading below Modules |
 | 14 | empty states | R24-EMPTY-GUIDE | ✅ **verified done 2026-08-14** — the "24 lines, 'no project' only" reading is stale by a wide margin. `apps/web/src/ui/empty.ts` is 156 lines and R36-EMPTY-STATE shipped the hard part: a register with no rows distinguishes **none / filtered / failed**, because those send a reader to three different places and rendering them identically was the defect. Plus acronym-safe nouns ("No rfis yet" was the bug), `textContent` throughout since the name and the error body are untrusted, and `data-empty` so a test can assert WHICH kind was decided. Curated hints in `apps/web/src/ui/emptyGuide.ts` (157 lines), wired at two `register.ts` call sites, covered by `apps/web/src/ui/empty.test.ts` and `apps/web/src/ui/emptyGuide.test.ts` |
 | 15 | charts have no grammar | *(none)* | ❌ dropped → `R24-CHARTS-GRAMMAR` |
@@ -1484,16 +1484,12 @@ refute one, so this goes first even though it is the least visible.
   takes this should build the beacon and flip those two, and should not expect to write a backend test.
 ### Sprint 2 — cash the moat *(the differentiation no competitor can copy)*
 
-- ◧ ⭐ **R24-ELEMENT-CARD ②** *(S — was M, was L; ◧ added 2026-08-06 — `apps/web/src/ui/elementCard.ts` declares this item and one surface already mounts it, so "nothing exists" was never true; what is open is REACH, not capability)* — the strip exists and works, **and the extraction it
-  was blocked on is DONE.** The card's frame + loader live in `apps/web/src/ui/elementCard.ts` and one
-  non-viewer surface already mounts it (`apps/web/src/portal/panels/traceability.ts:75`).
-
-  The extraction cost two import lines: `lifecycleStrip.ts` imported **one type** and nothing else — it
-  was already viewer-independent and merely *filed* under `viewer/`. Another estimate that came from
-  where a file sat rather than what it contained, which is why this dropped L → M → S.
-
-  Remaining is purely call sites: **RFI, estimate line, pay app, COBie row.** No component work, no
-  dependency risk — `elementCard.ts` takes a GlobalId and an API client.
+- ✅ **R24-ELEMENT-CARD ②** *(S — **SHIPPED v0.3.1000**)* — the strip exists in `apps/web/src/ui/elementCard.ts`.
+  Call sites: viewer inspector, cost trace (`apps/web/src/portal/panels/traceability.ts`), and every
+  register record that names an element (`apps/web/src/portal/register/tiedElements.ts`) — RFI, estimate
+  (tied GUIDs plus `line_items` `guid` / `element_guid` / `ExtIdentifier`), SOV (the G703 / pay-app line;
+  there is no `pay_app` module), asset register (the in-app COBie Component row). A failed lifecycle is
+  the identity line, never a six-blank strip. More than 8 GUIDs is a named sample.
 - ~~**R24-TRACE-UI ②**~~ *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
   **proforma emit its own derivation**: each headline figure carrying its inputs and a
   **model-derived / overridden / market-assumption** tag, terminating in a GlobalId where one exists.
@@ -1511,8 +1507,11 @@ refute one, so this goes first even though it is the least visible.
   like it walks to a GlobalId while actually asserting one. That is the fabrication shape this repo
   has spent a day naming, and it would have been shipped as the on-stage demo. Whoever picked up
   Sprint 2 would have started in the client and found nothing to render.
-- ✅ **R24-READINESS-HOME** *(S — **SHIPPED v0.3.988** as the UX-READINESS-EVERYWHERE strip)* — see
-  `apps/web/src/portal/panels/readinessStrip.ts`. Not a second protocol.
+- ✅ **R24-READINESS-HOME** *(S — **SHIPPED v0.3.988** as the UX-READINESS-EVERYWHERE strip; scope
+  server-side v0.3.989; persona **order** + unavailable line + home Pulse GET v0.3.991)* — see
+  `apps/web/src/portal/panels/readinessStrip.ts`, `services/api/src/aec_api/master_builder_scope.py`,
+  and `services/api/src/aec_api/project_pulse.py`. Not a second protocol.
+- ◧ **R24-RUNS-INBOX** *(M; history half v0.3.947)* — clash, IDS, cost and energy become durable Runs
   (inputs, timestamp, author, artifact, **diff against the previous run**) with a per-project inbox.
   Most externally validated item in the ring — see the corroboration note above.
 
@@ -1537,15 +1536,17 @@ refute one, so this goes first even though it is the least visible.
 
 ### Sprint 3 — the front door earns its keyboard
 
-- **R24-DENSITY ②** *(M)* — three steps (Field 56 px / Default 36 px / Compact 28 px) applied to
-  **registers**, not just the dashboards `prefs.ts` covers today. Tabular figures wherever a number appears.
-  *The register half is `portal/register/register.ts` as of v0.3.850 — inside Lane B, where this item
-  is. It was inside Lane A's `portal.ts` until then, which is why `R24-MONO-DATA` skipped its hunk.*
+- ✅ **R24-DENSITY ②** *(M — **SHIPPED v0.3.996**)* — three steps (Field 56 px / Default 36 px / Compact 28 px) applied to
+  **registers**, not just the dashboards `prefs.ts` covers today. Tabular figures on numeric register cells.
+  Cycle control on the portal home; `data-density` on the portal root so `.portal-table` follows.
+  Catalog ★ / module buttons use a visible `focus-visible` ring (`outline-offset: 2px`).
 
 ### Sprint 4 — field, and the long tail
 
-- **R24-FIELD-MODE** *(L)* — capture-first home, 56 px targets, 7:1 outdoor contrast, permanently
-  visible sync queue, dictation on notes. A mode, not a breakpoint.
+- ◧ **R24-FIELD-MODE** *(L — **slice ① SHIPPED v0.3.1001**)* — a mode, not a breakpoint.
+  `?field=1` / `aec-field-mode`, 56 px targets and ~7:1 on field chrome only (`apps/web/src/field/fieldMode.css`),
+  always-visible sync strip, dictation when the browser has SpeechRecognition (`apps/web/src/field/dictate.ts`).
+  Capture-first home is still open. Register density is unchanged (R24-DENSITY).
 - 🟡 **R24-CHARTS-GRAMMAR** — **no-data rule SHIPPED v0.3.783**, the rest open. Only `histogram`
   handled empty input; the other twelve drew their axes, gridlines and legend with nothing in them —
   no `NaN`, nothing broken, and therefore indistinguishable from a chart whose data failed to load.
@@ -1592,7 +1593,7 @@ refute one, so this goes first even though it is the least visible.
   open and click through. Making it a *scheduled deliverable* — assembled on a date, sent to a
   recipient, with a record that it went — is the larger half and wants `routers/jobs.py` (now wired
   to the UI by R24-JOB-TRAY) plus a delivery surface. That is a real feature, not a grouping change.
-- **R24-TERMS** *(S)* · **R24-MONO-DATA** *(S)* · **R24-DENSITY ②** *(M)* — the remaining long tail.
+- **R24-TERMS** *(S)* · **R24-MONO-DATA** *(S)* — the remaining long tail.
 
 **Explicitly NOT in scope: the audit's visual identity** (ink canvas `#080C12`, IBM Plex Sans/Mono,
 the 24 px/192 px brand grid at 5–7%). It is the most seductive item in the document and the least
@@ -2260,17 +2261,22 @@ which 7 were project accounting, and `Model & standards` held 14 mixing project 
 findings. Split into Build/Money and Model & standards/Analyse & check — **max group 14 → 7**, nothing
 removed. Remaining, in priority order:
 
-- ✅ **UX-READINESS-EVERYWHERE** / **R24-READINESS-HOME** *(M — **SHIPPED v0.3.988**)* — the Master
+- ✅ **UX-READINESS-EVERYWHERE** / **R24-READINESS-HOME** *(M — **SHIPPED v0.3.988**, scope server-side **v0.3.989**)* — the Master
   Builder 8-step brief is no longer Design-only. `apps/web/src/portal/panels/readinessStrip.ts` mounts
   a scoped strip on every portal home (`apps/web/src/portal/portal.ts` `renderHome`); workspace ∩
-  persona, empty-intersect falls back to the workspace set; fail-open; Full brief still
+  persona is applied in `services/api/src/aec_api/master_builder_scope.py` (`test_master_builder_scope.py`
+  locksteps the TS maps). Empty-intersect falls back to the workspace set; fail-open shows
+  "Readiness unavailable" rather than a blank (**v0.3.991**). Persona order is the server `keys`
+  list. Home Pulse is `GET /projects/{id}/pulse` (`project_pulse.py`). Full brief still
   `__masterbuilder__`. The eight-card panel is unchanged.
   `Model Health` (8 references), `Model Analysis` (5) and `BIM KPIs` (5) are three
   destinations whose names do not tell a user which answers their question; all three now sit together
   under `Analyse & check`, which makes the overlap visible and worth resolving rather than hiding it.
 - **UX-GANTT** *(M)* — weekly Gantt/calendar hybrid with inline % + crew coloring + a metric strip.
-- **UX-DUP-DESTINATIONS** *(S — **checked 2026-08-06 and still genuinely OPEN**; recorded so the next
-  reader does not re-check)* — all three destinations are still present and distinct in the tree:
+- ✅ **UX-DUP-DESTINATIONS** *(S — **SHIPPED v0.3.994**)* — Design's `Analyse & check` is one
+  `__analyse__` home (`apps/web/src/shell/analyseHome.ts`) with three named tasks that still open
+  `__modelqa__` / `__modelanalysis__` / `__bimkpi__`. #295 renamed the labels; this collapse is the
+  remaining work. Do not invent a new scorecard. Readiness hops to the task dests still work.
 - **UX-3 library depth** — thumbnails · drag-to-place · pick-host→auto-build · appendable IFC
   libraries · CC0 seed/H1. **UX-4** one-shell layout (a11y/mobile pass).
 ## 🏔 BIG-TICKET — multi-release initiatives (open ONE track; slice + reassess)
@@ -2765,13 +2771,24 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   that is there.
 
   Remaining: the **keynote → spec section** link (the spec surface now exists; keynotes do not yet
-  carry their section code), and slice 6 as specified above.
+  carry their section code), and slice 6 as specified above. **Print paper picker (v0.3.993):**
+  Issue / Sheet PDF / Place and the paper-space editor share `drawings.py` `PAGES` — ARCH-C/D/B/A and
+  ISO A0–A4. Default is **ARCH-C (24×18 in)**; that is not an ISO A size. ARCH-D is full-size US
+  CDs (36×24), ARCH-B is half of D, ARCH-A is the next ARCH step (often called quarter of D).
+  Unknown `page` is 422, never a silent A1/A3. Omitting `page` on `compose()` is still A3 so old
+  links do not change paper. 11×17 is omitted on purpose (not half of 24×36). Live PDF still
+  needs a source IFC — the demo's "no model" cannot exercise the box.
 
-- **R36-ROOM-BRIEFS** *(M — Lane B; one room per release)* — per-room, per-role landing priority:
-  each room opens with the three answers its primary role needs (superintendent in Schedule: today's
-  lookahead, blockers, yesterday's variance; developer in Deal: returns vs guardrails, open
-  diligence, next decision gate). Write each brief as a short spec in the room's panel file header,
-  then make the panel match it. The Work room already does this by construction; it is the template.
+- ✅ **R36-ROOM-BRIEFS** *(M — Lane B; **SHIPPED v0.3.999** — Cost / Planning / Operate; Schedule 995; Deal 998)* — per-room, per-role landing priority:
+  each room opens with the three answers its primary role needs. Shared chrome lives in
+  `apps/web/src/portal/panels/roomBriefChrome.ts`. A failed fetch is a reason (`data-unavailable`),
+  never a plausible zero. Work already did this by construction.
+  **Schedule:** `apps/web/src/portal/panels/scheduleBrief.ts` on `__schedule__`.
+  **Deal:** `apps/web/src/portal/panels/dealBrief.ts` on `__portfolio__`.
+  **Cost:** `apps/web/src/portal/panels/costBrief.ts` on `__budget__` — vs GMP, unpriced exposure, buyout.
+  **Planning:** `apps/web/src/portal/panels/planningBrief.ts` on `__benchmarks__` — RFI clock, submittal clock, cost history.
+  **Operate:** `apps/web/src/portal/panels/operateBrief.ts` on `__operations__` — overdue WOs, PM compliance (`null` is not 0%), FCI (no elements is not 0%).
+  **Design is skipped on purpose:** `apps/web/src/shell/spine.ts` sets Design home to null — the 3D viewer is the room. A portal brief would be a second home.
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
 - ◧ ⭐ **SCALE-SEAM ⑧ — `client.ts` is no longer a god-file, but the split is not finished.** *(◧ added 2026-08-06: the bullet's own text says ②–⑧ have shipped and `apps/web/src/api/proforma.ts` declares ⑧ — the SLICE is done and the SERIES is not, which is exactly what ◧ means)* ②–⑧ have

@@ -60,10 +60,59 @@ export function encodeViews(specs: ViewSpec[]): string {
   }).join(",");
 }
 
+/** Same keys as `drawings.PAGES`, same order. `sheetSpecs.test.ts` asserts both sides. */
+export const PAGE_KEYS = [
+  "ARCH-C", "ARCH-D", "ARCH-B", "ARCH-A", "A0", "A1", "A2", "A3", "A4",
+] as const;
+export type SheetPage = (typeof PAGE_KEYS)[number];
+
+const PAGE_SET = new Set<string>(PAGE_KEYS);
+
+export function isSheetPage(v: string): v is SheetPage {
+  return PAGE_SET.has(v);
+}
+
+/**
+ * Construction paper, as the picker shows it.
+ *
+ * 24×18 in is **ARCH C**, not an ISO A size (A2 is 16.5×23.4 in). ARCH D is the usual US full-size
+ * CD sheet (36×24). Half-size of D is ARCH B (18×12, 50% linear). The next ARCH step down is ARCH A
+ * (12×9), commonly called quarter-size of D — it is half of C, not a uniform 25% of 24×36.
+ * 11×17 (ANSI B) is a copier size, not half of 24×36, and is not in this list.
+ */
+export const PAGE_CATALOG: readonly { key: SheetPage; label: string }[] = [
+  { key: "ARCH-C", label: "ARCH C · 24×18 in (issue)" },
+  { key: "ARCH-D", label: "ARCH D · 36×24 in (full size)" },
+  { key: "ARCH-B", label: "ARCH B · 18×12 in (half of D)" },
+  { key: "ARCH-A", label: "ARCH A · 12×9 in (quarter of D)" },
+  { key: "A0", label: "ISO A0 · 1189×841 mm (site)" },
+  { key: "A1", label: "ISO A1 · 841×594 mm (issue)" },
+  { key: "A2", label: "ISO A2 · 594×420 mm" },
+  { key: "A3", label: "ISO A3 · 420×297 mm (check print)" },
+  { key: "A4", label: "ISO A4 · 297×210 mm" },
+];
+
+/** Operator default: 24×18 in. Omitting `page` on the API still composes A3. */
+export const DEFAULT_SHEET_PAGE: SheetPage = "ARCH-C";
+export const SHEET_PAGE_STORAGE_KEY = "aec:sheetPage";
+
+export function readSheetPage(): SheetPage {
+  try {
+    const v = localStorage.getItem(SHEET_PAGE_STORAGE_KEY);
+    if (v && isSheetPage(v)) return v;
+  } catch { /* private mode / node without storage */ }
+  return DEFAULT_SHEET_PAGE;
+}
+
+export function writeSheetPage(page: SheetPage): void {
+  try { localStorage.setItem(SHEET_PAGE_STORAGE_KEY, page); }
+  catch { /* ignore quota / private mode */ }
+}
+
 export type SheetOptions = {
   /** The sheet NUMBER, e.g. "A-101". The route calls this `sheet`; the rail used to call it `number`. */
   sheet?: string;
-  page?: "A4" | "A3" | "A1";
+  page?: SheetPage;
   /** Titleblock purpose line — where a per-level description belongs, since there is no title field. */
   purpose?: string;
   rev?: string;
@@ -118,14 +167,14 @@ export function viewsForCanvas(mode: "2d" | "3d", storeyElevation: number | null
 /**
  * The rail's sheet options for the level currently being worked in.
  *
- * Lives here rather than in `app.ts` for the ordinary reason — that file is on a size ratchet with no
- * headroom — and for a better one: this is the shape of a request, and the request shape is what was
- * wrong. Keeping it beside `SHEET_PARAMS` means the only place that decides what to send is the only
- * place that knows what may be sent.
+ * `page` is the picker's value (default **ARCH-C** / 24×18 in). Omitting it used to fall through
+ * to `compose()`'s **A3** while the buttons said A-101 and the hover said ARCH-D. Unknown sizes
+ * are refused on the server; they are never substituted.
  */
 export function railSheetOptions(storey: string | null, views?: ViewSpec[]): SheetOptions {
   return {
     sheet: "A-101",
+    page: readSheetPage(),
     storey,
     views,
     purpose: storey ? `${storey.toUpperCase()} PLAN` : "FLOOR PLAN",

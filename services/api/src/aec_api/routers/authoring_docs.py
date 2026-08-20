@@ -338,8 +338,13 @@ def layout_svg(pid: str, viewports: list[dict] = Body(..., embed=True),
     optional FIXED drawing scale (true 1:N on paper, geometry clipped to the viewport rect — crop, not
     shrink), and an optional per-viewport class freeze — rendered through the shared titleblock."""
     from aec_data import sheet_layout  # type: ignore
+    from aec_data.drawings import page_pts  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
+    try:
+        page_pts(page)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from None
     p = _project(db, pid)
     m = {"project": p.name or "Project", "number": "A-100", "title": "LAYOUT", **(meta or {})}
     svg = sheet_layout.layout_sheet(open_model(p.source_ifc), viewports, m, page=page, fmt="svg")
@@ -353,8 +358,13 @@ def layout_pdf(pid: str, viewports: list[dict] = Body(..., embed=True),
                db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """SHEET-VIEWPORTS: the paper-space viewport sheet as a submittable PDF."""
     from aec_data import sheet_layout  # type: ignore
+    from aec_data.drawings import page_pts  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
+    try:
+        page_pts(page)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from None
     p = _project(db, pid)
     m = {"project": p.name or "Project", "number": "A-100", "title": "LAYOUT", **(meta or {})}
     pdf = sheet_layout.layout_sheet(open_model(p.source_ifc), viewports, m, page=page, fmt="pdf")

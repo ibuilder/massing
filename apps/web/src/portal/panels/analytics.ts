@@ -2,6 +2,7 @@ import { esc, money as cmoney } from "../../ui/charts";
 import { noProjectHtml } from "../../ui/empty";
 import { toast } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
+import { renderPlanningBrief } from "./planningBrief";
 
 /**
  * Analytics & benchmarking panels (cross-project benchmarks, subcontractor risk & cost).
@@ -13,6 +14,7 @@ export async function renderBenchmarks(ctx: PanelContext) {
     const root = ctx.root; root.innerHTML = "";
     const el = (t: string, c = "") => { const e = document.createElement(t); if (c) e.className = c; return e; };
     root.appendChild(ctx.bar("📈 Benchmarks", () => { ctx.activeKey = null; void ctx.renderHome(); ctx.buildNav(); }));
+    root.appendChild(await renderPlanningBrief(ctx));
     const intro = el("div", "meta"); intro.style.marginBottom = "8px";
     intro.textContent = "Your own history across every project: what things actually cost (per cost code) and "
       + "how fast RFIs/submittals turn around. Sanity-check a new estimate or hold the team accountable.";

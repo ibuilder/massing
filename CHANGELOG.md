@@ -4,6 +4,112 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1001 (2026-08-19) — field mode: 56 px, the queue, and a mic that can be missing
+
+R24-FIELD-MODE ①. A stored mode (`aec-field-mode`, `?field=1`), not a breakpoint: 56 px targets
+and outdoor contrast on the capture FAB / sheet / strip only. The offline queue is always
+visible in field mode (empty and offline are sentences). Dictation on the note when the
+browser has SpeechRecognition; no engine means no mic, never a dead button. Capture-first
+home is still open. Register density is a separate control.
+
+## v0.3.1000 (2026-08-19) — the element card opens wherever a register names a GUID
+
+R24-ELEMENT-CARD ② reach. Opening an RFI, estimate, SOV (G703 / pay-app line), or asset-register
+(COBie Component) record that is tied to model elements now mounts the same lifecycle card as the
+viewer and the cost-trace lookup. There is no `pay_app` module and no COBie worksheet UI — those
+two named surfaces are SOV and the asset register. A failed lifecycle is the identity line, never
+a six-blank strip. The register file shrank (`tiedElements.ts`); the pin is 2,516.
+
+## v0.3.999 (2026-08-19) — Cost, Planning, and Operate open on three answers
+
+R36-ROOM-BRIEFS for the remaining portal homes. Cost (`__budget__`) opens vs GMP, unpriced
+exposure, and buyout. Planning (`__benchmarks__`) opens on the RFI clock, the submittal clock,
+and own-history cost medians. Operate (`__operations__`) opens on overdue work orders, PM
+compliance, and FCI. No GMP / no history / `pm_compliance_pct: null` / no FCA elements are
+sentences, never 0%. Shared card chrome is `roomBriefChrome.ts`. Design stays the viewer
+(`ROOM_HOME.design` is null).
+
+## v0.3.998 (2026-08-19) — Deal opens on the developer's three answers
+
+The Deal room (`__portfolio__`) used to open on the book-wide table. It now opens with returns vs
+the underwriting band, open diligence, and the next developer protocol gate (`dealBrief.ts`). A
+failed engine is a reason, never 0.0% IRR or "0 flagged". Schedule (995) and Work remain the
+other landed briefs; Cost / Planning / Operate / Design are still open on R36.
+
+## v0.3.997 (2026-08-19) — CAM statement PDF is a POST
+
+Downloading a tenant CAM statement used to be a cookie-bearing GET that `Session.commit()`'d an
+audit row. SameSite=Lax sends the session cookie on a top-level GET. The route is POST; the
+Finance UI fetches the blob and saves it. OAuth callback remains the only GET+commit.
+
+## v0.3.996 (2026-08-19) — Field / Comfortable / Compact on registers
+
+Density is three named row heights (56 / 36 / 28 px), cycled from the portal home, and applied to
+`.portal-table` so the 8-hour register is not stuck at dashboard-only compact. Numeric cells use
+tabular figures. Catalog star and module buttons show a focus ring outside the control
+(`outline-offset: 2px`), so keyboard focus is visible.
+
+## v0.3.995 (2026-08-19) — Schedule opens on the superintendent's three answers
+
+The Schedule room used to open on import/export, then a wall of tools. It now opens with today's
+lookahead, blockers, and yesterday's variance (`scheduleBrief.ts`), then the rest of the board.
+The three engines already existed. A failed fetch is a reason, never a plausible zero. Work remains
+the template; Deal and the other rooms are still open on R36-ROOM-BRIEFS.
+
+## v0.3.994 (2026-08-19) — one Analyse home, three named tasks
+
+Design's rail no longer lists Model Health, Model Analysis and BIM KPIs as siblings. One **Analyse**
+destination opens a home that names the question each already-built panel answers. The three dests
+still render (readiness hops unchanged). Not a fourth scorecard.
+
+## v0.3.993 (2026-08-19) — pick the sheet paper; 24×18 is ARCH C
+
+The Drawings rail has a paper picker. Catalog is US ARCH C/D/B/A plus ISO A0–A4. **24×18 in is
+ARCH C**, not an ISO A size (A2 is 16.5×23.4). ARCH D is the usual full-size US construction set
+(36×24); half-size of D is ARCH B (18×12); the next step down is ARCH A (12×9), often called
+quarter-size of D. Default is ARCH C. 11×17 is not in the list — it is a copier size, not half of
+24×36. An unknown `page` is refused (422), never substituted. `compose()` with no `page` is still
+A3 so existing API links do not change paper.
+
+## v0.3.992 (2026-08-19) — Issue sheet prints as ISO A1
+
+The Drawings rail's Issue / Sheet PDF buttons labelled the sheet A-101 and the hover said ARCH-D,
+while the request omitted `page` so `compose()` silently used **A3**. The paper-space editor already
+defaulted to A1. The rail now sends `page=A1`. ARCH-D (24×36 in) is a different standard and stays
+a product call, not a silent default. `compose()` with no `page` is still A3.
+
+## v0.3.991 (2026-08-19) — Pulse is one GET, pills follow the persona, a 500 is not a blank
+
+Home Pulse no longer fans seven client GETs and maps the wrong field names (`score` vs
+`overall_score`, a `variance_pct` the cost summary never returned). `GET /projects/{id}/pulse`
+returns `PulseInput` from `project_pulse.py`; each engine still fail-opens on its own. The
+route does **not** POST a renovation programme with an invented body.
+
+Persona-weighted pill **order** is now the server `keys` list (engineer on Design: design →
+regulatory → place). A brief that 500s shows "Readiness unavailable" instead of a blank
+strip that reads as "nothing is next".
+
+## v0.3.990 (2026-08-19) — Starlette 1.6.0, the FileResponse Range floor
+
+`requirements.lock` pinned Starlette 1.3.1. 1.5.1/1.6.0 fix Range handling on `FileResponse` (we
+stream source IFC that way) and add `max_body_size` on routes. FastAPI 0.141.1 already allowed
+`starlette>=0.46.0`; the floor is now explicit in `requirements.in`. No other lock moves. Compiled
+on Python 3.12.
+
+## v0.3.989 (2026-08-19) — the home strip's scope is a server fact, not a client filter
+
+The 8-step protocol still runs in Python. The home strip was still deciding *which* steps a
+superintendent or a designer sees. That map now lives next to `_PROTOCOL` in
+`master_builder_scope.py`, is applied on `GET /projects/{id}/master-builder/brief?workspace=&persona=`,
+and is lockstep-tested against `readinessStrip.ts` so the two layers cannot fork. The overall
+readiness percent stays on all eight steps; only the pills are scoped. Empty intersect still
+falls back to the workspace set.
+
+Bake-share directories are mode 0700 when the operator turns sharing on. GET handlers that
+`Session.commit()` are a ratchet (`test_get_commits.py`): OAuth callback stays GET; the CAM
+PDF download is named as the leftover. Handoff for the next session:
+`docs/internal/runway-claude-2026-08-19.md`.
+
 ## v0.3.988 (2026-08-19) — the readiness brief is on every home, and bake-share stores JSON
 
 Two leftovers from the upgrade audit, neither of which is a library swap.

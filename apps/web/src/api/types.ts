@@ -812,3 +812,30 @@ export interface ReviewCycles {
   /** Always "calendar" when available — a statutory review clock does not pause for a weekend. */
   days_basis: string | null; note?: string;
 }
+
+/** GET /projects/{id}/master-builder/brief — 8 protocol steps, optionally scoped for a home strip. */
+export interface MasterBuilderStep {
+  n: number; key: string; title: string; why: string; link: string; dest: string;
+  status: "ready" | "partial" | "gap";
+  findings: { label: string; detail: string }[]; gaps: string[];
+}
+export interface MasterBuilderBrief {
+  project: string | null; jurisdiction: string | null; grounded_in_place: boolean;
+  place_grounding: { code_family: string | null; hemisphere: string | null; climate_band: string | null;
+    coordinates: { latitude: number; longitude: number } | null; hazards_to_verify: string[] };
+  reframe_prompt: string; readiness_pct: number; ready_steps: number; gap_steps: number;
+  step_count: number; steps: MasterBuilderStep[]; disclaimer: string; note: string;
+  scope?: { workspace: string; persona: string; keys: string[] };
+}
+
+/** `GET /projects/{id}/pulse` — already mapped to what `buildPulse` consumes. */
+export interface ProjectPulse {
+  model?: { score?: number | null; issues?: number | null; blocking?: string | null } | null;
+  cost?: { variancePct?: number | null; unpricedChanges?: number | null; exposurePct?: number | null } | null;
+  schedule?: { floatDays?: number | null; atRisk?: string | null } | null;
+  work?: { open?: number | null; mine?: number | null; overdue?: string[] | null } | null;
+  deal?: {
+    irrPct?: number | null; band?: [number, number] | null; staleSince?: string | null;
+    reserveSuggestionFails?: boolean | null; nothingRenovated?: string | null;
+  } | null;
+}

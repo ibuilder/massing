@@ -7,6 +7,9 @@
 import type { ApiClient } from "../api/client";
 import { currentIdentity, ownedByMe } from "../api/identity";
 import { toast } from "./../ui/feedback";
+import { attachDictation } from "./dictate";
+import { mountFieldChrome } from "./fieldMode";
+import "./fieldMode.css";
 
 const QKEY = "aec-field-queue";
 
@@ -81,6 +84,7 @@ function fileToDataUrl(f: File): Promise<string> {
 
 export class FieldCapture {
   private fab!: HTMLButtonElement;
+  private refreshStrip: () => void = () => undefined;
 
   constructor(private api: ApiClient, private projectId: () => string | null) {}
 
@@ -94,6 +98,11 @@ export class FieldCapture {
       + "box-shadow:0 6px 20px #0007;cursor:pointer;display:flex;align-items:center;justify-content:center";
     this.fab.onclick = () => this.openSheet();
     document.body.appendChild(this.fab);
+    const chrome = mountFieldChrome({
+      queueCount: () => loadQueue().length,
+      onOpenQueue: () => this.openQueue(),
+    });
+    this.refreshStrip = chrome.refreshStrip;
     this.refreshBadge();
     // flush any queued captures now and whenever connectivity returns
     window.addEventListener("online", () => void this.flush());
@@ -103,7 +112,7 @@ export class FieldCapture {
   private refreshBadge(): void {
     const n = loadQueue().length;
     let b = this.fab.querySelector(".fab-badge") as HTMLElement | null;
-    if (!n) { b?.remove(); return; }
+    if (!n) { b?.remove(); this.refreshStrip(); return; }
     if (!b) {
       b = document.createElement("span"); b.className = "fab-badge";
       b.style.cssText = "position:absolute;top:-4px;right:-4px;background:#e2554a;color:#fff;border-radius:10px;"
@@ -112,6 +121,7 @@ export class FieldCapture {
     }
     b.textContent = String(n);
     this.fab.title = `Field capture — ${n} queued offline`;
+    this.refreshStrip();
   }
 
   private openSheet(): void {
@@ -140,6 +150,9 @@ export class FieldCapture {
 
     const desc = document.createElement("textarea"); desc.className = "portal-filter";
     desc.placeholder = "Description / note"; desc.rows = 3;
+    const noteBlock = label("Description", desc);
+    const mic = attachDictation(desc);
+    if (mic) noteBlock.append(mic);
     const loc = document.createElement("input"); loc.className = "portal-filter"; loc.placeholder = "Location (e.g. Level 3, Grid C)";
 
     // GPS geotag — best-effort one-shot fix stored on the record
@@ -175,7 +188,7 @@ export class FieldCapture {
 
     card.append(
       label("Type", typeSel), label("Photo", photoIn), preview,
-      label("Description", desc), label("Location", loc), geoRow, row, review,
+      noteBlock, label("Location", loc), geoRow, row, review,
     );
     ov.append(card);
     ov.addEventListener("pointerdown", (e) => { if (e.target === ov) ov.remove(); });
@@ -212,7 +225,7 @@ export class FieldCapture {
   open(): void { this.openSheet(); }
 
   /** Review the offline queue: see pending captures, retry the sync, or discard an item. */
-  private openQueue(): void {
+  openQueue(): void {
     document.querySelector(".field-sheet")?.remove();
     const ov = document.createElement("div"); ov.className = "field-sheet";
     ov.style.cssText = "position:fixed;inset:0;z-index:320;background:#000a;display:flex;align-items:flex-end;justify-content:center";

@@ -68,6 +68,8 @@ with tempfile.TemporaryDirectory() as d:
     check("the on-disk codec is JSONDisk, not pickle Disk",
           store is not None and type(store.disk).__name__ == "JSONDisk",
           type(getattr(store, "disk", None)).__name__ if store else "no store")
+    mode = os.stat(d).st_mode & 0o777
+    check("the cache directory is mode 0700 (owner-only)", mode == 0o700, oct(mode))
 
     four = [("2O2Fr$t4X7Zf8NOew3FNrX", "IfcWall",
              [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], [[0, 1, 0]])]

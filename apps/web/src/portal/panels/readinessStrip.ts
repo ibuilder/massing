@@ -7,8 +7,8 @@
  * belong to this workspace/persona, and one hop to close the first gap. The full eight-card brief
  * stays on `__masterbuilder__`.
  *
- * Fail-open: a brief that cannot load leaves the host empty. A summary must not take down the
- * dashboard it summarises (same rule as Pulse).
+ * Fail-open: a brief that 500s leaves a one-line "Readiness unavailable" rather than a blank
+ * that looks like "nothing is next". A summary must not take down the dashboard (same as Pulse).
  */
 export type ReadinessStatus = "ready" | "partial" | "gap";
 
@@ -28,6 +28,7 @@ export interface ReadinessBrief {
   step_count: number;
   grounded_in_place: boolean;
   steps: ReadinessStep[];
+  scope?: { workspace: string; persona: string; keys: string[] };
 }
 
 /** Protocol keys this workspace actually asks. Unknown workspaces get the builder's set. */
@@ -55,8 +56,8 @@ export function readinessStepKeys(workspace: string, persona: string): string[] 
   const ws = STEPS_BY_WORKSPACE[workspace] ?? STEPS_BY_WORKSPACE.construction!;
   const p = persona && persona !== "all" ? STEPS_BY_PERSONA[persona] : undefined;
   if (!p) return [...ws];
-  const keep = new Set(p);
-  const scoped = ws.filter((k) => keep.has(k));
+  const keep = new Set(ws);
+  const scoped = p.filter((k) => keep.has(k));
   return scoped.length ? scoped : [...ws];
 }
 
@@ -82,10 +83,22 @@ export async function mountReadinessStrip(
   host.replaceChildren();
   let brief: ReadinessBrief;
   try { brief = await opts.load(); }
-  catch { return; }
+  catch {
+    const line = document.createElement("div");
+    line.className = "meta";
+    line.setAttribute("data-readiness", "unavailable");
+    line.style.marginBottom = "8px";
+    line.textContent = "Readiness unavailable";
+    host.appendChild(line);
+    return;
+  }
 
-  const want = new Set(readinessStepKeys(opts.workspace, opts.persona));
-  const steps = brief.steps.filter((s) => want.has(s.key));
+  // Prefer the server's scoped order so persona weighting is not re-derived here.
+  const order = brief.scope?.keys?.length
+    ? brief.scope.keys
+    : readinessStepKeys(opts.workspace, opts.persona);
+  const byKey = new Map(brief.steps.map((s) => [s.key, s]));
+  const steps = order.map((k) => byKey.get(k)).filter((s): s is ReadinessStep => !!s);
   if (!steps.length) return;
 
   const wrap = document.createElement("div");

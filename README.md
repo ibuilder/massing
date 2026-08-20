@@ -27,7 +27,8 @@
 > and **12%** of features carry 80% of daily use across 615 measured subscriptions (Pendo, 2019). So the
 > design rule is **defer, never delete**: route each person to the ten things they touch today, keep the
 > rest one keystroke away. See the [design audit & interface plan](docs/internal/archive/design-audit.md) and the **R24
-> interface ring** in [the roadmap](docs/roadmap.md).
+> interface ring** in [the roadmap](docs/roadmap.md). The element card (GUID + lifecycle) now opens
+> from the viewer, the cost trace, and any register record that names a model element (v0.3.1000).
 
 **What it is** — three pillars on one IFC-keyed model, reached through seven rooms — **Deal · Design · Planning · Schedule · Cost · Work · Operate** — that stay in the same place for every role:
 
@@ -223,6 +224,8 @@ Highlights, all **built and verified** in this repo unless noted:
 - **Field/mobile capture (offline-first)** — a mobile bottom-sheet quick-capture: snap a photo →
   punchlist / safety observation / progress photo in a couple taps. Captures queue offline (photo
   included) and **auto-sync on reconnect** (queued-count badge); pairs with the PWA/Capacitor build.
+  **Field mode** (`?field=1`) enlarges those controls to 56 px, keeps the sync queue on screen, and
+  offers dictation when the browser can hear you.
 - **Turnover** — a one-click **closeout package** (`/closeout/package.zip`: as-built IFC +
   COBie/QTO/spaces + status PDF + closeout manifest), **module-log PDFs** (RFI/submittal/CO
   registers), **multi-period pay apps** (period advance + auto **lien waivers**), **COBie tabs**

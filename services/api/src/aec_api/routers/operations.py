@@ -185,19 +185,23 @@ def cam_reconciliation(pid: str, year: int | None = None, gross_up_to_pct: float
                               building_sf=building_sf)
 
 
-@router.get("/projects/{pid}/cam/statement/{rid}.pdf")
+@router.post("/projects/{pid}/cam/statement/{rid}.pdf")
 def cam_statement(pid: str, rid: str, year: int | None = None, gross_up_to_pct: float = 95.0,
                   building_sf: float | None = None, db: Session = Depends(get_db),
                   actor: str = Depends(require_role("reviewer"))):
-    """Per-tenant CAM reconciliation statement (PDF) for the lease record `rid`."""
+    """Per-tenant CAM reconciliation statement (PDF) for the lease record `rid`.
+
+    POST so the audit commit is not a cookie-bearing GET. SameSite=Lax sends the
+    session cookie on a top-level GET from another origin; it withholds it on POST.
+    """
     p = _project(db, pid)
     recon = cam.reconciliation(db, pid, year=year, gross_up_to_pct=gross_up_to_pct,
-                               building_sf=building_sf)
+                              building_sf=building_sf)
     row = next((t for t in recon["tenants"] if t["id"] == rid or t["ref"] == rid), None)
     if not row:
         raise HTTPException(404, "lease not found in the reconciliation (needs rentable_sf)")
     pdf = cam.statement_pdf(recon, row, p.name or pid)
-    audit.record(db, action="cam.statement", actor=actor, method="GET",
+    audit.record(db, action="cam.statement", actor=actor, method="POST",
                  path=f"/projects/{pid}/cam/statement/{rid}.pdf", detail={"year": recon["year"]})
     db.commit()
     return Response(content=pdf, media_type="application/pdf", headers={
