@@ -92,6 +92,8 @@ export interface DrawingMarkupItem {
   id: string; sheet_id: string; x: number; y: number; note: string | null;
   author: string | null; topic_id: string | null; created_at: string;
   kind?: string; data?: { pts?: { x: number; y: number }[]; value?: number; unit?: string; page?: number; text?: string; nx?: number; ny?: number;
+    /** IFC GlobalId when the pin was dropped on identified linework (R38-SHEET-MARKUP ③). */
+    guid?: string;
     /** MARKUP-2a slip-sheet: the register revision the markup was made against, and (after a sheet
      *  revise) the superseded revision it was carried forward from — "verify against current". */
     rev?: string; carried_from?: string } | null;
