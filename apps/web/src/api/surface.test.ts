@@ -161,6 +161,7 @@ describe("the API client's public surface", () => {
       "connections", "createConnection", "testConnection", "connectionTables",
       "syncProcore", "pushProcore", "syncSchedules",
       "drawingSet", "issueDrawingSet", "drawingIssuances", "drawingTransmittalUrl",
+      "drawingMarkup", "promoteDrawingMarkup", "markupStream", "drawingSchedules",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }
