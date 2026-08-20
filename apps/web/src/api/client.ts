@@ -4,6 +4,7 @@ import { withAuth } from "./auth";
 import { withAuthoring } from "./authoring";
 import { withConnections } from "./connections";
 import { withDrawingSet } from "./drawingSet";
+import { withDrawingSheets } from "./drawingSheets";
 import { withSync } from "./sync";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
@@ -35,9 +36,9 @@ export * from "./authoring";
 export * from "./library";
 import type {
   Appraisal, AuditEntry, Dashboard, DocFile,
-  DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
+  DisciplineTree, DocFolderNode, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, ProfessionalLicense,
-  ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate,
+  ResponsibilityMatrix, SmartView, StampTemplate,
     BidLevelingDetail,
     SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload,
     DiligenceReadiness, ReviewCycles, MasterBuilderBrief } from "./types";
@@ -45,7 +46,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withDrawingSet(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))) {
+export class ApiClient extends withDrawingSheets(withDrawingSet(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -415,11 +416,6 @@ export class ApiClient extends withDrawingSet(withSync(withConnections(withDocQa
   }
   /** The signed-in user's own verified PE/RA licences — what the seal dialog offers. */
   myLicenses() { return this.json<{ licenses: ProfessionalLicense[] }>("/licenses/mine"); }
-  /** Record a revision (delta) on a sheet, optionally citing the driving instrument (ASI/CCD/Addendum). */
-  reviseDrawing(pid: string, drawingId: string, body: { rev: string; description?: string; date?: string; instrument_type?: string; instrument_ref?: string }) {
-    return this.json<{ drawing_id: string; revision: string; delta_count: number }>(
-      `/projects/${pid}/drawings/${drawingId}/revise`, { method: "POST", body: JSON.stringify(body) });
-  }
   tmSummary(pid: string) {
     return this.json<{ ticket_count: number; labor_total: number; material_total: number;
       equipment_total: number; grand_total: number; unbilled_total: number; rows: Record<string, unknown>[] }>(
@@ -1106,11 +1102,6 @@ export class ApiClient extends withDrawingSet(withSync(withConnections(withDocQa
                 opts: { predefined?: string; size?: number; system?: string } = {}, publish = true) {
     return this.editIfc(pid, "add_mep_fitting", { ifc_class: ifcClass, point, ...opts }, publish);
   }
-  /** W11 C4: computed door / window / room schedules from the model. */
-  drawingSchedules(pid: string) {
-    return this.json<Record<"doors" | "windows" | "rooms", { columns: string[]; rows: string[][] }>>(
-      `/projects/${pid}/drawings/schedules`);
-  }
   /** W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). */
   lodSummary(pid: string) {
     return this.json<{ total: number; staged: number; prop: string;
@@ -1732,12 +1723,6 @@ export class ApiClient extends withDrawingSet(withSync(withConnections(withDocQa
       `/projects/${pid}/versions/${version}/review`,
       { method: "POST", body: JSON.stringify({ action, note }) });
   }
-  drawingSchedulesCalc(pid: string, calcs: { doors?: { name: string; expr: string }[];
-    windows?: { name: string; expr: string }[]; rooms?: { name: string; expr: string }[] }) {
-    type Table = { columns: string[]; rows: (string | number | null)[][]; calculated?: string[] };
-    return this.json<{ doors: Table; windows: Table; rooms: Table }>(
-      `/projects/${pid}/drawings/schedules/calc`, { method: "POST", body: JSON.stringify(calcs) });
-  }
   topicTimeline(pid: string, tid: string) {
     return this.json<{
       topic_id: string; title: string; type: string; status: string;
@@ -1939,11 +1924,6 @@ export class ApiClient extends withDrawingSet(withSync(withConnections(withDocQa
   }
   mep(pid: string) {
     return this.json<{ by_class: Record<string, number>; systems: Record<string, string>; total_distribution_elements: number }>(`/projects/${pid}/mep`);
-  }
-
-  // 2D documentation
-  drawingStoreys(pid: string) {
-    return this.json<{ name: string | null; elevation: number; guid: string }[]>(`/projects/${pid}/drawings/storeys`);
   }
 
   // W9-1 property mapping / normalization — the transform verb between IDS-validate and COBie-export
@@ -2583,12 +2563,6 @@ export class ApiClient extends withDrawingSet(withSync(withConnections(withDocQa
     if (!res.ok) throw new Error((await res.text()) || `inspect failed (${res.status})`);
     return res.json() as Promise<Record<string, unknown>>;
   }
-  /** Model version/signature for 2D staleness (bumps on publish; /drawings/stream pushes it). */
-  drawingsSyncStatus(pid: string) {
-    return this.json<{ model_loaded: boolean; version: number; signature: string | null;
-      changed_at: number | null }>(`/projects/${pid}/drawings/sync-status`);
-  }
-
   // --- Document control / file manager (F1-F6) ---------------------------------
   documentsTree(pid: string) {
     return this.json<{ project: string; total_files: number; required_gaps: string[];
@@ -2860,29 +2834,6 @@ export class ApiClient extends withDrawingSet(withSync(withConnections(withDocQa
   escalationsRun(pid: string) {
     return this.json<EscalationRun>(`/projects/${pid}/escalations/run`, { method: "POST" });
   }
-  // --- drawing markup (2D sheet pins; promotable to RFIs) ----------------
-  /** Markups for one sheet — or, with no sheet, EVERY markup in the project (the MARKUP-2b grid). */
-  drawingMarkup(pid: string, sheet?: string) {
-    return this.json<DrawingMarkupItem[]>(
-      `/projects/${pid}/drawings/markup${sheet ? `?sheet=${encodeURIComponent(sheet)}` : ""}`);
-  }
-  addDrawingMarkup(pid: string, sheetId: string, x: number, y: number, note: string) {
-    return this.json<DrawingMarkupItem>(`/projects/${pid}/drawings/markup`, { method: "POST", body: JSON.stringify({ sheet_id: sheetId, x, y, note }) });
-  }
-  /** Persist the 2D editor's whole markup scene for a sheet (structured takeoff markups, promotable to
-   *  RFI like pins). `replace` clears the caller's own prior unpromoted markups for that sheet first. */
-  saveDrawingMarkups(pid: string, sheetId: string, markups: SheetMarkupIn[], replace = true) {
-    return this.json<{ saved: number; sheet_id: string }>(`/projects/${pid}/drawings/markup/bulk`,
-      { method: "POST", body: JSON.stringify({ sheet_id: sheetId, replace, markups }) });
-  }
-  deleteDrawingMarkup(pid: string, id: string) {
-    return this.json<{ ok: boolean }>(`/projects/${pid}/drawings/markup/${id}`, { method: "DELETE" });
-  }
-  promoteDrawingMarkup(pid: string, id: string) {
-    return this.json<{ markup: DrawingMarkupItem; topic: { id: string; type: string; title: string; status: string } }>(
-      `/projects/${pid}/drawings/markup/${id}/promote`, { method: "POST" });
-  }
-
   /** Admin: send each member with open items a work-queue digest email. */
   sendDigest(pid: string) {
     return this.json<{ smtp_configured: boolean; results: Record<string, string[]>; skipped_no_email: string[] }>(
@@ -2895,13 +2846,6 @@ export class ApiClient extends withDrawingSet(withSync(withConnections(withDocQa
   notificationStream(pid: string, onMessage: (d: { count: number; items: NotifItem[] }) => void,
                      onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
     return this.liveStream(`/projects/${pid}/notifications/stream`,
-                           onMessage as (d: unknown) => void, onStatus);
-  }
-  /** MARKUP-2d — SSE stream of the drawing-markup change-signature; fires whenever anyone saves a
-   *  markup so open sheets live-refresh (live co-markup). */
-  markupStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,
-               onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
-    return this.liveStream(`/projects/${pid}/drawings/markup/stream`,
                            onMessage as (d: unknown) => void, onStatus);
   }
   /** SSE stream of the pull-board change-signature; fires whenever any trade edits a sticky note so

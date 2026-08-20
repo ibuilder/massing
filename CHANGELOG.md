@@ -4,6 +4,11 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1020 (2026-08-20) — `/drawings` leaves client.ts
+
+SCALE-SEAM ⑮. Eleven sheet methods (revise, schedules, storeys, sync-status, markup + stream)
+moved to `apps/web/src/api/drawingSheets.ts`. Six regions. `client.ts` 3,538 → 3,482.
+
 ## v0.3.1019 (2026-08-20) — `/drawing-set` leaves client.ts
 
 SCALE-SEAM ⑭. Eleven drawing-set methods (register, issue, issuance matrix, transmittals)
