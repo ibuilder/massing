@@ -841,3 +841,26 @@ export interface ProjectPulse {
     reserveSuggestionFails?: boolean | null; nothingRenovated?: string | null;
   } | null;
 }
+
+/** `GET /schedule/make-ready` — READY-AGENT's forward constraint register. */
+export interface MakeReady {
+  window_days: number;
+  ready: number;
+  blocked: number;
+  note: string;
+  activities: {
+    ref: string;
+    name: string;
+    start: string;
+    trade: string | null;
+    ready: boolean;
+    /** Why it cannot start — each carries the EVIDENCE, not just a flag. */
+    blockers: {
+      kind: "predecessor" | "submittals";
+      ref?: string;
+      count?: number;
+      evidence: string;
+      refs?: string[];
+    }[];
+  }[];
+}

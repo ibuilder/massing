@@ -20,6 +20,7 @@
  */
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
 import { HttpCore } from "./httpCore";
+import type { MakeReady } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -151,6 +152,13 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
   /** Full EVM snapshot: PV/EV/AC/BAC, CV/SV/CPI/SPI + bands, the EAC/ETC/VAC/TCPI forecast family,
    *  and a per-control-account (cost code) breakdown — schedule EV joined with cost actuals. */
+  /** READY-AGENT — every activity starting within `days`, its preconditions checked with cited
+   *  evidence (incomplete predecessors by ref + % complete, open submittals by ref/state) and a
+   *  ready/blocked verdict. Distinct from `scheduleLookahead`, which says what is COMING;
+   *  this says whether it can actually START, and what is in the way. */
+  scheduleMakeReady(pid: string, days = 14) {
+    return this.json<MakeReady>(`/projects/${pid}/schedule/make-ready?days=${days}`);
+  }
   scheduleLookahead(pid: string, weeks = 3) {
     return this.json<{ start: string; finish: string; weeks: number; count: number;
       weeks_detail: { week: string; activities: { ref: string; name: string; trade?: string;

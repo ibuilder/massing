@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1045 (2026-08-20) — Make-ready reaches the screen: "can next week's work actually start?"
+
+### Added
+
+- **`GET /schedule/make-ready` has a client caller and a surface**, having shipped as a tested
+  engine and route with neither. READY-AGENT checks every activity starting inside a window against
+  its preconditions — incomplete predecessors by ref and % complete, open submittals by ref and
+  state — and returns a ready/blocked verdict. It sits beside the Lookahead card in the Schedule
+  room, because the two answer adjacent questions: **the lookahead says what is coming; make-ready
+  says whether it can start, and what is in the way.**
+- **Every blocker prints its evidence**, never a bare flag — *"FDN-12 is 40% complete"*, *"open:
+  SUB-003 (in_review)"*. A readiness verdict the superintendent cannot check is the same as no
+  verdict. Blocked activities sort first: the list exists to be acted on.
+
+### Note
+
+- **Premise-checked against the adjacent surfaces before building**, after the previous item was
+  built and reverted for duplicating something that already shipped. `scheduleLookahead` lists the
+  window grouped by week; the pull-plan board's `made_ready` is a manual trade commitment. Neither
+  computes preconditions from predecessors and submittal state, which is the whole of this.
+- Found by v0.3.1044's fix to `test_route_reachability` — the gate that had been counting a route
+  named in a doc comment as a route called. The first thing it surfaced was wired the same day.
+
 ## v0.3.1044 (2026-08-20) — the reachability gate counted a route NAMED in a comment as a route CALLED
 
 ### Fixed

@@ -580,6 +580,59 @@ export async function renderScheduleViews(ctx: PanelContext, m: ModuleDef) {
   laSel.onchange = () => loadLookahead(+laSel.value);
   ctx.root.appendChild(laCard); loadLookahead(3);
 
+  // Make-ready (READY-AGENT) — the constraint half of Last Planner, beside the lookahead because
+  // they answer adjacent questions: the lookahead says what is COMING, this says whether it can
+  // actually START and what is in the way. The engine and route shipped and had NO client caller
+  // until v0.3.1045; `test_route_reachability` could not see that, because the path appeared in a
+  // doc comment and its rule matched the raw source.
+  //
+  // Every blocker prints its EVIDENCE, never a bare flag: "FDN-12 is 40% complete" and
+  // "open: SUB-003 (in_review)" are checkable by the person reading them, and a readiness verdict
+  // nobody can check is the same as no verdict.
+  const mrCard = document.createElement("div"); mrCard.className = "dash-card"; mrCard.style.marginBottom = "10px";
+  const mrHead = document.createElement("div"); mrHead.className = "section-title";
+  mrHead.style.cssText = "display:flex;justify-content:space-between;align-items:center";
+  mrHead.append(Object.assign(document.createElement("span"), { textContent: "Make-ready" }));
+  const mrSel = document.createElement("select"); mrSel.className = "sb-sel";
+  for (const d of [7, 14, 28]) {
+    const o = document.createElement("option"); o.value = String(d); o.textContent = `${d} days`;
+    if (d === 14) o.selected = true;
+    mrSel.appendChild(o);
+  }
+  mrHead.appendChild(mrSel); mrCard.appendChild(mrHead);
+  const mrBody = document.createElement("div"); mrBody.innerHTML = `<div class="meta">loading…</div>`;
+  mrCard.appendChild(mrBody);
+  const loadMakeReady = (days: number) => {
+    mrBody.innerHTML = `<div class="meta">loading…</div>`;
+    void ctx.host.api.scheduleMakeReady(pid, days).then((mr) => {
+      if (!mr.activities.length) {
+        mrBody.innerHTML = `<div class="meta">Nothing starts in the next ${days} days.</div>`; return;
+      }
+      mrBody.innerHTML = "";
+      const chips = document.createElement("div"); chips.className = "meta"; chips.style.marginBottom = "4px";
+      chips.innerHTML = `Ready <b style="color:var(--status-good)">${mr.ready}</b> · `
+        + `Blocked <b style="color:${mr.blocked ? "var(--status-warn)" : "var(--muted)"}">${mr.blocked}</b>`;
+      mrBody.appendChild(chips);
+      // blocked first: the list exists to be acted on, and a ready activity needs no action
+      const ordered = [...mr.activities].sort((a, b) => Number(a.ready) - Number(b.ready));
+      for (const a of ordered) {
+        const row = document.createElement("div"); row.className = "meta"; row.style.margin = "2px 0";
+        row.innerHTML = `<span style="color:${a.ready ? "var(--status-good)" : "var(--status-warn)"}">●</span> `
+          + `${esc(a.name)}${a.trade ? ` · <span class="meta">${esc(a.trade)}</span>` : ""}`
+          + ` · <span class="meta">starts ${esc(a.start)}</span>`;
+        mrBody.appendChild(row);
+        for (const b of a.blockers) {
+          const ev = document.createElement("div"); ev.className = "meta";
+          ev.style.cssText = "margin:0 0 2px 16px;color:var(--muted)";
+          ev.textContent = `↳ ${b.evidence}`;          // textContent: server text, stored-XSS guard
+          mrBody.appendChild(ev);
+        }
+      }
+    }).catch(() => { mrBody.innerHTML = `<div class="meta">Make-ready unavailable.</div>`; });
+  };
+  mrSel.onchange = () => loadMakeReady(+mrSel.value);
+  ctx.root.appendChild(mrCard); loadMakeReady(14);
+
   // Milestone schedule — key dates with status
   const msCard = document.createElement("div"); msCard.className = "dash-card"; msCard.style.marginBottom = "10px";
   msCard.appendChild(Object.assign(document.createElement("div"), { className: "section-title", textContent: "Milestones" }));

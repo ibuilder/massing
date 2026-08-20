@@ -99,7 +99,7 @@ KNOWN_UNCALLED: set[str] = {
     # never "this is safe". Two are worth someone's attention — `/entitlements/conditions` is
     # R22-ENTITLEMENT's own surface, and `/schedule/make-ready` is the Last Planner constraint list.
     "/cost/datasets", "/pipeline/funnel", "/projects/{pid}/entitlements/conditions",
-    "/projects/{pid}/schedule/eot/sourced", "/projects/{pid}/schedule/make-ready",
+    "/projects/{pid}/schedule/eot/sourced",
     "/projects/{pid}/drawing-set/compiled.pdf", "/projects/{pid}/drawing-set/file-drawing-set",
     "/projects/{pid}/drawings/received-regions", "/projects/{pid}/drawings/schedule.csv",
     "/projects/{pid}/drawings/sheet-regions", "/projects/{pid}/drawings/sheet.dxf",
