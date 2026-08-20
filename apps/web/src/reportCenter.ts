@@ -3,7 +3,7 @@ import { money } from "./ui/charts";
 import { toast, escapeHtml } from "./ui/feedback";
 import { modalShell } from "./ui/modal";
 import { askText } from "./ui/prompt";
-import { REPORT_MOMENTS, missingReportIds, resolveMoment } from "./ui/reportMoments";
+import { REPORT_MOMENTS, REPORT_PACKAGE_KIND, missingReportIds, packageJobParams, resolveMoment } from "./ui/reportMoments";
 import { showResult } from "./ui/result";
 
 /** REL-4 leaf — the Report Center modal: every exportable report (PDF/Excel/markup) plus the
@@ -66,7 +66,16 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
     const why = document.createElement("div");
     why.className = "meta"; why.style.cssText = "font-size:11px;margin:2px 0 4px";
     why.textContent = m.occasion;                 // the line that makes it a moment, not a category
-    det.append(sum, why);
+    const assemble = document.createElement("button");
+    assemble.className = "tool-btn"; assemble.textContent = "Assemble";
+    assemble.title = "Build this package in the background; the job tray holds the PDF. Email on a date is still open.";
+    assemble.onclick = async () => {
+      try {
+        await api.enqueueJob(pid, REPORT_PACKAGE_KIND, packageJobParams(m));
+        toast("Package queued — watch the job tray", "success");
+      } catch (e) { toast((e as Error).message, "error"); }
+    };
+    det.append(sum, why, assemble);
     for (const rep of rows) det.appendChild(reportRow(rep));
     card.appendChild(det);
   }

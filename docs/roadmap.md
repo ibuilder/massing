@@ -1555,17 +1555,17 @@ refute one, so this goes first even though it is the least visible.
   mix donut must pass those hues in; occupying slot 0 is not how you get "passing". SVG fills stay
   outside `ui/colorContract.ts` (that list is CSS selectors). The audit's "four semantic hues" rule
   stays for status and does not apply to series identity.
-- 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; scheduling still open.** The catalog was
+- 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; scheduling still open.** The catalog was
   **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above
   them — owner monthly · lender draw · IC · precon/GMP · design issue · closeout · ownership quarter —
   each stating who asks and when, collapsed by default, with every report still under its noun
   heading below. `reportMoments.test.ts` reads `reports.py` and fails the build if a package names an
   id the server no longer defines; without that, a renamed report shortens a package silently on the
   Friday it is due.
-  **Still open: "scheduled and shared, not just downloaded."** A package is currently something you
-  open and click through. Making it a *scheduled deliverable* — assembled on a date, sent to a
-  recipient, with a record that it went — is the larger half and wants `routers/jobs.py` (now wired
-  to the UI by R24-JOB-TRAY) plus a delivery surface. That is a real feature, not a grouping change.
+  **Still open: "scheduled and shared, not just downloaded."** Assemble is a job
+  (`report_package` in `services/api/src/aec_api/jobs.py`, **Assemble** in `apps/web/src/reportCenter.ts`).
+  Making it a *scheduled deliverable* — sent to a recipient on a date — still wants a delivery surface
+  and SMTP. The Job row is already the record that a pack ran.
 - **R24-TERMS** *(S)* — the remaining long tail (element/component and estimate/budget/cost pairs
   are a user decision; storey/floor settled v0.3.945).
 - ✅ **R24-MONO-DATA** *(S — **SHIPPED v0.3.1003**)* — `var(--mono)` is the only first-party face;

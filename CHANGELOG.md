@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1015 (2026-08-20) — assemble the package, don't click it one by one
+
+R24-REPORTS-BY-MOMENT ②. Each package has **Assemble**: a `report_package` job builds the
+named reports into one PDF and parks it in the job tray. Unknown ids fail the job rather than
+quietly shortening the pack. Email-on-a-date is still open (needs a recipient and SMTP).
+
 ## v0.3.1014 (2026-08-20) — markup the plan you are looking at
 
 R38-SHEET-MARKUP ③ closed. Every generated sheet (plan / elevation / section) has
