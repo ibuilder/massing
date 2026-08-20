@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1022 (2026-08-20) — `/drawing-set` leaves client.ts
+
+SCALE-SEAM ⑭. Eleven drawing-set methods (register, issue, issuance matrix, transmittals)
+moved to `apps/web/src/api/drawingSet.ts`. They sat in three runs with `/preflight` and
+`/pdf` between them. `client.ts` 3,602 → 3,538.
+
 ## v0.3.1021 (2026-08-20) — the level list says which cut height to use
 
 ### Added
@@ -85,7 +91,6 @@ red; none of them were silenced.
   measure: its `/v0\.3\.(\d{3})/` read `v0.3.1018` as **101**, smaller than the 928 already on the
   page. Past v0.3.999 it reported a lag no amount of refreshing could close. Both it and the
   CHANGELOG gate now read `\d{3,}`, and the page carries the v0.3.988–1018 wave.
-
 ## v0.3.1018 (2026-08-20) — `/sync` leaves client.ts
 
 SCALE-SEAM ⑬. Seven Procore pull/push + auto-sync-schedule methods moved to
