@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1020 (2026-08-20) — a plan that grazes the storey now says so
+
+### Fixed
+
+- **Blank floor plans printed as finished drawings.** `samples/basichouse.ifc` storey "Floor 1"
+  cuts at 3.600 m, passes through **2** of the 16 elements standing on that storey, and composed a
+  full sheet around them — titleblock, general notes, graphic scale, north arrow, "CUT PLANE
+  3.60 m AFF" — with no building on it and nothing said. The v0.3.913 guard asked `if not polys`,
+  a test for *exactly* zero, and the failure mode is *nearly* zero: two loops are truthy.
+  `cut_plane_quality` now measures the chosen plane against the best one available on the storey,
+  so a fraction decides rather than a boolean, and the sheet names the height that would work
+  ("at 2.500 m it would pass through 6 — set the cut height to 0.100 m").
+  Still **not** a silent re-cut: the titleblock prints the cut elevation, so moving the plane
+  quietly would make that printed number a lie. The counts are also published as
+  `data-plan-cut-spans` / `-best` / `-best-z`, measured once and shared, so the data and the
+  banner cannot drift apart.
+- `test_plan_cut_quality.py` verifies the suggested height *actually improves the drawing* rather
+  than merely being printed, and that a healthy plan is left alone.
+
+### Changed
+
+- **SCALE-SEAM ⑭** — the five drawing-markup methods leave `client.ts` for `api/markup.ts` as
+  `withMarkup`. Forced rather than chosen: teaching `addDrawingMarkup` to carry the GlobalId put
+  the file at 3,606 against a 3,602 ratchet, which is that pin working as its own comment says it
+  should — the friction buys a cluster out of the file instead of buying the pin a higher number.
+  3,606 → 3,579.
+
 ## v0.3.1019 (2026-08-20) — the four checks that stood between 19 branches and main
 
 Integration pass over the v0.3.988–1018 stack. Every item here is a gate that was correctly

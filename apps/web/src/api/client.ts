@@ -3,6 +3,7 @@
 import { withAuth } from "./auth";
 import { withAuthoring } from "./authoring";
 import { withConnections } from "./connections";
+import { withMarkup } from "./markup";
 import { withSync } from "./sync";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
@@ -44,7 +45,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))) {
+export class ApiClient extends withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -2924,33 +2925,6 @@ export class ApiClient extends withSync(withConnections(withDocQa(withFinance(wi
   escalationsRun(pid: string) {
     return this.json<EscalationRun>(`/projects/${pid}/escalations/run`, { method: "POST" });
   }
-  // --- drawing markup (2D sheet pins; promotable to RFIs) ----------------
-  /** Markups for one sheet — or, with no sheet, EVERY markup in the project (the MARKUP-2b grid). */
-  drawingMarkup(pid: string, sheet?: string) {
-    return this.json<DrawingMarkupItem[]>(
-      `/projects/${pid}/drawings/markup${sheet ? `?sheet=${encodeURIComponent(sheet)}` : ""}`);
-  }
-  /** Drop a pin on a sheet. `guid` is the IFC GlobalId of the linework under the click (R38-SHEET-
-   *  MARKUP ③) — omitted entirely when the click hit empty paper, so `data` is absent rather than a
-   *  null the server would have to interpret. A coordinate-only pin points at empty paper once the
-   *  element moves, which is why the guid rides on the pin and not beside it. */
-  addDrawingMarkup(pid: string, sheetId: string, x: number, y: number, note: string, guid?: string | null) {
-    return this.json<DrawingMarkupItem>(`/projects/${pid}/drawings/markup`, { method: "POST", body: JSON.stringify({ sheet_id: sheetId, x, y, note, kind: "pin", ...(guid ? { data: { guid } } : {}) }) });
-  }
-  /** Persist the 2D editor's whole markup scene for a sheet (structured takeoff markups, promotable to
-   *  RFI like pins). `replace` clears the caller's own prior unpromoted markups for that sheet first. */
-  saveDrawingMarkups(pid: string, sheetId: string, markups: SheetMarkupIn[], replace = true) {
-    return this.json<{ saved: number; sheet_id: string }>(`/projects/${pid}/drawings/markup/bulk`,
-      { method: "POST", body: JSON.stringify({ sheet_id: sheetId, replace, markups }) });
-  }
-  deleteDrawingMarkup(pid: string, id: string) {
-    return this.json<{ ok: boolean }>(`/projects/${pid}/drawings/markup/${id}`, { method: "DELETE" });
-  }
-  promoteDrawingMarkup(pid: string, id: string) {
-    return this.json<{ markup: DrawingMarkupItem; topic: { id: string; type: string; title: string; status: string } }>(
-      `/projects/${pid}/drawings/markup/${id}/promote`, { method: "POST" });
-  }
-
   /** Admin: send each member with open items a work-queue digest email. */
   sendDigest(pid: string) {
     return this.json<{ smtp_configured: boolean; results: Record<string, string[]>; skipped_no_email: string[] }>(
