@@ -547,7 +547,7 @@ worth checking: two of the three were mis-sized, and both in the same direction.
 
 | # | Sprint | Why here | Size | Outcome |
 |---|---|---|---|---|
-| 1 | **R22-ENTITLEMENT** | The only genuinely open R22 item, and the largest hole in the product's own story: the mission is acquisition → construction and **nothing spans approval**. Everything else on this list improves what already exists. | M/L | ✅ ③ shipped v0.3.978 — `review_cycle` + `approval_cycles.py`. Submittal *packages* and comment round-tripping remain. |
+| 1 | **R22-ENTITLEMENT** | The only genuinely open R22 item, and the largest hole in the product's own story: the mission is acquisition → construction and **nothing spans approval**. Everything else on this list improves what already exists. | M/L | ✅ ③ shipped v0.3.978 — `review_cycle` + `approval_cycles.py`. ✅ **comment round-tripping shipped v0.3.1042** — a resubmittal now carries the review that asked for it, labelled with the revision it was written against. **Submittal *packages*: the inbound half was ALREADY SHIPPED and this row did not say so — see the note under the entry.** |
 | 2 | **R39-DECOMP-VIEWER ③** — split `apps/web/src/viewer/app.ts` | Not a preference: the file sits at **97% of its size ceiling** with ~136 lines of headroom, and one v0.3.861 feature spent 42 of them. The next feature that touches it reds the build, and *that* feature will be somebody's urgent work. | L | ✅ ⑦ shipped v0.3.978 (3,444 → 3,311). **The "why" was already false when written** — six slices had landed and the ceiling had moved with them. A justification copied forward without re-measuring. |
 | 3 | **R37-TRIAGE tail** — the 12 remaining dead-code candidates | Bounded and evidence-backed (the population went 877 → 13 in v0.3.973), but each needs reading before deletion because string dispatch and `__all__` re-exports can still hide a caller. Lowest value of the three — the one candidate that mattered is already fixed. | S | ✅ shipped v0.3.980, and **"lowest value" was wrong**: 8 of the 12 were live, one of them holding both PyInstaller builds together. The reading was the value, not the deletions. |
 
@@ -1031,6 +1031,29 @@ stakes we are missing.
   submittal packages, review cycles, comment responses, and **conditions of approval carried into the
   model as constraints**. Today there is a hole between "acquisition" and "construction" in our own
   mission statement — we underwrite the deal and we build it, and nothing spans approval.
+
+  ④ **comment round-tripping, shipped v0.3.1042.** `revise()` writes a new record with a new id and
+  comments are keyed by `record_id`, so a resubmittal showed an empty thread: measured, 2 comments on
+  SUB-001 and **0** on SUB-001.1. Generic across the fifteen `revisable` modules — a reissued RFI lost
+  its discussion identically. Inherited comments are labelled with the revision they were written
+  against rather than merged flat, because a rev-0 comment presented as current is a confident wrong
+  answer rather than a missing one.
+
+  ④ **submittal PACKAGES — the inbound half was already shipped, and this entry did not say so.**
+  `GET /projects/{pid}/modules/{key}/{rid}/related` returns `{outgoing, incoming}`, and
+  `register.ts` already renders the incoming side as *"Referenced by — Records that point to this
+  one"*. Verified on 2026-08-20: a transmittal with `purpose: "For Review"` and three submittals
+  returns all three as `incoming`. **A duplicate engine, route, client method and DTO were written
+  before that check and reverted unshipped.**
+
+  The premise-check that failed is worth more than the code that was thrown away. The entry's own
+  warning — *"premise-check on semantics, not names; this ring has produced a naming-based false
+  blocker four times"* — was read first, and the check still went wrong, because it asked the
+  question of the **wrong surface**: the submittal/transmittal module fields (prose textareas) and
+  the `GET .../{rid}` response (`links: []`, no inbound). Both answers were accurate and both were
+  about a surface that does not own the capability. **Checking one endpoint does not check the API**;
+  when the question is "can the product answer X", the population to search is every route on the
+  record, not the one whose name matches the noun.
 
   ③ **review cycles, shipped v0.3.978.** The premise-check is worth keeping: both registers existed
   (`entitlement`, `permit`) and neither modelled **rounds** — `permit` has a single `under_review`
