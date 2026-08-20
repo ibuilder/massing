@@ -44,6 +44,7 @@ Run: PYTHONPATH="src;../data/src" ./.venv/Scripts/python.exe test_route_reachabi
 """
 import glob
 import os
+import re
 import sys
 
 sys.path.insert(0, "src")
@@ -91,6 +92,14 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/code/amendments", "/projects/{pid}/cost-vintage",
     "/projects/{pid}/cost/pay-application", "/projects/{pid}/dev-budget/sync-from-model",
     "/projects/{pid}/documents/file-model", "/projects/{pid}/documents/model-history",
+    # --- 2026-08-20: MASKED BY THE COMMENT BUG, not newly broken ---------------------------------
+    # These five were always uncalled. `uncalled_routes` matched against the raw web source, so a
+    # route whose name appears in a doc comment read as called; `strip_comments` above ends that.
+    # Frozen rather than wired, per this list's own contract: a ratchet records "this was looked at",
+    # never "this is safe". Two are worth someone's attention — `/entitlements/conditions` is
+    # R22-ENTITLEMENT's own surface, and `/schedule/make-ready` is the Last Planner constraint list.
+    "/cost/datasets", "/pipeline/funnel", "/projects/{pid}/entitlements/conditions",
+    "/projects/{pid}/schedule/eot/sourced", "/projects/{pid}/schedule/make-ready",
     "/projects/{pid}/drawing-set/compiled.pdf", "/projects/{pid}/drawing-set/file-drawing-set",
     "/projects/{pid}/drawings/received-regions", "/projects/{pid}/drawings/schedule.csv",
     "/projects/{pid}/drawings/sheet-regions", "/projects/{pid}/drawings/sheet.dxf",
@@ -138,12 +147,41 @@ def _leaf(route: str) -> str:
     return segs[-1] if segs else ""
 
 
+def strip_comments(src: str) -> str:
+    """Comments removed, so a route NAMED in prose does not read as a route CALLED.
+
+    Measured 2026-08-20: six routes appeared nowhere but in comments — `/cost/datasets`,
+    `/pipeline/funnel`, `/drawings/sheet.dxf`, `/entitlements/conditions`,
+    `/schedule/eot/sourced`, `/schedule/make-ready`. Every one was counted as reachable because
+    its name occurs in a doc comment. **The gate's central assertion could be satisfied by writing
+    the route's name in a sentence**, which is the failure mode it exists to prevent, one level up.
+    `sheet.dxf`'s only appearance is `/** Exactly the query parameters `sheet.svg` / `sheet.pdf` /
+    `sheet.dxf` declare. */`.
+
+    DELIBERATELY CONSERVATIVE, and the reason is recorded because the obvious version is wrong:
+    a greedy `/\*.*?\*/` corrupts this source. There are **3,500** `/*` occurrences inside quoted
+    glob strings (`"src/**/*.ts"`, `"../**/*.ts"`), each of which opens a false comment that runs
+    to the next `*/` and eats real call sites in between — the same over-strip that once ate a
+    Python file's imports when a TypeScript pattern was applied to it. Over-stripping is not the
+    safe direction here: it produces *false* unreachable routes, i.e. work invented for someone.
+
+    So: block comments only where they START a line (a glob inside a string never does), plus lines
+    whose trimmed form begins `//` or `*`. Trailing `// …` after code is left alone, because
+    removing it needs string-awareness and a naive pass truncates `https://` inside a literal.
+    That under-strips, which can only make this gate *miss* a comment-only mention — never invent one.
+    """
+    src = re.sub(r"(?m)^[ 	]*/\*.*?\*/", " ", src, flags=re.S)
+    return "\n".join(line for line in src.split("\n")
+                      if not (line.lstrip().startswith("//") or line.lstrip().startswith("*")))
+
+
 def uncalled_routes(paths, blob: str) -> set[str]:
-    """Routes whose distinctive last static segment appears nowhere in the web source."""
+    """Routes whose distinctive last static segment appears nowhere in the web source's CODE."""
+    code = strip_comments(blob)
     out = set()
     for r in paths:
         leaf = _leaf(r)
-        if len(leaf) >= MIN_SEGMENT and leaf not in blob:
+        if len(leaf) >= MIN_SEGMENT and leaf not in code:
             out.add(r)
     return out
 
@@ -164,9 +202,17 @@ check("NO NEW UNREACHABLE ROUTE — a route the product cannot call is a feature
       "fine; they are frozen because they existed when this gate was written, not because anyone "
       "judged them acceptable.")
 
+# The OTHER direction, and it was a bare `print` until 2026-08-20 — so the allowlist could rot
+# indefinitely while the run stayed green. Its sibling `test_reachable.py` states the principle this
+# file was missing: "a KNOWN_UNREACHABLE that becomes reachable ALSO fails — so the list cannot
+# quietly rot into a fiction". A frozen entry that nothing matches any more is either a route that
+# gained a caller (good news the list should record) or one that was renamed or deleted (a stale
+# name pre-authorising whatever reuses it). Both need a human; neither should print and pass.
 gone = sorted(KNOWN_UNCALLED - FOUND)
-if gone:
-    print(f"  {len(gone)} frozen route(s) are now called (or renamed) — shrink KNOWN_UNCALLED: {gone[:6]}")
+check("no frozen route has quietly become called or vanished — the allowlist cannot rot",
+      not gone,
+      f"{len(gone)}: {gone[:6]} — if it now has a caller, delete the entry; if the path changed, "
+      "update it. Leaving it freezes a name that no longer refers to anything.")
 
 # The stated blind spot, asserted so it cannot be quietly forgotten.
 check("the rule's known FALSE NEGATIVE still holds: /proforma/renovation is NOT flagged",

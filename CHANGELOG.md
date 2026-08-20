@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1044 (2026-08-20) — the reachability gate counted a route NAMED in a comment as a route CALLED
+
+### Fixed
+
+- **`test_route_reachability` matched against the raw web source**, comments included, so a route
+  whose name appeared in a doc comment read as reachable. **Six were hidden this way** —
+  `/cost/datasets`, `/pipeline/funnel`, `/drawings/sheet.dxf`, `/entitlements/conditions`,
+  `/schedule/eot/sourced`, `/schedule/make-ready`. `sheet.dxf`'s only appearance in the entire client
+  is inside `/** … the query parameters `sheet.svg` / `sheet.pdf` / `sheet.dxf` declare. */`.
+  **The gate's central assertion could be satisfied by writing the route's name in a sentence** —
+  which is the failure it exists to prevent, one level up.
+- **The stripper is deliberately conservative, and the greedy version was measured and rejected.**
+  A plain `/\*.*?\*/` corrupts this source: there are **3,500** `/*` occurrences inside quoted glob
+  strings (`"src/**/*.ts"`), each opening a false comment that runs to the next `*/` and eats real
+  call sites between. Over-stripping is not the safe direction — it invents unreachable routes, i.e.
+  work for someone. Block comments are removed only where they *start a line*; trailing `// …` is
+  left alone, because removing it needs string-awareness and a naive pass truncates `https://`
+  inside a literal. The gate's own regression check ("the siblings that motivated this gate are
+  STILL reachable") confirms nothing real was stripped.
+- **The allowlist could rot indefinitely.** "A frozen route is now called" was a bare `print` — the
+  run stayed green. Its sibling `test_reachable.py` states the principle this file lacked: *"a
+  KNOWN_UNREACHABLE that becomes reachable ALSO fails — so the list cannot quietly rot into a
+  fiction."* It is now a real check. Both directions mutation-verified.
+
+### Note
+
+- The five newly-visible routes are **frozen, not wired** — the list's own contract is that it
+  records "this was looked at", never "this is safe". Two deserve attention:
+  `/entitlements/conditions` is R22-ENTITLEMENT's own surface, and `/schedule/make-ready` is the
+  Last Planner constraint list.
+
 ## v0.3.1043 (2026-08-20) — R39-DECOMP-VIEWER ⑬: federation leaves app.ts
 
 ### Changed
