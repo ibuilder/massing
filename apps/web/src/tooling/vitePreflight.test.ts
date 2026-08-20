@@ -18,9 +18,8 @@ import { describe, expect, it } from "vitest";
  * nothing calls it" gap the directions warn about, which is why this asserts the wiring rather than
  * trusting it.
  *
- * `predev` and `dev:demo` are deliberately NOT covered. A dev server on the wrong Vite is a local
- * inconvenience, not a shippable artefact, and blocking `npm run dev` in a worktree would break the
- * one thing worktrees are for.
+ * `predev` is still copy-wasm only (no version gate) — a wrong Vite on `npm run dev` is slower to
+ * notice, but `dev` itself now goes through `run-vite.mjs` so a worktree no longer silently gets 6.x.
  */
 
 // process.cwd() is apps/web under vitest.
@@ -55,11 +54,20 @@ describe("the vite preflight is wired into the build", () => {
     });
   }
 
-  it("still pins a vite version for the preflight to check against", () => {
+    it("still pins a vite version for the preflight to check against", () => {
     // The preflight reads this pin. If it ever disappears the script exits 1 with "declares no vite
     // dependency", which is correct but would read as a broken script rather than a missing pin.
     const pinned = (PKG as unknown as { devDependencies?: Record<string, string> })
       .devDependencies?.vite;
     expect(pinned, "apps/web/package.json no longer pins vite").toBeTruthy();
+  });
+
+  it("build artefacts invoke the pinned vite, not a bare name on PATH", () => {
+    // Bare `vite` is how a worktree picked up Vite 6. run-vite.mjs is the same pin the preflight
+    // checks. A script that still says `vite build` after this lands is the original defect.
+    for (const k of ["build", "build:desktop", "build:mobile", "dev", "preview"]) {
+      expect(PKG.scripts[k], `${k} no longer calls run-vite.mjs`).toContain("run-vite.mjs");
+      expect(PKG.scripts[k], `${k} still has a bare vite token`).not.toMatch(/(^|[^\w/-])vite([^\w]|$)/);
+    }
   });
 });

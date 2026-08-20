@@ -55,6 +55,19 @@ with TestClient(app) as c:
     mid = next(m["id"] for m in pdfm if m["kind"] == "area")
     pr = c.post(f"/projects/{pid}/drawings/markup/{mid}/promote", headers=H)
     assert pr.status_code == 201 and pr.json()["topic"]["type"] == "rfi", pr.text
+    assert pr.json()["topic"].get("element_guids") in (None, []), pr.json()
+
+    # R38-SHEET-MARKUP ③ ② — a pin on identified linework copies that GlobalId onto the RFI
+    pin = c.post(f"/projects/{pid}/drawings/markup", headers=H, json={
+        "sheet_id": "plan:L1", "x": 4, "y": 8, "note": "crack at jamb",
+        "kind": "pin", "data": {"guid": "1kP9xAbCdEf7Qa"}}).json()
+    pr2 = c.post(f"/projects/{pid}/drawings/markup/{pin['id']}/promote", headers=H)
+    assert pr2.status_code == 201, pr2.text
+    assert pr2.json()["topic"]["element_guids"] == ["1kP9xAbCdEf7Qa"], pr2.json()
+    tid = pr2.json()["topic"]["id"]
+    topic = c.get(f"/projects/{pid}/topics/{tid}", headers=H).json()
+    assert topic["element_guids"] == ["1kP9xAbCdEf7Qa"], topic
+    assert "1kP9xAbCdEf7Qa" in (topic.get("description") or "")
 
     # a promoted markup survives a subsequent replace (topic_id set → kept)
     c.post(f"/projects/{pid}/drawings/markup/bulk", headers=H,

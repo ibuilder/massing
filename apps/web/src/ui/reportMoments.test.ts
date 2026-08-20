@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  type CatalogEntry, REPORT_MOMENTS, missingReportIds, resolveMoment, unclaimedReports,
+  type CatalogEntry, REPORT_MOMENTS, missingReportIds, packageJobParams, resolveMoment, unclaimedReports,
 } from "./reportMoments";
 
 /**
@@ -122,5 +122,12 @@ describe("the long tail is visible rather than pretended away", () => {
     // named or never-due report findable later.
     expect(Array.isArray(tail)).toBe(true);
     expect(tail.length).toBeLessThan(pythonCatalog().length);
+  });
+});
+
+describe("assembling a package does not invent reports", () => {
+  it("the job params are the moment's own ids, in order", () => {
+    const m = REPORT_MOMENTS[0]!;
+    expect(packageJobParams(m)).toEqual({ moment_id: m.id, reports: m.reports });
   });
 });

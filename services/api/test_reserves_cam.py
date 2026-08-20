@@ -121,8 +121,8 @@ with TestClient(app) as c:
     assert abs(acme["balance_due"] - (rec["recoverable_pool"] * 0.5 - 50000)) < 0.02, acme
 
     # --- per-tenant statement PDF ----------------------------------------------------------------
-    r = c.get(f"/projects/{pid}/cam/statement/{acme['id']}.pdf",
-              params={"building_sf": 20000, "gross_up_to_pct": 95})
+    r = c.post(f"/projects/{pid}/cam/statement/{acme['id']}.pdf",
+               params={"building_sf": 20000, "gross_up_to_pct": 95})
     assert r.status_code == 200 and r.content[:4] == b"%PDF", (r.status_code, r.content[:8])
     assert r.status_code == 200 and len(r.content) > 1200
 

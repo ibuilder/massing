@@ -288,25 +288,24 @@ describe("PULSE-FINDINGS — reserve + renovation findings on the deal card", ()
  * `renderPulse` needs a live api and a mounted DOM, so source is the reader available, exactly as
  * `viewer/tools/projectPanel.test.ts` does for its own call site.
  */
-describe("portal.ts decodes the findings strictly", () => {
+describe("portal.ts asks the mapped pulse, not seven engines", () => {
   const src = readFileSync(resolve(process.cwd(), "src/portal/portal.ts"), "utf8");
+  const py = readFileSync(resolve(process.cwd(), "../../services/api/src/aec_api/project_pulse.py"), "utf8");
 
   it("found the mapping — not vacuously green", () => {
-    expect(src).toContain("suggestion_clears_horizon");
-    expect(src).toContain("nothing_renovated");
+    expect(py).toContain("suggestion_clears_horizon");
+    expect(src).toContain("projectPulse");
   });
 
-  it("compares against false/true, never truthiness", () => {
-    // `!clears` treats "the engine did not answer" as "the suggestion fails" — a fabricated risk
-    // line, which costs trust in every other line on the card.
-    expect(src, "a missing field must not read as a failing suggestion")
-      .toMatch(/g\(reserve, "suggestion_clears_horizon"\)\s*===\s*false/);
-    expect(src, "a missing field must not read as a stalled renovation")
-      .toMatch(/g\(renov, "nothing_renovated"\)\s*===\s*true/);
+  it("compares against False/True, never truthiness", () => {
+    expect(py, "a missing field must not read as a failing suggestion")
+      .toMatch(/clears is False/);
+    expect(py).toContain("if clears is False:");
+    expect(py).toContain("elif clears is True:");
   });
 
-  it("asks for both engines in the pulse fan-out", () => {
-    expect(src).toMatch(/"reserveStudy"/);
-    expect(src).toMatch(/"proformaRenovation"/);
+  it("does not POST renovation from the home shell", () => {
+    expect(src).not.toMatch(/"proformaRenovation"/);
+    expect(src).not.toMatch(/"reserveStudy"/);
   });
 });
