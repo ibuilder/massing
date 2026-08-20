@@ -1,0 +1,82 @@
+/** MEP systems: summary, connectivity, sizing, sprinkler coverage, fittings, model extract.
+ *
+ *  SCALE-SEAM ⑲. Route-group `/projects/{pid}/mep`, taken out of `client.ts` by the route
+ *  each method calls. Seven methods in **four** regions — summary/connectivity/sizing/sprinkler
+ *  next to LOD-500 authoring, fittings after progress-actuals, a second `mep()` GET next to
+ *  energy, model-extract next to LOD/envelope audits. `connectMep` / `addMepFitting` call
+ *  `editIfc` (`/edit`) and stay.
+ *
+ *  Two methods hit GET `/mep` with different response types (`mepSummary` vs `mep`); both move.
+ *
+ *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
+ */
+import { HttpCore } from "./httpCore";
+
+type Ctor<T> = new (...args: any[]) => T;
+
+export function withMep<TBase extends Ctor<HttpCore>>(Base: TBase) {
+  return class Mep extends Base {
+  /** W11 B6 + MEP-FP: MEP system browser — systems (with discipline: hvac/plumbing/electrical/fire/comms)
+   * with segment/fitting/terminal counts + connectivity signal, and a by-discipline rollup. */
+  mepSummary(pid: string) {
+    return this.json<{ total_systems: number; unassigned: { segments: number; fittings: number };
+      has_fire_protection?: boolean; by_discipline?: Record<string, { systems: number; members: number }>;
+      systems: { guid: string; name: string; discipline?: string; predefined_type?: string | null;
+        members: number; segments: number; fittings: number;
+        terminals: number; other: number; elements_with_open_ports: number }[] }>(`/projects/${pid}/mep`);
+  }
+  /** W10-4: MEP connectivity validation — ports connected/open, links, dangling (floating) elements. */
+  mepConnectivity(pid: string) {
+    return this.json<{ elements: number; ports_total: number; ports_connected: number; ports_open: number;
+      connections: number; dangling_count: number; connected_pct: number;
+      dangling: { guid: string; class: string; name: string | null }[] }>(`/projects/${pid}/mep/connectivity`);
+  }
+  /** MEP-SIZE: velocity/fill size checks over authored MEP (air/water velocity vs limits), pass/fail. */
+  mepSizing(pid: string, opts?: { ductMaxFpm?: number; pipeMaxFps?: number }) {
+    const q = new URLSearchParams();
+    if (opts?.ductMaxFpm != null) q.set("duct_max_fpm", String(opts.ductMaxFpm));
+    if (opts?.pipeMaxFps != null) q.set("pipe_max_fps", String(opts.pipeMaxFps));
+    const qs = q.toString();
+    return this.json<{
+      checked: number; passed: number; failed: number; info: number; all_pass: boolean;
+      limits: { duct_max_fpm: number; pipe_max_fps: number; tray_max_fill: number };
+      checks: {
+        guid: string; class: string; system: string | null; size_mm: number; shape: string;
+        flow: number | null; flow_unit: string | null; parameter: string;
+        value_fpm?: number; value_fps?: number; value?: number | null;
+        limit_fpm?: number; limit_fps?: number; limit?: number;
+        status: "pass" | "fail" | "info"; note: string;
+      }[];
+      disclaimer: string;
+    }>(`/projects/${pid}/mep/sizing${qs ? `?${qs}` : ""}`);
+  }
+  /** MEP-FP: NFPA-13-informed sprinkler coverage pre-check (head count vs area ÷ max coverage per hazard). */
+  sprinklerCoverage(pid: string, hazard = "light") {
+    return this.json<{ hazard: string; sprinkler_heads: number; protected_area_m2: number; spaces_measured: number;
+      max_coverage_m2_per_head: number; required_heads: number; adequate: boolean | null; shortfall: number | null;
+      citation: string; note: string; verify: string }>(
+      `/projects/${pid}/mep/sprinkler-coverage?hazard=${encodeURIComponent(hazard)}`);
+  }
+  /** MEP-FITTINGS: implied tee/cross/reducer/elbow over the port graph → QTO EA lines (deterministic, no CV). */
+  mepFittings(pid: string) {
+    return this.json<{
+      element_count: number;
+      fittings: { tee: number; cross: number; reducer: number; elbow: number };
+      total_fittings: number;
+      by_type: { type: string; count: number }[];
+      qto_lines: { item: string; fitting: string; unit: string; qty: number }[];
+      unknown_size_joints: number;
+      details: { guid: string; ifc_class: string; fitting: string; count: number; reason: string }[];
+      note: string;
+    }>(`/projects/${pid}/mep/fittings`);
+  }
+  mep(pid: string) {
+    return this.json<{ by_class: Record<string, number>; systems: Record<string, string>; total_distribution_elements: number }>(`/projects/${pid}/mep`);
+  }
+  mepModelExtract(pid: string) {
+    return this.json<{ model_scored: boolean; mep_elements: number;
+      by_class: { ifc_class: string; label: string; count: number }[] }>(
+      `/projects/${pid}/mep/model-extract`);
+  }
+  };
+}

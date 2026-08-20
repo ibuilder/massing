@@ -135,8 +135,12 @@ describe("the API client's public surface", () => {
     // asserts anything about reachability.
     for (const k of [
       "modules", "moduleRecords", "createModuleRecord", "updateModuleRecord",  // CRUD — used everywhere
-      "topicsBoard", "createTopic", "viewpoints",                   // BCF coordination
-      "elementEffectiveProps", "elementCosts", "costSummary",       // model + 5D
+      "topicsBoard", "createTopic", "viewpoints", "topicComments",  // BCF coordination
+      "mepSummary", "mepConnectivity", "sprinklerCoverage", "mepModelExtract",
+      "elementEffectiveProps", "element", "elementLifecycle", "colorFacets", "elementCosts", "costSummary",       // model + 5D
+      "modelHealth", "modelQa", "projectModels",
+      "documentsTree", "uploadDocument", "documentDownloadUrl",
+      "projectPulse",
       "solveProforma", "proformaLive", "portfolioCompare",           // ⑧ moved — spread over 4 regions
       // ⑧ new — added unreachable; `proformaRenovation` now has a screen (PULSE-FINDINGS, 2026-08-07)
       // and the other two still do not. Corrected here rather than left as "were unreachable", which
@@ -156,6 +160,11 @@ describe("the API client's public surface", () => {
       "mfaVerify", "mfaStatus", "mfaEnable",                        // MFA enrolment + challenge
       "stepUp",                                                     // per-action re-auth for seals
       "listUsers", "createUser", "updateUser", "resetWithToken",    // admin user management
+      // ⑫ moved — one contiguous /connections run; a silent loss here is the admin connections screen
+      "connections", "createConnection", "testConnection", "connectionTables",
+      "syncProcore", "pushProcore", "syncSchedules",
+      "drawingSet", "issueDrawingSet", "drawingIssuances", "drawingTransmittalUrl",
+      "drawingMarkup", "promoteDrawingMarkup", "markupStream", "drawingSchedules",
     ]) {
       expect(surface.has(k), `${k}() vanished — a call site is now broken`).toBe(true);
     }

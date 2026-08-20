@@ -26,6 +26,24 @@ export interface Dest {
   goto?: string;
 }
 
+/** The one Analyse home. The three task dests still render; they are not rail entries in Design. */
+export const ANALYSE_HOME = "__analyse__";
+export const ANALYSE_TASK_KEYS = ["__modelqa__", "__modelanalysis__", "__bimkpi__"] as const;
+
+export function destsForRail(dests: Dest[]): Dest[] {
+  const keys = new Set(dests.map((d) => d.key));
+  if (!keys.has(ANALYSE_HOME)) return dests;
+  const hide = new Set<string>(ANALYSE_TASK_KEYS);
+  return dests.filter((d) => !hide.has(d.key));
+}
+
+export function destButtonActive(destKey: string, activeKey: string | null): boolean {
+  if (activeKey === destKey) return true;
+  if (destKey === ANALYSE_HOME && activeKey
+      && (ANALYSE_TASK_KEYS as readonly string[]).includes(activeKey)) return true;
+  return false;
+}
+
 /** Workspace → ordered [stage, destinations]. The stage rail's structure, verbatim. */
 export const STAGES_BY_WS: Record<string, [string, Dest[]][]> = {
   // GC / builder — plan → build → turn over. Money is deliberately its own stage: "Build" had grown
@@ -97,9 +115,7 @@ export const STAGES_BY_WS: Record<string, [string, Dest[]][]> = {
       { key: "__spine__", icon: "🔗", label: "Discipline Spine" },
     ]],
     ["Analyse & check", [
-      { key: "__modelqa__", icon: "✅", label: "Model checks" },
-      { key: "__modelanalysis__", icon: "🔬", label: "Read the model" },
-      { key: "__bimkpi__", icon: "📊", label: "ISO 19650 scorecard" },
+      { key: "__analyse__", icon: "🔬", label: "Analyse" },
       { key: "__designmetrics__", icon: "📐", label: "Design Metrics" },
       { key: "__spaceutil__", icon: "🪑", label: "Space Utilization" },
       { key: "__mepfittings__", icon: "🔩", label: "MEP Fittings" },
@@ -127,7 +143,7 @@ export const STAGES_BY_WS: Record<string, [string, Dest[]][]> = {
     ]],
     ["Documents & model", [
       { key: "__documents__", icon: "📁", label: "Documents" },
-      { key: "__modelanalysis__", icon: "🔬", label: "Read the model" },
+      { key: "__analyse__", icon: "🔬", label: "Analyse" },
     ]],
   ],
 };
@@ -159,6 +175,15 @@ export const ALL_DESTS: Dest[] = (() => {
   const seen = new Map<string, Dest>();
   for (const stages of [...Object.values(STAGES_BY_WS), [ACROSS_PROJECTS]]) {
     for (const [, items] of stages) for (const d of items) if (!seen.has(d.key)) seen.set(d.key, d);
+  }
+  // Task dests stay in the union so DEST_ROOM / destDispatch / readiness hops keep working.
+  // destsForRail hides them wherever ANALYSE_HOME is present.
+  for (const d of [
+    { key: "__modelqa__", icon: "✅", label: "Check the model" },
+    { key: "__modelanalysis__", icon: "🔬", label: "Read the model" },
+    { key: "__bimkpi__", icon: "📊", label: "ISO 19650 scorecard" },
+  ] as Dest[]) {
+    if (!seen.has(d.key)) seen.set(d.key, d);
   }
   return [...seen.values()];
 })();

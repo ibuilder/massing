@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ACROSS_PROJECTS, ALL_DESTS, STAGES_BY_WS, stagesFor } from "./destinations";
+import {
+  ACROSS_PROJECTS, ALL_DESTS, ANALYSE_HOME, ANALYSE_TASK_KEYS, STAGES_BY_WS,
+  destButtonActive, destsForRail, stagesFor,
+} from "./destinations";
 import { DEST_ROOM, ROOM_IDS, destRoom, unroomedDests } from "./spine";
 
 /**
@@ -90,6 +93,34 @@ describe("the catalog itself", () => {
     }
   });
 
+  it("Design's Analyse & check is one home, not three overlapping dests", () => {
+    const stage = STAGES_BY_WS.design!.find(([name]) => name === "Analyse & check");
+    expect(stage, "Analyse & check stage missing").toBeTruthy();
+    const keys = stage![1].map((d) => d.key);
+    expect(keys[0]).toBe(ANALYSE_HOME);
+    for (const k of ANALYSE_TASK_KEYS) {
+      expect(keys, `${k} must not be a rail sibling of Analyse`).not.toContain(k);
+    }
+    expect(ALL_DESTS.map((d) => d.key)).toEqual(expect.arrayContaining([...ANALYSE_TASK_KEYS, ANALYSE_HOME]));
+  });
+
+  it("the room rail hides the three tasks wherever Analyse is listed", () => {
+    const mixed = [
+      { key: ANALYSE_HOME, icon: "🔬", label: "Analyse" },
+      { key: "__modelqa__", icon: "✅", label: "Check the model" },
+      { key: "__documents__", icon: "📁", label: "Documents" },
+    ];
+    expect(destsForRail(mixed).map((d) => d.key)).toEqual([ANALYSE_HOME, "__documents__"]);
+    expect(destsForRail([{ key: "__modelqa__", icon: "✅", label: "x" }]).map((d) => d.key))
+      .toEqual(["__modelqa__"]);
+  });
+
+  it("Analyse stays lit when a task dest is open", () => {
+    expect(destButtonActive(ANALYSE_HOME, "__modelqa__")).toBe(true);
+    expect(destButtonActive(ANALYSE_HOME, ANALYSE_HOME)).toBe(true);
+    expect(destButtonActive("__documents__", "__modelqa__")).toBe(false);
+  });
+
   it("uses `goto` only for destinations that genuinely live in another workspace", () => {
     // Two, and both are deliberate: underwriting renders in the finance workspace, and the drawing
     // set is its own full-page surface rather than a portal panel.
@@ -102,14 +133,21 @@ describe("the catalog itself", () => {
       .toEqual(["__drawings__", "__uw__"]);
   });
 
-  it("names the three Analyse destinations by the job, not as synonyms", () => {
+  it("names the three Analyse tasks by the job, not as synonyms", () => {
     // UX-DUP-DESTINATIONS: "Model Health", "Model Analysis" and "BIM KPIs" sat together and
     // answered three different questions under names that did not say which.
-    const analyse = STAGES_BY_WS.design!.find(([s]) => s === "Analyse & check")![1];
-    const byKey = Object.fromEntries(analyse.map((d) => [d.key, d.label]));
-    expect(byKey.__modelqa__).toBe("Model checks");
+    //
+    // Asserted against ALL_DESTS, not against the "Analyse & check" rail stage. This branch
+    // (v0.3.987) checked the rail, because at the time the three WERE rail siblings. v0.3.994
+    // finished the same item the other way: one `Analyse` home, with the three reachable from
+    // inside it — see "Design's Analyse & check is one home, not three overlapping dests" above,
+    // which is the newer decision and would contradict a rail-scoped version of this check.
+    // The naming half survives and is still worth guarding; only the placement moved.
+    const byKey = Object.fromEntries(ALL_DESTS.map((d) => [d.key, d.label]));
+    expect(byKey.__modelqa__).toBe("Check the model");
     expect(byKey.__modelanalysis__).toBe("Read the model");
     expect(byKey.__bimkpi__).toBe("ISO 19650 scorecard");
-    expect(new Set(analyse.map((d) => d.label)).size).toBe(analyse.length);
+    const labels = ANALYSE_TASK_KEYS.map((k) => byKey[k]);
+    expect(new Set(labels).size, "two Analyse tasks share a label").toBe(labels.length);
   });
 });

@@ -2,6 +2,16 @@
  *  metadata and work artifacts (pins/RFIs/viewpoints) come from here. */
 import { withAuth } from "./auth";
 import { withAuthoring } from "./authoring";
+import { withConnections } from "./connections";
+import { withDrawingSet } from "./drawingSet";
+import { withDrawingSheets } from "./drawingSheets";
+import { withElements } from "./elements";
+import { withModels } from "./models";
+import { withDocuments } from "./documents";
+import { withMep } from "./mep";
+import { withTopics } from "./topics";
+import { withMarkup } from "./markup";
+import { withSync } from "./sync";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
 import { withContracts } from "./contracts";
@@ -31,18 +41,18 @@ export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";
 export * from "./authoring";
 export * from "./library";
 import type {
-  Appraisal, AuditEntry, ConnectionItem, Dashboard, DocFile,
-  DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
-  LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, PreflightSummary, ProfessionalLicense,
-  ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate, SyncScheduleItem,
-  BidLevelingDetail,
-  SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload,
-  DiligenceReadiness, ReviewCycles } from "./types";
+  Appraisal, AuditEntry, Dashboard,
+  DisciplineTree, DueFeed, EditMacro, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
+  LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, ProfessionalLicense,
+  ResponsibilityMatrix, SmartView, StampTemplate,
+    BidLevelingDetail,
+    SpecManual, Topic, Vec3, WorkItem, VitalsPayload,
+    DiligenceReadiness, ReviewCycles, MasterBuilderBrief } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))) {
+export class ApiClient extends withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -57,78 +67,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
       "/settings/integrations/test", { method: "POST", body: JSON.stringify({ group }) });
   }
 
-  // --- data-source connections (admin) -----------------------------------
-  connections() {
-    return this.json<{ types: string[]; connections: ConnectionItem[] }>("/connections");
-  }
-  createConnection(name: string, type: string, config: Record<string, unknown>) {
-    return this.json<ConnectionItem>("/connections", { method: "POST", body: JSON.stringify({ name, type, config }) });
-  }
-  updateConnection(id: string, name: string, type: string, config: Record<string, unknown>) {
-    return this.json<ConnectionItem>(`/connections/${id}`, { method: "PUT", body: JSON.stringify({ name, type, config }) });
-  }
-  deleteConnection(id: string) {
-    return this.json<{ ok: boolean }>(`/connections/${id}`, { method: "DELETE" });
-  }
-  testConnectionConfig(type: string, config: Record<string, unknown>) {
-    return this.json<{ ok: boolean; detail: string }>("/connections/test", { method: "POST", body: JSON.stringify({ type, config }) });
-  }
-  testConnection(id: string) {
-    return this.json<{ status: { ok: boolean; detail: string }; info: Record<string, unknown> }>(
-      `/connections/${id}/test`, { method: "POST" });
-  }
-  /** Browse a connection: tables (SQL) or projects (Procore). */
-  connectionTables(id: string) {
-    return this.json<{ kind?: string; tables?: string[]; projects?: string[]; error?: string }>(
-      `/connections/${id}/tables`);
-  }
-  /** Run a read-only SELECT against a SQL connection. */
-  connectionQuery(id: string, sql: string, limit = 200) {
-    return this.json<{ columns?: string[]; rows?: unknown[][]; row_count?: number; error?: string }>(
-      `/connections/${id}/query`, { method: "POST", body: JSON.stringify({ sql, limit }) });
-  }
-  /** Read an ACC (Autodesk Construction Cloud) project's issues. */
-  accIssues(id: string, projectId: string) {
-    return this.json<{ kind?: string; count?: number; issues?: Record<string, unknown>[]; error?: string }>(
-      `/connections/${id}/acc/projects/${projectId}/issues`);
-  }
-  /** Editable Procore->module field mapping for a connection (admin). */
-  connectionMappings(id: string) {
-    return this.json<{ mappings: Record<string, { module: string; fields: { field: string; label: string; default: string; path: string }[] }> }>(
-      `/connections/${id}/mappings`);
-  }
-  /** Save per-field Procore source-path overrides ({kind: {field: path}}). */
-  saveConnectionMappings(id: string, mappings: Record<string, Record<string, string>>) {
-    return this.json<{ ok: boolean }>(`/connections/${id}/mappings`, { method: "PUT", body: JSON.stringify({ mappings }) });
-  }
-  /** Import a Procore project's RFIs / submittals / change events into the matching modules. */
-  syncProcore(pid: string, connectionId: string, procoreProjectId: string, kinds?: string[]) {
-    return this.json<{ source: string; imported_total: number; results: Record<string, { module: string; fetched: number; imported: number; skipped: number }> }>(
-      `/projects/${pid}/sync/procore`,
-      { method: "POST", body: JSON.stringify({ connection_id: connectionId, procore_project_id: procoreProjectId, ...(kinds ? { kinds } : {}) }) });
-  }
-  /** Two-way: push locally-resolved records (RFI status + answer) back to Procore. */
-  pushProcore(pid: string, connectionId: string, procoreProjectId: string, kinds: string[] = ["rfi"]) {
-    return this.json<{ pushed_total: number; results: Record<string, { pushed: number; skipped: number; errors: string[] }> }>(
-      `/projects/${pid}/sync/procore/push`,
-      { method: "POST", body: JSON.stringify({ connection_id: connectionId, procore_project_id: procoreProjectId, kinds }) });
-  }
-  // --- auto-sync schedules (project admin) ---
-  syncSchedules(pid: string) {
-    return this.json<SyncScheduleItem[]>(`/projects/${pid}/sync/schedules`);
-  }
-  createSyncSchedule(pid: string, body: { connection_id: string; procore_project_id: string; kinds?: string[]; interval_minutes?: number; push?: boolean }) {
-    return this.json<SyncScheduleItem>(`/projects/${pid}/sync/schedules`, { method: "POST", body: JSON.stringify(body) });
-  }
-  updateSyncSchedule(pid: string, sid: string, patch: { enabled?: boolean; interval_minutes?: number; kinds?: string[]; push?: boolean }) {
-    return this.json<SyncScheduleItem>(`/projects/${pid}/sync/schedules/${sid}`, { method: "PUT", body: JSON.stringify(patch) });
-  }
-  deleteSyncSchedule(pid: string, sid: string) {
-    return this.json<{ ok: boolean }>(`/projects/${pid}/sync/schedules/${sid}`, { method: "DELETE" });
-  }
-  runSyncSchedule(pid: string, sid: string) {
-    return this.json<{ imported_total?: number; error?: string }>(`/projects/${pid}/sync/schedules/${sid}/run-now`, { method: "POST" });
-  }
   /** Which optional integrations are wired (AI / email / SSO) — for status badges. */
   capabilities() {
     return this.json<{ ai: boolean; email: boolean; sso: string[]; local_mode?: boolean;
@@ -412,35 +350,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
   wh347Url(pid: string, weekEnding?: string) {
     return this.url(`/projects/${pid}/payroll/wh347.pdf${weekEnding ? `?week_ending=${weekEnding}` : ""}`);
   }
-  /** Controlled drawing-set register (current set, superseded, sheet index, issuance new/revised). */
-  drawingSet(pid: string) {
-    return this.json<{ sheet_count: number; current_count: number; superseded_count: number;
-      new_count: number; revised_count: number; by_discipline: Record<string, number>;
-      sheet_index: Record<string, unknown>[] }>(`/projects/${pid}/drawing-set`);
-  }
-  /** Preview the discipline sheet set that would be generated (one NCS series per discipline: M-/FA-/S-/…). */
-  drawingSetPlan(pid: string, opts: { disciplines?: string; all?: boolean } = {}) {
-    const q = new URLSearchParams({ ...(opts.disciplines ? { disciplines: opts.disciplines } : {}),
-      ...(opts.all ? { all: "true" } : {}) }).toString();
-    return this.json<{ levels: number; series: string[]; sheet_count: number;
-      by_discipline: Record<string, number>; sheets: Record<string, unknown>[] }>(
-      `/projects/${pid}/drawing-set/plan${q ? "?" + q : ""}`);
-  }
-  /** Generate the discipline sheet set as drawing records (per-discipline NCS numbering, plan per level). */
-  generateDrawingSet(pid: string, body: { disciplines?: string[]; all?: boolean; max_levels?: number } = {}) {
-    return this.json<{ levels: number; series: string[]; planned: number; created: number;
-      skipped_existing: number; by_discipline: Record<string, number>; sheet_count: number }>(
-      `/projects/${pid}/drawing-set/generate`, { method: "POST", body: JSON.stringify(body) });
-  }
-  /** Issue the current drawing set for a purpose (AIA/CD) — snapshots every sheet + its revision.
-   *  The pre-flight gate runs server-side and its verdict is stamped on the issuance; `enforce: true`
-   *  makes a HOLD verdict block the issue (409). */
-  issueDrawingSet(pid: string, body: { purpose: string; date?: string; description?: string;
-      recipients?: string; enforce?: boolean }) {
-    return this.json<{ id: string; purpose: string; issue_date: string; sheet_count: number;
-      preflight?: PreflightSummary | null }>(
-      `/projects/${pid}/drawing-set/issue`, { method: "POST", body: JSON.stringify(body) });
-  }
   /** The pre-flight issuance gate — PASS/HOLD verdict + checklist, every check deep-linked. */
   preflight(pid: string) {
     return this.json<PreflightGate>(`/projects/${pid}/preflight`);
@@ -458,31 +367,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
       counts: Record<string, number>; geojson: { features: { properties: Record<string, unknown>;
       geometry: { type: string; coordinates: unknown } }[] } }>(
       `/projects/${pid}/site-context${qs ? "?" + qs : ""}`);
-  }
-  /** The issuance history (every release, purpose, date, sheet count, recipients). */
-  drawingIssuances(pid: string) {
-    return this.json<{ issuance_count: number; by_purpose: Record<string, number>;
-      issuances: Record<string, unknown>[] }>(`/projects/${pid}/drawing-set/issuances`);
-  }
-  /** The sheet-index × issuance matrix (each sheet's revision in each issuance). */
-  drawingIssuanceMatrix(pid: string) {
-    return this.json<{ issuances: Record<string, unknown>[]; sheet_count: number;
-      rows: { sheet_number: string; title: string; discipline: string; cells: (string | null)[] }[] }>(
-      `/projects/${pid}/drawing-set/issuance-matrix`);
-  }
-  /** AIA/CD issuance purposes for the "issue for…" picker. */
-  drawingIssuancePurposes(pid: string) {
-    return this.json<{ purposes: { name: string; abbr: string }[] }>(
-      `/projects/${pid}/drawing-set/issuance-purposes`);
-  }
-  /** URL of a per-issuance transmittal PDF (stamped with the purpose + date). */
-  issuanceTransmittalUrl(pid: string, iid: string) {
-    return this.url(`/projects/${pid}/drawing-set/issuances/${iid}/transmittal.pdf`);
-  }
-  /** URL of the digitally-sealed (PAdES) issuance transmittal, for permit/IFC submittal. */
-  issuanceSealedUrl(pid: string, iid: string, name = "") {
-    const q = name ? "?name=" + encodeURIComponent(name) : "";
-    return this.url(`/projects/${pid}/drawing-set/issuances/${iid}/sealed.pdf${q}`);
   }
   /** 3D-HERO: pin a captured viewer screenshot as the project's hero image (page 2 of the package PDF). */
   async uploadHero(pid: string, image: Blob) {
@@ -538,22 +422,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
   }
   /** The signed-in user's own verified PE/RA licences — what the seal dialog offers. */
   myLicenses() { return this.json<{ licenses: ProfessionalLicense[] }>("/licenses/mine"); }
-  /** Record a revision (delta) on a sheet, optionally citing the driving instrument (ASI/CCD/Addendum). */
-  reviseDrawing(pid: string, drawingId: string, body: { rev: string; description?: string; date?: string; instrument_type?: string; instrument_ref?: string }) {
-    return this.json<{ drawing_id: string; revision: string; delta_count: number }>(
-      `/projects/${pid}/drawings/${drawingId}/revise`, { method: "POST", body: JSON.stringify(body) });
-  }
-  /** The cross-sheet revision register — every delta on every sheet (newest first) + instrument rollup. */
-  drawingRevisions(pid: string) {
-    return this.json<{ delta_count: number; by_instrument: Record<string, number>;
-      revisions: { sheet_number: string; discipline: string; rev: string; date: string; description: string; instrument: { type: string; ref: string } | null }[] }>(
-      `/projects/${pid}/drawing-set/revisions`);
-  }
-  /** URL of a drawing-transmittal PDF for the current set (recipients comma-separated). */
-  drawingTransmittalUrl(pid: string, to = "", note = "") {
-    const q = new URLSearchParams({ ...(to ? { to } : {}), ...(note ? { note } : {}) }).toString();
-    return this.url(`/projects/${pid}/drawing-set/transmittal.pdf${q ? "?" + q : ""}`);
-  }
   tmSummary(pid: string) {
     return this.json<{ ticket_count: number; labor_total: number; material_total: number;
       equipment_total: number; grand_total: number; unbilled_total: number; rows: Record<string, unknown>[] }>(
@@ -882,16 +750,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
     return (this._discTree ??= this.json<{ tree: DisciplineTree }>(`/reference/disciplines`).then((r) => r.tree));
   }
 
-  // properties index (Phase 1 data)
-  element(pid: string, guid: string) {
-    return this.json<ElementProps>(`/projects/${pid}/elements/${guid}`);
-  }
-  /** R26-INSPECTOR — the six-state lifecycle strip for one element (designed → verified). A state
-   *  the server could not consult comes back `unknown`, which is NOT the same as `none`. */
-  elementLifecycle(pid: string, guid: string) {
-    return this.json<LifecycleStrip>(`/projects/${pid}/elements/${guid}/lifecycle`);
-  }
-
   // ── R24-JOB-TRAY — the background queue, finally reachable ──────────────────────────────────────
   //
   // `routers/jobs.py` has offered these four endpoints for a long time and nothing in `apps/web` had
@@ -923,15 +781,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
    *  compiled set never round-trips through JS memory. 409 while queued/running. */
   jobArtifactUrl(pid: string, jobId: string): string {
     return this.url(`/projects/${pid}/jobs/${jobId}/artifact`);
-  }
-  /** 5D for an element: its schedule activity (%-complete, dates, hard-tied?) + cost-code budget. */
-  element5d(pid: string, guid: string) {
-    return this.json<{ guid: string; ifc_class: string | null; storey: string | null; name: string | null;
-      schedule: { ref: string; name: string; trade: string | null; percent: number; start: string | null;
-        finish: string | null; state: string | null; hard_tied: boolean } | null;
-      cost: { code: string | null; ref: string | null; name: string | null; division: string | null;
-        budget: number; committed: number; actual: number; eac: number; variance: number } | null }>(
-      `/projects/${pid}/elements/${guid}/5d`);
   }
   /** Batch 5D heatmap: bucket every element GUID by schedule %-complete (by=progress) or cost
    *  variance (by=cost), for coloring the whole model. */
@@ -1151,47 +1000,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
                  opts: { height?: number; cols?: number; rows?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_curtain_wall", { start, end, ...opts }, publish);
   }
-  /** W11 B6 + MEP-FP: MEP system browser — systems (with discipline: hvac/plumbing/electrical/fire/comms)
-   * with segment/fitting/terminal counts + connectivity signal, and a by-discipline rollup. */
-  mepSummary(pid: string) {
-    return this.json<{ total_systems: number; unassigned: { segments: number; fittings: number };
-      has_fire_protection?: boolean; by_discipline?: Record<string, { systems: number; members: number }>;
-      systems: { guid: string; name: string; discipline?: string; predefined_type?: string | null;
-        members: number; segments: number; fittings: number;
-        terminals: number; other: number; elements_with_open_ports: number }[] }>(`/projects/${pid}/mep`);
-  }
-  /** W10-4: MEP connectivity validation — ports connected/open, links, dangling (floating) elements. */
-  mepConnectivity(pid: string) {
-    return this.json<{ elements: number; ports_total: number; ports_connected: number; ports_open: number;
-      connections: number; dangling_count: number; connected_pct: number;
-      dangling: { guid: string; class: string; name: string | null }[] }>(`/projects/${pid}/mep/connectivity`);
-  }
-  /** MEP-SIZE: velocity/fill size checks over authored MEP (air/water velocity vs limits), pass/fail. */
-  mepSizing(pid: string, opts?: { ductMaxFpm?: number; pipeMaxFps?: number }) {
-    const q = new URLSearchParams();
-    if (opts?.ductMaxFpm != null) q.set("duct_max_fpm", String(opts.ductMaxFpm));
-    if (opts?.pipeMaxFps != null) q.set("pipe_max_fps", String(opts.pipeMaxFps));
-    const qs = q.toString();
-    return this.json<{
-      checked: number; passed: number; failed: number; info: number; all_pass: boolean;
-      limits: { duct_max_fpm: number; pipe_max_fps: number; tray_max_fill: number };
-      checks: {
-        guid: string; class: string; system: string | null; size_mm: number; shape: string;
-        flow: number | null; flow_unit: string | null; parameter: string;
-        value_fpm?: number; value_fps?: number; value?: number | null;
-        limit_fpm?: number; limit_fps?: number; limit?: number;
-        status: "pass" | "fail" | "info"; note: string;
-      }[];
-      disclaimer: string;
-    }>(`/projects/${pid}/mep/sizing${qs ? `?${qs}` : ""}`);
-  }
-  /** MEP-FP: NFPA-13-informed sprinkler coverage pre-check (head count vs area ÷ max coverage per hazard). */
-  sprinklerCoverage(pid: string, hazard = "light") {
-    return this.json<{ hazard: string; sprinkler_heads: number; protected_area_m2: number; spaces_measured: number;
-      max_coverage_m2_per_head: number; required_heads: number; adequate: boolean | null; shortfall: number | null;
-      citation: string; note: string; verify: string }>(
-      `/projects/${pid}/mep/sprinkler-coverage?hazard=${encodeURIComponent(hazard)}`);
-  }
   /** PROD-ACTUALS: installed-rate actual vs planned + crew utilization over field productivity actuals. */
   progressActuals(pid: string, actuals: Record<string, unknown>[], planned?: Record<string, unknown>) {
     type Group = {
@@ -1207,19 +1015,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
       total_productive_hours: number; total_idle_hours: number; planned_compared: number;
       ahead: number; on_track: number; behind: number; worst: string | null; note: string;
     }>(`/projects/${pid}/progress/actuals`, { method: "POST", body: JSON.stringify({ actuals, planned }) });
-  }
-  /** MEP-FITTINGS: implied tee/cross/reducer/elbow over the port graph → QTO EA lines (deterministic, no CV). */
-  mepFittings(pid: string) {
-    return this.json<{
-      element_count: number;
-      fittings: { tee: number; cross: number; reducer: number; elbow: number };
-      total_fittings: number;
-      by_type: { type: string; count: number }[];
-      qto_lines: { item: string; fitting: string; unit: string; qty: number }[];
-      unknown_size_joints: number;
-      details: { guid: string; ifc_class: string; fitting: string; count: number; reason: string }[];
-      note: string;
-    }>(`/projects/${pid}/mep/fittings`);
   }
   /** W10-4: connect two MEP elements port-to-port (IfcRelConnectsPorts). */
   connectMep(pid: string, guidA: string, guidB: string, publish = true) {
@@ -1239,11 +1034,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
   addMepFitting(pid: string, ifcClass: string, point: [number, number],
                 opts: { predefined?: string; size?: number; system?: string } = {}, publish = true) {
     return this.editIfc(pid, "add_mep_fitting", { ifc_class: ifcClass, point, ...opts }, publish);
-  }
-  /** W11 C4: computed door / window / room schedules from the model. */
-  drawingSchedules(pid: string) {
-    return this.json<Record<"doors" | "windows" | "rooms", { columns: string[]; rows: string[][] }>>(
-      `/projects/${pid}/drawings/schedules`);
   }
   /** W11 F0: element LOD-stage distribution (100/200/300/350/400/500/unset). */
   lodSummary(pid: string) {
@@ -1282,28 +1072,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
     return this.json<{ ai_enabled: boolean; subject: string; question: string; discipline: string; suggested_priority: string; source: string }>(
       `/projects/${pid}/ai/draft-rfi`, { method: "POST", body: JSON.stringify({ element, note }) });
   }
-  elements(pid: string, params: { ifc_class?: string; storey?: string; limit?: number } = {}) {
-    const q = new URLSearchParams(params as Record<string, string>).toString();
-    return this.json<ElementProps[]>(`/projects/${pid}/elements?${q}`);
-  }
-  /** Properties you can colour the model by (attributes + pset/qto props), for the picker. */
-  colorFacets(pid: string) {
-    return this.json<{ attributes: { prop: string; label: string; distinct: number }[];
-      properties: { prop: string; label: string; distinct: number }[] }>(
-      `/projects/${pid}/elements/facets-list`);
-  }
-  /** Bucket every element by a property → colour buckets (numeric binned, categorical grouped). */
-  colorBy(pid: string, prop: string, bins = 6) {
-    return this.json<{ prop: string; kind: "numeric" | "categorical"; total: number; colored: number;
-      unset: number; buckets: { label: string; count: number; guids: string[] }[] }>(
-      `/projects/${pid}/elements/color-by?prop=${encodeURIComponent(prop)}&bins=${bins}`);
-  }
-  /** BIM data-completeness check: per-attribute present/missing + non-compliant guids to highlight. */
-  dataQa(pid: string) {
-    return this.json<{ total: number; compliant: number; noncompliant: number; compliant_pct: number;
-      rules: { key: string; label: string; severity: string; present: number; missing: number; missing_guids: string[] }[];
-      noncompliant_guids: string[] }>(`/projects/${pid}/elements/qa`);
-  }
   /** Speckle interoperability bridge status (open-source, self-hostable; off unless configured). */
   speckleStatus() {
     return this.json<{ enabled: boolean; connected: boolean; server: string | null; server_name?: string;
@@ -1315,13 +1083,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
     const res = await fetch(this.url(`/convert/citygml`), { method: "POST", body: fd, headers: this.authHeaders() });
     if (!res.ok) throw new Error((await res.json().catch(() => ({ detail: res.status }))).detail || `CityGML -> ${res.status}`);
     return res.json() as Promise<{ type: string; features: unknown[]; meta: { buildings: number } }>;
-  }
-  /** Code-readiness check: does the model carry the data a plan review needs (property-level). */
-  codeCheck(pid: string) {
-    return this.json<{ code: string; rules: number; checked: number; passed: number; readiness_pct: number;
-      checks: { id: string; label: string; code: string; note: string; applies: string; checked: number;
-        passed: number; failed: number; below_min: number; fail_guids: string[]; status: string }[];
-      fail_guids: string[] }>(`/projects/${pid}/elements/code-check`);
   }
   // W9-2 computed occupancy load (IBC 1004) + egress capacity (IBC 1005) — pre-check assist
   codecheckEgress(pid: string) {
@@ -1440,16 +1201,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
       counts: { spec_sections: number; documents: number; edges: number };
       by_rel: Record<string, number>;
     }>(`/projects/${pid}/doc-graph`);
-  }
-  // the cited provenance of one element (spec sections · documents · location)
-  elementSources(pid: string, guid: string) {
-    return this.json<{
-      guid: string; found: boolean; name?: string | null; class?: string;
-      spec_sections?: { system: string | null; code: string; title: string }[];
-      documents?: { name: string; sheet: string }[];
-      container?: { guid: string | null; name: string | null; class: string } | null;
-      citations: { kind: string; ref: string; title?: string; sheet?: string; source: string }[];
-    }>(`/projects/${pid}/elements/${encodeURIComponent(guid)}/sources`);
   }
   // RFI-0 NL-QA: a plain-language question -> a cited answer from the model's own data
   rfiQa(pid: string, question: string) {
@@ -1626,17 +1377,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
   pins(pid: string) {
     return this.json<Topic[]>(`/projects/${pid}/pins`);
   }
-  createTopic(pid: string, body: Partial<Topic>) {
-    return this.json<Topic>(`/projects/${pid}/topics`, { method: "POST", body: JSON.stringify(body) });
-  }
-  viewpoints(pid: string, tid: string) {
-    return this.json<Viewpoint[]>(`/projects/${pid}/topics/${tid}/viewpoints`);
-  }
-  addViewpoint(pid: string, tid: string, body: Partial<Viewpoint>) {
-    return this.json<Viewpoint>(`/projects/${pid}/topics/${tid}/viewpoints`, {
-      method: "POST", body: JSON.stringify(body),
-    });
-  }
 
   // analysis & QA (clash + IDS validation)
   runClash(pid: string, opts: { a?: string; b?: string; min_volume?: number; create_topics?: boolean } = {}) {
@@ -1714,40 +1454,11 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
         deviated: number; verified_pct: number; planned_pct: number | null; trust_gap: number }[] }>(
       `/projects/${pid}/verified-progress`);
   }
-  /** Reverse deep-link — every record across pinnable modules tied to this element by GlobalId. */
-  elementRecords(pid: string, guid: string) {
-    return this.json<{ guid: string; total: number;
-      modules: { module: string; module_name: string; icon: string; count: number;
-        records: { ref: string | null; title: string; id: number; state: string | null }[] }[] }>(
-      `/projects/${pid}/elements/${encodeURIComponent(guid)}/records`);
-  }
-  /** Composite Model Health scorecard — one score over hygiene + ISO 19650 KPIs + clash + verified. */
-  modelHealth(pid: string) {
-    return this.json<{ overall_score: number | null; band: string; scored_lenses: number; model_available: boolean;
-      lenses: { key: string; label: string; tool: string; score: number | null; status: string; headline: string }[] }>(
-      `/projects/${pid}/models/health`);
-  }
   /** Discipline quantity roll-up — reinforcement tonnage, MEP linear runs, structural volume. */
   disciplineQuantities(pid: string) {
     return this.json<{ rebar: { count: number; weight_kg: number; tonnes: number; estimated: boolean };
       mep: { duct_m: number; pipe_m: number; cable_m: number; counts: Record<string, number> };
       structure: { element_volume_m3: number } }>(`/projects/${pid}/quantities/disciplines`);
-  }
-  /** Model integrity scan — duplicate GUIDs, orphaned elements, overlaps, unenclosed spaces, blank names. */
-  modelQa(pid: string) {
-    type Check = { count: number; [k: string]: unknown };
-    return this.json<{ element_count: number; total_issues: number; clean: boolean;
-      checks: { duplicate_guids: Check; orphaned_elements: Check; overlapping_duplicates: Check;
-        unenclosed_spaces: Check & { total_spaces: number }; blank_names: Check & { of_elements: number } };
-      note: string }>(`/projects/${pid}/models/qa`);
-  }
-  /** NORM-VALID — normative openBIM conformance gauntlet (header/schema/IFC implementer-agreement rules). */
-  normValid(pid: string) {
-    return this.json<{
-      schema: string; passed: boolean; summary: { pass: number; warn: number; fail: number };
-      checks: { id: string; category: string; label: string; status: "pass" | "warn" | "fail";
-        count: number; sample: unknown[]; note: string }[]; note: string;
-    }>(`/projects/${pid}/models/norm-valid`);
   }
   /** SCHED-OPT — deterministic schedule optioneering: ranked crew/zoning scenarios over the Takt LOB model. */
   massingOptioneer(envelope: Record<string, unknown>, opts?: { levers?: Record<string, number[]>; objective?: string; limit?: number }) {
@@ -1821,17 +1532,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
   sharedDigestUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}/digest`); }
   /** The public read-only HTML page for a share token (opens with no login — the human share link). */
   sharedPageUrl(token: string) { return this.url(`/shared/${encodeURIComponent(token)}`); }
-  topicsBoard(pid: string, groupBy: "status" | "priority" | "assignee" | "type" = "status", filter?: string) {
-    type T = { id: string; guid: string; type: string; title: string; status: string;
-      priority: string | null; assignee: string | null; author: string | null; labels: string[] | null;
-      element_guids: string[] | null; due_date: string | null; created_at: string | null; modified_at: string | null };
-    const q = new URLSearchParams({ group_by: groupBy });
-    if (filter) q.set("filter", filter);
-    return this.json<{
-      group_by: string; filter: string | null; total: number; column_count: number;
-      columns: { key: string; count: number; topics: T[] }[]; note: string;
-    }>(`/projects/${pid}/topics/board?${q.toString()}`);
-  }
   /** VIEW-TEMPLATES — reusable layered view presets (class visibility + isolate + stacked colors). */
   viewTemplates(pid: string) {
     return this.json<{ templates: { id: string; name: string; hide_classes: string[];
@@ -1865,29 +1565,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
       reviewed_at: string; review_note: string | null }>(
       `/projects/${pid}/versions/${version}/review`,
       { method: "POST", body: JSON.stringify({ action, note }) });
-  }
-  drawingSchedulesCalc(pid: string, calcs: { doors?: { name: string; expr: string }[];
-    windows?: { name: string; expr: string }[]; rooms?: { name: string; expr: string }[] }) {
-    type Table = { columns: string[]; rows: (string | number | null)[][]; calculated?: string[] };
-    return this.json<{ doors: Table; windows: Table; rooms: Table }>(
-      `/projects/${pid}/drawings/schedules/calc`, { method: "POST", body: JSON.stringify(calcs) });
-  }
-  topicTimeline(pid: string, tid: string) {
-    return this.json<{
-      topic_id: string; title: string; type: string; status: string;
-      events: { ts: string | null; kind: string; actor: string | null; summary: string;
-        detail?: Record<string, unknown> }[];
-      event_count: number; statuses: string[]; allowed_next: string[];
-    }>(`/projects/${pid}/topics/${tid}/timeline`);
-  }
-  topicComments(pid: string, tid: string) {
-    return this.json<{ id: string; topic_id: string; author: string | null; text: string;
-      viewpoint_id: string | null; reply_to: string | null; created_at: string }[]>(
-      `/projects/${pid}/topics/${tid}/comments`);
-  }
-  addTopicComment(pid: string, tid: string, body: { author?: string; text: string; reply_to?: string }) {
-    return this.json<{ id: string; reply_to: string | null }>(
-      `/projects/${pid}/topics/${tid}/comments`, { method: "POST", body: JSON.stringify(body) });
   }
   /** PORTAL-TXN — record a client decision through a share token (public; approve/acknowledge/decline). */
   sharedDecision(token: string, body: {
@@ -2008,35 +1685,13 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
       persona?: string; insight?: string; follow_ups?: string[]; persona_note?: string;
     }>(`/projects/${pid}/answer/cited-query`, { method: "POST", body: JSON.stringify({ query, property, persona }) });
   }
-  masterBuilderBrief(pid: string) {
-    type Step = { n: number; key: string; title: string; why: string; link: string; dest: string;
-      status: "ready" | "partial" | "gap";
-      findings: { label: string; detail: string }[]; gaps: string[] };
-    return this.json<{
-      project: string | null; jurisdiction: string | null; grounded_in_place: boolean;
-      place_grounding: { code_family: string | null; hemisphere: string | null; climate_band: string | null;
-        coordinates: { latitude: number; longitude: number } | null; hazards_to_verify: string[] };
-      reframe_prompt: string; readiness_pct: number; ready_steps: number; gap_steps: number;
-      step_count: number; steps: Step[]; disclaimer: string; note: string;
-    }>(`/projects/${pid}/master-builder/brief`);
-  }
-  /** WARN-1 — unified model-warnings feed: hygiene + normative-conformance defects, one worst-first punch list. */
-  modelWarnings(pid: string) {
-    return this.json<{
-      total: number; clean: boolean; by_severity: { fail: number; warn: number; info: number };
-      warnings: { source: string; id: string; severity: "fail" | "warn" | "info"; label: string;
-        count: number; sample: unknown[]; note?: string }[]; note: string;
-    }>(`/projects/${pid}/models/warnings`);
-  }
-  /** Shared-coordinates / setout basis — IfcMapConversion (E/N/height, true-north, scale) + CRS + LoGeoRef. */
-  modelGeoreferencing(pid: string) {
-    return this.json<{ georeferenced: boolean; level: number; level_label: string; note: string;
-      map_conversion: { eastings: number | null; northings: number | null; orthogonal_height: number | null;
-        true_north_bearing_deg: number | null; scale: number } | null;
-      crs: { name: string | null; geodetic_datum: string | null; vertical_datum: string | null;
-        map_projection: string | null; map_zone: string | null } | null;
-      site: { ref_latitude: number[] | null; ref_longitude: number[] | null; ref_elevation: number | null } | null }>(
-      `/projects/${pid}/models/georeferencing`);
+  masterBuilderBrief(pid: string, scope?: { workspace?: string; persona?: string }) {
+    const q = new URLSearchParams();
+    if (scope?.workspace) q.set("workspace", scope.workspace);
+    if (scope?.persona) q.set("persona", scope.persona);
+    const qs = q.toString();
+    return this.json<MasterBuilderBrief>(
+      `/projects/${pid}/master-builder/brief${qs ? `?${qs}` : ""}`);
   }
   /** Scan-to-BIM deviation — upload an as-built point cloud (XYZ/CSV) and compare it to the model surface. */
   async scanDeviation(pid: string, file: File, tolerance = 0.05) {
@@ -2049,39 +1704,11 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
       mean_deviation: number; max_deviation: number; p95_deviation: number;
       histogram: { band: string; count: number }[]; note: string }>;
   }
-  /** Federation alignment report — do the discipline models share a storey scheme + georef origin? */
-  modelAlignment(pid: string) {
-    return this.json<{ models: { name: string; storey_count: number; error?: string;
-        storeys: { name: string; elevation: number }[]; georef: Record<string, unknown> | null }[];
-      issues: { type: string; severity: string; model: string; detail: string }[];
-      aligned: boolean; message: string }>(`/projects/${pid}/models/alignment`);
-  }
-  /** Discipline models layered on a project (for federated clash). */
-  projectModels(pid: string) {
-    return this.json<{ id: string; discipline: string; created_at: string | null }[]>(`/projects/${pid}/models`);
-  }
-  async addProjectModel(pid: string, file: File, discipline: string) {
-    const fd = new FormData(); fd.append("file", file); fd.append("discipline", discipline);
-    const res = await fetch(this.url(`/projects/${pid}/models`), { method: "POST", body: fd, headers: this.authHeaders() });
-    if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `add model -> ${res.status}`); }
-    return res.json() as Promise<{ id: string; discipline: string; size: number }>;
-  }
-  deleteProjectModel(pid: string, mid: string) {
-    return this.json<{ deleted: boolean; id: string }>(`/projects/${pid}/models/${mid}`, { method: "DELETE" });
-  }
   validate(pid: string) {
     return fetch(this.url(`/projects/${pid}/validate`), { method: "POST" }).then((r) => r.json() as Promise<ValidationResult>);
   }
   energy(pid: string) {
     return this.json<EnergyResult>(`/projects/${pid}/energy`);
-  }
-  mep(pid: string) {
-    return this.json<{ by_class: Record<string, number>; systems: Record<string, string>; total_distribution_elements: number }>(`/projects/${pid}/mep`);
-  }
-
-  // 2D documentation
-  drawingStoreys(pid: string) {
-    return this.json<{ name: string | null; elevation: number; guid: string }[]>(`/projects/${pid}/drawings/storeys`);
   }
 
   // W9-1 property mapping / normalization — the transform verb between IDS-validate and COBie-export
@@ -2721,62 +2348,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
     if (!res.ok) throw new Error((await res.text()) || `inspect failed (${res.status})`);
     return res.json() as Promise<Record<string, unknown>>;
   }
-  /** Model version/signature for 2D staleness (bumps on publish; /drawings/stream pushes it). */
-  drawingsSyncStatus(pid: string) {
-    return this.json<{ model_loaded: boolean; version: number; signature: string | null;
-      changed_at: number | null }>(`/projects/${pid}/drawings/sync-status`);
-  }
-
-  // --- Document control / file manager (F1-F6) ---------------------------------
-  documentsTree(pid: string) {
-    return this.json<{ project: string; total_files: number; required_gaps: string[];
-      nodes: DocFolderNode[] }>(`/projects/${pid}/documents/tree`);
-  }
-  documentsFolder(pid: string, path: string, superseded = false) {
-    const q = `?path=${encodeURIComponent(path)}${superseded ? "&superseded=true" : ""}`;
-    return this.json<{ folder: string; owner_role: string | null; valid_folder: boolean;
-      count: number; files: DocFile[] }>(`/projects/${pid}/documents/folder${q}`);
-  }
-  documentsByRole(pid: string, role: string) {
-    return this.json<{ role: string; count: number; folders: DocFolderNode[] }>(
-      `/projects/${pid}/documents/by-role?role=${encodeURIComponent(role)}`);
-  }
-  documentsHealth(pid: string) {
-    return this.json<{ total_files: number; naming_compliance_pct: number | null;
-      required_coverage_pct: number | null; revision_control_pct: number | null;
-      required_missing: string[]; by_cde_state: Record<string, number>; superseded_kept: number }>(
-      `/projects/${pid}/documents/health`);
-  }
-  documentsPhaseGaps(pid: string, phase: string) {
-    return this.json<{ phase: string; missing: number; complete: boolean;
-      items: { folder: string; description: string; present: boolean }[] }>(
-      `/projects/${pid}/documents/phase-gaps?phase=${encodeURIComponent(phase)}`);
-  }
-  async uploadDocument(pid: string, path: string, file: File,
-      meta: { title?: string; discipline?: string; doc_type?: string; cde_state?: string } = {}) {
-    const fd = new FormData();
-    fd.append("path", path); fd.append("file", file);
-    for (const [k, v] of Object.entries(meta)) if (v) fd.append(k, v);
-    const res = await fetch(this.url(`/projects/${pid}/documents/upload`),
-      { method: "POST", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.text()) || `upload failed (${res.status})`);
-    return res.json() as Promise<{ entry: DocFile; naming: { valid: boolean; issues: string[] };
-      superseded: string | null }>;
-  }
-  async moveDocument(pid: string, fid: string, path: string) {
-    const fd = new FormData(); fd.append("path", path);
-    const res = await fetch(this.url(`/projects/${pid}/documents/${fid}/move`),
-      { method: "POST", headers: this.authHeaders(), body: fd });
-    if (!res.ok) throw new Error((await res.text()) || `move failed (${res.status})`);
-    return res.json() as Promise<DocFile>;
-  }
-  deleteDocument(pid: string, fid: string, hard = false) {
-    return this.json<{ deleted: string }>(`/projects/${pid}/documents/${fid}${hard ? "?hard=true" : ""}`,
-      { method: "DELETE" });
-  }
-  documentDownloadUrl(pid: string, fid: string) {
-    return this.url(`/projects/${pid}/documents/${fid}/download`);
-  }
   lodAssessment(pid: string) {
     return this.json<{ model_scored: boolean; elements: number; using_default: boolean;
       distribution: Record<string, number>;
@@ -2787,11 +2358,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
     return this.json<{ total: number; checked: number; compliant: number; compliance_pct: number | null;
       results: { name: string; element_type: string; compliant: boolean | null }[] }>(
       `/projects/${pid}/envelope/audit`);
-  }
-  mepModelExtract(pid: string) {
-    return this.json<{ model_scored: boolean; mep_elements: number;
-      by_class: { ifc_class: string; label: string; count: number }[] }>(
-      `/projects/${pid}/mep/model-extract`);
   }
   namingAudit(pid: string) {
     return this.json<{ containers: { total: number; compliant: number; compliance_pct: number | null };
@@ -2845,13 +2411,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
         survey_date: string | null; satisfaction_score: number | null; design_eui: number | null;
         actual_eui: number | null; eui_gap_pct: number | null } | null };
       data_coverage: { meter_months: number }; as_of: string }>(`/projects/${pid}/esg${qs}`);
-  }
-  camStatementUrl(pid: string, rid: string, opts: { year?: number; buildingSf?: number } = {}) {
-    const q = new URLSearchParams();
-    if (opts.year) q.set("year", String(opts.year));
-    if (opts.buildingSf) q.set("building_sf", String(opts.buildingSf));
-    const qs = q.toString();
-    return this.url(`/projects/${pid}/cam/statement/${rid}.pdf${qs ? `?${qs}` : ""}`);
   }
 
   // --- turnover: substantial completion (G704) + record model ------------------
@@ -3005,29 +2564,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
   escalationsRun(pid: string) {
     return this.json<EscalationRun>(`/projects/${pid}/escalations/run`, { method: "POST" });
   }
-  // --- drawing markup (2D sheet pins; promotable to RFIs) ----------------
-  /** Markups for one sheet — or, with no sheet, EVERY markup in the project (the MARKUP-2b grid). */
-  drawingMarkup(pid: string, sheet?: string) {
-    return this.json<DrawingMarkupItem[]>(
-      `/projects/${pid}/drawings/markup${sheet ? `?sheet=${encodeURIComponent(sheet)}` : ""}`);
-  }
-  addDrawingMarkup(pid: string, sheetId: string, x: number, y: number, note: string) {
-    return this.json<DrawingMarkupItem>(`/projects/${pid}/drawings/markup`, { method: "POST", body: JSON.stringify({ sheet_id: sheetId, x, y, note }) });
-  }
-  /** Persist the 2D editor's whole markup scene for a sheet (structured takeoff markups, promotable to
-   *  RFI like pins). `replace` clears the caller's own prior unpromoted markups for that sheet first. */
-  saveDrawingMarkups(pid: string, sheetId: string, markups: SheetMarkupIn[], replace = true) {
-    return this.json<{ saved: number; sheet_id: string }>(`/projects/${pid}/drawings/markup/bulk`,
-      { method: "POST", body: JSON.stringify({ sheet_id: sheetId, replace, markups }) });
-  }
-  deleteDrawingMarkup(pid: string, id: string) {
-    return this.json<{ ok: boolean }>(`/projects/${pid}/drawings/markup/${id}`, { method: "DELETE" });
-  }
-  promoteDrawingMarkup(pid: string, id: string) {
-    return this.json<{ markup: DrawingMarkupItem; topic: { id: string; type: string; title: string; status: string } }>(
-      `/projects/${pid}/drawings/markup/${id}/promote`, { method: "POST" });
-  }
-
   /** Admin: send each member with open items a work-queue digest email. */
   sendDigest(pid: string) {
     return this.json<{ smtp_configured: boolean; results: Record<string, string[]>; skipped_no_email: string[] }>(
@@ -3040,13 +2576,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
   notificationStream(pid: string, onMessage: (d: { count: number; items: NotifItem[] }) => void,
                      onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
     return this.liveStream(`/projects/${pid}/notifications/stream`,
-                           onMessage as (d: unknown) => void, onStatus);
-  }
-  /** MARKUP-2d — SSE stream of the drawing-markup change-signature; fires whenever anyone saves a
-   *  markup so open sheets live-refresh (live co-markup). */
-  markupStream(pid: string, onMessage: (d: { count: number; latest: string | null }) => void,
-               onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
-    return this.liveStream(`/projects/${pid}/drawings/markup/stream`,
                            onMessage as (d: unknown) => void, onStatus);
   }
   /** SSE stream of the pull-board change-signature; fires whenever any trade edits a sticky note so
@@ -3224,12 +2753,6 @@ export class ApiClient extends withDocQa(withFinance(withContracts(withAuth(with
       by_cost_code: { cost_code: string; total: number; traceable: number; coverage_pct: number;
         element_count: number; guids: string[] }[];
       note: string }>(`/projects/${pid}/cost/traceability`);
-  }
-  /** Every cost line (budget / commitment / direct cost / sub invoice) tagged to one IFC element. */
-  elementCosts(pid: string, guid: string) {
-    return this.json<{ guid: string; total: number; count: number; by_kind: Record<string, number>;
-      lines: { kind: string; ref: string | null; cost_code: string | null; amount: number }[]; note: string }>(
-      `/projects/${pid}/elements/${encodeURIComponent(guid)}/costs`);
   }
   /** Balanced double-entry journal from job cost + billing + the WIP POC adjustment. */
   journalEntries(pid: string) {

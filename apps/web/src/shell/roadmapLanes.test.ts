@@ -39,24 +39,24 @@ const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
 /**
  * A roadmap item bullet: `- **CODE** …`, `* ⭐ **CODE ② — …**`, with or without a status glyph.
  *
- * **The increment marker runs ①–⑨, and it stopped at ⑥ until 2026-08-06** — the day SCALE-SEAM
- * shipped its seventh. `⑦` was not in the class, and the interesting part is what that did rather
- * than that it happened: the marker group is optional, so `**SCALE-SEAM ⑦ — …**` did not fail to
- * match. It matched and returned the code as plain `SCALE-SEAM`, **silently dropping the increment
- * number**. The item then disagreed with the lane table cell (which said `SCALE-SEAM ⑦`) and the
- * assignment check failed — loudly, but for a reason two steps from the cause.
+ * **The increment marker runs ①–⑳.** It used to stop at ⑥, then ⑨, and each time the next
+ * SCALE-SEAM increment (`⑦`, then `⑫`) was not in the class. The interesting part is what that
+ * does rather than that it happened: the marker group is optional, so `**SCALE-SEAM ⑫ — …**` does
+ * not fail to match. It matches and returns the code as plain `SCALE-SEAM`, **silently dropping the
+ * increment number**. The item then disagrees with the lane table cell and the assignment check
+ * fails — loudly, but for a reason two steps from the cause.
  *
  * That is the docstring's own warning arriving: "if a new item is written in a style this regex does
  * not match, it is not in the population and the failure mode is a silent omission". Here the style
- * was not new — only the *number* was — which is worse, because nothing about writing the eighth
+ * was not new — only the *number* was — which is worse, because nothing about writing the twelfth
  * increment of an existing item looks like inventing a new notation. Had the table been updated to
  * plain `SCALE-SEAM` to make the red go away, the two lists would have agreed at the cost of the
  * roadmap no longer recording which increment was open: green, and wrong.
  *
- * ⑨ is not a considered limit either, just a further-off one. **A vocabulary this check defines is
+ * ⑳ is not a considered limit either, just a further-off one. **A vocabulary this check defines is
  * part of its population, so widening it is a real change and not housekeeping.**
  */
-const MARKS = "①②③④⑤⑥⑦⑧⑨";
+const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
 
 /**
  * One source for the marker vocabulary, because there were **two** and they had already drifted.
@@ -245,7 +245,8 @@ describe("the roadmap lane table", () => {
   it("reads a plausible number of lanes and items — else every assertion below is vacuous", () => {
     // The can't-fail shape this repo keeps getting bitten by: a green check over an empty set.
     expect(LANES.length, `parsed ${LANES.length} lane rows`).toBeGreaterThanOrEqual(8);
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(40);
+    // 38 → 37: BUILD-WORKTREE-CHUNKS closed (✅), so it left the pickable population.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(37);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {
@@ -489,7 +490,7 @@ const NOT_A_LANE = (rel: string) =>
 //: taken from a different reader is a threshold for a different question. `surface.test.ts` records
 //: being bitten by precisely this (698 from a probe vs 696 from the gate), so the number is read back
 //: out of the assertion that enforces it.
-const UNOWNED_CEILING = 53;
+const UNOWNED_CEILING = 48;  // 53 → 48: Lane J claimed `apps/web/src/tooling/` (v0.3.1017)
 
 describe("the lane table covers the tree it governs", () => {
   const WEB = resolve(REPO, "apps/web/src");

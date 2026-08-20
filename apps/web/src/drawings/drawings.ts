@@ -4,6 +4,8 @@ import { noProjectHtml } from "../ui/empty";
 import { askText } from "../ui/prompt";
 import { sanitizeSvg } from "../ui/sanitizeSvg";
 import { escapeHtml } from "../ui/feedback";
+import { addHitTargets, guidFromEvent, guidFromMarkupData, postSheetPin, selectInViewer, syncPlanHighlight } from "../ui/sheetGuid";
+import { pdfFromPng, pngFromSvgElement } from "../ui/svgPdf";
 
 /** 2D Drawings Set — a sheet-set browser for the server-generated plans / elevations / sections
  *  (a plan room, a PDF markup layer and field pins in one view). Left: a sheet register;
@@ -169,6 +171,7 @@ export class DrawingsUI {
       this.svgHost.innerHTML = sanitizeSvg(await res.text());
       const svg = this.svgHost.querySelector("svg");
       if (svg) { svg.removeAttribute("width"); svg.removeAttribute("height"); svg.style.display = "block"; }
+      addHitTargets(this.svgHost);
       this.fit();
       await this.loadPins();
       this.host_.setStatus(`drawing: ${sheet.label}`);
@@ -204,27 +207,47 @@ export class DrawingsUI {
       btn("☰ Markups", "All markups across every sheet — totals, revisions, RFI links", () => void this.showMarkupGrid()),
       // MARKUP-2c: light-table overlay compare — the live sheet (blue) under an uploaded prior
       // revision (red); differences pop where the tints don't cancel.
-      btn("⧉ Compare", "Overlay a prior revision (SVG/PDF) on this sheet — light-table compare", () => void this.startCompare(), !!this.compareLayer));
-    if (sheet.pdf) bar.append(btn("🖊 PDF markup", "Open the sheet PDF in the 2D editor — measure / mark up / persist to the sheet (promotable to RFI)", async () => {
-      const api = this.host_.api, pid = this.host_.projectId();
-      const { openPdfUrl, saveToDocuments } = await import("./openPdf");
-      const sid = `${sheet.id}#pdf`;                          // shares the markup store; own coord space
-      await openPdfUrl(api, api.url(sheet.pdf!), "sheet.pdf", !pid ? {} : {
-        saveLabel: "Save to Documents", onSave: saveToDocuments(api, pid),
-        persist: {
-          load: async (): Promise<Measure[]> => (await api.drawingMarkup(pid, sid))
-            .filter((m) => m.data?.pts?.length)
-            .map((m) => ({ id: 0, kind: (m.kind as Measure["kind"]) || "text", pts: m.data!.pts!,
-              value: m.data!.value ?? 0, unit: m.data!.unit ?? "", label: m.note ?? "",
-              page: m.data!.page ?? 1, text: m.data!.text })),
-          save: async (ms: Measure[], norm) => { await api.saveDrawingMarkups(pid, sid, ms.map((mm) => {
-            const n = norm(mm);                                // page-normalized (0..1) shared anchor
-            return { x: mm.pts[0]?.x ?? 0, y: mm.pts[0]?.y ?? 0, note: mm.label, kind: mm.kind,
-              data: { pts: mm.pts, value: mm.value, unit: mm.unit, page: mm.page, text: mm.text, nx: n.nx, ny: n.ny } };
-          })); await this.loadPins(); },   // refresh so the new markups appear on the SVG view too
-        },
-      });
-    }));
+      btn("⧉ Compare", "Overlay a prior revision (SVG/PDF) on this sheet — light-table compare", () => void this.startCompare(), !!this.compareLayer),
+      btn("🖊 PDF markup", "Open this sheet in the 2D editor — measure / mark up / persist (promotable to RFI)", () => void this.openPdfMarkup()));
+  }
+
+  /** Composed sheets use the server PDF; generated plans/elevations/sections wrap the live SVG. */
+  private async openPdfMarkup() {
+    const sheet = this.current;
+    const api = this.host_.api, pid = this.host_.projectId();
+    if (!sheet) return;
+    const { openPdfUrl, openPdfTakeoff, saveToDocuments } = await import("./openPdf");
+    const sid = `${sheet.id}#pdf`;
+    const persist = !pid ? undefined : {
+      load: async (): Promise<Measure[]> => (await api.drawingMarkup(pid, sid))
+        .filter((m) => m.data?.pts?.length)
+        .map((m) => ({ id: 0, kind: (m.kind as Measure["kind"]) || "text", pts: m.data!.pts!,
+          value: m.data!.value ?? 0, unit: m.data!.unit ?? "", label: m.note ?? "",
+          page: m.data!.page ?? 1, text: m.data!.text })),
+      save: async (ms: Measure[], norm: (m: Measure) => { nx: number; ny: number }) => {
+        await api.saveDrawingMarkups(pid, sid, ms.map((mm) => {
+          const n = norm(mm);
+          return { x: mm.pts[0]?.x ?? 0, y: mm.pts[0]?.y ?? 0, note: mm.label, kind: mm.kind,
+            data: { pts: mm.pts, value: mm.value, unit: mm.unit, page: mm.page, text: mm.text, nx: n.nx, ny: n.ny } };
+        }));
+        await this.loadPins();
+      },
+    };
+    const opts = !pid ? {} : { saveLabel: "Save to Documents", onSave: saveToDocuments(api, pid), persist };
+    if (sheet.pdf) {
+      await openPdfUrl(api, api.url(sheet.pdf), "sheet.pdf", opts);
+      return;
+    }
+    const svg = this.svgHost.querySelector("svg");
+    if (!svg) { this.host_.setStatus("render a sheet first"); return; }
+    try {
+      const { png, w, h } = await pngFromSvgElement(svg);
+      const bytes = await pdfFromPng(png, w, h);
+      const file = new File([bytes.slice()], `${sheet.label}.pdf`, { type: "application/pdf" });
+      await openPdfTakeoff(file, opts);
+    } catch (e) {
+      this.host_.setStatus(`couldn't open PDF markup (${(e as Error).message})`);
+    }
   }
 
   // --- pan / zoom ------------------------------------------------------------
@@ -269,7 +292,12 @@ export class DrawingsUI {
       const x = (e.clientX - r.left - this.tx) / this.scale;
       const y = (e.clientY - r.top - this.ty) / this.scale;
       const note = await askText("Add markup", { label: "Markup note:" }); if (note == null) return;
-      try { await this.host_.api.addDrawingMarkup(pid, this.current.id, x, y, note); await this.loadPins(); }
+      const guid = guidFromEvent(e);
+      try {
+        await postSheetPin(this.host_.api, pid, this.current.id, x, y, note, guid);
+        if (guid) selectInViewer(guid);
+        await this.loadPins();
+      }
       catch { this.host_.setStatus("markup needs reviewer access"); }
     });
   }
@@ -300,18 +328,25 @@ export class DrawingsUI {
     const ch = rect && this.scale ? rect.height / this.scale : 0;
     this.markup.forEach((p, i) => {
       const takeoff = p.kind && p.kind !== "pin" && p.data?.nx != null;
+      const tied = guidFromMarkupData(p.data);
       const carried = !!p.data?.carried_from;        // MARKUP-2a: predates the current sheet revision
       const el = document.createElement("div");
-      el.className = "dwg-pin" + (p.topic_id ? " linked" : "") + (takeoff ? " takeoff" : "") + (carried ? " carried" : "");
+      el.className = "dwg-pin" + (p.topic_id ? " linked" : "") + (takeoff ? " takeoff" : "") + (carried ? " carried" : "") + (tied ? " tied" : "");
       el.textContent = takeoff ? "◆" : String(i + 1);
       const left = takeoff && cw ? p.data!.nx! * cw : p.x;
       const top = takeoff && ch ? p.data!.ny! * ch : p.y;
       el.style.left = `${left}px`; el.style.top = `${top}px`;
       const meas = takeoff && p.data?.value ? ` — ${p.data.value} ${p.data.unit || ""}` : "";
-      el.title = (p.note || (takeoff ? p.kind! : "")) + meas + (p.topic_id ? "  · linked to RFI" : "")
+      el.title = (p.note || (takeoff ? p.kind! : "")) + meas
+        + (tied ? `  · ${tied}` : "")
+        + (p.topic_id ? "  · linked to RFI" : "")
         + (carried ? `  · carried from Rev ${p.data!.carried_from} — verify against the current revision` : "");
-      el.onclick = async (e) => {
-        e.stopPropagation();
+      el.onclick = async (ev) => {
+        ev.stopPropagation();
+        if (tied) {
+          selectInViewer(tied);
+          syncPlanHighlight(this.svgHost, tied);
+        }
         if (!pid) return;
         const linked = p.topic_id ? " (already an RFI)" : "";
         const choice = await askText(`Markup #${i + 1}`, {
@@ -353,6 +388,12 @@ export class DrawingsUI {
           const pdfjs = await import("pdfjs-dist");
           const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
           pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+          // No `enableScripting` here: it is a pdf.js VIEWER option, not a `getDocument` one —
+          // it appears nowhere in pdfjs-dist's DocumentInitParameters, so passing it is a no-op
+          // that does not even typecheck. This path calls getDocument and renders pages directly
+          // and never instantiates the scripting engine, so document JavaScript cannot run. The
+          // control that actually mitigates CVE-2026-16633 is the EXACT version pin, gated in
+          // `pdfjsScripting.test.ts`.
           const doc = await pdfjs.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
           const page = await doc.getPage(1);
           const vp = page.getViewport({ scale: 2 });

@@ -95,6 +95,7 @@ describe("times say only what is true", () => {
 describe("labels and artifacts do not guess", () => {
   it("a registered kind gets its name; an unknown kind renders raw, not a fabricated label", () => {
     expect(jobLabel("compiled_set_pdf")).toBe("Compiled drawing set");
+    expect(jobLabel("report_package")).toBe("Report package");
     expect(jobLabel("some_plugin_kind")).toBe("some_plugin_kind");
   });
 

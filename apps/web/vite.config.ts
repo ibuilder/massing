@@ -1,5 +1,7 @@
 import { brotliCompressSync, gzipSync } from "node:zlib";
-import { defineConfig, type Plugin } from "vite";
+import { createRequire } from "node:module";
+import path from "node:path";
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 import { vendorAlias } from "./vendorAlias";
@@ -36,6 +38,24 @@ const BASE = process.env.VITE_BASE || "/";
 // app version, baked in at build time so the in-app update check can compare against the latest
 // GitHub release (kept in sync with package.json / tauri.conf.json).
 const APP_VERSION = process.env.npm_package_version || "0.0.0";
+
+// BUILD-WORKTREE-CHUNKS: a git worktree has no node_modules of its own. Vite's default
+// fs-allow is searchForWorkspaceRoot(cwd), which is the worktree, so the main clone's
+// hoisted three/@thatopen sit outside the sandbox. createRequire walks to wherever the
+// package actually resolved.
+//
+// Derived from the package ENTRY, not from `three/package.json`. vitest.config.ts resolves
+// `pdfjs-dist/package.json` and this was copied from it — but that only works because
+// pdfjs-dist happens to list "./package.json" in its exports map. `three` does not, so the
+// same line throws ERR_PACKAGE_PATH_NOT_EXPORTED and the config fails to load *before* the
+// build starts. Whether a manifest is reachable is the dependency's choice, not ours;
+// locating the node_modules segment of a path we are allowed to resolve does not ask.
+const threeEntry = createRequire(import.meta.url).resolve("three");
+const nodeModulesSegment = `${path.sep}node_modules${path.sep}`;
+const segmentAt = threeEntry.lastIndexOf(nodeModulesSegment);
+const hoistedNodeModules = segmentAt === -1
+  ? path.join(process.cwd(), "node_modules")
+  : threeEntry.slice(0, segmentAt + nodeModulesSegment.length - 1);
 
 const coiInject: Plugin = {
   name: "coi-serviceworker-inject",
@@ -114,6 +134,7 @@ return {
   },
   server: {
     port: 5173,
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), hoistedNodeModules] },
     // SharedArrayBuffer (used by web-ifc multithreaded WASM) needs cross-origin isolation.
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin",

@@ -52,19 +52,11 @@ _OAUTH_WHY = (
     "a user, but the authority is the provider's one-time code, not our cookie — a forged link "
     "carries no valid code and gets a 403. Not cookie-triggerable."
 )
-_CAM_WHY = (
-    "The only write is audit.record for the download itself. Recording that a read happened is not "
-    "a state change an attacker gains from, and dropping the commit would lose the audit trail, "
-    "which is the worse trade."
-)
 
 # module -> path -> (ops, why this GET is allowed to touch the session)
 BASELINE: dict[str, dict[str, tuple[tuple[str, ...], str]]] = {
     "aec_api/routers/auth.py": {
         "/auth/oauth/{provider}/callback": (("add", "commit"), _OAUTH_WHY),
-    },
-    "aec_api/routers/operations.py": {
-        "/projects/{pid}/cam/statement/{rid}.pdf": (("commit",), _CAM_WHY),
     },
     "aec_api/routers/scim.py": {
         "/scim/v2/Users": (("execute",), _SCIM_WHY),

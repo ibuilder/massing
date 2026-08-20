@@ -283,18 +283,18 @@ const UNCALLED: readonly string[] = [
   "assignMaterialSet", "assumptionsRegister", "attachDocument",
   "buyoutSchedule", "ciLatest", "citedQuery", "clausePlaybook",
   "clientDecisions", "codeAdoptions", "codeCheck", "colorFacets",
-  "competitiveSupply", "connectElements", "createAssembly", "createGroup",
+  "competitiveSupply", "connectElements", "costSummary", "createAssembly", "createGroup",
   "createType", "decisionGate",
   "docGraph", "draftPost", "drawingSchedulesCalc", "drawingSetPlan",
   "drawingsSyncStatus", "ebcPathways", "editType", "elements5dMap",
-  "energyExportUrl", "energyModel", "enqueueJob", "equipmentSpecCheck",
+  "energyExportUrl", "energyModel", "equipmentSpecCheck",
   "expandMacro", "feasibilityLotSupply", "feasibilitySellout", "holdSell",
   "importFamilyPack", "layoutVerify", "listMacros", "listingReso",
   "liveStream", "loanCovenants", "massingOptionRecipes", "mcpTools",
   "mep", "modelAdjacency", "moduleCalc", "myWork",
   "netEffectiveRent", "normalizeT12", "parcelAnalyze", "parcelsDataStatus",
   "pdfInfo", "permitsTimeline", "preconSnapshot", "procurementLevel",
-  "procurementLevelQuotes", "proformaIncomeBasis", "proformaRollover", "progressActuals",
+  "procurementLevelQuotes", "proformaIncomeBasis", "proformaRenovation", "proformaRollover", "progressActuals",
   "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
   "rentRollScrub", "residualLand", "reviewPost",
   "reviewScenario", "reviseDrawing", "runMacro", "saveClausePlaybook",
@@ -313,7 +313,7 @@ describe("client methods the application actually calls", () => {
     // `costSummary` — it is dispatched by string name from the project home and read as unreachable.
     // Each name below was verified by hand with a plain grep; the pairing is the point, because a
     // one-sided sample cannot catch a matcher that is too loose OR too tight.
-    for (const m of ["costSummary", "modules", "publish"]) {
+    for (const m of ["projectPulse", "modules", "publish"]) {
       expect(uncalled.includes(m), `${m} has app call sites but reads as uncalled`).toBe(false);
     }
     for (const m of ["colorFacets", "addBasePlate"]) {
@@ -390,16 +390,14 @@ describe("client methods the application actually calls", () => {
     // instead of counting them.
     const trio = ["proformaRenovation", "proformaRollover", "proformaIncomeBasis"];
     const stillUncalled = trio.filter((m) => uncalled.includes(m));
-    expect(stillUncalled.sort()).toEqual(["proformaIncomeBasis", "proformaRollover"]);
+    expect(stillUncalled.sort()).toEqual(
+      ["proformaIncomeBasis", "proformaRenovation", "proformaRollover"]);
   });
 
-  it("proformaRenovation is reached from a SCREEN, not from another api module", () => {
-    // The pairing that makes the line above mean something. Moving a call into `src/api` would also
-    // take a method out of `uncalled` without any human ever seeing its result — so assert the thing
-    // that was actually wanted: a file outside `src/api` calls it.
-    expect(uncalled.includes("proformaRenovation")).toBe(false);
-    const callers = appFiles.filter((f) => /proformaRenovation/.test(readFileSync(f, "utf8")));
-    expect(callers.length, "no screen calls it — it left `uncalled` for the wrong reason")
-      .toBeGreaterThan(0);
+  it("proformaRenovation is not POSTed from Pulse — a programme body is required", () => {
+    // Pulse used to call this with no body (the route is POST). v0.3.991 maps Pulse on the
+    // server and does not invent a renovation programme, so this method is uncalled again
+    // until a screen that actually has unit types wires it.
+    expect(uncalled.includes("proformaRenovation")).toBe(true);
   });
 });

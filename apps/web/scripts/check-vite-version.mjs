@@ -44,7 +44,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { findPackageDir } from "./wasmSources.mjs";
+import { findPinnedViteDir } from "./vitePin.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webRoot = join(here, "..");
@@ -57,9 +57,9 @@ if (!pinned) {
   process.exit(1);
 }
 
-const dir = findPackageDir("vite", webRoot);
+const dir = findPinnedViteDir(webRoot);
 if (!dir) {
-  console.error("[vite-preflight] could not resolve the `vite` package at all. Run `npm install` at the repo root.");
+  console.error("[vite-preflight] could not resolve the pinned `vite` package. Run `npm install` at the repo root of the main clone.");
   process.exit(1);
 }
 const found = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).version;
@@ -75,11 +75,9 @@ if (!ok) {
     `    pinned   ${pinned}   (in ${manifest.replace(/\\/g, "/")})\n` +
     `    resolved ${found}\n` +
     `    from     ${dir.replace(/\\/g, "/")}\n\n` +
-    `  If you are in a git worktree this is expected: worktrees have no apps/web/node_modules, so\n` +
-    `  the pinned vite is unreachable and Node resolves the repo root's copy instead. The build\n` +
-    `  would SUCCEED and be wrong — Vite 6 is rollup-based and ignores rolldownOptions.advancedChunks,\n` +
-    `  so three.js and @thatopen are folded into the eager shell (measured 19.7x larger).\n\n` +
-    `  Build from the main clone or in CI. A worktree is for typecheck and tests.\n`,
+    `  A git worktree has no apps/web/node_modules of its own. This preflight looks in the main\n` +
+    `  clone (git-common-dir) for the nested pin first. If you still see this, the main clone is\n` +
+    `  missing apps/web/node_modules/vite — run npm install there, not in the worktree.\n`,
   );
   process.exit(1);
 }

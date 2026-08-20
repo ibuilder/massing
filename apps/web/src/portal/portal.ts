@@ -4,11 +4,13 @@ import { progressBar, usd } from "../ui/charts";
 import { countNarrative, statusChip } from "../ui/chips";
 import { noProjectHtml } from "../ui/empty";
 import { buildPulse, pulseRailEl } from "./panels/pulse";
+import { mountReadinessStrip } from "./panels/readinessStrip";
 import type { PanelContext } from "./panelContext";
 import { type RegisterFilter, RegisterUI } from "./register/register";
-import { SECTIONS_BY_PERSONA, readDensity, readFavs, readRecents, readRoomOpen, setDensity, setRoomOpen, toggleFav } from "./prefs";
+import { SECTIONS_BY_PERSONA, cycleDensity, readDensity, readFavs, readRecents, readRoomOpen, setRoomOpen, toggleFav } from "./prefs";
 import { el } from "../ui/dom";
-import { ALL_DESTS, type Dest, destLabel, destTitle, stagesFor } from "../shell/destinations";
+import { renderAnalyseHome } from "../shell/analyseHome";
+import { ALL_DESTS, type Dest, destButtonActive, destsForRail, destTitle, stagesFor } from "../shell/destinations";
 import { FALLBACK_ROOMS, ROOM_HOME, type SpineState, destRoom, loadSpine, portalRooms, preselectedRoom, unroomedDests, visibleRooms } from "../shell/spine";
 import type { RoomDef } from "../api/types";
 // PANEL-LAZY (PERF): the ~30 secondary portal panels are DYNAMICALLY imported at first render
@@ -81,6 +83,7 @@ export class PortalUI {
 
   constructor(private root: HTMLElement, private host: PortalHost) {
     this.reg = new RegisterUI(this.panelCtx());
+    this.applyDensity();
     // The tab bar announces the room; the portal that hosts it responds. Registered in the
     // constructor rather than init() because the first room click usually PRECEDES init — the
     // workspace switch that triggers lazy init and the room event arrive in the same tick, and a
@@ -122,7 +125,8 @@ export class PortalUI {
       __evm__: () => this.renderEvm(), __resload__: () => this.renderResourceLoading(),
       __wip__: () => this.renderWip(), __ledger__: () => this.renderLedger(),
       __traceability__: () => this.renderTraceability(),
-      __standards__: () => this.renderStandards(), __bimkpi__: () => this.renderBimKpi(),
+      __standards__: () => this.renderStandards(), __analyse__: () => this.renderAnalyse(),
+      __bimkpi__: () => this.renderBimKpi(),
       __masterbuilder__: () => this.renderMasterBuilder(), __selections__: () => this.renderSelections(),
       __margin__: () => this.renderMargin(), __assets__: () => this.renderAssets(),
       __workqueue__: () => this.renderWorkQueue(),
@@ -303,7 +307,7 @@ export class PortalUI {
   /** A rail button for a first-class destination. Shared by both shells so they cannot diverge. */
   private destButton(d: Dest, dests: Record<string, () => unknown>): HTMLButtonElement {
     const b = document.createElement("button");
-    b.className = "pnav-item pnav-home" + (this.activeKey === d.key ? " active" : "");
+    b.className = "pnav-item pnav-home" + (destButtonActive(d.key, this.activeKey) ? " active" : "");
     // Addressable by key. Without this the rail is navigable only by a human clicking it: the pinned
     // rail and the room tabs both try to reach a destination with `[data-dest="…"]`, and until now
     // the ONLY nodes carrying that attribute were the pinned rail's own buttons — so its
@@ -371,11 +375,11 @@ export class PortalUI {
       const det = document.createElement("details"); det.className = "pnav-stage-group pnav-room";
       det.dataset.room = room.id;
       const skey = `${this.wsFilter}:${room.id}`;
-      const items = byRoom.get(room.id) ?? [];
+      const items = destsForRail(byRoom.get(room.id) ?? []);
       // The active room is the rail's whole content, so it is always open — collapse memory only
       // governs the OTHER rooms, which render solely under the escape hatch.
       const said = readRoomOpen(skey);
-      det.open = room.id === active || items.some((d) => d.key === this.activeKey) || (said ?? false);
+      det.open = room.id === active || items.some((d) => destButtonActive(d.key, this.activeKey)) || (said ?? false);
       det.ontoggle = () => setRoomOpen(skey, det.open);
       det.classList.toggle("pnav-room-active", room.id === active);
       // The room's MODULES, not only its first-class destinations.
@@ -696,8 +700,7 @@ export class PortalUI {
       ["🧭", "Project Lifecycle", () => goDest("__lifecycle__", () => this.renderLifecycle())],
       ["📋", "IDS Requirements", () => goDest("__ids__", () => this.renderIds())],
       ["🗂", "CDE / Standards", () => goDest("__standards__", () => this.renderStandards())],
-      ["📊", destLabel("__bimkpi__"), () => goDest("__bimkpi__", () => this.renderBimKpi())],
-      ["✅", destLabel("__modelqa__"), () => goDest("__modelqa__", () => this.renderModelQa())],
+      ["🔬", "Analyse", () => goDest("__analyse__", () => this.renderAnalyse())],
     ];
     const grid = el("div"); grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px";
     for (const [ic, label, on] of tiles) {
@@ -771,6 +774,7 @@ export class PortalUI {
     } catch { /* no dashboard yet — tiles above are enough */ }
   }
 
+  private renderAnalyse() { renderAnalyseHome(this.panelCtx()); }
   private async renderProgram() { return (await import("./panels/standards")).renderProgram(this.panelCtx()); }
   private async renderBimKpi() { return (await import("./panels/standards")).renderBimKpi(this.panelCtx()); }
   private async renderMasterBuilder() { return (await import("./panels/masterBuilder")).renderMasterBuilder(this.panelCtx()); }
@@ -798,70 +802,33 @@ export class PortalUI {
 
   private async renderIds() { return (await import("./panels/standards")).renderIds(this.panelCtx()); }
 
-  /** Reflect the persisted command-center density onto the portal root so `.dense …` CSS tightens
-   *  the home dashboards. Harmless on other views (module tables carry no dash-cards). */
+  /** Reflect the persisted density onto the portal root so registers AND dashboards share it. */
   private applyDensity() {
-    this.root.classList.toggle("dense", readDensity() === "compact");
+    const d = readDensity();
+    this.root.dataset.density = d;
+    this.root.classList.toggle("dense", d === "compact");
   }
 
   /**
-   * Fetch the five pulse inputs and insert the rail, or do nothing at all.
+   * Fetch Pulse as one mapped payload, or do nothing at all.
    *
-   * Every source is asked **in parallel and independently** — `allSettled`, not `all` — because the
-   * whole point of a pulse is that it degrades. A project with no proforma still has a schedule; if
-   * one rejection could blank the rail, the panel would be least useful exactly on the messy jobs
-   * that need it most.
-   *
-   * The mapping from each engine's payload to `PulseInput` is the only place Pulse touches shapes it
-   * does not own, so it is kept narrow and optional-chained throughout: a renamed field costs a
-   * missing card, never a thrown home panel.
+   * Mapping from engine shapes to `PulseInput` lives on the server
+   * (`GET /projects/{id}/pulse`). The shell used to fan seven GETs and optional-chain
+   * the wrong field names (`score` vs `overall_score`), so the rail was empty on a
+   * live project. Fail-open: a pulse that 500s is simply absent.
    */
-  private async renderPulse(pid: string, root: HTMLElement) {
+  private async renderPulse(pid: string, root: HTMLElement, after?: HTMLElement) {
     try {
-      const api = this.host.api as unknown as Record<string, (p: string) => Promise<unknown>>;
-      const call = async (name: string) => {
-        if (typeof api[name] !== "function") return null;
-        try { return await api[name]!(pid); } catch { return null; }
-      };
-      // `reserveStudy(pid, opts = {})` and `proformaRenovation(pid)` both fit this single-argument
-      // fan-out unchanged — checked against the signatures, not the descriptions. A required second
-      // argument would have meant breaking the `.map` or changing a signature.
-      const [model, cost, sched, work, deal, reserve, renov] = await Promise.all(
-        ["modelHealth", "costSummary", "scheduleVariance", "workQueue", "proformaLive",
-         "reserveStudy", "proformaRenovation"].map(call));
-
-      const n = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-      const g = (o: unknown, k: string): unknown => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined);
-
-      const cards = buildPulse({
-        model: model ? { score: n(g(model, "score")), issues: n(g(model, "issues")) } : null,
-        cost: cost ? { variancePct: n(g(cost, "variance_pct")) } : null,
-        schedule: sched ? { floatDays: n(g(sched, "float_days")) } : null,
-        work: work ? {
-          open: n(g(work, "count")) ?? (Array.isArray(g(work, "items")) ? (g(work, "items") as unknown[]).length : null),
-          mine: n(g(work, "mine")),
-          overdue: Array.isArray(g(work, "overdue")) ? (g(work, "overdue") as string[]).slice(0, 3) : null,
-        } : null,
-        // Both findings hang off the deal card because both are BOOLEANS with no chart to sit in.
-        // Read strictly: `=== false` and `=== true`, never truthiness. A missing field is "the engine
-        // did not answer", which must not read as "the suggestion fails" — inventing a risk line from
-        // an absent field is worse than showing none, because a false alarm here costs trust in every
-        // other line on the card.
-        deal: deal || reserve || renov ? {
-          irrPct: n(g(deal, "irr")),
-          reserveSuggestionFails: g(reserve, "suggestion_clears_horizon") === false,
-          nothingRenovated: g(renov, "nothing_renovated") === true
-            ? (typeof g(renov, "nothing_renovated_why") === "string"
-              ? g(renov, "nothing_renovated_why") as string : "no unit completed a start")
-            : null,
-        } : null,
-      });
+      const api = this.host.api;
+      if (typeof api.projectPulse !== "function") return;
+      const input = await api.projectPulse(pid);
+      const cards = buildPulse(input ?? {});
 
       const rail = pulseRailEl(cards);
-      // The home panel may have been re-rendered while this was in flight — appending into a root
-      // that is no longer on screen would leave a rail nobody can see and a duplicate on the next
-      // pass. Check before touching the DOM.
-      if (rail && root.isConnected) root.prepend(rail);
+      if (rail && root.isConnected) {
+        if (after?.isConnected) after.after(rail);
+        else root.prepend(rail);
+      }
     } catch {
       /* a pulse that cannot be built is simply absent */
     }
@@ -873,29 +840,43 @@ export class PortalUI {
     const root = this.root;
     const el = (tag: string, cls = "") => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
 
-    // command-center density: a compact/comfortable toggle that tightens the multi-card dashboards.
+    // command-center density: Field 56 / Comfortable 36 / Compact 28, applied to registers too.
     this.applyDensity();
     const densRow = el("div"); densRow.style.cssText = "display:flex;justify-content:flex-end;margin-bottom:4px";
     const densBtn = el("button", "tool-btn") as HTMLButtonElement;
     densBtn.style.cssText = "font-size:11px;padding:2px 8px";
     const paintDens = () => {
-      const compact = readDensity() === "compact";
-      densBtn.textContent = compact ? "⊟ Compact" : "⊞ Comfortable";
-      densBtn.title = compact ? "Switch to comfortable spacing" : "Switch to a denser command center";
-      densBtn.setAttribute("aria-pressed", String(compact));
+      const d = readDensity();
+      densBtn.textContent = d === "field" ? "☐ Field" : d === "compact" ? "⊟ Compact" : "⊞ Comfortable";
+      densBtn.title = "Cycle Field (56 px) → Comfortable (36 px) → Compact (28 px). Applies to registers.";
+      densBtn.setAttribute("aria-pressed", String(d !== "comfortable"));
     };
-    densBtn.onclick = () => { setDensity(readDensity() === "compact" ? "comfortable" : "compact"); this.applyDensity(); paintDens(); };
+    densBtn.onclick = () => { cycleDensity(); this.applyDensity(); paintDens(); };
     paintDens();
     densRow.append(densBtn);
     root.append(densRow);
 
-    // PROJECT PULSE — five numbers, each with a sentence naming what is at risk. Appended before the
-    // rest of the home panel so the state of the job is the first thing read, not the last.
+    // UX-READINESS-EVERYWHERE — the 8-step brief used to live only on Design → Master Builder.
+    // Mount a scoped strip on every home (GC / design / developer all pass through here) so
+    // "what do I do next" is the first project question, not a destination you have to know exists.
+    // Fail-open: a brief that 500s shows "Readiness unavailable", not a blank next-action slot.
+    const readyHost = el("div");
+    root.append(readyHost);
+    const persona = document.body.dataset.persona || localStorage.getItem("persona") || "all";
+    void mountReadinessStrip(readyHost, {
+      load: () => this.host.api.masterBuilderBrief(pid, { workspace: this.wsFilter, persona }),
+      workspace: this.wsFilter,
+      persona,
+      onOpen: (dest) => this.goToDest(dest),
+    });
+
+    // PROJECT PULSE — five numbers, each with a sentence naming what is at risk. Sits under the
+    // readiness strip so "what is next" is above "what is at risk".
     //
     // Deliberately fire-and-forget and fully fail-open: a summary must never be able to break the
     // page it summarises. If an engine is slow or missing, the rail simply does not appear — which
     // is also why `pulseRailEl` returns null for an empty pulse rather than an empty heading.
-    void this.renderPulse(pid, root);
+    void this.renderPulse(pid, root, readyHost);
 
     // cross-module search
     const search = el("input") as HTMLInputElement;
@@ -1303,6 +1284,7 @@ export class PortalUI {
   private async renderPortfolio() {
     this.root.innerHTML = "";
     this.root.appendChild(this.bar("Portfolio", () => { this.activeKey = null; void this.renderHome(); this.buildNav(); }));
+    this.root.appendChild(await (await import("./panels/dealBrief")).renderDealBrief(this.panelCtx()));
     const vcol = (v: number) => v < 0 ? "var(--status-crit)" : v > 0 ? "var(--status-good)" : "var(--muted)";
     const pill: Record<string, [string, string]> = { on_track: ["On track", "var(--status-good)"], at_risk: ["At risk", "var(--status-warn)"], behind: ["Behind", "var(--status-crit)"] };
     const status = document.createElement("div"); status.className = "meta"; status.textContent = "loading portfolio…";

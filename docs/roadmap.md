@@ -448,53 +448,6 @@ cleanup. The three options:
 
 The engine work is done either way; only the naming is open.
 
-- ◧ **R31-CITE-HIGHLIGHT** *(NOT S — snippet display shipped v0.3.868; the data-model blocker was
-  CLEARED v0.3.877; **the citation became a control in v0.3.938** — all that remains is the viewer
-  `PageWords` bridge for the in-page highlight box)* — **the citation could not be resolved to
-  anything openable, so "make it a control" had nothing to click through to.**
-
-  **SHIPPED v0.3.938 — and the delay was self-inflicted, which is the lesson.** The work was one
-  afternoon once the premise was checked. What kept it open was that both citation renderers declared
-  their own inline `{ page, snippet }` type and dropped the `doc_id` and `openable` the server had
-  been sending since v0.3.877 — so the capability was invisible from both ends, and a code comment
-  plus this very entry both asserted a blocker that no longer existed. `citationContract.test.ts`
-  now asserts the shared `DocCitation` type against `doc_text.py` by set equality, so a client type
-  narrower than the response fails a build instead of quietly re-scoping a feature as blocked.
-
-  **CLEARED 2026-08-07.** The blocker was smaller and dumber than this entry knew: `ingest` ran
-  `extract_pdf_text` and then **discarded the PDF**, so even when a real document existed nothing
-  afterwards could open it. The index entry now carries `source` / `source_kind`, a posted PDF is
-  stored beside its chunks, `GET /projects/{pid}/doctext/{doc_id}/source` serves it, and every
-  citation reports `openable` as a value. A text-only ingest reports `openable: false` — there is no
-  document behind it and there never was, so that is an answer rather than a gap. **What remains is
-  only the viewer half**: `citeLocate.ts` is written against a structural interface and still needs
-  something to supply `PageWords`.
-
-  `doc_text.py` derives `doc_id` as a **slug of the document's name**, and the doctext index stores
-  `{doc_id, name, chunks, sections, ingested_at}` — no file id, no path. `ingest(pid, name, text=None,
-  pdf_bytes=None)` takes raw bytes plus a name, so **a doctext document need never have been a stored
-  file at all**; for a text ingest there is no PDF anywhere. `rfi_qa.py:182` switched citations to
-  `doc_id` in v0.3.810 describing it as "the RESOLVABLE identifier" — it is not resolvable either, so
-  that change moved the dead end rather than closing it.
-
-  Unblocking it needs a backend change first: record the source document (file id or storage key) on
-  the doctext index entry at ingest, and accept that text-only ingests can never highlight. Then the
-  viewer needs a `PageWords` bridge for `locatePassage` to read — `citeLocate.ts` is written against
-  a structural interface precisely so it does not depend on the viewer, but something must still
-  supply the words.
-
-  **Shipped instead (v0.3.868): the citation now shows the snippet it is citing**, which the server
-  has been sending all along and the UI discarded, rendering `p.12` alone. That is a page number the
-  reader had to take on trust in a draft about to go to a design team. It needs no resolution path.
-
-  Original: **the data half and the locator are both done; nothing calls them.** `doc_text.answer()` carries `doc_id` into every citation and `rfi_qa` passes the
-  passage as `span` (v0.3.810); `drawings/citeLocate.ts` finds that passage on the page and returns
-  its box, degrading through three match rungs and reporting ambiguity (v0.3.816). The remaining work
-  is one seam: `portal/panels/aiassist.ts` still renders `"Source: p.12"` as inert `textContent`, and
-  its local citation type declares only `{ page, snippet? }` — **it drops the `doc_id` and `span` the
-  server already sends.** Widen the type, make the citation a control, call the locator, draw the box.
-  *Recorded as unreachable in the module's own header so it cannot be mistaken for shipped
-  capability — the mistake this band exists to catch.*
 
 - ◧ **QTO-TRADE — the four procurement methods cannot be wired at all, and this is why.**
   *(**backend half DONE**; the remaining work is the other three methods' screens — Lane B, not C)*
@@ -533,41 +486,6 @@ The engine work is done either way; only the naming is open.
   not. **Route existence and input adequacy are different questions**, and the sweep only ever
   measured the first. The blocking work is a trade classification for QTO lines — backend, not UI.
 
-- ✅ **RATCHET-SET — the uncalled ceiling is a scalar with no floor, and it loosened silently today.**
-  *(S; `apps/web/src/api/clientCallers.test.ts`)*
-
-  **ALREADY DONE — verified 2026-08-13, and this entry was the stale thing.** The conversion landed
-  on 2026-08-07: `clientCallers.test.ts` now holds the committed `UNCALLED` set and there is no
-  surviving `toBeLessThanOrEqual` assertion anywhere in the file — the only occurrences are inside
-  the history comments explaining why the scalar was removed, which is exactly the shape that makes a
-  grep say "still there". It went further than this entry asked, too: rather than one set-equality it
-  asserts two directional `toEqual([])` checks, so *newly appeared* and *newly wired* report as
-  separate diffs instead of merging into one indistinguishable blob.
-
-  Left here rather than moved to `roadmap-completed.md` with the closing argument intact, because the
-  reasoning below is the record of *why* a scalar ceiling was the wrong instrument, and it is worth
-  reading before anyone adds another one.
-
-  The assertion is measured-less-than-or-equal-to-ceiling. **Nothing asserts the ceiling is tight**,
-  so a *higher* literal always passes. On 2026-08-07 five PRs lowered that one line from four
-  different bases; two live instances were caught only by hand: #254 carried 129 onto a main at 128,
-  and #273 carried 123 onto a main at 117 — each would have raised the ceiling with every gate green
-  and nobody able to see it.
-
-  **Merge sequencing does not fix this.** It decides *which* number lands, not whether it is true:
-  two PRs measured against one base are both correct until either merges, and then the second is
-  wrong. The second must **re-measure**, not rebase.
-
-  Replace the scalar with the committed **set of uncalled method names**, asserted equal. Tight by
-  construction (set equality has no loose direction); merge-friendly (two PRs reaching different
-  methods delete different lines instead of fighting over one); and strictly more informative — a
-  method moving into the known-uncalled exclusion becomes a visible line move rather than an
-  invisible population change.
-
-  **It does not fix the deeper problem and should not be sold as doing so.** A name leaving the list
-  still only proves a call site appeared, not that the feature works — a caller wired to an
-  incompatible input lowers the number while every gate stays green. That needs a second check:
-  a reach PR should show its endpoint returning real data with the arguments its own caller sends.
 
 - ◧ **R43-VIEWER-CONFORMANCE** *(S — Lane E; MassingViewer issue #512; **RUN 2026-08-13**, full
   result in [`docs/internal/viewer-conformance-2026-08-13.md`](internal/viewer-conformance-2026-08-13.md))*
@@ -652,16 +570,16 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX · UX-READINESS-EVERYWHERE · UX-DUP-DESTINATIONS · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-ELEMENT-CARD ② *(moved from E 2026-08-06 — the cell said E, the item's own text says the remaining work is "purely call sites: RFI, estimate line, pay app, COBie row", which live in `apps/web/src/ui/` and `apps/web/src/portal/panels/`. **A lane's paths and a lane's items are two claims and only the first is tested**, so the cell drifted from the item under it)* · R24-CHARTS-GRAMMAR · R24-REPORTS-BY-MOMENT · R24-DENSITY ② · R24-MONO-DATA · R24-TERMS · R24-FIELD-MODE · UX-GANTT · R22-REPORT-BUILDER · R23-SYMBOL-COUNT · R31-CITE-HIGHLIGHT · R36-ROOM-BRIEFS · R38-SHEET-MARKUP ③ · R39-A11Y-JOURNEYS ② |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
-| **D · Geometry & drawings** | `services/data/src/aec_data/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
+| **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑧ |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | BUILD-WORKTREE-CHUNKS *(lane added 2026-08-06 — **three sessions in one day flagged a path belonging to no lane**: `services/api/test_file_sizes.py`, `apps/web/src/style.css`, and the build scripts. Each flagged it correctly and then had to edit it anyway. An unowned shared path is not neutral ground; it is a collision nobody is watching for)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑬ · SCALE-SEAM ⑭ · SCALE-SEAM ⑮ · SCALE-SEAM ⑯ · SCALE-SEAM ⑰ · SCALE-SEAM ⑱ · SCALE-SEAM ⑲ · SCALE-SEAM ⑳ |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(the three cache locations drop all seven security headers)* · R39-CONTAINER-PR *(no PR job exercises a docker-action bump)* · R39-TSC-CACHE *(incremental tsc hides orphaned imports)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -751,11 +669,10 @@ that lanes do not *overlap*; nothing asserts they *cover*, and they do not. `app
 `proforma/`, `studio/`, `tools/`, `tree/`, `pins/`, `kernel/`, `account/`, `connections/` and the
 `portal/` root files (`prefs.ts`, `offlineQueue.ts`, `panelContext.ts`) belong to no lane, which the
 carve-out check in `roadmapLanes.test.ts` correctly calls "editable by everyone" when it happens
-deliberately. The live case: **`R23-SYMBOL-COUNT` and `R38-SHEET-MARKUP ③` are Lane B and land in
-`apps/web/src/drawings/`, while `R36-DRAWINGS-RETURN` is Lane A and lands there too** — so `drawings/`
-is contested by two lanes right now, the same shape as the register with the extra twist that nobody
-owns it. It needs its own premise-check and possibly the same answer. It is deliberately left open:
-guessing an owner for a directory two lanes are already aimed at is how the register problem was made.
+deliberately. The live case: **`R36-DRAWINGS-RETURN` is Lane A and lands in
+`apps/web/src/drawings/`**, so `drawings/` remains unowned rather than assigned by guess.
+It needs its own premise-check; guessing an owner for a directory a lane is already aimed at
+is how the register problem was made.
 
 **Shared files that need a heads-up before editing.** Every multi-session conflict so far has been one
 of these: `services/api/run_tests.py` · `services/api/src/aec_api/main.py` · `docs/roadmap.md` ·
@@ -821,10 +738,12 @@ that rotted were all sentences no test read. Note for whoever extends it — the
 
 ### Decisions, not effort — these want your call
 
-- **CC0-1.0 on the permitted licence list.** We already ship 59 CC0 files under
-  `services/data/families/external/`, and `manifest.json` records the licence in four places — so the
-  written rule is narrower than the shipped reality. CC0 is a public-domain dedication, strictly more
-  permissive than MIT. The recommendation is to add it; **widening an allowlist is not ours to do.**
+- ~~**CC0-1.0 on the permitted licence list.**~~ — **settled 2026-08-19 (v0.3.987): add it.** The
+  Python classifier already accepted CC0-1.0 from 2026-08-10 (gated by `test_licence_allowlist.py`);
+  the *written* non-negotiable and this open-decision bullet had not followed. Operator confirmed.
+  Directions, the npm title table, and this row now match the classifier. CC0 is a public-domain
+  dedication, strictly more permissive than MIT; 59 files under
+  `services/data/families/external/` already declared it.
 - **`massingviser` vs modelmaker — which is *the* platform?** Its own description is a federated AEC
   platform in pure Python with a plugin kernel. MassingViewer raised this because both are about to
   grow a federation manager, and two federation managers is the expensive version of this question.
@@ -1373,9 +1292,6 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
 
   The `MeshStandardMaterial` clause needs no work — every remaining use is GIS context, not the BIM
   pass.
-- **R23-SYMBOL-COUNT** *(M)* — deterministic template-match symbol counting in the **existing** pdf.js
-  takeoff worker: mark one instance, normalised cross-correlation, non-maximum suppression.
-  **Zero new dependencies**, offline, auditable — which matters for quantities that feed a bid.
 
 **Watch, not work:** WebGPU (`WebGPURenderer` exists in the pinned three, but Fragments targets WebGL
 — 2–3 year horizon) · browser-side IFC parsing (a streaming WASM parser now exists; server-side
@@ -1434,16 +1350,16 @@ is recorded. Filed under Decisions below.
 | 03 | roles gate the UI invisibly | R24-ROLE-EXPLAIN | ✅ v0.3.685 |
 | 04 | long jobs, foreground UI | R24-JOB-TRAY | ✅ **shipped; this row was stale** — `apps/web/src/ui/jobTray.ts` is 373 lines, mounted at `apps/web/src/main.ts:2052`, 28 tests. The ❌ survived its own implementation |
 | 05 | analyses are modals → no history | R24-RUNS-INBOX | ◧ **v0.3.947** — history + run-over-run diff in `apps/web/src/ui/runs.ts` / `apps/web/src/ui/runsInbox.ts`. The premise "no runs concept" was **half wrong**: `Job` already stores params, actor, timestamps and result. Routing clash/IDS/cost/energy *through* the queue is the open half |
-| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | ✅ v0.3.987 — `apps/web/src/ui/elementCard.ts` now mounts from the viewer inspector, cost traceability, RFI / estimate / owner-invoice records (`apps/web/src/portal/register/elementTies.ts`), and a COBie/asset row (`apps/web/src/portal/panels/assets.ts`) |
+| 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | ✅ **SHIPPED v0.3.1000** — `apps/web/src/ui/elementCard.ts` on the viewer, cost trace, and every register record that names a GUID (`apps/web/src/portal/register/tiedElements.ts`). There is no `pay_app` module (SOV line is the G703 row) and no COBie worksheet UI (asset register is the in-app Component row) |
 | 07 | onboarding teaches the chrome | FIRST-RUN | 🟡 improved v0.3.777; still not the lot → building → deal chain |
 | 08 | persona picker only relabels | *(none)* | ⚠️ reversed on purpose — see Decisions |
 | 09 | tools panel mixes verbs with analyses | *(none)* | ✅ **v0.3.848** — `R24-TOOLS-SPLIT` cut the 1087-line `qa` section in two; Analyse is its own rail item |
 | 10 | finance numbers have no provenance | R24-TRACE-UI | 🟡 v0.3.775 shipped trace for *cost coverage*; the proforma chain (IRR ← NOI ← rent roll ← area ← GUID) — the audit's actual demo — is not built |
-| 11 | density | R24-DENSITY | 🟡 two steps not three (`portal/prefs.ts:71`), dashboards only, **not registers** — which is where the 8-hour user lives |
-| 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | 🟡 `field/field.ts` is a real offline queue with GPS, still inside the desktop IA |
+| 11 | density | R24-DENSITY | ✅ **SHIPPED v0.3.996** — three steps on registers (`DENSITY_ROW_PX`), not dashboards only |
+| 12 | mobile is a bottom sheet in a desktop IA | R24-FIELD-MODE | ◧ **v0.3.1001–1008** — mode, 56 px, strip, dictation, capture landing, **room tabs hidden in field mode**. Portal home rewrite still Lane A |
 | 13 | search is scoped to modules | R24-CMDK-VERBS | ✅ **v0.3.946** — verbs, elements, reports and an assistant fallback; `apps/web/src/ui/paletteProviders.ts`. Fixed a second defect on the way: async hits were `concat`ed onto an already-grouped list, so a record landed under a **second** RECORDS heading below Modules |
 | 14 | empty states | R24-EMPTY-GUIDE | ✅ **verified done 2026-08-14** — the "24 lines, 'no project' only" reading is stale by a wide margin. `apps/web/src/ui/empty.ts` is 156 lines and R36-EMPTY-STATE shipped the hard part: a register with no rows distinguishes **none / filtered / failed**, because those send a reader to three different places and rendering them identically was the defect. Plus acronym-safe nouns ("No rfis yet" was the bug), `textContent` throughout since the name and the error body are untrusted, and `data-empty` so a test can assert WHICH kind was decided. Curated hints in `apps/web/src/ui/emptyGuide.ts` (157 lines), wired at two `register.ts` call sites, covered by `apps/web/src/ui/empty.test.ts` and `apps/web/src/ui/emptyGuide.test.ts` |
-| 15 | charts have no grammar | *(none)* | ❌ dropped → `R24-CHARTS-GRAMMAR` |
+| 15 | charts have no grammar | *(none)* | ✅ **SHIPPED v0.3.1002** — no-data, ticks/legend/currency, then series vs status (`SERIES_PALETTE` / `STATUS_*` in `apps/web/src/ui/charts.ts`) |
 | 16 | Report Center is a list of nouns | *(none)* | ❌ dropped → `R24-REPORTS-BY-MOMENT` |
 | 17 | three vocabularies collide | R24-TERMS | 🟡 **storey/floor settled v0.3.945** — `storey` was already canonical in the API, QUERY-DSL and both table headers; three chrome strings disagreed, one of them with its own tooltip. Gated by `apps/web/src/shell/storeyVocabulary.test.ts`, which permits *gross floor area* and *floor plan*. The element/component and estimate/budget/cost pairs are NOT settled and are a user decision, not a cleanup |
 | 18 | site promises a lifecycle, app opens on a shell | *(none)* | 🟡 R26-VITALS (v0.3.773) is arguably a **better** answer than the audit's lifecycle strip — treat as closed |
@@ -1484,18 +1400,6 @@ refute one, so this goes first even though it is the least visible.
   takes this should build the beacon and flip those two, and should not expect to write a backend test.
 ### Sprint 2 — cash the moat *(the differentiation no competitor can copy)*
 
-- ✅ **R24-ELEMENT-CARD ②** *(SHIPPED v0.3.987 — was S, was M, was L)* — the strip exists and works, **and the extraction it
-  was blocked on is DONE.** The card's frame + loader live in `apps/web/src/ui/elementCard.ts`. Call
-  sites: the viewer inspector, `apps/web/src/portal/panels/traceability.ts`, RFI / estimate /
-  owner-invoice records via `apps/web/src/portal/register/elementTies.ts`, and a COBie/asset row in
-  `apps/web/src/portal/panels/assets.ts`. Seeded `asset_register` rows now keep `element_guids`.
-
-  The extraction cost two import lines: `lifecycleStrip.ts` imported **one type** and nothing else — it
-  was already viewer-independent and merely *filed* under `viewer/`. Another estimate that came from
-  where a file sat rather than what it contained, which is why this dropped L → M → S.
-
-  Remaining was purely call sites: **RFI, estimate line, pay app, COBie row.** Those four now mount
-  the same card. `elementCard.ts` still takes a GlobalId and an API client.
 - ~~**R24-TRACE-UI ②**~~ *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
   **proforma emit its own derivation**: each headline figure carrying its inputs and a
   **model-derived / overridden / market-assumption** tag, terminating in a GlobalId where one exists.
@@ -1538,62 +1442,28 @@ refute one, so this goes first even though it is the least visible.
 
 ### Sprint 3 — the front door earns its keyboard
 
-- **R24-DENSITY ②** *(M)* — three steps (Field 56 px / Default 36 px / Compact 28 px) applied to
-  **registers**, not just the dashboards `prefs.ts` covers today. Tabular figures wherever a number appears.
-  *The register half is `portal/register/register.ts` as of v0.3.850 — inside Lane B, where this item
-  is. It was inside Lane A's `portal.ts` until then, which is why `R24-MONO-DATA` skipped its hunk.*
 
 ### Sprint 4 — field, and the long tail
 
-- **R24-FIELD-MODE** *(L)* — capture-first home, 56 px targets, 7:1 outdoor contrast, permanently
-  visible sync queue, dictation on notes. A mode, not a breakpoint.
-- 🟡 **R24-CHARTS-GRAMMAR** — **no-data rule SHIPPED v0.3.783**, the rest open. Only `histogram`
-  handled empty input; the other twelve drew their axes, gridlines and legend with nothing in them —
-  no `NaN`, nothing broken, and therefore indistinguishable from a chart whose data failed to load.
-  All nine framed charts now share `noData()`, and `CHART_KINDS` + `charts.test.ts` fail the build if
-  a new chart skips it.
-  **Tick / legend / currency SHIPPED v0.3.948**, and none of the three was cosmetic once measured:
-  - **Ticks.** Three charts hand-rolled the same gridline loop and the copies had already diverged —
-    `lineChart` labelled `max − (k/4)(max − min)`, `groupedBar` and `waterfall` labelled
-    `max − (k/4)·max`, a different axis whenever the minimum is not zero. And **`stackedBar` drew no
-    gridlines at all**, so a cash-flow chart beside a budget chart was read against different
-    furniture. One `yGrid`, and a source scan that fails on a local gridline loop.
-  - **Legend.** Four hand-rolled copies of the same magic coordinates → one `legendRow`. The donut
-    keeps the one legitimate position difference (under the ring, which has no plot to sit above) and
-    still goes through the helper, so swatch, size and spacing cannot drift.
-  - **Currency.** The real number was **22 declarations in six behaviours**, not the 18 a first grep
-    found — the gate enumerated the population and my grep had not. **Ten wrote
-    `` `$${Math.round(n).toLocaleString()}` ``, which renders a loss as `$-1,000`** with the currency
-    mark on the wrong side of the minus; three had already fixed it locally, so the panels disagreed
-    with themselves. `inspectorTabs.ts` used `Intl` currency *and* mapped a non-finite value to
-    **`$0`** — an absent number rendering as a plausible zero, the failure the vitals strip exists to
-    prevent. `proforma/format.ts` **exported** a competing one. All 22 now import `usd` from
-    `apps/web/src/ui/charts.ts`; `chartsGrammar` bans re-declaring it.
-    **And one of the 22 was not money at all**: the stormwater card's `usd` emitted no `$` because it
-    formats cubic feet. Converting it would have put a currency mark on a detention volume — so `qty`
-    exists, and the rule bans *declaring* a formatter rather than banning the name.
-  - `unit: "money" | "percent" | "count"` now says what a chart's numbers **are** rather than making
-    every caller remember a formatter; an explicit `fmt` still wins.
-
-  **Still open:** the series-colour split below.
-  **And one correction to the audit, made deliberately:** it says colour should be "restricted to the
-  four semantic hues". That is right for *status* and wrong for *series identity* — a seven-series
-  S-curve needs seven distinguishable colours, and collapsing them to four makes the chart unreadable
-  in service of a rule about badges. The split to enforce is **semantic hues for status, a
-  categorical ramp for series**, which is a different contract from `ui/colorContract.ts` (that one
-  governs CSS selectors; SVG fills are outside it entirely).
-- 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; scheduling still open.** The catalog was
+- ◧ **R24-FIELD-MODE** *(L — **① v0.3.1001 · ② v0.3.1004 · ③ v0.3.1006 · ④ v0.3.1008**)* — a mode, not a breakpoint.
+  `?field=1` / `aec-field-mode`, 56 px targets and ~7:1 on field chrome only (`apps/web/src/field/fieldMode.css`),
+  always-visible sync strip, dictation when the browser has SpeechRecognition (`apps/web/src/field/dictate.ts`).
+  Slice ②: field-mode CSS beats the FAB's inline 52 px. Slice ③: with a project open, field mode
+  **lands on the capture sheet** (`shouldOpenCaptureHome`). Slice ④: `#workspaces` is hidden while
+  the mode is on, so the seven-room tablist is not field home. Replacing the portal shell is Lane A.
+- 🟡 **R24-REPORTS-BY-MOMENT** — **grouping SHIPPED v0.3.785; assemble SHIPPED v0.3.1015; scheduling still open.** The catalog was
   **56 reports under 18 group headings, six holding a single report**. Seven packages now sit above
   them — owner monthly · lender draw · IC · precon/GMP · design issue · closeout · ownership quarter —
   each stating who asks and when, collapsed by default, with every report still under its noun
   heading below. `reportMoments.test.ts` reads `reports.py` and fails the build if a package names an
   id the server no longer defines; without that, a renamed report shortens a package silently on the
   Friday it is due.
-  **Still open: "scheduled and shared, not just downloaded."** A package is currently something you
-  open and click through. Making it a *scheduled deliverable* — assembled on a date, sent to a
-  recipient, with a record that it went — is the larger half and wants `routers/jobs.py` (now wired
-  to the UI by R24-JOB-TRAY) plus a delivery surface. That is a real feature, not a grouping change.
-- **R24-TERMS** *(S)* · **R24-MONO-DATA** *(S)* · **R24-DENSITY ②** *(M)* — the remaining long tail.
+  **Still open: "scheduled and shared, not just downloaded."** Assemble is a job
+  (`report_package` in `services/api/src/aec_api/jobs.py`, **Assemble** in `apps/web/src/reportCenter.ts`).
+  Making it a *scheduled deliverable* — sent to a recipient on a date — still wants a delivery surface
+  and SMTP. The Job row is already the record that a pack ran.
+- **R24-TERMS** *(S)* — the remaining long tail (element/component and estimate/budget/cost pairs
+  are a user decision; storey/floor settled v0.3.945).
 
 **Explicitly NOT in scope: the audit's visual identity** (ink canvas `#080C12`, IBM Plex Sans/Mono,
 the 24 px/192 px brand grid at 5–7%). It is the most seductive item in the document and the least
@@ -1847,9 +1717,6 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
     the pane had been unreachable (toggle button never appended), its fetch had failed cross-origin
     since v0.3.826 (`credentials:"include"` without a credentials CORS grant), and the live route
     dropped the `storey` param entirely — three defects only a live drive could see.
-- **R38-SHEET-MARKUP ③** *(M, Lane B)* — the vendored markup toolset (clouds, callouts, stamps,
-  tool sets) opened on the room's OWN generated sheets, markups tied to GUIDs through the existing
-  pin-to-drawing spine.
 - Consumes: R24-ELEMENT-CARD ② and R31-CITE-HIGHLIGHT (both already coded) as the "everything
   about this thing" surface.
 
@@ -2030,6 +1897,40 @@ plausible IoT reading — the connection was checked and deliberately not manufa
 `docs/internal/`, because `services/api/test_no_comparative_names.py` gates the public docs.*
 ## 🔧 R39 — DEPLOYMENT-TRUTH RING *(external engineering audit 2026-08-02, premise-checked item by item)*
 
+**Three items added 2026-08-20 from the PR-reconciliation pass** — each is a control that reads
+stronger than it is, which is this ring's whole theme:
+
+- **R39-NGINX-INHERIT ②** *(S, Lane J)* — **`nosniff` is absent from every bundle, WASM binary
+  and worker we serve.** nginx drops **all** server-level `add_header`s in any location that
+  declares one of its own. `apps/web/nginx.conf` has three such locations — `~* \.mjs$`,
+  `/assets/` and `/wasm/`, each declaring `Cache-Control` — so all **seven** security headers
+  vanish from exactly the responses where MIME sniffing matters most. Only `location = /index.html`
+  repeats the set. Found while reviewing the first outside contribution
+  ([#311](https://github.com/ibuilder/massing/pull/311)), which correctly identified the trap and
+  restored **2 of 7** headers on **1 of 3** locations — its accompanying test then froze that
+  partial state as correct by special-casing `Cross-Origin-*` to three scopes and everything else to
+  two. Take the contribution, then finish it: the gate should **derive** the locations that declare
+  an `add_header` and require the full set in each, so a *fourth* such location fails on the day it
+  is added rather than the day someone re-audits.
+- **R39-CONTAINER-PR** *(S, Lane J)* — **a Docker-action bump cannot be verified before it lands.**
+  `Container build + scan + publish` is gated `if: github.event_name == 'push' && github.ref ==
+  'refs/heads/main'`, so it reports **`skipping`** on every PR and *structurally cannot* run on one.
+  Dependabot's [#276](https://github.com/ibuilder/massing/pull/276) (`build-push-action` 6→7) and
+  [#279](https://github.com/ibuilder/massing/pull/279) (`setup-buildx-action` 3→4) both showed
+  all-green — a 21-minute API gate, a web build, CodeQL — and **not one of those greens exercised
+  the thing that changed.** A break lands directly on `main`. Wanted: a build-only, no-push
+  container job on PRs touching `**/Dockerfile` or `.github/workflows/ci.yml`. *Until it exists,
+  land such bumps alone, after an unrelated push has proven the baseline, so a red build has one
+  suspect and a one-commit revert.* **A skipped job is not a passed job.**
+- **R39-TSC-CACHE** *(XS, any lane)* — **a local typecheck is weaker than the CI one, silently.**
+  `apps/web/tsconfig.json` sets `"incremental": true` with a cached `tsBuildInfoFile`, so
+  `npm run typecheck` reuses program state and does not re-report unused-symbol diagnostics for a
+  file whose signature did not change. CI checks out clean and does. Measured on v0.3.1020: two type
+  imports orphaned by SCALE-SEAM ⑭ passed locally and failed CI with TS6196. Every "typecheck green"
+  quoted from a warm cache is a claim about the cache. Wanted: `predev`/`pretypecheck` clearing the
+  cache, or the flag dropped — extractions are exactly the change that leaves orphans, so the
+  weakness lands where it hurts.
+
 **Why this ring exists.** An external audit of the deployment surface found that several controls are
 weaker than they read: a throttle that counts per process behind four workers, an upload cap that only
 exists if requests happen to arrive through the bundled proxy. The shape is familiar — R35's theme of
@@ -2039,31 +1940,6 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 (`apps/web/nginx.conf` + `apps/web/src/deploy/nginx.test.ts`), the multi-worker sidecar-lock boot
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
 
-- **BUILD-WORKTREE-CHUNKS** *(M — Lane J)* — **a `vite build` from a git worktree succeeds and emits
-  the wrong bundle.** One commit, two checkouts: the `three-*.js` and `thatopen-*.js` chunks vanish and
-  the eager shell goes from **334 KB to 6,581 KB — 19.7×** — at **exit 0**. `searchForWorkspaceRoot`
-  returns the worktree root rather than the repo root, deps fall back to CommonJS interop, and the
-  `advancedChunks` rules never match. **Resolution is NOT the cause** — `three` and
-  `@thatopen/components` resolve to identical absolute paths in both checkouts.
-
-  **Three things had to line up for it to stay silent**, which is the part worth keeping:
-  `apps/web/scripts/bundle-budget.mjs` *computed and printed* the lazy-chunk count without asserting
-  it; the only objection came from the PWA precache limit, an accident rather than a check anyone
-  wrote; and `VitePWA` is excluded when `VITE_PAGES=1`, so on the public-facing path even the accident
-  is absent. `apps/web/vite.config.ts` had already written the warning in its own comment — *"verify by
-  grepping the OUTPUT, never by reading the config and believing it"* — and nobody was doing it.
-
-  **Half closed in v0.3.874:** `apps/web/scripts/copy-wasm.mjs` resolves the package instead of guessing
-  directory depth (the fix already existed one file away in `apps/web/vitest.config.ts`, and
-  `copy-wasm.mjs` imported `createRequire` and left it unused), and `bundle-budget.mjs` now *asserts*
-  the vendor chunks exist. What remains is workspace-root scoping in `apps/web/vite.config.ts`,
-  deliberately not taken inside a tooling PR: shared config, blast radius across every lane, and the
-  fix is scoping rather than resolution. **Interim policy, now in the gate's own failure message:**
-  builds happen in the main clone or in CI; a worktree build is for typecheck and tests, never a
-  shippable bundle.
-
-  **Still open beside it:** `npm run budget` is absent from `.github/workflows/pages.yml` entirely, so
-  the public build has neither guard. Being fixed as a follow-up.
 
 - ◧ **R39-UPLOAD-CAP-APP ①** *(S, Lane C — **FRONT HALF SHIPPED v0.3.876; the conversion of the
   36+ `await file.read()` call sites onto `storage.put_stream` remains, and is the rest of
@@ -2100,10 +1976,6 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   end. **Two entries, one mechanism** — fix either in isolation and the other still holds the memory
   open.
 
-- **R39-A11Y-JOURNEYS ②** *(M, Lane B)* — keyboard-only acceptance journeys for the seven rooms,
-  encoded as tests rather than an audit doc: for each room, tab-reach the primary action, operate it,
-  and land focus somewhere sane. The a11y sweeps so far checked *attributes*; nothing yet checks a
-  *journey*, and a journey is what a keyboard user actually has.
 - **R39-VIEWER-OBS ②** *(M, Lane E)* — the viewer has no timing record: "loads slowly" arrives as a
   feeling, not a number. Instrument the load journey (fetch → parse → first frame, keyed by model
   size) and POST the timings to the platform's own API — no third-party telemetry, nothing new to
@@ -2261,21 +2133,6 @@ which 7 were project accounting, and `Model & standards` held 14 mixing project 
 findings. Split into Build/Money and Model & standards/Analyse & check — **max group 14 → 7**, nothing
 removed. Remaining, in priority order:
 
-- ⭐ **UX-READINESS-EVERYWHERE** *(M; superseded by **R24-READINESS-HOME**, kept for its evidence)* — **the app already contains its own "simple stupid" front door
-  and hides it.** The Master Builder panel is a live 8-step readiness synthesis: each step reads
-  ready / partial / gap against real project data, names exactly what is missing ("needs: Jurisdiction
-  so code editions + loads resolve"), and offers **→ Close this gap** straight to the tool that fixes
-  it — plus an honest disclaimer that labels reflect what is *present*, not what is *correct*. That is
-  precisely the "tell me what to do next" surface a builder/developer/architect/engineer wants on
-  opening a project, and it is reachable from exactly ONE destination inside ONE workspace (Design).
-  Promote the readiness strip to every workspace dashboard, scoped per persona.
-  `Model Health` (8 references), `Model Analysis` (5) and `BIM KPIs` (5) are three
-  destinations whose names do not tell a user which answers their question; all three now sit together
-  under `Analyse & check`, which makes the overlap visible and worth resolving rather than hiding it.
-- **UX-GANTT** *(M)* — weekly Gantt/calendar hybrid with inline % + crew coloring + a metric strip.
-- ✅ **UX-DUP-DESTINATIONS** *(SHIPPED v0.3.987)* — the three Analyse destinations stay distinct and
-  now name the job in `apps/web/src/shell/destinations.ts`: Model checks · Read the model · ISO 19650
-  scorecard. Panel bars and Design home tiles read `destLabel` / `destTitle` so they cannot drift.
 - **UX-3 library depth** — thumbnails · drag-to-place · pick-host→auto-build · appendable IFC
   libraries · CC0 seed/H1. **UX-4** one-shell layout (a11y/mobile pass).
 ## 🏔 BIG-TICKET — multi-release initiatives (open ONE track; slice + reassess)
@@ -2311,8 +2168,9 @@ taxonomy should be derived from those same rooms rather than invented again.
 
 **One external measurement worth keeping**, because it puts a number on an item we already hold:
 current models score **40–55% on object-counting from drawing sets**, with symbols and linework the
-weakest part. That is direct corroboration of **R23-SYMBOL-COUNT** (Lane B) and a reason to treat it as
-higher-value than its size suggests — it is the measurable floor under every takeoff claim.
+weakest part. That is direct corroboration of **R23-SYMBOL-COUNT** (Lane B; **SHIPPED v0.3.1011**)
+and a reason it was higher-value than its size suggested — it is the measurable floor under every
+takeoff claim.
 
 The framing worth adopting even though it is not a feature: **reduce verification cost, not just
 production cost.** Several items already do this without saying so; it is the sharper way to argue for
@@ -2770,19 +2628,38 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   that is there.
 
   Remaining: the **keynote → spec section** link (the spec surface now exists; keynotes do not yet
-  carry their section code), and slice 6 as specified above.
+  carry their section code), and slice 6 as specified above. **Print paper picker (v0.3.993):**
+  Issue / Sheet PDF / Place and the paper-space editor share `drawings.py` `PAGES` — ARCH-C/D/B/A and
+  ISO A0–A4. Default is **ARCH-C (24×18 in)**; that is not an ISO A size. ARCH-D is full-size US
+  CDs (36×24), ARCH-B is half of D, ARCH-A is the next ARCH step (often called quarter of D).
+  Unknown `page` is 422, never a silent A1/A3. Omitting `page` on `compose()` is still A3 so old
+  links do not change paper. 11×17 is omitted on purpose (not half of 24×36). Live PDF still
+  needs a source IFC — the demo's "no model" cannot exercise the box.
 
-- **R36-ROOM-BRIEFS** *(M — Lane B; one room per release)* — per-room, per-role landing priority:
-  each room opens with the three answers its primary role needs (superintendent in Schedule: today's
-  lookahead, blockers, yesterday's variance; developer in Deal: returns vs guardrails, open
-  diligence, next decision gate). Write each brief as a short spec in the room's panel file header,
-  then make the panel match it. The Work room already does this by construction; it is the template.
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ⑧ — `client.ts` is no longer a god-file, but the split is not finished.** *(◧ added 2026-08-06: the bullet's own text says ②–⑧ have shipped and `apps/web/src/api/proforma.ts` declares ⑧ — the SLICE is done and the SERIES is not, which is exactly what ◧ means)* ②–⑧ have
-  shipped: `schedule.ts` (v0.3.800, 26 methods / 207 lines) · `model.ts` (v0.3.802, 29) · `modules.ts`
-  (v0.3.803, 34) · `estimate.ts` (v0.3.804, 12) · `procurement.ts` (9) · `auth.ts` (20) · `proforma.ts` (⑧).
-  **`client.ts` went 4,956 → 3,796 lines** (`wc -l`; ⑦ left it at 3,871). ⑨ is the next route-group by size; pick it by
+- ◧ ⭐ **SCALE-SEAM ⑳ — `client.ts` is no longer a god-file, but the split is not finished.** *(⑳ `/topics` SHIPPED v0.3.1025; ②–⑲ already shipped)*
+  **⑳ took `/projects/{pid}/topics` out** (7 methods in three regions; `client.ts` 3,243 → 3,205)
+  as `apps/web/src/api/topics.ts`. `pins()` stays (`/pins`). The increment marker in
+  `roadmapLanes.test.ts` currently runs ①–⑳; the next cut needs that class widened before
+  it can be named ㉑.
+
+  **⑲ took `/projects/{pid}/mep` out** (7 methods in four regions; `client.ts` 3,304 → 3,243)
+  as `apps/web/src/api/mep.ts`. `connectMep` / `addMepFitting` stay (`editIfc`).
+
+  **⑱ took `/projects/{pid}/documents` out** (9 methods, one contiguous run; `client.ts` 3,353 → 3,304)
+  as `apps/web/src/api/documents.ts`. `api/docqa.ts` stays `/review` + `/doctext`.
+
+  **⑰ took `/projects/{pid}/models` out** (9 methods in four regions; `client.ts` 3,412 → 3,353)
+  as `apps/web/src/api/models.ts` (`withModels`). `api/model.ts` stays `/model`.
+
+  **⑯ took `/projects/{pid}/elements` out** (11 methods in five regions; `client.ts` 3,482 → 3,412)
+  as `apps/web/src/api/elements.ts`. `elements5dMap` (`/5d/heatmap`) and the job tray stay.
+
+  **⑮ took `/projects/{pid}/drawings` out** (11 methods in six regions; `client.ts` 3,538 → 3,482)
+  as `apps/web/src/api/drawingSheets.ts`. `markupStream` uses `liveStream` on HttpCore.
+
+  **`client.ts` went 4,956 → 3,205 lines** (`wc -l`). Next is the next route-group by size; pick it by
   re-running the classification below, not by reading the section comments.
 
   **This entry read `③+` and named `/model`, `/modules` and `/estimate` as the next groups until

@@ -2,7 +2,10 @@ import type { ApiClient } from "../../api/client";
 import { toast, withLoading } from "../../ui/feedback";
 import { kvTable, resultNote, showResult } from "../../ui/result";
 import type { CanvasModeSwitch } from "../canvasMode";
-import { type ViewSpec, railSheetOptions, sheetPath, viewsForCanvas } from "../sheetSpecs";
+import {
+  type ViewSpec, PAGE_CATALOG, isSheetPage, railSheetOptions, readSheetPage,
+  sheetPath, viewsForCanvas, writeSheetPage,
+} from "../sheetSpecs";
 
 /**
  * R39-DECOMP-VIEWER ⑧ — the **Drawings & sheets** rail group, out of `app.ts`.
@@ -10,8 +13,8 @@ import { type ViewSpec, railSheetOptions, sheetPath, viewsForCanvas } from "../s
  * The drawing set as the rail presents it: the plan (as a docked canvas or an SVG export), the
  * issuable A-101 sheet in SVG and PDF, "place this view on a sheet", the computed schedules and
  * their A-601 sheet, the MasterFormat project manual, and sections/elevations with their DXF
- * siblings. Nine buttons, returned in rail order so the caller's `railGroup` call stays the
- * ordering decision it already was.
+ * siblings. A paper-size picker plus nine buttons, returned in rail order so the caller's
+ * `railGroup` call stays the ordering decision it already was.
  *
  * ## Why this slice, after the builders map was already out
  *
@@ -53,8 +56,26 @@ export interface DrawingsDeps {
   activeStoreyZ: () => number;
 }
 
-/** Builds the Drawings & sheets buttons, in the order the rail group expects them. */
-export function buildDrawingsSection(d: DrawingsDeps): HTMLButtonElement[] {
+function paperPicker(): HTMLSelectElement {
+  const sel = document.createElement("select");
+  sel.className = "portal-filter";
+  sel.style.width = "100%";
+  sel.title = "Sheet paper. 24×18 in is ARCH C, not an ISO A size. ARCH D is full-size US CDs "
+    + "(36×24); ARCH B is half of D; ARCH A is the next step (often called quarter of D).";
+  const current = readSheetPage();
+  for (const { key, label } of PAGE_CATALOG) {
+    const opt = document.createElement("option");
+    opt.value = key;
+    opt.textContent = label;
+    if (key === current) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.onchange = () => { if (isSheetPage(sel.value)) writeSheetPage(sel.value); };
+  return sel;
+}
+
+/** Builds the Drawings & sheets controls, in the order the rail group expects them. */
+export function buildDrawingsSection(d: DrawingsDeps): HTMLElement[] {
   // W11 C1: generate a schematic plan drawing (SVG) from the model, at the active level if one is set.
   // Routes through the mode switch rather than toggling the pane itself: two independent
   // controls over one element is how "both visible" and "neither visible" become reachable.
@@ -80,24 +101,21 @@ export function buildDrawingsSection(d: DrawingsDeps): HTMLButtonElement[] {
   planBtn.title = "Generate a schematic plan drawing (SVG, 1:100) from the model geometry — walls/columns/"
     + "slabs as class-styled poché with dimensions + keynotes. The active level scopes it.";
 
-  // W11 C3: compose an issuable sheet (ARCH-D border + titleblock) around the plan.
-  // Options come from sheetSpecs.ts, which can emit nothing the route does not declare — these
-  // three used to send `number`/`title`/`scale`, which sheet.* drops. See that file's header.
+  // W11 C3: compose an issuable sheet (picker paper + titleblock) around the plan.
   const openSheet = (fmt: "svg" | "pdf", views?: ViewSpec[]) => window.open(
     d.api.url(sheetPath(d.projectId!, fmt, railSheetOptions(d.activeStorey(), views))), "_blank");
   const sheetBtn = d.toolBtn2("📄 Issue sheet (A-101)", () => openSheet("svg"));
-  sheetBtn.title = "Compose an issuable construction sheet — ARCH-D border + titleblock (project, sheet "
-    + "number, scale, north arrow) with the plan placed in a scaled viewport. The deliverable.";
-
-  // W11 C3b: the submittable PDF of the sheet (reportlab, permit-ready).
+  sheetBtn.title = "Compose an issuable construction sheet — selected paper + titleblock (project, sheet "
+    + "number, scale, north arrow) with the plan placed in a scaled viewport. Default paper is ARCH C "
+    + "(24×18 in).";
   const pdfBtn = d.toolBtn2("⤓ Sheet PDF (A-101)", () => openSheet("pdf"));
-  // R36 slice 3 — place WHAT IS ON THE CANVAS; the first point at which 2D and 3D are peers on paper.
   const placeBtn = d.toolBtn2("🖼 Place this view on a sheet",
     () => openSheet("pdf", viewsForCanvas(d.modeSwitch.active === "sheets" ? "2d" : "3d", d.activeStoreyZ())));
   placeBtn.title = "Sheet PDF of the view you are looking at — the active level's plan in 2D, a true "
-    + "isometric in 3D. Both are vector drawings that keep their GlobalIds, not screenshots.";
-  pdfBtn.title = "Download the sheet as a PDF (ARCH-D, titleblock, plan poché + dimensions + keynotes) — "
-    + "the submittable construction-document deliverable, rendered server-side.";
+    + "isometric in 3D. Both are vector drawings that keep their GlobalIds, not screenshots. Paper "
+    + "size is the picker value (default ARCH C, 24×18 in).";
+  pdfBtn.title = "Download the sheet as a PDF (selected paper, titleblock, plan poché + dimensions + "
+    + "keynotes) — the submittable construction-document deliverable, rendered server-side.";
 
   // W11 C4: computed door / window / room schedules from the model.
   const openSchedules = async () => {
@@ -202,7 +220,7 @@ export function buildDrawingsSection(d: DrawingsDeps): HTMLButtonElement[] {
   });
   sectBtn.title = "Cut sections (auto-centred on the model) and projected N/S/E/W elevations — vector "
     + "linework from the model geometry, the other half of the drawing set alongside plans.";
-  // Returned in rail order. `planPaneBtn` before `planBtn`: the docked pane is the daily surface,
-  // the SVG export the occasional one.
-  return [planPaneBtn, planBtn, sheetBtn, pdfBtn, placeBtn, schedBtn, schedPdfBtn, manualBtn, sectBtn];
+  // Returned in rail order. Picker first so Issue/PDF/Place all read the same stored size.
+  // `planPaneBtn` before `planBtn`: the docked pane is the daily surface, the SVG export the occasional one.
+  return [paperPicker(), planPaneBtn, planBtn, sheetBtn, pdfBtn, placeBtn, schedBtn, schedPdfBtn, manualBtn, sectBtn];
 }

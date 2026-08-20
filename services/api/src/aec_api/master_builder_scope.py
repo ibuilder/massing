@@ -1,0 +1,56 @@
+"""Which Master Builder protocol steps a workspace/persona actually asks.
+
+Kept free of SQLAlchemy / FastAPI so the lockstep test against the TS strip can run
+without the API venv. `brief()` still lives in master_builder.py; this only scopes it.
+"""
+from __future__ import annotations
+
+from typing import Any
+
+# Same maps as apps/web/src/portal/panels/readinessStrip.ts — asserted by
+# test_master_builder_scope.py so the protocol cannot fork between layers.
+STEPS_BY_WORKSPACE: dict[str, tuple[str, ...]] = {
+    "construction": ("delivery", "risk", "design", "handover"),
+    "design": ("place", "program", "design", "regulatory"),
+    "developer": ("place", "program", "feasibility", "regulatory"),
+}
+STEPS_BY_PERSONA: dict[str, tuple[str, ...]] = {
+    "superintendent": ("delivery", "risk", "handover"),
+    "project_manager": ("delivery", "risk", "feasibility", "design"),
+    "gc": ("delivery", "risk", "design", "feasibility"),
+    "architect": ("place", "program", "design", "regulatory"),
+    "engineer": ("design", "regulatory", "place"),
+    "developer": ("place", "program", "feasibility", "regulatory"),
+    "subcontractor": ("delivery", "risk"),
+}
+
+
+def scope_step_keys(workspace: str, persona: str) -> list[str]:
+    """Intersect persona with workspace; empty intersect keeps the workspace set."""
+    ws = STEPS_BY_WORKSPACE.get(workspace) or STEPS_BY_WORKSPACE["construction"]
+    if not persona or persona == "all":
+        return list(ws)
+    keep = STEPS_BY_PERSONA.get(persona)
+    if not keep:
+        return list(ws)
+    # Persona order, then workspace membership — a superintendent still sees delivery
+    # first; an engineer on Design sees design → regulatory → place, not place first.
+    # Empty intersect still falls back to the workspace set so the strip cannot vanish.
+    scoped = [k for k in keep if k in ws]
+    return scoped or list(ws)
+
+
+def apply_scope(brief: dict[str, Any], workspace: str | None, persona: str | None) -> dict[str, Any]:
+    """Filter `steps` for a home strip. Overall readiness_pct / step_count stay on the full 8.
+
+    Pills follow the scoped `keys` list (persona order when a persona is set,
+    otherwise workspace order), not protocol number order.
+    """
+    if not workspace:
+        return brief
+    keys = scope_step_keys(workspace, persona or "all")
+    by_key = {s.get("key"): s for s in brief.get("steps") or []}
+    out = dict(brief)
+    out["steps"] = [by_key[k] for k in keys if k in by_key]
+    out["scope"] = {"workspace": workspace, "persona": persona or "all", "keys": keys}
+    return out

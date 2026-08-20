@@ -64,6 +64,20 @@ with tempfile.TemporaryDirectory() as d:
     check("what comes back is what went in", got == payload)
     check("a different key is still a miss", bs.get("model-B") is None)
 
+    store = bs._store()
+    check("the on-disk codec is JSONDisk, not pickle Disk",
+          store is not None and type(store.disk).__name__ == "JSONDisk",
+          type(getattr(store, "disk", None)).__name__ if store else "no store")
+    mode = os.stat(d).st_mode & 0o777
+    check("the cache directory is mode 0700 (owner-only)", mode == 0o700, oct(mode))
+
+    four = [("2O2Fr$t4X7Zf8NOew3FNrX", "IfcWall",
+             [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], [[0, 1, 0]])]
+    check("a 4-tuple row (guid, class, verts, faces) round-trips",
+          bs.put("model-4", four) is True and bs.get("model-4") == four)
+    check("bytes in the mesh are refused rather than pickled",
+          bs.put("model-bin", [("IfcWall", b"nope", [[0, 1, 0]])]) is False)
+
     st = bs.stats()
     check("the cache can be measured", st.get("enabled") and st.get("entries", 0) >= 1,
           f"entries={st.get('entries')} bytes={st.get('bytes')}")

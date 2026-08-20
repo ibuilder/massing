@@ -11,7 +11,7 @@ import { allQueued, dequeue, enqueueUpload, queuedCountForRecord } from "../offl
 import type { PanelContext } from "../panelContext";
 import { pushRecent } from "../prefs";
 import { schemaStaleBanner } from "./schemaStale";
-import { appendRecordElementTies } from "./elementTies";
+import { renderTiedElements } from "./tiedElements";
 
 /**
  * How many records of a referenced module are fetched to build the id→label map for a table.
@@ -648,6 +648,7 @@ export class RegisterUI {
           tr.appendChild(this.refCell(String(v), c, refMaps[c.name]));
         } else {
           cell(this.fmtCell(c, v));
+          if (isNumericField(c.type)) tr.lastElementChild?.classList.add("num");
         }
       }
       tr.appendChild(this.assigneeCell(pid, m, r));   // inline-editable
@@ -1212,7 +1213,7 @@ export class RegisterUI {
     ta.placeholder = "name\tstatus\tamount\nFooting F-1\topen\t1200\n…";
     ta.setAttribute("aria-label", "Pasted spreadsheet rows");
     ta.style.cssText = "width:100%;min-height:150px;margin:8px 0;padding:8px;border:1px solid var(--line);"
-      + "border-radius:6px;background:var(--bg);color:inherit;font-family:ui-monospace,monospace;font-size:12px;white-space:pre;overflow:auto";
+      + "border-radius:6px;background:var(--bg);color:inherit;font-family:var(--mono);font-size:12px;white-space:pre;overflow:auto";
     const row = document.createElement("div");
     row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:4px";
     const cancel = document.createElement("button"); cancel.textContent = "Cancel"; cancel.className = "file-btn";
@@ -2248,7 +2249,10 @@ export class RegisterUI {
     this.ctx.root.appendChild(relatedBox);
     void this.renderRelated(relatedBox, m.key, rid);
 
-    appendRecordElementTies(this.ctx.root, this.ctx.host, m, r, rid, () => void this.openRecord(m, rid));
+    this.ctx.root.appendChild(await renderTiedElements({
+      pid, moduleKey: m.key, ref: r.ref, record: r, host: this.ctx.host,
+      onReload: () => { void this.openRecord(m, rid); },
+    }));
 
     // workflow actions (server-gated by party)
     const acts = r.available_actions ?? [];
@@ -2509,5 +2513,4 @@ export class RegisterUI {
     wrap.append(cv, clear);
     return () => (dirty ? cv.toDataURL("image/png") : "");
   }
-
 }

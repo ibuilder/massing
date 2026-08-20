@@ -12,10 +12,9 @@
  * so plainly rather than padding with filler — `risk: null` renders as nothing, because a reassuring
  * sentence that means nothing teaches people to stop reading the card.
  *
- * This module is **pure**: engines in, cards out. Every input already exists (`modelHealth`,
- * `costSummary`/`evm`, `scheduleVariance`, `workQueue`, `proformaLive`) — Pulse invents no numbers of
- * its own, which is the rule that keeps it from becoming a sixth source of truth that disagrees with
- * the five panels it summarises.
+ * This module is **pure**: engines in, cards out. Every input already exists
+ * (`GET /projects/{id}/pulse` maps `modelHealth`, cost summary, schedule variance,
+ * work queue, and the latest IRR). Pulse invents no numbers of its own.
  */
 
 export type PulseTone = "good" | "watch" | "risk";

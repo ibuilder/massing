@@ -1,5 +1,6 @@
 import type { ApiClient } from "../api/client";
 import { sanitizeSvg } from "../ui/sanitizeSvg";
+import { PAGE_CATALOG, isSheetPage, readSheetPage, writeSheetPage } from "../viewer/sheetSpecs";
 
 /** SHEET-VIEWPORTS — the interactive paper-space editor over the v0.3.449 layout endpoints.
  *
@@ -59,7 +60,16 @@ export function openLayoutEditor(api: ApiClient, pid: string, mount: HTMLElement
   head.innerHTML = `<b>⊞ Paper space</b> <span class="meta">— viewports compose server-side; drag a
     rectangle on the preview to move it</span>`;
   const presetSel = mkSel(["key", "quad", "plan-pair"]);
-  const pageSel = mkSel(["A1", "A3", "A4"], "A1");
+  const pageSel = document.createElement("select");
+  pageSel.className = "portal-filter";
+  const pageNow = readSheetPage();
+  for (const { key, label } of PAGE_CATALOG) {
+    const opt = document.createElement("option");
+    opt.value = key;
+    opt.textContent = label;
+    if (key === pageNow) opt.selected = true;
+    pageSel.appendChild(opt);
+  }
   const numberIn = Object.assign(document.createElement("input"), { value: "A-100" });
   numberIn.className = "portal-filter"; numberIn.style.width = "80px";
   const titleIn = Object.assign(document.createElement("input"), { value: "LAYOUT" });
@@ -185,7 +195,10 @@ export function openLayoutEditor(api: ApiClient, pid: string, mount: HTMLElement
     viewports = JSON.parse(JSON.stringify(presets[presetSel.value] || []));
     renderVps(); void refresh();
   };
-  pageSel.onchange = () => schedule();
+  pageSel.onchange = () => {
+    if (isSheetPage(pageSel.value)) writeSheetPage(pageSel.value);
+    schedule();
+  };
   numberIn.oninput = titleIn.oninput = () => schedule();
   addBtn.onclick = () => {
     viewports.push({ kind: "plan", elevation: 0, rect: [0.05, 0.05, 0.4, 0.4] });

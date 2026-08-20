@@ -14,10 +14,10 @@ exactly the kind of code that works in testing and corrupts under load.
 a temp directory the operator never chose is a surprise, and on a single-worker deployment it buys
 nothing — the in-process cache already covers that case.
 
-The stored value is the mesh arrays, not trimesh objects: a pickled third-party object is a format
-that changes when that library upgrades, and a cache entry that deserialises into something subtly
-different is worse than a miss. Vertices and faces are plain arrays, so what comes back is what went
-in or nothing at all.
+The stored value is JSON lists of mesh arrays, not trimesh objects and not pickle. Vertices and
+faces round-trip as nested lists (numpy `.tolist()` on the way in). What comes back is what went
+in or nothing at all. JSONDisk is the answer to CVE-2025-69872 for this store: the values were
+already arrays, so pickle was never load-bearing.
 """
 from __future__ import annotations
 
@@ -38,6 +38,66 @@ def enabled() -> bool:
     return bool(os.environ.get(_ENV_DIR))
 
 
+def _as_list(value):
+    """JSONDisk cannot store numpy arrays or tuples. Nested lists round-trip as themselves.
+
+    Bytes are refused (TypeError) rather than left for pickle: JSONDisk would fail the write
+    anyway, and a silent fallback to Disk is exactly the advisory path this exists to close.
+    """
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, bytes):
+        raise TypeError("bake share stores JSON, not bytes")
+    if hasattr(value, "tolist"):
+        return _as_list(value.tolist())
+    if isinstance(value, tuple):
+        return [_as_list(x) for x in value]
+    if isinstance(value, list):
+        return [_as_list(x) for x in value]
+    if isinstance(value, dict):
+        return {str(k): _as_list(v) for k, v in value.items()}
+    raise TypeError(f"bake share cannot JSON-encode {type(value).__name__}")
+
+
+def _jsonable(payload):
+    """Mesh rows → nested lists, or None if the shape is wrong.
+
+    Production writes `(guid, cls, vertices, faces)` (R38-PLAN-IDENTITY). A payload we cannot
+    encode is refused rather than pickled — falling back to pickle on 'just this one array'
+    would re-open the advisory this exists to answer.
+    """
+    rows = []
+    try:
+        for row in payload:
+            if len(row) == 4:
+                guid, cls, verts, faces = row
+                rows.append([guid, cls, _as_list(verts), _as_list(faces)])
+            elif len(row) == 3:
+                cls, verts, faces = row
+                rows.append([cls, _as_list(verts), _as_list(faces)])
+            else:
+                return None
+    except (TypeError, ValueError):
+        return None
+    return rows
+
+
+def _from_json(raw):
+    if not isinstance(raw, list):
+        return None
+    out = []
+    for row in raw:
+        if not isinstance(row, (list, tuple)) or len(row) not in (3, 4):
+            return None
+        if len(row) == 4:
+            guid, cls, verts, faces = row
+            out.append((guid, cls, verts, faces))
+        else:
+            cls, verts, faces = row
+            out.append((cls, verts, faces))
+    return out
+
+
 def _store():
     """The shared cache, or None. Opened once; a failure to open disables sharing rather than
     breaking rendering — geometry must still be produced on a box where the directory is unwritable."""
@@ -51,8 +111,16 @@ def _store():
     try:
         import diskcache
         limit = int(os.environ.get(_ENV_MB, "4096")) * 1024 * 1024
-        _cache = diskcache.Cache(d, size_limit=limit, eviction_policy="least-recently-used")
-        log.info("shared bake cache at %s (limit %d MB)", d, limit // (1024 * 1024))
+        os.makedirs(d, mode=0o700, exist_ok=True)
+        try:
+            os.chmod(d, 0o700)
+        except OSError:
+            pass
+        # JSONDisk: the pickle path is CVE-2025-69872. Geometry is arrays; JSON lists are enough.
+        _cache = diskcache.Cache(
+            d, size_limit=limit, eviction_policy="least-recently-used",
+            disk=diskcache.JSONDisk)
+        log.info("shared bake cache at %s (limit %d MB, JSONDisk)", d, limit // (1024 * 1024))
     except Exception as exc:            # noqa: BLE001 — sharing is an optimisation, never a hard dep
         log.warning("shared bake cache unavailable (%s) — falling back to per-process only", exc)
         _cache = None
@@ -69,7 +137,7 @@ def get(key: str):
     if c is None:
         return None
     try:
-        return c.get(key)
+        return _from_json(c.get(key))
     except Exception:                   # noqa: BLE001 — a corrupt or locked entry is a miss
         log.debug("shared bake read failed for %s", key, exc_info=True)
         return None
@@ -82,7 +150,10 @@ def put(key: str, payload) -> bool:
     if c is None:
         return False
     try:
-        return bool(c.set(key, payload))
+        encoded = _jsonable(payload)
+        if encoded is None:
+            return False
+        return bool(c.set(key, encoded))
     except Exception:                   # noqa: BLE001
         log.debug("shared bake write failed for %s", key, exc_info=True)
         return False
