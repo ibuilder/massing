@@ -4,6 +4,12 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased
+
+### Fixed
+
+- Preserve cross-origin isolation headers for module workers in Nginx deployments so IFC geometry loading does not stall.
+
 ## v0.3.1027 (2026-08-20) — a sanitiser narrower than its input type
 
 ### Fixed

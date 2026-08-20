@@ -1,15 +1,18 @@
 /**
  * Deployment-header regression gate over nginx.conf.
  *
- * Two failure modes this exists to catch, both of which ship silently:
+ * Three failure modes this exists to catch, all of which ship silently:
  *
  *   1. **The add_header inheritance trap.** An nginx location with ANY `add_header` of its own
  *      drops ALL server-level ones — so the `location = /index.html` block (which must add
  *      Cache-Control) has to repeat every security header verbatim. A header added at server
  *      level but not in that block is absent from the one response that matters most: the
- *      top-level document. This test asserts the two scopes carry an IDENTICAL security set.
+ *      top-level document. The `.mjs` worker location also defines Cache-Control, so it must
+ *      repeat COOP/COEP or geometry loading can stall despite a 200 response.
  *
- *   2. **CSP vs the entry point.** script-src deliberately has no 'unsafe-inline', which means
+ *   2. **Worker isolation.** The hashed `.mjs` geometry worker must preserve COOP/COEP.
+ *
+ *   3. **CSP vs the entry point.** script-src deliberately has no 'unsafe-inline', which means
  *      an inline <script> in index.html would be blocked by the very policy we ship — a blank
  *      app in production with a green build. The entry point is asserted inline-script-free
  *      here, next to the policy that makes it a requirement.
@@ -42,11 +45,20 @@ function headerLines(name: string): string[] {
 }
 
 describe("nginx security headers", () => {
-  it.each(SECURITY_HEADERS)("%s is set in both scopes with the same value", (name) => {
+  it.each(SECURITY_HEADERS)("%s is set in every required scope with the same value", (name) => {
+    const requiredScopes = name.startsWith("Cross-Origin-") ? 3 : 2;
     const lines = headerLines(name);
-    expect(lines.length, `${name} must appear at server level AND in location = /index.html — ` +
-      "a location-level add_header drops the inherited set").toBe(2);
-    expect(new Set(lines).size, `${name} differs between the two scopes`).toBe(1);
+    expect(lines.length, `${name} is missing from a scope that defines its own add_header set`)
+      .toBe(requiredScopes);
+    expect(new Set(lines).size, `${name} differs between scopes`).toBe(1);
+  });
+
+  it("the .mjs worker location preserves cross-origin isolation", () => {
+    const start = conf.indexOf("location ~* \\.mjs$");
+    const end = conf.indexOf("}", start);
+    const block = start === -1 || end === -1 ? "" : conf.slice(start, end + 1);
+    expect(block).toContain("add_header Cross-Origin-Opener-Policy same-origin always;");
+    expect(block).toContain("add_header Cross-Origin-Embedder-Policy require-corp always;");
   });
 
   it("every add_header uses `always` so headers survive error responses", () => {
