@@ -1,7 +1,7 @@
 # Data service — IfcOpenShell extraction, QA & clash (guide §8 + analysis)
 ifcopenshell>=0.8.5,<0.9
 openpyxl>=3.1          # XLSX export
-numpy>=2.5.1           # geometry-derived quantities, AABB clash
+numpy>=2.5.2           # geometry-derived quantities, AABB clash
 ifctester>=0.8        # IDS / openBIM model validation
 # Held at 4.12.2, which is what `services/api/requirements.lock` pins and therefore what the
 # container actually runs — this file is NOT installed anywhere (the API image installs only that
