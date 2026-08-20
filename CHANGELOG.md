@@ -4,6 +4,18 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1027 (2026-08-20) — a sanitiser narrower than its input type
+
+### Fixed
+
+- **`js/incomplete-sanitization` (HIGH)**, the one CodeQL alert the merged chain introduced.
+  `charts.test.ts` escaped a status colour for a regex with `[.#]` — wrong in both directions:
+  `#` is not a metacharacter and never needed escaping, while `(`, `|`, `*` and `\` were absent.
+  Correct for today's `#rrggbb` inputs, and the day a token becomes `rgb(1,2,3)` those parens
+  compile as a **group**, so the "declared once" count silently stops meaning what it says.
+  Not exploitable — test-only, constant input — and fixed anyway, because a sanitiser narrower
+  than its input *type* is a latent wrong answer rather than a style nit.
+
 ## v0.3.1026 (2026-08-20) — a plan that grazes the storey now says so
 
 ### Fixed
