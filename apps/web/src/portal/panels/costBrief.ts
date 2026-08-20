@@ -1,6 +1,6 @@
 import { usd } from "../../ui/charts";
 import type { PanelContext } from "../panelContext";
-import { fail, mountBrief } from "./roomBriefChrome";
+import { briefPrimary, fail, mountBrief, openRoomModule } from "./roomBriefChrome";
 
 /**
  * R36-ROOM-BRIEFS — Cost (PM / estimator).
@@ -70,5 +70,6 @@ export async function renderCostBrief(ctx: PanelContext): Promise<HTMLElement> {
         + (exp != null ? ` · exposure ${exp > 0 ? "+" : ""}${exp.toFixed(1)}%` : "");
   }
 
+  briefPrimary(gmpCard, "cost", "Open budget lines", () => openRoomModule(ctx, "budget"));
   return wrap;
 }

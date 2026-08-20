@@ -1,6 +1,6 @@
 import { escapeHtml as esc } from "../../ui/feedback";
 import type { PanelContext } from "../panelContext";
-import { fail, mountBrief } from "./roomBriefChrome";
+import { briefPrimary, fail, mountBrief, openRoomModule } from "./roomBriefChrome";
 
 /**
  * R36-ROOM-BRIEFS — Schedule (superintendent).
@@ -102,5 +102,6 @@ export async function renderScheduleBrief(ctx: PanelContext): Promise<HTMLElemen
     }
   }
 
+  briefPrimary(laCard, "schedule", "Open activities", () => openRoomModule(ctx, "schedule_activity"));
   return wrap;
 }

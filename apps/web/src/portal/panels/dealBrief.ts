@@ -1,6 +1,6 @@
 import type { PanelContext } from "../panelContext";
 import { firstOpenStep, type ReadinessStep } from "./readinessStrip";
-import { fail, mountBrief } from "./roomBriefChrome";
+import { briefPrimary, fail, mountBrief } from "./roomBriefChrome";
 
 /**
  * R36-ROOM-BRIEFS — Deal (developer).
@@ -84,15 +84,15 @@ export async function renderDealBrief(ctx: PanelContext): Promise<HTMLElement> {
         gateCard.body.appendChild(g);
       }
       if (ctx.hasDest(next.dest)) {
-        const b = document.createElement("button");
-        b.className = "tool-btn";
-        b.style.marginTop = "6px";
-        b.textContent = "Open";
-        b.onclick = () => ctx.navigate(next.dest);
-        gateCard.root.appendChild(b);
+        briefPrimary(gateCard, "deal", "Open", () => ctx.navigate(next.dest));
+      } else {
+        briefPrimary(gateCard, "deal", "See the book", () => ctx.navigate("__portfolio__"));
       }
     }
   }
 
+  if (!wrap.querySelector("[data-room-primary]")) {
+    briefPrimary(gateCard, "deal", "See the book", () => ctx.navigate("__portfolio__"));
+  }
   return wrap;
 }

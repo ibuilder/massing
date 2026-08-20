@@ -4,6 +4,13 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1007 (2026-08-19) — Tab to the room's job, then land
+
+R39-A11Y-JOURNEYS ②. Each of the seven rooms has one keyboard primary: Design is its tab; the
+other six put `[data-room-primary]` on the landing (Open RFIs / budget lines / activities / the
+next Deal gate / the first work-queue row / Open work orders). Tests Tab to it, operate it, and
+assert focus did not fall on `document.body`.
+
 ## v0.3.1006 (2026-08-19) — field mode lands on capture when a project is open
 
 R24-FIELD-MODE ③. If field mode is on and a project is selected, the capture sheet opens
