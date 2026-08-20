@@ -4,6 +4,7 @@ import { noProjectHtml } from "../ui/empty";
 import { askText } from "../ui/prompt";
 import { sanitizeSvg } from "../ui/sanitizeSvg";
 import { escapeHtml } from "../ui/feedback";
+import { addHitTargets, guidFromEvent, guidFromMarkupData, postSheetPin, selectInViewer, syncPlanHighlight } from "../ui/sheetGuid";
 
 /** 2D Drawings Set — a sheet-set browser for the server-generated plans / elevations / sections
  *  (a plan room, a PDF markup layer and field pins in one view). Left: a sheet register;
@@ -169,6 +170,7 @@ export class DrawingsUI {
       this.svgHost.innerHTML = sanitizeSvg(await res.text());
       const svg = this.svgHost.querySelector("svg");
       if (svg) { svg.removeAttribute("width"); svg.removeAttribute("height"); svg.style.display = "block"; }
+      addHitTargets(this.svgHost);
       this.fit();
       await this.loadPins();
       this.host_.setStatus(`drawing: ${sheet.label}`);
@@ -269,7 +271,12 @@ export class DrawingsUI {
       const x = (e.clientX - r.left - this.tx) / this.scale;
       const y = (e.clientY - r.top - this.ty) / this.scale;
       const note = await askText("Add markup", { label: "Markup note:" }); if (note == null) return;
-      try { await this.host_.api.addDrawingMarkup(pid, this.current.id, x, y, note); await this.loadPins(); }
+      const guid = guidFromEvent(e);
+      try {
+        await postSheetPin(this.host_.api, pid, this.current.id, x, y, note, guid);
+        if (guid) selectInViewer(guid);
+        await this.loadPins();
+      }
       catch { this.host_.setStatus("markup needs reviewer access"); }
     });
   }
@@ -300,18 +307,25 @@ export class DrawingsUI {
     const ch = rect && this.scale ? rect.height / this.scale : 0;
     this.markup.forEach((p, i) => {
       const takeoff = p.kind && p.kind !== "pin" && p.data?.nx != null;
+      const tied = guidFromMarkupData(p.data);
       const carried = !!p.data?.carried_from;        // MARKUP-2a: predates the current sheet revision
       const el = document.createElement("div");
-      el.className = "dwg-pin" + (p.topic_id ? " linked" : "") + (takeoff ? " takeoff" : "") + (carried ? " carried" : "");
+      el.className = "dwg-pin" + (p.topic_id ? " linked" : "") + (takeoff ? " takeoff" : "") + (carried ? " carried" : "") + (tied ? " tied" : "");
       el.textContent = takeoff ? "◆" : String(i + 1);
       const left = takeoff && cw ? p.data!.nx! * cw : p.x;
       const top = takeoff && ch ? p.data!.ny! * ch : p.y;
       el.style.left = `${left}px`; el.style.top = `${top}px`;
       const meas = takeoff && p.data?.value ? ` — ${p.data.value} ${p.data.unit || ""}` : "";
-      el.title = (p.note || (takeoff ? p.kind! : "")) + meas + (p.topic_id ? "  · linked to RFI" : "")
+      el.title = (p.note || (takeoff ? p.kind! : "")) + meas
+        + (tied ? `  · ${tied}` : "")
+        + (p.topic_id ? "  · linked to RFI" : "")
         + (carried ? `  · carried from Rev ${p.data!.carried_from} — verify against the current revision` : "");
-      el.onclick = async (e) => {
-        e.stopPropagation();
+      el.onclick = async (ev) => {
+        ev.stopPropagation();
+        if (tied) {
+          selectInViewer(tied);
+          syncPlanHighlight(this.svgHost, tied);
+        }
         if (!pid) return;
         const linked = p.topic_id ? " (already an RFI)" : "";
         const choice = await askText(`Markup #${i + 1}`, {
