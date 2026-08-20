@@ -35,9 +35,9 @@ export * from "./authoring";
 export * from "./library";
 import type {
   Appraisal, AuditEntry, Dashboard, DocFile,
-  DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
+  DisciplineTree, DocFolderNode, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, PreflightSummary, ProfessionalLicense,
-  ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate,
+  ResponsibilityMatrix, SmartView, StampTemplate,
     BidLevelingDetail,
     SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload,
     DiligenceReadiness, ReviewCycles, MasterBuilderBrief } from "./types";
