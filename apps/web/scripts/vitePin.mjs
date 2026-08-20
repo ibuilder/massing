@@ -20,6 +20,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { findPackageDir } from "./wasmSources.mjs";
 
@@ -79,7 +80,16 @@ export function findPinnedViteDir(webRoot) {
   const seen = new Set();
   const candidates = [join(webRoot, "node_modules", "vite")];
   const main = gitMainRoot(webRoot);
-  if (main) candidates.push(join(main, "apps", "web", "node_modules", "vite"));
+  if (main) {
+    candidates.push(join(main, "apps", "web", "node_modules", "vite"));
+    candidates.push(join(main, "node_modules", "vite"));
+    const fromMain = findPackageDir(
+      "vite",
+      join(main, "apps", "web"),
+      pathToFileURL(join(main, "apps", "web", "package.json")).href,
+    );
+    if (fromMain) candidates.push(fromMain);
+  }
   const walked = findPackageDir("vite", webRoot);
   if (walked) candidates.push(walked);
   for (const c of candidates) {
