@@ -4,6 +4,7 @@ import { withAuth } from "./auth";
 import { withAuthoring } from "./authoring";
 import { withConnections } from "./connections";
 import { withDrawingSet } from "./drawingSet";
+import { withMarkup } from "./markup";
 import { withSync } from "./sync";
 import { withCost } from "./cost";
 import { withRoutines } from "./routines";
@@ -35,9 +36,9 @@ export * from "./authoring";
 export * from "./library";
 import type {
   Appraisal, AuditEntry, Dashboard, DocFile,
-  DisciplineTree, DocFolderNode, DrawingMarkupItem, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
+  DisciplineTree, DocFolderNode, DueFeed, EditMacro, EscalationScan, EscalationRun, ElementProps, EnergyResult, IntegrationGroup, Job, LifecycleStrip, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, ProfessionalLicense,
-  ResponsibilityMatrix, SheetMarkupIn, SmartView, StampTemplate,
+  ResponsibilityMatrix, SmartView, StampTemplate,
     BidLevelingDetail,
     SpecManual, Topic, Vec3, Viewpoint, WorkItem, VitalsPayload,
     DiligenceReadiness, ReviewCycles, MasterBuilderBrief } from "./types";
@@ -45,7 +46,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withDrawingSet(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))) {
+export class ApiClient extends withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -2860,29 +2861,6 @@ export class ApiClient extends withDrawingSet(withSync(withConnections(withDocQa
   escalationsRun(pid: string) {
     return this.json<EscalationRun>(`/projects/${pid}/escalations/run`, { method: "POST" });
   }
-  // --- drawing markup (2D sheet pins; promotable to RFIs) ----------------
-  /** Markups for one sheet — or, with no sheet, EVERY markup in the project (the MARKUP-2b grid). */
-  drawingMarkup(pid: string, sheet?: string) {
-    return this.json<DrawingMarkupItem[]>(
-      `/projects/${pid}/drawings/markup${sheet ? `?sheet=${encodeURIComponent(sheet)}` : ""}`);
-  }
-  addDrawingMarkup(pid: string, sheetId: string, x: number, y: number, note: string) {
-    return this.json<DrawingMarkupItem>(`/projects/${pid}/drawings/markup`, { method: "POST", body: JSON.stringify({ sheet_id: sheetId, x, y, note }) });
-  }
-  /** Persist the 2D editor's whole markup scene for a sheet (structured takeoff markups, promotable to
-   *  RFI like pins). `replace` clears the caller's own prior unpromoted markups for that sheet first. */
-  saveDrawingMarkups(pid: string, sheetId: string, markups: SheetMarkupIn[], replace = true) {
-    return this.json<{ saved: number; sheet_id: string }>(`/projects/${pid}/drawings/markup/bulk`,
-      { method: "POST", body: JSON.stringify({ sheet_id: sheetId, replace, markups }) });
-  }
-  deleteDrawingMarkup(pid: string, id: string) {
-    return this.json<{ ok: boolean }>(`/projects/${pid}/drawings/markup/${id}`, { method: "DELETE" });
-  }
-  promoteDrawingMarkup(pid: string, id: string) {
-    return this.json<{ markup: DrawingMarkupItem; topic: { id: string; type: string; title: string; status: string } }>(
-      `/projects/${pid}/drawings/markup/${id}/promote`, { method: "POST" });
-  }
-
   /** Admin: send each member with open items a work-queue digest email. */
   sendDigest(pid: string) {
     return this.json<{ smtp_configured: boolean; results: Record<string, string[]>; skipped_no_email: string[] }>(

@@ -30,17 +30,14 @@ export function selectInViewer(guid: string): void {
   v?.selectByGuid?.(guid, true);
 }
 
+/** Persist a pin, carrying the guid when the click hit linework.
+ *
+ * Delegates to the client rather than re-issuing the POST: this file owns the guid decision, not the
+ * wire format. Typed structurally so the drawings seam still does not import `client.ts` — the
+ * method it needs is the whole contract. */
 export async function postSheetPin(
-  api: { url: (p: string) => string; authHeaders: () => Record<string, string> },
+  api: { addDrawingMarkup: (pid: string, sheetId: string, x: number, y: number, note: string, guid?: string | null) => Promise<unknown> },
   pid: string, sheetId: string, x: number, y: number, note: string, guid: string | null,
 ): Promise<void> {
-  const res = await fetch(api.url(`/projects/${pid}/drawings/markup`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...api.authHeaders() },
-    body: JSON.stringify({
-      sheet_id: sheetId, x, y, note, kind: "pin",
-      ...(guid ? { data: { guid } } : {}),
-    }),
-  });
-  if (!res.ok) throw new Error(`markup ${res.status}`);
+  await api.addDrawingMarkup(pid, sheetId, x, y, note, guid);
 }
