@@ -10,6 +10,7 @@ import { withModels } from "./models";
 import { withDocuments } from "./documents";
 import { withMep } from "./mep";
 import { withTopics } from "./topics";
+import { withAi } from "./ai";
 import { withMarkup } from "./markup";
 import { withSync } from "./sync";
 import { withCost } from "./cost";
@@ -52,7 +53,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))))))))) {
+export class ApiClient extends withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -86,11 +87,6 @@ export class ApiClient extends withTopics(withMep(withDocuments(withModels(withE
     return this.json<{ checked_online: boolean; valid?: boolean; tier?: string; reason?: string | null;
       applied: boolean; tier_before: string; tier_after: string; error?: string }>(
       "/license/cloud-check", { method: "POST" });
-  }
-  /** AI/rules risk summary over a project's dashboard. */
-  riskSummary(pid: string) {
-    return this.json<{ headline: string; risks: { level: string; text: string }[]; source: string; ai_enabled: boolean }>(
-      `/projects/${pid}/ai/risk-summary`);
   }
   /** Last-Planner Plan Percent Complete + reasons for non-completion (lean, R4). */
   pullPlanBoard(pid: string, milestone?: string) {
@@ -130,11 +126,6 @@ export class ApiClient extends withTopics(withMep(withDocuments(withModels(withE
   leanPpc(pid: string) {
     return this.json<{ commitments: number; completed: number; ppc: number; missed: number; rating: string; top_variance_reasons: { reason: string; count: number }[] }>(
       `/projects/${pid}/lean/ppc`);
-  }
-  /** Ask a natural-language question about the project; grounded on a live snapshot. */
-  aiAsk(pid: string, question: string) {
-    return this.json<{ answer: string; source: string; ai_enabled: boolean; snapshot?: unknown }>(
-      `/projects/${pid}/ai/ask`, { method: "POST", body: JSON.stringify({ question }) });
   }
   /** Predictive schedule alerts (overdue / late-start / at-risk predecessor / SPI / procurement). */
   permitCities() {
@@ -639,19 +630,6 @@ export class ApiClient extends withTopics(withMep(withDocuments(withModels(withE
     if (!res.ok) throw new Error((await res.text()) || `convert failed (${res.status})`);
     return res.blob();
   }
-  /** Triage an RFI (AI): category / discipline / urgency / ball-in-court + a draft response. */
-  triageRfi(pid: string, rid: string) {
-    return this.json<{ ai_enabled: boolean; source: string; discipline: string; category: string;
-      urgency: string; ball_in_court: string; draft_response: string }>(
-      `/projects/${pid}/ai/triage-rfi`, { method: "POST", body: JSON.stringify({ rid }) });
-  }
-  /** Draft a Bill of Quantities from a plain-text project description (AI; stub without a key). */
-  aiEstimate(pid: string, description: string) {
-    return this.json<{ lines: { description: string; quantity: number; unit: string; rate: number; amount?: number; division?: string }[];
-      total?: number; source: string; ai_enabled: boolean; message?: string }>(
-      `/projects/${pid}/ai/estimate`, { method: "POST", body: JSON.stringify({ description }) });
-  }
-
   // --- admin: user management --------------------------------------------
   /** Admin: read the audit trail (newest first), optionally filtered. */
   auditLog(params: { action?: string; actor?: string; since?: string; limit?: number } = {}) {
@@ -883,14 +861,6 @@ export class ApiClient extends withTopics(withMep(withDocuments(withModels(withE
                opts: { bar_size?: string; tie_size?: string; cover?: number; tie_spacing?: number } = {}, publish = true) {
     return this.editIfc(pid, "add_rebar_cage", { column_guid: columnGuid, ...opts }, publish);
   }
-  /** Natural-language authoring: interpret a plain-English instruction into a validated plan of
-   *  {recipe, params} (no execution — apply each step via editIfc after the user confirms). */
-  aiAuthor(pid: string, text: string, context: { selected_guids?: string[]; active_storey?: string } = {}) {
-    return this.json<{ source: string; needs_clarification: string | null;
-      plan: { recipe: string; params: Record<string, unknown>; summary?: string; ok: boolean; destructive: boolean; errors: string[] }[] }>(
-      `/projects/${pid}/ai/author`, { method: "POST", body: JSON.stringify({ text, context }) });
-  }
-  /** W11 D6: the 3-part MasterFormat project manual seeded from the model. */
   /** The 3-part MasterFormat project manual. See `SpecManual` in `types.ts` for the 50-per-section
    *  cap on `elements` — it matters to every caller. */
   specManual(pid: string) {
@@ -1066,11 +1036,6 @@ export class ApiClient extends withTopics(withMep(withDocuments(withModels(withE
   /** W10-8: tag elements with a construction phase (new | existing | demolish | temporary). */
   setPhase(pid: string, guids: string[], phase: "new" | "existing" | "demolish" | "temporary", publish = true) {
     return this.editIfc(pid, "set_phase", { guids, phase }, publish);
-  }
-  /** AI-draft an RFI from an element's context (Claude when keyed, else a template draft). */
-  draftRfi(pid: string, element: unknown, note?: string) {
-    return this.json<{ ai_enabled: boolean; subject: string; question: string; discipline: string; suggested_priority: string; source: string }>(
-      `/projects/${pid}/ai/draft-rfi`, { method: "POST", body: JSON.stringify({ element, note }) });
   }
   /** Speckle interoperability bridge status (open-source, self-hostable; off unless configured). */
   speckleStatus() {

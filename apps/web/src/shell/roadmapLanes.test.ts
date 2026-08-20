@@ -39,8 +39,8 @@ const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
 /**
  * A roadmap item bullet: `- **CODE** …`, `* ⭐ **CODE ② — …**`, with or without a status glyph.
  *
- * **The increment marker runs ①–⑳.** It used to stop at ⑥, then ⑨, and each time the next
- * SCALE-SEAM increment (`⑦`, then `⑫`) was not in the class. The interesting part is what that
+ * **The increment marker runs ①–㉕.** It used to stop at ⑥, then ⑨, then ⑳, and each time the next
+ * SCALE-SEAM increment (`⑦`, then `⑫`, then `㉑`) was not in the class. The interesting part is what that
  * does rather than that it happened: the marker group is optional, so `**SCALE-SEAM ⑫ — …**` does
  * not fail to match. It matches and returns the code as plain `SCALE-SEAM`, **silently dropping the
  * increment number**. The item then disagrees with the lane table cell and the assignment check
@@ -53,10 +53,10 @@ const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
  * plain `SCALE-SEAM` to make the red go away, the two lists would have agreed at the cost of the
  * roadmap no longer recording which increment was open: green, and wrong.
  *
- * ⑳ is not a considered limit either, just a further-off one. **A vocabulary this check defines is
+ * ㉕ is not a considered limit either, just a further-off one. **A vocabulary this check defines is
  * part of its population, so widening it is a real change and not housekeeping.**
  */
-const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
+const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕";
 
 /**
  * One source for the marker vocabulary, because there were **two** and they had already drifted.
