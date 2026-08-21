@@ -1020,7 +1020,12 @@ export class PortalUI {
 
       // risk summary (full width — owner/PM reporting)
       const risk = el("div"); risk.id = "dash-risk"; root.appendChild(risk);
-      void this.host.api.riskSummary(pid).then((rs) => {
+      // `riskDigest` rather than `riskSummary`: same headline and risks, PLUS the drivers the
+      // narrative was computed from — SPI, EAC, variance-at-completion, open RFIs/submittals/CORs,
+      // incidents. `/risk-digest` shipped with no client caller until v0.3.1051, so this card
+      // asserted a risk position and showed nothing a reader could check it against. An owner/PM
+      // report is exactly where that matters: the prose is the claim, the drivers are the evidence.
+      void this.host.api.riskDigest(pid).then((rs) => {
         const colors: Record<string, string> = { high: "var(--status-crit)", medium: "var(--status-warn)", low: "#6cb6ff" };
         risk.innerHTML = `<div class="section-title" style="margin-top:8px">Risk summary`
           + `<span class="meta" style="font-weight:400"> · ${rs.source === "claude" ? "AI" : "rules"}</span></div>`
@@ -1028,6 +1033,30 @@ export class PortalUI {
           + rs.risks.map((r) => `<div style="display:flex;gap:8px;align-items:baseline;margin:3px 0;font-size:12px">`
             + `<span style="color:${colors[r.level] || "#9aa0a6"};font-weight:700;text-transform:uppercase;font-size:10px;min-width:54px">${r.level}</span>`
             + `<span>${r.text}</span></div>`).join("");
+        // The evidence line. Values are server numbers, so a template is safe here; the alert text
+        // below is server FREE TEXT and goes through textContent instead.
+        const dr = rs.drivers ?? { schedule: {}, cost: {}, top_alerts: [] };
+        const bits: string[] = [];
+        const num = (v: unknown) => (typeof v === "number" ? v : null);
+        const spi = num(dr.schedule?.spi);
+        if (spi !== null) bits.push(`SPI ${spi.toFixed(2)}`);
+        const pc = num(dr.schedule?.pct_complete);
+        if (pc !== null) bits.push(`${Math.round(pc)}% complete`);
+        const vac = num(dr.cost?.variance_at_completion);
+        if (vac !== null) bits.push(`VAC ${vac < 0 ? "-" : "+"}$${Math.abs(Math.round(vac)).toLocaleString()}`);
+        for (const [k, label] of [["open_rfis", "RFIs"], ["open_submittals", "submittals"],
+                                  ["open_change_orders", "change orders"]] as const) {
+          const n = num(dr.schedule?.[k]);
+          if (n) bits.push(`${n} open ${label}`);
+        }
+        const inc = num(dr.schedule?.incidents);
+        if (inc) bits.push(`${inc} incident(s)`);
+        if (bits.length) {
+          const ev = document.createElement("div"); ev.className = "meta";
+          ev.style.cssText = "margin-top:4px;color:var(--muted)";
+          ev.textContent = `Computed from: ${bits.join(" · ")}`;
+          risk.appendChild(ev);
+        }
       }).catch(() => { risk.innerHTML = ""; });
 
       // two-column body: [ needs attention + notifications ] | [ health + charts ]

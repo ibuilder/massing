@@ -44,7 +44,7 @@ export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";
 export * from "./authoring";
 export * from "./library";
 import type {
-  Appraisal, AuditEntry, Dashboard,
+  Appraisal, AuditEntry, Dashboard, RiskDigest,
   DisciplineTree, DueFeed, EditMacro, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, ProfessionalLicense,
   ResponsibilityMatrix, SmartView, StampTemplate,
@@ -2854,6 +2854,13 @@ export class ApiClient extends withEntitlements(withPrecon(withAi(withTopics(wit
       `/projects/${pid}/materials/apply`, { method: "POST" });
   }
   /** RISK-BOARD: one ranked register unifying every computed risk signal (deep-linked per item). */
+  /** The risk narrative **with its drivers** — SPI, EAC, variance, open RFIs/submittals/CORs,
+   *  incidents and the top alerts it was computed from. `/ai/risk-summary` (see `riskSummary`)
+   *  returns the same prose with none of that, and a risk narrative a reader cannot check is the
+   *  same as no narrative. Route shipped with no client caller until v0.3.1051. */
+  riskDigest(pid: string) {
+    return this.json<RiskDigest>(`/projects/${pid}/risk-digest`);
+  }
   riskBoard(pid: string) {
     return this.json<{ items: { source: string; severity: "high" | "medium" | "low"; title: string;
       detail: string; link: string | null; metric: number | null }[]; count: number;

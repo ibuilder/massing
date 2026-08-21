@@ -140,7 +140,7 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/budget/two-sided", 
     "/projects/{pid}/cost/lien-waiver", "/projects/{pid}/cv-progress/ingest-batch",
     "/projects/{pid}/elements/by-discipline", "/projects/{pid}/naming/conventions",
-    "/projects/{pid}/risk-digest",
+    
 
     # --- 2026-08-20: MASKED BY THE COMMENT BUG, not newly broken ---------------------------------
     # These five were always uncalled. `uncalled_routes` matched against the raw web source, so a

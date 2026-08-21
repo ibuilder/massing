@@ -170,6 +170,16 @@ function reached(m: string): boolean {
  * cannot quietly become permanent.
  */
 const KNOWN_UNCALLED: Record<string, string> = {
+  // v0.3.1051: the dashboard risk card now calls `riskDigest`, which returns the SAME headline and
+  // risks PLUS the drivers they were computed from — SPI, EAC, variance-at-completion, open
+  // RFIs/submittals/CORs, incidents. `riskSummary` (`/ai/risk-summary`) returns the prose alone, and
+  // a risk narrative an owner cannot check against anything is the same as no narrative.
+  //
+  // Kept rather than deleted: `/ai/risk-summary` is a smaller, cheaper call and a reasonable thing
+  // for an external or embedded caller to want. It has no caller HERE, which is what this list is
+  // for. EXPIRY: delete both method and route if nothing has wanted the prose-only form by 2026-Q4.
+  riskSummary: "superseded on the dashboard by riskDigest, which carries the drivers too",
+
   // Deletes a captured schedule baseline. R40-EOT ② has just made the NAMED baseline the auditable
   // input to an extension-of-time figure that ends up in arbitration — slip is measured against it,
   // and the whole point of sourcing it from the record was that a typed date is unauditable. A

@@ -4,6 +4,26 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1051 (2026-08-20) — the risk card now shows what its narrative rests on
+
+### Changed
+
+- **The dashboard risk card calls `/risk-digest` instead of `/ai/risk-summary`.** Both return the
+  same headline and ranked risks; the digest also returns the **drivers** — SPI, percent complete,
+  EAC, variance-at-completion, open RFIs / submittals / change orders, incidents and the top alerts.
+  The card now prints them: *"Computed from: SPI 0.94 · 62% complete · VAC −$180,400 · 7 open RFIs"*.
+- **An owner/PM report is exactly where that matters.** The prose is the claim; the drivers are the
+  evidence. A risk narrative a reader cannot check against anything is the same as no narrative —
+  the same principle as make-ready's cited blockers and the plan that names its cut height.
+- `/risk-digest` shipped with no client caller and was invisible until v0.3.1049 stopped the
+  generated OpenAPI types vouching for routes nothing calls.
+
+### Note
+
+- `riskSummary` is now recorded as uncalled **with a reason and an expiry**, not deleted:
+  `/ai/risk-summary` is the smaller, cheaper, prose-only call and a reasonable thing for an embedded
+  caller to want. It has no caller *here*, which is what that list is for.
+
 ## v0.3.1050 (2026-08-20) — the pay period could not be closed from the product
 
 ### Fixed

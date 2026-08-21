@@ -896,3 +896,17 @@ export interface EntitlementConditions {
     }[];
   }[];
 }
+
+/** `GET /risk-digest` — the risk narrative WITH the drivers it was computed from. */
+export interface RiskDigest {
+  headline: string;
+  risks: { level: string; text: string }[];
+  source: string | null;
+  ai_enabled: boolean;
+  /** What the narrative rests on. `/ai/risk-summary` returns the prose without this. */
+  drivers: {
+    schedule: Record<string, number | string | null>;
+    cost: Record<string, number | null>;
+    top_alerts: { severity?: string; message?: string; text?: string }[];
+  };
+}
