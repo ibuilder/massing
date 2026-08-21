@@ -14,8 +14,9 @@ R24-IDENTITY, PHOTO-PIN, CMMS-OPS; this change set does not touch them.
 - **R24-RUNS-INBOX routing.** Clash (struct + federated), IDS, cost, and envelope energy enqueue as
   job kinds (`clash_detect` with optional BCF topics, `clash_federated`, `ids_validate`,
   `labor_estimate`, `energy_analyze`) and the Tools screens poll via `apps/web/src/api/waitForJob.ts`.
-  Timeout is "still running — watch the job tray", not an invented failure. Covered by
-  `services/api/test_inbox_jobs.py`.
+- Timeout is a `JobStillRunning` outcome (info toast → job tray), not an invented failure. Covered by
+  `services/api/test_inbox_jobs.py`. A second clash run with `create_topics` skips Topics that already
+  name the same pair. Shrinking an array past a moved member is a refusal, not a successful publish.
 - **R38-SYNC-VIEW cursor.** `apps/web/src/viewer/planTransform.ts` reads the six `data-plan-*`
   attributes PLAN-TRANSFORM already writes; the plan pane paints a 3D-ground cursor from them.
 - **R38-ARRAY-LIVE UI.** Groups panel **Re-edit** calls `set_array_params`; `list_groups` returns the

@@ -55,6 +55,12 @@ export function parseDims(s: string): [number, number, number] | null {
   return p.length === 3 && p.every((n) => Number.isFinite(n) && n > 0) ? [p[0]!, p[1]!, p[2]!] : null;
 }
 
+/** `"1.5, 0"` → `[1.5, 0]`. A real zero pitch is kept; `"1.5, typo"` is refused, not coerced to 0. */
+export function parsePitch(s: string): [number, number] | null {
+  const p = s.split(",").map((v) => Number(v.trim()));
+  return p.length === 2 && p.every((n) => Number.isFinite(n)) ? [p[0]!, p[1]!] : null;
+}
+
 /** `IfcFurnitureType` → `Furniture`. Display only — never use this to match an IFC class. */
 export function shortClass(c: string): string {
   return c.replace(/^Ifc/, "").replace(/Type$/, "");
@@ -164,10 +170,11 @@ export async function openGroupsPanel(d: ModelStateDeps): Promise<void> {
       const counts = await askText("Array", { label: "Columns × rows (nx, ny)", value: "3, 1" }); if (!counts) return;
       const cd = counts.split(/[,x×]/).map((v) => Math.max(1, Math.round(Number(v.trim()) || 1)));
       const pitch = await askText("Array", { label: "Pitch dx, dy (metres)", value: "1.5, 0" }); if (!pitch) return;
-      const pd = pitch.split(",").map((v) => Number(v.trim()) || 0);
-      await d.authorAndReload("array_element",
-        { guid, nx: cd[0] ?? 2, ny: cd[1] ?? 1, dx: pd[0] ?? 1, dy: pd[1] ?? 0 },
+      const pd = parsePitch(pitch); if (!pd) { d.notify("need two numbers for pitch, e.g. 1.5, 0", "error"); return; }
+      const outcome = await d.authorAndReload("array_element",
+        { guid, nx: cd[0] ?? 2, ny: cd[1] ?? 1, dx: pd[0], dy: pd[1] },
         `array ${(cd[0] ?? 2)}×${(cd[1] ?? 1)}`);
+      if (outcome.refused) return;
     });
     arr.style.marginBottom = "6px"; body.appendChild(arr);
 
@@ -179,10 +186,11 @@ export async function openGroupsPanel(d: ModelStateDeps): Promise<void> {
       const pitch = await askText("Re-edit array", {
         label: "Pitch dx, dy (metres)", value: `${a.dx}, ${a.dy}`,
       }); if (!pitch) return;
-      const pd = pitch.split(",").map((v) => Number(v.trim()) || 0);
-      await d.authorAndReload("set_array_params",
-        { guid: source, nx: cd[0] ?? 2, ny: cd[1] ?? 1, dx: pd[0] ?? 1, dy: pd[1] ?? 0 },
+      const pd = parsePitch(pitch); if (!pd) { d.notify("need two numbers for pitch, e.g. 1.5, 0", "error"); return; }
+      const outcome = await d.authorAndReload("set_array_params",
+        { guid: source, nx: cd[0] ?? 2, ny: cd[1] ?? 1, dx: pd[0], dy: pd[1] },
         `array ${(cd[0] ?? 2)}×${(cd[1] ?? 1)}`);
+      if (outcome.refused) return;
     }
 
     body.appendChild(resultNote(sets.length

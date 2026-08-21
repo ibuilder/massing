@@ -30,6 +30,22 @@ def _clash_viewpoint(point: dict | None, guids: list[str]) -> Viewpoint | None:
                 "target": {"x": point["x"], "y": point["y"], "z": point["z"]}, "fov": 60},
         components=[g for g in guids if g],
     )
+
+
+def clash_topic_identity(title: str, guids: list | None) -> tuple[str, tuple[str, ...]]:
+    return (title, tuple(sorted(str(g) for g in (guids or []) if g)))
+
+
+def load_clash_identities(db: Session, pid: str) -> set[tuple[str, tuple[str, ...]]]:
+    """Open clash topics already filed for this project, keyed by title + GUID pair.
+
+    Creating the same clash twice (a retry after topics committed, or a second Run) must not mint
+    a second Topic — the Issues panel would double and BCF export would carry duplicates.
+    """
+    found: set[tuple[str, tuple[str, ...]]] = set()
+    for t in db.query(Topic).filter(Topic.project_id == pid, Topic.type == "clash"):
+        found.add(clash_topic_identity(t.title, t.element_guids))
+    return found
 from ..rbac import require_role
 
 _DATA_SRC = Path(__file__).resolve().parents[4] / "data" / "src"
@@ -83,10 +99,16 @@ def run_clash(
 
     created = 0
     if create_topics:
+        seen = load_clash_identities(db, pid)
         for c in results[:limit]:
+            title = f"Clash: {c['a_class']} × {c['b_class']} ({c['method']} vol {c['volume']})"
+            ident = clash_topic_identity(title, [c["a_guid"], c["b_guid"]])
+            if ident in seen:
+                continue
+            seen.add(ident)
             t = Topic(
                 project_id=pid, type="clash", status="open",
-                title=f"Clash: {c['a_class']} × {c['b_class']} ({c['method']} vol {c['volume']})",
+                title=title,
                 anchor=c["point"], element_guids=[c["a_guid"], c["b_guid"]],
             )
             db.add(t)
@@ -155,11 +177,17 @@ def run_clash_federated(
 
     created = 0
     if create_topics and not coordinate:
+        seen = load_clash_identities(db, pid)
         for c in results[:limit]:
+            title = (f"Clash: {c['a_model']}:{c['a_class']} × {c['b_model']}:{c['b_class']} "
+                     f"({c['method']} vol {c['volume']})")
+            ident = clash_topic_identity(title, [c["a_guid"], c["b_guid"]])
+            if ident in seen:
+                continue
+            seen.add(ident)
             t = Topic(
                 project_id=pid, type="clash", status="open",
-                title=f"Clash: {c['a_model']}:{c['a_class']} × {c['b_model']}:{c['b_class']} "
-                      f"({c['method']} vol {c['volume']})",
+                title=title,
                 anchor=c["point"], element_guids=[c["a_guid"], c["b_guid"]])
             db.add(t)
             vp = _clash_viewpoint(c.get("point"), [c["a_guid"], c["b_guid"]])   # CLASH-WALKTHROUGH

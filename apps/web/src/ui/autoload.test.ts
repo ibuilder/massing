@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { fetchArrayBufferWithProgress, withLoading } from "./feedback";
+import { JobStillRunning } from "../api/waitForJob";
+import type { Job } from "../api/types";
 
 const overlayShown = () =>
   !!document.querySelector(".loading-overlay")?.classList.contains("show");
@@ -91,5 +93,24 @@ describe("viewer model auto-load: graceful no-geometry handling", () => {
     expect(loaded).toBe(true);
     expect(overlayShown()).toBe(false);
     vi.unstubAllGlobals();
+  });
+});
+
+describe("withLoading — a still-running job is not a failed task", () => {
+  it("toasts info and does not say the label failed", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const job = {
+      id: "j1", kind: "ids_validate", project_id: "p1", state: "running",
+      params: null, result: null, error: null, actor: null,
+      created_at: null, started_at: null, finished_at: null,
+    } as Job;
+    await withLoading(container, "Queueing IDS", async () => {
+      throw new JobStillRunning("ids_validate", job);
+    });
+    const text = [...document.querySelectorAll(".toast")]
+      .map((el) => el.textContent || "").join(" ");
+    expect(text).toMatch(/still running — watch the job tray/);
+    expect(text).not.toMatch(/Queueing IDS failed/);
   });
 });

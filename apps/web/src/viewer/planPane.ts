@@ -123,6 +123,8 @@ export class PlanPane {
   private sel: string | null = null;
   /** Live 3D cursor, drawn in SVG user space from the plan's own transform. Hidden when unknown. */
   private cursor = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  /** Last ground point, so a drawing refresh can re-paint without waiting for pointermove. */
+  private lastGround: { x: number; z: number } | null = null;
 
   constructor(private d: PlanPaneDeps) {
     this.el.className = "plan-pane";
@@ -288,6 +290,12 @@ export class PlanPane {
    * mark (pointer left the canvas, or the drawing has no transform yet).
    */
   showGroundCursor(pt: { x: number; z: number } | null): void {
+    this.lastGround = pt;
+    this.paintCursor();
+  }
+
+  private paintCursor(): void {
+    const pt = this.lastGround;
     if (!this.open || !pt) { this.cursor.style.display = "none"; return; }
     const t = readPlanTransform(this.body);
     if (!t) { this.cursor.style.display = "none"; return; }
@@ -301,7 +309,7 @@ export class PlanPane {
   private attachCursor(): void {
     const svg = this.body.querySelector("svg");
     if (!svg) return;
-    this.cursor.style.display = "none";
     svg.appendChild(this.cursor);
+    this.paintCursor();
   }
 }

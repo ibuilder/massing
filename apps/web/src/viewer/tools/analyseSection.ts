@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 import { type ApiClient } from "../../api/client";
-import { enqueueAndWait } from "../../api/waitForJob";
+import { enqueueAndWait, isJobStillRunning } from "../../api/waitForJob";
 import { LayerManager } from "../../tools/layers";
 import { LogisticsOverlay } from "../draft/logisticsOverlay";
 import { kvTable, resultNote, showResult } from "../../ui/result";
@@ -242,8 +242,7 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
             e = await enqueueAndWait(api, pid, "labor_estimate", {
               loading: "commercial", rate: 25, full: true,
             }) as Awaited<ReturnType<ApiClient["laborEstimate"]>>;
-          }
-          catch { toast("Needs a source IFC", "error"); return; }
+          } catch (err) { if (isJobStillRunning(err)) throw err; toast("Needs a source IFC", "error"); return; }
           const grand = e.total_cost ?? e.total_labor_cost;
           out.textContent = `${e.total_man_hours.toLocaleString()} mh · $${Math.round(grand).toLocaleString()}`;
           showResult("Cost estimate — productivity rates", (body) => {
@@ -272,8 +271,7 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
           let e;
           try {
             e = await enqueueAndWait(api, pid, "energy_analyze") as unknown as Awaited<ReturnType<ApiClient["energy"]>>;
-          }
-          catch { toast("Needs a source IFC", "error"); return; }
+          } catch (err) { if (isJobStillRunning(err)) throw err; toast("Needs a source IFC", "error"); return; }
           out.textContent = `EUI ${e.eui_kwh_m2_yr} kWh/m²·yr`;
           showResult("Envelope energy — UA + degree-day", (body) => {
             body.appendChild(resultNote(

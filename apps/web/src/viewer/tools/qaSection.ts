@@ -1,5 +1,5 @@
 import { type ApiClient, type PropLayer, type PropMapRule } from "../../api/client";
-import { enqueueAndWait } from "../../api/waitForJob";
+import { enqueueAndWait, isJobStillRunning } from "../../api/waitForJob";
 
 import type { ModelIdMap } from "../modelIds";
 import { askText } from "../../ui/prompt";
@@ -866,8 +866,8 @@ export function buildQaSection(d: QaDeps): void {
                 resolved: number; reappeared: number; by_severity: Record<string, number>;
                 by_discipline: Record<string, number> } | null;
             };
-          }
-          catch { toast("Federated clash needs ≥2 models — add one with “＋ Add discipline IFC”", "error"); return; }
+          } catch (e) { if (isJobStillRunning(e) || !/need >=2/.test((e as Error).message)) throw e;
+            toast("Federated clash needs ≥2 models — add one with “＋ Add discipline IFC”", "error"); return; }
           const co = r.coordination;
           out.textContent = co ? `${r.count} clashes → ${co.group_count} issues (${co.reduction}× reduction)` : `${r.count} clashes`;
           toast(co ? `${co.new} new · ${co.active} active · ${co.resolved} resolved · ${co.reappeared} reappeared` : "no clashes", r.count ? "info" : "success");

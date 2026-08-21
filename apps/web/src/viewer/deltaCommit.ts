@@ -198,6 +198,22 @@ export type DeltaDeps = {
 
 export type CommitOutcome = { applied: boolean; refused: boolean };
 
+/** Recipes that refuse without mutating still return 200 with a status on `changed`. Treating that
+ *  as applied (and republishing) is how shrinking an array past a moved member looked successful. */
+export function recipeRefusalNote(result: unknown): string | null {
+  if (!result || typeof result !== "object") return null;
+  const blobs: unknown[] = [result, (result as { changed?: unknown }).changed];
+  for (const blob of blobs) {
+    if (!blob || typeof blob !== "object") continue;
+    const status = (blob as { status?: unknown }).status;
+    if (status === "would_delete_authored" || status === "not_an_array" || status === "source_missing") {
+      const note = (blob as { note?: unknown }).note;
+      return typeof note === "string" && note ? note : String(status);
+    }
+  }
+  return null;
+}
+
 export function deltaCommitter(d: DeltaDeps) {
   /** Every background reindex started but not yet finished — see `settled()`. */
   const running = new Set<Promise<void>>();
@@ -267,7 +283,13 @@ export function deltaCommitter(d: DeltaDeps) {
         // The GUID is the whole point of keeping this fragment: without it the shape on screen and
         // the element in the model are two different elements, and every GUID-keyed reader misses
         // the one the user just drew. Measured live before the fix — preview 33a6…, committed 0POI….
-        await d.editIfc(recipe, params, false, previewGuid);
+        const raw = await d.editIfc(recipe, params, false, previewGuid);
+        const refused = recipeRefusalNote(raw);
+        if (refused) {
+          outcome.refused = true;
+          d.notify(`${label} refused: ${refused}`, "info");
+          return outcome;
+        }
         d.store.add({ modelId: previewId, label, guid: previewGuid });
         d.clearDraft();                 // it is on the record now — the amber draft marker goes
         d.refresh();
@@ -275,7 +297,13 @@ export function deltaCommitter(d: DeltaDeps) {
         reindex();
         d.notify(`${label} applied — rebuild pending`, "success");
       } else {
-        await d.editIfc(recipe, params, true);
+        const raw = await d.editIfc(recipe, params, true);
+        const refused = recipeRefusalNote(raw);
+        if (refused) {
+          outcome.refused = true;
+          d.notify(`${label} refused: ${refused}`, "info");
+          return outcome;
+        }
         d.notify(`${label} authored — converting…`, "info");
         const state = await d.awaitPublish();
         if (state === "done") {

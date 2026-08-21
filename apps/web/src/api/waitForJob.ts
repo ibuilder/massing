@@ -12,6 +12,22 @@
  */
 import type { Job, JobState } from "./types";
 
+/** The wait gave up while the worker was still moving. Not a failed job. */
+export class JobStillRunning extends Error {
+  readonly job: Job;
+  readonly kind: string;
+  constructor(kind: string, job: Job) {
+    super(`${kind} is still running — watch the job tray`);
+    this.name = "JobStillRunning";
+    this.kind = kind;
+    this.job = job;
+  }
+}
+
+export function isJobStillRunning(e: unknown): e is JobStillRunning {
+  return e instanceof JobStillRunning;
+}
+
 export type JobReader = {
   job: (pid: string, jobId: string) => Promise<Job>;
 };
@@ -52,8 +68,7 @@ export type EnqueueClient = JobReader & {
 
 /**
  * Enqueue, wait for `done`, return `result`. Throws on a failed job (named), a transport miss, or
- * a timeout that left the job still moving — timeout is reported as still-running so a caller can
- * send the user to the job tray rather than invent a failure.
+ * `JobStillRunning` when the wait timed out — that is the job tray's problem, not a failed run.
  */
 export async function enqueueAndWait(
   api: EnqueueClient, pid: string, kind: string,
@@ -65,8 +80,6 @@ export async function enqueueAndWait(
   onTick?.(queued.state);
   const done = await makeWaitForJob(api, waitOpts)(pid, queued.id, onTick);
   if (done.state === "error") throw new Error(done.error || `${kind} failed`);
-  if (done.state !== "done") {
-    throw new Error(`${kind} is still running — watch the job tray`);
-  }
+  if (done.state !== "done") throw new JobStillRunning(kind, done);
   return (done.result ?? {}) as Record<string, unknown>;
 }

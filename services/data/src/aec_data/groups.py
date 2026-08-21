@@ -317,7 +317,7 @@ def set_array_params(model: ifcopenshell.file, guid: str, nx: int | None = None,
 
     _write_pset(model, grp, ARRAY_PSET,
                 {"source": src_guid, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "dz": dz})
-    return {"status": "ok", "changed": bool(added or removed),
+    return {"status": "ok", "changed": bool(added or removed or relaid),
             "group": a["group"], "source": src_guid,
             "nx": nx, "ny": ny, "dx": dx, "dy": dy, "dz": dz,
             "added": added, "removed": removed, "kept_moved": kept_moved,

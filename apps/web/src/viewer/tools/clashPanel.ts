@@ -1,5 +1,5 @@
 import type { ApiClient } from "../../api/client";
-import { enqueueAndWait } from "../../api/waitForJob";
+import { enqueueAndWait, isJobStillRunning } from "../../api/waitForJob";
 import { kvTable, resultNote, showResult } from "../../ui/result";
 import { toast, withLoading } from "../../ui/feedback";
 
@@ -18,6 +18,8 @@ export interface ClashPanelDeps {
   projectId: () => string | null;
   selectByGuid: (guid: string, fit?: boolean) => Promise<void | boolean>;
   setStatus: (m: string) => void;
+  refreshIssues: () => Promise<void>;
+  reloadModelPins: () => Promise<unknown>;
 }
 
 type ClashHit = {
@@ -75,13 +77,16 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
         coordination: { new: number; active: number; resolved: number; reduction?: number } | null;
       };
       const co = r.coordination;
-      out.innerHTML = `<b>${r.count}</b> clashes · ${(r.disciplines ?? []).length} disciplines`
-        + (r.created_topics != null ? ` · <b>${r.created_topics}</b> issue(s)` : "")
-        + (co ? `<br>${co.new} new · ${co.active} active · ${co.resolved} resolved${co.reduction ? ` · ${Math.round(co.reduction * 100)}% ↓` : ""}` : "");
+      const bits = [`${r.count} clashes`, `${(r.disciplines ?? []).length} disciplines`];
+      if (r.created_topics != null) bits.push(`${r.created_topics} issue(s)`);
+      out.textContent = bits.join(" · ")
+        + (co ? ` — ${co.new} new · ${co.active} active · ${co.resolved} resolved${co.reduction ? ` · ${Math.round(co.reduction * 100)}% ↓` : ""}` : "");
       renderClashes(r.clashes ?? []);
+      await d.refreshIssues(); await d.reloadModelPins();
     } catch (e) {
-      out.innerHTML = `${(e as Error).message}. Add a discipline IFC (Tools → Models federation), or run the single-model check below.`;
-      list.innerHTML = "";
+      if (isJobStillRunning(e)) throw e;
+      out.textContent = `${(e as Error).message}. Add a discipline IFC (Tools → Models federation), or run the single-model check below.`;
+      list.replaceChildren();
     }
   }), "edit"));
   panel.appendChild(cbtn("⚡ Single-model check (structure ✕ MEP/walls)", () => void withLoading(panel, "Queueing clash", async () => {
@@ -90,9 +95,13 @@ export async function buildClashPanel(d: ClashPanelDeps): Promise<void> {
         a: "IfcBeam,IfcSlab,IfcColumn,IfcStair", b: "IfcDuctSegment,IfcPipeSegment,IfcWall",
         min_volume: 0.02, create_topics: true,
       }) as { count: number; created_topics?: number };
-      out.innerHTML = `<b>${r.count}</b> clashes · <b>${r.created_topics ?? 0}</b> issue(s) created. Open <b>Issues</b> to coordinate.`;
-      list.innerHTML = "";
-    } catch (e) { out.textContent = `failed: ${(e as Error).message}`; }
+      out.textContent = `${r.count} clashes · ${r.created_topics ?? 0} issue(s) created. Open Issues to coordinate.`;
+      list.replaceChildren();
+      await d.refreshIssues(); await d.reloadModelPins();
+    } catch (e) {
+      if (isJobStillRunning(e)) throw e;
+      out.textContent = `failed: ${(e as Error).message}`;
+    }
   }), "edit"));
   panel.appendChild(cbtn("📊 Coordination metrics", () => void (async () => {
     try {

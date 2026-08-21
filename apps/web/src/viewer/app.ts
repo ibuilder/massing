@@ -2727,7 +2727,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
   // R24-RUNS-INBOX — clash rail lives in tools/clashPanel.ts (enqueue-and-poll, not the request thread).
   function buildClashPanel() {
-    return renderClashPanel({ api, projectId: () => projectId, selectByGuid, setStatus });
+    return renderClashPanel({ api, projectId: () => projectId, selectByGuid, setStatus, refreshIssues, reloadModelPins });
   }
 
   async function refreshIssues() {

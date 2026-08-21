@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { Job, JobState } from "./types";
-import { enqueueAndWait, makeWaitForJob } from "./waitForJob";
+import { enqueueAndWait, JobStillRunning, makeWaitForJob } from "./waitForJob";
 
 function job(partial: Partial<Job> & { state: JobState }): Job {
   return {
@@ -75,6 +75,6 @@ describe("enqueueAndWait", () => {
       job: vi.fn(async () => job({ state: "running" })),
     };
     await expect(enqueueAndWait(api, "p1", "ids_validate", {}, undefined, { intervalMs: 0, timeoutMs: 5 }))
-      .rejects.toThrow(/still running — watch the job tray/);
+      .rejects.toBeInstanceOf(JobStillRunning);
   });
 });

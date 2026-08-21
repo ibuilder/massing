@@ -480,7 +480,7 @@ def _clash_detect(db: Session, params: dict) -> dict:
     from aec_data import clash  # type: ignore
 
     from . import audit
-    from .models import Project, Topic, Viewpoint
+    from .models import Project, Topic
     p = db.get(Project, params.get("project_id") or "")
     if not p or not p.source_ifc:
         raise ValueError("project has no source IFC")
@@ -495,24 +495,28 @@ def _clash_detect(db: Session, params: dict) -> dict:
         narrow=bool(params.get("narrow", True)), max_narrow=int(params.get("max_narrow") or 200))
     created = 0
     if params.get("create_topics"):
+        from .routers.analysis import (  # noqa: PLC0415 — job handlers stay lazy
+            clash_topic_identity, load_clash_identities, _clash_viewpoint,
+        )
         actor = str(params.get("actor") or "")
         pid = p.id
+        seen = load_clash_identities(db, pid)
         for c in results[:limit]:
             point = c.get("point")
+            title = f"Clash: {c['a_class']} × {c['b_class']} ({c['method']} vol {c['volume']})"
+            ident = clash_topic_identity(title, [c["a_guid"], c["b_guid"]])
+            if ident in seen:
+                continue
+            seen.add(ident)
             t = Topic(
                 project_id=pid, type="clash", status="open",
-                title=f"Clash: {c['a_class']} × {c['b_class']} ({c['method']} vol {c['volume']})",
+                title=title,
                 anchor=point, element_guids=[c["a_guid"], c["b_guid"]],
             )
             db.add(t)
-            if isinstance(point, dict) and all(k in point for k in ("x", "y", "z")):
-                d = 4.0 / (3 ** 0.5)
-                t.viewpoints.append(Viewpoint(
-                    camera={"type": "perspective",
-                            "position": {"x": point["x"] + d, "y": point["y"] + d, "z": point["z"] + d},
-                            "target": {"x": point["x"], "y": point["y"], "z": point["z"]}, "fov": 60},
-                    components=[g for g in (c.get("a_guid"), c.get("b_guid")) if g],
-                ))
+            vp = _clash_viewpoint(point if isinstance(point, dict) else None, [c["a_guid"], c["b_guid"]])
+            if vp is not None:
+                t.viewpoints.append(vp)
             created += 1
         audit.record(db, action="clash.create_topics", actor=actor, method="POST",
                      path=f"/projects/{pid}/jobs", detail={"created": created, "via": "clash_detect"})
