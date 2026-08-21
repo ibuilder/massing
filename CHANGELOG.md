@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1049 (2026-08-20) — the generated types were vouching for 29 routes
+
+### Fixed
+
+- **`test_route_reachability` counted `api/schema.d.ts` and `api/openapiTypes.ts` as client code.**
+  Both are emitted **from** the OpenAPI spec, so every route in the API appears in them by
+  construction — a route's presence there restates the server's own route table and says nothing
+  about anything calling it. Excluding them took the uncalled count **56 → 85**: **29 routes were
+  vouched for by a generated file.**
+- **The file already had the principle and applied it to one input.** `demo/` is excluded because
+  `demoData.json` is a captured snapshot keyed by request path, *"so including it would make every
+  crawled route look 'called' by its own recording."* Generated types are the same argument; this is
+  that sentence finishing.
+- The 29 are frozen **grouped by why**, because "frozen" without a reason is how an allowlist becomes
+  a fiction: external callers and browser redirects (OAuth callback, e-sign webhook, SCIM discovery,
+  public listing/statement), signed-URL handoffs, server-built download links — and **nine genuinely
+  unreached capabilities** that are the reason the exclusion was worth making, including
+  `/cost/advance-period`, `/budget/two-sided`, `/accounting/chart-of-accounts` and `/risk-digest`.
+- Mutation-verified: bypassing the exclusion makes all 29 read as called, and the rot check catches
+  it.
+
 ## v0.3.1048 (2026-08-20) — plans can be coloured by discipline; the flag existed and nothing sent it
 
 ### Added

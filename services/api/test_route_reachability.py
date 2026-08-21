@@ -107,6 +107,41 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/code/amendments", "/projects/{pid}/cost-vintage",
     "/projects/{pid}/cost/pay-application", "/projects/{pid}/dev-budget/sync-from-model",
     "/projects/{pid}/documents/file-model", "/projects/{pid}/documents/model-history",
+    # --- 2026-08-20: MASKED BY THE GENERATED TYPES, not newly broken -----------------------------
+    # `api/schema.d.ts` and `api/openapiTypes.ts` are emitted FROM the OpenAPI spec and list every
+    # route by construction, so their presence in the blob vouched for these 29. Excluding them took
+    # the uncalled count 56 -> 85. Grouped by WHY, because "frozen" without a reason is how an
+    # allowlist becomes a fiction:
+    #
+    #   NOT FOR OUR CLIENT — an external caller or a browser redirect owns these, and a client
+    #   caller would be the wrong thing to add:
+    "/auth/oauth/{provider}/callback", "/esign/webhook",
+    "/scim/v2/ResourceTypes", "/scim/v2/ServiceProviderConfig",
+    "/projects/{pid}/listings/{lid}/public",
+    "/projects/{pid}/investors/{iid}/statement.public.pdf",
+    #
+    #   SIGNED-URL HANDOFFS — fetched by a redirect or an <a href>, not by the typed client:
+    "/attachments/{aid}/signed-url", "/projects/{pid}/model.frag/signed-url",
+    #
+    #   EXPORT / DOWNLOAD ENDPOINTS — a user reaches these by clicking a link the server builds, so
+    #   "no client caller" is expected. Listed rather than excluded by pattern: a download nobody
+    #   links to is still unreachable, and only a person can tell the two apart.
+    "/projects/{pid}/exports/cobie.xlsx", "/projects/{pid}/exports/qto.xlsx",
+    "/projects/{pid}/exports/schedule.xlsx", "/projects/{pid}/exports/spaces.xlsx",
+    "/projects/{pid}/estimate/gaeb.x83", "/projects/{pid}/model/export.jsonld",
+    "/projects/{pid}/model/export.parquet", "/projects/{pid}/modules/{key}/log.pdf",
+    "/projects/{pid}/cost/lien-waiver.pdf", "/projects/{pid}/opendata/permits.geojson",
+    "/projects/{pid}/schedule/gantt.svg", "/projects/{pid}/schedule/lob.svg",
+    #
+    #   GENUINELY UNREACHED CAPABILITIES — these are the ones worth someone's attention, and the
+    #   reason this exclusion was worth making. Each is a working engine behind a route the product
+    #   never calls:
+    "/procurement/rfq-status", "/projects/{pid}/accounting/chart-of-accounts",
+    "/projects/{pid}/budget/two-sided", "/projects/{pid}/cost/advance-period",
+    "/projects/{pid}/cost/lien-waiver", "/projects/{pid}/cv-progress/ingest-batch",
+    "/projects/{pid}/elements/by-discipline", "/projects/{pid}/naming/conventions",
+    "/projects/{pid}/risk-digest",
+
     # --- 2026-08-20: MASKED BY THE COMMENT BUG, not newly broken ---------------------------------
     # These five were always uncalled. `uncalled_routes` matched against the raw web source, so a
     # route whose name appears in a doc comment read as called; `strip_comments` above ends that.
@@ -146,6 +181,13 @@ def _web_source() -> str:
 
     `demo/` is excluded deliberately: `demoData.json` is a *captured* snapshot keyed by request path,
     so including it would make every crawled route look 'called' by its own recording.
+
+    **GENERATED TYPES are excluded for exactly the same reason, and were not until 2026-08-20.**
+    `api/schema.d.ts` and `api/openapiTypes.ts` are emitted FROM the OpenAPI spec, so every route in
+    the API appears in them by construction — a route's presence there is a restatement of the
+    server's own route table, not evidence that anything calls it. Measured: including them vouched
+    for **29 routes**, taking the uncalled count from 85 down to 56. The docstring above had the
+    principle right and applied it to one file; this is the same file's rule finishing its sentence.
     """
     out = []
     for pat in ("**/*.ts", "**/*.tsx"):
@@ -153,6 +195,8 @@ def _web_source() -> str:
             q = p.replace("\\", "/")
             if ".test." in q or "/src/demo/" in q:
                 continue
+            if q.endswith("/api/schema.d.ts") or q.endswith("/api/openapiTypes.ts"):
+                continue          # generated FROM the spec: lists every route, calls none
             out.append(open(p, encoding="utf-8", errors="replace").read())
     return "\n".join(out)
 
