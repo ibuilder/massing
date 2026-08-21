@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1053 (2026-08-20) — four dependency floors, one lock recompile
+
+### Changed
+
+- **orjson `>=3.12.0`** (#334), **boto3 `>=1.43.73`** (#332), **redis `>=8.1.0`** (#327) and
+  **opentelemetry-instrumentation-fastapi `>=0.65b0`** (#330), with `requirements.lock` recompiled in
+  `python:3.12-slim`. Resolved: **orjson 3.11.9 → 3.12.0, redis 8.0.1 → 8.1.0, and nothing else** —
+  boto3 and opentelemetry were already satisfied by the existing pins, so raising those floors moved
+  no package at all.
+- **Batched deliberately.** Each raises a floor above what the lock pins, and
+  `test_lock_satisfies_requirements` compares the two — merging them one at a time would have
+  reddened `main` three times before the fourth fixed it. Verified in both directions: the gate
+  passes on the new lock and **fails on the old one**.
+
+### Note
+
+- **ruff (#331) is deliberately not in this batch.** It targets `requirements-dev.txt`, which no lock
+  covers, and `>=0.6 → >=0.16.3` is a major jump on the linter CI itself runs — a new ruff can flag
+  code that has been fine for a year. That needs its own change with the lint output actually read,
+  not a floor bump waved through.
+
 ## v0.3.1052 (2026-08-20) — main went red on the size ratchet; SCALE-SEAM ㉒
 
 ### Fixed
