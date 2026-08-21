@@ -470,13 +470,17 @@ def _model_export(db: Session, params: dict) -> dict:
 
 def _clash_detect(db: Session, params: dict) -> dict:
     """PERF-3 (CLASH-JOBS): the narrow-phase clash off the request path for large models. Same engine
-    as `POST /projects/{pid}/clash`, but the (potentially minutes-long, mesh-boolean) run happens on
-    the durable worker so it never holds a request slot or hits the HTTP timeout. Params:
-    {project_id, a, b (comma class lists), min_volume?, tolerance?, narrow?, max_narrow?, limit?}.
-    Returns the clash summary + the top rows (topic creation stays on the interactive route)."""
+    as `POST /projects/{pid}/clash`. Params: {project_id, a, b (comma class lists), min_volume?,
+    tolerance?, narrow?, max_narrow?, limit?, create_topics?}.
+
+    `create_topics` writes BCF topics the way the interactive route does — the screens that used to
+    call that route now enqueue this kind, so a Run without topics would be a quieter, worse
+    coordination record. MUTATING because of that write, even when a given run leaves it off.
+    """
     from aec_data import clash  # type: ignore
 
-    from .models import Project
+    from . import audit
+    from .models import Project, Topic, Viewpoint
     p = db.get(Project, params.get("project_id") or "")
     if not p or not p.source_ifc:
         raise ValueError("project has no source IFC")
@@ -489,8 +493,108 @@ def _clash_detect(db: Session, params: dict) -> dict:
         p.source_ifc, _classes(params.get("a")), _classes(params.get("b")),
         float(params.get("min_volume") or 1e-3), float(params.get("tolerance") or 0.0),
         narrow=bool(params.get("narrow", True)), max_narrow=int(params.get("max_narrow") or 200))
-    return {"count": len(results), "clashes": results[:limit],
+    created = 0
+    if params.get("create_topics"):
+        actor = str(params.get("actor") or "")
+        pid = p.id
+        for c in results[:limit]:
+            point = c.get("point")
+            t = Topic(
+                project_id=pid, type="clash", status="open",
+                title=f"Clash: {c['a_class']} × {c['b_class']} ({c['method']} vol {c['volume']})",
+                anchor=point, element_guids=[c["a_guid"], c["b_guid"]],
+            )
+            db.add(t)
+            if isinstance(point, dict) and all(k in point for k in ("x", "y", "z")):
+                d = 4.0 / (3 ** 0.5)
+                t.viewpoints.append(Viewpoint(
+                    camera={"type": "perspective",
+                            "position": {"x": point["x"] + d, "y": point["y"] + d, "z": point["z"] + d},
+                            "target": {"x": point["x"], "y": point["y"], "z": point["z"]}, "fov": 60},
+                    components=[g for g in (c.get("a_guid"), c.get("b_guid")) if g],
+                ))
+            created += 1
+        audit.record(db, action="clash.create_topics", actor=actor, method="POST",
+                     path=f"/projects/{pid}/jobs", detail={"created": created, "via": "clash_detect"})
+        db.commit()
+    return {"count": len(results), "created_topics": created, "clashes": results[:limit],
             "truncated": len(results) > limit}
+
+
+def _ids_validate(db: Session, params: dict) -> dict:
+    """R24-RUNS-INBOX — IDS validation off the request thread. Same engine as POST /validate
+    without an uploaded file (pinned IDS, else built-in specs). An upload stays on the interactive
+    route: parking bytes in job params is how a queue becomes a copy of the largest file anyone sent.
+    """
+    import os
+    import tempfile
+    from pathlib import Path
+
+    from aec_data import validate  # type: ignore
+
+    from . import storage
+    from .models import Project
+    pid = params.get("project_id") or ""
+    p = db.get(Project, pid)
+    if not p or not p.source_ifc:
+        raise ValueError("project has no source IFC")
+    ids_path = None
+    key = f"{pid}/ids/project.ids"
+    ids_bytes = storage.get(key) if storage.exists(key) else None
+    if ids_bytes is not None:
+        fd, ids_path = tempfile.mkstemp(suffix=".ids")
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(ids_bytes)
+    try:
+        return validate.validate_file(p.source_ifc, ids_path)
+    finally:
+        if ids_path:
+            Path(ids_path).unlink(missing_ok=True)
+
+
+def _labor_estimate(db: Session, params: dict) -> dict:
+    """R24-RUNS-INBOX — the cost-from-model takeoff the Analyse screen used to run inline.
+    Same function as GET /projects/{pid}/estimate/labor.
+    """
+    from aec_data import productivity  # type: ignore
+
+    from .models import Project
+    pid = params.get("project_id") or ""
+    p = db.get(Project, pid)
+    if not p:
+        raise ValueError("project not found")
+    if not p.source_ifc:
+        raise ValueError("no source IFC — the estimate needs a model")
+    rate = float(params.get("rate") or 25.0)
+    loading = str(params.get("loading") or "commercial")
+    full = bool(params.get("full", False))
+    crews = max(1, int(params.get("crews") or 1))
+    if params.get("qto", True):
+        from aec_data.qto import takeoff_file  # type: ignore
+        rows = takeoff_file(p.source_ifc, force_geometry=True)
+        return productivity.from_takeoff(rows, rate, loading, full=full, crews_parallel=crews)
+    from aec_data.ifc_loader import open_model  # type: ignore
+    return productivity.from_model(open_model(p.source_ifc), rate, loading, full=full,
+                                   crews_parallel=crews)
+
+
+def _energy_analyze(db: Session, params: dict) -> dict:
+    """R24-RUNS-INBOX — envelope energy (UA + degree-day) off the request thread.
+    Same function as GET /projects/{pid}/energy. Overrides travel in params, not query string.
+    """
+    from aec_data import energy as en  # type: ignore
+
+    from .models import Project
+    pid = params.get("project_id") or ""
+    p = db.get(Project, pid)
+    if not p or not p.source_ifc:
+        raise ValueError("project has no source IFC")
+    overrides = {k: v for k, v in {
+        "u_wall": params.get("u_wall"), "u_window": params.get("u_window"),
+        "ach": params.get("ach"), "hdd": params.get("hdd"), "cdd": params.get("cdd"),
+        "delta_t": params.get("delta_t"),
+    }.items() if v is not None}
+    return en.analyze_file(p.source_ifc, overrides)
 
 
 def _clash_federated(db: Session, params: dict) -> dict:
@@ -613,7 +717,10 @@ register_kind("echo", _echo)
 register_kind("cobie_export", _cobie_export)            # read → artifact (no project-state write)
 register_kind("compiled_set_pdf", _compiled_set_pdf)   # read → artifact
 register_kind("model_export", _model_export)           # read → artifact
-register_kind("clash_detect", _clash_detect)           # read-only
+register_kind("clash_detect", _clash_detect, mutating=True)  # may write BCF topics
+register_kind("ids_validate", _ids_validate)           # read → result
+register_kind("labor_estimate", _labor_estimate)       # read → result
+register_kind("energy_analyze", _energy_analyze)       # read → result
 register_kind("clash_federated", _clash_federated, mutating=True)   # WRITES coordination_issues
 register_kind("escalation_scan", _escalation_scan, mutating=True)   # WRITES records (me.update_record)
 register_kind("model_ci", _model_ci, mutating=True)    # writes the CI report; wants a consistent model read

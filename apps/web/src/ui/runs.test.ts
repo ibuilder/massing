@@ -182,12 +182,12 @@ describe("renderRunsInbox", () => {
   });
 
   it("says which half of the feature is missing when there are no runs", () => {
-    // Not "no data" — the four analyses the audit named still run in the foreground, so an empty
-    // inbox is the expected state and must not read as a fault.
+    // Not "no data" / not "the queue is unused" — an empty inbox is a project that has not run
+    // clash, IDS, cost or energy yet, and the copy names those so the reader knows where to start.
     const host = document.createElement("div");
     renderRunsInbox(host, [], label);
     expect(host.querySelector("[data-empty]")?.getAttribute("data-empty")).toBe("none");
-    expect(host.textContent).toContain("clash");
+    expect(host.textContent).toMatch(/clash/i);
   });
 
   it("a first run says so instead of showing a diff against nothing", () => {

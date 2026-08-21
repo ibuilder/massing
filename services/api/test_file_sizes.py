@@ -106,7 +106,7 @@ PER_FILE = {
     #: two lines of WIRING for a new button, and wiring is what this file is for. The alternative was
     #: to push DOM construction into `sheetSpecs.ts`, whose freedom from the DOM is exactly why its
     #: eleven tests need no browser — that would be trading a real property for a number.
-    "apps/web/src/viewer/app.ts": 2_944,   # R36 Specs mode +15; net -273 across 917-920; ⑦ drawings & sheets (142) -> tools/drawingsSection.ts, and the whole sheetSpecs import left app.ts with it; ⑨ fabrication detail (65) -> tools/fabricationSection.ts, the slice that finally threads `selectedGuid`; ⑩ MEP/fire/life-safety (169) -> tools/mepSection.ts, which threads `lastPoint` -- the last of the two named mutable captures; ⑫ envelope/free-form (75, two non-contiguous ranges) -> tools/envelopeSection.ts   # ⑬ federation/version-compare -> tools/federationSection.ts (3_032 -> 2_944)
+    "apps/web/src/viewer/app.ts": 2_885,   # clash rail -> tools/clashPanel.ts (2_944 -> 2_885)
     # Pinned at its EXACT measured size, not above it. qaSection.ts became the file every reach fix
     # lands in and reached 1,373 lines while unpinned - the same accumulation app.ts and client.ts
     # already have entries for. Pinned before it needs splitting rather than after: a ratchet added
@@ -116,7 +116,7 @@ PER_FILE = {
     # not to raise - the same call the /finance extraction made earlier the same day. Re-tightened
     # to the new exact count rather than left at 1_373, because 13 lines of slack is 13 lines the
     # next addition spends without anyone deciding to.
-    "apps/web/src/viewer/tools/qaSection.ts": 1_350,
+    "apps/web/src/viewer/tools/qaSection.ts": 1_348,
     # Pinned at its EXACT measured size on 2026-08-09, BEFORE it needs splitting — the third-largest
     # hand-written file in the tree and the only one of that size with no ratchet. The qaSection entry
     # above records why the timing matters: "a ratchet added at the point of pain only ratifies the

@@ -13,11 +13,10 @@
  * * **This half — history and comparison.** Runs that already go through the queue can be listed per
  *   project, grouped by kind, each compared against the one before it. That is pure computation over
  *   data the server already returns, so it is here, tested, with no endpoint and no migration.
- * * **The other half — routing the analyses through the queue.** Clash, IDS, cost and energy still
- *   run in the request thread behind a modal, so they never become rows here. That is a change to
- *   four call sites and their handlers, it is the larger and riskier half, and it stays open. Saying
- *   so is the point: this module works today for the seven registered kinds and is *empty* for the
- *   four analyses the audit actually named.
+ * * **The other half — routing the analyses through the queue.** Clash, IDS, cost and envelope
+ *   energy now enqueue (`clash_detect` / `clash_federated` / `ids_validate` / `labor_estimate` /
+ *   `energy_analyze`) and this inbox lists the rows. The empty state is only "nobody has run one
+ *   yet", not "the screens still skip the queue".
  *
  * ## The decision that matters: a missing metric is not zero
  *

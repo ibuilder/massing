@@ -166,7 +166,7 @@ describe("the qa/analyse split loses nothing", () => {
     // The twin of the assertion above: "Analyse has contents" passes just as happily if `qa` were
     // emptied wholesale, which would be a much worse outcome than not splitting at all.
     expect(labels("qa").length, "`qa` should keep the larger half").toBeGreaterThan(labels("analyse").length);
-    for (const probe of ["api.runClash(", "api.modelHealth(", "api.rulesRun(", "api.dataQa("]) {
+    for (const probe of ['enqueueAndWait(api, pid, "clash_detect"', "api.modelHealth(", "api.rulesRun(", "api.dataQa("]) {
       expect(sectionBody("qa"), `\`qa\` lost ${probe}`).toContain(probe);
     }
   });

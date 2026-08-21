@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased — Runs inbox call sites, plan cursor, array re-edit
+
+Does not bump the shipping version. Claude Code owns R26-V-TIMING, R24-PERSONA-SHAPE,
+R24-IDENTITY, PHOTO-PIN, CMMS-OPS; this change set does not touch them.
+
+### Added
+
+- **R24-RUNS-INBOX routing.** Clash (struct + federated), IDS, cost, and envelope energy enqueue as
+  job kinds (`clash_detect` with optional BCF topics, `clash_federated`, `ids_validate`,
+  `labor_estimate`, `energy_analyze`) and the Tools screens poll via `apps/web/src/api/waitForJob.ts`.
+  Timeout is "still running — watch the job tray", not an invented failure. Covered by
+  `services/api/test_inbox_jobs.py`.
+- **R38-SYNC-VIEW cursor.** `apps/web/src/viewer/planTransform.ts` reads the six `data-plan-*`
+  attributes PLAN-TRANSFORM already writes; the plan pane paints a 3D-ground cursor from them.
+- **R38-ARRAY-LIVE UI.** Groups panel **Re-edit** calls `set_array_params`; `list_groups` returns the
+  persisted `Pset_MassingArray` definition so the button has something to edit.
+
 ## v0.3.1057 (2026-08-21) — a job kind that needs to know who you are, and the identity it would have believed
 
 ### Fixed
