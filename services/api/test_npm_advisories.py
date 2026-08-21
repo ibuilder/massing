@@ -125,12 +125,46 @@ b, e, _ = gate.classify(report(pkg=row(fix=True, via=ADV)), TODAY)
 check("an EXPIRED exemption blocks, and says so", len(b) == 1 and "EXPIRED" in b[0],
       "; ".join(b) or "passed through as still-exempt")
 
-# The property the key shape exists for, asserted directly.
+# --- the property the key shape exists for, in the shape npm actually reports -------------------
+#
+# The first version of this passed `via=OTHER`, which REPLACES the exempt advisory. That only ever
+# exercised the case where the old advisory had vanished -- which already worked -- so it was green
+# against a `classify()` that suppressed the whole package on any single exempt match. The realistic
+# shape is ADDITIVE: an exemption exists because that advisory has no acceptable fix, so it persists,
+# and the next advisory lands BESIDE it. Both shapes are asserted below; the additive one is the
+# assertion that has teeth.
 gate.EXEMPT[KEY] = ("2999-01-01", "a live exemption for ONE advisory, not for the package forever")
 OTHER = [{"url": "https://github.com/advisories/GHSA-zzzz-yyyy-xxxx", "title": "a new one"}]
+
+b, e, _ = gate.classify(report(pkg=row(fix=True, via=[*ADV, *OTHER])), TODAY)
+check("a new advisory ALONGSIDE an exempt one on the same package still BLOCKS",
+      len(b) == 1, "; ".join(b) or "the old exemption silently covered a finding nobody looked at")
+check("...and the blocking line names ONLY the unexempted advisory",
+      bool(b) and "GHSA-zzzz-yyyy-xxxx" in b[0] and "GHSA-aaaa-bbbb-cccc" not in b[0],
+      (b[0] if b else "nothing blocked"))
+check("...and says the rest of the row is still exempt, so a reader can tell which half moved",
+      bool(b) and "remain exempt" in b[0], (b[0] if b else ""))
+
+# The easy shape, kept: the exempt advisory is gone and only the new one remains.
 b, e, _ = gate.classify(report(pkg=row(fix=True, via=OTHER)), TODAY)
-check("a NEW advisory on an already-exempt package still BLOCKS", len(b) == 1,
-      "; ".join(b) or "the old exemption silently covered a finding nobody looked at")
+check("a NEW advisory replacing an exempt one also BLOCKS", len(b) == 1,
+      "; ".join(b) or "nothing blocked")
+
+# Partial expiry: one live, one lapsed. The lapsed one must drag the row into blocking.
+gate.EXEMPT["pkg:GHSA-zzzz-yyyy-xxxx"] = ("2000-01-01", "a lapsed exemption sitting beside a live one")
+b, e, _ = gate.classify(report(pkg=row(fix=True, via=[*ADV, *OTHER])), TODAY)
+check("one EXPIRED exemption blocks even when a sibling advisory is still covered",
+      len(b) == 1 and "EXPIRED" in b[0], "; ".join(b) or "passed through as still-exempt")
+del gate.EXEMPT["pkg:GHSA-zzzz-yyyy-xxxx"]
+
+# ...and the twin: when EVERY advisory on the row is covered, it is exempt and blocks nothing.
+gate.EXEMPT["pkg:GHSA-zzzz-yyyy-xxxx"] = ("2999-01-02", "the sibling, also live")
+b, e, _ = gate.classify(report(pkg=row(fix=True, via=[*ADV, *OTHER])), TODAY)
+check("a row whose every advisory is covered is exempt, not blocked",
+      not b and len(e) == 1, "; ".join(b) or "exempt")
+check("...and it quotes the SOONEST expiry, not the most generous one",
+      bool(e) and "2999-01-01" in e[0], (e[0] if e else ""))
+del gate.EXEMPT["pkg:GHSA-zzzz-yyyy-xxxx"]
 del gate.EXEMPT[KEY]
 
 

@@ -4,6 +4,41 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1058 (2026-08-21) — the exemption matched the package, not the advisory
+
+### Fixed
+
+- **`scripts/audit_npm_gate.py` suppressed every advisory on a package as soon as ONE of them was
+  exempt** — shipped in v0.3.1056, found the same night by reviewing my own diff.
+  `next((k for k in keys if k in EXEMPT), None)` matches if *any* key hits, so the whole row went to
+  `exempted`. The key was per-advisory; the matching was not.
+
+  **This fails in the normal case, not an exotic one.** An exemption exists precisely because that
+  advisory has no acceptable fix — so it persists, and the next advisory to land on the package
+  arrives *beside* it rather than replacing it. `brace-expansion` already carries two advisories at
+  once. Measured on a synthetic report: a fresh **CRITICAL** with an in-range fix came back as
+  `blocking = []` while the row printed as exempt. A blocking CI gate that silently stops blocking is
+  the exact defect this file was written to fix, reproduced one layer in.
+
+  `classify()` now classifies each advisory on a package independently, blocks on the remainder, and
+  only reports a row as exempt when **every** advisory on it is covered by a live entry. The blocking
+  line names just the advisories that block — a work list rather than a row to re-derive — and says
+  how many siblings are still exempt, so a reader can tell which half moved. A row with mixed live
+  and lapsed exemptions blocks on the lapsed one. Where the whole row is covered it quotes the
+  **soonest** expiry, since that is the date it stops being settled.
+
+- **The test that was supposed to pin this never exercised the failing case.** It passed `via=OTHER`,
+  which *replaces* the exempt advisory rather than adding to it — so it only covered the shape where
+  the old advisory had vanished, which already worked, and stayed green against the defect.
+  It now uses the additive shape `via=[*ADV, *OTHER]` and asserts four things: the new advisory
+  blocks, the blocking line names only it, the line says the rest of the row is still exempt, and a
+  lapsed sibling drags the row into blocking. Mutation-checked by restoring the old `next(...)`
+  matching: all four go red, and the first one reports *"the old exemption silently covered a finding
+  nobody looked at"*.
+
+  *A test can assert a property by name and not test it.* The name was right, the fixture was the
+  easy shape, and nothing in the suite could tell the difference.
+
 ## v0.3.1057 (2026-08-21) — a job kind that needs to know who you are, and the identity it would have believed
 
 ### Fixed

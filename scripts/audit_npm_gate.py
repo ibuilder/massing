@@ -52,6 +52,13 @@ EXEMPTIONS
 Keyed `package:GHSA-id`, so a NEW advisory on an already-exempt package produces a key nobody has
 exempted and blocks. Every entry needs a reason and an EXPIRY, and an expired entry fails the gate
 rather than being ignored — an undated exemption is a permanent one wearing a temporary label.
+
+**That claim was FALSE for a release.** The key was per-advisory but the *matching* was not: one
+exempt advisory anywhere on a package sent the whole row to `exempted`. Since an exemption exists
+precisely because that advisory has no acceptable fix, the exempt advisory persists, and the next one
+lands beside it — so the failing case was the normal one, not an edge. `classify()` now classifies
+each advisory on a package independently and blocks on the remainder; a row is only reported exempt
+when EVERY advisory on it is covered by a live entry.
 `services/api/test_npm_advisories.py` checks all of that offline, in the normal suite, so a malformed
 or expired exemption goes red without needing the network.
 """
@@ -140,20 +147,53 @@ def classify(report: dict, today: str) -> tuple[list[str], list[str], list[str]]
         how = ("in-range bump" if fix is True
                else f"semver-major -> {fix.get('name')}@{fix.get('version')}" if isinstance(fix, dict)
                else None)
-        line = f"{sev:<8} {name}  {', '.join(ids)}"
         if how is None:
-            unfixed.append(f"{line}  (no fix published)")
+            unfixed.append(f"{sev:<8} {name}  {', '.join(ids)}  (no fix published)")
             continue
-        keys = [f"{name}:{i}" for i in ids]
-        hit = next((k for k in keys if k in EXEMPT), None)
-        if hit is None:
-            blocking.append(f"{line}  -> {how}")
-        else:
-            expiry, why = EXEMPT[hit]
-            if expiry < today:
-                blocking.append(f"{line}  -> {how}  [EXEMPTION EXPIRED {expiry}]")
+
+        # EVERY advisory on the package is classified, not just the first one that happens to be
+        # exempted.
+        #
+        # The first version of this was `next((k for k in keys if k in EXEMPT), None)` -- one match
+        # anywhere on the package sent the whole row to `exempted`. That is not a near-miss, it is
+        # the exact opposite of what the `package:GHSA-id` key exists to do, and it fails in the
+        # NORMAL case rather than an exotic one: an exemption exists precisely because that advisory
+        # has no acceptable fix, so it persists, and the next advisory to land on the same package
+        # arrives ALONGSIDE it. Measured on a synthetic report, a fresh CRITICAL with an in-range fix
+        # came back as `blocking = []`.
+        #
+        # The test that was supposed to pin this passed `via=OTHER`, REPLACING the exempt advisory
+        # rather than adding to it -- so it only ever exercised the case where the old advisory had
+        # vanished, which is the one that already worked.
+        covered: list[str] = []
+        expired: list[str] = []
+        unexempted: list[str] = []
+        for i in ids:
+            entry = EXEMPT.get(f"{name}:{i}")
+            if entry is None:
+                unexempted.append(i)
+            elif entry[0] < today:
+                expired.append(i)
             else:
-                exempted.append(f"{line}  [exempt until {expiry}: {why[:70]}...]")
+                covered.append(i)
+
+        if unexempted or expired:
+            # Name only the advisories that actually block, so the message is a work list rather
+            # than a row to re-derive by hand.
+            bad = ", ".join(sorted(unexempted + expired))
+            note = ("  [EXPIRED: " + ", ".join(f"{i} on {EXEMPT[f'{name}:{i}'][0]}"
+                                               for i in sorted(expired)) + "]") if expired else ""
+            # Say when the rest of the row is still exempt, or the reader sees a package they
+            # believed was settled and cannot tell which half moved.
+            rest = f"  ({len(covered)} other advisory(ies) here remain exempt)" if covered else ""
+            blocking.append(f"{sev:<8} {name}  {bad}  -> {how}{note}{rest}")
+        else:
+            # Report against the SOONEST expiry on the row: that is the date the row stops being
+            # settled, and quoting a later one would overstate how long this is good for.
+            soonest = min(covered, key=lambda i: EXEMPT[f"{name}:{i}"][0])
+            expiry, why = EXEMPT[f"{name}:{soonest}"]
+            exempted.append(f"{sev:<8} {name}  {', '.join(covered)}  "
+                            f"[exempt until {expiry}: {why[:70]}...]")
     return blocking, exempted, unfixed
 
 

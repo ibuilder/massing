@@ -2498,6 +2498,15 @@ Shipped 2026-08-21:
   `services/api/test_npm_advisories.py`, along with dated-and-unexpired exemptions, a broken audit run
   failing loudly rather than reading as clean, and the workflow step carrying neither escape hatch.
 
+  **CORRECTED v0.3.1058 — the exemption matched the PACKAGE, not the advisory.** The key was
+  `package:GHSA-id`, but `classify()` used `next((k for k in keys if k in EXEMPT), None)`, so one
+  exempt advisory anywhere on a package suppressed every other advisory on it. That fails in the
+  *normal* case: an exemption exists because that advisory has no acceptable fix, so it persists and
+  the next one lands beside it. A synthetic fresh CRITICAL came back `blocking = []`. Each advisory
+  is now classified independently. **And the test that named this property passed `via=OTHER`,
+  replacing the exempt advisory rather than adding to it** — it only ever ran the shape that already
+  worked. *A test can assert a property by name and not test it.*
+
   There are **three exemption entries for one finding** — npm reports each hop of a dependency chain
   as its own row, so `uuid`, `xcode` and `@capacitor/cli` each need one or the same advisory blocks
   three times. The entry that carries the analysis is the `uuid` one, and it records a reading rather
