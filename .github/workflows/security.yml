@@ -184,7 +184,23 @@ jobs:
         with: { node-version: "24", cache: npm, cache-dependency-path: package-lock.json }
       - run: npm ci
       - name: npm audit (production deps)
-        continue-on-error: true        # report-only
+        continue-on-error: true        # report-only — the BLOCKING half is the step below
         run: |
           echo "## npm audit (prod)" >> "$GITHUB_STEP_SUMMARY"
           npm audit --omit=dev >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+
+      - name: npm audit (full tree, incl. dev)
+        continue-on-error: true        # report-only
+        run: |
+          echo "## npm audit (full tree, incl. dev)" >> "$GITHUB_STEP_SUMMARY"
+          npm audit >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+
+      # DO NOT add continue-on-error or a trailing `|| true` to the step below. The two steps above
+      # are report-only by design and this one is the gate — the same report/block pair the bandit
+      # steps use. The single npm step these replaced had BOTH escape hatches AND `--omit=dev`, over
+      # a tree in which EVERY advisory was dev-only: three independent ways of not being a check,
+      # any one of which would have been enough. It printed "found 0 vulnerabilities" while two HIGHs
+      # sat in the tree that builds and signs the desktop and mobile artifacts.
+      # services/api/test_npm_advisories.py asserts this step keeps neither hatch.
+      - name: npm audit — GATE on advisories that HAVE a published fix (blocking)
+        run: python3 scripts/audit_npm_gate.py

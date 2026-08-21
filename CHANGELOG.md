@@ -4,6 +4,81 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1056 (2026-08-21) — the npm half of the supply-chain scan could not fail, and every advisory was in the half it skipped
+
+### Fixed
+
+- **Three HIGH advisories that had been sitting in a green CI job.** `brace-expansion` carries two
+  (GHSA-mh99-v99m-4gvg, GHSA-rgw5-rvv9-x895) and is present in three copies; `nanoid` carries one.
+  All fixed by an in-range bump — four packages, a 17-line lockfile diff from
+  `npm audit fix --package-lock-only`. They were not hard. They were invisible.
+  *(npm's own summary counts two "vulnerabilities" because it counts affected PACKAGES, not
+  advisories. Both numbers appear below; they are counting different things.)*
+- **The step that hid them was neutered three independent ways, and any one alone was enough.**
+  `scripts/audit_lock_gate.py` exists because the pip-audit step carried `continue-on-error: true`
+  and a trailing `|| true`, found a HIGH, and reported success. The npm step **fifty lines below it
+  in the same file** had both of those — plus `--omit=dev`, over a tree in which *every* advisory is
+  dev-only. Measured before writing anything:
+
+      npm audit --omit=dev   ->  "found 0 vulnerabilities", exit 0
+      npm audit              ->  5 advisories, 2 of them HIGH
+
+  Fixing one half of a lesson and leaving its twin in the other language is the shape here; the
+  lesson had been written down, and it had been written down in one language.
+- **The roadmap sentence that vouched for it.** R37's §4 said "`pip_audit`/`npm audit` ran
+  2026-08-01 … do not re-open this as if unknown". The npm half of that was true and useless — it
+  ran, over a population that excluded every finding. Corrected in place, because a true sentence
+  ("it ran") can carry a false one ("so it is covered").
+
+- **CLAUDE.md's viewer-extraction blocker was false when it was written.** It says the MassingViewer
+  packages "are not on npm yet. Until they are, this repository keeps its own viewer and nothing here
+  should change on account of the extraction." Queried against the npm registry: **20 of the 25
+  package names are published, all MIT, all dated 2026-08-08** — including the "@massing/embed"
+  facade at 0.2.0, whose eleven declared dependencies are every one of them published. That section
+  is dated **2026-08-15**, a week later. A standing instruction can be stale on the day it is
+  written, and this one named its blocker so confidently that no reader would think to check.
+
+  **Only the factual claim is corrected; the decision it was gating is untouched and still yours.**
+  Adopting the facade is a multi-release architectural commitment with two deliberate breaking
+  changes (async viewport creation, add/remove replacing `showModel`) and thirty-odd commits of
+  divergence to reconcile — not something to start off the back of a registry query. The standing
+  advice below it ("keep shipping viewer work") was never contingent on the npm question and is
+  unchanged.
+
+### Added
+
+- **`scripts/audit_npm_gate.py` — a blocking npm-advisory gate**, mirroring its Python sibling's
+  asymmetry: block on advisories with a published fix, report the rest, so the no-fix case needs no
+  allowlist entry and the exemption list stays near-empty by construction. Two deliberate
+  differences. It audits the **whole tree including dev**, because this is what builds and signs the
+  desktop and mobile artifacts and a build tool that can be made to hang is a supply-chain problem
+  even though no byte of it reaches a browser. And npm's **semver-major** fixes block rather than
+  being waved through — npm's proposed "fix" here is a *downgrade* of `@capacitor/cli` off the 8.5.x
+  line, and a rule that excused those would excuse a genuine major fix too.
+- **Exemptions keyed `package:GHSA-id`, not by package.** A new advisory on an already-exempt package
+  produces a key nobody exempted and blocks — asserted directly, because the coarse spelling would
+  have let the next finding through under an old decision. There are **three entries for one
+  finding** — npm reports each hop of a dependency chain as its own row, so `uuid`, `xcode` and
+  `@capacitor/cli` each need exempting or the same advisory blocks three times. The entry that
+  carries the analysis is the `uuid` one, and it carries a reading rather than a rationale: the `uuid` advisory is a missing bounds check in **v3/v5/v6 when a buffer
+  is passed**, and the only consumer here calls `uuid.v4()` with no arguments, at one line of
+  "node_modules/xcode/lib/pbxProject.js" and nowhere else. Checked by opening the file.
+- **A blocking half for the MCP tool-poisoning self-audit too** — found by sweeping every workflow
+  for the same shape rather than stopping at the one that was reported. `security.yml` ran
+  `mcp_tool_audit` with `continue-on-error: true` *and* `|| true`, into a job summary, and nothing
+  anywhere asserted the result. `test_invisible_unicode.py` already tested the **detector**; that
+  proves the detector works, not that what we ship is clean. It now asserts our own catalog — 18
+  tools, 0 findings — with the vacuity twin (`tools_scanned > 0`, because "0 findings over 0 tools"
+  is the pass this repo keeps re-learning about). Mutation-checked both ways: a planted finding and
+  an empty catalog each go red, each on the right assertion. This one matters more than most,
+  because tool poisoning hides in precisely the characters a human reviewer cannot see — code review
+  is not a control against an invisible character.
+- **`services/api/test_npm_advisories.py`** — the offline half: the classification rules driven with
+  synthetic reports (including the twin that an empty report blocks nothing, so a gate that refuses
+  everything cannot pass), dated-and-unexpired exemptions, a cyclic `via` chain terminating, a broken
+  audit run failing loudly instead of reading as clean, and the workflow step carrying neither escape
+  hatch nor `--omit=dev`.
+
 ## v0.3.1055 (2026-08-21) — the spatial tree is a tree, and a container build can be seen before it lands
 
 ### Added

@@ -2444,6 +2444,45 @@ Shipped 2026-08-01:
   only the `AEC_REQUIRE_SECRET` branch and called the fallback unguarded — **an audit that misses
   an existing control still tells you the control is hard to find.**
 
+Shipped 2026-08-21:
+
+* ✅ **SEC-NPM-GATE — the npm half of the supply-chain scan was neutered THREE ways at once, and
+  every one of them individually was enough.** `audit_lock_gate.py` exists because the pip-audit step
+  carried `continue-on-error: true` and a trailing `|| true`, so it found a HIGH and reported
+  success. The npm step **fifty lines below it in the same file** had both of those — and a third:
+  `--omit=dev`, over a tree in which **every** advisory is dev-only. Measured before writing
+  anything: `npm audit --omit=dev` printed *"found 0 vulnerabilities"* and exited 0, while
+  `npm audit` reported five affected packages, two of them HIGH — three HIGH *advisories*, since
+  `brace-expansion` carries two. (npm's headline counts packages, not advisories; both numbers are
+  right about different things and it is worth saying which is which.) Fixing the Python half and leaving its twin is the
+  shape this ring keeps finding: the lesson was written down, and it was written down in one
+  language.
+
+  What was behind it: `brace-expansion` (two DoS advisories, three copies in the tree) and `nanoid`,
+  all **HIGH**, all fixed by an in-range bump — four packages, a 17-line lockfile diff from
+  `npm audit fix --package-lock-only`. Not hard.
+  Invisible. *"dev-only" is not "harmless"*: this is the tree that builds and signs the desktop and
+  mobile artifacts, so a build tool that can be made to hang or exhaust memory is a supply-chain
+  problem even though no byte of it reaches a browser.
+
+  `scripts/audit_npm_gate.py` mirrors its Python sibling's asymmetry — block on advisories with a
+  published fix, report the rest — with one deliberate difference: npm's *semver-major* fixes block
+  too, rather than being waved through, because npm's proposed "fix" here is a **downgrade** of
+  `@capacitor/cli` from the 8.5.x line to 8.4.2, and a rule that excused those would excuse a real
+  major fix as well. Exemptions are keyed `package:GHSA-id` rather than by package, so a NEW advisory
+  on an exempt package is not silently covered by the old decision — asserted directly in
+  `services/api/test_npm_advisories.py`, along with dated-and-unexpired exemptions, a broken audit run
+  failing loudly rather than reading as clean, and the workflow step carrying neither escape hatch.
+
+  There are **three exemption entries for one finding** — npm reports each hop of a dependency chain
+  as its own row, so `uuid`, `xcode` and `@capacitor/cli` each need one or the same advisory blocks
+  three times. The entry that carries the analysis is the `uuid` one, and it records a reading rather
+  than a rationale: the advisory is a missing bounds check in **v3/v5/v6 when a buffer is passed**,
+  and the only consumer here calls `uuid.v4()` with no arguments, at one line of
+  "node_modules/xcode/lib/pbxProject.js" and nowhere else. Checked by opening the file. *(Plain
+  quotes: it exists, but under a gitignored directory, and a backticked path reads as a citation to
+  something tracked.)*
+
 Open:
 
 - ◧ **R35-DEAL-MEMORY** *(M — `deal_memory.py` shipped)* — the platform's own closed deals as a comp database: when underwriting
@@ -2469,6 +2508,11 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   CodeQL runs on every push with 0 open alerts, `pip_audit`/`npm audit` ran 2026-08-01 (pypdf floor
   raised; diskcache advisory has no fix and is monitored), and `test_no_secrets.py` scans every
   tracked file in the suite. Do not re-open this as if unknown.
+  **Corrected 2026-08-21: the `npm audit` half of that sentence was vouching for a scan that could
+  not see anything.** It ran `--omit=dev` over a tree whose every advisory is dev-only, with
+  `continue-on-error` and `|| true` besides — two HIGHs were sitting behind it the whole time. Fixed
+  and gated by SEC-NPM-GATE above. The rest of the bullet stands; this is a note about how a true
+  sentence ("it ran") can carry a false one ("so it is covered").
 * Its dead-code list predates the reachability sweeps (R31/R32/Band 3) that deliberately WIRED
   several of the named symbols. Example class: `validate.py` and `docgraph.py` symbols were
   "unused" in mid-July and have callers now. The check per symbol is the usual one —

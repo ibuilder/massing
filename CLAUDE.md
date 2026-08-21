@@ -93,8 +93,24 @@ seam ledger reporting 27 of 27 movable capabilities covered, each claim asserted
 than ticked in a table. Packaging is validated from real tarballs, so the swap is not blocked on anything
 technical.
 
-**Blocked on one thing:** the packages are not on npm yet. Until they are, this repository keeps its own viewer
-and nothing here should change on account of the extraction.
+**That blocker is GONE, and it was already gone when this section was written.** This said "the packages are
+not on npm yet. Until they are, this repository keeps its own viewer and nothing here should change on account
+of the extraction." Queried against the npm registry on 2026-08-21: **20 of the 25 package names are published,
+all MIT, all dated 2026-08-08** — including "@massing/embed" at **0.2.0**, whose eleven declared dependencies
+("core", "viewport", "authoring", "commands", "drawings2d", "fileio", "kernel-api", "markup", "observability",
+"plugin-host", "ribbon") are every one of them published. This section is dated **2026-08-15**, a week after
+that. *A standing instruction can be stale on the day it is written, and this one names its blocker so
+confidently that no reader would think to check.* Not published: "i18n", "tessellate", "pwa", "assets",
+"kernel-remote" — none of which "embed" depends on. *(Plain quotes, not backticks: this file's own rule two
+sections up reserves backticks for files that exist, and these are package names in someone else's registry.
+The paragraph above already followed that rule and the first draft of this one did not.)*
+
+**What follows from that is the USER'S CALL, and nothing here changes until they make it.** The two breaking
+changes below are real (async viewport creation, add/remove replacing `showModel`), the divergence is now
+thirty-odd commits deep, and "adopt the facade" is a multi-release architectural commitment, not a dependency
+bump. So: the *factual* blocker is corrected here because it was false; the *decision* it was gating is
+untouched and still open. Keep shipping viewer work in the meantime — that guidance below is unchanged and was
+never contingent on the npm question.
 
 **What an agent working in `apps/web/src/viewer` should know.** Twenty-eight commits have touched that directory
 since extraction began on 2026-08-06, and `apps/web/src/viewer/app.ts` has gone from 5,064 lines to 3,444 —

@@ -105,6 +105,36 @@ check(f"the gate actually scanned a corpus ({scanned} source files)", scanned > 
 check("no source file contains a bidirectional control character (Trojan Source)",
       not offenders, offenders[:5])
 
+# ---------------------------------------------------------------------------------------------
+# ...and our OWN catalog is clean, right now — the blocking half the workflow step never had.
+#
+# `security.yml` runs `mcp_tool_audit` with `continue-on-error: true` and a trailing `|| true`,
+# writing the result into a job summary. That is the identical shape as the npm and pip-audit steps
+# beside it: a check with no failure mode. Both of those got a blocking half; this one had none
+# anywhere, and the detector tested above proves only that the DETECTOR works — not that the thing
+# it detects is absent from what we ship.
+#
+# The distinction matters more here than elsewhere, because tool poisoning hides in exactly the
+# characters a human reviewer cannot see. Code review is not a control against an invisible
+# character; a gate is.
+#
+# The twin is the `tools_scanned` assertion. "0 findings" over 0 tools is the vacuous pass this repo
+# keeps re-learning about, and an import that silently stopped registering tools would produce it.
+from aec_api import supply_chain as _sc  # noqa: E402
+
+_audit = _sc.mcp_tool_audit()
+check("the MCP self-audit actually scanned a catalog -- '0 findings' over 0 tools is not a result",
+      _audit.get("tools_scanned", 0) > 0, str(_audit.get("tools_scanned")))
+# `findings` is a LIST of findings, not a count. The first spelling here compared it to `0` and went
+# red on a clean catalog -- because the exploratory command that established the shape had printed it
+# through `len(v) if isinstance(v, (list, dict))`, which renders `[]` as `0` and erases the type.
+# A summariser that normalises its input is a summariser you cannot read a contract off.
+_findings = _audit.get("findings")
+check("no shipped MCP tool carries a poisoning shape (invisible unicode, injection phrasing, "
+      "tag/comment smuggling, base64 blob, outbound URL)",
+      _audit.get("clean") is True and not _findings,
+      f"{len(_findings or [])} finding(s): {str(_findings)[:200]}")
+
 print()
 if FAILED:
     print(f"invisible_unicode: {len(FAILED)} FAILED — {FAILED}")
