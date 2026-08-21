@@ -13,6 +13,7 @@ import { withTopics } from "./topics";
 import { withAi } from "./ai";
 import { withPrecon } from "./precon";
 import { withEntitlements } from "./entitlements";
+import { withRisk } from "./risk";
 import { withMarkup } from "./markup";
 import { withSync } from "./sync";
 import { withCost } from "./cost";
@@ -44,7 +45,7 @@ export type { ModuleGraph, ModuleGraphEdge, ModuleGraphNode } from "./modules";
 export * from "./authoring";
 export * from "./library";
 import type {
-  Appraisal, AuditEntry, Dashboard, RiskDigest,
+  Appraisal, AuditEntry, Dashboard,
   DisciplineTree, DueFeed, EditMacro, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, MonteCarloMetric, RoomAllocation,
   LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate, ProfessionalLicense,
   ResponsibilityMatrix, SmartView, StampTemplate,
@@ -55,7 +56,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))))))))))))) {
+export class ApiClient extends withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -2854,19 +2855,6 @@ export class ApiClient extends withEntitlements(withPrecon(withAi(withTopics(wit
       `/projects/${pid}/materials/apply`, { method: "POST" });
   }
   /** RISK-BOARD: one ranked register unifying every computed risk signal (deep-linked per item). */
-  /** The risk narrative **with its drivers** — SPI, EAC, variance, open RFIs/submittals/CORs,
-   *  incidents and the top alerts it was computed from. `/ai/risk-summary` (see `riskSummary`)
-   *  returns the same prose with none of that, and a risk narrative a reader cannot check is the
-   *  same as no narrative. Route shipped with no client caller until v0.3.1051. */
-  riskDigest(pid: string) {
-    return this.json<RiskDigest>(`/projects/${pid}/risk-digest`);
-  }
-  riskBoard(pid: string) {
-    return this.json<{ items: { source: string; severity: "high" | "medium" | "low"; title: string;
-      detail: string; link: string | null; metric: number | null }[]; count: number;
-      by_severity: { high: number; medium: number; low: number };
-      lanes: Record<string, string>; band: string; note: string }>(`/projects/${pid}/risk-board`);
-  }
   /** CPM analysis of the schedule activities — float + critical path. */
   devBudget(pid: string) {
     return this.json<DevBudgetResponse>(`/projects/${pid}/dev-budget`);

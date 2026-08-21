@@ -4,6 +4,19 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1052 (2026-08-20) — main went red on the size ratchet; SCALE-SEAM ㉒
+
+### Fixed
+
+- **v0.3.1051 reddened `main`.** `riskDigest` took `client.ts` to 3,132 against a 3,125 ratchet, and
+  the release that added it ran vitest, lint, build and the route gate — **but not
+  `test_file_sizes`**. That ratchet *had* been run earlier in the same session, before a different
+  edit. **A check run before the change it is meant to cover is not a check of that change**, and
+  reusing an earlier green is how a verified-looking release ships a red one.
+- **SCALE-SEAM ㉒ — `riskDigest` and `riskBoard` move to `api/risk.ts`.** The ratchet's own comment
+  says the friction should buy a cluster out of the file rather than buy the pin a higher number,
+  so the pin came **down**: 3,125 → **3,120**, below where the session started.
+
 ## v0.3.1051 (2026-08-20) — the risk card now shows what its narrative rests on
 
 ### Changed
