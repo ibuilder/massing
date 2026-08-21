@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1054 (2026-08-20) — ruff `>=0.16.3`, validated by running it
+
+### Changed
+
+- **ruff floor `>=0.6` → `>=0.16.3`** (#331). Held back from the v0.3.1053 batch on purpose: a
+  linter floor is not a normal dependency bump — a new major flags code that has been fine for a
+  year — and **`requirements-dev.txt` is covered by no lock**, so no gate would have caught a
+  regression. The dev venv was already on 0.15.20; only the floor was stale.
+- **Validated by running it, not by reading a changelog.** 0.16.3 installed to a temp directory
+  (never the shared venv, which other sessions use) and pointed at the exact scope `ci.yml` lints —
+  `src/ ../data/src/` from `services/api`. **Both 0.15.20 and 0.16.3 report "All checks passed."**
+  The reasoning is recorded beside the pin, because the next person to see this floor move will want
+  to know whether anyone actually looked.
+
 ## v0.3.1053 (2026-08-20) — four dependency floors, one lock recompile
 
 ### Changed
