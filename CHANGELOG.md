@@ -4,7 +4,31 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## Unreleased — Runs inbox call sites, plan cursor, array re-edit
+## Unreleased — Runs inbox, plan cursor, array re-edit, 4D sequence clash, `.mass` preview
+
+Does not bump the shipping version. Claude Code owns R26-V-TIMING, R24-PERSONA-SHAPE,
+R24-IDENTITY, PHOTO-PIN, CMMS-OPS; this change set does not touch them.
+
+### Added
+
+- **R24-RUNS-INBOX routing.** Clash (struct + federated), IDS, cost, and envelope energy enqueue as
+  job kinds (`clash_detect` with optional BCF topics, `clash_federated`, `ids_validate`,
+  `labor_estimate`, `energy_analyze`) and the Tools screens poll via `apps/web/src/api/waitForJob.ts`.
+- Timeout is a `JobStillRunning` outcome (info toast → job tray), not an invented failure. Covered by
+  `services/api/test_inbox_jobs.py`. A second clash run with `create_topics` skips Topics that already
+  name the same pair. Shrinking an array past a moved member is a refusal, not a successful publish.
+- **R38-SYNC-VIEW cursor.** `apps/web/src/viewer/planTransform.ts` reads the six `data-plan-*`
+  attributes PLAN-TRANSFORM already writes; the plan pane paints a 3D-ground cursor from them.
+- **R38-ARRAY-LIVE UI.** Groups panel **Re-edit** calls `set_array_params`; `list_groups` returns the
+  persisted `Pset_MassingArray` definition so the button has something to edit.
+- **R21-4D-CLASH install-before-support.** `GET /projects/{pid}/clash/sequence` still reports space
+  contention, and now also checks directed IFC pairs from `aec_data.support_graph` against activity
+  `element_guids`. A supported element that starts before its support finishes is a finding; unstated
+  `IfcRelConnectsElements` joins and bounding boxes are not a load path. Analyze panel **Sequence
+  clash**. `IfcRelConnectsStructuralMember` is read from its real attributes (the previous reader
+  looked for RelatingElement and collected nothing).
+- **R28-BUNDLE preview.** Open Project reads `POST /projects/preview-bundle` first and shows excluded
+  tables (users, audit log, settings, connections) before import. ⌘K save is labelled `.mass`.
 
 Does not bump the shipping version. Claude Code owns R26-V-TIMING, R24-PERSONA-SHAPE,
 R24-IDENTITY, PHOTO-PIN, CMMS-OPS; this change set does not touch them.

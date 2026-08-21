@@ -97,12 +97,10 @@ assert many["finding_count"] == 2
 assert many["findings"][0]["location"] == "L3", many["findings"]
 assert many["findings"][0]["overlap_days"] > many["findings"][1]["overlap_days"]
 
-# ---- the unbuilt half is NAMED, not approximated -------------------------------------------------
-# This used to assert `"GlobalId" in not_covered`, pinning the claim that schedule_activity carries no
-# element GlobalId "so there is no way to know what a task installs". That claim was FALSE:
-# `element_guids` is a column on every module record (models.py:312) and `me.list_records` returns it,
-# so the binding reaches `analyze()` already. The test was holding a wrong statement in place — the
-# worst kind of coverage, since a documented dead end is one nobody re-checks.
+# ---- install-before-support is opt-in on the engine so space-only tests do not pretend a graph ----
+# Passing no pairs leaves the half unrun. The route always passes a list (possibly empty) so the
+# HTTP payload never claims "nobody asked".
+assert many["support_checked"] is False, many
 assert "SUPPORT relationship" in many["not_covered"], many["not_covered"]
 assert "binding EXISTS" in many["not_covered"], many["not_covered"]
 # ...and the gap is now MEASURABLE rather than asserted: how many activities could be checked today.
@@ -111,6 +109,59 @@ bound = sq.analyze([{"data": {"name": "Hanger", "location": "L9", "trade": "Mech
                               "start": "2026-03-01", "finish": "2026-03-10"},
                      "element_guids": ["0aaaaaaaaaaaaaaaaaaaaa"]}])
 assert bound["bound_activities"] == 1, bound["bound_activities"]
+
+# beam scheduled while the column that supports it is still going up
+rev = sq.analyze([
+    {"id": "beam", "data": {"name": "Beam", "location": "L1", "trade": "Steel",
+                            "start": "2026-08-01", "finish": "2026-08-05"},
+     "element_guids": ["BEAM"]},
+    {"id": "col", "data": {"name": "Column", "location": "L1", "trade": "Steel",
+                           "start": "2026-08-10", "finish": "2026-08-20"},
+     "element_guids": ["COL"]},
+], support_pairs=[("COL", "BEAM", "structural")])
+assert rev["support_checked"] is True
+assert rev["support_finding_count"] == 1, rev["support_findings"]
+assert rev["support_findings"][0]["supported"]["guid"] == "BEAM"
+assert rev["clean"] is False
+# same-trade space overlap is still not a space finding — the support finding is a different axis
+assert rev["finding_count"] == 0, rev["findings"]
+# column finishes, then beam starts — not a finding (same-day handoff included)
+ok_seq = sq.analyze([
+    {"id": "beam", "data": {"name": "Beam", "location": "L1", "trade": "Steel",
+                            "start": "2026-08-20", "finish": "2026-08-25"},
+     "element_guids": ["BEAM"]},
+    {"id": "col", "data": {"name": "Column", "location": "L1", "trade": "Steel",
+                           "start": "2026-08-01", "finish": "2026-08-20"},
+     "element_guids": ["COL"]},
+], support_pairs=[{"support": "COL", "supported": "BEAM", "grade": "structural"}])
+assert ok_seq["support_finding_count"] == 0, ok_seq["support_findings"]
+# an empty pairs list is a RAN check, not an unrun one — otherwise a model with no relations would
+# look identical to a caller that never asked
+empty_pairs = sq.analyze([
+    act("a", "Overhead ductwork", "L3 North", "Mechanical", "2026-08-03", "2026-08-14", 4),
+    act("b", "Branch conduit", "L3 North", "Electrical", "2026-08-10", "2026-08-21", 3),
+], support_pairs=[])
+assert empty_pairs["support_checked"] is True
+assert empty_pairs["support_finding_count"] == 0
+assert "IS checked" in empty_pairs["not_covered"]
+# a pair whose element has no dated activity is counted, not a silent clean
+gap_sup = sq.analyze([
+    {"id": "beam", "data": {"name": "Beam", "location": "L1", "trade": "Steel",
+                            "start": "2026-08-01", "finish": "2026-08-05"},
+     "element_guids": ["BEAM"]},
+], support_pairs=[("COL", "BEAM", "structural")])
+assert gap_sup["support_finding_count"] == 0
+assert gap_sup["support_unscheduled_count"] == 1, gap_sup["support_unscheduled"]
+# RelAggregates parent-before-part uses the same comparison
+asm = sq.analyze([
+    {"id": "part", "data": {"name": "Beam", "location": "L1", "trade": "Steel",
+                            "start": "2026-01-01", "finish": "2026-01-03"},
+     "element_guids": ["PART"]},
+    {"id": "frame", "data": {"name": "Frame", "location": "L1", "trade": "Steel",
+                             "start": "2026-02-01", "finish": "2026-02-10"},
+     "element_guids": ["FRAME"]},
+], support_pairs=[("FRAME", "PART", "assembly")])
+assert asm["support_finding_count"] == 1 and asm["support_findings"][0]["grade"] == "assembly"
 
 # a bare dict (no "data" wrapper) is accepted too — the module engine hands both shapes around
 flat = sq.analyze([{"name": "Duct", "location": "L3", "trade": "Mechanical",
@@ -127,7 +178,7 @@ print("R21-4D-CLASH OK - space contention: two trades scheduled into one place i
       "adjacent windows are fine while a single shared day is not. Activities missing a location or "
       "dates are skipped and COUNTED rather than silently dropped, and an all-unreadable schedule "
       "reports as not-clean, because a clean result over a half-readable schedule is the same "
-      "overstatement the clash matrix exists to prevent. The other half of 4D clash - an install "
-      "sequenced before the support it hangs from - is NAMED as unbuilt rather than approximated: "
-      "schedule_activity carries no element GlobalId, so there is no way to know what a task "
-      "installs, and that needs a real task-to-element binding rather than a guess.")
+      "overstatement the clash matrix exists to prevent. Install-before-support uses directed pairs "
+      "from the IFC (structural direction, RelAggregates parent-before-part) and element_guids; "
+      "unstated joins and bounding boxes are not treated as a load path. A supported element that "
+      "starts before its support finishes is a finding; a same-day handoff is not.")

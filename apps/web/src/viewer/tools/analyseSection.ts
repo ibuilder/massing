@@ -128,6 +128,41 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
             fourD.dispose = populate4dPanel(body, { api, pid, layers: layerMgr, notify });
           }, () => { fourD.dispose?.(); fourD.dispose = null; });
         }));
+        b.appendChild(toolBtn2("🔀 Sequence clash (4D · space + support)", () => withLoading(container, "Checking sequence clashes", async () => {
+          let r;
+          try { r = await api.sequenceClash(pid); }
+          catch { toast("Needs a project with a schedule", "error"); return; }
+          const n = r.finding_count + r.support_finding_count;
+          out.textContent = n ? `${n} sequence clash${n === 1 ? "" : "es"}` : (r.clean ? "clean" : "checked");
+          showResult("Sequence clash — space contention + install-before-support", (body) => {
+            body.appendChild(resultNote(
+              `${r!.analyzed} dated locatable activit${r!.analyzed === 1 ? "y" : "ies"} · `
+              + `<b>${r!.finding_count}</b> space contention · <b>${r!.support_finding_count}</b> install-before-support`
+              + (r!.support_unscheduled_count ? ` · ${r!.support_unscheduled_count} pair(s) missing a dated binding` : "")
+              + `.`,
+              n ? "bad" : (r!.clean ? "ok" : "")));
+            if (r!.findings.length) {
+              body.appendChild(kvTable(r!.findings.slice(0, 40).map((f) => ({
+                k: f.location,
+                v: `${f.a.trade} × ${f.b.trade} · ${f.overlap_days}d · ${f.window.start}→${f.window.finish}`,
+              }))));
+            }
+            if (r!.support_findings.length) {
+              body.appendChild(kvTable(r!.support_findings.slice(0, 40).map((f) => ({
+                k: f.grade,
+                v: `${f.supported.name || f.supported.guid} @ ${f.supported.start} before `
+                  + `${f.support.name || f.support.guid} finishes ${f.support.finish}`,
+              }))));
+              const guids = [...new Set(r!.support_findings.flatMap(
+                (f) => [f.support.guid, f.supported.guid]))];
+              if (guids.length) {
+                body.appendChild(toolBtn2(`◎ Isolate ${guids.length} sequenced element(s)`,
+                  () => { void layerMgr.isolateGuids(guids); }));
+              }
+            }
+            body.appendChild(resultNote(r!.not_covered, ""));
+          });
+        })));
         b.appendChild(toolBtn2("🏛 Occupancy & egress (IBC pre-check)", () => withLoading(container, "Computing occupancy load + egress", async () => {
           let r;
           try { r = await api.codecheckEgress(pid); }

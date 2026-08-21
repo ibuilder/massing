@@ -51,5 +51,25 @@ export function withLibrary<TBase extends Ctor<HttpCore>>(Base: TBase) {
       if (!res.ok) throw new Error(`open sample -> ${res.status}`);
       return res.json() as Promise<{ id: string; name: string }>;
     }
+
+    /** R28-BUNDLE — what a `.mass` / `.mmproj` holds, without creating a project. */
+    async previewBundle(file: File) {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(this.url(`/projects/preview-bundle`), {
+        method: "POST", body: fd, headers: this.authHeaders(),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({ detail: res.statusText })) as { detail?: unknown };
+        const detail = typeof e.detail === "string" ? e.detail : `preview -> ${res.status}`;
+        throw new Error(detail);
+      }
+      return res.json() as Promise<{
+        readable: boolean; importable: boolean; format?: string; version?: number;
+        project_name?: string | null; has_geometry: boolean; entry_count: number;
+        table_count: number; row_count: number; tables: Record<string, number>;
+        excluded: { tables: string[]; why: string }; reason: string;
+      }>;
+    }
   };
 }

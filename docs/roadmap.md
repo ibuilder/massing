@@ -1042,9 +1042,10 @@ These are the gaps between what the platform draws today and what that package c
 
 **Tier 1 — the set cannot be issued without these**
 
-- ◧ **R21-4D-CLASH** *(phase 1 shipped v0.3.682; install-before-support still open)* — **sequence clash**: two trades occupying one space in the same schedule
-  window, or an install ordered before its support. The 4D timeline and CPM both exist; this reads
-  them together.
+- ✅ **R21-4D-CLASH** *(phase 1 v0.3.682 · install-before-support this PR, pending archive)* — **sequence clash**: two trades occupying one space in the same schedule
+  window, or an install ordered before its support. Analyze → Sequence clash. Directed pairs come from
+  `services/data/src/aec_data/support_graph.py`; the engine is
+  `services/api/src/aec_api/sequence_clash.py`. Unstated joins are not treated as support.
 
   **Blocker retired (2026-08-02):** the "no task→element binding" prerequisite was FIXED by
   R25-TASK-BIND (element_guids reaches analyze(); bound_activities counts it in
@@ -3021,10 +3022,10 @@ latched itself permanently empty. Both were repaired at the symptom. The cause i
 "model" are two states the app keeps having to re-marry, and every feature built on top inherits the
 seam.
 
-* **R28-BUNDLE ② — make `.mmproj` legible.** It already carries the data; nothing says so. Name it in
-  the UI, show what a bundle contains before import, and state on export what was included and what
-  was **left out** (`_SKIP_TABLES` drops users, audit log, settings and connections — correct, and
-  currently silent). The same unknown ≠ none rule the engines follow.
+* ✅ **R28-BUNDLE ② — make `.mass` legible.** Export already stated `_SKIP_TABLES`. Open Project now
+  previews the container (POST /projects/preview-bundle) and names what will not arrive (users,
+  audit log, settings, connections) before import. Legacy `.mmproj` still opens. ⌘K save matches the
+  File menu (`.mass`).
 * **R28-VIEWER ④** — the future viewer opens a **container**, not a file. **This is now live and
   external**: the kernel rebuild is `MassingCloud/massingifc` (private), first commit 2026-07-26 —
   a framework-agnostic kernel + plugin host with **all fourteen capability families still contracts

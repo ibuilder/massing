@@ -80,8 +80,18 @@ def connection_graph(model, include_assemblies: bool = True) -> dict[str, Any]:
         except Exception:                              # noqa: BLE001 — class absent from this schema
             continue
         for rel in rels:
-            a = _guid(getattr(rel, "RelatingElement", None))
-            b = _guid(getattr(rel, "RelatedElement", None))
+            # IfcRelConnectsElements uses RelatingElement/RelatedElement. IfcRelConnectsStructuralMember
+            # does not: its ends are RelatingStructuralMember / RelatedStructuralConnection. Reading the
+            # element pair on a structural rel silently produced ZERO structural edges on every model
+            # this repo can derive — the only relation that licenses a direction was never collected.
+            if grade == EDGE_STRUCTURAL:
+                a = _guid(getattr(rel, "RelatingStructuralMember", None)
+                          or getattr(rel, "RelatingElement", None))
+                b = _guid(getattr(rel, "RelatedStructuralConnection", None)
+                          or getattr(rel, "RelatedElement", None))
+            else:
+                a = _guid(getattr(rel, "RelatingElement", None))
+                b = _guid(getattr(rel, "RelatedElement", None))
             if not a or not b or a == b:
                 continue
             key = (a, b, grade)
@@ -168,3 +178,61 @@ def supports(graph: dict, guid: str) -> dict[str, Any]:
         "reason": ("elements joined to this one are listed; only `directional` entries come from a "
                    "relation that states which way the load goes"),
     }
+
+
+def _product_map(model) -> dict[str, str]:
+    """Analytical GlobalId → physical product GlobalId via IfcRelAssignsToProduct.
+
+    `derive_analytical` assigns each curve member to its IfcColumn/IfcBeam. Schedule bindings are on
+    those products, so an install-before-support check that compared analytical GUIDs to activity
+    `element_guids` would find nothing even when the graph was fully stated."""
+    out: dict[str, str] = {}
+    try:
+        rels = model.by_type("IfcRelAssignsToProduct")
+    except Exception:  # noqa: BLE001 — class absent from this schema
+        return out
+    for rel in rels:
+        prod = _guid(getattr(rel, "RelatingProduct", None))
+        if not prod:
+            continue
+        for obj in getattr(rel, "RelatedObjects", None) or []:
+            g = _guid(obj)
+            if g:
+                out[g] = prod
+    return out
+
+
+def directed_install_pairs(graph: dict, model=None) -> list[dict[str, str]]:
+    """(support, supported) pairs a sequence check may treat as ordered, and nothing else.
+
+    * `structural` — RelatingStructuralMember before RelatedStructuralConnection (analysis-model
+      direction). Ends are remapped to physical products when `model` is given.
+    * `assembly` — RelatingObject (whole) before RelatedObjects (parts). The roadmap's example is a
+      beam aggregated into a frame that has not been installed; containment is not load path, but it
+      *is* a stated order.
+
+    `connected` joins with `direction: unstated` are omitted on purpose: using Relating/Related as a
+    load direction is the inference this module exists to refuse.
+    """
+    phys = _product_map(model) if model is not None else {}
+    out: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for e in graph.get("edges") or []:
+        grade = e.get("grade")
+        if grade == EDGE_STRUCTURAL and e.get("direction") == "relating_to_related":
+            kind = "structural"
+        elif grade == EDGE_ASSEMBLY and e.get("direction") == "parent_to_part":
+            kind = "assembly"
+        else:
+            continue
+        a = phys.get(e["a"], e["a"])
+        b = phys.get(e["b"], e["b"])
+        if not a or not b or a == b:
+            continue
+        key = (a, b, kind)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"support": a, "supported": b, "grade": kind,
+                    "relation": str(e.get("relation") or "")})
+    return out

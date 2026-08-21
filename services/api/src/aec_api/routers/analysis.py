@@ -252,19 +252,35 @@ def clash_matrix(pid: str, body: dict = Body(default={}), _: str = Depends(requi
 @router.get("/projects/{pid}/clash/sequence")
 def clash_sequence(pid: str, min_overlap_days: int = 1, crew_threshold: int = 0,
                    db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """R21-4D-CLASH — space contention: two trades scheduled into one location in one window.
+    """R21-4D-CLASH — space contention plus install-before-support.
 
-    Nothing in the model is wrong when this happens — every element clears every other — which is why
-    a geometric clash run cannot find it. Same-trade overlap is not a finding (one trade sequencing
-    its own crews is planning). Activities without a location or dates are skipped and counted, so a
-    clean result is never claimed over a schedule that was half unreadable.
+    Space contention: two trades scheduled into one location in one window. Nothing in the model is
+    wrong when this happens — every element clears every other — which is why a geometric clash run
+    cannot find it. Same-trade overlap is not a finding (one trade sequencing its own crews is
+    planning). Activities without a location or dates are skipped and counted, so a clean result is
+    never claimed over a schedule that was half unreadable.
+
+    Install-before-support reads directed pairs from the source IFC (`support_graph`) and the
+    activities' `element_guids`. A project with a schedule but no IFC still returns space contention;
+    the support half reports as checked-with-zero-pairs rather than inventing geometry.
     """
+    from aec_data.support_graph import connection_graph, directed_install_pairs
+
     from .. import modules as me
     from .. import sequence_clash
     acts = me.list_records(db, "schedule_activity", pid, limit=sequence_clash.MAX_ACTIVITIES) \
         if "schedule_activity" in me.TABLES else []
+    # Empty list, not None: the engine must record that the support half RAN. None would leave
+    # not_covered claiming the binding exists but nobody asked, which is a lie on this route.
+    support_pairs: list = []
+    try:
+        model = open_source_ifc(db, pid)
+        support_pairs = directed_install_pairs(connection_graph(model), model)
+    except HTTPException as e:
+        if e.status_code != 409:
+            raise
     return sequence_clash.analyze(acts, min_overlap_days=min_overlap_days,
-                                  crew_threshold=crew_threshold)
+                                  crew_threshold=crew_threshold, support_pairs=support_pairs)
 
 
 @router.get("/projects/{pid}/clash/clearance-rules")
