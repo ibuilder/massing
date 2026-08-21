@@ -90,7 +90,8 @@ check("...and is MUTATING, so it takes the project lock -- coordinate() writes r
 # The twin: a read-only kind must NOT be in the set, or the assertion above passes on a set
 # containing everything.
 check("...while the read-only kinds are still not mutating",
-      not ({"clash_detect", "model_export", "cobie_export"} & jobs._MUTATING_KINDS),
+      not ({"ids_validate", "labor_estimate", "energy_analyze", "model_export", "cobie_export"}
+           & jobs._MUTATING_KINDS),
       ", ".join(sorted(jobs._MUTATING_KINDS)))
 
 # --- the queue must not be a SIDE DOOR around the stricter endpoint ------------------------------

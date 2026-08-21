@@ -40,7 +40,7 @@ export function readPlanTransform(root: Element | null): PlanTransform | null {
   if (!svg) return null;
   const vals = ATTRS.map((a) => num(svg, a));
   if (vals.some((v) => v == null)) return null;
-  const [scale, ox, oy, minx, miny, drawh] = vals as number[];
+  const [scale, ox, oy, minx, miny, drawh] = vals as [number, number, number, number, number, number];
   if (scale === 0) return null;
   return { scale, ox, oy, minx, miny, drawh };
 }

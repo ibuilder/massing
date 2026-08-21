@@ -191,8 +191,8 @@ _release2.set(); _t2.join(timeout=5.0)
 assert _wait(njid).state == "done"
 
 # the real mutating kinds (write records / republish-adjacent) are flagged; read/artifact kinds aren't
-assert {"escalation_scan", "model_ci"} <= jobs._MUTATING_KINDS, jobs._MUTATING_KINDS
-assert not ({"model_export", "clash_detect", "cobie_export", "report_package"} & jobs._MUTATING_KINDS), jobs._MUTATING_KINDS
+assert {"escalation_scan", "model_ci", "clash_detect", "clash_federated"} <= jobs._MUTATING_KINDS, jobs._MUTATING_KINDS
+assert not ({"model_export", "ids_validate", "labor_estimate", "energy_analyze", "cobie_export", "report_package"} & jobs._MUTATING_KINDS), jobs._MUTATING_KINDS
 
 # R24-REPORTS-BY-MOMENT ②: assemble named reports into one PDF artifact
 with TestClient(app) as c:
@@ -217,4 +217,5 @@ print("JOB-QUEUE OK - unknown kind 400s at submit; orphaned running job re-queue
       "row; clash_detect runs the narrow-phase clash on the worker and returns its summary. PID-LOCK: "
       "a mutating job (register_kind mutating=True) holds pid_lock.mutating(project_id) for its whole "
       "run so it can't interleave a concurrent edit; a read/artifact job leaves the lock free; the real "
-      "escalation_scan + model_ci kinds are flagged mutating while model_export/clash_detect/cobie are not.")
+      "escalation_scan + model_ci + clash_detect + clash_federated kinds are flagged mutating while "
+      "model_export/ids_validate/cobie are not.")

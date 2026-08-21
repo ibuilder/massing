@@ -75,7 +75,7 @@ import { markupPlugin, reloadMarkup } from "../kernel/markupPlugin";
 import type { ModulePin } from "../api/types";
 import { PinOverlay, restoreCamera } from "../pins/pins";
 import { type ApiClient, type DisciplineTree, type ElementProps, type Topic } from "../api/client";
-import { escapeHtml, toast, withLoading } from "../ui/feedback";
+import { escapeHtml, withLoading } from "../ui/feedback";
 import { showResult, kvTable, resultNote } from "../ui/result";
 
 /** View options the settings bar owns (in main) and the viewer applies. */

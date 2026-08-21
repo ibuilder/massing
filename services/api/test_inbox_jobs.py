@@ -56,39 +56,39 @@ def _wait(job_id: str, timeout: float = 90.0) -> Job:
     raise AssertionError(f"job {job_id} did not finish in {timeout}s")
 
 
-c = TestClient(app)
-c.headers["X-User"] = "tester"
-pid = c.post("/projects", json={"name": "inbox-jobs"}).json()["id"]
-metrics = massing.compute_massing({"lot_width": 14, "lot_depth": 10, "far": 1.5, "floor_to_floor": 3.5})
-ifc = Path("./test_ifc_inbox_jobs")
-ifc.mkdir(exist_ok=True)
-path = ifc / "m.ifc"
-massing.generate_ifc(metrics, str(path), name="InboxJobs")
-up = c.post(f"/projects/{pid}/source-ifc?publish=false",
-            files={"file": ("m.ifc", path.read_bytes(), "application/octet-stream")})
-check("source IFC accepted", up.status_code == 200, up.text[:160])
+with TestClient(app) as c:
+    c.headers["X-User"] = "tester"
+    pid = c.post("/projects", json={"name": "inbox-jobs"}).json()["id"]
+    metrics = massing.compute_massing({"lot_width": 14, "lot_depth": 10, "far": 1.5, "floor_to_floor": 3.5})
+    ifc = Path("./test_ifc_inbox_jobs")
+    ifc.mkdir(exist_ok=True)
+    path = ifc / "m.ifc"
+    massing.generate_ifc(metrics, str(path), name="InboxJobs")
+    up = c.post(f"/projects/{pid}/source-ifc?publish=false",
+                files={"file": ("m.ifc", path.read_bytes(), "application/octet-stream")})
+    check("source IFC accepted", up.status_code == 200, up.text[:160])
 
-r = c.post(f"/projects/{pid}/jobs", json={"kind": "ids_validate"})
-check("ids_validate enqueues", r.status_code == 201, r.text[:200])
-j = _wait(r.json()["id"])
-check("ids_validate finishes", j.state == "done", f"{j.state} {j.error}")
-check("ids_validate returns a status, not an empty dict",
-      isinstance(j.result, dict) and "status" in (j.result or {}), str(j.result)[:200])
+    r = c.post(f"/projects/{pid}/jobs", json={"kind": "ids_validate"})
+    check("ids_validate enqueues", r.status_code == 201, r.text[:200])
+    j = _wait(r.json()["id"])
+    check("ids_validate finishes", j.state == "done", f"{j.state} {j.error}")
+    check("ids_validate returns a status, not an empty dict",
+          isinstance(j.result, dict) and "status" in (j.result or {}), str(j.result)[:200])
 
-r2 = c.post(f"/projects/{pid}/jobs",
-            json={"kind": "labor_estimate", "params": {"loading": "commercial", "rate": 25, "full": True}})
-check("labor_estimate enqueues", r2.status_code == 201, r2.text[:200])
-j2 = _wait(r2.json()["id"])
-check("labor_estimate finishes", j2.state == "done", f"{j2.state} {j2.error}")
-check("labor_estimate names its hours",
-      isinstance(j2.result, dict) and "total_man_hours" in (j2.result or {}), str(j2.result)[:200])
+    r2 = c.post(f"/projects/{pid}/jobs",
+                json={"kind": "labor_estimate", "params": {"loading": "commercial", "rate": 25, "full": True}})
+    check("labor_estimate enqueues", r2.status_code == 201, r2.text[:200])
+    j2 = _wait(r2.json()["id"])
+    check("labor_estimate finishes", j2.state == "done", f"{j2.state} {j2.error}")
+    check("labor_estimate names its hours",
+          isinstance(j2.result, dict) and "total_man_hours" in (j2.result or {}), str(j2.result)[:200])
 
-r3 = c.post(f"/projects/{pid}/jobs", json={"kind": "energy_analyze"})
-check("energy_analyze enqueues", r3.status_code == 201, r3.text[:200])
-j3 = _wait(r3.json()["id"])
-check("energy_analyze finishes", j3.state == "done", f"{j3.state} {j3.error}")
-check("energy_analyze names an EUI, not an empty dict",
-      isinstance(j3.result, dict) and "eui_kwh_m2_yr" in (j3.result or {}), str(j3.result)[:200])
+    r3 = c.post(f"/projects/{pid}/jobs", json={"kind": "energy_analyze"})
+    check("energy_analyze enqueues", r3.status_code == 201, r3.text[:200])
+    j3 = _wait(r3.json()["id"])
+    check("energy_analyze finishes", j3.state == "done", f"{j3.state} {j3.error}")
+    check("energy_analyze names an EUI, not an empty dict",
+          isinstance(j3.result, dict) and "eui_kwh_m2_yr" in (j3.result or {}), str(j3.result)[:200])
 
 # Twin: a handler that only refuses would leave these green. Deleting the body of _ids_validate
 # and raising would fail "finishes"; returning {} would fail "returns a status".

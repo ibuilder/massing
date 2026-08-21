@@ -271,7 +271,7 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
         b.appendChild(toolBtn2("⚡ Envelope energy (UA · EUI)", () => withLoading(container, "Queueing envelope energy", async () => {
           let e;
           try {
-            e = await enqueueAndWait(api, pid, "energy_analyze") as Awaited<ReturnType<ApiClient["energy"]>>;
+            e = await enqueueAndWait(api, pid, "energy_analyze") as unknown as Awaited<ReturnType<ApiClient["energy"]>>;
           }
           catch { toast("Needs a source IFC", "error"); return; }
           out.textContent = `EUI ${e.eui_kwh_m2_yr} kWh/m²·yr`;

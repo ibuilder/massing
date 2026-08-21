@@ -187,7 +187,7 @@ describe("renderRunsInbox", () => {
     const host = document.createElement("div");
     renderRunsInbox(host, [], label);
     expect(host.querySelector("[data-empty]")?.getAttribute("data-empty")).toBe("none");
-    expect(host.textContent).toContain("clash");
+    expect(host.textContent).toMatch(/clash/i);
   });
 
   it("a first run says so instead of showing a diff against nothing", () => {
