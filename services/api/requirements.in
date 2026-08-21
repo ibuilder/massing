@@ -17,8 +17,8 @@ sqlalchemy>=2.0
 alembic>=1.13             # DB schema migrations (source of truth going forward; see migrations/README.md)
 pydantic>=2.7
 python-multipart>=0.0.9   # file uploads (attachments)
-orjson>=3.10              # RT-ORJSON: Rust JSON for ORJSONResponse + hot blob paths (Apache-2.0/MIT)
-boto3>=1.43.68            # MinIO/S3 object storage (range reads); lazy-imported
+orjson>=3.12.0              # RT-ORJSON: Rust JSON for ORJSONResponse + hot blob paths (Apache-2.0/MIT)
+boto3>=1.43.73            # MinIO/S3 object storage (range reads); lazy-imported
 psycopg[binary]>=3.1      # Postgres driver (prod). Locked here so `--require-hashes` covers it too.
 
 # --- analysis / QA + export bridge to the data service (services/data/src) ---
@@ -63,7 +63,7 @@ ezdxf>=1.1             # DXF quantity takeoff — 2D CAD estimating (dxf_takeoff
 diskcache>=5.6            # Apache-2.0, pure-Python, no C extension
 
 # --- optional (lazy-imported, only when the matching env var is set) ---
-redis>=5.0             # shared rate-limit + login-lockout counters (AEC_REDIS_URL)
+redis>=8.1.0             # shared rate-limit + login-lockout counters (AEC_REDIS_URL)
 anthropic>=0.120.0        # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY
 sentry-sdk[fastapi]>=2.66.1  # external error alerting (sentry.py); no-op unless AEC_SENTRY_DSN is set
 
@@ -73,7 +73,7 @@ sentry-sdk[fastapi]>=2.66.1  # external error alerting (sentry.py); no-op unless
 # deferred to a follow-up until its emitted S3 attributes can be verified safe (see otel.py notes).
 opentelemetry-sdk>=1.27
 opentelemetry-exporter-otlp-proto-http>=1.44.0
-opentelemetry-instrumentation-fastapi>=0.48b0
+opentelemetry-instrumentation-fastapi>=0.65b0
 opentelemetry-instrumentation-sqlalchemy>=0.65b0
 
 # --- R28-ICDD: ISO 21597 Information Container (icdd.py) ---
