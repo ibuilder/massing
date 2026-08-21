@@ -1,4 +1,5 @@
 import { type ApiClient, type PropLayer, type PropMapRule } from "../../api/client";
+import { enqueueAndWait } from "../../api/waitForJob";
 
 import type { ModelIdMap } from "../modelIds";
 import { askText } from "../../ui/prompt";
@@ -8,6 +9,7 @@ import { guidsFromSample } from "../warningSample";
 import { sharedParamsButton } from "./sharedParamsPanel";
 import { projectModelsButton } from "./projectModelsPanel";
 import { modelReviewButton } from "./modelReviewPanel";
+import { runIdsValidate } from "./idsValidate";
 import { escapeHtml, toast, withLoading } from "../../ui/feedback";
 import { LayerManager } from "../../tools/layers";
 import { ModelLoader } from "../loader";
@@ -87,10 +89,12 @@ export function buildQaSection(d: QaDeps): void {
         const b = section("qa", "Analyze & Coordinate · clash / QA", { requires: "sourceIfc", tool: true });
         if (!b) return;
         const out = document.createElement("div"); out.className = "meta"; out.style.marginTop = "4px";
-        b.appendChild(toolBtn2("⚡ Run clash (struct)", () => withLoading(container, "Running clash detection", async () => {
-          const r = await api.runClash(pid, { a: "IfcBeam,IfcSlab", b: "IfcColumn", min_volume: 0.05 });
-          out.textContent = `${r.count} clashes · ${r.created_topics} topics`;
-          toast(`Clash: ${r.count} found, ${r.created_topics} topics created`, r.count ? "info" : "success");
+        b.appendChild(toolBtn2("⚡ Run clash (struct)", () => withLoading(container, "Queueing clash detection", async () => {
+          const r = await enqueueAndWait(api, pid, "clash_detect", {
+            a: "IfcBeam,IfcSlab", b: "IfcColumn", min_volume: 0.05, create_topics: true,
+          }) as { count: number; created_topics?: number };
+          out.textContent = `${r.count} clashes · ${r.created_topics ?? 0} topics`;
+          toast(`Clash: ${r.count} found, ${r.created_topics ?? 0} topics created`, r.count ? "info" : "success");
           await refreshIssues(); await reloadModelPins();
           showResult("Clash detection", (body) => {
             body.appendChild(resultNote(`<b>${r.count}</b> clashes found · <b>${r.created_topics}</b> RFI topics created.`, r.count ? "bad" : "ok"));
@@ -853,9 +857,16 @@ export function buildQaSection(d: QaDeps): void {
             body.appendChild(resultNote("Checks compose the rule library + data-completeness gates; the badge is stored so every model version carries a quality gate. Add rules via the ✔ Rule check tool.", ""));
           });
         })));
-        b.appendChild(toolBtn2("🔗 Coordinate clashes (grouped issues)", () => withLoading(container, "Running federated clash + coordination", async () => {
+        b.appendChild(toolBtn2("🔗 Coordinate clashes (grouped issues)", () => withLoading(container, "Queueing federated clash + coordination", async () => {
           let r;
-          try { r = await api.clashFederated(pid, { coordinate: true }); }
+          try {
+            r = await enqueueAndWait(api, pid, "clash_federated", { coordinate: true }) as {
+              count: number; disciplines: string[];
+              coordination: { group_count: number; reduction: number; new: number; active: number;
+                resolved: number; reappeared: number; by_severity: Record<string, number>;
+                by_discipline: Record<string, number> } | null;
+            };
+          }
           catch { toast("Federated clash needs ≥2 models — add one with “＋ Add discipline IFC”", "error"); return; }
           const co = r.coordination;
           out.textContent = co ? `${r.count} clashes → ${co.group_count} issues (${co.reduction}× reduction)` : `${r.count} clashes`;
@@ -1331,20 +1342,7 @@ export function buildQaSection(d: QaDeps): void {
           };
           inp.click();
         }));
-        b.appendChild(toolBtn2("✓ Validate (IDS)", () => withLoading(container, "Validating (IDS)", async () => {
-          const r = await api.validate(pid);
-          out.textContent = `IDS ${r.status.toUpperCase()} — ${r.summary.passed}/${r.summary.passed + r.summary.failed}`;
-          toast(`IDS ${r.status.toUpperCase()} — ${r.summary.passed} pass / ${r.summary.failed} fail`, r.status === "pass" ? "success" : "error");
-          const failing = r.specifications.flatMap((s) => s.failed_guids);
-          showResult("IDS validation", (body) => {
-            body.appendChild(resultNote(`<b>IDS: ${r.status.toUpperCase()}</b> — ${r.summary.passed} pass / ${r.summary.failed} fail`, r.status === "pass" ? "ok" : "bad"));
-            body.appendChild(kvTable(r.specifications.map((s) => ({
-              k: `${s.status === "pass" ? "✓" : "✗"} ${s.name}`, v: `${s.passed}/${s.applicable}` }))));
-            if (failing.length) {
-              const hl = toolBtn2(`Highlight ${failing.length} failures in 3D`, async () => { await selectMap(await sets.fromGuids(failing), { fit: true }); });
-              body.appendChild(hl);
-            }
-          });
-        })));
+        b.appendChild(toolBtn2("✓ Validate (IDS)", () => withLoading(container, "Queueing IDS validation",
+          () => runIdsValidate({ api, pid, out, toolBtn2, selectMap, sets }))));
         b.appendChild(out);
 }

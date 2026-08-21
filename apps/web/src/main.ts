@@ -2078,8 +2078,8 @@ const _jobs = _embed ? null : mountJobTray({
 
 // R24-RUNS-INBOX phase 1 — the tray answers "what is happening now"; this answers "what happened
 // before, and what changed". Pure computation over the jobs the queue already records, in
-// `ui/runs.ts`; the four analyses the audit named still run in the foreground and are not queued yet,
-// which the empty state says out loud rather than leaving the reader to wonder.
+// `ui/runs.ts`. Clash, IDS, cost and envelope energy enqueue as jobs; the empty state is only
+// "nobody has run one yet".
 function openRunsInbox(): void {
   if (!projectId) { toast("Open a project first", "info"); return; }
   const pid = projectId;

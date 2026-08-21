@@ -56,6 +56,7 @@ assert len(m.by_type("IfcColumn")) == before + 5, (before, len(m.by_type("IfcCol
 # --- inspectors ----------------------------------------------------------------------------------
 lst = groups.list_groups(m)
 assert any(x["name"] == "West grid line" and x["members"] == 4 for x in lst["groups"]), lst["groups"]
+assert any(x.get("array") and x["array"]["nx"] == 3 and x["array"]["ny"] == 2 for x in lst["groups"]), lst["groups"]
 assert any(x["name"] == "Braced frame A" and x["parts"] == 2 for x in lst["assemblies"]), lst["assemblies"]
 det = groups.group_detail(m, g["guid"])
 assert det["kind"] == "group" and det["member_count"] == 4, det

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { type ApiClient } from "../../api/client";
+import { enqueueAndWait } from "../../api/waitForJob";
 import { LayerManager } from "../../tools/layers";
 import { LogisticsOverlay } from "../draft/logisticsOverlay";
 import { kvTable, resultNote, showResult } from "../../ui/result";
@@ -235,9 +236,13 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
         });
         b.appendChild(toolBtn2("🏚 Existing-building code (IEBC scope)", () => { void runEbc(""); }));
         // EST-1 — rough labour cost + duration from the model's quantities (productivity rates)
-        b.appendChild(toolBtn2("💰 Cost estimate (labour · material · equipment)", () => withLoading(container, "Estimating cost from the model", async () => {
+        b.appendChild(toolBtn2("💰 Cost estimate (labour · material · equipment)", () => withLoading(container, "Queueing cost estimate", async () => {
           let e;
-          try { e = await api.laborEstimate(projectId!, "commercial", 25, true); }
+          try {
+            e = await enqueueAndWait(api, pid, "labor_estimate", {
+              loading: "commercial", rate: 25, full: true,
+            }) as Awaited<ReturnType<ApiClient["laborEstimate"]>>;
+          }
           catch { toast("Needs a source IFC", "error"); return; }
           const grand = e.total_cost ?? e.total_labor_cost;
           out.textContent = `${e.total_man_hours.toLocaleString()} mh · $${Math.round(grand).toLocaleString()}`;
@@ -261,6 +266,25 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
                   + (l.line_total != null ? ` · $${Math.round(l.line_total).toLocaleString()}` : ` · $${Math.round(l.labor_cost).toLocaleString()}`) }))));
             }
             body.appendChild(resultNote(e!.note, ""));
+          });
+        })));
+        b.appendChild(toolBtn2("⚡ Envelope energy (UA · EUI)", () => withLoading(container, "Queueing envelope energy", async () => {
+          let e;
+          try {
+            e = await enqueueAndWait(api, pid, "energy_analyze") as Awaited<ReturnType<ApiClient["energy"]>>;
+          }
+          catch { toast("Needs a source IFC", "error"); return; }
+          out.textContent = `EUI ${e.eui_kwh_m2_yr} kWh/m²·yr`;
+          showResult("Envelope energy — UA + degree-day", (body) => {
+            body.appendChild(resultNote(
+              `Annual <b>${Math.round(e!.annual_kwh.total).toLocaleString()} kWh</b> · EUI <b>${e!.eui_kwh_m2_yr}</b> kWh/m²·yr.`,
+              "ok"));
+            body.appendChild(kvTable([
+              { k: "Heating load", v: `${e!.loads.design_heating_kw} kW` },
+              { k: "Cooling load", v: `${e!.loads.design_cooling_kw} kW` },
+              { k: "Heating (annual)", v: `${Math.round(e!.annual_kwh.heating).toLocaleString()} kWh` },
+              { k: "Cooling (annual)", v: `${Math.round(e!.annual_kwh.cooling).toLocaleString()} kWh` },
+            ]));
           });
         })));
         // RFI-0 NL-QA — ask a plain-language question, get a cited answer from the model's own data

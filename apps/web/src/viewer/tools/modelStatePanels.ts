@@ -171,6 +171,20 @@ export async function openGroupsPanel(d: ModelStateDeps): Promise<void> {
     });
     arr.style.marginBottom = "6px"; body.appendChild(arr);
 
+    async function reeditArray(source: string, a: { nx: number; ny: number; dx: number; dy: number }): Promise<void> {
+      const counts = await askText("Re-edit array", {
+        label: "Columns × rows (nx, ny)", value: `${a.nx}, ${a.ny}`,
+      }); if (!counts) return;
+      const cd = counts.split(/[,x×]/).map((v) => Math.max(1, Math.round(Number(v.trim()) || 1)));
+      const pitch = await askText("Re-edit array", {
+        label: "Pitch dx, dy (metres)", value: `${a.dx}, ${a.dy}`,
+      }); if (!pitch) return;
+      const pd = pitch.split(",").map((v) => Number(v.trim()) || 0);
+      await d.authorAndReload("set_array_params",
+        { guid: source, nx: cd[0] ?? 2, ny: cd[1] ?? 1, dx: pd[0] ?? 1, dy: pd[1] ?? 0 },
+        `array ${(cd[0] ?? 2)}×${(cd[1] ?? 1)}`);
+    }
+
     body.appendChild(resultNote(sets.length
       ? "<b>Group or assemble a selection set</b> — a Group is a named set; an Assembly is a real part-of whole."
       : "Save a named selection set (model browser) to group or assemble it.", ""));
@@ -198,9 +212,23 @@ export async function openGroupsPanel(d: ModelStateDeps): Promise<void> {
           } catch (e) { d.notify(`inspect failed: ${(e as Error).message}`, "error"); }
         });
         if (it.kind === "group") {
+          const def = (it as { array?: { nx: number; ny: number; dx: number; dy: number; source?: string } }).array;
           b.oncontextmenu = (ev) => { ev.preventDefault();
             void d.authorAndReload("ungroup", { guid: it.guid }, `ungroup ${it.name}`); };
-          b.title = "Click: isolate members · right-click: ungroup";
+          b.title = def
+            ? `Array ${def.nx}×${def.ny} @ ${def.dx} m — click isolate, right-click ungroup`
+            : "Click: isolate members · right-click: ungroup";
+          if (def?.source) {
+            const edit = document.createElement("button");
+            edit.className = "mini-btn"; edit.textContent = "Re-edit";
+            edit.title = "Change this array's count or pitch. Shrinking deletes generated copies.";
+            edit.onclick = (ev) => { ev.stopPropagation(); void reeditArray(def.source!, def); };
+            const wrap = document.createElement("div");
+            wrap.style.cssText = "display:flex;gap:4px;align-items:stretch";
+            wrap.append(b, edit);
+            body.appendChild(wrap);
+            continue;
+          }
         }
         body.appendChild(b);
       }

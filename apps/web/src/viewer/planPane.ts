@@ -1,3 +1,5 @@
+import { groundToPlan, readPlanTransform, worldToPixel } from "./planTransform";
+
 /**
  * R38-SYNC-VIEW + R38-SYNC-SELECT — the plan, in the room, and talking to it.
  *
@@ -119,6 +121,8 @@ export class PlanPane {
   private zoomPct = 100;
   /** The selected element, re-lit after every refetch so a storey change keeps the selection. */
   private sel: string | null = null;
+  /** Live 3D cursor, drawn in SVG user space from the plan's own transform. Hidden when unknown. */
+  private cursor = document.createElementNS("http://www.w3.org/2000/svg", "circle");
 
   constructor(private d: PlanPaneDeps) {
     this.el.className = "plan-pane";
@@ -164,6 +168,12 @@ export class PlanPane {
     this.body.style.cssText = "flex:1;overflow:auto;background:#fff";
     // Delegated ONCE on the persistent body, not per refresh — a listener per refetch is how a
     // single click comes to select the same element N times.
+    this.cursor.setAttribute("r", "4");
+    this.cursor.setAttribute("fill", "#2563eb");
+    this.cursor.setAttribute("stroke", "#fff");
+    this.cursor.setAttribute("stroke-width", "1.2");
+    this.cursor.setAttribute("pointer-events", "none");
+    this.cursor.style.display = "none";
     this.body.addEventListener("click", (e) => {
       const guid = (e.target as Element | null)?.closest?.("[data-guid]")?.getAttribute("data-guid");
       if (guid) { this.highlight(guid); this.d.onPick?.(guid); }
@@ -231,6 +241,7 @@ export class PlanPane {
       if (el) { el.setAttribute("width", `${this.zoomPct}%`); el.removeAttribute("height"); }
       addHitTargets(this.body);
       syncPlanHighlight(this.body, this.sel);      // a storey change must not lose the selection
+      this.attachCursor();
     } catch (err) {
       this.body.innerHTML = "";
       const p = document.createElement("div");
@@ -271,4 +282,26 @@ export class PlanPane {
   }
 
   get isOpen(): boolean { return this.open; }
+
+  /**
+   * R38-SYNC-VIEW cursor — 3D pointer → plan. `pt` is viewer ground (Y-up). `null` hides the
+   * mark (pointer left the canvas, or the drawing has no transform yet).
+   */
+  showGroundCursor(pt: { x: number; z: number } | null): void {
+    if (!this.open || !pt) { this.cursor.style.display = "none"; return; }
+    const t = readPlanTransform(this.body);
+    if (!t) { this.cursor.style.display = "none"; return; }
+    const { x, y } = groundToPlan(pt);
+    const { px, py } = worldToPixel(t, x, y);
+    this.cursor.setAttribute("cx", String(px));
+    this.cursor.setAttribute("cy", String(py));
+    this.cursor.style.display = "";
+  }
+
+  private attachCursor(): void {
+    const svg = this.body.querySelector("svg");
+    if (!svg) return;
+    this.cursor.style.display = "none";
+    svg.appendChild(this.cursor);
+  }
 }
