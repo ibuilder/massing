@@ -4,6 +4,27 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1050 (2026-08-20) — the pay period could not be closed from the product
+
+### Fixed
+
+- **`POST /cost/advance-period` had no client caller**, and `cost.advance_period` is the **only**
+  code anywhere that rolls an SOV line's `completed_this` into `completed_prev`. So the
+  pay-application cycle could not advance: every AIA application re-billed the same "completed this
+  period" amounts as the last one, because nothing closed the period. Not a missing view — a missing
+  **step in a workflow the product claims to run**, on the money path.
+- A **✓ Close pay period** control now sits in the owner-billing row beside the G702/G703 and invoice
+  buttons. It confirms first, and the confirmation states the **consequence** — every line rolls and
+  resets, no undo in the app — rather than asking "are you sure".
+- It reports the count the server actually advanced. **"0 lines" is a real answer** (nothing was
+  billed this period) and is worded so it does not read as a failure.
+
+### Changed
+
+- The client method went into `api/cost.ts`, the seam that owns `/cost/*`, rather than `client.ts`.
+  The extraction ratchet caught the difference — `client.ts` would have gone 3,125 → 3,136 — and the
+  right home was already there.
+
 ## v0.3.1049 (2026-08-20) — the generated types were vouching for 29 routes
 
 ### Fixed

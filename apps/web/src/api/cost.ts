@@ -25,6 +25,18 @@ type Ctor<T> = new (...args: any[]) => T;
 export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Cost extends Base {
   /** MARGIN-CBS — per-cost-code reconciliation: budget vs committed vs actual vs billed → buyout margin. */
+  /** Close the current pay period (C1): roll every SOV line's `completed_this` into
+   *  `completed_prev`, the way successive AIA pay applications accumulate.
+   *
+   *  **The only path that does this.** Nothing else in the API rolls `completed_prev`, and the
+   *  route had no client caller until v0.3.1050 — so the pay-application cycle could not advance
+   *  from the product and every application re-billed the same "completed this period" amounts.
+   *  Mutating with no undo in the app, so the caller confirms before invoking it. */
+  advancePayPeriod(pid: string) {
+    return this.json<{ lines_advanced: number }>(`/projects/${pid}/cost/advance-period`,
+      { method: "POST" });
+  }
+
   marginByCostCode(pid: string) {
     type Row = { cost_code: string; budget: number; committed: number; actual: number; billed: number;
       buyout_margin: number; variance: number; pct_committed: number | null; pct_spent: number | null;

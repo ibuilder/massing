@@ -137,7 +137,7 @@ KNOWN_UNCALLED: set[str] = {
     #   reason this exclusion was worth making. Each is a working engine behind a route the product
     #   never calls:
     "/procurement/rfq-status", "/projects/{pid}/accounting/chart-of-accounts",
-    "/projects/{pid}/budget/two-sided", "/projects/{pid}/cost/advance-period",
+    "/projects/{pid}/budget/two-sided", 
     "/projects/{pid}/cost/lien-waiver", "/projects/{pid}/cv-progress/ingest-batch",
     "/projects/{pid}/elements/by-discipline", "/projects/{pid}/naming/conventions",
     "/projects/{pid}/risk-digest",

@@ -422,7 +422,35 @@ export async function renderBudget(ctx: PanelContext) {
         ctx.host.setStatus(`owner invoice created: $${Math.round(r.amount).toLocaleString()}`); jumpTo("owner_invoice"); }
       catch (e) { ctx.host.setStatus(`invoice failed: ${(e as Error).message}`); }
     };
-    brow.append(seedBtn, pdfBtn, invBtn); billing.appendChild(brow);
+    // C1 — CLOSE THE PERIOD. `cost.advance_period` is the only code anywhere that rolls an SOV
+    // line's `completed_this` into `completed_prev`, and its route had no caller until v0.3.1050:
+    // the pay-application cycle could not advance from the product, so each application re-billed
+    // the same "completed this period" amounts as the last.
+    //
+    // Confirmed before running, and the confirmation states the CONSEQUENCE rather than asking
+    // "are you sure": this mutates every SOV line and the UI offers no undo. It reports the line
+    // count the server actually advanced — "0 lines" is a real answer (nothing was billed this
+    // period) and must not read as a failure.
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "tool-btn"; closeBtn.dataset.cap = "edit";
+    closeBtn.textContent = "✓ Close pay period";
+    closeBtn.title = "Roll each SOV line's completed-this into completed-previous so the next "
+      + "application starts a fresh period";
+    closeBtn.onclick = async () => {
+      const ok = window.confirm(
+        "Close the current pay period?" + "\n\n"
+        + "Every SOV line's completed-this-period rolls into previous and resets to zero, "
+        + "the way successive AIA applications accumulate." + "\n\n"
+        + "There is no undo in the app.");
+      if (!ok) return;
+      try {
+        const r = await ctx.host.api.advancePayPeriod(pid);
+        ctx.host.setStatus(r.lines_advanced
+          ? `pay period closed — ${r.lines_advanced} SOV line(s) advanced`
+          : "pay period closed — no lines had work billed this period");
+      } catch (e) { ctx.host.setStatus(`close failed: ${(e as Error).message}`); }
+    };
+    brow.append(seedBtn, pdfBtn, invBtn, closeBtn); billing.appendChild(brow);
     billing.appendChild(Object.assign(document.createElement("div"), { className: "meta",
       textContent: "The G702/G703 pay app and owner invoice draw from this same budget-seeded Schedule of Values." }));
     ctx.root.appendChild(billing);
