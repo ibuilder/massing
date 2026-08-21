@@ -53,7 +53,7 @@
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.4.2",
-    "@capacitor/ios": "^8.4.2",
+    "@capacitor/ios": "^8.5.0",
     "@eslint/js": "^10.0.1",
     "@types/qrcode": "^1.5.6",
     "@types/three": "0.185.4",
