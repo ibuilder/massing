@@ -89,8 +89,13 @@ describe("the dock styles are a mode, not a second visibility flag", () => {
     expect(p.el.style.display).toBe("flex");
     expect(p.isOpen).toBe(true);
 
-    p.dock("side");
-    expect(p.el.style.width).toBe("38%");
+    // `dock("side")` — the 38% strip beside the model — was removed in v0.3.1047. It had no caller
+    // outside this test since the mode switch shipped, and a second unreachable way to arrange the
+    // canvas is what the switch exists to prevent. What is asserted instead is the invariant that
+    // replaced it: an open plan is the WHOLE canvas, never a slice of it.
+    p.dock("full");
+    expect(p.el.style.width).toBe("100%");
+    expect(p.el.style.left).toBe("0px");
     expect(p.isOpen).toBe(true);
 
     p.dock("hidden");

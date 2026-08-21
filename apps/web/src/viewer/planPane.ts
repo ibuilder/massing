@@ -220,21 +220,24 @@ export class PlanPane {
   }
 
   /**
-   * R36-VIEWER-SUBAPP ④ — how much of the canvas the plan occupies.
+   * R36-VIEWER-SUBAPP ④ — the plan IS the canvas, or it is hidden.
    *
-   * `"side"` is the original 38% strip beside the model, for comparing the two. `"full"` is the plan
-   * AS the canvas, which is what makes 2D a peer of 3D rather than a slice of it. `"hidden"` yields
-   * the canvas back.
+   * **`"side"` is gone (v0.3.1047).** It was the original 38% strip beside the model — the layout
+   * this item replaced, because a plan occupying a third of the screen is a *slice* of the model
+   * rather than a peer of it. The mode switch has rendered it since v0.3.918 and **nothing outside
+   * the tests had called it since**; `specPane.dock` already declared `"full" | "hidden"`, so this
+   * signature was the odd one out. A second, unreachable way to arrange the canvas is exactly what
+   * a mode switch exists to prevent, and leaving it live invites it back by accident.
    *
-   * Deliberately not a second visibility flag: `CanvasModeSwitch` is the single owner, and
-   * `toggle()` now routes through it. Two independent controls over one element is how you get
-   * "both visible" and "neither visible" states that nothing forbids.
+   * Deliberately not a second visibility flag either: `CanvasModeSwitch` is the single owner, and
+   * `toggle()` routes through it. Two independent controls over one element is how you get "both
+   * visible" and "neither visible" states that nothing forbids.
    */
-  dock(style: "side" | "full" | "hidden"): void {
+  dock(style: "full" | "hidden"): void {
     this.open = style !== "hidden";
     this.el.style.display = this.open ? "flex" : "none";
-    this.el.style.width = style === "full" ? "100%" : "38%";
-    this.el.style.left = style === "full" ? "0" : "";
+    this.el.style.width = this.open ? "100%" : "";
+    this.el.style.left = this.open ? "0" : "";
     if (this.open) void this.refresh(true);
   }
 

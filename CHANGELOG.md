@@ -4,6 +4,20 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1047 (2026-08-20) — the split-pane canvas layout is gone
+
+### Removed
+
+- **`planPane.dock("side")`** — the original 38% strip beside the model. R36-VIEWER-SUBAPP ④
+  replaced it at v0.3.918 with a mode switch that makes the plan the *whole* canvas, on the grounds
+  that a plan occupying a third of the screen is a **slice** of the model rather than a peer of it.
+  Nothing outside the tests had called it since, and `specPane.dock` already declared
+  `"full" | "hidden"` — this signature was the odd one out.
+- **A second, unreachable way to arrange the canvas is exactly what a mode switch exists to
+  prevent.** Leaving it live invites it back by accident, which this repo's own record shows
+  happening more than once. Its test now asserts the invariant that replaced it: an open plan is the
+  whole canvas, never a slice.
+
 ## v0.3.1046 (2026-08-20) — conditions of approval reach the screen; SCALE-SEAM ㉑
 
 ### Added
