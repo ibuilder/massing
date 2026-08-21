@@ -4,6 +4,22 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1048 (2026-08-20) — plans can be coloured by discipline; the flag existed and nothing sent it
+
+### Added
+
+- **DISC-poché is reachable.** `plan.svg` has accepted `by_discipline` since it shipped — it strokes
+  each element's linework in its discipline colour and adds a legend — and **`planParams()` never
+  sent it**, so every plan in the product came back monochrome. Built, routed, unreachable: the same
+  shape as the six routes v0.3.1044 surfaced, one parameter down.
+- A `◑` toggle on the plan pane turns it on. **Off by default**, deliberately: a monochrome plan is
+  the drafting convention, and colour here is an analysis overlay rather than the sheet you would
+  issue.
+- The parameter is **absent rather than `false`** when off — the route reads them the same way, and
+  the shorter URL is the one that makes sense when a user copies it out of the pop-out button.
+  Asserted on the encoded query, because what reaches the route is the only thing the route can be
+  wrong about.
+
 ## v0.3.1047 (2026-08-20) — the split-pane canvas layout is gone
 
 ### Removed

@@ -20,10 +20,20 @@
  *    over nodes already on screen, which is what makes the pane cheap enough to leave open.
  */
 
-/** The query for a plan cut. Pure so the storey contract is testable without a network. */
-export function planParams(storey: string | null, scale = 100): URLSearchParams {
+/** The query for a plan cut. Pure so the storey contract is testable without a network.
+ *
+ *  `byDiscipline` reaches DISC-poché, which strokes each element's linework in its discipline
+ *  colour and adds a legend. The route has offered it since it shipped and **this function never
+ *  sent it**, so every plan in the product came back monochrome — the capability was built,
+ *  routed, and unreachable, the same shape as the six routes v0.3.1044 surfaced. Sent only when
+ *  ON: an absent parameter and `false` mean the same thing to the route, and the shorter URL is
+ *  the one that reads correctly when a user copies it out of the pop-out button.
+ */
+export function planParams(storey: string | null, scale = 100,
+                           byDiscipline = false): URLSearchParams {
   const q = new URLSearchParams({ scale: String(scale) });
   if (storey) q.set("storey", storey);
+  if (byDiscipline) q.set("by_discipline", "true");
   return q;
 }
 
@@ -136,7 +146,21 @@ export class PlanPane {
       const pid = this.d.projectId();
       if (pid) window.open(this.d.url(`/projects/${pid}/drawings/plan.svg?${this.params()}`), "_blank");
     };
-    bar.append(title, lvl, zoomOut, zoomIn, pop);
+    // DISC-poché toggle. Off by default: a monochrome plan is the drafting convention, and colour
+    // is an analysis overlay rather than the sheet you would issue. Re-fetches, because the colour
+    // is applied server-side at cut time — there is no client-side restyle to do.
+    const disc = document.createElement("button");
+    disc.className = "tool-btn"; disc.textContent = "◑";
+    disc.title = "Colour the linework by discipline (adds a legend)";
+    disc.onclick = () => {
+      this.byDiscipline = !this.byDiscipline;
+      disc.classList.toggle("on", this.byDiscipline);
+      disc.title = this.byDiscipline
+        ? "Discipline colour ON — click for monochrome"
+        : "Colour the linework by discipline (adds a legend)";
+      void this.refresh(true);
+    };
+    bar.append(title, lvl, disc, zoomOut, zoomIn, pop);
     this.body.style.cssText = "flex:1;overflow:auto;background:#fff";
     // Delegated ONCE on the persistent body, not per refresh — a listener per refetch is how a
     // single click comes to select the same element N times.
@@ -147,7 +171,12 @@ export class PlanPane {
     this.el.append(bar, this.body);
   }
 
-  private params(): string { return planParams(this.d.activeStorey()).toString(); }
+  /** DISC-poché: colour the linework by discipline. Off by default — see the toggle above. */
+  private byDiscipline = false;
+
+  private params(): string {
+    return planParams(this.d.activeStorey(), 100, this.byDiscipline).toString();
+  }
 
   private levelLabel(): string {
     const s = this.d.activeStorey();

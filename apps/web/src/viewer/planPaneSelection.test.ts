@@ -23,7 +23,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PlanPane, type PlanPaneDeps, syncPlanHighlight } from "./planPane";
+import { PlanPane, type PlanPaneDeps, planParams, syncPlanHighlight } from "./planPane";
 
 const SVG =
   '<svg><polyline data-guid="DOOR_5F" data-class="IfcDoor" points="0,0 1,1" stroke="#111" stroke-width="0.8"/>'
@@ -160,5 +160,21 @@ describe("syncPlanHighlight is the seam, and it speaks GlobalId", () => {
     syncPlanHighlight(host, "DOOR_5F");
     syncPlanHighlight(host, null);
     expect(host.querySelector('polyline[data-guid="DOOR_5F"]')?.getAttribute("stroke")).toBe("#111");
+  });
+});
+
+describe("DISC-poché — the colour mode the pane never asked for", () => {
+  it("sends by_discipline ONLY when it is on", () => {
+    // The route has offered `by_discipline` since it shipped and `planParams` never sent it, so
+    // every plan came back monochrome. Asserted on the ENCODED query, not on a flag: what reaches
+    // the route is the only thing the route can be wrong about.
+    expect(planParams("L1").toString()).toBe("scale=100&storey=L1");
+    expect(planParams("L1", 100, false).toString()).toBe("scale=100&storey=L1");
+    expect(planParams("L1", 100, true).toString()).toBe("scale=100&storey=L1&by_discipline=true");
+  });
+
+  it("is absent rather than false — the shorter URL is the one a user copies out", () => {
+    const off = planParams(null, 100, false).toString();
+    expect(off.includes("by_discipline")).toBe(false);
   });
 });
