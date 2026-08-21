@@ -32,17 +32,18 @@ def _clash_viewpoint(point: dict | None, guids: list[str]) -> Viewpoint | None:
     )
 
 
-def clash_topic_identity(title: str, guids: list | None) -> tuple[str, tuple[str, ...]]:
-    return (title, tuple(sorted(str(g) for g in (guids or []) if g)))
+def clash_topic_identity(_title: str, guids: list | None) -> tuple[str, ...]:
+    """Same two GlobalIds = the same clash, even if the title's volume string drifts."""
+    return tuple(sorted(str(g) for g in (guids or []) if g))
 
 
-def load_clash_identities(db: Session, pid: str) -> set[tuple[str, tuple[str, ...]]]:
-    """Open clash topics already filed for this project, keyed by title + GUID pair.
+def load_clash_identities(db: Session, pid: str) -> set[tuple[str, ...]]:
+    """Open clash topics already filed for this project, keyed by the GUID pair.
 
     Creating the same clash twice (a retry after topics committed, or a second Run) must not mint
     a second Topic — the Issues panel would double and BCF export would carry duplicates.
     """
-    found: set[tuple[str, tuple[str, ...]]] = set()
+    found: set[tuple[str, ...]] = set()
     for t in db.query(Topic).filter(Topic.project_id == pid, Topic.type == "clash"):
         found.add(clash_topic_identity(t.title, t.element_guids))
     return found

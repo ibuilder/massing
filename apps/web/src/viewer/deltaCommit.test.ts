@@ -22,6 +22,8 @@ describe("recipeRefusalNote", () => {
     expect(recipeRefusalNote({ recipe: "add_wall", changed: { guid: "x" } })).toBeNull();
   });
 });
+
+describe("the pending set", () => {
   it("counts what is pending and keeps authoring order", () => {
     const s = new DeltaStore();
     s.add({ modelId: "d1", label: "Wall" });

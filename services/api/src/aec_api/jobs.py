@@ -496,7 +496,9 @@ def _clash_detect(db: Session, params: dict) -> dict:
     created = 0
     if params.get("create_topics"):
         from .routers.analysis import (  # noqa: PLC0415 — job handlers stay lazy
-            clash_topic_identity, load_clash_identities, _clash_viewpoint,
+            _clash_viewpoint,
+            clash_topic_identity,
+            load_clash_identities,
         )
         actor = str(params.get("actor") or "")
         pid = p.id
