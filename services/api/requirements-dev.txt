@@ -8,7 +8,7 @@ pytest>=8.0          # optional: collects the run_tests gate
 pypdf>=4.0           # NOT test-only: 7 shipped modules import it (doc_text, drawingset, pdfops,
                      # review, sheet_extract, sheet_recover, stamps). Production installs it from
                      # requirements.lock; this line only makes it available to the dev venv.
-ruff>=0.6            # static-analysis gate (config in ruff.toml): dead code + real defects
+ruff>=0.16.3            # static-analysis gate (config in ruff.toml): dead code + real defects
 bandit>=1.9.4          # security static analysis (report-only in CI; run before shipping)
 # Optional glTF Draco compression (gltf_export.export_*(draco=True)) — here rather than in
 # requirements.in so the CI gate exercises the encoder without the runtime image carrying a 5 MB
