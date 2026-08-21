@@ -61,6 +61,13 @@ EDITOR_OK_KINDS = {
     "model_export": "derives an export artifact; no project state written",
     "model_ci": "MUTATING, but its direct route POST /projects/{pid}/ci/run is also editor — the "
                 "queue is therefore not a side door around a stricter endpoint",
+    "clash_federated": "MUTATING (clash_intel.coordinate creates, reopens and auto-resolves "
+                       "coordination_issue records), but its direct route "
+                       "POST /projects/{pid}/clash/federated is also editor, so the queue is not a "
+                       "side door around a stricter endpoint. The role parity is asserted rather "
+                       "than assumed: test_clash_federated_job.py reads require_role out of "
+                       "routers/analysis.py and compares it to the enqueue role via ROLE_ORDER, so "
+                       "raising the route without raising this goes red",
     "report_package": "merges reports that GET /projects/{pid}/reports/{report}.pdf already serves "
                       "one-by-one at VIEWER, so the editor queue is stricter than the front door; "
                       "parks a PDF artifact and writes no project state",

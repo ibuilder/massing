@@ -493,6 +493,59 @@ def _clash_detect(db: Session, params: dict) -> dict:
             "truncated": len(results) > limit}
 
 
+def _clash_federated(db: Session, params: dict) -> dict:
+    """R24-RUNS-INBOX — the FEDERATED clash off the request path, so a coordination run becomes a row.
+
+    `_clash_detect` above is the single-model narrow phase (`POST /projects/{pid}/clash`). The run the
+    coordination screen actually performs is `POST /projects/{pid}/clash/federated`, which
+    cross-checks every discipline model and hands the raw hits to `clash_intel.coordinate` for
+    grouping and reconciliation against the previous run. That one had no job kind, so every
+    coordination run happened inside a request behind a modal and left nothing durable behind -- which
+    is why the Runs inbox is empty on most projects even though the inbox itself has worked for weeks.
+
+    MUTATING on purpose: `coordinate` creates, reopens and resolves `coordination_issue` records, so
+    it must hold the project lock like any other write. Registering it read-only would let a
+    coordination pass interleave with a publish.
+
+    **The actor comes from `params` and the ROUTE is what puts it there.** A handler never sees the
+    Job row, so identity has to travel in `params`; `routers/jobs.py` writes it after the caller's
+    body so a supplied `actor` cannot win. Until this kind existed no handler read it, which is
+    exactly why the injection had to land in the same change rather than after it.
+    """
+    from pathlib import Path
+
+    from aec_data import clash  # type: ignore
+
+    from . import clash_intel, rbac
+    from .models import Project, ProjectModel
+    pid = params.get("project_id") or ""
+    p = db.get(Project, pid)
+    models: dict[str, str] = {}
+    if p and p.source_ifc and Path(p.source_ifc).exists():
+        models["Source"] = p.source_ifc
+    for m in db.query(ProjectModel).filter_by(project_id=pid):
+        if Path(m.ifc_path).exists():
+            key = m.discipline if m.discipline not in models else f"{m.discipline} ({m.id[:4]})"
+            models[key] = m.ifc_path
+    if len(models) < 2:
+        # A ValueError becomes a FAILED job row carrying this sentence, which is the right outcome.
+        # Returning an empty result would report "no clashes" for a run that compared nothing, and
+        # "clean" and "there was nothing to compare" are the two answers a coordination report must
+        # never merge.
+        raise ValueError('need >=2 accessible discipline models - append one via '
+                         '"Open IFC as discipline"')
+
+    results = clash.detect_federated_files(
+        models, min_volume=float(params.get("min_volume") or 1e-3))
+    actor = str(params.get("actor") or "")
+    coordination = clash_intel.coordinate(
+        db, pid, results, actor, rbac.party_role_for(db, pid, actor),
+        label=f"Federated {', '.join(sorted(models))}")
+    limit = int(params.get("limit") or 200)
+    return {"disciplines": list(models), "count": len(results), "coordination": coordination,
+            "clashes": results[:limit], "truncated": len(results) > limit}
+
+
 def _escalation_scan(db: Session, params: dict) -> dict:
     """WORKFLOW-ENGINE: run the overdue-escalation pass for a project off the request path, so it can be
     scheduled (nightly) or fired on demand without holding a request slot. Idempotent — each overdue
@@ -561,6 +614,7 @@ register_kind("cobie_export", _cobie_export)            # read → artifact (no 
 register_kind("compiled_set_pdf", _compiled_set_pdf)   # read → artifact
 register_kind("model_export", _model_export)           # read → artifact
 register_kind("clash_detect", _clash_detect)           # read-only
+register_kind("clash_federated", _clash_federated, mutating=True)   # WRITES coordination_issues
 register_kind("escalation_scan", _escalation_scan, mutating=True)   # WRITES records (me.update_record)
 register_kind("model_ci", _model_ci, mutating=True)    # writes the CI report; wants a consistent model read
 register_kind("report_package", _report_package)       # read → artifact

@@ -1510,10 +1510,34 @@ refute one, so this goes first even though it is the least visible.
     `count` into a confident, precise, invented −412 — worse than no number, because it reads as a
     finding. Same reasoning refuses a **failed** run as a baseline: a run with no result is not a run
     whose every metric fell to zero. Both are mutation-checked.
-  - ❌ **Routing the analyses through the queue** — clash, IDS, cost and energy still run in the
+  - ◧ **Routing the analyses through the queue** — clash, IDS, cost and energy still run in the
     request thread behind a modal, so they never become rows. Four call sites and their handlers;
     the larger and riskier half. Until it lands the inbox is genuinely **empty on most projects**,
     and its empty state says which half is missing rather than implying the feature is broken.
+
+    **HANDLER HALF STARTED v0.3.1057 — `clash_federated` is a registered job kind.** And the premise
+    needed checking twice before it was right. `clash_detect` *was* already registered, which reads
+    as "clash is done"; it is the **single-model narrow phase**. The run the coordination screen
+    actually performs is `POST /projects/{pid}/clash/federated`, which cross-checks every discipline
+    model and then hands the hits to `clash_intel.coordinate`. That one had no kind. *Two job kinds
+    whose names differ by one word do different jobs, and the shorter name is not the general case.*
+
+    **It carried a security half nobody had needed to care about yet.** A handler is called
+    `fn(db, params)` and never sees the Job row, so identity travels in `params` — which
+    `routers/jobs.py` built by merging the caller's request body. Nothing read `params["actor"]`, so
+    it was harmless; `coordinate()` reads it, records it against every issue it creates, and would
+    have believed whatever the body said. The route now writes `actor` last. **A latent hole becomes
+    live in the commit that first reads the field**, so that ordering fix had to ship with the
+    handler rather than after it.
+
+    Also shipped: `services/api/test_job_kind_labels.py`, because `jobs.KINDS` and the tray's
+    `KIND_LABEL` are two hand-maintained lists of one thing in two languages with nothing comparing
+    them — and the tray's raw-name fallback, correct for a plugin, hides one of ours.
+
+    **What is left is the four CALL SITES**, and that is a UX change rather than a wiring one: each
+    screen swaps a blocking modal for enqueue-and-poll. The kind is reachable today through
+    `POST /projects/{pid}/jobs` (the client already wraps it as `enqueueJob`), so what is missing is
+    a caller, not a capability — a distinction this band exists to make.
 
 ### Sprint 3 — the front door earns its keyboard
 

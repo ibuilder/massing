@@ -45,6 +45,7 @@ const KIND_LABEL: Record<string, string> = {
   report_package: "Report package",
   model_export: "Model export",
   clash_detect: "Clash detection",
+  clash_federated: "Federated clash + coordination",
   escalation_scan: "Escalation scan",
   model_ci: "Model CI report",
 };

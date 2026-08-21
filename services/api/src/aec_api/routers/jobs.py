@@ -40,7 +40,15 @@ def enqueue_job(pid: str, kind: str = Body(..., embed=True),
     from .. import audit, jobs
     _require_kind_role(db, pid, actor, kind)
     try:
-        j = jobs.enqueue(db, kind, pid, {**(params or {}), "project_id": pid}, actor=actor)
+        # `project_id` and `actor` are written LAST, after the caller's params, so neither can be
+        # overridden from the request body. `project_id` was already server-set; `actor` is new and
+        # is the half that matters. A handler sees only `params` -- never the Job row -- so the
+        # moment any kind needs to know WHO ran it, `params["actor"]` becomes an identity claim, and
+        # a caller-supplied one would be believed. `clash_federated` is the first kind that reads it
+        # (`clash_intel.coordinate` records the actor and their party role against every coordination
+        # issue it creates), which is why this moved from "harmless" to "load-bearing" in one commit.
+        j = jobs.enqueue(db, kind, pid, {**(params or {}), "project_id": pid, "actor": actor},
+                         actor=actor)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     if kind in _KIND_MIN_ROLE:                       # privileged kinds get the same audit trail as

@@ -4,6 +4,64 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1057 (2026-08-21) — a job kind that needs to know who you are, and the identity it would have believed
+
+### Fixed
+
+- **A latent identity hole, closed in the commit that would have made it live.** `routers/jobs.py`
+  built a job's params as `{**caller_body, "project_id": pid}` — every key the caller sent merged
+  straight through. Harmless for exactly as long as no handler read an identity out of it, which was
+  true: nothing read `params["actor"]`. This release adds the first kind that does, and
+  `clash_intel.coordinate` records the actor **and their party role** against every coordination
+  issue it creates, reopens and resolves. So the route now writes `project_id` and `actor` *after*
+  the caller's params, and `services/api/test_clash_federated_job.py` enqueues with
+  `params={"actor": "someone-else"}` and asserts the stored job carries the authenticated user.
+  Mutation-checked by restoring the old merge order: the job comes back with `actor='someone-else'`.
+  **A latent hole becomes a live one the moment something reads the field, so the read and the fix
+  belong in one change** — shipping the handler first and the ordering later would have been a real
+  vulnerability for the length of that gap.
+
+### Added
+
+- **`clash_federated` as a job kind** (R24-RUNS-INBOX). `clash_detect` was already queued, but it is
+  the *single-model narrow phase*; the run the coordination screen performs is the **federated** one,
+  and it had no kind at all. Registered `mutating=True`, because `coordinate()` writes records and
+  must take the project lock like any other write — with the twin asserted, so a set containing
+  everything cannot pass for a set containing this.
+- **Both halves of the job are tested, and the second one nearly was not.** The first version of
+  `test_clash_federated_job.py` asserted only the refusal path — and a test that asserts only what
+  must *not* happen passes on a handler that does nothing at all: deleting the entire body of
+  `_clash_federated` and leaving the `raise` would have been green. The twin registers two discipline
+  models and asserts the job succeeds over both, finds cross-model clashes and groups them into
+  tracked issues. Measured on the fixture: **64 clashes into 12 coordination issues.**
+- **Fewer than two discipline models FAILS the job**, with the remedy in the message, rather than
+  returning an empty result. "No clashes" and "there was nothing to compare" are the two answers a
+  coordination report must never merge. Asserted by running a real worker and reading the row, not by
+  calling the handler.
+- **An existing gate caught the half I had not thought about.**
+  `test_dispatcher_privilege_coverage.py` refuses to let a job kind be *registered but classified
+  nowhere*, and refuses a MUTATING kind that is "neither elevated nor acknowledged". Both fired on
+  `clash_federated` in the full run. The classification entry it demands is not a checkbox — it is a
+  written reason, and writing this one out is what confirms the queue is not a side door around a
+  stricter endpoint: the direct route `POST /projects/{pid}/clash/federated` is `editor`, and so is
+  enqueuing. That parity is now *asserted* rather than asserted-about, by reading `require_role` out
+  of `routers/analysis.py` and comparing it through `ROLE_ORDER`, so raising the route without
+  raising the queue goes red.
+- **`services/api/test_job_kind_labels.py` — the Python job registry and the web tray's label map are
+  two hand-maintained lists of one thing, in two languages, and nothing compared them.** The tray
+  falls back to rendering the raw kind, which is right for a plugin and wrong for us: a kind we ship
+  without a label degrades in silence. Both directions fail — an unlabelled kind, and a label naming
+  a kind nothing can produce any more (the more insidious one, since it reads as a live feature). It
+  caught `clash_federated` before the label was added, which is how I know it works.
+
+### Still open on R24-RUNS-INBOX
+
+The four **screens** still call their analyses synchronously behind a modal, so the inbox stays empty
+until they are switched to enqueue-and-poll. The kind is reachable today through
+`POST /projects/{pid}/jobs`, which the web client already wraps as `enqueueJob` — what is missing is
+the call site, not the capability. Named here rather than implied, because "the job kind exists" and
+"a user can produce a Run" are different claims and only the first has shipped.
+
 ## v0.3.1056 (2026-08-21) — the npm half of the supply-chain scan could not fail, and every advisory was in the half it skipped
 
 ### Fixed
