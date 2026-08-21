@@ -1,4 +1,4 @@
-import type { ElementProps } from "../api/client";
+import type { ElementProps, SpatialNode } from "../api/client";
 
 /**
  * Model browser (guide §6) — a Revit Project Browser / Bonsai spatial-decomposition style
@@ -6,7 +6,13 @@ import type { ElementProps } from "../api/client";
  * — the stable key — so the tree survives re-conversion.
  *
  * Group-by modes:
- *   • Storey     — Storey ▸ IFC class ▸ Element (spatial, the default)
+ *   • Spatial    — the server's REAL IFC decomposition (Site ▸ Building ▸ Storey ▸ Space ▸ class),
+ *                  keyed on each node's GlobalId. Offered — and defaulted to — only when
+ *                  `GET /projects/{pid}/spatial-tree` actually returned one; a project whose element
+ *                  index predates `index_schema: 2` does not get the option at all.
+ *   • Storey     — Storey ▸ IFC class ▸ Element, grouped on the storey's NAME. Kept because it is
+ *                  the only mode a v1 index can support, but the name is not an identity: two
+ *                  buildings each having a "Level 2" merge into one node here, silently.
  *   • Discipline — Discipline ▸ IFC class ▸ Element (A/S/M/P/E/FP, derived from the class)
  *   • Class      — IFC class ▸ Element
  *   • Type       — Type/family ▸ Element (instances grouped under their type)
@@ -17,7 +23,22 @@ import type { ElementProps } from "../api/client";
 export function buildTree(
   elements: ElementProps[],
   onSelect: (guid: string) => void,
+  spatial?: SpatialNode | null,
 ): HTMLElement {
+  // R43-VIEWER-CONFORMANCE. `spatial` is the server's real IFC decomposition. It is OPTIONAL and the
+  // mode it enables is only offered when it arrived: a project whose element index predates
+  // `index_schema: 2` gets a 422, and an empty "By spatial structure" that silently falls back to
+  // grouping on the storey NAME would be indistinguishable from the real thing while merging every
+  // same-named storey across buildings. Absent tree, absent mode.
+  //
+  // The shape is CHECKED, not trusted, and that is not defensive habit — the Pages/demo build has a
+  // fixture layer (`demo/demoApi.ts`) that degrades an uncaptured GET to `[]` rather than throwing.
+  // `[]` is truthy, so a bare `spatial ? …` would hand an array to the walk below, read `.children`
+  // off it as `undefined`, and take the whole model browser down in the demo — the one build with no
+  // backend to blame. A node is an object with a children array; anything else is "no tree".
+  const spatialPaths = spatial && !Array.isArray(spatial) && Array.isArray(spatial.children)
+    ? spatialPathIndex(spatial)
+    : null;
   const wrap = document.createElement("div");
   wrap.className = "tree-wrap";
 
@@ -34,7 +55,10 @@ export function buildTree(
   const groupBy = document.createElement("select");
   groupBy.className = "tree-groupby";
   groupBy.setAttribute("aria-label", "Group the model browser by");
-  for (const [val, label] of GROUP_MODES) {
+  const modes: [GroupMode, string][] = spatialPaths
+    ? [["spatial", "By spatial structure"], ...GROUP_MODES]
+    : [...GROUP_MODES];
+  for (const [val, label] of modes) {
     const opt = document.createElement("option");
     opt.value = val;
     opt.textContent = label;
@@ -52,7 +76,8 @@ export function buildTree(
     const mode = groupBy.value as GroupMode;
     const q = search.value.trim().toLowerCase();
     const filtered = q ? elements.filter((el) => matches(el, q)) : elements;
-    treeHost.replaceChildren(buildGrouped(filtered, mode, onSelect, q.length > 0, elements.length));
+    treeHost.replaceChildren(
+      buildGrouped(filtered, mode, onSelect, q.length > 0, elements.length, spatialPaths));
   };
 
   groupBy.onchange = rebuild;
@@ -63,7 +88,7 @@ export function buildTree(
   return wrap;
 }
 
-type GroupMode = "storey" | "discipline" | "class" | "type";
+type GroupMode = "spatial" | "storey" | "discipline" | "class" | "type";
 const GROUP_MODES: [GroupMode, string][] = [
   ["storey", "By level"],
   ["discipline", "By discipline"],
@@ -84,10 +109,51 @@ function disciplineOf(el: ElementProps): string {
   return el.discipline || discipline(el.ifc_class);
 }
 
-/** The hierarchy path above each element for a given group mode (1 or 2 levels). */
-function pathFor(el: ElementProps, mode: GroupMode): string[] {
+/**
+ * storeyGuid -> the labels of every spatial ancestor below the project, outermost first.
+ *
+ * Built once per render from the server's tree, so grouping an element is a Map lookup on its
+ * `storey_guid` rather than a walk. The project itself is dropped: it is the root of everything and
+ * a node every element sits under is a level of indentation that says nothing.
+ *
+ * **Siblings that share a name are disambiguated here rather than left to collide.** The whole point
+ * of grouping on the GUID is that "Level 2" in Tower A and "Level 2" in Tower B are two places; if
+ * their parents also share a name the label path would merge them again, and the tree would be
+ * exactly as wrong as the string-grouped one it replaces — while looking like it had been fixed. Six
+ * characters of GlobalId is enough to separate them and short enough to read.
+ */
+function spatialPathIndex(root: SpatialNode): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  const walk = (node: SpatialNode, prefix: string[]) => {
+    const seen = new Map<string, number>();
+    for (const child of node.children) {
+      seen.set(child.name, (seen.get(child.name) ?? 0) + 1);
+    }
+    for (const child of node.children) {
+      const label = (seen.get(child.name) ?? 0) > 1
+        ? `${child.name} · ${child.ref.guid.slice(0, 6)}`
+        : child.name;
+      const path = [...prefix, label];
+      out.set(child.ref.guid, path);
+      walk(child, path);
+    }
+  };
+  walk(root, []);
+  return out;
+}
+
+/** The hierarchy path above each element for a given group mode. */
+function pathFor(el: ElementProps, mode: GroupMode, spatialPaths?: Map<string, string[]> | null): string[] {
   const cls = el.ifc_class;
   switch (mode) {
+    case "spatial": {
+      // No `storey_guid`, or a guid the tree does not contain, means the element is not placed in
+      // the spatial structure — a real and common condition (site-level equipment, an element whose
+      // containment the authoring tool never wrote). It gets its own bucket rather than being filed
+      // under a guessed storey, because "we do not know where this is" is the answer.
+      const path = el.storey_guid ? spatialPaths?.get(el.storey_guid) : undefined;
+      return path ? [...path, cls] : ["(not placed)", cls];
+    }
     case "storey": return [el.storey ?? "(unassigned)", cls];
     case "discipline": return [disciplineOf(el), cls];
     case "class": return [cls];
@@ -101,6 +167,7 @@ function buildGrouped(
   onSelect: (guid: string) => void,
   expand: boolean,
   totalCount: number,
+  spatialPaths?: Map<string, string[]> | null,
 ): HTMLElement {
   if (elements.length === 0) {
     const empty = document.createElement("div");
@@ -113,7 +180,7 @@ function buildGrouped(
   type Group = Map<string, Group | ElementProps[]>;
   const rootMap: Group = new Map();
   for (const el of elements) {
-    const path = pathFor(el, mode);
+    const path = pathFor(el, mode, spatialPaths);
     let cursor = rootMap;
     for (let i = 0; i < path.length - 1; i++) {
       const key = path[i] as string;

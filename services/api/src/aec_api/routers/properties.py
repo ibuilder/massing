@@ -432,6 +432,131 @@ def code_check(pid: str, _: str = Depends(require_role("viewer"))):
     return _scan_cached(pid, "code-check", _compute)
 
 
+#: Metres-above-project-zero is the consumer's unit; IFC stores storey elevations in the project's
+#: own length unit, which is millimetres more often than not. The number is passed through unscaled
+#: and the unit it is IN travels beside it, because a silent 1000x is worse than an explicit
+#: "you will have to convert this".
+_ELEVATION_UNIT_NOTE = "IFC project length unit (often mm) — not converted; see `schema`"
+
+#: A bulk property fetch is a list, and an unbounded list is a way to ask one worker to serialise the
+#: whole model. Refused rather than truncated: the contract's whole point is that an absent guid
+#: means "not found", so silently dropping the tail would report elements as missing that exist.
+_MAX_PROPERTY_GUIDS = 5000
+
+
+def _model_id(pid: str) -> str:
+    """The id that names the MODEL, for a consumer whose element references are `{modelId, guid}`.
+
+    The `IfcProject` GlobalId, when the index has one. It is the file's own identity: it survives a
+    re-upload of the same file, and two files federated into one project get two different ids — both
+    of which the project id gets wrong, and the second of which is the entire reason the consumer's
+    reference carries a model at all. Falls back to `pid` for an index written before the project
+    guid was recorded, which is honest for the one-model-per-project case that is true today.
+    """
+    return ((_META.get(pid) or {}).get("project") or {}).get("guid") or pid
+
+
+@router.get("/projects/{pid}/spatial-tree")
+def spatial_tree(pid: str, _: str = Depends(require_role("viewer"))):
+    """The IFC spatial hierarchy — IfcProject → Site → Building → Storey → Space — as one root node.
+
+    Built at index time from the file's own `IfcRelAggregates` chain, never from the `storey` name
+    string each element carries. A name-grouped tree has no GlobalIds in it, and a node nothing can
+    address by GlobalId is a label rather than a node; it is also wrong on the model where a tree
+    matters most, the one where two buildings each have a "Level 2".
+
+    **Refuses rather than degrades on an index written before `index_schema: 2`.** Such an index has
+    no `spatial` key, and so does a model that genuinely has no spatial structure — the version
+    number is what separates them, and only one of the two is fixed by re-publishing. Answering the
+    first with `null` would report a perfectly-structured building as having no storeys.
+    """
+    _ensure_loaded(pid)
+    meta = _META.get(pid)
+    if meta is None:
+        raise HTTPException(404, "no properties index for project")
+    if int(meta.get("index_schema") or 1) < 2:
+        # 422 + an explicit `code`, because the consumer's adapter reads a declared code in
+        # preference to the status line: this is a refusal with a remedy, not a validation error and
+        # not a 409 (which its vocabulary reserves for a stale-write conflict on an edit).
+        return Response(
+            json.dumps({
+                "code": "refused",
+                "detail": "this project's element index predates the spatial tree (index_schema 1). "
+                          "Re-run `aec_data.cli index` and re-upload it to /properties/index — the "
+                          "tree is built from the IFC and cannot be recovered from the stored index.",
+            }).encode("utf-8"),
+            status_code=422, media_type="application/json",
+        )
+    tree = meta.get("spatial")
+    if not tree:
+        # Distinct from the refusal above, and the distinction is the point: a v2 index with no tree
+        # is a file with no IfcProject. Nothing to re-publish; the answer is genuinely "none".
+        raise HTTPException(404, "this model has no IFC spatial structure (no IfcProject)")
+    model_id = _model_id(pid)
+
+    def _ref(node: dict) -> dict:
+        out = {
+            "ref": {"modelId": model_id, "guid": node.get("guid")},
+            "ifcClass": node.get("ifcClass"),
+            "name": node.get("name"),
+            "children": [_ref(c) for c in (node.get("children") or [])],
+        }
+        if "elevation" in node:
+            out["elevation"] = node["elevation"]
+            out["elevationUnit"] = _ELEVATION_UNIT_NOTE
+        return out
+
+    return _gzip_json(_ref(tree))
+
+
+@router.post("/projects/{pid}/elements/properties")
+def elements_properties(pid: str, body: dict = Body(...),
+                        _: str = Depends(require_role("viewer"))):
+    """Property sets for many elements in one round trip: `{"guids": [...]}` → a list, one per hit.
+
+    **A guid that is not in the index is simply absent from the response.** It is not an error and it
+    is not an empty record — the caller has to be able to tell "this element has no property sets"
+    from "there is no such element", and answering for everything destroys exactly that difference.
+    Which means an empty list is a legitimate answer to a well-formed request.
+
+    One POST rather than a GET per element, because a property panel over a multi-selection is where
+    per-element round trips actually hurt. The list is bounded and an over-long one is REFUSED rather
+    than truncated, since a silent truncation would report existing elements as missing — the one
+    failure this endpoint's contract is shaped to prevent.
+    """
+    guids = body.get("guids")
+    if not isinstance(guids, list) or any(not isinstance(g, str) for g in guids):
+        raise HTTPException(400, "body must be {\"guids\": [\"<GlobalId>\", ...]}")
+    if len(guids) > _MAX_PROPERTY_GUIDS:
+        raise HTTPException(400, f"at most {_MAX_PROPERTY_GUIDS} guids per request "
+                                 f"(asked for {len(guids)}) — page the selection")
+    _ensure_loaded(pid)
+    idx = _INDEX.get(pid)
+    if idx is None:
+        raise HTTPException(404, "no properties index for project")
+    out = []
+    # Iterating the REQUEST preserves the caller's order and costs O(asked) rather than O(model);
+    # de-duplicated because a repeated guid would otherwise appear twice in a list the caller builds
+    # a Map from, where the second silently wins.
+    for guid in dict.fromkeys(guids):
+        rec = idx.get(guid)
+        if rec is None:
+            continue
+        entry = {
+            "guid": guid,
+            "ifcClass": rec.get("ifc_class"),
+            "psets": rec.get("psets") or {},
+        }
+        # Optional in the contract, and omitted rather than sent as null: an absent key reads as
+        # "not stated", a null reads as "stated to be nothing", and only the first is true here.
+        if rec.get("name"):
+            entry["name"] = rec["name"]
+        if rec.get("predefined_type"):
+            entry["predefinedType"] = rec["predefined_type"]
+        out.append(entry)
+    return _gzip_json(out)
+
+
 @router.get("/projects/{pid}/elements/{guid}")
 def element(pid: str, guid: str, _: str = Depends(require_role("viewer"))):
     _ensure_loaded(pid)

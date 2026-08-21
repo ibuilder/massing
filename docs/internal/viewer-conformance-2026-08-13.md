@@ -52,6 +52,70 @@ route; `/projects/{pid}/elements/{guid}` matched with `guid = "properties"`. Rea
 alone this looks like a contract mismatch to negotiate; it is an absent endpoint. **The OpenAPI table
 is what separates them, and probing alone would have got this one wrong.**
 
+## CLOSED 2026-08-21 — and this report was wrong twice
+
+Both absent endpoints are built and tested (`services/api/test_spatial_tree.py`). Before writing
+them, the seven rows above were re-derived from `kernel.ts` itself rather than trusted, and that
+turned up two errors in this document. Both are the same mistake: **a table is a sample of a
+population somebody has to count.**
+
+### 1. `elements/properties` is a POST, and this said GET
+
+The row reads `GET /projects/{pid}/elements/properties` → **absent**. The absence was real. The
+method was not: the adapter sends `{guids: [...]}` in a **POST** body, and its own comment says why
+— "one POST rather than a GET per element", because a property panel over a multi-selection is
+where per-element round-trips bite.
+
+This is the *same* mis-read the section above congratulates itself for catching. Probing with GET hit
+`/elements/{guid}` with `guid="properties"`; the OpenAPI table correctly said there was no such GET
+route, and the conclusion drawn — "an absent GET" — quietly kept the wrong method. Resolving the
+status line against the route table fixed *which question* was being asked and not *what the client
+actually sends*. **The answer to "does our service speak it" is in the client's source, not in a
+probe of ours.** A GET-shaped endpoint would have satisfied every check in this file and been
+unreachable from the adapter forever.
+
+### 2. The population was NINE calls, not seven
+
+Listing every `transport.*` call in `kernel.ts` gives nine, not seven. Two are missing from the
+table entirely:
+
+| Missing from the table above | Ours |
+|---|---|
+| `GET /projects/{pid}/snap?x=&z=&r=` (`snapCandidates`) | not checked — no such route found |
+| `GET /projects/{pid}/drawings/{kind}.svg?cut=&storey=&axis=&offset=` (`drawing`) | not checked |
+
+So "1 of 7 works as-is" was measuring against a denominator nobody derived. It is **1 of 9** on the
+same evidence, and the two new rows are unassessed rather than failing — they are not fixed here,
+because each is its own question. Recorded so the next reader inherits the real size of the gap
+instead of a number that was only ever a count of the rows somebody wrote down.
+
+### 3. Their cassette and their published type disagree
+
+`conformance.test.ts` stubs `spatial-tree` as `{kind, name, children}`. `provider.ts` documents
+`SpatialNode` as `{ref, ifcClass, name, elevation?, children}`. The cassette is cast through
+`as HttpOutcome<T>`, so TypeScript never compares them. **We implemented the published interface**,
+which is the contract; the cassette is a fixture with a hole in its type checking. Worth telling
+them, and worth noting here because "their tests pass" is not evidence about which of the two
+shapes is meant.
+
+### What shipped
+
+* `GET /projects/{pid}/spatial-tree` — the real `IfcRelAggregates` chain (Project ▸ Site ▸ Building
+  ▸ Storey ▸ Space), every node carrying its GlobalId. Built at index time in
+  `services/data/src/aec_data/properties_index.py`; **never** grouped from the `storey` name string,
+  which has no GUIDs in it and merges two buildings that each have a "Level 2".
+* `POST /projects/{pid}/elements/properties` — `{guids: [...]}` → one row per hit. A guid we have no
+  element for is **absent** from the array, preserving the adapter's documented distinction between
+  "no properties" and "not found".
+* An index written before `index_schema: 2` is **refused (422, `code: "refused"`) with the remedy in
+  the sentence**, not answered with a null tree. A v2 index whose model genuinely has no `IfcProject`
+  is a 404. Those are different answers and the version number is the only thing that separates them.
+* Our own model browser gained "By spatial structure", which is the first grouping in it keyed on a
+  GlobalId rather than a name.
+
+Still open on the original list: the three renames/rescopes (`export.ifc`, `jobs/{id}`, `geometry`)
+and the `/edit` body shape, all of which need a *decision* about which side moves rather than code.
+
 ## What this means for adoption
 
 The gap is **narrow and mechanical**, not architectural:

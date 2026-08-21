@@ -235,20 +235,33 @@ def physical_elements(model: ifcopenshell.file) -> Iterable:
             continue
 
 
-def storey_name(element) -> str | None:
-    """Name of the IfcBuildingStorey for this element — via spatial containment (most
-    elements) or aggregation (IfcSpace decomposes from its storey)."""
+def storey_of(element):
+    """The IfcBuildingStorey ENTITY for this element — via spatial containment (most elements) or
+    aggregation (IfcSpace decomposes from its storey).
+
+    Split out from `storey_name` so a caller can have the storey's **GlobalId**. The name alone is
+    not an identity: two buildings on one site each having a "Level 2" is the ordinary case, and any
+    grouping keyed on the string merges them without a symptom. Returns the entity or None; the
+    caller decides which attribute it wants.
+    """
     # containment chain
     container = ue.get_container(element)
     while container is not None:
         if container.is_a("IfcBuildingStorey"):
-            return container.Name
+            return container
         container = ue.get_aggregate(container) if hasattr(ue, "get_aggregate") else None
     # aggregation parent (spaces, etc.)
     if hasattr(ue, "get_aggregate"):
         agg = ue.get_aggregate(element)
         while agg is not None:
             if agg.is_a("IfcBuildingStorey"):
-                return agg.Name
+                return agg
             agg = ue.get_aggregate(agg)
     return None
+
+
+def storey_name(element) -> str | None:
+    """Name of the IfcBuildingStorey for this element. Thin wrapper over `storey_of` — kept because
+    a dozen call sites want the label and nothing else."""
+    st = storey_of(element)
+    return st.Name if st is not None else None

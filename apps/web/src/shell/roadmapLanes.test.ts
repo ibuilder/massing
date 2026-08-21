@@ -490,7 +490,12 @@ const NOT_A_LANE = (rel: string) =>
 //: taken from a different reader is a threshold for a different question. `surface.test.ts` records
 //: being bitten by precisely this (698 from a probe vs 696 from the gate), so the number is read back
 //: out of the assertion that enforces it.
-const UNOWNED_CEILING = 48;  // 53 → 48: Lane J claimed `apps/web/src/tooling/` (v0.3.1017)
+const UNOWNED_CEILING = 39;  // 53 → 48: Lane J claimed `apps/web/src/tooling/` (v0.3.1017).
+//                             48 → 39: Lane E claimed `apps/web/src/tree/` (v0.3.1055), and the
+//                             ceiling is re-seated to the MEASURED number rather than lowered by
+//                             the size of that directory — 48 had slack in it that nobody had
+//                             spent, and a ratchet carrying unspent slack is a ratchet that lets
+//                             the next few files in for free.
 
 describe("the lane table covers the tree it governs", () => {
   const WEB = resolve(REPO, "apps/web/src");

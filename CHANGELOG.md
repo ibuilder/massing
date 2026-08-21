@@ -4,6 +4,74 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1055 (2026-08-21) — the spatial tree is a tree, and a container build can be seen before it lands
+
+### Added
+
+- **`GET /projects/{pid}/spatial-tree` and `POST /projects/{pid}/elements/properties`**
+  (R43-VIEWER-CONFORMANCE) — the two endpoints the 2026-08-13 conformance run found absent. The
+  tree is the file's real `IfcRelAggregates` chain (Project ▸ Site ▸ Building ▸ Storey ▸ Space),
+  every node carrying its **GlobalId**, built at index time rather than grouped from the `storey`
+  name string. The name-grouped version is five lines and looks identical until the model has two
+  buildings that each have a "Level 2" — the ordinary case on any campus — at which point it merges
+  them with no symptom: right count, right elements, wrong building.
+- **"By spatial structure" in the model browser** — the first grouping in it keyed on a GlobalId
+  rather than a label, and the mode is offered **only when the server actually sent a tree**. An
+  option that silently fell back to storey names would be the original defect wearing the fix's
+  label, which is worse than not offering it because the label now vouches for it.
+- **A PR container build** (R39-CONTAINER-PR). `containers` is gated `push` + `refs/heads/main`, so
+  it reported `skipping` on every pull request and *structurally could not* exercise a change to
+  itself; both Dockerfiles and two Docker-action bumps merged all-green without one green having run
+  a container build. `containers-pr` builds both images with `push: false`, no registry login and no
+  `packages: write`. Its gate, `services/api/test_container_pr_gate.py`, turns on the assertion that
+  the **two matrices stay equal** — a third image added to the publish job alone would restore the
+  hole for that image and every other assertion would still pass.
+
+### Changed
+
+- **Storey elevations ship with the unit they are IN, unconverted** — and that was checked against a
+  real file rather than reasoned about. `samples/school_str.ifc` returns `-2499.99`, `0`, `3800`,
+  `7599.99`, `11399.99`: **millimetres**, while the consumer's interface documents `elevation` as
+  "metres above project zero". Converting on the assumption of metres would have placed a four-storey
+  school's roof 11.4 **kilometres** up, from a number that looks entirely reasonable in the payload.
+  The value passes through with `elevationUnit` beside it instead. Same run confirmed the join the
+  whole feature rests on: **1,551 of 1,551 elements carry a `storey_guid` and all 1,551 resolve to a
+  node of the tree** — the synthetic fixture has one element and could not have shown that.
+- **The element index is `index_schema: 2`** and carries `storey_guid` and `predefined_type` per
+  element. An index written before it is **refused (422, with the remedy in the sentence)** by
+  `/spatial-tree` rather than answered with a null: a v1 index and a model with genuinely no
+  `IfcProject` are the same absence and different answers, and only one is fixed by re-publishing.
+- **The tree checks the payload's SHAPE rather than its truthiness** — caught before shipping, and it
+  would have broken the public Pages demo specifically. `apps/web/src/demo/demoApi.ts` degrades an
+  *uncaptured* GET to `[]` instead of throwing, so the demo build would have handed `[]` to the new
+  code; `[]` is truthy, and the walk then read `.children` off an array. Reproduced by mutation
+  (`TypeError: node.children is not iterable`), fixed, and pinned in `apps/web/src/tree/tree.test.ts`.
+  The build with no backend to blame is the one where a fixture layer's fallback becomes a crash.
+- **Lane E claims `apps/web/src/tree/`**, and the unowned-file ratchet is re-seated **48 → 39**.
+  The roadmap warns that guessing an owner for a directory is how the register overlap was made, so
+  the question asked was *who imports it*: `tree/tree.ts` has exactly one importer in the whole tree
+  and it is Lane E's. No second lane reaches it, so there was no boundary to negotiate. The ceiling
+  goes to the **measured** number rather than down by the size of the directory — 48 was carrying
+  slack nobody had spent, and unspent slack lets the next few files in for free.
+- **`test_bake_shared` no longer fails on Windows.** `st_mode & 0o777` is meaningless on NTFS, so
+  the 0700 assertion was *unsatisfiable* there and had been red on every local run. It is now
+  SKIPPED with the reason printed — not softened to a pass, because a green line for a check that
+  never ran is the failure this repo keeps writing tests about. ubuntu CI still holds the claim.
+
+### Fixed
+
+- **The conformance report was wrong twice, and re-deriving it before building found both.**
+  `elements/properties` is a **POST**, not the GET recorded: the run probed with GET, hit
+  `/elements/{guid}` with `guid="properties"`, correctly concluded the route was absent, and carried
+  the wrong method into the conclusion. A GET-shaped endpoint would have passed every check in that
+  file and been unreachable from the consumer forever. And the population was **nine calls, not
+  seven** — `snapCandidates` and `drawing` are called by the same adapter and appear in no row, so
+  "1 of 7" was measured against a denominator nobody derived. Neither of those two is fixed here.
+- **R39-NGINX-INHERIT ② was already shipped** (v0.3.1028) and its roadmap entry never said so —
+  written and fixed the same morning, which is the most convincing kind of stale entry because
+  nothing about its age suggests re-reading it. Verified rather than assumed: 13/13 green, and the
+  gate already derives the scoped locations exactly as the entry asks.
+
 ## v0.3.1054 (2026-08-20) — ruff `>=0.16.3`, validated by running it
 
 ### Changed

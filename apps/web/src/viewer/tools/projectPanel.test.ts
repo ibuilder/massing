@@ -60,6 +60,12 @@ function makeDeps(over: Partial<ProjectPanelDeps> = {}) {
     elements: vi.fn(async () => ELEMENTS),
     meta: vi.fn(async () => ({ facets: { classes: ["IfcWall", "IfcDoor"], storeys: [] } })),
     disciplineTree: vi.fn(async () => TREE),
+    // R43-VIEWER-CONFORMANCE. Rejecting on purpose: every project whose element index predates
+    // `index_schema: 2` gets a 422 here, which is the MAJORITY case for anything already published,
+    // so the rejecting arm is the one worth exercising by default. The panel must swallow it and
+    // still render the four name-based group modes — a spatial-tree fetch that can take the model
+    // browser down with it would be a regression paid for by every existing project.
+    spatialTree: vi.fn(async () => { throw new Error("422 index predates the spatial tree"); }),
   } as unknown as ApiClient;
 
   const deps: ProjectPanelDeps = {

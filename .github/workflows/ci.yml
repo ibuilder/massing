@@ -171,3 +171,111 @@ jobs:
           docker tag ghcr.io/${{ github.repository }}-${{ matrix.name }}:${{ github.sha }} \
                      ghcr.io/${{ github.repository }}-${{ matrix.name }}:latest
           docker push ghcr.io/${{ github.repository }}-${{ matrix.name }}:latest
+
+  # ─────────────────────────────────────────────────────────────────────────────────────────────
+  # R39-CONTAINER-PR. The publish job above is gated `push` + `refs/heads/main`, so on every pull
+  # request it reports **`skipping`** and *structurally cannot* exercise a change to itself. Both
+  # Dockerfiles, `build-push-action` 6→7 (#276) and `setup-buildx-action` 3→4 (#279) all merged
+  # all-green — a 21-minute API gate, a web build, CodeQL — and not one of those greens had run a
+  # container build. A break landed straight on main with no PR to revert.
+  #
+  # `services/api/test_container_pr_gate.py` holds the shape of what follows: same images as the
+  # publish matrix, no registry credentials, nothing pushed.
+  # ─────────────────────────────────────────────────────────────────────────────────────────────
+
+  # Which of a PR's files can change what a container build produces.
+  #
+  # Why this is its own job rather than an `if:` on the build steps: a job whose every step was
+  # skipped still reports **success**, and "a skipped job is not a passed job" is the precise
+  # confusion this item exists to remove. Gating the *job* makes GitHub render it as `skipped`,
+  # which is the truth. The cost of being honest is one ~5s runner.
+  #
+  # Listed from the API rather than `git diff`, because a `pull_request` checkout is shallow and the
+  # base commit is not guaranteed to be present locally — a diff against a ref that is not there
+  # fails, and the tempting fix (`|| true`) turns the filter into a permanent "no".
+  docker-scope:
+    name: Does this PR touch a container build?
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      touched: ${{ steps.q.outputs.touched }}
+    steps:
+      - id: q
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Fail SAFE, not quiet. Any failure to enumerate the changed files runs the build anyway:
+          # the outcome this whole item was written about is a container change that shipped because
+          # nothing exercised it, and "the API 500'd" is not a better reason than "the job was
+          # gated off". The API also caps a listing at 3000 files, and a truncated listing is
+          # indistinguishable from a short one — so a PR that large is treated as touching.
+          if ! files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename'); then
+            echo "could not enumerate the PR's files — building the containers anyway"
+            echo "touched=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$files"
+          if [ "$(printf '%s\n' "$files" | wc -l)" -ge 3000 ]; then
+            echo "3000-file API cap reached — the listing may be truncated, building anyway"
+            echo "touched=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Kept in sync with the build matrix by test_container_pr_gate.py, which runs this very
+          # pattern against each matrix `dockerfile` path.
+          if printf '%s\n' "$files" | grep -qE '(^|/)Dockerfile$|(^|/)\.dockerignore$|^\.github/workflows/ci\.yml$'; then
+            echo "touched=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "touched=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Build the deployable images on a PR, and never push one.
+  #
+  # Deliberately credential-free: no ghcr login, no `packages: write`, nothing pushed — so it is
+  # safe on a fork PR, where `secrets.GITHUB_TOKEN` is read-only anyway. The Trivy CRITICAL gate is
+  # repeated here on purpose: a base-image bump that introduces a fixable CRITICAL turns the publish
+  # job red *on main*, which is the same "break lands directly on main" this item names. Catching it
+  # on the PR costs nothing extra — the image is already loaded into the local daemon.
+  containers-pr:
+    name: Container build (PR, no push)
+    runs-on: ubuntu-latest
+    needs: docker-scope
+    if: needs.docker-scope.outputs.touched == 'true'
+    permissions:
+      contents: read
+    strategy:
+      # Both images, even when one fails: "the api image broke" and "both images broke" are
+      # different findings, and fail-fast would report the first as the second.
+      fail-fast: false
+      matrix:
+        include:
+          - { name: api, context: ., dockerfile: services/api/Dockerfile }
+          - { name: web, context: ., dockerfile: apps/web/Dockerfile }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
+
+      # No `cache-to`: an Actions cache written from a PR branch is scoped to that branch and can
+      # never be read by main, so writing one is pure churn. Reading main's is the useful half.
+      - name: Build image (no push)
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: false
+          load: true
+          tags: massing-${{ matrix.name }}:pr
+          cache-from: type=gha
+
+      - name: Scan — gate (Trivy, CRITICAL)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
+        with:
+          image-ref: massing-${{ matrix.name }}:pr
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

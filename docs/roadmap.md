@@ -504,6 +504,36 @@ The engine work is done either way; only the naming is open.
   result in [`docs/internal/viewer-conformance-2026-08-13.md`](internal/viewer-conformance-2026-08-13.md))*
   — **run their conformance suite against our live API.**
 
+  **BOTH ABSENT ENDPOINTS SHIPPED v0.3.1055** — `GET /projects/{pid}/spatial-tree` and
+  `POST /projects/{pid}/elements/properties`, held by `services/api/test_spatial_tree.py`. What
+  remains is the three renames/rescopes and the `/edit` body shape, every one of which is a
+  *decision about which side moves*, not code. **This item stays ◧ for that reason and not because
+  work is left undone here.**
+
+  **The report was wrong twice, and re-deriving it before building is what found both.**
+  `elements/properties` is a **POST**, not the GET the table records: the run probed with GET, hit
+  `/elements/{guid}` with `guid="properties"`, correctly concluded the route was absent, and quietly
+  carried the wrong method into the conclusion. A GET-shaped endpoint would have satisfied every
+  check in that file and been unreachable from the adapter forever — *the answer to "does our
+  service speak it" is in the client's source, not in a probe of ours.* And the population was
+  **nine calls, not seven**: `snapCandidates` (`/snap`) and `drawing` (`/drawings/{kind}.svg`) are
+  called by the same adapter and appear in no row, so "1 of 7" was measured against a denominator
+  nobody derived. Neither of the two is fixed here; each is its own question.
+
+  **The tree is built from `IfcRelAggregates`, never from the `storey` NAME.** Grouping on the name
+  string is a five-line function that yields a plausible tree with no GlobalIds in it — against the
+  first non-negotiable — and merges two buildings that each have a "Level 2", which is the ordinary
+  case on any campus. Our own model browser gained "By spatial structure" off the same endpoint: the
+  first grouping in it keyed on a GlobalId rather than a label. An index predating `index_schema: 2`
+  is **refused (422) with the remedy in the sentence** rather than answered with a null, because a
+  v1 index and a model with genuinely no `IfcProject` are the same absence and different answers.
+  `elementProperties` was deliberately **not** added to the web client: our tree already gets psets
+  inline from `/elements`, so a typed method with no caller would exist only to satisfy the
+  reachability gate — the gate measuring itself. Recorded in `apps/web/src/api/elements.ts` next to
+  where it would have gone, along with the fact that `test_route_reachability` does not flag that
+  route at all (its leaf `properties` already appears in the client for `/properties/index`), so it
+  passes by coincidence rather than by judgement.
+
   **Done: :8093 up, real project, real model.** `samples/school_str.ifc` (8.6 MB) uploaded, converted
   to `frag`, **500 elements queryable**. `/health` checked before use, because a stale server also
   answers 200.
@@ -587,12 +617,12 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⑬ · SCALE-SEAM ⑭ · SCALE-SEAM ⑮ · SCALE-SEAM ⑯ · SCALE-SEAM ⑰ · SCALE-SEAM ⑱ · SCALE-SEAM ⑲ · SCALE-SEAM ⑳ |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(the three cache locations drop all seven security headers)* · R39-CONTAINER-PR *(no PR job exercises a docker-action bump)* · R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(SHIPPED v0.3.1028, pending archive — this cell said "the three cache locations drop all seven security headers" for a day after they stopped doing so)* · R39-CONTAINER-PR *(SHIPPED v0.3.1055, pending archive)* · R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -619,8 +649,17 @@ had to be fixed under a one-change lane assignment because there was no row to p
 
 **It is now a ratchet rather than a proposal.** `roadmapLanes.test.ts` counts unowned files against a
 ceiling that only ever goes down, and the way down is adding a row here. Rows still to agree:
-`proforma/` · `drawings/` · `kernel/` · `pins/` · `studio/` · `tools/` · `tree/` · the loose `portal/`
-files · `tooling/` + `dev/` (probably J) · `account/` · `connections/` · `deploy/`.
+`proforma/` · `drawings/` · `kernel/` · `pins/` · `studio/` · `tools/` · the loose `portal/`
+files · `dev/` · `account/` · `connections/` · `deploy/`.
+
+**`tree/` came off that list on 2026-08-21, and it was DERIVED rather than agreed.** The paragraph
+above warns that guessing an owner for a directory is how the register problem was made, so the
+question asked was not "where does this feel like it belongs" but *who imports it*:
+`apps/web/src/tree/tree.ts` has exactly **one** importer in the whole tree,
+`apps/web/src/viewer/tools/projectPanel.ts`, which is Lane E's. No second lane reaches it, so there is
+no boundary to negotiate and nothing to agree — the import graph had already answered. `tooling/` left
+the list the same way at v0.3.1017 (Lane J). The remaining names are still open, and the ones with
+several importers across lanes are the ones that will actually need a decision.
 
 **CORRECTED 2026-08-07, and the correction found a real overlap the original claim would not have.**
 This said the disjointness check "compares the strings raw", so `field/` and `apps/web/src/field/` in
@@ -1936,7 +1975,16 @@ plausible IoT reading — the connection was checked and deliberately not manufa
 **Three items added 2026-08-20 from the PR-reconciliation pass** — each is a control that reads
 stronger than it is, which is this ring's whole theme:
 
-- **R39-NGINX-INHERIT ②** *(S, Lane J)* — **`nosniff` is absent from every bundle, WASM binary
+- ✅ **R39-NGINX-INHERIT ②** *(S, Lane J)* — **SHIPPED v0.3.1028, on the same day this entry was
+  written, and the entry never said so.** Re-checked 2026-08-21 before starting the work: all seven
+  headers are present in all four scoped locations, and `nginx.test.ts` already derives the
+  population exactly as the text below asks — `locationsDeclaringAddHeader()` walks the brace
+  structure, and the assertion that the four found blocks are *exactly* `/assets/`, `/wasm/`,
+  `= /index.html` and `~* \.mjs$` is what makes a fifth location fail on the day it is added.
+  Verified by running it: 13/13. **The premise-check was the whole of the work here** — an entry
+  written the same morning as its fix is the most convincing stale entry there is, because nothing
+  about its age suggests re-reading it. *Original text kept below, because the trap it describes is
+  the reason the gate is shaped the way it is:*  **`nosniff` was absent from every bundle, WASM binary
   and worker we serve.** nginx drops **all** server-level `add_header`s in any location that
   declares one of its own. `apps/web/nginx.conf` has three such locations — `~* \.mjs$`,
   `/assets/` and `/wasm/`, each declaring `Cache-Control` — so all **seven** security headers
@@ -1948,7 +1996,22 @@ stronger than it is, which is this ring's whole theme:
   two. Take the contribution, then finish it: the gate should **derive** the locations that declare
   an `add_header` and require the full set in each, so a *fourth* such location fails on the day it
   is added rather than the day someone re-audits.
-- **R39-CONTAINER-PR** *(S, Lane J)* — **a Docker-action bump cannot be verified before it lands.**
+- ✅ **R39-CONTAINER-PR** *(S, Lane J)* — **SHIPPED v0.3.1055.** Two jobs in `.github/workflows/ci.yml`:
+  `docker-scope` decides whether the PR touches a container build, and `containers-pr` builds both
+  images with `push: false`, no ghcr login and no `packages: write`, then runs the same pinned Trivy
+  CRITICAL gate. Held by `services/api/test_container_pr_gate.py`, whose load-bearing assertion is
+  **not** "a PR job exists" but *the two matrices are equal* — a third image added to the publish
+  job alone restores the hole for that image and every other assertion here would still pass.
+  Mutation-checked five ways (third image, `push: true`, a Dockerfile moved out from under the
+  filter, the filter widened to `.`, the fail-safe flipped to fail-quiet); all five go red, and the
+  fourth had to be re-run because the first attempt's `sed` silently matched nothing and the green
+  read as confirmation. Three details worth keeping: the scope check is **its own job** rather than
+  an `if:` on the steps, because a job whose steps all skipped still reports *success* — which is
+  the exact confusion this item is about, one level down; it **fails safe**, so a PR whose file list
+  cannot be enumerated (API error, or the 3000-file cap that makes truncation indistinguishable from
+  a short list) builds anyway; and the filter regex is **extracted from the YAML and executed**
+  against each matrix path plus four decoys, because a regex and a matrix are two independent lists
+  of the same thing. *Original finding:*  **a Docker-action bump could not be verified before it landed.**
   `Container build + scan + publish` is gated `if: github.event_name == 'push' && github.ref ==
   'refs/heads/main'`, so it reports **`skipping`** on every PR and *structurally cannot* run on one.
   Dependabot's [#276](https://github.com/ibuilder/massing/pull/276) (`build-push-action` 6→7) and

@@ -68,8 +68,25 @@ with tempfile.TemporaryDirectory() as d:
     check("the on-disk codec is JSONDisk, not pickle Disk",
           store is not None and type(store.disk).__name__ == "JSONDisk",
           type(getattr(store, "disk", None)).__name__ if store else "no store")
-    mode = os.stat(d).st_mode & 0o777
-    check("the cache directory is mode 0700 (owner-only)", mode == 0o700, oct(mode))
+    # POSIX mode bits, where they exist.
+    #
+    # On Windows this assertion is not merely likely to fail, it is UNSATISFIABLE: NTFS has no mode
+    # bits, `os.chmod` toggles only the read-only flag, and `st_mode & 0o777` reports 0o777 no matter
+    # what the ACL says. It failed on every local run for exactly that reason — and a suite that is
+    # permanently red on the developer's own machine trains everyone to read red as normal, which
+    # costs more than this one assertion is worth.
+    #
+    # So it is SKIPPED rather than softened, and the skip is printed rather than silent. The claim
+    # itself is not weakened: CI runs on ubuntu, where this is a real check, and the container the
+    # cache actually ships in is Linux. Windows is a dev box. Deliberately NOT `check(..., True)` on
+    # Windows — a green line for a check that never ran is the failure mode this repo keeps writing
+    # tests about.
+    if os.name == "nt":
+        print("SKIP  the cache directory is mode 0700 — NTFS has no POSIX mode bits, so "
+              "st_mode is meaningless here; ubuntu CI is what holds this claim")
+    else:
+        mode = os.stat(d).st_mode & 0o777
+        check("the cache directory is mode 0700 (owner-only)", mode == 0o700, oct(mode))
 
     four = [("2O2Fr$t4X7Zf8NOew3FNrX", "IfcWall",
              [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], [[0, 1, 0]])]

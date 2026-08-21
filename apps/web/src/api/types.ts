@@ -8,10 +8,44 @@ export interface ElementProps {
   name: string | null;
   type_name: string | null;
   storey: string | null;
+  /** GlobalId of the containing IfcBuildingStorey. Present from index_schema 2 on.
+   *  The `storey` NAME above is a label and is not unique: two buildings on one site each having a
+   *  "Level 2" is the ordinary case, not the exotic one, and grouping on the string silently merges
+   *  them. Group on this. */
+  storey_guid?: string | null;
+  /** IFC's own subtype discriminator, resolved through USERDEFINED to ObjectType. Absent rather
+   *  than "NOTDEFINED" when the author did not state one. */
+  predefined_type?: string | null;
   /** Server-computed A/S/M/P/E/FP discipline bucket, when the index provides it. */
   discipline?: string | null;
   psets: Record<string, Record<string, unknown>>;
   qtos: Record<string, Record<string, unknown>>;
+}
+
+/** One node of the IFC spatial hierarchy, as `GET /projects/{pid}/spatial-tree` serves it.
+ *
+ *  Built server-side from the file's own `IfcRelAggregates` chain, so every node has a GlobalId and
+ *  two same-named storeys in different buildings stay two nodes. `elevation` is in the IFC project's
+ *  own length unit — very often millimetres — which is why `elevationUnit` travels with it instead
+ *  of the number being silently converted. */
+export interface SpatialNode {
+  ref: { modelId: string; guid: string };
+  ifcClass: string;
+  name: string;
+  elevation?: number;
+  elevationUnit?: string;
+  children: SpatialNode[];
+}
+
+/** Property sets for one element, as `POST /projects/{pid}/elements/properties` returns them.
+ *  A guid the server did not answer for is ABSENT from the array — that is "no such element", and
+ *  it is deliberately distinguishable from an entry whose `psets` is `{}` ("no properties"). */
+export interface ElementPropertiesRow {
+  guid: string;
+  ifcClass: string;
+  name?: string;
+  predefinedType?: string;
+  psets: Record<string, Record<string, unknown>>;
 }
 
 /** The unified discipline tree (served on `GET /reference/disciplines`, `tree` key) — the single

@@ -138,7 +138,14 @@ export async function buildProjectPanels(d: ProjectPanelDeps): Promise<void> {
       empty.append(msg, hint, row);
       treePanel.appendChild(empty);
     } else {
-      treePanel.appendChild(buildTree(elements, (guid) => selectByGuid(guid, false)));
+      // R43-VIEWER-CONFORMANCE. The real IFC decomposition, when the project's element index is new
+      // enough to carry one. `.catch(() => null)` on purpose and NOT a silent widening: the route
+      // answers 422 for an index written before `index_schema: 2` and 404 for a model with no
+      // IfcProject, and in BOTH cases the honest response here is to offer the four name-based modes
+      // and not the spatial one. What must not happen is the mode appearing and quietly grouping on
+      // the storey NAME again — that is the defect it exists to fix, wearing the fix's label.
+      const spatial = await api.spatialTree(projectId).catch(() => null);
+      treePanel.appendChild(buildTree(elements, (guid) => selectByGuid(guid, false), spatial));
     }
     if (noModel) return;   // meta/discipline calls below all need a published model
 
