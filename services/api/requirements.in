@@ -73,7 +73,7 @@ sentry-sdk[fastapi]>=2.66.1  # external error alerting (sentry.py); no-op unless
 # deferred to a follow-up until its emitted S3 attributes can be verified safe (see otel.py notes).
 opentelemetry-sdk>=1.27
 opentelemetry-exporter-otlp-proto-http>=1.44.0
-opentelemetry-instrumentation-fastapi>=0.48b0
+opentelemetry-instrumentation-fastapi>=0.65b0
 opentelemetry-instrumentation-sqlalchemy>=0.65b0
 
 # --- R28-ICDD: ISO 21597 Information Container (icdd.py) ---
