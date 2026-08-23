@@ -178,5 +178,85 @@ try:
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
+
+# =================================================================================================
+# THE STORAGE HALF -- added after 93 directories and 1.42 GB survived seven runs and filled the disk
+# mid-suite, producing `database or disk is full` scattered across 71 unrelated suites.
+#
+# The database half above is a snapshot diff, which is safe because a diff cannot name a file that
+# existed beforehand. That design DOES NOT TRANSFER, and assuming it did is what left this gap open:
+# `_run_one` clears `_storage_{t}` at test START, so last run's directory is already in the pre-run
+# snapshot, the diff comes back empty, and nothing is ever swept. The storage half therefore sweeps
+# by DERIVED NAME instead -- and the assertions below are about why that derivation must never be
+# relaxed into a glob.
+# =================================================================================================
+
+# 1. Derived, and exactly one name per test.
+check("_owned_dirs derives the runner's own STORAGE_DIR name",
+      {d.name for d in rt._owned_dirs("test_alpha", rt.HERE)} == {"_storage_test_alpha"},
+      str(sorted(d.name for d in rt._owned_dirs("test_alpha", rt.HERE))))
+
+# 2. THE ONE THAT MATTERS. The tempting simplification is `glob("test_storage_*")` +
+#    `glob("test_ifc_*")`. Those patterns match TRACKED SOURCE FILES in this very directory. This is
+#    not hypothetical: running that glob during the incident returned three tracked .py files, and a
+#    previous session did delete a tracked file exactly this way.
+_glob_hits = sorted(q.name for pat in ("test_storage_*", "test_ifc_*") for q in rt.HERE.glob(pat))
+_tracked_hits = [n for n in _glob_hits if n.endswith(".py")]
+check("the naive glob DOES hit tracked source -- which is why the sweep derives instead",
+      len(_tracked_hits) >= 3, ", ".join(_tracked_hits) or "no .py matched (assertion is now vacuous)")
+check("...and nothing _owned_dirs proposes is a tracked path",
+      not any((rt.HERE / d.name).is_file() for t in rt.TESTS for d in rt._owned_dirs(t, rt.HERE)),
+      "every proposed name is a directory or absent")
+
+# 3. Failed tests keep their storage; passed tests do not. Same rule as the database half: the
+#    directory is the evidence for the failure.
+_tmp2 = Path(tempfile.mkdtemp(prefix="sweepdirs_"))
+try:
+    _real_home, _real_data = rt.HERE, rt.DATA_DIR
+    rt.HERE = rt.DATA_DIR = _tmp2
+    (_tmp2 / "_storage_test_pass").mkdir()
+    (_tmp2 / "_storage_test_fail").mkdir()
+    removed, kept = rt._sweep_owned_dirs([("test_pass", True, 0.1), ("test_fail", False, 0.1)])
+    check("a PASSED test's storage dir is swept", not (_tmp2 / "_storage_test_pass").exists(),
+          f"removed={removed}")
+    check("a FAILED test's storage dir is KEPT as evidence",
+          (_tmp2 / "_storage_test_fail").exists(), f"kept={kept}")
+
+    # 4. The reporter counts directories only -- a file can never be counted, so it can never be
+    #    proposed for deletion by a future change that starts deleting what it reports.
+    (_tmp2 / "test_storage_decoy.py").write_text("# a tracked-source lookalike")
+    (_tmp2 / "test_storage_real").mkdir()
+    n, _mb = rt._unowned_residue()
+    check("_unowned_residue counts directories and ignores files that match the same pattern",
+          n >= 1 and (_tmp2 / "test_storage_decoy.py").exists(),
+          f"{n} dir(s) counted; the .py lookalike still exists")
+finally:
+    rt.HERE, rt.DATA_DIR = _real_home, _real_data
+    shutil.rmtree(_tmp2, ignore_errors=True)
+
+# 4b. THE SYMMETRY THAT WAS MISSING. `_run_one` swept the per-test DATABASE as each test finished
+#     -- "removing each as it finishes keeps the peak at roughly one test's worth" -- and simply did
+#     not do the same for the per-test STORAGE dir. That asymmetry is the whole bug: the storage was
+#     cleared only at the START of the next run of the same test, so it accumulated across the run
+#     and then across runs. Asserted structurally because `_run_one` spawns a subprocess and cannot
+#     be driven in-process; what matters is that both sweeps sit under the SAME guard.
+_src = (Path(__file__).resolve().parent / "run_tests.py").read_text(encoding="utf-8")
+_body = _src[_src.index("def _run_one("):_src.index("def _owned_dbs(")]
+_guard = 'if ok and os.environ.get("KEEP_TEST_DB") != "1":'
+check("_run_one guards its per-test cleanup on pass + KEEP_TEST_DB", _guard in _body)
+_after = _body[_body.index(_guard):] if _guard in _body else ""
+check("...and sweeps the per-test DATABASE there", "_sweep_owned(t, cwd, before)" in _after)
+check("...and the per-test STORAGE dir there too -- the half that was missing",
+      '_storage_{t}' in _after and "rmtree" in _after,
+      "both halves now sit under one guard, so a failed test keeps both")
+
+# 5. The disk-full signatures match what SQLAlchemy and the OS actually emit.
+_real_msg = ("sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) "
+             "database or disk is full")
+check("the disk-full scan recognises the real SQLAlchemy message",
+      any(s in _real_msg.lower() for s in rt._DISK_FULL), _real_msg[:60])
+check("...and does not fire on an ordinary assertion failure",
+      not any(s in "AssertionError: expected 3, got 4".lower() for s in rt._DISK_FULL))
+
 print(("FAILED: " + "; ".join(FAILED)) if FAILED else "test_sweep_guard OK")
 sys.exit(1 if FAILED else 0)

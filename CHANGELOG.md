@@ -4,6 +4,79 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1059 (2026-08-21) — the per-test sweep covered the database and not the storage beside it
+
+### Fixed
+
+- **A full suite run filled the disk and reported `database or disk is full` across 71 unrelated
+  suites.** `_run_one` has swept each test's SQLite database as that test finishes since
+  R41-TEST-RESIDUE — its own comment says *"removing each as it finishes keeps the peak at roughly
+  one test's worth."* The per-test **object-storage dir beside it was never added to that line.** It
+  was cleared only at the START of the next run of the same test, so it accumulated across the whole
+  run and then across runs: **93 directories and 1.42 GB** were sitting there when a run finally
+  exhausted the disk mid-suite.
+
+  The fix is one `shutil.rmtree` under the guard that was already there, so both halves obey the same
+  rule — a FAILED test keeps its storage, because the sidecar state is as much the evidence as the
+  rows are, and `KEEP_TEST_DB=1` keeps both.
+
+  **Measured before and after.** Before: free space fell 544 MB per 20 seconds. After: 383 tests
+  completed with live `_storage_*` directories holding at **0** and free space flat at 13.1 GB.
+
+- **The first explanation written into this file was wrong, and is retracted in place.** *"Lower
+  TEST_JOBS — the peak scales with the worker count"* is the obvious reading and it is false: 8
+  workers consumed ~11.6 GB, **3 workers consumed ~12.5 GB**. The footprint is cumulative over tests
+  completed, not concurrent over workers, so fewer workers only reach the same total more slowly.
+  Both measurements are recorded next to the retraction, because the plausible explanation would have
+  sent the next person to tune a knob that does nothing.
+
+### Added
+
+- **A disk-full run now says it ran out of disk.** The runner scans captured output for
+  `database or disk is full` / `no space left on device` / `disk i/o error` and prints which suites
+  hit it plus free space before and after — instead of leaving tracebacks that name everything except
+  the cause. Two runs here were diagnosed as contention, then as a code regression, before anyone
+  read far enough down a traceback to find the real message.
+
+- **Directories the runner does not own are reported, never deleted.** A test that sets its own
+  `STORAGE_DIR`/`IFC_DIR` owns that name, so the runner prints the count and size and leaves it
+  alone — *"the sweep must never propose something it does not own"* is the rule the database half
+  already follows.
+
+- **`test_sweep_guard.py` grew the storage half (18 assertions).** The load-bearing one records why
+  the sweep derives its names instead of globbing:
+
+      PASS  the naive glob DOES hit tracked source -- which is why the sweep derives instead
+            test_ifc_cache.py, test_ifc_path_containment.py, test_storage_key_parity.py
+
+  `glob("test_storage_*")` and `glob("test_ifc_*")` match three **tracked source files** in that
+  directory. Every manual cleanup during this work ran `git ls-files` on each candidate and deleted
+  directories only; that caution is now a test rather than a habit. A further assertion pins the
+  symmetry that was missing — both the database and the storage sweep must sit under the same
+  pass-and-`KEEP_TEST_DB` guard, so neither can drift away from the other again.
+
+### Known, not fixed — and separated from this change on purpose
+
+`test_edit_undo` fails intermittently. It passes standalone, and twice consecutively under the
+runner's exact invocation (18.7s, 16.9s); it failed once inside a 6-way concurrent run. It also
+failed in a run at `095f6277`, **before any of these runner changes existed**, so it is pre-existing
+and not caused by the sweep. The cause is not identified and is not guessed at here.
+
+### What this does NOT fix, stated plainly
+
+**The within-run disk consumption is not explained and not fixed by this change.** The sweep removes
+*accumulation between runs* — that is measured and real. It does not touch the transient peak. A run
+started with **20.9 GB free** still drove the disk down to **1.9 GB**, i.e. ~19 GB consumed, with
+live `_storage_*` directories sitting at 0 the whole time and only ~1.3 GB findable on disk under
+`services/api` afterwards. The space returns within a minute or two of the workers exiting.
+
+So the peak is transient, it is somewhere other than the per-test storage dirs, and I have not found
+it. An earlier draft of this entry implied the sweep addressed the disk problem; it addresses one of
+two problems and the larger one is still open. The disk-full detector added here at least makes the
+condition announce itself instead of scattering unrelated tracebacks.
+
+CI is unaffected — it runs on a clean runner with far more headroom.
+
 ## v0.3.1058 (2026-08-21) — the exemption matched the package, not the advisory
 
 ### Fixed

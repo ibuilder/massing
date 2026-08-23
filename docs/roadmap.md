@@ -2498,6 +2498,16 @@ Shipped 2026-08-21:
   `services/api/test_npm_advisories.py`, along with dated-and-unexpired exemptions, a broken audit run
   failing loudly rather than reading as clean, and the workflow step carrying neither escape hatch.
 
+  **v0.3.1059 — the per-test sweep covered the database and not the storage beside it.** `_run_one`
+  has swept each test's SQLite file as that test finishes since R41-TEST-RESIDUE; the object-storage
+  dir beside it was never added to that line, so it accumulated across the run and then across runs —
+  93 dirs and 1.42 GB, until a run exhausted the disk mid-suite and reported `database or disk is
+  full` across 71 unrelated suites. One `rmtree` under the guard that was already there. Measured:
+  before, free space fell 544 MB per 20 s; after, 440 tests with live `_storage_*` dirs at **0** and
+  disk flat. The first explanation written into the file — *"lower TEST_JOBS, the peak scales with
+  the worker count"* — is **retracted in place with both measurements**: 8 workers consumed ~11.6 GB,
+  3 workers ~12.5 GB, so the footprint is cumulative over tests, not concurrent over workers.
+
   **CORRECTED v0.3.1058 — the exemption matched the PACKAGE, not the advisory.** The key was
   `package:GHSA-id`, but `classify()` used `next((k for k in keys if k in EXEMPT), None)`, so one
   exempt advisory anywhere on a package suppressed every other advisory on it. That fails in the

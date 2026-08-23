@@ -192,6 +192,16 @@ def _run_one(t: str, base: dict, cwd: Path = HERE,
     # behind — the case where the sweep working correctly is what hides the thing you are hunting.
     if ok and os.environ.get("KEEP_TEST_DB") != "1":
         _sweep_owned(t, cwd, before)
+        # ...and the STORAGE dir, which this line did not cover until 2026-08-21. The database half
+        # above has kept the peak at "roughly one test's worth" since R41-TEST-RESIDUE; the object
+        # storage beside it was created per test, cleared only at the START of the NEXT run of the
+        # same test, and therefore accumulated across the whole run and then across runs. 93 dirs and
+        # 1.42 GB were sitting here when a suite finally ran the disk out mid-run and reported
+        # `database or disk is full` across 71 unrelated suites.
+        #
+        # Same rule as the database, deliberately: a FAILED test keeps its storage, because the
+        # sidecar state is as much the evidence as the rows are, and KEEP_TEST_DB=1 keeps both.
+        shutil.rmtree(cwd / f"_storage_{t}", ignore_errors=True)
     return t, ok, time.time() - t0, (proc.stdout or "") + (proc.stderr or "")
 
 
@@ -284,6 +294,74 @@ def _sweep_leftovers(before: set[Path], keep: set[Path],
     return removed, len(_db_snapshot(dirs) - before - keep)
 
 
+#: Disk-full signatures. SQLite reports SQLITE_FULL as "database or disk is full"; the OS layer says
+#: "No space left on device". Either one means the machine ran out of room, not that the code is
+#: wrong -- and the failure lands on whichever suites happened to be writing at that moment, which is
+#: why it reads as a scatter of unrelated defects.
+_DISK_FULL = ("database or disk is full", "no space left on device", "disk i/o error")
+
+
+def _owned_dirs(t: str, cwd: Path) -> set[Path]:
+    """The per-test object-storage dir this runner CREATED for `t`.
+
+    Derived, never globbed. `_run_one` sets `STORAGE_DIR=./_storage_{t}`, so the runner knows these
+    names exactly -- the same argument `_owned_dbs` makes, and the reason neither needs a pattern.
+    A glob would be the tempting simplification and it is the dangerous one: `test_storage_*` matches
+    the TRACKED source file `test_storage_key_parity.py`, and `test_ifc_*` matches
+    `test_ifc_cache.py` and `test_ifc_path_containment.py`. Confirmed by running that glob and
+    checking `git ls-files` on every hit before deleting anything.
+    """
+    return {(cwd / f"_storage_{t}").resolve()}
+
+
+def _sweep_owned_dirs(results: list[tuple[str, bool, float]]) -> tuple[int, int]:
+    """Remove the per-test storage dirs the run created; keep the ones belonging to FAILED tests.
+
+    **Why a snapshot diff does NOT work here, unlike the database half.** `_run_one` clears
+    `_storage_{t}` at test START, not at run end -- so the directory from the PREVIOUS run is already
+    present when the pre-run snapshot is taken, the diff comes back empty, and nothing is ever swept.
+    That is exactly how 93 directories and 1.42 GB accumulated: the sweep everyone assumed covered
+    this could not see it by construction.
+
+    Failed tests keep their storage, for the same reason they keep their database: it is the evidence.
+    """
+    removed = kept = 0
+    for t, ok, _ in results:
+        home = DATA_DIR if t in DATA_TESTS else HERE
+        for d in _owned_dirs(t, home):
+            if not d.is_dir():
+                continue
+            if not ok:
+                kept += 1
+                continue
+            shutil.rmtree(d, ignore_errors=True)
+            if not d.exists():
+                removed += 1
+    return removed, kept
+
+
+def _unowned_residue() -> tuple[int, float]:
+    """(count, MB) of storage/IFC dirs this runner did NOT create -- reported, never deleted.
+
+    Tests are free to set their own `STORAGE_DIR` / `IFC_DIR`, and many do. Those names are the
+    test's business, not the runner's, so the runner reports them and leaves them alone: *the sweep
+    must never propose something it does not own* is the rule the database half already follows.
+    """
+    n = 0
+    total = 0
+    owned = {d for t in TESTS for d in _owned_dirs(t, HERE)} | {
+        d for t in DATA_TESTS for d in _owned_dirs(t, DATA_DIR)}
+    for home in (HERE, DATA_DIR):
+        for d in home.iterdir() if home.is_dir() else []:
+            if not d.is_dir() or d.resolve() in owned:
+                continue
+            if not (d.name.startswith(("_storage_", "test_storage_", "_ifc_", "test_ifc_"))):
+                continue
+            n += 1
+            total += sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+    return n, total / (1024 * 1024)
+
+
 def main() -> int:
     if problems := manifest_problems():
         for p in problems:
@@ -303,17 +381,45 @@ def main() -> int:
     jobs = int(os.environ.get("TEST_JOBS") or 0) or max(1, (os.cpu_count() or 2) - 1)
     jobs = max(1, min(jobs, len(tests)))
     results: list[tuple[str, bool, float]] = []
+    outputs: list[tuple[str, bool, str]] = []
     dbs_before = _db_snapshot()
+    # Free space is MEASURED, before and after, rather than predicted from a per-worker constant that
+    # would drift the moment a fixture changes. What it buys is the ability to SAY "the disk filled"
+    # instead of leaving a scatter of unrelated tracebacks -- see the _DISK_FULL scan below.
+    free_before = shutil.disk_usage(HERE).free
     t_start = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
         for t, ok, dt, out in ex.map(lambda tc: _run_one(tc[0], base, tc[1], frozenset(dbs_before)), tests):
             results.append((t, ok, dt))
+            outputs.append((t, ok, out))
             print(f"{'PASS' if ok else 'FAIL'}  {t}  ({dt:.1f}s)", flush=True)
             if not ok:
                 print(out.strip()[-1200:], flush=True)
 
     passed = sum(1 for _, ok, _ in results if ok)
     print(f"\n{passed}/{len(results)} suites passed  ({jobs} parallel, {time.time() - t_start:.0f}s wall)")
+
+    # A full disk does not fail one suite; it fails whichever suites happened to be writing, with
+    # tracebacks that name everything except the cause. Two runs here were diagnosed as contention
+    # and as a code regression before anyone read far enough down to find `database or disk is full`.
+    # An environment failure that looks like 71 defects costs far more than one that announces itself.
+    disk_hits = sorted(n for n, ok, out in outputs
+                       if not ok and any(s in out.lower() for s in _DISK_FULL))
+    if disk_hits:
+        shown = ", ".join(disk_hits[:6]) + (f" (+{len(disk_hits) - 6} more)"
+                                            if len(disk_hits) > 6 else "")
+        print(f"FAIL  DISK FULL, not a code defect: {len(disk_hits)} suite(s) hit a disk-full error"
+              f" -- {shown}")
+        print(f"      free space {free_before / 2**30:.1f} GB before the run, "
+              f"{shutil.disk_usage(HERE).free / 2**30:.1f} GB now (TEST_JOBS={jobs}).")
+        # MEASURED, and it retracts the first thing written here. "Lower TEST_JOBS, the peak scales
+        # with the worker count" was the obvious explanation and it is FALSE: 8 workers peaked at
+        # ~11.6 GB consumed, 3 workers at ~12.5 GB. The footprint is CUMULATIVE over tests completed,
+        # not concurrent over workers, so fewer workers only reach the same total more slowly. The
+        # space is reclaimed once the run ends, with a lag of a minute or two.
+        print("      NOTE: lowering TEST_JOBS does NOT help -- measured at both 3 and 8 workers, the "
+              "peak was the same ~12 GB. The footprint is cumulative over tests, not concurrent "
+              "over workers. Free disk space; this suite needs roughly 12 GB of headroom.")
 
     # R41-TEST-RESIDUE. Sweep, then ASSERT the sweep worked — two different checks, and this very
     # defect is why: a sweep that removes nothing looks exactly like a clean tree. Reporting the
@@ -324,6 +430,21 @@ def main() -> int:
     held = sum(1 for q in kept if q.exists())
     print(f"test databases: {removed} swept after the pool, {held} kept for failed tests, "
           f"{leftover} unaccounted for")
+
+    # The storage half of the same sweep. It was missing, and the omission is why 93 directories and
+    # 1.42 GB survived seven runs and eventually filled the disk mid-suite.
+    dirs_removed, dirs_kept = _sweep_owned_dirs(results)
+    unowned_n, unowned_mb = _unowned_residue()
+    print(f"test storage:   {dirs_removed} swept after the pool, {dirs_kept} kept for failed tests, "
+          f"{unowned_n} dir(s) this runner does not own ({unowned_mb:.0f} MB)")
+    if unowned_mb > 2048:
+        # Reported, never deleted: a test that sets its own STORAGE_DIR owns that name, and "the
+        # sweep must never propose something it does not own" is the rule the database half follows.
+        # Naming the size is what makes it actionable without the runner taking the decision.
+        print(f"      NOTE {unowned_mb / 1024:.1f} GB of test-chosen storage/IFC dirs are lingering. "
+              f"They belong to the tests that named them, so this runner leaves them alone -- clear "
+              f"them by hand if the disk is tight. Directories only: `test_storage_*` and "
+              f"`test_ifc_*` also match TRACKED source files.")
     if leftover:
         print(f"FAIL  run_tests residue: {leftover} test database(s) nobody claimed survived the "
               f"sweep — each full run leaked ~1.4 GB when this regressed before")
