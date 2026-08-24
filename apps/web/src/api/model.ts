@@ -91,7 +91,6 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       note: string;
     }>(`/projects/${pid}/model/design-metrics`);
   }
-  /** TOPIC-BOARD — a kanban board over the BCF topics with QUERY-DSL smart filters over topic fields. */
   /** AUTH-CONSTRAINTS — validate the model's own constraint graph (broken hosts, dangling fills,
    * out-of-extent inserts, missing containment, level mismatches). */
   modelConstraints(pid: string) {
@@ -101,7 +100,6 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       checked: { openings: number; elements_level_checked: number; storeys: number }; note: string;
     }>(`/projects/${pid}/model/constraints`);
   }
-  /** SCHED-CALC — computed schedules extended with deterministic calculated-field columns. */
   /** WALL-ASSEMBLY THERMAL — every IfcMaterialLayerSet → R/U computed from the layers + per-layer takeoff. */
   modelAssemblyThermal(pid: string) {
     type Layer = { name: string; category: string | null; thickness_m: number; r_value: number };
@@ -114,8 +112,6 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ assembly_count: number; assemblies: Assembly[]; note: string }>(
       `/projects/${pid}/model/assembly-thermal`);
   }
-  /** PARCEL-IMPORT — cadastral parcel geometry (GeoJSON/WKT) → area/perimeter/centroid + FAR/coverage/
-   * height compliance vs a zoning envelope. */
   /** FILL-MATRIX — category × property fill-rate pivot over the model; each property carries the blank GUIDs
    * (the selection a bulk edit fills) + worst_gaps (the biggest partially-filled fields). */
   modelFillMatrix(pid: string, minCount = 1) {
@@ -127,8 +123,6 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       worst_gaps: Gap[]; note: string;
     }>(`/projects/${pid}/model/fill-matrix?min_count=${encodeURIComponent(minCount)}`);
   }
-  /** PROGRESS-ROLLUP — % complete from as-built element presence, by IFC class / discipline / level /
-   * overall, by count AND by value. */
   /** TESTFIT-ADJ — space adjacency graph + program-relation score + dimensional-compliance over IfcSpaces. */
   modelAdjacency(pid: string, program: {
     required_adjacent?: [string, string][]; forbidden?: [string, string][];
@@ -150,7 +144,6 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       note: string;
     }>(`/projects/${pid}/model/adjacency`, { method: "POST", body: JSON.stringify(program) });
   }
-  /** MASTER-BUILDER — the 8-step Master Builder Protocol run over the project's own data, grounded in place. */
   /** IFCPATCH-LIB — plan a per-storey split (feed a slice's GUIDs to the subset export). */
   modelSplitPlan(pid: string) {
     return this.json<{ storeys: Record<string, string[]>; counts: Record<string, number>;
@@ -171,7 +164,6 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       changed: { guid: string; class: string; aspects: string[] }[] }>(
       `/projects/${pid}/model/roundtrip`);
   }
-  /** FAMILY-DEPTH ④ — the shared-parameter registry (registered params become schedule columns). */
   /** FAMILY-DEPTH ② — the effective (instance-over-type) property view for one element. */
   elementEffectiveProps(pid: string, guid: string) {
     return this.json<{ guid: string; type_guid: string | null; type_name: string | null;
@@ -204,7 +196,6 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
   modelIfcUrl(pid: string) {
     return this.url(`/projects/${pid}/model/export.ifc`);
   }
-  /** TAKEOFF-2D: measure + price regions traced on a 2D drawing at a calibrated scale (units/px). */
   /** Interning/columnar efficiency stats (dedup ratio + estimated RAM saved) — G1. */
   modelColumnarStats(pid: string) {
     return this.json<{ model_loaded: boolean; elements?: number; param_rows?: number;

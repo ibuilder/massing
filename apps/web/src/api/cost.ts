@@ -24,7 +24,6 @@ type Ctor<T> = new (...args: any[]) => T;
 
 export function withCost<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Cost extends Base {
-  /** MARGIN-CBS — per-cost-code reconciliation: budget vs committed vs actual vs billed → buyout margin. */
   /** Close the current pay period (C1): roll every SOV line's `completed_this` into
    *  `completed_prev`, the way successive AIA pay applications accumulate.
    *

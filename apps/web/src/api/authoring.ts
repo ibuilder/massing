@@ -33,7 +33,6 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
         { method: "POST", body: JSON.stringify(wantGuid ? { recipe, params, publish, want_guid: wantGuid }
                                                         : { recipe, params, publish }) });
     }
-    /** IFCPATCH-LIB — dry-run maintenance scan: how many entities each cleanup recipe would remove. */
     /**
      * R38-SOLVER-LOCKS — solve a dimensional-lock system. Pure computation: the route neither reads
      * nor writes the model, so the caller supplies the variables and applies the result itself.
@@ -71,8 +70,6 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
         return { frag: await res.arrayBuffer(), guid: res.headers.get("X-Element-Guid") || "" };
       } catch { return null; }
     }
-    /** Starter IFC family library (furniture / sanitary / appliances / plants) — generated
-     *  parametrically, so it's placeable into any model incl. a from-scratch massing model. */
     /** Drafting grid (real IfcGrid or derived from columns) + snap intersections + storey levels. */
     modelGrid(pid: string) {
       return this.json<{

@@ -104,6 +104,42 @@ describe("API client doc comments describe the method they sit above", () => {
       .toEqual([]);
   });
 
+  /**
+   * No doc comment sits directly above ANOTHER doc comment.
+   *
+   * That shape means the first one's declaration is gone — the same extraction that shifted comments
+   * onto their neighbours also left comments behind entirely, and a stranded comment attaches itself
+   * visually to whatever follows. **23 of these existed**, every one describing something other than
+   * the declaration under it: `TOPIC-BOARD` above `modelConstraints`, `RISK-BOARD` above `devBudget`,
+   * the R26 room spine above a `StripStatus` union.
+   *
+   * Deleting is the safe repair and moving is the better one, so both were used: two had a verifiable
+   * owner (`setToken`, whose comment was separated from it when a getter was inserted between them,
+   * and `riskBoard`, which had no comment of its own) and were moved; the rest described features with
+   * no method here to own them and were removed. **A comment about a declaration that is not there is
+   * not documentation — it is a false statement positioned where the next reader will trust it.**
+   */
+  it("no doc comment is stranded above another doc comment", () => {
+    const stranded: string[] = [];
+    for (const f of readdirSync(API).filter((n) => n.endsWith(".ts"))) {
+      if (f.endsWith(".test.ts") || f === "schema.d.ts") continue;
+      const lines = readFileSync(join(API, f), "utf8").split(String.fromCharCode(10));
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i] ?? "";
+        const closes = l.trimEnd().endsWith("*/") && (l.trim().startsWith("/**") || l.trim().startsWith("*"));
+        if (closes && (lines[i + 1] ?? "").trim().startsWith("/**")) {
+          let j = i;
+          while (j > 0 && !(lines[j] ?? "").trim().startsWith("/**")) j--;
+          stranded.push(`${f}:${j + 1} ${(lines[j] ?? "").trim().slice(0, 60)}…`);
+        }
+      }
+    }
+    expect(stranded,
+      "a comment directly above another comment has lost its declaration. Move it to whatever it "
+      + "describes, or delete it — left alone it will be read as documenting the next thing down.")
+      .toEqual([]);
+  });
+
   // The exemptions are a ratchet, not a dustbin: each names a comment that is CORRECT and merely
   // unreadable to the rule. Growing the set is how a real defect would get waved through.
   it("the frozen exemptions still exist, and there are still only two", () => {

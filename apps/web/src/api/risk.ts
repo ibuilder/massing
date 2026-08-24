@@ -25,6 +25,7 @@ export function withRisk<TBase extends Ctor<HttpCore>>(Base: TBase) {
   riskDigest(pid: string) {
     return this.json<RiskDigest>(`/projects/${pid}/risk-digest`);
   }
+  /** RISK-BOARD: one ranked register unifying every computed risk signal (deep-linked per item). */
   riskBoard(pid: string) {
     return this.json<{ items: { source: string; severity: "high" | "medium" | "low"; title: string;
       detail: string; link: string | null; metric: number | null }[]; count: number;

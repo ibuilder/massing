@@ -4,6 +4,38 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1078 (2026-08-24) — 23 comments about declarations that are not there
+
+The cleanup v0.3.1077 booked, done with the gate that belongs beside it rather than ahead of it.
+
+### Fixed
+
+**Twenty-three doc comments were stranded** — sitting directly above *another* doc comment, their own
+declaration long gone, left behind by the SCALE-SEAM extractions. A stranded comment does not sit
+harmlessly in the file: it attaches itself visually to whatever follows. `TOPIC-BOARD` sat above
+`modelConstraints`, `RISK-BOARD` above `devBudget`, the R26 room spine above a `StripStatus` union.
+**A comment about a declaration that is not there is not documentation — it is a false statement
+positioned where the next reader will trust it.**
+
+Each was checked against the declaration below it before being touched; none was a section header.
+Two had a verifiable owner and were **moved** rather than deleted:
+
+- `setToken`'s comment had been separated from it when the `authToken` getter was inserted between
+  them — it is back on `setToken`;
+- `riskBoard` had no comment of its own, and `client.ts` was holding the one that describes it.
+
+The remaining 21 described features with no method here to own them and were removed. The prose is in
+git history if any of those features later needs documenting where it actually lives.
+
+**One of the 23 was mine.** In v0.3.1075 I gave `schedule4d` a correct comment by *prepending* one and
+left the wrong `MASSING-OPT` comment stranded above it, instead of replacing it. Fixing a wrong
+docstring by adding a right one leaves two, and the wrong one is still the first thing read.
+
+### Added
+
+`docComments.test.ts` gains a second check: no doc comment may sit directly above another. Mutation
+checked — stranding one fails both this and the neighbour check, naming file, line and text.
+
 ## v0.3.1077 (2026-08-24) — SCALE-SEAM ㉔, and the same extraction caught leaving comments behind
 
 ### Changed

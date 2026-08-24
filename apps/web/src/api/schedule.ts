@@ -68,7 +68,6 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       scenarios: Scenario[]; note: string;
     }>(`/projects/${pid}/schedule/optioneer`, { method: "POST", body: JSON.stringify(body) });
   }
-  /** MASSING-OPT — sweep massing levers over a zoning envelope → ranked options + Pareto frontier (stateless). */
   /** 4D: schedule activities linked to model elements, by trade, with the source it came from. */
   schedule4d(pid: string, source?: "gc" | "takt") {
     return this.json<{ floors: number; duration_days?: number; total_days?: number; element_count: number;
@@ -170,8 +169,6 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       activities: { ref: string; name: string; budget: number; percent: number; ev: number; pv: number; sv: number }[] }>(
       `/projects/${pid}/schedule/earned-value`);
   }
-  /** Full EVM snapshot: PV/EV/AC/BAC, CV/SV/CPI/SPI + bands, the EAC/ETC/VAC/TCPI forecast family,
-   *  and a per-control-account (cost code) breakdown — schedule EV joined with cost actuals. */
   /** READY-AGENT — every activity starting within `days`, its preconditions checked with cited
    *  evidence (incomplete predecessors by ref + % complete, open submittals by ref/state) and a
    *  ready/blocked verdict. Distinct from `scheduleLookahead`, which says what is COMING;
@@ -329,18 +326,6 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     }>(`/projects/${pid}/schedule/progress-report${q}`);
   }
 
-  /**
-   * R45-SCHED-DEDUPE — Monte Carlo schedule risk on the **real** network.
-   *
-   * The ONLY Monte Carlo ENGINE. `scheduleRisk` and `/schedule/risk` survive as a deprecated alias
-   * onto this one -- retiring a public path is the user's call and has not been decided -- but the
-   * second simulator behind them was deleted in v0.3.972: it
-   * added plain calendar days (37 adrift on a 100-working-day chain — it counted Saturdays) and
-   * indexed predecessors on ref/wbs only, so logic written with record ids vanished and the network
-   * simulated fully parallel with no error. `confidence_in_deterministic` answers "how likely is the
-   * programme date, really?"; `duration_sensitivity` says whether an activity's duration actually
-   * moves the finish rather than merely sitting on the critical path often.
-   */
   /**
    * DEPRECATED alias for `scheduleMonteCarlo`, kept because retiring the `/schedule/risk` path is a
    * user-facing removal the roadmap records as undecided. Same response as `scheduleMonteCarlo`,

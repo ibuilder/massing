@@ -38,7 +38,6 @@ export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
         waste_pct: number; extended: number }[]; component_count: number }>(
       "/estimate/assembly/price", { method: "POST", body: JSON.stringify(body) });
   }
-  /** RFI-0: decision-readiness audit — the information gaps a builder would ask about, ranked. */
   /** CONCEPT-BUDGET — massing program × the firm's own-history $/area rates (escalated), p25–p75 range. */
   estimateConceptBudget(pid: string, body: {
     program: { use: string; gfa: number; stories?: number }[];
@@ -80,8 +79,6 @@ export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
         rows: VaRow[]; note: string };
     }>(`/projects/${pid}/estimate/boe`, { method: "POST", body: JSON.stringify(body) });
   }
-  /** SCOPE-REG — the scope register + gap analysis: each scope item resolves quantity/value (QTO by cost
-   * code), owner, and schedule window; surfaces unquantified / unallocated / unscheduled scope. */
   /** EST-CONFIDENCE — score each estimate line's maturity/confidence (source × phase) → cost-weighted
    * project confidence + '% of budget still assumption-based' + the worst-value least-grounded lines. */
   estimateConfidence(pid: string, lines: Record<string, unknown>[]) {

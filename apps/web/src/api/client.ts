@@ -2578,10 +2578,6 @@ export class ApiClient extends withIds(withEvm(withRisk(withEntitlements(withPre
       storeys: { storey: string; total: number; element_count: number; lines: Line[] }[];
       by_discipline: Line[] }>(`/projects/${pid}/qto/by-floor`);
   }
-  /** 4D construction sequence: scrubable frames (cumulative % built per day).
-   *  Relational by default — when GC `schedule_activity` records exist they drive it (`source:"gc"`),
-   *  each frame carrying a real calendar `date` + `linked`/`unlinked` element counts. Otherwise a takt
-   *  plan; a P6 .xer import yields `source:"p6"` with interpolated dates. `?source=gc|takt` forces one. */
   /** MODEL-CI — run the model check pack → pass/warn/fail report + badge (persisted). With
    *  `createTopics`, each failing check becomes an open coordination Topic (BCF-model). */
   ciRun(pid: string, createTopics = false) {
@@ -2767,7 +2763,6 @@ export class ApiClient extends withIds(withEvm(withRisk(withEntitlements(withPre
     return this.json<{ applied: { styled: number; materialed: number; materials: number; classes: number }; publish: string }>(
       `/projects/${pid}/materials/apply`, { method: "POST" });
   }
-  /** RISK-BOARD: one ranked register unifying every computed risk signal (deep-linked per item). */
   /** The development budget: line items and contingency, as saved for this project. */
   devBudget(pid: string) {
     return this.json<DevBudgetResponse>(`/projects/${pid}/dev-budget`);
@@ -2985,8 +2980,6 @@ export interface SpecialtyBlended {
   specialty?: { specialty_irr: number | null; capex_total: number; stabilized_net_annual: number;
     terminal_value: number; payback_op_year: number | null };
 }
-/** An IFC pack on the external family shelf. `described` is false when no manifest row covers it —
- *  the pack is still importable, but nothing is claimed about its contents. */
 /** A family type row (W10-1 type browser) — placeable IfcTypeProduct with its occurrence count. */
 export interface TypeRow {
   guid: string; name: string; ifc_class: string; predefined: string | null;

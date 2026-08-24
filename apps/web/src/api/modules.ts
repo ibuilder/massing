@@ -30,7 +30,6 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ ref: string; recipients: { name: string; email: string | null; resolved: boolean }[];
       emails: string[] }>(`/projects/${pid}/modules/${key}/${rid}/distribution`);
   }
-  /** Time & Material (eTicket) cost rollup — labor/material/equipment, billed vs unbilled. */
   /** SCHED-CALC — formula columns over module records ({name, expr}; fields = normalized data keys). */
   moduleCalc(pid: string, key: string, calcs: { name: string; expr: string }[],
              opts?: { state?: string; q?: string; limit?: number }) {
@@ -80,7 +79,6 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<ModuleRecord>(`/projects/${pid}/modules/${key}`, {
       method: "POST", body: JSON.stringify(body) });
   }
-  /** Preconstruction intelligence — POST a contract/spec (file or text) for review. */
   /** Download URL for a module's header-only import template (CSV). */
   importTemplateUrl(pid: string, key: string) {
     return this.url(`/projects/${pid}/modules/${key}/import-template.csv`);
@@ -150,7 +148,6 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
   deleteView(pid: string, key: string, vid: string) {
     return this.json<{ deleted: boolean }>(`/projects/${pid}/modules/${key}/views/${vid}`, { method: "DELETE" });
   }
-  /** Saved-search alert feed: each saved view with total + new-since-last-seen match counts. */
   /** Mark a saved view as seen (clears its 'new' alert count). */
   markViewSeen(pid: string, key: string, vid: string) {
     return this.json<{ ok: boolean; last_seen_at: string }>(
@@ -231,7 +228,6 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     if (!res.ok) throw new Error(`BCF import -> ${res.status}`);
     return res.json() as Promise<{ count: number; ids: string[] }>;
   }
-  /** Import a Solibri/Navisworks clash report (XLSX) -> coordination_issue records (GUID-anchored). */
   /** Tie model elements (IFC GlobalIds) to a record. mode: add | remove | set. */
   tagElements(pid: string, key: string, rid: string, guids: string[], mode: "add" | "remove" | "set" = "add") {
     return this.json<{ element_guids: string[]; count: number }>(
@@ -252,7 +248,6 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
   applyTemplate(pid: string, key: string, tid: string) {
     return this.json<{ applied: string; created: number }>(`/projects/${pid}/modules/${key}/apply-template/${tid}`, { method: "POST" });
   }
-  /** Construction program portfolio — cost over/under + risk + safety across all projects. */
   /** The module-relations graph: nodes = modules, edges = reference + rollup links (optional workspace). */
   modulesGraph(workspace?: string) {
     const qs = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
