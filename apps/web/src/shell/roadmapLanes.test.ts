@@ -250,7 +250,10 @@ describe("the roadmap lane table", () => {
     // 35 → 33: R21-4D-CLASH + R28-BUNDLE ② closed (✅).
     // 33 → 32: R39-VIEWER-OBS ② closed (✅) — it had shipped on 2026-08-07 in #249 and was still
     // listed open a fortnight later, so this is a correction to the record rather than new work.
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(32);
+    // 32 → 31: R23-BATCH-OVERLAYS closed (✅) — likewise already resolved in every clause, verified
+    // against the tree (cameraProfile.ts, the gridOverlay texture cache, gridOverlay.test.ts) rather
+    // than read off the entry. Both drops are the record catching up with the code, not scope cuts.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(31);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {

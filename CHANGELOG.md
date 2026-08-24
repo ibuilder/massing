@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1064 (2026-08-24) — the roadmap was behind the code, in seven places
+
+Docs and one test floor. No runtime change.
+
+### Fixed
+
+- **`R23-BATCH-OVERLAYS` closed.** Every clause in it was already resolved — the FOV/FAR work built,
+  the measured `gridOverlay` texture leak fixed, the instancing clause closed *unbuilt* with its
+  measurement, `MeshStandardMaterial` needing no work, `ifclite-geom` declined on licence — and the
+  item was still carried as partial. Closed against the **tree**, not the entry's own prose:
+  `apps/web/src/viewer/cameraProfile.ts` exists, `apps/web/src/viewer/draft/gridOverlay.ts` caches
+  bubble textures by tag with ownership moved to `dispose()`, and
+  `apps/web/src/viewer/draft/gridOverlay.test.ts` now exists — the file that had no tests at all
+  because `getContext("2d")!` was unassertable under happy-dom, which was the same root cause as the
+  leak it was hiding.
+- **`R41-MODEL-ALIGN` was filed in the wrong lane for the half that remains.** The defect half was
+  Lane E and shipped in v0.3.1062. What is left — the yaw-only oriented bounding box with its ≥20%
+  area-saving acceptance rule — lives in `services/data/src/aec_data/` (**Lane D**), needs a route in
+  Lane G, and needs an Alembic revision, because `ProjectModel` has no transform column to hold an
+  alignment. **Lanes are assigned by directory**, so an agent picking this up under a Lane E label
+  would write straight into another lane's files while several sessions ship to `main` at once. It is
+  also visibly bigger than its stated M.
+
+### Note
+
+Seven items examined over this session were further along than the roadmap said, including
+`R39-VIEWER-OBS ②`, which had shipped **in full** on 2026-08-07 and stayed listed as open for a
+fortnight. The sharpest case was `R41-MODEL-ALIGN`, whose own bracketed *"PREMISE-CHECKED
+2026-08-06: HOLDS"* note had itself gone stale: **a verification stamp ages exactly like the claim it
+blesses, and is more dangerous, because it tells the next reader not to re-check.**
+
 ## v0.3.1063 (2026-08-24) — the budget nobody could measure, and the one that still cannot be
 
 R24-PERF-BUDGET stated three performance budgets and measured one. `perf_budget.py` kept the other
