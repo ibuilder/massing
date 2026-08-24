@@ -7,8 +7,7 @@ import { buildPulse, pulseRailEl } from "./panels/pulse";
 import { mountReadinessStrip } from "./panels/readinessStrip";
 import type { PanelContext } from "./panelContext";
 import { type RegisterFilter, RegisterUI } from "./register/register";
-import { SECTIONS_BY_PERSONA, cycleDensity, readDensity, readFavs, readRecents, readRoomOpen, setRoomOpen, toggleFav } from "./prefs";
-import { el } from "../ui/dom";
+import { cycleDensity, readDensity, readFavs, readRecents, readRoomOpen, setRoomOpen, toggleFav } from "./prefs";
 import { renderAnalyseHome } from "../shell/analyseHome";
 import { ALL_DESTS, type Dest, destButtonActive, destsForRail, destTitle, stagesFor } from "../shell/destinations";
 import { FALLBACK_ROOMS, ROOM_HOME, type SpineState, destRoom, loadSpine, portalRooms, preselectedRoom, unroomedDests, visibleRooms } from "../shell/spine";
@@ -199,7 +198,9 @@ export class PortalUI {
     try { this.spine = await loadSpine(this.host.api); } catch { this.spine = null; }
     this.buildNav();
     // re-order the module catalog's default-open sections when the persona changes
-    window.addEventListener("aec:persona", () => { this.refreshCatalog(); this.buildNav(); });
+    // `refreshCatalog()` was called here too until v0.3.1084, and had been a no-op since
+    // 2026-06-24. `buildNav` is the one that actually re-orders on a persona change.
+    window.addEventListener("aec:persona", () => { this.buildNav(); });
     // drain any uploads queued offline in a previous session, and keep watching for reconnect
     this.reg.hookOnline(); void this.reg.flushUploads();
     // Land on the active room's home when a room was picked before init finished (the common path:
@@ -231,7 +232,7 @@ export class PortalUI {
 
     const favs = readFavs();
 
-    const item = (m: ModuleDef) => this.moduleButton(m);
+    const item = (m: ModuleDef) => this.moduleButton(m, favs);
     const group = (title: string, mods: ModuleDef[], open: boolean) => {
       const det = document.createElement("details"); det.open = open; det.className = "pnav-group"; det.dataset.sec = title;
       const sum = document.createElement("summary"); sum.textContent = title; det.appendChild(sum);
@@ -278,7 +279,7 @@ export class PortalUI {
       const q = filter.value.trim().toLowerCase();
       nav.querySelectorAll<HTMLElement>(".pnav-group").forEach((det) => {
         let any = false;
-        det.querySelectorAll<HTMLElement>(".pnav-item").forEach((b) => {
+        det.querySelectorAll<HTMLElement>(".pnav-row").forEach((b) => {
           const hit = !q || (b.dataset.modname || "").includes(q);
           b.style.display = hit ? "" : "none"; if (hit) any = true;
         });
@@ -292,16 +293,40 @@ export class PortalUI {
    * A rail button for a module register. Shared by the room rail and the section list, for the same
    * reason `destButton` is shared: two places building the same button is how they come to differ.
    */
-  private moduleButton(m: ModuleDef): HTMLButtonElement {
+  private moduleButton(m: ModuleDef, favs: ReadonlySet<string> = readFavs()): HTMLElement {
+    // A ROW of two sibling buttons, not one button with a star inside it: a <button> within a
+    // <button> is invalid HTML and the inner one is unfocusable. The dead catalog this replaces had
+    // already worked that out and said so in a comment; the shape is carried over deliberately,
+    // along with its `.mod-fav` styling, which outlived it in style.css.
+    const fav = favs.has(m.key);
+    const row = document.createElement("div");
+    row.className = "pnav-row";
+    // The filter reads this off the ROW, so hiding a non-match hides its star too. On the button
+    // alone, filtering would leave a column of orphaned stars beside nothing.
+    row.dataset.modname = m.name.toLowerCase();
+
+    const star = document.createElement("button");
+    star.type = "button";
+    star.className = "mod-fav" + (fav ? " on" : "");
+    star.textContent = fav ? "★" : "☆";
+    star.title = fav ? "Unpin from Favorites" : "Pin to Favorites";
+    star.setAttribute("aria-label", `${fav ? "Unpin" : "Pin"} ${m.name}`);
+    star.setAttribute("aria-pressed", String(fav));
+    star.onclick = (e) => { e.stopPropagation(); toggleFav(m.key); this.buildNav(); };
+
     const b = document.createElement("button");
     b.className = "pnav-item" + (this.activeKey === m.key ? " active" : "");
     b.dataset.modname = m.name.toLowerCase();
+    // `data-mod` stays on the BUTTON and not the row: `main.ts` addresses the rail by
+    // `[data-mod="…"]` and CLICKS what it finds, and a click on the row navigates nowhere.
     b.dataset.mod = m.key;
     // Server-supplied name and icon: escaped, because a module.json is a file on disk and the rail
     // renders on every screen.
     b.innerHTML = `<span class="ic">${esc(m.icon || "•")}</span> ${esc(m.name)}`;
     b.onclick = () => { this.activeKey = m.key; void this.openModule(m); this.buildNav(); };
-    return b;
+
+    row.append(star, b);
+    return row;
   }
 
   /** A rail button for a first-class destination. Shared by both shells so they cannot diverge. */
@@ -1146,88 +1171,16 @@ export class PortalUI {
     } catch { /* dashboard optional */ }
   }
 
-  // --- module catalog: favorites + collapsible, persona-aware sections + filter --
-  private catalogEl?: HTMLElement;
-
-  /** Which sections open by default per persona (the rest collapse). Undefined persona = all open. */
-  // R2 — which nav sections open first for each role (research-backed: Procore super-vs-PM split;
-  // Favorites / recents / per-persona section defaults live in ./prefs (T3) — shared by buildNav
-  // and the module catalog, so both read the same localStorage-backed source of truth.
-  private refreshCatalog() {
-    if (!this.catalogEl) return;
-    const next = this.renderModuleCatalog();
-    this.catalogEl.replaceWith(next); this.catalogEl = next;
-  }
-
-  private renderModuleCatalog(): HTMLElement {
-    const wrap = document.createElement("div");
-    const favs = readFavs();
-    const persona = document.body.dataset.persona || localStorage.getItem("persona") || "all";
-    const openSecs = SECTIONS_BY_PERSONA[persona];   // undefined => all sections open
-
-    const filter = document.createElement("input");
-    filter.type = "search"; filter.placeholder = "Filter modules…"; filter.className = "portal-filter";
-    filter.style.cssText = "width:100%;margin:2px 0 8px";
-    wrap.appendChild(filter);
-
-    const mkBtn = (m: ModuleDef) => {
-      // a row of two real buttons (favorite toggle + open) — both keyboard-focusable, no nested
-      // interactive elements (a <button> inside a <button> is invalid + unfocusable).
-      const row = document.createElement("div"); row.className = "portal-mod-row"; row.dataset.modname = m.name.toLowerCase();
-      const fav = favs.has(m.key);
-      const star = document.createElement("button");
-      star.type = "button"; star.className = "mod-fav" + (fav ? " on" : ""); star.textContent = fav ? "★" : "☆";
-      star.title = fav ? "Unfavorite" : "Favorite";
-      star.setAttribute("aria-label", `${fav ? "Unfavorite" : "Favorite"} ${m.name}`);
-      star.setAttribute("aria-pressed", String(fav));
-      star.onclick = (e) => { e.stopPropagation(); toggleFav(m.key); this.refreshCatalog(); };
-      const open = document.createElement("button"); open.type = "button"; open.className = "portal-mod";
-      open.append(Object.assign(document.createElement("span"), { className: "ic", textContent: m.icon || "•" }),
-        document.createTextNode(" " + m.name));
-      open.onclick = () => this.openModule(m);
-      row.append(star, open);
-      return row;
-    };
-
-    const sections = new Map<string, ModuleDef[]>();
-    for (const m of this.mods) { const s = m.section || "Other"; (sections.get(s) ?? sections.set(s, []).get(s)!).push(m); }
-
-    if (favs.size) {
-      const favMods = this.mods.filter((m) => favs.has(m.key));
-      wrap.appendChild(this.catalogGroup("★ Favorites", "fav", favMods.map(mkBtn), true));
-    }
-    for (const [section, mods] of sections)
-      wrap.appendChild(this.catalogGroup(section, `sec:${section}`, mods.map(mkBtn), !openSecs || openSecs.includes(section)));
-
-    // live filter: hide non-matching modules, hide empty groups, auto-expand groups with hits
-    filter.oninput = () => {
-      const q = filter.value.trim().toLowerCase();
-      wrap.querySelectorAll<HTMLElement>(".tool-group").forEach((g) => {
-        let any = false;
-        g.querySelectorAll<HTMLElement>(".portal-mod-row").forEach((row) => {
-          const hit = !q || (row.dataset.modname || "").includes(q);
-          row.style.display = hit ? "" : "none"; if (hit) any = true;
-        });
-        g.style.display = any ? "" : "none";
-        if (q) g.classList.toggle("open", any);
-      });
-    };
-    return wrap;
-  }
-
-  private catalogGroup(title: string, key: string, buttons: HTMLElement[], openDefault: boolean): HTMLElement {
-    const saved = localStorage.getItem(`portal-open:${key}`);
-    const open0 = saved == null ? openDefault : saved === "1";
-    const g = el("section", { class: "tool-group" });
-    g.classList.toggle("open", open0);
-    const head = el("button", { type: "button", class: "tool-group-head" });
-    head.setAttribute("aria-expanded", String(open0));
-    head.innerHTML = `<span class="chev">▸</span><span class="t">${title}</span><span class="cnt">${buttons.length}</span>`;
-    const body = el("div", { class: "tool-group-body" }, buttons);
-    head.onclick = () => { const o = !g.classList.contains("open"); g.classList.toggle("open", o); head.setAttribute("aria-expanded", String(o)); localStorage.setItem(`portal-open:${key}`, o ? "1" : "0"); };
-    g.append(head, body);
-    return g;
-  }
+  // The module catalog that used to live here was DELETED in v0.3.1084, and it had been unreachable
+  // since 2026-06-24. Commit 9a61f4cc removed its two mount lines on purpose — the persistent nav
+  // rail had taken over module navigation — and left ninety-one lines of implementation behind, plus
+  // a persona listener calling a `refreshCatalog()` that returned immediately every time because
+  // `catalogEl` could never be set.
+  //
+  // **What made it worth a release rather than a tidy-up:** its `☆` button was the ONLY caller of
+  // `toggleFav` in the whole app, so favourites could be READ by `buildNav` and by the pinned rail
+  // and set by nobody. The rail's entire "pinned" mode was unreachable. `moduleButton` now carries
+  // the pin, which is why the star could be deleted from here rather than merely moved.
 
 
   /** First-class Budget destination — the GC's GMP project budget. Direct trade work (by CSI

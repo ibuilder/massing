@@ -4,6 +4,60 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1084 (2026-08-24) — favourites could be read for two months and set by nobody
+
+Found while measuring `portal.ts` for the next REL-4 extraction. The cluster I was about to extract
+turned out to be unreachable, and what it had taken down with it is the release.
+
+**The module catalog has not rendered since 2026-06-24.** `catalogEl` appears exactly three times in
+`portal.ts`: its declaration, and two lines inside `refreshCatalog`, which opens
+`if (!this.catalogEl) return;`. Nothing else assigns it. `git log -S catalogEl` names commit
+`9a61f4cc`, which deleted the two mount lines **deliberately** — "the persistent nav rail (N1) owning
+module navigation" made the dashboard catalog redundant — and left ninety-one lines of implementation
+behind, plus a persona-change listener calling the resulting no-op.
+
+**The dead lines are not the problem.** `toggleFav` had exactly one call site in the whole app: the
+`☆` button inside that catalog. `readFavs` has three live readers — `buildNav`'s "★ Favorites" group,
+and `pinnedItems` in `shell/pinnedRail.ts`. So favourites could be **read** and never **written**, and
+`pinnedItems` could only ever return `mode: "recent"`. The pinned rail's entire "pinned" mode was
+unreachable — on a component carrying a careful docstring about why it never mixes pins with recents
+(*"two identical-looking rows mean different things — 'I chose this' and 'I happened to be here'"*),
+protecting a distinction that could not arise.
+
+**So the fix is not the tempting one.** Deleting ninety-one dead lines would have dropped a size
+ratchet, kept every test green, and quietly finished killing a feature two other surfaces are built
+around. `readFavs` having three readers is the evidence that favourites are wanted; only the *setter*
+was lost. `moduleButton` — the one place every rail row is built — now carries the pin, and the
+catalog went in the same release so the star does not exist twice.
+
+The row is two sibling buttons rather than a star nested in the open button, because a `<button>`
+inside a `<button>` is invalid and the inner one is unfocusable. The deleted catalog had already
+worked that out and said so in a comment; the shape and its `.mod-fav` styling, which outlived it in
+`style.css`, are inherited on purpose.
+
+**`SECTIONS_BY_PERSONA` went too, and had been orphaned for longer than the catalog.** Its comment
+said "buildNav falls back to open-all when none match the active workspace" — but `buildNav` stopped
+grouping modules by section in v0.3.767, when the room spine made a second taxonomy in one rail a
+defect rather than a feature. A constant's docstring is a claim about the rest of the tree, and
+nothing checks it.
+
+**No reachability or uncalled-symbol gate would have caught this, and none should be trusted to:**
+every method in that catalog had a caller — *each other*. `renderModuleCatalog` was called by
+`refreshCatalog`, which was called by a live event listener. The cycle looked wired from every angle
+except whether a person could reach it. `portal/favourites.test.ts` builds the real rail, clicks the
+real control and reads the preference back; it was mutation-tested against a star that only re-styles
+itself, and four of its six checks go red.
+
+Verified in a real browser against the live API, not only in happy-dom: pin writes
+`portal-favs: ["pull_plan_task"]`, both that row's star and the one in the new ★ Favorites group flip
+to "Unpin", and unpin returns the preference to `[]` and removes the group. Layout checked
+numerically — the star's right edge sits at or before the open button's left edge, so the two never
+overlap. *The trusted-input path was NOT exercised: this session's browser pane does not composite,
+so synthetic clicks do not reach the page. That is a tooling limit; the handler is a plain `onclick`
+and does not consult `isTrusted`.*
+
+`portal.ts` 1,400 → 1,353.
+
 ## v0.3.1083 (2026-08-24) — the budget that was waiting for a moment, not a beacon
 
 **R24-PERF-BUDGET is complete.** All three stated budgets are now measured. `panel_load` had had its

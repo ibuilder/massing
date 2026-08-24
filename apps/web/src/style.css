@@ -868,6 +868,11 @@ body[data-cap-admin="off"] [data-cap="admin"] * { pointer-events: none; }
 .portal-nav { flex: 0 0 188px; position: sticky; top: 0; align-self: flex-start;
   max-height: calc(100vh - 110px); overflow-y: auto; border-right: 1px solid var(--line); padding-right: 8px; }
 .portal-content { flex: 1; min-width: 0; }
+/* A rail module row: the pin toggle and the open button, side by side. Two real buttons rather than
+   one with a star inside it — a <button> in a <button> is invalid and unfocusable. */
+.pnav-row { display: flex; align-items: center; gap: 1px; }
+.pnav-row .pnav-item { flex: 1; min-width: 0; }
+.pnav-row .mod-fav { flex: 0 0 auto; background: none; border: none; padding: 0 2px; line-height: 1; }
 .pnav-item { display: flex; align-items: center; gap: 7px; width: 100%; text-align: left; border: none;
   background: transparent; color: var(--text); padding: 5px 8px; border-radius: 6px; cursor: pointer;
   font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

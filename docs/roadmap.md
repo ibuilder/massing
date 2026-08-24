@@ -635,7 +635,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/homes/`, `main.ts` | R24-RUNS-INBOX *(✅ SHIPPED v0.3.947 + routing, pending archive)* · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | R24-RUNS-INBOX *(✅ SHIPPED v0.3.947 + routing, pending archive)* · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET *(✅ SHIPPED v0.3.1083 — panel_load measured, pending archive)* · SEC-PLUGIN-LOADER *(✅ SHIPPED v0.3.1081 — the plugin process boundary, pending archive)* · PERF-WORKERS ① · PERF-THREADS ③ *(✅ SHIPPED v0.3.1074 — the parse cap, pending archive)* · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ① *(✅ COMPLETE — front half v0.3.876, store sites v0.3.941–942)* · R41-UPLOAD-WARK *(✅ COMPLETE v0.3.1069 — the resumable handshake, its consumer and the client)* · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | R38-ARRAY-LIVE ③ *(✅ SHIPPED — persist + re-edit UI, pending archive)* · R21-4D-CLASH *(✅ SHIPPED — phase 1 v0.3.682 + install-before-support, pending archive)* · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
@@ -3282,9 +3282,39 @@ Scores for the record: defect risk 7.3/10, maintainability 8.5/10, static perfor
   B owns `portal/panels/`. The unowned-files gate caught that on the first run, which is what it is
   for.
 
-  Next: `renderModuleCatalog` (56 lines) is the better second slice — its four dependencies
-  (`catalogGroup`, `mods`, `openModule`, `refreshCatalog`) are a self-contained cluster that can move
-  with it.
+  **The second slice was going to be `renderModuleCatalog`. Measuring it found that the whole cluster
+  was UNREACHABLE, and that a user-visible feature had gone down with it — v0.3.1084.**
+
+  `catalogEl` appears exactly three times in the file: its declaration, and two lines inside
+  `refreshCatalog`, which opens `if (!this.catalogEl) return;`. Nothing else assigns it, so
+  `renderModuleCatalog` never ran. `git log -S catalogEl` names commit 9a61f4cc (2026-06-24), which
+  deleted the two mount lines **on purpose** — "the persistent nav rail (N1) owning module navigation"
+  made the dashboard catalog redundant — and left ninety-one lines behind, plus a persona listener
+  calling the resulting no-op.
+
+  **The part that matters is not the dead lines.** `toggleFav` had exactly one call site in the whole
+  app: the `☆` button inside that catalog. `readFavs` had three live readers — `buildNav`'s
+  "★ Favorites" group and `shell/pinnedRail.ts`'s `pinnedItems`. So favourites could be *read* and
+  never *written*, and `pinnedItems` could only ever return `mode: "recent"`: **the pinned rail's
+  entire "pinned" mode was unreachable**, on a component whose docstring explains at length why it
+  never mixes pins with recents — *"two identical-looking rows mean different things"* — protecting a
+  distinction that could not arise.
+
+  So the fix was not the tempting one. Deleting ninety-one dead lines would have dropped a size
+  ratchet, kept every test green, and quietly finished killing a feature two surfaces are built
+  around. `readFavs` having three readers is the evidence favourites are wanted; only the setter was
+  lost. `moduleButton` now carries the pin — one place, so every rail row has it — and the catalog
+  went in the same release, so the star does not exist twice.
+
+  **`SECTIONS_BY_PERSONA` went with it, and had been orphaned for longer.** Its comment said "buildNav
+  falls back to open-all when none match" — but buildNav stopped grouping modules by section in
+  v0.3.767, when the room spine made a second taxonomy in one rail a defect. A constant's docstring is
+  a claim about the rest of the tree and nothing checks it.
+
+  **No reachability or uncalled-symbol gate would have caught any of this**, and none should be
+  trusted to: every method in that catalog had a caller — *each other*. `apps/web/src/portal/favourites.test.ts`
+  builds the real rail, clicks the real control and reads the preference back, and was mutation-tested
+  against a star that only re-styles itself.
 - **REL-7** — evidence-gated dead-code removal *(needs RT-KNIP first — see Gated)*.
 ## 📦 R28 — ONE PROJECT, ONE FILE *(research 2026-07-26; the model/project split)*
 

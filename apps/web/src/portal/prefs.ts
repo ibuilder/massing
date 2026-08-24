@@ -1,25 +1,17 @@
-/** Portal user preferences — localStorage-backed module favorites, recents, and the per-persona
- *  "which nav sections open first" map. Extracted from portal.ts (T3) so the nav rail and the module
- *  catalog share one source of truth instead of each reaching into the PortalUI class for it. */
+/** Portal user preferences — localStorage-backed module favourites, recents, and collapsed nav
+ *  stages. Extracted from portal.ts (T3) so everything reading them shares one source of truth
+ *  instead of reaching into the PortalUI class.
+ *
+ *  Favourites are set from the pin control on each nav row (`portal.ts:moduleButton`) and read by
+ *  `buildNav` and `shell/pinnedRail.ts`. That writer is the ONLY one — see `favourites.test.ts` for
+ *  the two months it did not exist and what silently stopped working. */
 
-// Which module sections open first, per persona. Section names must match the workspace a role lives
-// in (a developer sees the *Developer* sections, not construction ones). buildNav falls back to
-// "open all" when none match the active workspace, so a role browsing another workspace never sees
-// everything collapsed.
-export const SECTIONS_BY_PERSONA: Record<string, string[]> = {
-  gc: ["Field", "Cost", "Change Management", "Contracts"],
-  // the super works the field (daily reports, manpower, safety, quality, schedule);
-  // the PM works the office (RFIs/submittals, cost, change, contracts, preconstruction).
-  superintendent: ["Field", "Safety", "Quality", "Schedule"],
-  project_manager: ["Engineering", "Cost", "Change Management", "Contracts", "Preconstruction"],
-  // the real-estate developer lives in the Developer workspace — feasibility, market/sales, capital, ops.
-  developer: ["Feasibility", "Market & Sales", "Capital", "Operations"],
-  // architect/engineer live in the Design workspace — programming, phases, model authoring, and
-  // the ISO 19650 information-management registers open first.
-  architect: ["Programming", "Design Phases", "Engineering", "BIM", "Information Management"],
-  engineer: ["Engineering", "BIM", "Information Management", "Design Phases"],
-  subcontractor: ["Field", "Safety", "Quality"],
-};
+// `SECTIONS_BY_PERSONA` lived here until v0.3.1084 and was deleted with the module catalog it served.
+// Its own comment said "buildNav falls back to open-all when none match the active workspace" — but
+// buildNav stopped grouping modules by section in v0.3.767, when the room spine made a second
+// taxonomy in one rail a defect rather than a feature. So the table had been orphaned for longer
+// than the catalog had, and its comment described a caller that no longer read it. **A constant's
+// docstring is a claim about the rest of the tree, and nothing checks it.**
 
 export function readFavs(): Set<string> {
   try { return new Set(JSON.parse(localStorage.getItem("portal-favs") || "[]") as string[]); }
