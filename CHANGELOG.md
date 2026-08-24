@@ -4,6 +4,35 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1066 (2026-08-24) — what is actually left, measured rather than listed
+
+Docs only. No runtime or test change.
+
+### Fixed
+
+- **`R39-UPLOAD-CAP-APP ①` is complete; the ◧ on its bullet belongs to `R41-UPLOAD-WARK` alone.**
+  Front half shipped v0.3.876, and the entire back-half work list — the three category (a) store
+  sites — converted in v0.3.941–942. Re-verified against the tree: `routers/documents.py` and
+  `routers/modules.py` ×2 pass `storage.upload_chunks(...)`, and the two `await file.read()` calls
+  still in `modules.py` are the Excel/CSV sheet readers, which this entry itself files under (b) as a
+  different item with a different risk profile. Category (c) is explicitly not worth a code change.
+- **`R41-UPLOAD-WARK`'s resumable handshake is confirmed unbuilt** — the primitives (`put_stream`,
+  `upload_chunks`, `stream_to_path`, `file_chunks`) all exist, but the only "resumable" in
+  `storage.py` refers to range-request *downloads*. This one is real, open work.
+
+### Changed
+
+- **`R36-VIEWER-SUBAPP` slice 6 re-checked: still open, and "an INTEGRATION, not a build"
+  understates it.** The five markup client methods and their callers are all present, exactly as the
+  original measurement said. But every caller lives inside the `DrawingsRoom` class in
+  `apps/web/src/drawings/drawings.ts`, where the markup layer is class state coupled to that room's
+  DOM — `markupOn`, the `markup[]` array, `buildToolbar()`, `openPdfMarkup()`, a `.dwg-viewport`
+  selector — not a mountable module. Making it reachable from the Sheets canvas means **extracting
+  the layer first**. The measurement that produced the original framing counted *methods with
+  callers*, which is the right check for "does this exist" and says nothing about whether it can be
+  mounted elsewhere. **Reachability and reusability are different properties, and a caller census
+  only measures the first.**
+
 ## v0.3.1065 (2026-08-24) — a feature that shipped, and a cell that said it had not
 
 Docs and one test floor. No runtime change.

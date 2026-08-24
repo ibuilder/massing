@@ -95,8 +95,18 @@ the reserve/benchmarking/proforma sweep) — its full record is in
 sweep rather than by a failing test, which is the reason they rank first: **nothing in the suite can
 currently fail if either regresses.**
 
-- ◧ **PARTLY SHIPPED v0.3.876 (2026-08-07)** — R39-UPLOAD-CAP-APP ① and R41-UPLOAD-WARK. **The
-  front half is closed; the back half has its primitive and no adopters.** The cap existed and
+- ◧ **PARTLY SHIPPED v0.3.876 (2026-08-07)** — R39-UPLOAD-CAP-APP ① and R41-UPLOAD-WARK.
+  **✅ R39-UPLOAD-CAP-APP ① IS COMPLETE (verified 2026-08-23); the ◧ on this bullet now belongs to
+  R41-UPLOAD-WARK alone.** Its front half shipped v0.3.876 and its whole back-half work list — the
+  three (a) store sites — converted in v0.3.941–942. Re-verified against the tree rather than the
+  entry: `routers/documents.py` and `routers/modules.py` ×2 now pass `storage.upload_chunks(...)`,
+  and the two `await file.read()` calls still in `modules.py` are the Excel/CSV sheet readers, which
+  this entry itself files under (b) as a different item with a different risk profile. Category (c)
+  is explicitly not worth a code change. **Nothing remains under ①.**
+  **R41-UPLOAD-WARK's resumable handshake is genuinely unbuilt** — grepped for it, and `storage.py`'s
+  only "resumable" is about range-request *downloads*. The primitive (`put_stream`, `upload_chunks`,
+  `stream_to_path`, `file_chunks`) exists; the content-addressed handshake does not.
+  **The front half is closed; the back half has its primitive and no adopters.** The cap existed and
   decided from `Content-Length`, so a chunked body — the ordinary HTTP/1.1 way to send a body of
   unknown length — short-circuited the condition and was **never measured at all**.
   `bodycap.MaxBodySizeMiddleware` now counts bytes on the ASGI `receive` channel, which bounds every
@@ -2852,6 +2862,17 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   callers, the read side has four, and every one of them is in `apps/web/src/drawings/drawings.ts`.
   Nothing needs writing; it needs to be reachable from the Sheets canvas so a drawing is marked up
   where it is being looked at, rather than in a different room.
+
+  **Re-checked 2026-08-23 — slice 6 is still open, and "an INTEGRATION, not a build" understates it.**
+  The five client methods and their callers are all present, exactly as measured. But every caller
+  lives inside the `DrawingsRoom` class in `apps/web/src/drawings/drawings.ts`, and the markup layer
+  is *class state coupled to that room's DOM* — `markupOn`, the `markup[]` array, `buildToolbar()`,
+  `openPdfMarkup()` and a `.dwg-viewport` selector — not a mountable module. So "make it reachable
+  from the Sheets canvas" means **extracting the layer first**, which is a decomposition with the
+  usual seam questions, not a wiring change. The measurement that produced the original framing
+  counted *methods with callers*, which is the right check for "does this exist" and says nothing
+  about whether it can be mounted somewhere else. **Reachability and reusability are different
+  properties, and a caller census only measures the first.**
 
   **The one real design question, and the non-negotiables answer it.** Markups key on a sheet id — a
   persisted document record — and the viewer's Sheets mode renders `plan.svg?storey=…&scale=…`, a
