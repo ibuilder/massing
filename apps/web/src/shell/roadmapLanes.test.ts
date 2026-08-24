@@ -253,7 +253,9 @@ describe("the roadmap lane table", () => {
     // 32 → 31: R23-BATCH-OVERLAYS closed (✅) — likewise already resolved in every clause, verified
     // against the tree (cameraProfile.ts, the gridOverlay texture cache, gridOverlay.test.ts) rather
     // than read off the entry. Both drops are the record catching up with the code, not scope cuts.
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(31);
+    // 31 → 30: R38-SOLVER-LOCKS ③ closed (✅) — built end to end, verified in the tree. Its entry
+    // still said the solve route had no client caller; `api/authoring.ts` has had one for weeks.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(30);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {

@@ -4,6 +4,33 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1065 (2026-08-24) — a feature that shipped, and a cell that said it had not
+
+Docs and one test floor. No runtime change.
+
+### Fixed
+
+- **`R38-SOLVER-LOCKS ③` closed — the decided scope is built end to end.** Its entry still said
+  *"the route has no client caller, so the whole feature is server-only today"*, which was the
+  premise the whole item rested on. Verified in the tree: `apps/web/src/api/authoring.ts` exposes
+  `solveConstraints`; `apps/web/src/viewer/dimLocks.ts` maps solved variables onto the guid-keyed
+  recipes in `services/data/src/aec_data/edit.py` and **refuses a variable with no recipe by name**
+  rather than dropping it silently; `apps/web/src/viewer/tools/authoringSection.ts` drives
+  solve → plan → apply → publish → reload and reports over-constraint, conflicts and remaining
+  degrees of freedom *whether or not anything is applicable*; and
+  `apps/web/src/viewer/dimLocks.test.ts` covers it with 12 tests. Across-element locks remain a
+  separate later item by the user's own recorded decision — not an unfinished part of this one.
+- **The lane table said `R38-SYNC-VIEW ③` had "only cursor sync left".** Its own entry has carried a
+  ✅ since the cursor PR landed. **Two places described one item and only one of them was updated**,
+  which is the same failure the lane row itself already carries a correction about: a summary cell
+  drifts from the entry it summarises, and the entry is the authority.
+
+### Note
+
+That makes **eight** items this session found further along than the roadmap recorded. The reliable
+tell is not the entry's age or its tone — it is whether anyone re-ran the check it names. Every
+closure above was made against the tree: the module, the call site, the test file.
+
 ## v0.3.1064 (2026-08-24) — the roadmap was behind the code, in seven places
 
 Docs and one test floor. No runtime change.
