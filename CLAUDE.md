@@ -87,11 +87,42 @@ extracted to. It is not a fork and not a second viewer: massing is intended to c
 delete its own copy. Written here on 2026-08-15 because nothing in these instructions mentioned it, and an agent
 working in the viewer directory could not have known.
 
-**Ready now, on its side.** 25 published packages, all permissive and checked against *this* repository's allowed
-licence list; a facade, "@massing/embed", exposing viewport, kernel, drawings, markup, ribbon and plugin host; a
-seam ledger reporting 27 of 27 movable capabilities covered, each claim asserted against the built facade rather
-than ticked in a table. Packaging is validated from real tarballs, so the swap is not blocked on anything
-technical.
+**Ready on its side, by its own measure — and EVALUATED AND DECLINED HERE on 2026-08-23.** A facade,
+"@massing/embed" 0.2.0, MIT, exposing viewport, authoring session, commands, kernel, drawings, markup, ribbon and
+plugin host; a seam ledger whose claims are asserted against the built facade rather than ticked in a table.
+Packaging is validated from real tarballs, so the swap is not blocked on anything *packaging*.
+
+**Numbers measured from the published tarball, because the ones this paragraph used to carry were wrong.** It
+said "27 of 27 movable capabilities covered". Running its `seamCoverage()` out of the shipped "seam.js" reports
+**20 of 20 movable, 4 boundaries, 24 entries total**, `ready: true`, *"apps/web/src/viewer can be deleted"*. The
+dependency closure is **12 packages** (embed + 11), not 25.
+
+**Why it was declined — the reason is architectural, not a matter of polish.** The facade's load path is
+**IFC text into a browser-side tessellator**: `open(source: string | Uint8Array)` sniffs bytes, and the required
+`Tessellator` is `(ifcText: string) => {meshes, guids}`. Its seam entry `kernel.open` says so —
+*"load a model into the kernel from IFC text"*. **There is no notion of pre-converted Fragments anywhere in the
+package** (grepped: the single "fragment" hit is a generic use in a section-box note). That collides head-on with
+two non-negotiables at the top of this file — pre-convert on the server, never parse full IFC in the browser at
+runtime; geometry streams as `.frag`. Adopting the facade means either breaking that, or keeping our own load
+path outside it — and then it is no longer the whole surface, both copies live, and that is the fork their own
+plan calls the only risk that can end the project.
+
+**And its `ready: true` measures the wrong half.** The ledger's own test asserts every `covered` entry is
+reachable through the facade's type — which proves each *claim is backed*, not that the *claims cover the
+ground*. Its 24 entries are a dissection of this viewer as it stood around 2026-08-06. This viewer is **129 TS
+files / 16,408 non-test lines / 53 test files** today, and the list names none of: the plan/sheets/specs canvas
+modes, collaborative peer cursors, dimensional locks, viewer load timings, reference point clouds, GIS context,
+or the model-bounds allowlist. *Derive the population AND the reach — a completeness verdict computed over a
+self-authored list is confident and unfounded.*
+
+**The family is also inert.** All 12 packages were published on 2026-08-08 in two bursts and **not one has been
+modified in the 15 days since** (queried from the registry 2026-08-23), all still 0.1.x/0.2.0. Adopting a
+dependency that is not moving, to replace code that changed today, inverts the divergence risk it exists to
+solve.
+
+**What would change the answer:** a Fragments-shaped load path in the facade — `open()` accepting pre-converted
+fragment bytes, or a `KernelProvider` that streams them — plus a seam list derived from *this* tree rather than
+from their plan. The decision remains the user's; this records an evaluation, not a veto.
 
 **That blocker is GONE, and it was already gone when this section was written.** This said "the packages are
 not on npm yet. Until they are, this repository keeps its own viewer and nothing here should change on account

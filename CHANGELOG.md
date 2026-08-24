@@ -4,6 +4,51 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1067 (2026-08-24) — the viewer facade, evaluated from the tarball and declined
+
+Docs only. No runtime change. Records a decision the user delegated: *"review it and pull it in if
+it's great and beneficial… let me know what you decide against."*
+
+### Decided against — `@massing/embed` 0.2.0
+
+**The reason is architectural, not polish.** The facade's load path is **IFC text into a browser-side
+tessellator**: `open(source: string | Uint8Array)` sniffs bytes, and the required `Tessellator` is
+`(ifcText: string) => {meshes, guids}`. Its own seam entry says so — *"load a model into the kernel
+from IFC text"*. **Nothing in the package knows about pre-converted Fragments** (the whole tarball
+was grepped; the single "fragment" hit is a generic word in a section-box note).
+
+Two of this repo's non-negotiables say the opposite: pre-convert IFC to Fragments **on the server**,
+never parse full IFC in the browser at runtime, and geometry streams as `.frag`. Adoption therefore
+means either breaking them, or keeping our own load path outside the facade — at which point it is
+not the whole surface, both copies live, and that is the fork *their own plan* calls "the only risk
+that can end the project".
+
+**Its `ready: true` measures the wrong half.** `seamCoverage()` from the shipped ledger reports 20/20
+movable, 4 boundaries, 24 entries, and *"apps/web/src/viewer can be deleted"*. But the test behind it
+asserts every `covered` entry is reachable **through the facade's type** — which proves each *claim
+is backed*, not that the *claims cover the ground*. Its 24 entries dissect this viewer as it stood
+around 2026-08-06; the viewer is **129 TS files / 16,408 non-test lines / 53 test files** today, and
+the list names none of the plan/sheets/specs canvas modes, collaborative peer cursors, dimensional
+locks, viewer load timings, reference point clouds, GIS context, or the model-bounds allowlist.
+
+**The family is inert.** All 12 packages were published on 2026-08-08 in two bursts and none has been
+modified in the 15 days since. Adopting a dependency that is not moving, to replace code that changed
+today, inverts the divergence risk it exists to solve.
+
+**In its favour, and recorded so the decision can be revisited fairly:** it is MIT, genuinely well
+engineered, and unusually honest — it states outright what it does *not* wrap and why, and the seam
+ledger's design (a checklist that fails the build rather than ageing in a document) is a good idea
+worth borrowing. **What would change the answer:** a Fragments-shaped load path — `open()` accepting
+pre-converted fragment bytes, or a `KernelProvider` that streams them — plus a seam list derived from
+this tree rather than from their plan.
+
+### Fixed
+
+- **`CLAUDE.md`'s numbers for this were wrong and are corrected in place.** It said "25 published
+  packages" and a "seam ledger reporting 27 of 27 movable capabilities covered". Measured: the
+  dependency closure is **12 packages**, and the ledger reports **20 of 20 movable, 24 entries
+  total**. The file's own rule — *verify, don't recall* — applied to itself.
+
 ## v0.3.1066 (2026-08-24) — what is actually left, measured rather than listed
 
 Docs only. No runtime or test change.

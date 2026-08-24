@@ -3113,6 +3113,21 @@ seam.
   previews the container (POST /projects/preview-bundle) and names what will not arrive (users,
   audit log, settings, connections) before import. Legacy `.mmproj` still opens. ⌘K save matches the
   File menu (`.mass`).
+* **THE `@massing/embed` FACADE WAS EVALUATED AND DECLINED, 2026-08-23** *(the user delegated the
+  call: "review it and pull it in if it's great and beneficial")*. Measured from the published
+  tarball, not from a summary. **The reason is architectural:** the facade's load path is IFC text
+  into a **browser-side tessellator** — `open(source)` sniffs bytes and the required `Tessellator` is
+  `(ifcText: string) => {meshes, guids}`, with its own seam entry reading *"load a model into the
+  kernel from IFC text"*. Nothing in the package knows about pre-converted Fragments. That collides
+  with two non-negotiables — pre-convert on the server, never parse full IFC in the browser; geometry
+  streams as `.frag` — so adopting it means either breaking them or keeping our load path outside the
+  facade, which leaves both copies live: the fork their own plan calls the only risk that can end the
+  project. Its ledger reports 20/20 movable and `ready: true`, but that test asserts each `covered`
+  entry is reachable through the facade's **type** — it proves each claim is backed, not that the
+  claims cover the ground, and its 24 entries are a dissection of this viewer as it stood ~2026-08-06
+  against 129 files / 16,408 lines today. All 12 packages were published on 2026-08-08 and none has
+  been touched since. **What would change the answer:** a Fragments-shaped load path, plus a seam list
+  derived from this tree. Full reasoning in `CLAUDE.md`; the decision remains the user's.
 * **R28-VIEWER ④** — the future viewer opens a **container**, not a file. **This is now live and
   external**: the kernel rebuild is `MassingCloud/massingifc` (private), first commit 2026-07-26 —
   a framework-agnostic kernel + plugin host with **all fourteen capability families still contracts
