@@ -102,7 +102,12 @@ KNOWN_UNCALLED: set[str] = {
     "/bcf/3.0/projects/{pid}/topics/{guid}/document_references",
     "/benchmarks/unit-rates", "/cost/datasets/import-custom", "/portfolio/deal-memory",
     "/proforma/entitlement-risk", "/proforma/provenance/admissibility",
-    "/projects/preview-bundle", "/projects/{pid}/5d/element-costs",
+    # "/projects/preview-bundle" REMOVED v0.3.1061 — it gained a real caller in
+    # apps/web/src/api/library.ts (the `.mass` preview from PR #336), so freezing it as
+    # uncalled had become a false claim. This gate caught it on the merge, which is the
+    # direction that matters: an allowlist entry that outlives its reason reads as a
+    # deliberate exemption forever.
+    "/projects/{pid}/5d/element-costs",
     "/projects/{pid}/agent-packs", "/projects/{pid}/clash/clearance-rules",
     "/projects/{pid}/code/amendments", "/projects/{pid}/cost-vintage",
     "/projects/{pid}/cost/pay-application", "/projects/{pid}/dev-budget/sync-from-model",

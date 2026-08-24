@@ -4,6 +4,39 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1061 (2026-08-24) — main went red on a frozen route that had quietly gained a caller
+
+### Fixed
+
+- **`/projects/preview-bundle` was frozen in `test_route_reachability.py`'s `KNOWN_UNCALLED` and
+  v0.3.1060 gave it a caller.** PR #336's `.mass` preview calls it from
+  `apps/web/src/api/library.ts`, so the allowlist entry became a false claim — "no client calls this"
+  when one now does. The gate caught it on the merge and **CI went red on exactly this and nothing
+  else.** The entry is deleted rather than updated: this ratchet only ever comes down.
+
+  My pre-merge review missed it. I checked the things a new job kind can get wrong — mutating flags,
+  privilege classification, tray labels — and did not think to ask whether any *route* in the frozen
+  allowlist had gained a caller. Adding a client call to a previously-uncalled endpoint is exactly
+  what a feature like `.mass` preview does, so that question belonged on the list.
+
+### Measured, and it corrects v0.3.1059
+
+- **The suite's true peak disk use is 17.4 GB** (start 158,232 MB, min 140,462 MB, over a 1238 s run
+  at 15 workers). v0.3.1059 said the within-run peak was "somewhere else and I have not found it";
+  it is real, it is the suite, and it is larger than the ~12 GB I had estimated against a nearly-full
+  drive.
+
+  The reason it can be measured now is that **~143 GB of unrelated space was freed on this machine
+  while the work was in progress** (used went 919 GB → 776 GB). So the earlier conclusion "this
+  machine cannot fit the suite" was *correct* — 17.4 GB does not fit in 11 GB — but the storage sweep
+  was never going to fix it, and an earlier draft implied it might. Both halves are now known: the
+  sweep removed a real 1.42 GB/run accumulation, and the 17.4 GB transient is the suite's own working
+  set.
+
+- **`test_modules` failed locally with `database is locked` and passes alone** (exit 0). CI did not
+  fail on it. Local SQLite lock contention under 15 parallel workers, not a defect — recorded so the
+  next reader does not chase it.
+
 ## v0.3.1060 (2026-08-21) — the analyses become Runs: clash, IDS, cost and energy go through the queue
 
 Merged from PR #336 (`cursor/reach-and-feel-92e9`), reviewed and version-stamped on merge — this
