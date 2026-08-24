@@ -130,7 +130,7 @@ export class ApiClient extends withRisk(withEntitlements(withPrecon(withAi(withT
     return this.json<{ commitments: number; completed: number; ppc: number; missed: number; rating: string; top_variance_reasons: { reason: string; count: number }[] }>(
       `/projects/${pid}/lean/ppc`);
   }
-  /** Predictive schedule alerts (overdue / late-start / at-risk predecessor / SPI / procurement). */
+  /** Open-data permit sources: the cities whose permit feeds this deployment can query. */
   permitCities() {
     return this.json<{ cities: { id: string; label: string; region: string; authority: string; geo: boolean }[] }>(
       "/opendata/permit-cities");
@@ -1233,7 +1233,7 @@ export class ApiClient extends withRisk(withEntitlements(withPrecon(withAi(withT
       editors: { user: string; seconds_ago: number; viewpoint: unknown }[]; editor_count: number;
     }>(`/projects/${pid}/collab`);
   }
-  /** SCHED-RISK: Monte Carlo over the CPM network — P50/P80 forecasting + criticality + delay drivers. */
+  /** Embodied-carbon compliance: element totals, coverage and intensity against the project's limits. */
   carbonComplianceReport(pid: string) {
     return this.json<{
       elements: { total_tco2e: number; coverage_pct: number; intensity_kgco2e_m2?: number;
@@ -2728,7 +2728,7 @@ export class ApiClient extends withRisk(withEntitlements(withPrecon(withAi(withT
       percent_complete: number; gross_profit: number }[];
       totals: Record<string, number>; project_count: number; note: string }>(`/wip/portfolio`);
   }
-  /** Cost-loaded resource histogram + unit/cost S-curves + over-allocation (from resource assignments). */
+  /** Earned Value: control accounts and activities with PV/EV/AC, CV/SV, CPI/SPI, plus earned schedule. */
   evm(pid: string, dataDate?: string) {
     return this.json<{
       totals: { data_date: string; bac: number; pv: number; ev: number; ac: number; cv: number; sv: number;
@@ -2855,7 +2855,7 @@ export class ApiClient extends withRisk(withEntitlements(withPrecon(withAi(withT
       `/projects/${pid}/materials/apply`, { method: "POST" });
   }
   /** RISK-BOARD: one ranked register unifying every computed risk signal (deep-linked per item). */
-  /** CPM analysis of the schedule activities — float + critical path. */
+  /** The development budget: line items and contingency, as saved for this project. */
   devBudget(pid: string) {
     return this.json<DevBudgetResponse>(`/projects/${pid}/dev-budget`);
   }

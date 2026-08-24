@@ -139,8 +139,7 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
   moduleBoard(pid: string, key: string) {
     return this.json<ModuleBoard>(`/projects/${pid}/modules/${key}/board`);
   }
-  /** R26-WORK-QUEUE — `myWork`, dated and bucketed by urgency, each item carrying the actions this
-   *  caller can actually run. `undated` is its own bucket, above `later`. */
+  /** The saved views defined on one module's register. */
   listViews(pid: string, key: string) {
     return this.json<SavedViewDef[]>(`/projects/${pid}/modules/${key}/views`);
   }
@@ -254,7 +253,7 @@ export function withModules<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ applied: string; created: number }>(`/projects/${pid}/modules/${key}/apply-template/${tid}`, { method: "POST" });
   }
   /** Construction program portfolio — cost over/under + risk + safety across all projects. */
-  /** Short-interval lookahead: near-term activities grouped by week (the field's 3-/6-week plan). */
+  /** The module-relations graph: nodes = modules, edges = reference + rollup links (optional workspace). */
   modulesGraph(workspace?: string) {
     const qs = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
     return this.json<ModuleGraph>(`/modules/graph${qs}`);

@@ -4,6 +4,48 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1075 (2026-08-24) — thirteen methods documented as something else
+
+### Fixed — the API client's doc comments described the wrong methods
+
+Found while measuring which route group to extract next: **`evm()` was documented as "Cost-loaded
+resource histogram"**, which is `resourceLoading()`. Pulling that thread found a rotation — SCALE-SEAM
+moved route groups out of `client.ts` one at a time, and each moved method kept its former
+*neighbour's* comment:
+
+    proformaLive   carried importXer's       ("Import a Primavera P6 export…")
+    importXer      carried modulesGraph's    ("The module-relations graph…")
+    scheduleCpm    carried proformaLive's    ("PROFORMA-LIVE: takeoff-priced cost…")
+    evm            carried resourceLoading's ("Cost-loaded resource histogram…")
+    permitCities   carried a schedule alert's ("Predictive schedule alerts…")
+
+**Eleven methods were documented as something they are not**, every one reading as authoritative:
+`carbonComplianceReport` claimed to run a Monte Carlo over the CPM network, `modelQueryViews` claimed
+to inspect a VIM file, `devBudget` claimed to do CPM analysis. **A wrong docstring is worse than
+none** — it is what a caller trusts instead of reading the route, and these are the methods every
+screen calls. Each now describes what its method actually does.
+
+### Added — a gate, with its own false positives named rather than hidden
+
+`docComments.test.ts` asserts that a comment shares at least one substantial word with the method it
+sits above. Crude on purpose: anything cleverer would need to understand prose, and this only has to
+catch a comment belonging to a *different* method, which shares nothing with this one by
+construction. Mutation-checked by reinstating one wrong comment — it fails naming file, line, method
+and the offending text.
+
+**My own detector had two false positives and I did not gate over them.** `addCurtainWall` ("author an
+IfcCurtainWall") and `queryElements` ("the IfcOpenShell selector DSL") are correctly documented; the
+shared noun is inside a compound identifier the rule cannot see through. Both are frozen in a
+two-entry set that may only shrink — a new entry means someone is adding a comment the check cannot
+read, which is worth a moment even when the comment is fine. Fixing a "defect" my own scan reported
+without reading each one would have replaced two correct comments with worse ones.
+
+### Fixed
+
+- **`PERF-THREADS ③` was shipped in v0.3.1074 and its entry was never marked.** The reverse lane check
+  added in that same release caught the stale lane cell on the very next change — closing an item now
+  costs both edits or the build says so, which is why it was added.
+
 ## v0.3.1074 (2026-08-24) — forty concurrent parses, and a gate measuring 27 of 32
 
 ### Added — PERF-THREADS ③: concurrent IFC parses are capped

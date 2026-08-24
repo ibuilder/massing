@@ -42,7 +42,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   }
 
   // --- municipal permit open data (multi-city) -------------------------------
-  /** CARBON-EC3: per-element A1–A3 + Buy Clean limit check + LEED-style inventory (404 until a model loads). */
+  /** Schedule optioneering: sweep takt/zone/overlap levers and rank the resulting sequences. */
   scheduleOptioneer(pid: string, body: {
     floors?: number; trades?: { name: string; takt_days: number; reorderable?: boolean }[];
     crew_day_rate?: number; max_crew_trades?: number; zone_options?: number[];
@@ -69,6 +69,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     }>(`/projects/${pid}/schedule/optioneer`, { method: "POST", body: JSON.stringify(body) });
   }
   /** MASSING-OPT — sweep massing levers over a zoning envelope → ranked options + Pareto frontier (stateless). */
+  /** 4D: schedule activities linked to model elements, by trade, with the source it came from. */
   schedule4d(pid: string, source?: "gc" | "takt") {
     return this.json<{ floors: number; duration_days?: number; total_days?: number; element_count: number;
       source: "takt" | "p6" | "gc"; start_date?: string; finish_date?: string; p6_activities?: number;
@@ -145,7 +146,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
       activities: { ref: string; name: string; status: string; start_var: number | null; finish_var: number | null }[] }>(
       `/projects/${pid}/schedule/variance`);
   }
-  /** Cost traceability coverage — cost tied to IFC elements by GlobalId, per cost code. */
+  /** Cost-loaded resource histogram + unit/cost S-curves + over-allocation (from resource assignments). */
   resourceLoading(pid: string, cap?: number) {
     return this.json<{ source: string; loads: number; weeks_span: number; cap: number | null;
       trades: string[]; types: string[]; peak: { week: string | null; units: number }; total_cost: number;
@@ -208,7 +209,8 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
   taktProgress(pid: string) {
     return this.json<TaktProgressResult>(`/projects/${pid}/schedule/takt/progress`);
   }
-  /** The module-relations graph: nodes = modules, edges = reference + rollup links (optional workspace). */
+  /** Import a Primavera P6 export (.xer or .xml/PMXML — auto-detected) so the 4D scrub reports
+   *  real calendar dates and the tasks become editable schedule_activity records. */
   async importXer(pid: string, file: File) {
     const fd = new FormData(); fd.append("file", file);
     const res = await fetch(this.url(`/projects/${pid}/schedule/import-xer`), { method: "POST", body: fd, headers: this.authHeaders() });
@@ -228,7 +230,7 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     a.href = URL.createObjectURL(blob); a.download = fmt === "msp" ? "schedule.xml" : "schedule.xer"; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
-  /** PROFORMA-LIVE: the model's takeoff-priced cost + GFA + budget delta — refresh on each publish. */
+  /** CPM analysis of the schedule activities — duration, critical path, float, cycle detection. */
   scheduleCpm(pid: string) {
     return this.json<{ project_duration: number; activity_count: number; critical_count: number; has_cycle: boolean; critical_path: string[]; activities: { ref: string | null; name: string; duration: number; es: number; ef: number; total_float: number; critical: boolean }[] }>(
       `/projects/${pid}/schedule/cpm`);

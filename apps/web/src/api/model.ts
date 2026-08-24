@@ -221,7 +221,7 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       distinct_types?: number; file_size_bytes?: number;
       histogram?: { ifc_class: string; count: number }[] }>(`/projects/${pid}/model/step-summary`);
   }
-  /** Inspect an uploaded VIM / G3D file (schema, buffers, geometry stats) — G2. */
+  /** The saved model-query views available for this project (id + label). */
   modelQueryViews(pid: string) {
     return this.json<{ views: { id: string; label: string }[] }>(`/projects/${pid}/model/query/views`);
   }

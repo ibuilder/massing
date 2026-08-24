@@ -290,7 +290,10 @@ describe("the roadmap lane table", () => {
     // regex hid five items from this gate. It allowed one leading marker where `SCALE-SEAM ㉒`
     // carries two, and required two characters after the code's dash where `REL-4`, `REL-7`,
     // `UX-3` and `SITE-1` have one. The gate was reporting completeness over 27 of 32.
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(32);
+    // 32 → 31: PERF-THREADS ③ closed (✅ v0.3.1074). The reverse check added in the same release
+    // caught the lane cell on the very next change — closing an item now costs both edits or the
+    // build says so, which is the whole point of adding it.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(31);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {

@@ -103,8 +103,7 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
         min: number | null; max: number | null }> }>(`/proforma/portfolio/compare`);
   }
 
-  /** Import a Primavera P6 export (.xer or .xml/PMXML — auto-detected) so the 4D scrub reports
-   *  real calendar dates and the tasks become editable schedule_activity records. */
+  /** PROFORMA-LIVE: the model's takeoff-priced cost + GFA + budget delta — refresh on each publish. */
   proformaLive(pid: string) {
     return this.json<{ model_version: string; est_construction_cost: number; gfa_m2: number;
       cost_per_m2: number | null; budget_hard_cost: number | null;
