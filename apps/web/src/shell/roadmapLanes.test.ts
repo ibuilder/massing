@@ -255,7 +255,8 @@ describe("the roadmap lane table", () => {
     // than read off the entry. Both drops are the record catching up with the code, not scope cuts.
     // 31 → 30: R38-SOLVER-LOCKS ③ closed (✅) — built end to end, verified in the tree. Its entry
     // still said the solve route had no client caller; `api/authoring.ts` has had one for weeks.
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(30);
+    // 30 → 29: R41-MODEL-ALIGN closed (✅) — both halves built, the second in v0.3.1070.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(29);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {

@@ -4,6 +4,58 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1070 (2026-08-24) — a rotated model has the same storeys and the same origin
+
+R41-MODEL-ALIGN's remaining half. The existing alignment report says the discipline models *disagree*;
+it cannot say *why*, because a building that arrived rotated has the same storey scheme and the same
+georeferenced origin as one that did not. This measures the rotation.
+
+### Added
+
+- **`aec_data/align.py`** — a yaw-only oriented bounding box fitted to a model's footprint, and the
+  rule that decides whether to propose it.
+  - **The acceptance threshold is the feature.** A *true* minimum-area rectangle is not what a drafter
+    means by aligned: measured on a real building, the smallest rectangle sat **37° off the building's
+    own walls to buy 14% of area** — arithmetically optimal and visibly broken, because the walls are
+    what a person sees. A fit is proposed only when the oriented box is **≥20% tighter** than the
+    axis-aligned one, which buys a *wall-parallel* answer by refusing the margin where the two
+    disagree.
+  - **Yaw only, deliberately.** Roll and pitch on a building are almost always a unit or axis-convention
+    error, and a fit that could express them would explain a Z-up/Y-up mix-up as a 90° pitch — hiding
+    the actual problem behind a plausible correction.
+  - A refused fit still returns its numbers. "No" without the margin is a verdict nobody can calibrate.
+- **`drawings.plan_points`** — the same geom-iterator walk `world_bounds` does, keeping the points
+  instead of collapsing them to a min/max. `world_bounds` cannot serve this at all: an axis-aligned box
+  is exactly what a rotated building's *bounds* cannot be told apart from.
+- **`GET /projects/{pid}/models/{mid}/alignment-fit`** and
+  **`apps/web/src/viewer/tools/alignmentPanel.ts`**, which now answers both questions in one place.
+
+### Changed
+
+- **The alignment check moved out of `qaSection.ts`** (1,348 → 1,335 lines, ratchet lowered with it).
+  Adding the fit inline pushed the file 17 lines over its pin and the gate refused — so the panel was
+  extracted and came back as three lines. The friction working exactly as intended, for the second time
+  this session.
+- The extracted panel builds issue text with `textContent` rather than `innerHTML`. The original used
+  `innerHTML` with a **model name that comes from an uploaded IFC**, which is not ours to trust; a test
+  now asserts a name containing markup creates no element.
+
+### Verified against the entry's own measurement
+
+`test_model_align.py` reproduces the numbers R41 recorded rather than numbers that merely look
+plausible: a 54 × 78 m building at 37° gives a **90.1 × 94.8 m** axis-aligned box, **2.03×** the true
+area. It also pins both refusals — an already-square model, and the marginal case.
+
+### Fixed while building
+
+- **A minimum-points floor of 8 would have refused the commonest shape in the product.** Probing a real
+  generated model showed a simple extruded massing block has **exactly four** unique plan vertices, so
+  the fit would have returned `None` for it — silently. The floor is 4: what matters is whether the
+  points enclose an area, not whether there are "enough" of them.
+
+**No Alembic revision was needed** — a fit is a proposal and the IFC is opened read-only. *Storing* an
+alignment would need one, since `ProjectModel` has no transform column; that is the follow-up.
+
 ## v0.3.1069 (2026-08-24) — resuming is the same request as starting
 
 R41-UPLOAD-WARK's resumable handshake, its consumer, and the fix for the CI failure v0.3.1063 caused.

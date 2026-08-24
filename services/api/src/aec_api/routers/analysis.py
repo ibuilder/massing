@@ -1178,6 +1178,56 @@ def preflight_gate(pid: str, db: Session = Depends(get_db), _sec: str = Depends(
     return preflight.run(db, pid)
 
 
+@router.get("/projects/{pid}/models/{mid}/alignment-fit")
+def model_alignment_fit(pid: str, mid: str, db: Session = Depends(get_db),
+                        _sec: str = Depends(require_role("viewer"))):
+    """R41-MODEL-ALIGN — propose a yaw correction for a discipline model that arrived rotated.
+
+    The report above says the project's models DISAGREE; this says what to do about one of them. It
+    fits a yaw-only oriented box to the model's footprint and proposes the rotation that puts the
+    building back on its own axes — accepted only when the oriented box saves at least 20% of the
+    axis-aligned area.
+
+    **That threshold is the feature, not a tuning constant.** A true minimum-area rectangle sat 37°
+    off a real building's own walls to buy 14% — arithmetically optimal and visibly wrong, because
+    the walls are what a person sees. Refusing the margin is what buys a wall-parallel answer rather
+    than merely the smallest one.
+
+    **A PROPOSAL, never an edit.** The source IFC is opened read-only and nothing is written. Applying
+    an alignment means storing a transform against the model, which is a separate change — so
+    `applied` is always false here, and says so rather than leaving a caller to assume.
+    """
+    import ifcopenshell  # type: ignore
+
+    from aec_data import align, drawings  # type: ignore
+
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    m = db.query(ProjectModel).filter_by(project_id=pid, id=mid).first()
+    if not m or not Path(m.ifc_path).exists():
+        raise HTTPException(404, "model not found")
+
+    pts = drawings.plan_points(ifcopenshell.open(m.ifc_path))
+    fit = align.fit_yaw(pts) if pts is not None else None
+    return {
+        "model": mid,
+        "discipline": m.discipline,
+        "fit": None if fit is None else {
+            "yaw_deg": round(fit.yaw_deg, 3),
+            "currently_at_deg": round(fit.fitted_deg, 3),
+            "extent_m": [round(fit.extent[0], 3), round(fit.extent[1], 3)],
+            "obb_area_m2": round(fit.obb_area, 2),
+            "aabb_area_m2": round(fit.aabb_area, 2),
+            "area_saving": round(fit.saving, 4),
+            "accepted": fit.accepted,
+            "reason": fit.reason,
+        },
+        "applied": False,
+        "note": ("a proposal only — the source file is never modified; applying an alignment stores a "
+                 "transform against the model"),
+    }
+
+
 @router.get("/projects/{pid}/models/alignment")
 def model_alignment(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
     """Federation alignment report — do the project's discipline models share the same storey scheme

@@ -73,6 +73,21 @@ export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
       issues: { type: string; severity: string; model: string; detail: string }[];
       aligned: boolean; message: string }>(`/projects/${pid}/models/alignment`);
   }
+  /**
+   * R41-MODEL-ALIGN — the yaw correction proposed for one discipline model, or `null` when there is
+   * nothing to fit. A PROPOSAL: the server opens the IFC read-only and never writes it.
+   *
+   * `accepted` is the answer; the rest is the working. A fit that is refused still returns its
+   * numbers, because "no" without the margin is a verdict nobody can calibrate.
+   */
+  modelAlignmentFit(pid: string, mid: string) {
+    return this.json<{
+      model: string; discipline: string; applied: boolean; note: string;
+      fit: null | { yaw_deg: number; currently_at_deg: number; extent_m: [number, number];
+        obb_area_m2: number; aabb_area_m2: number; area_saving: number;
+        accepted: boolean; reason: string };
+    }>(`/projects/${pid}/models/${mid}/alignment-fit`);
+  }
   /** Discipline models layered on a project (for federated clash). */
   projectModels(pid: string) {
     return this.json<{ id: string; discipline: string; created_at: string | null }[]>(`/projects/${pid}/models`);

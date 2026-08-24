@@ -1915,7 +1915,25 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
 
 ### Capability items
 
-- **R41-MODEL-ALIGN** *(**the remaining half is Lane D, not Lane E, and bigger than M** — the defect half was Lane E and is DONE, see below. What is left is the OBB feature, and it lives in `services/data/src/aec_data/` (Lane D · Geometry & drawings) with a route in Lane G and a per-model transform that needs an Alembic revision — `ProjectModel` has no transform column today. **Lanes are assigned by directory**, so an agent taking this under a Lane E label would write straight into another lane's files.)* — **align a federated model that arrived with wrong, missing or
+- ✅ **R41-MODEL-ALIGN — COMPLETE v0.3.1070.** Both halves are done: the ground-plane defect closed in
+  v0.3.1062, and the oriented-box fit here. `services/data/src/aec_data/align.py` fits a yaw-only OBB
+  to a model's footprint (`drawings.plan_points` walks the same geom iterator `world_bounds` uses,
+  keeping the points instead of collapsing them to a min/max — an axis-aligned box is precisely what a
+  rotated building's *bounds* cannot distinguish). `GET /projects/{pid}/models/{mid}/alignment-fit`
+  proposes it and `apps/web/src/viewer/tools/alignmentPanel.ts` shows it beside the existing alignment
+  report, which answers the complementary question: the report says the models *disagree*, the fit says
+  one of them is *rotated*, and a rotated model has the same storeys and the same origin as a square-on
+  one.
+  **The acceptance rule is the part that mattered, and it is implemented as specified**: a fit is
+  proposed only when the oriented box is ≥20% tighter than the axis-aligned one, which buys a
+  *wall-parallel* answer rather than the *smallest* one. `services/api/test_model_align.py` reproduces
+  this entry's own measurement — a 54 × 78 m building at 37° against a **90.1 × 94.8 m** box, **2.03×**
+  the true area — and pins the refusals: an already-square model, and the marginal-saving case this
+  entry warns about.
+  **A proposal, never an edit**: the IFC is opened read-only, so no Alembic revision was needed after
+  all. *Storing* an alignment still would be — `ProjectModel` has no transform column — and that is
+  what a follow-up would add. *(The lane note below is kept: the work was Lane D + G + E, as it said.)*
+- ~~**R41-MODEL-ALIGN**~~ *(**the remaining half is Lane D, not Lane E, and bigger than M** — the defect half was Lane E and is DONE, see below. What is left is the OBB feature, and it lives in `services/data/src/aec_data/` (Lane D · Geometry & drawings) with a route in Lane G and a per-model transform that needs an Alembic revision — `ProjectModel` has no transform column today. **Lanes are assigned by directory**, so an agent taking this under a Lane E label would write straight into another lane's files.)* — **align a federated model that arrived with wrong, missing or
   unit-mismatched georeferencing, without touching the source file.** This is the daily reality of GC
   federation and is *not* the same problem as our standing set-origin note. Two techniques, both
   reimplement-from-description — the reference source carries an object-code-only header despite an MIT

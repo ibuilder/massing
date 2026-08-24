@@ -116,7 +116,7 @@ PER_FILE = {
     # not to raise - the same call the /finance extraction made earlier the same day. Re-tightened
     # to the new exact count rather than left at 1_373, because 13 lines of slack is 13 lines the
     # next addition spends without anyone deciding to.
-    "apps/web/src/viewer/tools/qaSection.ts": 1_348,
+    "apps/web/src/viewer/tools/qaSection.ts": 1_335,   # alignment check -> tools/alignmentPanel.ts (1_348 -> 1_335). The ratchet is why: adding the R41 yaw fit inline pushed this file 17 lines over and the gate refused, so the panel was extracted instead and came back three lines.
     # Pinned at its EXACT measured size on 2026-08-09, BEFORE it needs splitting — the third-largest
     # hand-written file in the tree and the only one of that size with no ratchet. The qaSection entry
     # above records why the timing matters: "a ratchet added at the point of pain only ratifies the

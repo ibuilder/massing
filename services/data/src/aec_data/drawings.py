@@ -255,6 +255,30 @@ def world_bounds(model: ifcopenshell.file) -> tuple[list[float], list[float]] | 
     return (list(mn), list(mx)) if np.isfinite(mn).all() else None
 
 
+def plan_points(model: ifcopenshell.file) -> np.ndarray | None:
+    """Every vertex of the model projected to plan (X, Y), metres. None when there is no geometry.
+
+    The same geom-iterator walk `world_bounds` does, keeping the points instead of collapsing them to
+    a min/max. `world_bounds` cannot serve R41-MODEL-ALIGN precisely because it throws away the shape:
+    an axis-aligned box is the one thing a rotated building's bounds CANNOT tell you apart from.
+
+    Lives here rather than in `align` so the private iterator settings stay private — the walk and its
+    world-coordinate configuration belong to this module, and a second copy in another file is a
+    second thing to keep in step with an ifcopenshell upgrade.
+    """
+    it = bounded_iterator(geom, _world_settings(geom), model)
+    if not it.initialize():
+        return None
+    out: list[np.ndarray] = []
+    while True:
+        v = np.asarray(it.get().geometry.verts, dtype=float).reshape(-1, 3)
+        if v.size:
+            out.append(v[:, :2])
+        if not it.next():
+            break
+    return np.vstack(out) if out else None
+
+
 def _bake_uncached(model: ifcopenshell.file) -> list[tuple[str, str, trimesh.Trimesh]]:
     """R38-PLAN-IDENTITY: `(guid, ifc_class, mesh)`.
 
