@@ -97,6 +97,34 @@ export class HttpCore {
     } catch { /* fetch itself can throw synchronously on a malformed base URL */ }
   }
 
+  /**
+   * R41-UPLOAD-WARK — upload a large file resumably, deduplicating an unchanged re-upload.
+   *
+   * Lives on the base for the same reason `reportClientInterval` does: it is transport rather than a
+   * feature, and `client.ts` is at its size pin. The chunking, hashing and resume logic are in
+   * `resumableUpload.ts`, which is pure over injected transport so the protocol can be tested without
+   * a network; this supplies the real fetches and the browser digest.
+   */
+  // Underscored because it is PLUMBING, not client surface: it moves bytes and returns a storage
+  // key, which is not a thing any screen wants. The public method is `addProjectModelResumable`,
+  // which turns that key into a model. The uncalled-methods gate excludes underscored members for
+  // exactly this reason — a transport helper has no screen and never will.
+  async _uploadResumable(pid: string, file: Blob, onProgress?: (sent: number, total: number) => void) {
+    const { uploadResumable, sha256Hex } = await import("./resumableUpload");
+    return uploadResumable(pid, file, {
+      sha256: sha256Hex,
+      onProgress,
+      postJson: (path, body) => this.json(path, { method: "POST", body: JSON.stringify(body) }),
+      putBytes: async (path, data, headers) => {
+        const r = await fetch(this.baseUrl + path, {
+          method: "PUT", body: data, headers: { ...this.authHeaders(), ...headers },
+        });
+        if (!r.ok) throw new Error((await r.text()) || `PUT ${path} -> ${r.status}`);
+        return r.json();
+      },
+    });
+  }
+
   async health(): Promise<boolean> {
     try {
       const res = await fetch(this.baseUrl + "/health");

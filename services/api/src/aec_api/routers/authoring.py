@@ -1205,6 +1205,64 @@ async def add_project_model(pid: str, file: UploadFile = File(...), discipline: 
     return {"id": m.id, "discipline": m.discipline, "size": size}
 
 
+@router.post("/projects/{pid}/models/from-upload", status_code=201)
+async def add_project_model_from_upload(pid: str, body: dict = Body(...),
+                                        db: Session = Depends(get_db),
+                                        actor: str = Depends(require_role("editor"))):
+    """R41-UPLOAD-WARK — register a discipline model from an upload that was already assembled.
+
+    The consumer the resumable handshake was missing. `POST /projects/{pid}/uploads/…/complete` leaves
+    a finished object in storage and returns its key; this turns that key into a `ProjectModel`, so a
+    large IFC can be uploaded resumably — and a re-upload of an unchanged file transfers nothing —
+    while ending in exactly the state the multipart route above produces.
+
+    **The key is checked against THIS project's prefix, and that check is the whole security of the
+    route.** The client supplies the key, and an assembled upload lives at
+    `projects/{pid}/uploads/{uid}`; without the check a caller who is an editor on their own project
+    could name another project's object and have its contents registered as their model. That is the
+    caller-supplied-identifier shape this repo has already found twice — on `/firm/rules`, where a
+    `require_role` dependency with no `{pid}` in the path made the project a query parameter, and in
+    the `enqueue_job` params merge. A role check answers "may you write HERE"; it says nothing about
+    whether the object you named is yours.
+
+    The copy is streamed both ways — `storage.get_chunks` in, `stream_to_path`/`put_stream` out — so
+    an assembled 200 MB IFC is never whole in memory. Registering it through `get()` would have undone
+    the reason the handshake exists.
+    """
+    from starlette.concurrency import run_in_threadpool
+
+    if not db.get(Project, pid):
+        raise HTTPException(404, "project not found")
+    key = str(body.get("key") or "")
+    prefix = f"projects/{pid}/uploads/"
+    if not key.startswith(prefix) or "/../" in key or key.endswith("/"):
+        raise HTTPException(403, "key does not belong to this project")
+    if not storage.exists(key):
+        raise HTTPException(404, "no such upload — complete it first, or it has already been consumed")
+
+    mid = uuid.uuid4().hex
+    _ifc_path(pid, "models").mkdir(parents=True, exist_ok=True)
+    ifc_path = _ifc_path(pid, "models", f"{mid}.ifc")
+
+    def _persist() -> int:
+        n = storage.stream_to_path(ifc_path, storage.get_chunks(key))
+        storage.put_stream(f"{storage.safe_seg(pid)}/models/{mid}.ifc", storage.file_chunks(ifc_path))
+        return n
+
+    size = await run_in_threadpool(_persist)
+    discipline = str(body.get("discipline") or "Model").strip() or "Model"
+    m = ProjectModel(id=mid, project_id=pid, discipline=discipline, ifc_path=str(ifc_path))
+    db.add(m)
+    audit.record(db, action="model.append", actor=actor, method="POST",
+                 path=f"/projects/{pid}/models/from-upload",
+                 detail={"discipline": discipline, "from_upload": True})
+    db.commit()
+    # The assembled upload has served its purpose; keeping it would double the storage for every
+    # model. The chunks were already dropped at `complete`.
+    storage.delete(key)
+    return {"id": m.id, "discipline": m.discipline, "size": size, "from_upload": True}
+
+
 @router.post("/projects/{pid}/raise-plan")
 async def raise_plan_to_bim(pid: str, file: UploadFile = File(...),
                             wall_height: float = Form(3.0), wall_thickness: float = Form(0.2),

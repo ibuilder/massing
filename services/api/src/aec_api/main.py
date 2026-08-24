@@ -19,6 +19,7 @@ from . import errorlog, metrics, otel, ratecount, sentry
 from .bodycap import MaxBodySizeMiddleware
 from .db import SessionLocal, init_db
 from .rbac import require_identified
+from .resumable import MAX_UPLOAD_BYTES as _MAX_UPLOAD_BYTES
 from .routers import (
     accounting,
     analysis,
@@ -79,6 +80,7 @@ from .routers import (
     standards,
     templates,
     turnover,
+    uploads,
     verification,
 )
 from .routers import (
@@ -422,7 +424,9 @@ if _hosts:
 # localhost and 127.0.0.1 forms of the Vite origin — they are distinct CORS origins, and the web
 # app's own default API URL is the 127.0.0.1 form (apps/web/.env.local), so a dev opening the app at
 # http://127.0.0.1:5173 would otherwise be blocked even with the API running.
-_MAX_UPLOAD_BYTES = int(os.environ.get("AEC_MAX_UPLOAD_MB", "1024")) * 1024 * 1024  # default 1 GB
+# `_MAX_UPLOAD_BYTES` is imported at the top from `resumable`, which owns the single definition:
+# the ASGI body-size middleware and the resumable handshake must refuse at the same size, and a
+# second `int(os.environ[...])` here is the kind of value that drifts the first time it changes.
 
 # R39-UPLOAD-CAP-APP / R41-UPLOAD-WARK — MEASURE the body, do not take its word for it. The
 # Content-Length check in `security` below is kept as a cheap early refusal, but it is not the
@@ -541,6 +545,7 @@ app.include_router(parcels.router, tags=["parcels"])
 app.include_router(pricing.router, tags=["pricing"])
 app.include_router(closeout.router, tags=["closeout"])
 app.include_router(convert.router, tags=["convert"])
+app.include_router(uploads.router, tags=["uploads"])   # R41-UPLOAD-WARK resumable handshake
 app.include_router(auth.router, tags=["auth"])
 app.include_router(scim.router, tags=["scim"])
 app.include_router(saml.router, tags=["saml"])

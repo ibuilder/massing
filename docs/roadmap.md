@@ -95,9 +95,21 @@ the reserve/benchmarking/proforma sweep) — its full record is in
 sweep rather than by a failing test, which is the reason they rank first: **nothing in the suite can
 currently fail if either regresses.**
 
-- ◧ **PARTLY SHIPPED v0.3.876 (2026-08-07)** — R39-UPLOAD-CAP-APP ① and R41-UPLOAD-WARK.
-  **✅ R39-UPLOAD-CAP-APP ① IS COMPLETE (verified 2026-08-23); the ◧ on this bullet now belongs to
-  R41-UPLOAD-WARK alone.** Its front half shipped v0.3.876 and its whole back-half work list — the
+- ✅ **BOTH COMPLETE — R39-UPLOAD-CAP-APP ① (v0.3.941–942) and R41-UPLOAD-WARK (v0.3.1069).**
+  **The resumable handshake is BUILT**: `POST /projects/{pid}/uploads/handshake` →
+  `PUT …/chunk/{index}` → `POST …/complete`, in `services/api/src/aec_api/routers/uploads.py` over the
+  pure arithmetic in `services/api/src/aec_api/resumable.py`, with the client half in
+  `apps/web/src/api/resumableUpload.ts`. All three parts the entry asked for are there: the chunk
+  **count** is bounded rather than the size, so the manifest stays roughly constant however large the
+  file; the identity is `sha256(salt + size + chunk hashes)`, so **resuming and starting are the same
+  request** and deduplication falls out; and every chunk is verified on arrival, so corruption is
+  refused by index before conversion ever runs.
+  `services/api/test_resumable_upload.py` drives it as a client would and asserts the assembled object
+  is **byte-identical**. `POST /projects/{pid}/models/from-upload` consumes it, and
+  `apps/web/src/api/models.ts` picks the transport by file size so no screen has to know what a chunk
+  is. **The salt is the project id on purpose** — platform-wide content addressing would let one
+  project learn whether another holds a file by reading `need: []`.
+  *(Kept below for the reasoning; the earlier ◧ text is now history.)* Its front half shipped v0.3.876 and its whole back-half work list — the
   three (a) store sites — converted in v0.3.941–942. Re-verified against the tree rather than the
   entry: `routers/documents.py` and `routers/modules.py` ×2 now pass `storage.upload_chunks(...)`,
   and the two `await file.read()` calls still in `modules.py` are the Excel/CSV sheet readers, which

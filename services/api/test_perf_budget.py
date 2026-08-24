@@ -169,12 +169,6 @@ check("  ...and that is NOT within budget — silence is not a pass",
 check("  the report states the client figures are survivor-weighted",
       "survivor-weighted" in rep["note"], rep["note"][:120])
 
-for _f in ("./test_perf_budget.db",):
-    if os.path.exists(_f):
-        try:
-            os.remove(_f)
-        except OSError:
-            pass
 
 # --- 4. THE SINK: what it refuses -----------------------------------------------------------------
 # The beacon is the only way these two budgets get numbers, so the sink is the only place a bad
@@ -275,6 +269,28 @@ if _beacon:
     _deps = repr(_beacon[0].dependant.dependencies)
     check("  ...and it depends on require_identified, not merely current_user",
           "require_identified" in _deps, _deps[:160])
+
+# Stop the job worker before touching the file. Starting the app leaves a DAEMON thread polling the
+# `jobs` table, and a daemon thread outlives the block that started it — so removing the database
+# underneath it is what produced the CI failure below. Ordering alone now prevents it; this makes the
+# thread stop rather than merely lose its race.
+from aec_api import jobs as _jobs  # noqa: E402
+
+_jobs.stop_worker()
+
+# Cleanup LAST, after every TestClient has been closed.
+#
+# This used to sit above the section below, and section 4 was appended after it — so the second
+# TestClient started an app against a database that had just been deleted, SQLite recreated the file
+# empty, and the daemon job-worker thread that startup leaves polling hit "no such table: jobs".
+# It passed locally and failed in CI, because whether the reaper's timer fires inside that window is
+# a matter of timing. **Anything that starts the app must run before the file is removed.**
+for _f in ("./test_perf_budget.db",):
+    if os.path.exists(_f):
+        try:
+            os.remove(_f)
+        except OSError:
+            pass
 
 print()
 if FAILED:

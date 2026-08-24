@@ -4,6 +4,67 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1069 (2026-08-24) — resuming is the same request as starting
+
+R41-UPLOAD-WARK's resumable handshake, its consumer, and the fix for the CI failure v0.3.1063 caused.
+
+### Fixed — main was red, and it was mine
+
+- **`test_perf_budget` failed in CI with `no such table: jobs`.** That file deletes its own SQLite
+  database at the end, and v0.3.1063 appended a new section **after** the cleanup — so a second
+  `TestClient` started an app against a just-deleted database, SQLite recreated the file empty, and
+  the daemon job-reaper thread that startup leaves polling found no table. It passed locally 621/621
+  and failed in CI because whether the reaper's timer fires inside that window is pure timing.
+  The section now runs before the cleanup, and the worker is stopped explicitly rather than left to
+  lose a race. **Anything that starts the app must run before the file is removed.**
+
+### Added — content-addressed resumable upload
+
+An IFC revision is large and mostly identical to the one before it, so a model that changed in one
+storey cost a full transfer, and a connection that dropped at 90% cost all of it again.
+
+- **`resumable.py`** — the arithmetic and the identity, pure and testable without a network. The chunk
+  **count** is bounded rather than the size, so the handshake manifest stays roughly constant however
+  large the file gets; a fixed part size would make a 4 GiB upload declare hundreds of hashes on
+  *every* resume.
+- **`routers/uploads.py`** — handshake → chunk → complete. The upload id is
+  `sha256(salt + size + chunk hashes)`, so **resuming and starting are the same request**: a client
+  that lost its connection re-handshakes and gets a shorter `need` list. There is no resume endpoint
+  and no server session to expire. Deduplication falls out of the same fact.
+  - **The salt is the project id, deliberately.** Platform-wide content addressing would let one
+    project discover whether another holds a given file by handshaking for it and reading `need: []`
+    — a cross-tenant existence oracle, even though no bytes are returned.
+  - Chunks are verified **on arrival** against the promised hash, so a refusal names the chunk index
+    and one chunk can be retried. Hashing the assembled object instead would detect the same
+    corruption only after the whole transfer, and could not say which chunk was wrong.
+  - The **assembled** size is checked against the bytes actually written, never the declared size.
+- **`POST /projects/{pid}/models/from-upload`** — the consumer, so this is a feature rather than an
+  endpoint nobody can reach. **The key is checked against the calling project's prefix, and that check
+  is the whole security of the route**: an editor on their own project could otherwise name another
+  project's object and have its contents registered as their model. A role check answers "may you
+  write here", not "is the thing you named yours".
+- **`storage.get_chunks`** — the ranged-read counterpart to `put_stream`. Ranged reads existed while
+  writes were all-or-nothing, so a route copying a stored object had only `get()`, which materialises
+  it — the exact shape this work exists to remove.
+
+### Changed
+
+- **`addProjectModel` picks the transport by file size**; no screen has to know what a chunk is. A
+  caller forced to choose would be a caller that can quietly choose wrong — sending a 300 MB IFC down
+  a path that cannot resume. The first version put that branch in `qaSection.ts` and the size ratchet
+  refused it, which was the better design telling me so.
+
+### Fixed — three found while building, not by a failing test
+
+- **Deduplication did not actually fall out.** `complete` deletes the parts, so a handshake that only
+  looked for *chunks* answered "I need all of them" for a file already stored — the exact case the
+  entry was written for. It now keys off the assembled object, and `complete` is idempotent.
+- **A fabricated byte offset** in the chunk-mismatch error, computed from data that route does not
+  have; it would have been wrong for every chunk but the first. A made-up number in an error reads
+  like evidence.
+- **`chunk_span` was dead on arrival** — written for that offset, orphaned when the offset was
+  removed. The dead-code gate caught it.
+
 ## v0.3.1068 (2026-08-24) — a bare `WALL` now asks for its points
 
 The one idea worth taking from the `@massing/embed` facade before discarding it. Everything else in

@@ -451,6 +451,29 @@ def file_chunks(src, chunk: int = UPLOAD_CHUNK):
             yield b
 
 
+def get_chunks(key: str, chunk: int = UPLOAD_CHUNK):
+    """Iterate an object already in storage, without ever holding it whole.
+
+    The read counterpart to `put_stream`. `get_range` has existed for a while — ranged READS were
+    supported while writes were all-or-nothing — but nothing turned it into a stream, so a route that
+    wanted to copy a stored object into another one had only `get()`, which materialises it. That is
+    the shape R41-UPLOAD-WARK exists to remove, and it would have come straight back the first time an
+    assembled 200 MB upload was registered as a model.
+
+    Bounded by the object's size at the start: an object being appended to while this runs would
+    otherwise never end, and nothing in this codebase appends to a stored object.
+    """
+    total = size(key)
+    at = 0
+    while at < total:
+        end = min(at + chunk, total)
+        b = backend().get_range(key, at, end)
+        if not b:
+            return                       # a backend that returns nothing must not spin forever
+        yield b
+        at += len(b)
+
+
 def get(key: str) -> bytes:
     return backend().get(key)
 

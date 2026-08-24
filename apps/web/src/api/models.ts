@@ -15,6 +15,15 @@ import { HttpCore } from "./httpCore";
 
 type Ctor<T> = new (...args: any[]) => T;
 
+/**
+ * Above this, a discipline model goes up resumably rather than as one multipart POST.
+ *
+ * Eight times the server's 1 MiB chunk floor: below it a file is one or two chunks, so the handshake
+ * and the completion are two extra round trips that save nothing. Above it a dropped connection
+ * starts to cost real time, which is the whole point of the chunked path.
+ */
+const RESUMABLE_ABOVE_BYTES = 8 * 1024 * 1024;
+
 export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Models extends Base {
   /** Composite Model Health scorecard — one score over hygiene + ISO 19650 KPIs + clash + verified. */
@@ -68,11 +77,33 @@ export function withModels<TBase extends Ctor<HttpCore>>(Base: TBase) {
   projectModels(pid: string) {
     return this.json<{ id: string; discipline: string; created_at: string | null }[]>(`/projects/${pid}/models`);
   }
-  async addProjectModel(pid: string, file: File, discipline: string) {
+  /**
+   * Add a discipline model, choosing the transport by size.
+   *
+   * **The caller does not pick.** A screen that had to decide between multipart and the resumable
+   * handshake would be a screen that has to know what a chunk is, and every future caller would have
+   * to make the same choice again — one of them getting it wrong quietly, by sending a 300 MB IFC
+   * down a path that cannot resume. The size is the only input the decision needs, and it is right
+   * here.
+   *
+   * Above `RESUMABLE_ABOVE_BYTES` the file goes up in chunks (R41-UPLOAD-WARK): a dropped connection
+   * costs one chunk instead of the transfer, and re-adding an unchanged model costs nothing at all.
+   * Below it, the handshake and the completion are two extra round trips to save nothing.
+   */
+  async addProjectModel(pid: string, file: File, discipline: string,
+                        onProgress?: (sent: number, total: number) => void) {
+    if (file.size >= RESUMABLE_ABOVE_BYTES) {
+      const up = await this._uploadResumable(pid, file, onProgress);
+      const res = await this.json<{ id: string; discipline: string; size: number }>(
+        `/projects/${pid}/models/from-upload`,
+        { method: "POST", body: JSON.stringify({ key: up.key, discipline }) });
+      return { ...res, deduplicated: up.deduplicated };
+    }
     const fd = new FormData(); fd.append("file", file); fd.append("discipline", discipline);
     const res = await fetch(this.url(`/projects/${pid}/models`), { method: "POST", body: fd, headers: this.authHeaders() });
     if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail || `add model -> ${res.status}`); }
-    return res.json() as Promise<{ id: string; discipline: string; size: number }>;
+    return { ...(await res.json()) as { id: string; discipline: string; size: number },
+             deduplicated: false };
   }
   deleteProjectModel(pid: string, mid: string) {
     return this.json<{ deleted: boolean; id: string }>(`/projects/${pid}/models/${mid}`, { method: "DELETE" });
