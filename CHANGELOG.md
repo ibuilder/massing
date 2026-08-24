@@ -4,6 +4,32 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1077 (2026-08-24) — SCALE-SEAM ㉔, and the same extraction caught leaving comments behind
+
+### Changed
+
+- **`/ids` and `/projects/{pid}/ids` out of `client.ts`** into `apps/web/src/api/ids.ts` — six methods,
+  one contiguous run, **3,066 → 3,026 lines**, ratchet lowered with it. The group was chosen by
+  measuring the longest same-prefix run left in the file rather than by picking a domain that sounded
+  tidy. Two of the six are not `json()` calls (a browser download and a multipart PUT); they move with
+  the group because **the seam is the route, not the transport** — splitting on transport would put
+  two halves of one feature in two files.
+
+### Found — this extraction has been leaving doc comments behind, in two distinct shapes
+
+When a method moves, its comment stays with the file and attaches itself to whatever follows.
+
+- **Eleven methods documented as a neighbour's job** — fixed in v0.3.1075 and now gated.
+- **~25 orphaned comments**: a doc comment immediately followed by another doc comment, its own
+  declaration gone. Three sampled and all genuine, each traceable to this split — `httpCore.ts` still
+  documents `setToken` (moved to `api/auth.ts`), `model.ts` still documents TOPIC-BOARD (moved to
+  `api/topics.ts` in ⑳), `authoring.ts` still documents an IFCPATCH-LIB dry-run scan.
+
+**Recorded, not fixed.** The 25 is a *candidate* count and my last detector of this kind had two false
+positives out of thirteen, so each needs reading before it is touched — and a gate that fails on 25
+sites belongs with the cleanup, not ahead of it. Booked in the SCALE-SEAM entry with the measurement
+so the next slice starts from a number rather than a suspicion.
+
 ## v0.3.1076 (2026-08-24) — SCALE-SEAM ㉓: the EVM group
 
 `/projects/{pid}/evm` out of `client.ts` and into `apps/web/src/api/evm.ts` — six methods in one

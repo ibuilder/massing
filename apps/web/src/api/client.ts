@@ -12,6 +12,7 @@ import { withMep } from "./mep";
 import { withTopics } from "./topics";
 import { withAi } from "./ai";
 import { withEvm } from "./evm";
+import { withIds } from "./ids";
 import { withPrecon } from "./precon";
 import { withEntitlements } from "./entitlements";
 import { withRisk } from "./risk";
@@ -57,7 +58,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))))))))))))))) {
+export class ApiClient extends withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -2405,47 +2406,6 @@ export class ApiClient extends withEvm(withRisk(withEntitlements(withPrecon(with
       `/projects/${pid}/rebar/check?column=${encodeURIComponent(column)}`);
   }
 
-  // --- IDS authoring (BIMIDS) ------------------------------------------------
-  idsTemplates() {
-    return this.json<{ elements: { key: string; label: string; ifc_class: string;
-      requirements: { pset: string; property: string; data_type: string }[] }[];
-      use_cases: { key: string; label: string; groups: string[] }[] }>(`/ids/templates`);
-  }
-  /** POST a use_case (or specs) and download the resulting .ids / EIR.md file. */
-  async idsDownload(kind: "build" | "eir", body: Record<string, unknown>, filename: string) {
-    const res = await fetch(this.url(`/ids/${kind}`), {
-      method: "POST", body: JSON.stringify(body),
-      headers: { "Content-Type": "application/json", ...this.authHeaders() } });
-    if (!res.ok) throw new Error(`ids ${kind} -> ${res.status}`);
-    const blob = await res.blob();
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob); a.download = filename; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  }
-
-  /** Build a use-case IDS and return its bytes (for pinning), rather than triggering a download. */
-  async idsBuildBlob(useCase: string): Promise<Blob> {
-    const res = await fetch(this.url(`/ids/build`), {
-      method: "POST", body: JSON.stringify({ use_case: useCase }),
-      headers: { "Content-Type": "application/json", ...this.authHeaders() } });
-    if (!res.ok) throw new Error(`ids build -> ${res.status}`);
-    return res.blob();
-  }
-  /** Whether a project has a pinned IDS (+ its size). */
-  projectIdsStatus(pid: string) {
-    return this.json<{ exists: boolean; bytes: number }>(`/projects/${pid}/ids`);
-  }
-  /** Pin an IDS to the project so /validate runs against it with no re-upload. */
-  async pinProjectIds(pid: string, ids: Blob, filename = "project.ids") {
-    const fd = new FormData(); fd.append("file", ids, filename);
-    const res = await fetch(this.url(`/projects/${pid}/ids`),
-      { method: "PUT", body: fd, headers: { ...this.authHeaders() } });
-    if (!res.ok) throw new Error(`pin IDS -> ${res.status}`);
-    return res.json() as Promise<{ stored: boolean; bytes: number }>;
-  }
-  unpinProjectIds(pid: string) {
-    return this.json<{ deleted: boolean }>(`/projects/${pid}/ids`, { method: "DELETE" });
-  }
 
   pricingReconcile(pid: string) {
     return this.json<{ lines: { material: string; quantity: number; unit: string; matched?: string | null;

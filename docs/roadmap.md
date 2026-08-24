@@ -643,7 +643,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉓ *(the only open slice; ②–㉒ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉔ *(the only open slice; ②–㉓ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(SHIPPED v0.3.1028, pending archive — this cell said "the three cache locations drop all seven security headers" for a day after they stopped doing so)* · R39-CONTAINER-PR *(SHIPPED v0.3.1055, pending archive)* · R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -2950,7 +2950,26 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉓ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉓ `/evm` SHIPPED v0.3.1075; ②–㉒ already shipped)*
+- ◧ ⭐ **SCALE-SEAM ㉔ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉔ `/ids` SHIPPED v0.3.1077; ②–㉓ already shipped)*
+  **㉔ took `/ids` and `/projects/{pid}/ids` out** (6 methods, one contiguous run; `client.ts`
+  3,066 → 3,026) as `apps/web/src/api/ids.ts`. The group was found by **measuring the longest
+  same-prefix run left in the file**, not by picking a domain that sounded tidy — `/specialty` is
+  the next at five, but its three types are interleaved with unrelated ones, so it is a more
+  careful extraction than a late-session slice should be.
+
+  ⚠️ **THIS EXTRACTION HAS BEEN LEAVING DOC COMMENTS BEHIND, and it has done it twice.** When a
+  method moves, its comment stays with the file and attaches itself to whatever follows. Two
+  distinct shapes, both measured:
+  * **Eleven methods documented as a NEIGHBOUR's job** — fixed v0.3.1075, gated by
+    `apps/web/src/api/docComments.test.ts`. `evm()` was described as `resourceLoading()`.
+  * **~25 ORPHANED comments** — a doc comment immediately followed by another doc comment, its own
+    declaration gone. Three sampled, all genuine and all traceable to this split:
+    `httpCore.ts` still documents `setToken`, which moved to `api/auth.ts`; `model.ts` still
+    documents TOPIC-BOARD, which moved to `api/topics.ts` in ⑳; `authoring.ts` still documents an
+    IFCPATCH-LIB dry-run scan. **Not yet fixed or gated** — the count is a candidate count, not a
+    verified one, and a gate that fails on 25 sites belongs with the cleanup rather than before
+    it. *A wrong docstring is worse than none; an orphaned one is how a wrong one is made.*
+
   **㉓ took `/projects/{pid}/evm` out** (6 methods, one contiguous run — the tightest group left;
   `client.ts` 3,120 → 3,066) as `apps/web/src/api/evm.ts`, with `EvmEarnedSchedule`, whose only
   readers were those methods. *Measuring which group to take found that `evm()` was documented as
