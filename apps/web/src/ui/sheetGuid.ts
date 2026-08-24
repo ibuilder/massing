@@ -17,10 +17,9 @@ export function guidFromEvent(e: Event): string | null {
   return g || null;
 }
 
-export function guidFromMarkupData(data: { guid?: unknown } | null | undefined): string | null {
-  const g = data?.guid;
-  return typeof g === "string" && g.trim() ? g.trim() : null;
-}
+// Moved to `drawings/markupLayer` and re-exported here for existing callers: this module imports
+// `viewer/planPane`, so a layer the plan pane mounts could not import it without closing a cycle.
+export { guidFromMarkupData } from "../drawings/markupLayer";
 
 /** Same `__viewer` hook the Cost/Deal rooms use — drawings must not import `app.ts`. */
 export function selectInViewer(guid: string): void {

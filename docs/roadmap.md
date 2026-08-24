@@ -2893,6 +2893,20 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   Nothing needs writing; it needs to be reachable from the Sheets canvas so a drawing is marked up
   where it is being looked at, rather than in a different room.
 
+  **✅ SLICE 6 SHIPPED v0.3.1071 — and it was a build, as the re-check below predicted.**
+  `apps/web/src/drawings/markupLayer.ts` is the layer, mountable on any surface; the Drawings room and
+  the viewer's plan pane both mount it, and **both key it `plan:<storey>`** — the same key — so a pin
+  dropped in one appears in the other with no syncing and no second store. The identity does the work.
+  Three steps, not one: **characterise, extract, mount.** `apps/web/src/drawings/drawings.test.ts`
+  came first — 13 tests over a 493-line class nothing had ever mounted — because refactoring untested
+  code is how a room quietly loses a feature with every suite still green. Those same tests then
+  proved the extraction changed nothing.
+  **The import-cycle guard caught the design error**: putting the layer under `drawings/` and importing
+  it from `viewer/planPane` closed `markupLayer → ui/sheetGuid → viewer/planPane → markupLayer`. The
+  fix was not a re-route — the layer now takes an `onReveal` dependency, because **how you reveal an
+  element is a property of the surface, not of the markup**, and a layer that reached for one host's
+  hook could only ever be mounted where that hook was right.
+
   **Re-checked 2026-08-23 — slice 6 is still open, and "an INTEGRATION, not a build" understates it.**
   The five client methods and their callers are all present, exactly as measured. But every caller
   lives inside the `DrawingsRoom` class in `apps/web/src/drawings/drawings.ts`, and the markup layer

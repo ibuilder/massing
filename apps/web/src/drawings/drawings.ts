@@ -4,8 +4,9 @@ import { noProjectHtml } from "../ui/empty";
 import { askText } from "../ui/prompt";
 import { sanitizeSvg } from "../ui/sanitizeSvg";
 import { escapeHtml } from "../ui/feedback";
-import { addHitTargets, guidFromEvent, guidFromMarkupData, postSheetPin, selectInViewer, syncPlanHighlight } from "../ui/sheetGuid";
+import { addHitTargets, guidFromEvent, postSheetPin, selectInViewer, syncPlanHighlight } from "../ui/sheetGuid";
 import { pdfFromPng, pngFromSvgElement } from "../ui/svgPdf";
+import { MarkupLayer } from "./markupLayer";
 
 /** 2D Drawings Set — a sheet-set browser for the server-generated plans / elevations / sections
  *  (a plan room, a PDF markup layer and field pins in one view). Left: a sheet register;
@@ -37,7 +38,7 @@ export class DrawingsUI {
   private current?: Sheet;
   private callouts = false;
   private markupOn = false;
-  private markup: DrawingMarkupItem[] = [];
+  private layer: MarkupLayer | null = null;
 
   constructor(host: HTMLElement, private host_: DrawingsHost) {
     this.root = host;
@@ -303,70 +304,27 @@ export class DrawingsUI {
   }
 
   // --- markup pins (server-persisted; promotable to RFIs) --------------------
-  private async loadPins() {
-    const pid = this.host_.projectId();
-    if (!pid || !this.current) { this.markup = []; this.renderPins(); return; }
-    // Unified sheet view: SVG pins AND the PDF-editor's takeoff markups (which carry a normalized anchor).
-    try {
-      const api = this.host_.api, id = this.current.id;
-      const [pins, takeoff] = await Promise.all([
-        api.drawingMarkup(pid, id),
-        api.drawingMarkup(pid, `${id}#pdf`).catch(() => [] as DrawingMarkupItem[]),
-      ]);
-      this.markup = [...pins, ...takeoff.filter((m) => m.data?.nx != null)];
-    } catch { this.markup = []; }
-    this.renderPins();
+  /** R36-VIEWER-SUBAPP slice 6: the pins are a mountable LAYER now, not private state here. */
+  private markupLayer(): MarkupLayer {
+    this.layer ??= new MarkupLayer({
+      pinLayer: this.pinLayer,
+      svgHost: this.svgHost,
+      getScale: () => this.scale,
+      api: this.host_.api,
+      projectId: () => this.host_.projectId(),
+      sheetId: () => this.current?.id ?? null,
+      setStatus: (m) => this.host_.setStatus(m),
+      // This room reveals in BOTH places: the 3D viewer selects the element and the plan lights it.
+      onReveal: (g) => { selectInViewer(g); syncPlanHighlight(this.svgHost, g); },
+      onCount: (n) => {
+        const t = this.root.querySelector<HTMLElement>("#dwg-toolbar .dwg-name");
+        if (t && n && this.current) t.textContent = `${this.current.label}  ·  ${n} markup${n > 1 ? "s" : ""}`;
+      },
+    });
+    return this.layer;
   }
 
-  private renderPins() {
-    this.pinLayer.innerHTML = "";
-    const pid = this.host_.projectId();
-    // content box (scale-invariant): normalized takeoff anchors map into this same space as pins
-    const svg = this.svgHost.querySelector("svg");
-    const rect = svg?.getBoundingClientRect();
-    const cw = rect && this.scale ? rect.width / this.scale : 0;
-    const ch = rect && this.scale ? rect.height / this.scale : 0;
-    this.markup.forEach((p, i) => {
-      const takeoff = p.kind && p.kind !== "pin" && p.data?.nx != null;
-      const tied = guidFromMarkupData(p.data);
-      const carried = !!p.data?.carried_from;        // MARKUP-2a: predates the current sheet revision
-      const el = document.createElement("div");
-      el.className = "dwg-pin" + (p.topic_id ? " linked" : "") + (takeoff ? " takeoff" : "") + (carried ? " carried" : "") + (tied ? " tied" : "");
-      el.textContent = takeoff ? "◆" : String(i + 1);
-      const left = takeoff && cw ? p.data!.nx! * cw : p.x;
-      const top = takeoff && ch ? p.data!.ny! * ch : p.y;
-      el.style.left = `${left}px`; el.style.top = `${top}px`;
-      const meas = takeoff && p.data?.value ? ` — ${p.data.value} ${p.data.unit || ""}` : "";
-      el.title = (p.note || (takeoff ? p.kind! : "")) + meas
-        + (tied ? `  · ${tied}` : "")
-        + (p.topic_id ? "  · linked to RFI" : "")
-        + (carried ? `  · carried from Rev ${p.data!.carried_from} — verify against the current revision` : "");
-      el.onclick = async (ev) => {
-        ev.stopPropagation();
-        if (tied) {
-          selectInViewer(tied);
-          syncPlanHighlight(this.svgHost, tied);
-        }
-        if (!pid) return;
-        const linked = p.topic_id ? " (already an RFI)" : "";
-        const choice = await askText(`Markup #${i + 1}`, {
-          label: `"${p.note || ""}"${linked} — type "rfi" to raise an RFI, or "del" to delete.`, value: "" });
-        if (choice == null) return;
-        try {
-          if (choice.trim().toLowerCase() === "rfi" && !p.topic_id) {
-            const r = await this.host_.api.promoteDrawingMarkup(pid, p.id);
-            this.host_.setStatus(`RFI raised: ${r.topic.title}`);
-          } else if (choice.trim().toLowerCase() === "del") {
-            await this.host_.api.deleteDrawingMarkup(pid, p.id);
-          }
-          await this.loadPins();
-        } catch { this.host_.setStatus("markup action failed (needs reviewer)"); }
-      };
-      this.pinLayer.appendChild(el);
-    });
-    const t = this.root.querySelector<HTMLElement>("#dwg-toolbar .dwg-name");
-    if (t && this.markup.length) t.textContent = `${this.current!.label}  ·  ${this.markup.length} markup${this.markup.length > 1 ? "s" : ""}`;
-  }
+  private async loadPins() { await this.markupLayer().load(); }
 
   /** MARKUP-2c: light-table overlay compare. The live sheet is tinted BLUE, an uploaded prior
    *  revision (SVG or PDF page 1) is laid over it tinted RED at adjustable opacity — unchanged

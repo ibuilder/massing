@@ -4,6 +4,45 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1071 (2026-08-24) — mark up the drawing where you are looking at it
+
+R36-VIEWER-SUBAPP slice 6. Marking up a sheet was only possible in the Drawings room, because the
+markup layer was private state on that room's class. It is now a layer, and the viewer's plan pane
+mounts it too.
+
+**Both surfaces key it `plan:<storey>` — the same key** — so a pin dropped in either appears in the
+other with no syncing and no second store. The identity does the work.
+
+### Three steps, not one
+
+The roadmap called this "an INTEGRATION, not a build". It was a build, and the order mattered:
+
+1. **Characterise.** `drawings.test.ts` — 13 tests over a 493-line class **nothing had ever mounted**.
+   Refactoring untested code is how a room quietly loses a feature while every suite stays green. The
+   tests pin what the class *does*, including the parts that look like defects, because a
+   characterization test that fixes behaviour on the way past stops being a record of what was there.
+2. **Extract.** `markupLayer.ts`, with those same tests proving the behaviour did not move.
+   `drawings.ts` 493 → 451 lines.
+3. **Mount.** `PlanPane` grew a pin layer as a sibling of the SVG host, so re-rendering the drawing
+   can no longer wipe the markup — which is exactly what `body.innerHTML = svg` did to anything else
+   living in there.
+
+### The import-cycle guard caught the design error
+
+Putting the layer under `drawings/` and importing it from `viewer/planPane` closed
+`markupLayer → ui/sheetGuid → viewer/planPane → markupLayer`. **The fix was not a re-route.** The
+layer now takes an `onReveal` dependency: *how you reveal an element is a property of the surface, not
+of the markup.* The Drawings room selects in the 3D viewer and lights the plan; the plan pane already
+has a pick handler and its own highlighter. A layer that reached for either directly could only be
+mounted where that one was correct — the coupling the extraction exists to remove.
+`guidFromMarkupData` moved with it (a pure data reader that was living among DOM helpers) and
+`ui/sheetGuid` re-exports it.
+
+### Wiring within the ratchet
+
+`app.ts` is pinned at its exact size, so the one dependency it had to pass was appended to an existing
+line rather than added as a new one — zero net growth.
+
 ## v0.3.1070 (2026-08-24) — a rotated model has the same storeys and the same origin
 
 R41-MODEL-ALIGN's remaining half. The existing alignment report says the discipline models *disagree*;

@@ -904,7 +904,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     activeStorey: () => activeStorey,
     notify,
     onPick: (guid) => { void selectByGuid(guid, true); },
-    headers: () => api.authHeaders(),
+    headers: () => api.authHeaders(), markupApi: api,   // R36 slice 6: pins on the Sheets canvas
   });
   container.appendChild(planPane.el);
   container.addEventListener("pointermove", (e) => {

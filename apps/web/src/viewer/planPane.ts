@@ -1,4 +1,5 @@
 import { groundToPlan, readPlanTransform, worldToPixel } from "./planTransform";
+import { MarkupLayer, type MarkupApi } from "../drawings/markupLayer";
 
 /**
  * R38-SYNC-VIEW + R38-SYNC-SELECT — the plan, in the room, and talking to it.
@@ -109,11 +110,25 @@ export interface PlanPaneDeps {
   onPick?: (guid: string) => void;
   /** The api client's auth headers — the pane fetches like every other client call. */
   headers?: () => Record<string, string>;
+  /**
+   * R36-VIEWER-SUBAPP slice 6 — the sheet markup layer, so a drawing is marked up where it is being
+   * looked at rather than in a different room.
+   *
+   * Optional: without it the pane behaves exactly as before. The markup key is `plan:<storey>`, the
+   * SAME key the Drawings room uses, so a pin dropped in either surface appears in the other with no
+   * syncing and no second store — the identity does the work.
+   */
+  markupApi?: MarkupApi;
 }
 
 export class PlanPane {
   readonly el = document.createElement("div");
   private body = document.createElement("div");
+  /** The rendered plan. Separate from `body` so the pin layer survives a re-render. */
+  private svgHost = document.createElement("div");
+  /** Absolutely-positioned markup pins over the plan. */
+  private pinLayer = document.createElement("div");
+  private markup: MarkupLayer | null = null;
   private last: { storey: string | null; scale: number } | null = null;
   private open = false;
   /** Client-side zoom (CSS width %). The server `scale` param stays fixed: zoom is presentation,
@@ -121,6 +136,29 @@ export class PlanPane {
   private zoomPct = 100;
   /** The selected element, re-lit after every refetch so a storey change keeps the selection. */
   private sel: string | null = null;
+  /**
+   * Load the markup for the storey on screen. A no-op without `markupApi`, so a host that has not
+   * wired it gets the pane it always had.
+   */
+  private async loadMarkup(): Promise<void> {
+    const api = this.d.markupApi;
+    if (!api) return;
+    this.markup ??= new MarkupLayer({
+      pinLayer: this.pinLayer, svgHost: this.svgHost,
+      getScale: () => this.zoomPct / 100,
+      api,
+      projectId: () => this.d.projectId(),
+      // The same key the Drawings room writes: `plan:<storey>`. A pane showing the whole model has no
+      // sheet to key against, so it shows no pins rather than guessing one.
+      sheetId: () => { const st = this.d.activeStorey(); return st ? `plan:${st}` : null; },
+      setStatus: (m) => this.d.notify(m, "info"),
+      // The pane already has a pick handler and its own highlighter — it does not need the viewer
+      // hook the Drawings room uses, which is precisely why this is injected rather than imported.
+      onReveal: (g) => { this.d.onPick?.(g); syncPlanHighlight(this.body, g); },
+    });
+    await this.markup.load();
+  }
+
   /** Live 3D cursor, drawn in SVG user space from the plan's own transform. Hidden when unknown. */
   private cursor = document.createElementNS("http://www.w3.org/2000/svg", "circle");
   /** Last ground point, so a drawing refresh can re-paint without waiting for pointermove. */
@@ -167,7 +205,13 @@ export class PlanPane {
       void this.refresh(true);
     };
     bar.append(title, lvl, disc, zoomOut, zoomIn, pop);
-    this.body.style.cssText = "flex:1;overflow:auto;background:#fff";
+    this.body.style.cssText = "flex:1;overflow:auto;background:#fff;position:relative";
+    // The plan and the pins are siblings, so re-rendering the drawing cannot wipe the markup layer —
+    // which is exactly what `body.innerHTML = svg` used to do to anything else living in here.
+    this.svgHost.style.cssText = "position:relative";
+    this.pinLayer.className = "dwg-pins";
+    this.pinLayer.style.cssText = "position:absolute;inset:0;pointer-events:none";
+    this.body.append(this.svgHost, this.pinLayer);
     // Delegated ONCE on the persistent body, not per refresh — a listener per refetch is how a
     // single click comes to select the same element N times.
     this.cursor.setAttribute("r", "4");
@@ -221,7 +265,7 @@ export class PlanPane {
     const pid = this.d.projectId();
     const lbl = this.el.querySelector<HTMLElement>(".plan-pane-level");
     if (lbl) lbl.textContent = this.levelLabel();
-    if (!pid) { this.body.innerHTML = ""; return; }
+    if (!pid) { this.svgHost.innerHTML = ""; this.pinLayer.innerHTML = ""; return; }
     const next = { storey: this.d.activeStorey(), scale: 100 };
     if (!force && !needsRefetch(this.last, next)) return;
     this.last = next;
@@ -238,14 +282,16 @@ export class PlanPane {
       // The SVG is server-generated from our own geometry, not user content; it is inserted as
       // markup because that is what it is. It carries no scripts — the generator emits paths, text
       // and style only.
-      this.body.innerHTML = svg;
+      this.svgHost.innerHTML = svg;
       const el = this.body.querySelector("svg");
       if (el) { el.setAttribute("width", `${this.zoomPct}%`); el.removeAttribute("height"); }
       addHitTargets(this.body);
       syncPlanHighlight(this.body, this.sel);      // a storey change must not lose the selection
       this.attachCursor();
+      void this.loadMarkup();
     } catch (err) {
-      this.body.innerHTML = "";
+      this.svgHost.innerHTML = "";
+      this.pinLayer.innerHTML = "";
       const p = document.createElement("div");
       p.style.cssText = "padding:10px;font-size:12px;color:#334155";
       p.textContent = `No plan for this level yet (${(err as Error).message}).`;
