@@ -4,6 +4,56 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1085 (2026-08-24) — "Clear cached data" kept nothing, and said it kept everything
+
+Found by sweeping for more instances of yesterday's favourites defect — state that is read but cannot
+be written. This is the same class and worse: a live button in Settings, a promise printed beside it,
+and a green test file vouching for the wrong thing.
+
+**`KEEP_KEYS` matched no key this app writes.** It named `aec_token`, `aec_user`, `shell-spine`,
+`aec_persona`, `aec_ws`, plus the prefixes `prefs:` and `aec_pref_`. The session key is **`aec-token`**
+— a hyphen, not an underscore — and the other six strings appear nowhere in this repository outside
+`clearCache.ts` and its test. `aec_user` matched exactly and has never been written by any commit.
+
+So `isKeeper` returned false for every key that can exist. Pressing the button signed the user out,
+wiped their settings, persona, workspace and every portal preference, and deleted `aec-field-queue` —
+**unsynced field captures, with photos** — then reported *"Kept your sign-in and preferences (0
+settings)"*, a count that states the bug, beneath a note reading "Your sign-in and preferences are
+kept", and told them to reload. Which lands on the sign-in screen.
+
+**The test was green because its fixtures were invented.** It asserted `isKeeper("aec_token")`,
+`isKeeper("shell-spine")`, `isKeeper("prefs:rfi:columns")`, `isKeeper("aec_pref_density")` — every one
+a key with no writer — and its "cached payloads do NOT survive" cases (`cache:modules`,
+`aec_demo_snapshot`, `rooms:proj-1`) were equally fictional. It asserted the constant back to itself
+over a namespace that did not exist: thorough, readable, and about nothing.
+
+### What changed
+
+**The direction of the default, which is the actual fix.** An allowlist destroys any key nobody
+thought about, or that got renamed. A denylist keeps it. Drift is inevitable; what a design chooses is
+what drift costs. `CACHE_KEY_PREFIXES` is empty today, and that is the honest answer rather than an
+oversight — every key this app writes is a user choice or pending work, and the caches this button
+exists for live in the Cache API, IndexedDB and the service worker.
+
+**The upload queue survives.** `aec-offline` holds real `File`/`Blob` objects captured offline and not
+yet sent; deleting it is losing work, not evicting a copy. It is skipped and reported as kept.
+
+**`clearCacheKeys.test.ts` enumerates every localStorage key in `src/`** and checks both directions: a
+key that exists must be classified, and a declared prefix must match something that exists. The second
+is what would have caught the original list the day it rotted. Mutation-tested by reintroducing the
+defect: a `shell-spine` prefix is flagged as matching nothing, and an `aec_`/`portal-` prefix is
+flagged for the eight real keys it would delete.
+
+Writing that scan produced the same failure one level down, twice — and both are why it now refuses to
+skip rather than skipping quietly. It could not resolve `keyFor(pid)` (the call regex stops at the
+paren, so the identifier came out as `keyForpid`), and it could not resolve
+`const RECENT_KEY = ` + "`lib-recent:${pid}`" + ` — **a real key my own manual enumeration of this app
+had missed entirely.** An unread key is an unclassified key, so an unresolved argument now fails the
+build instead of being passed over.
+
+The Settings note is narrower than it was, because the behaviour is: it no longer claims to clear
+"offline data".
+
 ## v0.3.1084 (2026-08-24) — favourites could be read for two months and set by nobody
 
 Found while measuring `portal.ts` for the next REL-4 extraction. The cluster I was about to extract

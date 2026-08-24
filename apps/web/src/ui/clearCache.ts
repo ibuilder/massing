@@ -18,21 +18,47 @@
  * an all-or-nothing that aborts halfway and says nothing.
  */
 
-/** localStorage keys that survive a clear, because they are the user's choices — not cached data. */
-export const KEEP_KEYS: readonly string[] = [
-  "aec_token",        // the session — clearing a cache must not sign you out
-  "aec_user",
-  "shell-spine",      // the shell they chose (v0.3.715); resetting it would look like a bug
-  "aec_persona",      // "viewing as" role
-  "aec_ws",           // workspace tab
-];
+/**
+ * localStorage prefixes that are REGENERABLE CACHE and may be cleared.
+ *
+ * **This used to be the other way round — an allowlist of keys to KEEP — and every entry in it was
+ * wrong.** `KEEP_KEYS` named `aec_token`, `aec_user`, `shell-spine`, `aec_persona`, `aec_ws` plus the
+ * prefixes `prefs:` and `aec_pref_`. The session key is actually **`aec-token`** (hyphen, not
+ * underscore) and the other six strings appear nowhere in this repository outside this file and its
+ * test. `aec_user` matched exactly and has never been written by any commit.
+ *
+ * So `isKeeper` returned false for every key that can exist, and the button cleared the session, the
+ * settings, the persona, the workspace, every portal preference, the saved selection sets, the studio
+ * graph, and `aec-field-queue` — which holds **unsynced field captures**. It then reported *"Kept your
+ * sign-in and preferences (0 settings)"*, a count that states the bug, under a Settings note reading
+ * "Your sign-in and preferences are kept", and told the user to reload.
+ *
+ * **The direction of the default is the actual fix.** With an allowlist, a key nobody thought about —
+ * or one that got renamed — is DESTROYED. With a denylist it is kept. Drift is inevitable; what is
+ * chosen here is what drift costs. `clearCacheKeys.test.ts` enumerates every localStorage key literal
+ * in `src/` so a new one cannot appear unclassified, and requires every prefix below to match a key
+ * that really exists, which is the check that would have caught the original list on the day it rotted.
+ *
+ * **It is empty, and that is the honest answer rather than an oversight.** Every key this app writes
+ * is a user choice or pending data; the caches this button exists for live in the Cache API,
+ * IndexedDB and the service worker, all cleared above. An entry belongs here only when something
+ * genuinely caches a regenerable server payload in localStorage.
+ */
+export const CACHE_KEY_PREFIXES: readonly string[] = [];
 
-/** True for a key holding user preference rather than cached payload. Prefix-matched. */
+/** True for a key holding user state rather than cached payload — i.e. anything not named above. */
 export function isKeeper(key: string): boolean {
-  return KEEP_KEYS.some((k) => key === k || key.startsWith(`${k}:`))
-    || key.startsWith("prefs:")            // per-module column choices, filters, collapse state
-    || key.startsWith("aec_pref_");
+  return !CACHE_KEY_PREFIXES.some((p) => key === p || key.startsWith(p));
 }
+
+/**
+ * IndexedDB databases that hold PENDING WORK and must survive a clear.
+ *
+ * `aec-offline` is the upload queue: real `File`/`Blob` objects captured while offline and not yet
+ * sent. Deleting it is not a cache eviction, it is losing the user's work — and unlike a preference
+ * they cannot recreate it by clicking around again.
+ */
+export const KEEP_DATABASES: readonly string[] = ["aec-offline"];
 
 export interface ClearResult {
   caches: number;
@@ -40,6 +66,8 @@ export interface ClearResult {
   localKeys: number;
   serviceWorkers: number;
   kept: number;
+  /** Databases skipped because they hold pending work — see `KEEP_DATABASES`. */
+  keptDbs: number;
   failed: string[];
   /** Human summary — counts, not reassurance. */
   detail: string;
@@ -70,7 +98,7 @@ export async function clearCaches(deps: ClearDeps = {}): Promise<ClearResult> {
   const sw = deps.serviceWorker ?? g.navigator?.serviceWorker;
 
   const failed: string[] = [];
-  let caches = 0, databases = 0, localKeys = 0, serviceWorkers = 0, kept = 0;
+  let caches = 0, databases = 0, localKeys = 0, serviceWorkers = 0, kept = 0, keptDbs = 0;
 
   // 1. Cache API — the bundles, WASM and .frag geometry.
   try {
@@ -85,6 +113,9 @@ export async function clearCaches(deps: ClearDeps = {}): Promise<ClearResult> {
     if (idb?.databases) {
       for (const db of await idb.databases()) {
         if (!db.name) continue;
+        // Pending work, not cache — see KEEP_DATABASES. Skipped rather than deleted, and counted so
+        // the summary can say it was kept instead of quietly omitting it.
+        if (KEEP_DATABASES.includes(db.name)) { keptDbs++; continue; }
         await new Promise<void>((resolve) => {
           const req = idb.deleteDatabase(db.name!);
           // `blocked` fires when another tab holds the database open. Resolve rather than hang: the
@@ -123,7 +154,12 @@ export async function clearCaches(deps: ClearDeps = {}): Promise<ClearResult> {
     `${localKeys} stored item${localKeys === 1 ? "" : "s"}`,
   ];
   if (serviceWorkers) parts.push(`${serviceWorkers} service worker${serviceWorkers === 1 ? "" : "s"}`);
-  let detail = `Cleared ${parts.join(", ")}. Kept your sign-in and preferences (${kept} setting${kept === 1 ? "" : "s"}).`;
+  // Say what was kept in the same breath as what went, and say it in countable terms. The previous
+  // wording — "Kept your sign-in and preferences" with a number that was always 0 — was a reassurance
+  // contradicted by its own figure, which is worse than either half alone.
+  const keptParts = [`${kept} setting${kept === 1 ? "" : "s"}`];
+  if (keptDbs) keptParts.push(`${keptDbs} queue${keptDbs === 1 ? "" : "s"} of unsent work`);
+  let detail = `Cleared ${parts.join(", ")}. Kept your sign-in and ${keptParts.join(" and ")}.`;
   if (failed.length) detail += ` Could not clear: ${failed.join("; ")}.`;
-  return { caches, databases, localKeys, serviceWorkers, kept, failed, detail };
+  return { caches, databases, localKeys, serviceWorkers, kept, keptDbs, failed, detail };
 }

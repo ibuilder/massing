@@ -3315,6 +3315,25 @@ Scores for the record: defect risk 7.3/10, maintainability 8.5/10, static perfor
   trusted to: every method in that catalog had a caller — *each other*. `apps/web/src/portal/favourites.test.ts`
   builds the real rail, clicks the real control and reads the preference back, and was mutation-tested
   against a star that only re-styles itself.
+
+  **The sweep that followed found a worse one — v0.3.1085.** Looking for other state that is read but
+  cannot be written turned up `apps/web/src/ui/clearCache.ts`, whose `KEEP_KEYS` matched **no key this
+  app writes**: the session is `aec-token` and the list said `aec_token`, while its other six strings
+  (`shell-spine`, `aec_persona`, `aec_ws`, `prefs:`, `aec_pref_`, and `aec_user`, which no commit has
+  ever written) appear nowhere else in the repository. So Settings → "Clear cached data" signed the
+  user out, wiped every preference, and deleted `aec-field-queue` — unsynced field captures with
+  photos — while reporting *"Kept your sign-in and preferences (0 settings)"* under a note promising
+  the opposite.
+
+  Its test was green because every fixture in it was invented: it asserted `isKeeper` against six keys
+  that do not exist. **A test whose fixtures are fictional cannot fail for the reason it exists.**
+
+  The fix inverts the default — keep unless positively identified as regenerable cache — because an
+  allowlist destroys what nobody thought of and a denylist keeps it, and drift is inevitable either
+  way. `apps/web/src/ui/clearCacheKeys.test.ts` enumerates every localStorage key in `src/` and checks
+  both directions, the second being the one that would have caught the original list on the day it
+  rotted. Writing that scan reproduced the same failure one level down twice, which is why an argument
+  it cannot resolve now fails the build rather than being skipped.
 - **REL-7** — evidence-gated dead-code removal *(needs RT-KNIP first — see Gated)*.
 ## 📦 R28 — ONE PROJECT, ONE FILE *(research 2026-07-26; the model/project split)*
 

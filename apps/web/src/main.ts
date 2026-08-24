@@ -1597,8 +1597,11 @@ function settingsModal() {
   cacheWrap.innerHTML = '<div class="section-title" style="margin-top:12px">Local data</div>';
   const cacheNote = document.createElement("div"); cacheNote.className = "meta";
   cacheNote.style.cssText = "font-size:12px;margin-bottom:6px";
-  cacheNote.textContent = "Clears downloaded geometry, cached pages and offline data. Your sign-in "
-    + "and preferences are kept.";
+  // Says what it does, and only what it does. This read "Clears downloaded geometry, cached pages and
+  // offline data. Your sign-in and preferences are kept." — while the code kept nothing and deleted
+  // the unsent-upload queue. The note is now narrower than the old promise because the BEHAVIOUR is.
+  cacheNote.textContent = "Clears downloaded geometry and cached pages. Your sign-in, your settings "
+    + "and anything not yet uploaded are kept.";
   const clearBtn = document.createElement("button");
   clearBtn.className = "mini-btn"; clearBtn.textContent = "Clear cached data";
   const cacheOut = document.createElement("div"); cacheOut.className = "meta";

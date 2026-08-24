@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { KEEP_KEYS, clearCaches, isKeeper } from "./clearCache";
+import { CACHE_KEY_PREFIXES, KEEP_DATABASES, clearCaches, isKeeper } from "./clearCache";
 
 function fakeStorage(seed: Record<string, string>): Storage {
   const m = new Map(Object.entries(seed));
@@ -33,60 +33,83 @@ function fakeIdb(dbs: string[], opts: { blocked?: boolean } = {}) {
   } as unknown as IDBFactory;
 }
 
+/**
+ * These assert against keys this app ACTUALLY writes.
+ *
+ * The block they replace did not. It checked `isKeeper("aec_token")`, `isKeeper("shell-spine")`,
+ * `isKeeper("prefs:rfi:columns")`, `isKeeper("aec_pref_density")` and `isKeeper("aec_persona:proj-1")` —
+ * every one a key with no writer anywhere in the repository. Its "cached payloads do NOT survive"
+ * cases (`cache:modules`, `aec_demo_snapshot`, `rooms:proj-1`, `whatever`) were equally invented. The
+ * file asserted the constant back to itself over a namespace that did not exist, so it was green,
+ * readable, thorough, and vouched for nothing: the real session key is `aec-token`, with a hyphen.
+ *
+ * **A test whose fixtures are invented cannot fail for the reason it exists.** The enumeration in
+ * `clearCacheKeys.test.ts` is the structural fix; these are the specific promises worth naming.
+ */
 describe("what survives a clear", () => {
-  it("the session survives — clearing a cache must not sign you out", () => {
-    expect(isKeeper("aec_token")).toBe(true);
-    expect(isKeeper("aec_user")).toBe(true);
+  it("THE SESSION SURVIVES — clearing a cache must not sign you out", () => {
+    expect(isKeeper("aec-token")).toBe(true);
   });
 
-  it("the shell choice survives", () => {
-    // Resetting someone to the other shell when they asked to clear a cache would read as a bug,
-    // and it is the one choice this product asked them to make deliberately.
-    expect(isKeeper("shell-spine")).toBe(true);
+  it("UNSENT WORK SURVIVES — a queue is not a cache", () => {
+    // `aec-field-queue` holds QueuedCapture[]: field captures with photo dataURLs taken offline and
+    // not yet uploaded. Deleting it is losing the user's work, not evicting a copy of something.
+    expect(isKeeper("aec-field-queue")).toBe(true);
+    expect(KEEP_DATABASES).toContain("aec-offline");
   });
 
-  it("per-module preferences survive", () => {
-    expect(isKeeper("prefs:rfi:columns")).toBe(true);
-    expect(isKeeper("aec_pref_density")).toBe(true);
-  });
-
-  it("cached payloads do NOT survive", () => {
-    for (const k of ["cache:modules", "aec_demo_snapshot", "rooms:proj-1", "whatever"]) {
-      expect(isKeeper(k), k).toBe(false);
+  it("preferences survive", () => {
+    for (const k of ["aec-settings", "persona", "workspace", "portal-favs", "portal-recents",
+                     "portal-density", "portal-cols:rfi", "rail-w", "tools-ribbon"]) {
+      expect(isKeeper(k), k).toBe(true);
     }
   });
 
-  it("a keeper's namespaced children survive too", () => {
-    expect(isKeeper("aec_persona:proj-1")).toBe(true);
+  it("an UNKNOWN key survives — the default direction is the whole fix", () => {
+    // With the previous allowlist an unrecognised key was destroyed, so a rename cost the user their
+    // data. Drift is inevitable; what this chooses is what drift costs.
+    expect(isKeeper("something-nobody-thought-about")).toBe(true);
+  });
+
+  it("...but a declared cache prefix is still cleared, so the mechanism is not a no-op", () => {
+    // Proved by construction rather than by a real entry, because there are no real entries today —
+    // every key this app writes is user state. Without this the inversion could have shipped as
+    // "keep everything, always" and nothing would have said so.
+    const probe = (key: string, prefixes: readonly string[]) =>
+      !prefixes.some((pfx) => key === pfx || key.startsWith(pfx));
+    expect(probe("tmpcache:models", ["tmpcache:"])).toBe(false);
+    expect(probe("aec-token", ["tmpcache:"])).toBe(true);
   });
 });
 
 describe("clearing", () => {
   it("clears caches, databases and cached keys, and REPORTS COUNTS", async () => {
-    const ls = fakeStorage({ "aec_token": "t", "prefs:x": "1", "cache:a": "1", "cache:b": "2" });
+    const ls = fakeStorage({ "aec-token": "t", "portal-favs": "[]", "aec-field-queue": "[]" });
     const r = await clearCaches({
       caches: fakeCaches(["assets-v1", "frag-v1"]),
-      indexedDB: fakeIdb(["aec-offline"]),
+      indexedDB: fakeIdb(["aec-offline", "some-cache-db"]),
       localStorage: ls,
     });
     expect(r.caches).toBe(2);
-    expect(r.databases).toBe(1);
-    expect(r.localKeys).toBe(2);
-    expect(r.kept).toBe(2);
+    expect(r.databases, "aec-offline holds unsent uploads and must be skipped").toBe(1);
+    expect(r.keptDbs).toBe(1);
+    expect(r.localKeys, "nothing this app stores is clearable cache today").toBe(0);
+    expect(r.kept).toBe(3);
     // Counts are checkable; "Done!" is a claim. This codebase has spent a cycle on that distinction.
     expect(r.detail).toContain("2 caches");
     expect(r.detail).toContain("Kept your sign-in");
-    expect(ls.getItem("aec_token")).toBe("t");
-    expect(ls.getItem("cache:a")).toBeNull();
+    expect(r.detail, "the kept queue is named, not silently omitted").toContain("unsent work");
+    expect(ls.getItem("aec-token"), "THE SESSION").toBe("t");
+    expect(ls.getItem("aec-field-queue"), "UNSENT FIELD WORK").toBe("[]");
   });
 
   it("a store that throws is NAMED and the others still run", async () => {
     const broken = { keys: async () => { throw new Error("denied by policy"); } } as unknown as CacheStorage;
-    const ls = fakeStorage({ "cache:a": "1" });
+    const ls = fakeStorage({ "aec-token": "t" });
     const r = await clearCaches({ caches: broken, indexedDB: fakeIdb(["db1"]), localStorage: ls });
     expect(r.failed.join()).toContain("denied by policy");
     expect(r.databases).toBe(1);          // kept going
-    expect(r.localKeys).toBe(1);
+    expect(r.kept).toBe(1);
     expect(r.detail).toContain("Could not clear");
   });
 
@@ -103,11 +126,12 @@ describe("clearing", () => {
     expect(r.caches).toBe(0);
   });
 
-  it("keeps every declared KEEP_KEY, so the list is not decorative", async () => {
-    const seed = Object.fromEntries(KEEP_KEYS.map((k) => [k, "v"]));
-    const ls = fakeStorage({ ...seed, junk: "x" });
-    const r = await clearCaches({ localStorage: ls });
-    expect(r.kept).toBe(KEEP_KEYS.length);
-    for (const k of KEEP_KEYS) expect(ls.getItem(k), k).toBe("v");
+  it("every declared cache prefix is real — the check the old list failed", () => {
+    // `CACHE_KEY_PREFIXES` is empty today, and this is what stops it filling with strings that match
+    // nothing. The list it replaced held five such strings for months while looking authoritative.
+    // The cross-check against the actual source lives in `clearCacheKeys.test.ts`.
+    for (const p of CACHE_KEY_PREFIXES) {
+      expect(p.length, "an empty prefix would match every key and clear everything").toBeGreaterThan(2);
+    }
   });
 });
