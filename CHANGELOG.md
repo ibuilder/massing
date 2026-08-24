@@ -4,6 +4,35 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1082 (2026-08-24) — the leaf that was a leaf, and the one that only looked like one
+
+**REL-4.** `renderDeveloperHome` out of `portal.ts` into `portal/homes/developerHome.ts`
+(1,473 → 1,400 lines). Seventy-nine lines is a small slice, and small was the correct answer rather
+than a disappointing one.
+
+The `this.` references of every candidate were grepped **before** naming the slice:
+
+| method | lines | touches on the class |
+|---|---|---|
+| `renderDeveloperHome` | 79 | `host`, `mods` — a leaf |
+| `renderDesignHome` | 94 | + `activeKey`, `buildNav`, and five sibling renderers |
+| `renderPxBand` | 54 | + `activeKey`, `buildNav`, `renderBudget`, `renderScheduleViews` |
+| `renderPortfolio` | 116 | + `bar`, `root`, `panelCtx`, `renderHome` |
+
+The two persona homes sit next to each other, are named alike, take the same four arguments and are
+called on adjacent lines — and only one is a leaf. Taking `renderDesignHome` too would have meant
+inventing a callback bag for seven siblings: coupling added in the name of removing it. That is three
+times this cycle that adjacency was not a relationship, and the first time it was measured before the
+slice was chosen instead of during it.
+
+**A size ratchet for `portal.ts` ships with it, at 1,400.** The file had none, so it lived under a
+global ceiling it is nowhere near — the extraction would have bought nothing any check could see, and
+the next dozen additions could have put the lines back while the work still read as done. *An
+extraction without a ratchet is a rearrangement.* Mutation-verified: at 1,399 the build fails.
+
+`portal/homes/` needed an owning lane (A, matching `portal.ts`; B owns `portal/panels/`). The
+unowned-files gate caught that on the first run, which is what it is for.
+
 ## v0.3.1081 (2026-08-24) — third-party plugin code stops running in the API process
 
 **SEC-PLUGIN-LOADER.** `plugin_registry` used to `exec_module` a plugin's entry in this interpreter

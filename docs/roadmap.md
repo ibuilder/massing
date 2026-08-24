@@ -635,7 +635,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX *(✅ SHIPPED v0.3.947 + routing, pending archive)* · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/homes/`, `main.ts` | R24-RUNS-INBOX *(✅ SHIPPED v0.3.947 + routing, pending archive)* · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER *(✅ SHIPPED v0.3.1081 — the plugin process boundary, pending archive)* · PERF-WORKERS ① · PERF-THREADS ③ *(✅ SHIPPED v0.3.1074 — the parse cap, pending archive)* · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ① *(✅ COMPLETE — front half v0.3.876, store sites v0.3.941–942)* · R41-UPLOAD-WARK *(✅ COMPLETE v0.3.1069 — the resumable handshake, its consumer and the client)* · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | R38-ARRAY-LIVE ③ *(✅ SHIPPED — persist + re-edit UI, pending archive)* · R21-4D-CLASH *(✅ SHIPPED — phase 1 v0.3.682 + install-before-support, pending archive)* · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
@@ -3221,7 +3221,39 @@ treat it as a lint-level count, not a defect count, unless someone bounds it by 
 Scores for the record: defect risk 7.3/10, maintainability 8.5/10, static performance 9.9/10.
 
 
-- **REL-4 leaves** *(M)* — `portal.ts` next leaf + `viewer/app.ts` leaves.
+- ◧ **REL-4 leaves** *(M)* — `portal.ts` next leaf + `viewer/app.ts` leaves.
+
+  **First `portal.ts` leaf out in v0.3.1082: `renderDeveloperHome` → `apps/web/src/portal/homes/developerHome.ts`**
+  (1,473 → 1,400). Small on purpose. The `this.` references of every candidate were grepped *before*
+  naming the slice, and the result changed the plan:
+
+  | method | lines | what it touches on the class |
+  |---|---|---|
+  | `renderDeveloperHome` | 79 | `host`, `mods` — **a leaf** |
+  | `renderDesignHome` | 94 | + `activeKey`, `buildNav`, and five sibling `render*` methods |
+  | `renderPxBand` | 54 | + `activeKey`, `buildNav`, `renderBudget`, `renderScheduleViews` |
+  | `renderPortfolio` | 116 | + `bar`, `root`, `panelCtx`, `renderHome` |
+
+  The two persona homes sit next to each other, are named alike, take the same four arguments and are
+  called on adjacent lines — **and only one of them is a leaf.** Moving `renderDesignHome` would mean
+  inventing a callback bag for seven siblings: coupling added in the name of removing it. That makes
+  three separate times this cycle that adjacency turned out not to be a relationship (SCALE-SEAM ㉕'s
+  `MaterialEntry`, ㉖'s two RFI methods, and this) — and the first time it was **measured before the
+  slice was chosen** rather than discovered while making it.
+
+  **A size ratchet was added for `portal.ts` in the same release**, at 1,400. It had none, so it lived
+  under the global ceiling it is nowhere near — meaning the extraction bought nothing any check could
+  see, and the next dozen additions could have put the lines straight back while the work still read
+  as done. **An extraction without a ratchet is a rearrangement.** Verified by mutation: setting the
+  cap to 1,399 fails the build.
+
+  `portal/homes/` also needed an owning lane — Lane A, matching `portal.ts` itself, the same way Lane
+  B owns `portal/panels/`. The unowned-files gate caught that on the first run, which is what it is
+  for.
+
+  Next: `renderModuleCatalog` (56 lines) is the better second slice — its four dependencies
+  (`catalogGroup`, `mods`, `openModule`, `refreshCatalog`) are a self-contained cluster that can move
+  with it.
 - **REL-7** — evidence-gated dead-code removal *(needs RT-KNIP first — see Gated)*.
 ## 📦 R28 — ONE PROJECT, ONE FILE *(research 2026-07-26; the model/project split)*
 

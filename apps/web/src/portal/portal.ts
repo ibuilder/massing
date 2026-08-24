@@ -542,85 +542,6 @@ export class PortalUI {
     host.appendChild(card);
   }
 
-  /** Developer (real-estate) home: deal returns + RE register KPIs (listings / comps / capital /
-   *  leases / feasibility). Every card jumps to its register; underwriting lives one click away. */
-  private async renderDeveloperHome(root: HTMLElement, pid: string,
-      el: (tag: string, cls?: string) => HTMLElement, jump: (key: string, state?: string) => void) {
-    const head = el("div", "section-title"); head.style.cssText = "display:flex;justify-content:space-between;align-items:center";
-    head.append("Developer — real estate");
-    const uw = el("button", "tool-btn") as HTMLButtonElement;
-    uw.textContent = "Underwriting →"; uw.title = "Open the proforma / underwriting workspace";
-    uw.onclick = () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "finance" }));
-    head.append(uw); root.appendChild(head);
-
-    // returns strip — blended proforma returns for the deal (hides cleanly if no proforma yet)
-    const ret = el("div"); root.appendChild(ret);
-    void this.host.api.portfolio().then((pf) => {
-      if (!pf.deal_count) return;
-      const t = pf.totals || {};
-      const irr = (t.equity_irr as number | null) ?? pf.deals[0]?.equity_irr ?? null;
-      const em = (t.equity_multiple as number | null) ?? pf.deals[0]?.equity_multiple ?? null;
-      const card = el("div", "dash-card"); card.style.marginBottom = "10px";
-      card.style.cssText += ";cursor:pointer";
-      card.title = "Open underwriting"; card.onclick = () => window.dispatchEvent(new CustomEvent("aec:goto-workspace", { detail: "finance" }));
-      const kpi = (v: string, l: string, tone?: string) =>
-        `<div class="dash-card" style="flex:1;text-align:center"><div style="font-size:18px;font-weight:700${tone ? `;color:${tone}` : ""}">${v}</div><div class="meta">${l}</div></div>`;
-      card.innerHTML = `<div class="meta" style="margin-bottom:6px">📊 Deal returns · ${pf.deal_count} scenario${pf.deal_count === 1 ? "" : "s"}</div>`
-        + `<div class="dash-cols" style="display:flex;gap:8px">`
-        + kpi(irr == null ? "—" : `${(irr * 100).toFixed(1)}%`, "Equity IRR", irr != null && irr >= 0.15 ? "var(--status-good)" : irr != null && irr < 0.08 ? "var(--status-warn)" : undefined)
-        + kpi(em == null ? "—" : `${em.toFixed(2)}×`, "Equity multiple")
-        + kpi(usd((t.equity as number) || 0), "Equity")
-        + kpi(usd((t.loan as number) || 0), "Loan")
-        + `</div>`;
-      root.insertBefore(card, ret.nextSibling);
-    }).catch(() => {});
-
-    // RE register KPIs from the dashboard's per-module counts
-    try {
-      const d = await this.host.api.dashboard(pid);
-      const cnt = (k: string) => d.by_module.find((m) => m.key === k)?.count ?? 0;
-      const active = (k: string, states: string[]) => {
-        const bm = d.by_module.find((m) => m.key === k); if (!bm) return 0;
-        return states.reduce((s, st) => s + (bm.by_state[st] ?? 0), 0);
-      };
-      const kpis = el("div", "kpi-grid");
-      const cards: [string, number, (() => void) | undefined][] = [
-        ["Active listings", active("listing", ["active", "listed", "available"]) || cnt("listing"), () => jump("listing")],
-        ["Comparables", cnt("comparable"), () => jump("comparable")],
-        ["Investors", cnt("investor"), () => jump("investor")],
-        ["Leases", cnt("lease"), () => jump("lease")],
-        ["Feasibility", cnt("zoning"), () => jump("zoning")],
-      ];
-      for (const [label, val, onClick] of cards) {
-        const c = el("div", "kpi" + (onClick ? " kpi-click" : "")) as HTMLElement;
-        c.innerHTML = `<div class="kpi-v">${val}</div><div class="kpi-l">${label}</div>`;
-        if (onClick) { c.onclick = onClick; c.tabIndex = 0; c.setAttribute("role", "button"); c.onkeydown = (e) => { if ((e as KeyboardEvent).key === "Enter") onClick(); }; }
-        kpis.appendChild(c);
-      }
-      // UX-KPI — the one-line narrative band above the tiles, so the home says what the numbers mean
-      // instead of leaving the reader to total them. Deterministic template text, never an LLM; a
-      // register with nothing in it is simply absent rather than reported as a zero.
-      const narrative = countNarrative(
-        cards.map(([label, val]) => [val, label.toLowerCase()] as [number, string]),
-        "No developer registers have records yet");
-      const band = el("div", "kpi-narrative"); band.style.margin = "2px 0 6px";
-      band.textContent = narrative;
-      root.appendChild(band);
-      root.appendChild(kpis);
-    } catch { /* dashboard unavailable — KPI grid just omitted */ }
-
-    // quick-create row for the common developer records
-    const quick = el("div"); quick.style.cssText = "margin-top:10px";
-    quick.innerHTML = `<div class="section-title">Quick add</div>`;
-    const qrow = el("div"); qrow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;margin-top:4px";
-    for (const [k, lbl] of [["listing", "＋ Listing"], ["comparable", "＋ Comp"], ["investor", "＋ Investor"], ["lease", "＋ Lease"]] as const) {
-      if (!this.mods.find((m) => m.key === k)) continue;
-      const b = el("button", "tool-btn") as HTMLButtonElement; b.textContent = lbl;
-      b.onclick = () => jump(k);
-      qrow.appendChild(b);
-    }
-    quick.appendChild(qrow); root.appendChild(quick);
-  }
 
   // PANEL-LAZY: each wrapper dynamic-imports its panel chunk on first open (Vite splits per file).
   private async renderRiskReview() { return (await import("./panels/aiassist")).renderRiskReview(this.panelCtx()); }
@@ -932,7 +853,13 @@ export class PortalUI {
 
     // R2 — the developer workspace gets a real-estate command center (deal returns, listings,
     // comps, capital, leases) instead of the GC's on-schedule/on-budget PX bands.
-    if (this.wsFilter === "developer") { await this.renderDeveloperHome(root, pid, el, jump); return; }
+    if (this.wsFilter === "developer") {
+      // REL-4: lives in `homes/developerHome.ts`. Dynamically imported like the panels, so the
+      // RE persona screen is its own chunk rather than shell weight every other persona pays.
+      const { renderDeveloperHome } = await import("./homes/developerHome");
+      await renderDeveloperHome({ host: this.host, mods: this.mods }, root, pid, el, jump);
+      return;
+    }
     // The design workspace (architect/engineer) gets a model-health + phase-progress command center.
     if (this.wsFilter === "design") { await this.renderDesignHome(root, pid, el, jump); return; }
 
