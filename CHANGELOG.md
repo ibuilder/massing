@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1073 (2026-08-24) — two entries for one item, again
+
+Docs and one test floor. No runtime change.
+
+### Fixed
+
+- **`R41-UPLOAD-WARK` and `R39-UPLOAD-CAP-APP ①` still read as open after v0.3.1069 closed them.**
+  Each has **two** entries — a summary bullet and a ring entry — and that release updated only one.
+  This is the same failure v0.3.1065 recorded for `R38-SYNC-VIEW ③`, committed by the person who had
+  just written it down: *a summary cell drifts from the entry it summarises, and the item marker is
+  the authority*. Knowing the shape did not stop me repeating it, because I closed the item where I
+  was working rather than searching for every place that names it. **Grep the code before closing it,
+  not just the section you are in.**
+- The lane floor drops 29 → 27 to match.
+
 ## v0.3.1072 (2026-08-24) — a default that only fails on Linux
 
 ### Fixed — main was red on v0.3.1069 and v0.3.1070, both from this

@@ -2000,7 +2000,12 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   `modelBox3`'s population is loaded fragments models and the walk it replaced included `isPoints` on
   purpose — survey scans and reference overlays. Dropping them would trade a wrong fit for an
   incomplete one, which is why that has its own twin test.* The OBB work itself is untouched.
-- ◧ **R41-UPLOAD-WARK** *(M — Lane C; **the byte-bound half SHIPPED v0.3.876** — `services/api/src/aec_api/bodycap.py` measures the request body instead of trusting `Content-Length`, and `storage.put_stream` gives callers a way to write without holding the object. **The resumable handshake below is untouched, and no upload route has been converted to the streaming write yet** — that is what is left)* — **content-addressed resumable upload in front of object
+- ✅ **R41-UPLOAD-WARK — COMPLETE v0.3.1069.** *(Byte-bound half v0.3.876; the resumable handshake, its
+  consumer and the client here. This bullet said "the resumable handshake below is untouched, and no
+  upload route has been converted" — **the second clause was already false when written**, and the
+  first is now too. This is the SECOND entry for this item; the other one is in the R39/R41 upload
+  bullet above, and updating one and not the other is what kept it reading as open. Two places
+  describing one item, again.)* — **content-addressed resumable upload in front of object
   storage.** Technique from an MIT-licensed file server (verified from its LICENSE); reimplement the
   handshake rather than adopt the server. Three parts: chunk size chosen so the **chunk *count* stays
   bounded**, keeping the handshake manifest roughly constant regardless of file size — a fixed part
@@ -2138,7 +2143,10 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
 
 
-- ◧ **R39-UPLOAD-CAP-APP ①** *(S, Lane C — **FRONT HALF SHIPPED v0.3.876; the conversion of the
+- ✅ **R39-UPLOAD-CAP-APP ① — COMPLETE.** *(Front half v0.3.876; the three category-(a) store sites
+  v0.3.941–942, re-verified against the tree 2026-08-23. The remaining `await file.read()` calls are
+  the whole-buffer parsers this entry itself files under (b) as a different item. Second entry for
+  this item — see the note on R41-UPLOAD-WARK below.)* — *(original text)* *(S, Lane C — **FRONT HALF SHIPPED v0.3.876; the conversion of the
   36+ `await file.read()` call sites onto `storage.put_stream` remains, and is the rest of
   R41-UPLOAD-WARK.** premise corrected 2026-08-06: an app-level cap DOES
   exist**, so the item is not "add one" but "make the existing one measure rather than trust")* —
