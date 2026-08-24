@@ -96,10 +96,9 @@ export function renderRun(r: Run): HTMLElement {
 /**
  * The inbox: every kind that has run on this project, newest run first.
  *
- * An empty list is not an error and does not render as one. The four analyses the audit named — clash,
- * IDS, cost, energy — still run in the request thread behind a modal, so on most projects this is
- * genuinely empty, and the copy says which half of the item is missing rather than implying the
- * feature is broken.
+ * An empty list is not an error and does not render as one. Clash, IDS, cost and envelope energy
+ * enqueue as jobs from Tools; until someone has run one, this is genuinely empty, and the copy says
+ * where to start rather than implying the inbox is broken.
  */
 export function renderRunsInbox(host: HTMLElement, jobs: readonly Job[], label: (kind: string) => string): void {
   host.innerHTML = "";
@@ -107,9 +106,8 @@ export function renderRunsInbox(host: HTMLElement, jobs: readonly Job[], label: 
   if (!history.size) {
     const empty = el("div", "meta");
     empty.dataset.empty = "none";
-    empty.textContent = "No runs yet on this project. Analyses that go through the background queue "
-      + "appear here with a comparison against the previous run; clash, IDS, cost and energy still "
-      + "run in the foreground and are not queued yet.";
+    empty.textContent = "No runs yet on this project. Clash, IDS, cost and envelope energy enqueue "
+      + "as jobs from Tools; the next one appears here with a comparison against the previous run.";
     host.appendChild(empty);
     return;
   }

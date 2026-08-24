@@ -245,8 +245,10 @@ describe("the roadmap lane table", () => {
   it("reads a plausible number of lanes and items — else every assertion below is vacuous", () => {
     // The can't-fail shape this repo keeps getting bitten by: a green check over an empty set.
     expect(LANES.length, `parsed ${LANES.length} lane rows`).toBeGreaterThanOrEqual(8);
-    // 38 → 37: BUILD-WORKTREE-CHUNKS closed (✅), so it left the pickable population.
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(37);
+    // 38 → 37: BUILD-WORKTREE-CHUNKS closed (✅). 37 → 35: R24-RUNS-INBOX + R38-SYNC-VIEW
+    // closed (✅); ARRAY-LIVE was already not in this extractor's open set in the same way.
+    // 35 → 33: R21-4D-CLASH + R28-BUNDLE ② closed (✅).
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(33);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {

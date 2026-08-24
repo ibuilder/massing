@@ -317,7 +317,7 @@ def set_array_params(model: ifcopenshell.file, guid: str, nx: int | None = None,
 
     _write_pset(model, grp, ARRAY_PSET,
                 {"source": src_guid, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "dz": dz})
-    return {"status": "ok", "changed": bool(added or removed),
+    return {"status": "ok", "changed": bool(added or removed or relaid),
             "group": a["group"], "source": src_guid,
             "nx": nx, "ny": ny, "dx": dx, "dy": dy, "dz": dz,
             "added": added, "removed": removed, "kept_moved": kept_moved,
@@ -359,9 +359,16 @@ def list_groups(model: ifcopenshell.file) -> dict:
     for g in model.by_type("IfcGroup"):
         if g.is_a("IfcSystem"):
             continue                                       # MEP systems have their own browser
-        groups.append({"guid": g.GlobalId, "name": g.Name or g.is_a(),
-                       "kind": "system" if g.is_a("IfcSystem") else "group",
-                       "members": _group_member_count(g)})
+        pset = _pset_of(g, ARRAY_PSET)
+        row = {"guid": g.GlobalId, "name": g.Name or g.is_a(),
+               "kind": "system" if g.is_a("IfcSystem") else "group",
+               "members": _group_member_count(g)}
+        if pset:
+            row["array"] = {"source": pset.get("source"),
+                            "nx": int(pset.get("nx", 1)), "ny": int(pset.get("ny", 1)),
+                            "dx": float(pset.get("dx", 0.0)), "dy": float(pset.get("dy", 0.0)),
+                            "dz": float(pset.get("dz", 0.0))}
+        groups.append(row)
     assemblies: list[dict] = []
     for a in model.by_type("IfcElementAssembly"):
         parts = sum(len(rel.RelatedObjects) for rel in (getattr(a, "IsDecomposedBy", None) or []))

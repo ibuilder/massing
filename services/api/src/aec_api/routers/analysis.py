@@ -30,6 +30,23 @@ def _clash_viewpoint(point: dict | None, guids: list[str]) -> Viewpoint | None:
                 "target": {"x": point["x"], "y": point["y"], "z": point["z"]}, "fov": 60},
         components=[g for g in guids if g],
     )
+
+
+def clash_topic_identity(_title: str, guids: list | None) -> tuple[str, ...]:
+    """Same two GlobalIds = the same clash, even if the title's volume string drifts."""
+    return tuple(sorted(str(g) for g in (guids or []) if g))
+
+
+def load_clash_identities(db: Session, pid: str) -> set[tuple[str, ...]]:
+    """Open clash topics already filed for this project, keyed by the GUID pair.
+
+    Creating the same clash twice (a retry after topics committed, or a second Run) must not mint
+    a second Topic — the Issues panel would double and BCF export would carry duplicates.
+    """
+    found: set[tuple[str, ...]] = set()
+    for t in db.query(Topic).filter(Topic.project_id == pid, Topic.type == "clash"):
+        found.add(clash_topic_identity(t.title, t.element_guids))
+    return found
 from ..rbac import require_role
 
 _DATA_SRC = Path(__file__).resolve().parents[4] / "data" / "src"
@@ -83,10 +100,16 @@ def run_clash(
 
     created = 0
     if create_topics:
+        seen = load_clash_identities(db, pid)
         for c in results[:limit]:
+            title = f"Clash: {c['a_class']} × {c['b_class']} ({c['method']} vol {c['volume']})"
+            ident = clash_topic_identity(title, [c["a_guid"], c["b_guid"]])
+            if ident in seen:
+                continue
+            seen.add(ident)
             t = Topic(
                 project_id=pid, type="clash", status="open",
-                title=f"Clash: {c['a_class']} × {c['b_class']} ({c['method']} vol {c['volume']})",
+                title=title,
                 anchor=c["point"], element_guids=[c["a_guid"], c["b_guid"]],
             )
             db.add(t)
@@ -155,11 +178,17 @@ def run_clash_federated(
 
     created = 0
     if create_topics and not coordinate:
+        seen = load_clash_identities(db, pid)
         for c in results[:limit]:
+            title = (f"Clash: {c['a_model']}:{c['a_class']} × {c['b_model']}:{c['b_class']} "
+                     f"({c['method']} vol {c['volume']})")
+            ident = clash_topic_identity(title, [c["a_guid"], c["b_guid"]])
+            if ident in seen:
+                continue
+            seen.add(ident)
             t = Topic(
                 project_id=pid, type="clash", status="open",
-                title=f"Clash: {c['a_model']}:{c['a_class']} × {c['b_model']}:{c['b_class']} "
-                      f"({c['method']} vol {c['volume']})",
+                title=title,
                 anchor=c["point"], element_guids=[c["a_guid"], c["b_guid"]])
             db.add(t)
             vp = _clash_viewpoint(c.get("point"), [c["a_guid"], c["b_guid"]])   # CLASH-WALKTHROUGH
@@ -223,19 +252,35 @@ def clash_matrix(pid: str, body: dict = Body(default={}), _: str = Depends(requi
 @router.get("/projects/{pid}/clash/sequence")
 def clash_sequence(pid: str, min_overlap_days: int = 1, crew_threshold: int = 0,
                    db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """R21-4D-CLASH — space contention: two trades scheduled into one location in one window.
+    """R21-4D-CLASH — space contention plus install-before-support.
 
-    Nothing in the model is wrong when this happens — every element clears every other — which is why
-    a geometric clash run cannot find it. Same-trade overlap is not a finding (one trade sequencing
-    its own crews is planning). Activities without a location or dates are skipped and counted, so a
-    clean result is never claimed over a schedule that was half unreadable.
+    Space contention: two trades scheduled into one location in one window. Nothing in the model is
+    wrong when this happens — every element clears every other — which is why a geometric clash run
+    cannot find it. Same-trade overlap is not a finding (one trade sequencing its own crews is
+    planning). Activities without a location or dates are skipped and counted, so a clean result is
+    never claimed over a schedule that was half unreadable.
+
+    Install-before-support reads directed pairs from the source IFC (`support_graph`) and the
+    activities' `element_guids`. A project with a schedule but no IFC still returns space contention;
+    the support half reports as checked-with-zero-pairs rather than inventing geometry.
     """
+    from aec_data.support_graph import connection_graph, directed_install_pairs
+
     from .. import modules as me
     from .. import sequence_clash
     acts = me.list_records(db, "schedule_activity", pid, limit=sequence_clash.MAX_ACTIVITIES) \
         if "schedule_activity" in me.TABLES else []
+    # Empty list, not None: the engine must record that the support half RAN. None would leave
+    # not_covered claiming the binding exists but nobody asked, which is a lie on this route.
+    support_pairs: list = []
+    try:
+        model = open_source_ifc(db, pid)
+        support_pairs = directed_install_pairs(connection_graph(model), model)
+    except HTTPException as e:
+        if e.status_code != 409:
+            raise
     return sequence_clash.analyze(acts, min_overlap_days=min_overlap_days,
-                                  crew_threshold=crew_threshold)
+                                  crew_threshold=crew_threshold, support_pairs=support_pairs)
 
 
 @router.get("/projects/{pid}/clash/clearance-rules")

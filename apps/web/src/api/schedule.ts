@@ -77,6 +77,25 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
         late?: number; early?: number; late_guids?: string[]; early_guids?: string[] }[] }>(
       `/projects/${pid}/schedule/4d${source ? `?source=${source}` : ""}`);
   }
+  /** R21-4D-CLASH — space contention (two trades, one place, one window) plus install-before-support. */
+  sequenceClash(pid: string, minOverlapDays = 1, crewThreshold = 0) {
+    const q = new URLSearchParams({ min_overlap_days: String(minOverlapDays),
+                                    crew_threshold: String(crewThreshold) });
+    return this.json<{
+      analyzed: number; skipped_count: number; locations: number;
+      findings: { location: string; overlap_days: number; combined_crew: number;
+        a: { id?: string; name: string; trade: string };
+        b: { id?: string; name: string; trade: string };
+        window: { start: string; finish: string } }[];
+      finding_count: number; support_checked: boolean; support_pairs: number;
+      support_finding_count: number;
+      support_findings: { kind: string; grade: string;
+        support: { guid: string; id?: string; name: string; trade: string; start: string; finish: string };
+        supported: { guid: string; id?: string; name: string; trade: string; start: string; finish: string } }[];
+      support_unscheduled_count: number; clean: boolean; note: string; not_covered: string;
+      bound_activities: number;
+    }>(`/projects/${pid}/clash/sequence?${q}`);
+  }
   /** RESOURCE-LEVEL-2 — APPLY one leveling round: shift over-allocated activities forward within
    *  their CPM float (finish never moves). Mutates the schedule — gate behind an explicit confirm. */
   applyResourceLevel(pid: string, cap: number) {

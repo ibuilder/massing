@@ -30,6 +30,7 @@ from aec_data.support_graph import (  # noqa: E402
     EDGE_CONNECTED,
     EDGE_STRUCTURAL,
     connection_graph,
+    directed_install_pairs,
     supports,
 )
 
@@ -116,6 +117,46 @@ check("supports() on an unknown guid returns known=False rather than raising",
       supports(g1, "not-a-real-guid")["known"] is False)
 check("supports() on an empty graph refuses rather than erroring",
       supports({}, beam)["known"] is False and supports(None, beam)["known"] is False)
+
+# directed_install_pairs uses only relations that license an order. The column-beam join above is
+# `connected` / unstated, so it must NOT become a support pair — that would be reading Relating as
+# load direction, which this module exists to refuse.
+unstated_pairs = directed_install_pairs(g1)
+check("an unstated IfcRelConnectsElements join is not a directed install pair",
+      unstated_pairs == [], unstated_pairs)
+
+asm_pairs = [p for p in directed_install_pairs(g2) if p["grade"] == "assembly"]
+check("RelAggregates parent-before-part IS a directed pair (containment order, not load path)",
+      len(asm_pairs) > 0, directed_install_pairs(g2))
+
+# IfcRelConnectsStructuralMember's ends are RelatingStructuralMember / RelatedStructuralConnection,
+# not RelatingElement. A reader that only knew the element pair produced an empty structural graph
+# on every derived analysis model in this repo.
+class _Fake:
+    def __init__(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+
+class _FakeModel:
+    def __init__(self, rels):
+        self._rels = rels
+
+    def by_type(self, t):
+        return self._rels if t == "IfcRelConnectsStructuralMember" else []
+
+
+rel = _Fake(RelatingStructuralMember=_Fake(GlobalId="MEM"),
+            RelatedStructuralConnection=_Fake(GlobalId="NODE"),
+            RelatingElement=None, RelatedElement=None)
+gs = connection_graph(_FakeModel([rel]), include_assemblies=False)
+check("structural rels are read from RelatingStructuralMember, not RelatingElement",
+      gs["stated"] is True and gs["supports_directionally_known"] == 1, gs)
+check("  and directed_install_pairs emits member-before-connection",
+      directed_install_pairs(gs) == [{"support": "MEM", "supported": "NODE",
+                                      "grade": "structural",
+                                      "relation": "IfcRelConnectsStructuralMember"}],
+      directed_install_pairs(gs))
 
 print()
 if FAILED:

@@ -643,6 +643,10 @@ def edit(pid: str, recipe: str = Body(...), params: dict = Body(default={}),
             raise HTTPException(403, str(e)) from e
         except (ValueError, KeyError) as e:            # E8 guard rejection / sandbox reject / missing param
             raise HTTPException(400, str(e)) from e
+        if ed.edit_was_refused(result):
+            # The IFC was not mutated. A written copy + publish would look like the refusal applied.
+            Path(out).unlink(missing_ok=True)
+            return result
         from .. import (
             edit_history,  # S4 — record the pre-edit version so this edit can be undone
             recipe_log,  # R23 — record the recipe + PARAMS so this edit can be replayed

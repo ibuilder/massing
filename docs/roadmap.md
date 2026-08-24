@@ -1042,9 +1042,10 @@ These are the gaps between what the platform draws today and what that package c
 
 **Tier 1 — the set cannot be issued without these**
 
-- ◧ **R21-4D-CLASH** *(phase 1 shipped v0.3.682; install-before-support still open)* — **sequence clash**: two trades occupying one space in the same schedule
-  window, or an install ordered before its support. The 4D timeline and CPM both exist; this reads
-  them together.
+- ✅ **R21-4D-CLASH** *(phase 1 v0.3.682 · install-before-support this PR, pending archive)* — **sequence clash**: two trades occupying one space in the same schedule
+  window, or an install ordered before its support. Analyze → Sequence clash. Directed pairs come from
+  `services/data/src/aec_data/support_graph.py`; the engine is
+  `services/api/src/aec_api/sequence_clash.py`. Unstated joins are not treated as support.
 
   **Blocker retired (2026-08-02):** the "no task→element binding" prerequisite was FIXED by
   R25-TASK-BIND (element_guids reaches analyze(); bound_activities counts it in
@@ -1424,7 +1425,7 @@ is recorded. Filed under Decisions below.
 | 02 | pillars are a mode switch | R24-SPINE | ✅ workspaces demoted to weighting, `shell/spine.ts` `WORKSPACE_ROOM` |
 | 03 | roles gate the UI invisibly | R24-ROLE-EXPLAIN | ✅ v0.3.685 |
 | 04 | long jobs, foreground UI | R24-JOB-TRAY | ✅ **shipped; this row was stale** — `apps/web/src/ui/jobTray.ts` is 373 lines, mounted at `apps/web/src/main.ts:2052`, 28 tests. The ❌ survived its own implementation |
-| 05 | analyses are modals → no history | R24-RUNS-INBOX | ◧ **v0.3.947** — history + run-over-run diff in `apps/web/src/ui/runs.ts` / `apps/web/src/ui/runsInbox.ts`. The premise "no runs concept" was **half wrong**: `Job` already stores params, actor, timestamps and result. Routing clash/IDS/cost/energy *through* the queue is the open half |
+| 05 | analyses are modals → no history | R24-RUNS-INBOX | ✅ **history v0.3.947 · routing this PR** — clash / IDS / cost / envelope energy enqueue as jobs; the inbox lists them. Direct GET/POST routes remain for scripts |
 | 06 | the single-GUID advantage is invisible | R24-ELEMENT-CARD | ✅ **SHIPPED v0.3.1000** — `apps/web/src/ui/elementCard.ts` on the viewer, cost trace, and every register record that names a GUID (`apps/web/src/portal/register/tiedElements.ts`). There is no `pay_app` module (SOV line is the G703 row) and no COBie worksheet UI (asset register is the in-app Component row) |
 | 07 | onboarding teaches the chrome | FIRST-RUN | 🟡 improved v0.3.777; still not the lot → building → deal chain |
 | 08 | persona picker only relabels | *(none)* | ⚠️ reversed on purpose — see Decisions |
@@ -1492,9 +1493,9 @@ refute one, so this goes first even though it is the least visible.
   like it walks to a GlobalId while actually asserting one. That is the fabrication shape this repo
   has spent a day naming, and it would have been shipped as the on-stage demo. Whoever picked up
   Sprint 2 would have started in the client and found nothing to render.
-- ◧ **R24-RUNS-INBOX** *(M; history half v0.3.947)* — clash, IDS, cost and energy become durable Runs
-  (inputs, timestamp, author, artifact, **diff against the previous run**) with a per-project inbox.
-  Most externally validated item in the ring — see the corroboration note above.
+- ✅ **R24-RUNS-INBOX** *(M; history v0.3.947 · routing this PR — pending archive)* — clash, IDS, cost
+  and envelope energy become durable Runs (inputs, timestamp, author, artifact, **diff against the
+  previous run**) with a per-project inbox.
 
   **The recorded premise, "no runs concept in the web app", was half wrong — and the wrong half is
   the expensive one to assume.** `models.py:Job` already stores every field a run needs: `params`
@@ -1510,10 +1511,10 @@ refute one, so this goes first even though it is the least visible.
     `count` into a confident, precise, invented −412 — worse than no number, because it reads as a
     finding. Same reasoning refuses a **failed** run as a baseline: a run with no result is not a run
     whose every metric fell to zero. Both are mutation-checked.
-  - ◧ **Routing the analyses through the queue** — clash, IDS, cost and energy still run in the
-    request thread behind a modal, so they never become rows. Four call sites and their handlers;
-    the larger and riskier half. Until it lands the inbox is genuinely **empty on most projects**,
-    and its empty state says which half is missing rather than implying the feature is broken.
+  - ✅ **Routing the analyses through the queue** — Tools enqueue `clash_detect`, `clash_federated`,
+    `ids_validate`, `labor_estimate`, `energy_analyze` and poll via `apps/web/src/api/waitForJob.ts`.
+    Direct routes remain for scripts. Empty inbox copy is now "nobody has run one yet", not "the
+    screens still skip the queue". Claude Code owns other items; this does not touch them.
 
     **HANDLER HALF STARTED v0.3.1057 — `clash_federated` is a registered job kind.** And the premise
     needed checking twice before it was right. `clash_detect` *was* already registered, which reads
@@ -1534,10 +1535,8 @@ refute one, so this goes first even though it is the least visible.
     `KIND_LABEL` are two hand-maintained lists of one thing in two languages with nothing comparing
     them — and the tray's raw-name fallback, correct for a plugin, hides one of ours.
 
-    **What is left is the four CALL SITES**, and that is a UX change rather than a wiring one: each
-    screen swaps a blocking modal for enqueue-and-poll. The kind is reachable today through
-    `POST /projects/{pid}/jobs` (the client already wraps it as `enqueueJob`), so what is missing is
-    a caller, not a capability — a distinction this band exists to make.
+    **Call sites shipped in this PR.** Tools enqueue-and-poll; the kind was already reachable through
+    `POST /projects/{pid}/jobs`. Direct analysis routes remain for scripts.
 
 ### Sprint 3 — the front door earns its keyboard
 
@@ -1702,12 +1701,10 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
 
 ### Wave 2 — parameters stay alive *(Lane E + C)*
 
-- **R38-ARRAY-LIVE ③** *(M, prerequisite in Lane C/D)* — "arrays whose count/spacing stay editable
-  after placement". Premise-checked: `groups.array_element(guid, nx, ny, dx, dy, dz)` produces
-  **independent GUID-stable copies and stores nothing** — no group, no pset, no definition. There is
-  therefore nothing to re-edit; changing a count today means deleting copies by hand. **Prerequisite:
-  persist the array definition** (an IfcGroup or pset carrying nx/ny/dx/dy/dz plus its member GUIDs)
-  and a `set_array_params` recipe that adds/removes members to match. Viewer half is then small.
+- ✅ **R38-ARRAY-LIVE ③** *(M — persist already shipped; Re-edit UI this PR, pending archive)* —
+  "arrays whose count/spacing stay editable after placement". The old premise ("stores nothing") is
+  stale: `array_element` writes an IfcGroup + `Pset_MassingArray`, `set_array_params` reconciles
+  members, `list_groups` returns the definition, and Groups panel **Re-edit** calls that recipe.
 - **R38-SOLVER-LOCKS ③** *(M — **DECIDED 2026-08-07: both, within-element first**)* — the R23
   dimensional locks as UI.
 
@@ -1766,18 +1763,12 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
   `shape.guid` in hand and keeps only `(cls, mesh)`, so `cut_baked` emits anonymous polylines and
   `cut_baked_classed` adds back the class but never the GUID. Nothing in a plan can name what it
   draws. Hence:
-  - ◧ **R38-SYNC-VIEW ③** *(M, Lane E — **checked 2026-08-06: MOSTLY BUILT**, one of the three
-    named syncs is missing)* — `apps/web/src/viewer/planPane.ts` opens with "R38-SYNC-VIEW +
-    R38-SYNC-SELECT" and `apps/web/src/viewer/app.ts` mounts it beside the model. **Storey sync**
-    ships (`planParams(storey)`, and the pane refetches only when the *cut* changes, so a selection
-    change costs no round-trip). **Pan and zoom** ship (`overflow:auto` body; a client-side
-    `zoomPct` that deliberately does *not* refetch, because zoom is presentation and a refetching
-    zoom would cost a bake per click). 14 tests. **The residue is live CURSOR sync, and it is BLOCKED** — checked
-    2026-08-06 and it is not client work at all. `plan_drawing_svg` computes
-    `T(x, y) = (ox + (x - mnx) * scale, oy + draw_h - (y - mny) * scale)` and then **discards every
-    term of it**: the root carries only `width`, `height` and `viewBox="0 0 W H"`, and the only
-    `data-` attributes anywhere are `data-guid` / `data-class` on polylines. **A client holding a
-    world position cannot find its pixel.** Blocked on **R38-PLAN-TRANSFORM ③** below.
+  - ✅ **R38-SYNC-VIEW ③** *(M, Lane E — storey/pan/zoom already shipped; **cursor this PR**, pending
+    archive)* — `apps/web/src/viewer/planPane.ts` + `apps/web/src/viewer/planTransform.ts`. **Storey
+    sync** ships (`planParams(storey)`, refetch only when the *cut* changes). **Pan and zoom** ship
+    (`overflow:auto`; client-side `zoomPct` does *not* refetch). **Cursor**: 3D pointer → plan via
+    the six `data-plan-*` terms PLAN-TRANSFORM serialises (v0.3.928); `groundToPlan` is East=`three.x`,
+    North=`-three.z`. Inventing the same map from a polyline is still refused.
 
     *The tempting workaround is the one to refuse*: the transform could be back-solved from a
     polyline whose element geometry is known, which would work in a demo and drift silently the
@@ -3050,10 +3041,10 @@ latched itself permanently empty. Both were repaired at the symptom. The cause i
 "model" are two states the app keeps having to re-marry, and every feature built on top inherits the
 seam.
 
-* **R28-BUNDLE ② — make `.mmproj` legible.** It already carries the data; nothing says so. Name it in
-  the UI, show what a bundle contains before import, and state on export what was included and what
-  was **left out** (`_SKIP_TABLES` drops users, audit log, settings and connections — correct, and
-  currently silent). The same unknown ≠ none rule the engines follow.
+* ✅ **R28-BUNDLE ② — make `.mass` legible.** Export already stated `_SKIP_TABLES`. Open Project now
+  previews the container (POST /projects/preview-bundle) and names what will not arrive (users,
+  audit log, settings, connections) before import. Legacy `.mmproj` still opens. ⌘K save matches the
+  File menu (`.mass`).
 * **R28-VIEWER ④** — the future viewer opens a **container**, not a file. **This is now live and
   external**: the kernel rebuild is `MassingCloud/massingifc` (private), first commit 2026-07-26 —
   a framework-agnostic kernel + plugin host with **all fourteen capability families still contracts

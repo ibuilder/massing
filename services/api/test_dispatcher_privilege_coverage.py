@@ -55,7 +55,9 @@ def check(label, ok, detail=""):
 # WHY editor is enough, which is what a reviewer needs to judge whether it still is.
 EDITOR_OK_KINDS = {
     "echo": "diagnostic no-op; touches nothing",
-    "clash_detect": "read-only analysis over the loaded model",
+    "clash_detect": "MUTATING (optional create_topics writes BCF clash topics), but its direct "
+                    "route POST /projects/{pid}/clash is also editor — the queue is not a side "
+                    "door around a stricter endpoint",
     "cobie_export": "derives an export artifact; no project state written",
     "compiled_set_pdf": "renders a drawing set; no project state written",
     "model_export": "derives an export artifact; no project state written",
@@ -68,6 +70,12 @@ EDITOR_OK_KINDS = {
                        "than assumed: test_clash_federated_job.py reads require_role out of "
                        "routers/analysis.py and compares it to the enqueue role via ROLE_ORDER, so "
                        "raising the route without raising this goes red",
+    "labor_estimate": "read-only takeoff; GET /projects/{pid}/estimate/labor is viewer, so the "
+                      "editor queue is stricter than the front door",
+    "ids_validate": "read-only IDS run; POST /projects/{pid}/validate is viewer, so the editor "
+                    "queue is stricter than the front door",
+    "energy_analyze": "read-only envelope energy; GET /projects/{pid}/energy is viewer, so the "
+                      "editor queue is stricter than the front door",
     "report_package": "merges reports that GET /projects/{pid}/reports/{report}.pdf already serves "
                       "one-by-one at VIEWER, so the editor queue is stricter than the front door; "
                       "parks a PDF artifact and writes no project state",

@@ -1145,12 +1145,30 @@ def apply_recipe(ifc_path: str, recipe: str, params: dict, out_path: str,
         changed = RECIPES[recipe](model, params)
     if want_guid:
         changed = adopt_guid(model, changed, want_guid)
+    packed = {"recipe": recipe, "changed": changed, "out": out_path}
+    if edit_was_refused(packed):
+        return packed
     model.write(out_path)
     # R42-SESSION-MODEL: the next edit opens `out_path`. The model that IS `out_path` is in memory
     # right now, so hand it to the cache instead of letting the next call re-parse the file we just
     # wrote. Best-effort by design — a failed seed costs a parse, never correctness.
     _seed_cache(out_path, model)
     return {"recipe": recipe, "changed": changed, "out": out_path}
+
+
+def edit_was_refused(result: dict) -> bool:
+    """True when a recipe returned a named refusal instead of mutating.
+
+    `apply_recipe` still 200s in that case (`changed` is the refusal dict). /edit must not
+    pointer-swap or republish, or shrinking an array past a moved member looks like success.
+    """
+    if not isinstance(result, dict):
+        return False
+    statuses = {"would_delete_authored", "not_an_array", "source_missing"}
+    for blob in (result, result.get("changed")):
+        if isinstance(blob, dict) and blob.get("status") in statuses:
+            return True
+    return False
 
 
 def apply_recipes(ifc_path: str, steps: list[dict], out_path: str) -> dict:

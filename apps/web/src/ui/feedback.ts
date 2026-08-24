@@ -114,6 +114,12 @@ export async function withLoading<T>(container: HTMLElement, label: string,
   try {
     return await task();
   } catch (err) {
+    // A still-running job is the wait walking away, not a failed run. The job tray owns it.
+    const name = err && typeof err === "object" ? (err as { name?: string }).name : "";
+    if (name === "JobStillRunning") {
+      toast((err as Error).message, "info", 5000);
+      return undefined;
+    }
     toast(`${label} failed: ${(err as Error).message}`, "error", 5000);
     return undefined;
   } finally {

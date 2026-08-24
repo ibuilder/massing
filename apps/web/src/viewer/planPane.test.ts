@@ -6,8 +6,8 @@
  * change to the CUT (storey or scale) may. A pane that refetched on selection would be quietly
  * unusable on any real model, and nothing in the UI would say why.
  */
-import { describe, expect, it } from "vitest";
-import { addHitTargets, needsRefetch, planParams, syncPlanHighlight } from "./planPane";
+import { describe, expect, it, vi } from "vitest";
+import { addHitTargets, needsRefetch, planParams, PlanPane, syncPlanHighlight } from "./planPane";
 
 /** A served plan fragment: two loops of one wall (cut at a doorway) + one slab loop + a hit twin
  *  candidate. SVG namespace is irrelevant to the logic under test; happy-dom parses this fine. */
@@ -117,5 +117,32 @@ describe("syncPlanHighlight — one element is MANY loops", () => {
     host.querySelectorAll("[data-hit]").forEach((t) => {
       expect(t.getAttribute("stroke")).toBe("transparent");
     });
+  });
+});
+
+describe("ground cursor survives an SVG refresh", () => {
+  it("re-paints the last ground point after the drawing is replaced", async () => {
+    const svg = '<svg data-plan-scale="1" data-plan-ox="0" data-plan-oy="0" '
+      + 'data-plan-minx="0" data-plan-miny="0" data-plan-drawh="10"></svg>';
+    vi.stubGlobal("fetch", async () => new Response(svg, { status: 200 }));
+    const pane = new PlanPane({
+      url: (p) => p, projectId: () => "p1", activeStorey: () => "L1", notify: () => {},
+    });
+    document.body.appendChild(pane.el);
+    pane.dock("full");
+    await pane.refresh(true);
+    pane.showGroundCursor({ x: 2, z: -3 });
+    const mark = pane.el.querySelector("circle");
+    expect(mark).toBeTruthy();
+    expect(mark!.style.display).not.toBe("none");
+    const cx = mark!.getAttribute("cx");
+    await pane.refresh(true);
+    const after = pane.el.querySelector("circle");
+    expect(after!.style.display).not.toBe("none");
+    expect(after!.getAttribute("cx")).toBe(cx);
+    pane.showGroundCursor(null);
+    expect(pane.el.querySelector("circle")!.style.display).toBe("none");
+    vi.unstubAllGlobals();
+    pane.el.remove();
   });
 });

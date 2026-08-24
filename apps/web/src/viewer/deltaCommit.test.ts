@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { DeltaDeps } from "./deltaCommit";
-import { DeltaStore, deltaBadge, deltaCommitter, deltaIndicator, deltaStatusText } from "./deltaCommit";
+import { DeltaStore, deltaBadge, deltaCommitter, deltaIndicator, deltaStatusText, recipeRefusalNote } from "./deltaCommit";
 
 /**
  * R42-COMMIT-DELTA — the pending-geometry state, and the rule that it must be VISIBLE.
@@ -12,6 +12,16 @@ import { DeltaStore, deltaBadge, deltaCommitter, deltaIndicator, deltaStatusText
  * one.** The product decision was explicitly for a visible pending state rather than an automatic
  * background consolidate, so "the user can tell" is a requirement, not a nicety.
  */
+
+describe("recipeRefusalNote", () => {
+  it("reads the nested changed.status the /edit route actually returns", () => {
+    expect(recipeRefusalNote({
+      recipe: "set_array_params",
+      changed: { status: "would_delete_authored", note: "keep them" },
+    })).toBe("keep them");
+    expect(recipeRefusalNote({ recipe: "add_wall", changed: { guid: "x" } })).toBeNull();
+  });
+});
 
 describe("the pending set", () => {
   it("counts what is pending and keeps authoring order", () => {
@@ -250,6 +260,20 @@ describe("commit — with no preview fragment", () => {
     expect(call[3]).toBeUndefined();
     expect(withPv.d.reloadModel).not.toHaveBeenCalled();
     expect(without.d.reloadModel).toHaveBeenCalled();
+  });
+
+  it("a would_delete_authored recipe is a refusal, not a successful publish", async () => {
+    const { d, c, notes } = harness({
+      editIfc: vi.fn(async () => ({
+        recipe: "set_array_params",
+        changed: { status: "would_delete_authored", changed: false, note: "moved members kept" },
+      })),
+    });
+    const out = await c.commit("set_array_params", { guid: "g" }, "array 1×1", null);
+    expect(out).toEqual({ applied: false, refused: true });
+    expect(d.awaitPublish).not.toHaveBeenCalled();
+    expect(d.reloadModel).not.toHaveBeenCalled();
+    expect(notes.some((n) => /refused/.test(n))).toBe(true);
   });
 });
 

@@ -287,11 +287,15 @@ const UNCALLED: readonly string[] = [
   // uncovered it. The app polls `jobs(pid, limit)` and filters, which is correct for the runs inbox
   // and wasteful for tracking a job you just started; wiring it belongs with whoever owns
   // `main.ts` (Lane A), not with a session passing through.
+  // `job` stays here even though `waitForJob.ts` polls it: that module lives under `src/api/`,
+  // which this scanner excludes (a client helper is not an application screen). Tools enqueue
+  // `clash_detect` / `clash_federated` rather than calling `runClash` / `clashFederated`; those
+  // wrappers remain for scripts and the still-live POST routes.
   "job",
   "addBasePlate", "addCurtainWall", "addMepFitting", "addRebarCage",
   "addShearTab", "addTopicComment", "applyDetailingRules", "arrayElement",
   "assignMaterialSet", "assumptionsRegister", "attachDocument",
-  "buyoutSchedule", "ciLatest", "citedQuery", "clausePlaybook",
+  "buyoutSchedule", "ciLatest", "citedQuery", "clashFederated", "clausePlaybook",
   "clientDecisions", "codeAdoptions", "codeCheck", "colorFacets",
   "competitiveSupply", "connectElements", "costSummary", "createAssembly", "createGroup",
   "createType", "decisionGate",
@@ -307,7 +311,7 @@ const UNCALLED: readonly string[] = [
   "procurementLevelQuotes", "proformaIncomeBasis", "proformaRenovation", "proformaRollover", "progressActuals",
   "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
   "rentRollScrub", "residualLand", "reviewPost",
-  "reviewScenario", "reviseDrawing", "runMacro", "saveClausePlaybook",
+  "reviewScenario", "reviseDrawing", "runClash", "runMacro", "saveClausePlaybook",
   "saveDealAuthority", "saveMacros", "saveViewTemplates",
   "scanDeviation", "scopeRegister", "securitiesPackage", "sendDigest",
   "setLod", "setPhase", "sharedComment", "sharedDecision",

@@ -374,18 +374,49 @@ function saveProjectBundle() {
 }
 
 /** Open a `.mass` container as a new project, then switch to it. Legacy `.mmproj` files (the
- *  container's name through v1) are still accepted — a rename must not orphan saved work. */
+ *  container's name through v1) are still accepted — a rename must not orphan saved work.
+ *  Preview runs first so excluded tables (users, audit log, settings, connections) are visible
+ *  before the import creates a project. */
 function openProjectBundle() {
   const inp = document.createElement("input");
   inp.type = "file"; inp.accept = ".mass,.mmproj,.zip,application/zip";
   inp.onchange = async () => {
     const f = inp.files?.[0]; if (!f) return;
-    toast(`Opening ${f.name}…`, "info");
-    try {
-      const p = await api.importBundle(f);
-      toast(`Opened "${p.name}"`, "info");
-      window.location.search = `?project=${p.id}`;
-    } catch { toast("Couldn't open that bundle (.mmproj expected)", "error"); }
+    toast(`Reading ${f.name}…`, "info");
+    let preview;
+    try { preview = await api.previewBundle(f); }
+    catch (e) { toast((e as Error).message || "Couldn't read that bundle", "error"); return; }
+    const { card, msg, close } = modalShell(`Open ${f.name}`, 480);
+    const name = preview.project_name || f.name;
+    const skipped = (preview.excluded?.tables || []).join(", ") || "none named";
+    msg.innerHTML = "";
+    const intro = document.createElement("p");
+    intro.textContent = `${name} · ${preview.table_count} table(s) · ${preview.row_count} row(s)`
+      + (preview.has_geometry ? " · geometry included" : " · no geometry");
+    msg.appendChild(intro);
+    const why = document.createElement("p"); why.className = "meta";
+    why.textContent = `Will not import: ${skipped}. ${preview.excluded?.why || ""}`;
+    msg.appendChild(why);
+    const reason = document.createElement("p"); reason.className = "meta";
+    reason.textContent = preview.reason;
+    msg.appendChild(reason);
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:8px";
+    const cancel = document.createElement("button"); cancel.className = "file-btn";
+    cancel.textContent = "Cancel"; cancel.onclick = () => close();
+    const go = document.createElement("button"); go.className = "file-btn"; go.style.fontWeight = "600";
+    go.textContent = preview.importable ? "Import as new project" : "Cannot import";
+    go.disabled = !preview.importable;
+    go.onclick = async () => {
+      close();
+      toast(`Opening ${f.name}…`, "info");
+      try {
+        const p = await api.importBundle(f);
+        toast(`Opened "${p.name}"`, "info");
+        window.location.search = `?project=${p.id}`;
+      } catch (err) { toast((err as Error).message || "Couldn't open that bundle", "error"); }
+    };
+    row.append(cancel, go); card.append(msg, row);
   };
   inp.click();
 }
@@ -2023,7 +2054,7 @@ const _palette = _embed ? null : initCommandPalette({
       { id: "act:ref", label: "Open mesh / point cloud / GIS / reality capture…", hint: "Action", run: () => openModelFile("ref") },
       { id: "act:reports", label: "Open Report Center", hint: "Action", run: () => openReports() },
       { id: "act:runs", label: "Run history", hint: "Action", run: () => openRunsInbox() },
-      { id: "act:save", label: "Save Project (.mmproj)", hint: "Action", run: () => saveProjectBundle() },
+      { id: "act:save", label: "Save Project (.mass)", hint: "Action", run: () => saveProjectBundle() },
       { id: "act:help", label: "Keyboard shortcuts / help", hint: "Action", run: () => toast(SHORTCUTS + " · ⌘K palette", "info", 6000) },
     );
     for (const m of portal.moduleList())
@@ -2078,8 +2109,8 @@ const _jobs = _embed ? null : mountJobTray({
 
 // R24-RUNS-INBOX phase 1 — the tray answers "what is happening now"; this answers "what happened
 // before, and what changed". Pure computation over the jobs the queue already records, in
-// `ui/runs.ts`; the four analyses the audit named still run in the foreground and are not queued yet,
-// which the empty state says out loud rather than leaving the reader to wonder.
+// `ui/runs.ts`. Clash, IDS, cost and envelope energy enqueue as jobs; the empty state is only
+// "nobody has run one yet".
 function openRunsInbox(): void {
   if (!projectId) { toast("Open a project first", "info"); return; }
   const pid = projectId;

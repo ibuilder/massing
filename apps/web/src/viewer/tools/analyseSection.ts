@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { type ApiClient } from "../../api/client";
+import { enqueueAndWait, isJobStillRunning } from "../../api/waitForJob";
 import { LayerManager } from "../../tools/layers";
 import { LogisticsOverlay } from "../draft/logisticsOverlay";
 import { kvTable, resultNote, showResult } from "../../ui/result";
@@ -127,6 +128,41 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
             fourD.dispose = populate4dPanel(body, { api, pid, layers: layerMgr, notify });
           }, () => { fourD.dispose?.(); fourD.dispose = null; });
         }));
+        b.appendChild(toolBtn2("🔀 Sequence clash (4D · space + support)", () => withLoading(container, "Checking sequence clashes", async () => {
+          let r;
+          try { r = await api.sequenceClash(pid); }
+          catch { toast("Needs a project with a schedule", "error"); return; }
+          const n = r.finding_count + r.support_finding_count;
+          out.textContent = n ? `${n} sequence clash${n === 1 ? "" : "es"}` : (r.clean ? "clean" : "checked");
+          showResult("Sequence clash — space contention + install-before-support", (body) => {
+            body.appendChild(resultNote(
+              `${r!.analyzed} dated locatable activit${r!.analyzed === 1 ? "y" : "ies"} · `
+              + `<b>${r!.finding_count}</b> space contention · <b>${r!.support_finding_count}</b> install-before-support`
+              + (r!.support_unscheduled_count ? ` · ${r!.support_unscheduled_count} pair(s) missing a dated binding` : "")
+              + `.`,
+              n ? "bad" : (r!.clean ? "ok" : "")));
+            if (r!.findings.length) {
+              body.appendChild(kvTable(r!.findings.slice(0, 40).map((f) => ({
+                k: f.location,
+                v: `${f.a.trade} × ${f.b.trade} · ${f.overlap_days}d · ${f.window.start}→${f.window.finish}`,
+              }))));
+            }
+            if (r!.support_findings.length) {
+              body.appendChild(kvTable(r!.support_findings.slice(0, 40).map((f) => ({
+                k: f.grade,
+                v: `${f.supported.name || f.supported.guid} @ ${f.supported.start} before `
+                  + `${f.support.name || f.support.guid} finishes ${f.support.finish}`,
+              }))));
+              const guids = [...new Set(r!.support_findings.flatMap(
+                (f) => [f.support.guid, f.supported.guid]))];
+              if (guids.length) {
+                body.appendChild(toolBtn2(`◎ Isolate ${guids.length} sequenced element(s)`,
+                  () => { void layerMgr.isolateGuids(guids); }));
+              }
+            }
+            body.appendChild(resultNote(r!.not_covered, ""));
+          });
+        })));
         b.appendChild(toolBtn2("🏛 Occupancy & egress (IBC pre-check)", () => withLoading(container, "Computing occupancy load + egress", async () => {
           let r;
           try { r = await api.codecheckEgress(pid); }
@@ -235,10 +271,13 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
         });
         b.appendChild(toolBtn2("🏚 Existing-building code (IEBC scope)", () => { void runEbc(""); }));
         // EST-1 — rough labour cost + duration from the model's quantities (productivity rates)
-        b.appendChild(toolBtn2("💰 Cost estimate (labour · material · equipment)", () => withLoading(container, "Estimating cost from the model", async () => {
+        b.appendChild(toolBtn2("💰 Cost estimate (labour · material · equipment)", () => withLoading(container, "Queueing cost estimate", async () => {
           let e;
-          try { e = await api.laborEstimate(projectId!, "commercial", 25, true); }
-          catch { toast("Needs a source IFC", "error"); return; }
+          try {
+            e = await enqueueAndWait(api, pid, "labor_estimate", {
+              loading: "commercial", rate: 25, full: true,
+            }) as Awaited<ReturnType<ApiClient["laborEstimate"]>>;
+          } catch (err) { if (isJobStillRunning(err)) throw err; toast("Needs a source IFC", "error"); return; }
           const grand = e.total_cost ?? e.total_labor_cost;
           out.textContent = `${e.total_man_hours.toLocaleString()} mh · $${Math.round(grand).toLocaleString()}`;
           showResult("Cost estimate — productivity rates", (body) => {
@@ -261,6 +300,24 @@ export function buildAnalyseSection(d: AnalyseDeps): void {
                   + (l.line_total != null ? ` · $${Math.round(l.line_total).toLocaleString()}` : ` · $${Math.round(l.labor_cost).toLocaleString()}`) }))));
             }
             body.appendChild(resultNote(e!.note, ""));
+          });
+        })));
+        b.appendChild(toolBtn2("⚡ Envelope energy (UA · EUI)", () => withLoading(container, "Queueing envelope energy", async () => {
+          let e;
+          try {
+            e = await enqueueAndWait(api, pid, "energy_analyze") as unknown as Awaited<ReturnType<ApiClient["energy"]>>;
+          } catch (err) { if (isJobStillRunning(err)) throw err; toast("Needs a source IFC", "error"); return; }
+          out.textContent = `EUI ${e.eui_kwh_m2_yr} kWh/m²·yr`;
+          showResult("Envelope energy — UA + degree-day", (body) => {
+            body.appendChild(resultNote(
+              `Annual <b>${Math.round(e!.annual_kwh.total).toLocaleString()} kWh</b> · EUI <b>${e!.eui_kwh_m2_yr}</b> kWh/m²·yr.`,
+              "ok"));
+            body.appendChild(kvTable([
+              { k: "Heating load", v: `${e!.loads.design_heating_kw} kW` },
+              { k: "Cooling load", v: `${e!.loads.design_cooling_kw} kW` },
+              { k: "Heating (annual)", v: `${Math.round(e!.annual_kwh.heating).toLocaleString()} kWh` },
+              { k: "Cooling (annual)", v: `${Math.round(e!.annual_kwh.cooling).toLocaleString()} kWh` },
+            ]));
           });
         })));
         // RFI-0 NL-QA — ask a plain-language question, get a cited answer from the model's own data

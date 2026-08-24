@@ -53,7 +53,7 @@ with TestClient(app) as c:
 
     # federated clash auto-builds the disciplines map from the registry; identical overlapping
     # geometry across the two models must produce cross-model clashes (intra-model excluded)
-    r = c.post(f"/projects/{pid}/clash/federated?create_topics=true&limit=50")
+    r = c.post(f"/projects/{pid}/clash/federated?create_topics=true&limit=200")
     assert r.status_code == 200, f"federated clash: {r.status_code} {r.text[:200]}"
     res = r.json()
     assert set(res["disciplines"]) == {"STR", "MEP"}, res["disciplines"]
@@ -82,6 +82,13 @@ with TestClient(app) as c:
     dz = cam["position"]["z"] - cam["target"]["z"]
     assert abs((dx * dx + dy * dy + dz * dz) ** 0.5 - 4.0) < 1e-6, "camera stands 4 m off the clash"
     assert set(vps[0]["components"]) == set(t0["element_guids"]), vps[0]
+
+    n_topics = len(clash_topics)
+    again = c.post(f"/projects/{pid}/clash/federated?create_topics=true&limit=200")
+    assert again.status_code == 200, again.text[:200]
+    assert again.json()["created_topics"] == 0, again.json()
+    clash_again = [t for t in c.get(f"/projects/{pid}/topics").json() if t.get("type") == "clash"]
+    assert len(clash_again) == n_topics, (n_topics, len(clash_again))
 
     # delete one discipline → back under the 2-model minimum → 409
     assert c.delete(f"/projects/{pid}/models/{mid_str}").json()["deleted"] is True
