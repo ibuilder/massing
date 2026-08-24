@@ -11,13 +11,14 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import errorlog, metrics, otel, ratecount, sentry
 from .bodycap import MaxBodySizeMiddleware
 from .db import SessionLocal, init_db
+from .rbac import require_identified
 from .routers import (
     accounting,
     analysis,
@@ -739,24 +740,79 @@ def _guard_metrics(request: Request) -> None:
 def perf_budget_report(_: None = Depends(_guard_metrics)) -> dict:
     """R24-PERF-BUDGET — the stated performance budgets, and which of them anything measures.
 
-    Three budgets are stated: request p95 < 100 ms, click echo < 100 ms, panel load < 1 s. **Only
-    the first is server-measurable**, read from the live histogram — the other two are client-side
-    (nothing here can see the interval between a click and the paint answering it, and server time
-    is only one term in a panel becoming usable).
+    Three budgets are stated: request p95 < 100 ms, click echo < 100 ms, panel load < 1 s. As of
+    v0.3.1063 **two of the three are measured**: the first from the live server histogram, and
+    `click_echo` by browser beacon into `metrics.observe_client` — nothing here can see the interval
+    between a click and the paint answering it. `panel_load` is still `unmeasured`, and its reason
+    changed rather than vanished: the beacon it was waiting for exists, but this app has no single
+    moment where a panel becomes usable, so there is nothing honest to time yet.
 
-    The unmeasurable two are returned as `unmeasured` **with the reason**, never omitted. A report
-    that lists three budgets and quietly evaluates one is how a green result comes to imply more
-    than was tested.
+    Any budget still lacking a measurement is returned as `unmeasured` **with the reason**, and a
+    measurable one with nothing reported comes back `no_observations`, never omitted. A report that
+    lists three budgets and quietly evaluates one is how a green result comes to imply more than was
+    tested; a budget that vanishes when its beacon breaks is the same failure arriving later.
 
-    The p95 is a histogram bucket UPPER bound, not an interpolated point — and `quantile` returning
-    None has two opposite causes: no observations, or a tail beyond the largest bucket. The second
-    is a FAILURE, because reading None as "no problem" would make this pass hardest exactly when
-    latency is worst.
+    The p95 is a histogram bucket UPPER bound, not an interpolated point — and a None quantile has
+    two opposite causes: no observations, or a tail beyond the largest bucket. The second is a
+    FAILURE, because reading None as "no problem" would make this pass hardest exactly when latency
+    is worst. That rule is applied to the client budgets by the SAME code, not a gentler copy.
+
+    **`within_budget` is now an AND across every MEASURED budget**, so a slow client fails it.
+    Whoever watches this should know the client figure is per-process and survivor-weighted — a
+    browser that hung hard enough never to beacon is absent from it.
 
     Same gate as /metrics: open by default, behind the bearer with AEC_METRICS_AUTH=1.
     """
     from . import perf_budget
-    return perf_budget.report(metrics.quantile(0.95), metrics._hist_inf)
+    client = {name: (metrics.client_quantile(name, 0.95), metrics.client_count(name))
+              for name, spec in perf_budget.BUDGETS.items()
+              if spec["side"] == "client" and spec["measurable"]}
+    return perf_budget.report(metrics.quantile(0.95), metrics._hist_inf, client)
+
+
+@app.post("/metrics/client")
+def record_client_interval(body: dict = Body(...),
+                           _user: str = Depends(require_identified)) -> dict:
+    """R24-PERF-BUDGET — one client-side interval, reported by the browser beacon.
+
+    The two client budgets (click echo, panel load) describe things only a browser can see, so the
+    only way to measure them is to let the browser say. This is the sink; the beacon is
+    `apps/web/src/ui/perfBeacon.ts`.
+
+    **Not behind `_guard_metrics`.** That gate protects READING the metrics surface and is satisfied
+    by an operator bearer no browser has. Writing needs the opposite test — is this one of our
+    signed-in users — so it takes `require_identified`. Leaving it open would hand anyone on the
+    internet a way to shift a percentile an operator makes decisions from: not a data breach, a way
+    to make the instrument lie, which is harder to notice.
+
+    **`require_identified`, not `Depends(current_user)`.** `current_user` IDENTIFIES and does not
+    AUTHORISE — with RBAC on it returns the literal string "anonymous", so depending on it is a name
+    rather than a gate. Routes have shipped with exactly that mistake twice, and the first draft of
+    this one made it a third: it took `current_user` and hand-rolled the anonymous check in the body,
+    which works but is invisible to the static walker in `test_global_authz` and would have gone into
+    the baseline as an unguarded global route.
+
+    **The budget name is matched against `BUDGETS`, never used as a key directly.** It arrives from a
+    browser, and `observe_client` would happily create a histogram for any string it is given — so an
+    unvalidated name is an unbounded, caller-controlled dict of series in a long-lived process.
+
+    Out-of-range and non-numeric values are DROPPED rather than clamped to the boundary, and the
+    response says so. Clamping a hostile 9,999 s to 10 s would file it in the slowest real bucket and
+    quietly move the p95; dropping it leaves the percentile describing only intervals a browser could
+    actually have produced. The same reasoning as the load-timing sink, which clamps because its rows
+    are read individually — here they are only ever read as an aggregate.
+    """
+    from . import perf_budget
+    name = str(body.get("budget") or "")
+    spec = perf_budget.BUDGETS.get(name)
+    if spec is None or spec.get("side") != "client" or not spec.get("measurable"):
+        raise HTTPException(status_code=422, detail=f"not a measurable client budget: {name!r}")
+    v = body.get("ms")
+    # NaN and inf never compare into the range, so they fall out here rather than reaching a bucket.
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not (0 <= v <= 600_000):
+        return {"recorded": False, "reason": "not a plausible interval in milliseconds"}
+    metrics.observe_client(name, float(v) / 1000.0)
+    return {"recorded": True}
 
 
 @app.get("/metrics")

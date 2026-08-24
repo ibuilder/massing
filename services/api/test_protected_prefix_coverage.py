@@ -55,10 +55,21 @@ from aec_api.main import _PROTECTED_PREFIXES, app  # noqa: E402
 MUTATING = {"post", "put", "patch", "delete"}
 
 #: Uncovered prefixes that HAVE mutating routes — the ones that matter. Frozen 2026-07-30.
+#:
+#: `/metrics` moved here from the read-only set on 2026-08-24, when `POST /metrics/client` (the
+#: R24-PERF-BUDGET beacon) became its first mutating route. **This gate caught that**, which is
+#: exactly failure mode 2 below working as designed.
+#:
+#: It is recorded here rather than added to `_PROTECTED_PREFIXES`, deliberately: that list drives the
+#: RBAC middleware, and `GET /metrics` is scraped by monitoring holding the operator bearer that
+#: `_guard_metrics` checks — not an RBAC session. Protecting the prefix would challenge the scrape and
+#: break the monitoring, to gate a route that already carries its own authoriser
+#: (`rbac.require_identified`, asserted by `test_global_authz` and `test_perf_budget`). A safety net
+#: is for routes with no gate of their own; this one has one.
 KNOWN_UNCOVERED_MUTATING = {
     "/admin", "/bcf", "/client-errors", "/compute", "/cost", "/esign", "/estimate", "/firm",
-    "/generate", "/ids", "/jurisdiction", "/license", "/massing", "/parcels", "/pdf", "/plugins",
-    "/samples", "/schedule", "/scim", "/shared", "/structure", "/templates", "/test-fit",
+    "/generate", "/ids", "/jurisdiction", "/license", "/massing", "/metrics", "/parcels", "/pdf",
+    "/plugins", "/samples", "/schedule", "/scim", "/shared", "/structure", "/templates", "/test-fit",
 }
 
 #: Uncovered read-only prefixes. Lower risk (a GET cannot change state) but still outside the net,
@@ -66,7 +77,7 @@ KNOWN_UNCOVERED_MUTATING = {
 KNOWN_UNCOVERED_READONLY = {
     "/attachments", "/benchmarks", "/bridge", "/bsdd", "/capabilities", "/classifications", "/codes",
     "/content", "/contractor-statements", "/energy", "/families", "/fca", "/health", "/licenses",
-    "/lifecycle", "/market", "/mcp", "/metrics", "/module-attachments", "/modules", "/openbim",
+    "/lifecycle", "/market", "/mcp", "/module-attachments", "/modules", "/openbim",
     "/opendata", "/payments", "/portfolio", "/pricing", "/procurement", "/re-syndication", "/ready",
     "/reference", "/reports", "/rooms", "/scope-library", "/securities-syndication", "/stamps",
     "/webhooks", "/wip",

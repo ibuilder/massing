@@ -31,6 +31,19 @@ _hist_inf = 0
 _hist_sum = 0.0
 
 
+#: Routes counted, but kept OUT of the latency histogram `request_p95` is read from.
+#:
+#: The client beacon posts on every click. Those are tiny, fast, same-datacentre writes, and there
+#: are up to two per second per open tab — so folding them into the histogram would pull the server
+#: p95 DOWN and make `request_p95` pass more easily the more the browser reported. **The instrument
+#: would have been flattering the thing it measures**, in the direction nobody checks, and the effect
+#: grows with adoption.
+#:
+#: They stay in `http_requests_total`, where an operator can see the volume: the goal is to keep
+#: telemetry out of a budget written about user-facing latency, not to hide it.
+_HIST_EXCLUDED: frozenset[str] = frozenset({"/metrics/client"})
+
+
 def observe(method: str, route: str, status: int, dur: float) -> None:
     global _hist_inf, _hist_sum
     with _lock:
@@ -39,6 +52,8 @@ def observe(method: str, route: str, status: int, dur: float) -> None:
         _class_total[cls] = _class_total.get(cls, 0) + 1
         _lat_sum[(method, route)] = _lat_sum.get((method, route), 0.0) + dur
         _lat_count[(method, route)] = _lat_count.get((method, route), 0) + 1
+        if route in _HIST_EXCLUDED:
+            return
         for b in _BUCKETS:
             if dur <= b:
                 _hist[b] += 1
@@ -64,6 +79,71 @@ def quantile(q: float) -> float | None:
         if snap[b] >= target:
             return b
     return None  # the qth observation is beyond the largest bucket
+
+
+#: CLIENT-side observations, one histogram per budget name. R24-PERF-BUDGET states three budgets and
+#: two of them are things only a browser can see — the interval between a click and the paint that
+#: answers it, and a panel becoming usable. Those arrive by beacon and land here.
+#:
+#: **A separate family, not the request histogram.** Folding paint intervals into
+#: `_hist` would silently corrupt `request_p95`, which is the one budget that was honest all along —
+#: a fast server would start failing its own budget because a slow laptop repainted slowly.
+#:
+#: **The buckets are deliberately the same tuple.** Both client budgets land exactly on an existing
+#: edge — `0.1` for click echo, `1.0` for panel load — so "at or below the bucket" answers the budget
+#: question without interpolating, which is the same property that made `_BUCKETS` right for the
+#: server budget. A bucket set that straddled a budget would force a guess at the boundary and the
+#: guess would always be the direction that passes.
+#:
+#: Per-process, exactly like the counters above, and for the same reason. With multiple workers each
+#: exposes its own slice. That is a real limitation and it is the SAME limitation `request_p95`
+#: already has, so the three budgets remain comparable with each other; it is stated in the budget
+#: report rather than left for a reader to infer.
+_client_hist: dict[str, dict[float, int]] = {}
+_client_inf: dict[str, int] = {}
+_client_sum: dict[str, float] = {}
+
+
+def observe_client(budget: str, dur: float) -> None:
+    """Record one client-side interval, in seconds, against a named budget.
+
+    Callers must clamp before calling: these numbers come from a browser and are attacker-controlled.
+    An unclamped value poisons the very percentile the budget is read from, which is a quiet way to
+    make the instrument lie rather than break.
+    """
+    with _lock:
+        h = _client_hist.setdefault(budget, dict.fromkeys(_BUCKETS, 0))
+        for b in _BUCKETS:
+            if dur <= b:
+                h[b] += 1
+        _client_inf[budget] = _client_inf.get(budget, 0) + 1
+        _client_sum[budget] = _client_sum.get(budget, 0.0) + dur
+
+
+def client_quantile(budget: str, q: float) -> float | None:
+    """The qth quantile for one client budget, with `quantile`'s exact semantics.
+
+    Returns the bucket UPPER bound, or None for BOTH "nothing observed" and "beyond the largest
+    bucket". Those two are opposite in meaning and the caller distinguishes them with
+    `client_count` -- see `perf_budget`, where reading None as "no problem" would make a budget pass
+    hardest exactly when the client is slowest.
+    """
+    with _lock:
+        total = _client_inf.get(budget, 0)
+        snap = dict(_client_hist.get(budget) or {})
+    if total <= 0 or not snap:
+        return None
+    target = q * total
+    for b in _BUCKETS:
+        if snap[b] >= target:
+            return b
+    return None
+
+
+def client_count(budget: str) -> int:
+    """How many observations back a client budget — the disambiguator for a None quantile."""
+    with _lock:
+        return _client_inf.get(budget, 0)
 
 
 def inflight(delta: int) -> None:
@@ -149,6 +229,29 @@ def render() -> str:
     out += [f'http_request_duration_seconds_hist_bucket{{le="+Inf"}} {hinf}',
             f"http_request_duration_seconds_hist_sum {hsum:.6f}",
             f"http_request_duration_seconds_hist_count {hinf}"]
+    # Client-side budgets, one histogram per name. Rendered even when empty is NOT the choice here:
+    # a budget with no observations is omitted, so a dashboard shows nothing rather than a flat zero
+    # line that reads like "fast". The budget report says `no_observations` in words for the same
+    # reason.
+    with _lock:
+        cnames = sorted(_client_hist)
+        csnap = {k: dict(_client_hist[k]) for k in cnames}
+        cinf = dict(_client_inf); csum = dict(_client_sum)
+    if cnames:
+        out += ["# HELP client_interval_seconds_hist Client-side budget intervals, by budget name "
+                "(R24-PERF-BUDGET). Reported by browser beacon; per-process like the server "
+                "histogram above.",
+                "# TYPE client_interval_seconds_hist histogram"]
+        for name in cnames:
+            for b in _BUCKETS:
+                out.append(f'client_interval_seconds_hist_bucket{{budget="{_esc(name)}",le="{b}"}} '
+                           f'{csnap[name][b]}')
+            out += [f'client_interval_seconds_hist_bucket{{budget="{_esc(name)}",le="+Inf"}} '
+                    f'{cinf.get(name, 0)}',
+                    f'client_interval_seconds_hist_sum{{budget="{_esc(name)}"}} '
+                    f'{csum.get(name, 0.0):.6f}',
+                    f'client_interval_seconds_hist_count{{budget="{_esc(name)}"}} '
+                    f'{cinf.get(name, 0)}']
     out += ["# HELP http_requests_in_flight In-flight HTTP requests.",
             "# TYPE http_requests_in_flight gauge",
             f"http_requests_in_flight {inflight}",

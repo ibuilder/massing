@@ -28,6 +28,7 @@ import { icon } from "./ui/icons";
 import { jobLabel, mountJobTray } from "./ui/jobTray";
 import { showKeyHelp } from "./ui/keys";
 import { installErrorReporting } from "./errorReporting";
+import { installClickEcho } from "./ui/perfBeacon";
 import type { Settings, ViewerApp } from "./viewer/app";
 
 // ---- shell DOM + shared state (no three/@thatopen here — those load lazily) --
@@ -40,6 +41,15 @@ const notify = (m: string, kind: "info" | "success" | "error" = "info") => { set
 const api = new ApiClient();
 // Capture uncaught browser errors + promise rejections → server error-log feed (best-effort).
 installErrorReporting((e) => api.reportClientError(e));
+// R24-PERF-BUDGET — click echo, the first of the two client-side budgets to get a real number. One
+// capture-phase listener sees every click in the app, which is what makes the resulting p95 a figure
+// whose population can be stated; instrumenting call sites would measure whichever ones were
+// remembered. Best-effort throughout: the transport swallows its own failures.
+installClickEcho(document, {
+  send: (budget, ms) => api.reportClientInterval(budget, ms),
+  now: () => performance.now(),
+  raf: (fn) => requestAnimationFrame(fn),
+});
 
 let projectId: string | null = null;
 let connected = false;

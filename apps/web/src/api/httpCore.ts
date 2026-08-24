@@ -72,6 +72,31 @@ export class HttpCore {
     return r.blob();
   }
 
+  /** R24-PERF-BUDGET — report one client-side interval, in milliseconds, against a named budget.
+   *
+   * Lives on the base rather than in a feature mixin for two reasons. It is not a feature: it is
+   * platform telemetry, sitting beside `health()` for the same reason that does. And `client.ts` is
+   * exactly at its size pin, so a new mixin would have cost it an import line it does not have —
+   * the ratchet pushing a genuinely infrastructural method to the infrastructural file, which is
+   * what it is for.
+   *
+   * **Fire and forget by contract.** It swallows everything: a browser measuring the app must never
+   * be able to break it, and the failure mode of a rejected promise nobody awaited is an unhandled
+   * rejection in a user's console. A dropped beacon costs one observation out of a percentile.
+   *
+   * Silent in the demo build, which has no backend — the same guard every other call here carries.
+   */
+  reportClientInterval(budget: string, ms: number): void {
+    if (IS_DEMO) return;
+    try {
+      void fetch(this.baseUrl + "/metrics/client", {
+        method: "POST", keepalive: true,
+        headers: { "Content-Type": "application/json", ...this.authHeaders() },
+        body: JSON.stringify({ budget, ms }),
+      }).catch(() => { /* a dropped beacon is one observation, not an error */ });
+    } catch { /* fetch itself can throw synchronously on a malformed base URL */ }
+  }
+
   async health(): Promise<boolean> {
     try {
       const res = await fetch(this.baseUrl + "/health");

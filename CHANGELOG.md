@@ -4,6 +4,85 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1063 (2026-08-24) — the budget nobody could measure, and the one that still cannot be
+
+R24-PERF-BUDGET stated three performance budgets and measured one. `perf_budget.py` kept the other
+two declared as `unmeasured` **with a written reason** rather than asserting a server number in their
+place, because *"a budget file that lists three budgets and quietly checks one is how a green suite
+comes to imply more than it tested."* That sentence is the only reason this was closable at all: the
+gap stayed legible for as long as it went unclosed.
+
+### Added
+
+- **A client beacon — `apps/web/src/ui/perfBeacon.ts` — and `click_echo` now has a real number.**
+  One capture-phase click listener installed at the app entry sees every click in the app. That is
+  the design decision worth stating: instrumenting call sites would have measured whichever handlers
+  someone remembered to wire, and **a p95 over a remembered subset is a figure whose population
+  nobody can state.**
+  - **Two animation frames, not one.** A `requestAnimationFrame` callback runs *before* the browser
+    paints, so measuring there reports the time to schedule the answer rather than to show it —
+    consistently short, consistently wrong, and wrong in the flattering direction. The callback
+    scheduled from inside that frame runs after the paint.
+  - **Untrusted events are ignored.** A dispatched click answers instantly because no human was
+    waiting on it; counting them would pull the percentile down with intervals no user experienced.
+  - A rolling per-minute cap so a stuck UI cannot bury a genuinely slow p95 under thousands of fast
+    synthetic ones, and intervals the clock cannot justify (a tab suspend, a clock change) are
+    dropped rather than reported as slow clicks.
+- **`POST /metrics/client`** as the sink, with `metrics.observe_client` / `client_quantile` /
+  `client_count` alongside the existing request histogram — a **separate** histogram family, because
+  folding paint intervals into the request histogram would corrupt `request_p95`, the one budget that
+  was honest all along. Both client budgets land exactly on existing bucket edges (0.1 s, 1 s), so the
+  reading is not an interpolation.
+  - Refuses an anonymous caller: shifting a percentile an operator makes decisions from is not a data
+    breach, it is a way to make the instrument lie, which is harder to notice.
+  - Matches the budget name against `BUDGETS` rather than using it as a key — an unvalidated name
+    would let a browser create unbounded histogram series in a long-lived process.
+  - **Drops** implausible durations instead of clamping them. Clamping a hostile 9,999 s to 10 s
+    files it in the slowest real bucket and quietly moves the p95; dropping leaves the percentile
+    describing only intervals a browser could have produced.
+
+### Changed
+
+- **Beacon traffic is kept OUT of the latency histogram `request_p95` is read from** — found by
+  reviewing this change's own diff, not by a failing test. The beacon posts on every click: tiny,
+  fast, same-datacentre writes, up to two a second per open tab. Folding them into the histogram
+  would have pulled the server p95 **down**, so `request_p95` would pass more easily the more the
+  browser reported — **the instrument flattering the thing it measures, in the direction nobody
+  checks, with the bias growing as adoption grows.** They stay in `http_requests_total` so an
+  operator can still see the volume; the goal is to keep telemetry out of a budget written about
+  user-facing latency, not to hide it. Asserted with a control (an ordinary request must still reach
+  the histogram, or the check passes on a histogram that stopped recording anything) and
+  mutation-checked by removing the exclusion — 51 observations became 76.
+- **The sink takes `require_identified`, not `Depends(current_user)`.** The first draft took
+  `current_user` and hand-rolled the anonymous check in the handler body. That works and is invisible
+  to the static walker in `test_global_authz`, which would have recorded a new platform-global
+  mutating route carrying no authorising dependency — *"a dependency that looks like a gate and is
+  not"*, the exact shape this repo has shipped twice and written a gate about. The gate would have
+  caught it; the point is that the gate's own docstring described the mistake before it was made.
+, so a slow client fails it. It
+  previously described one budget while reading like a verdict on the product.
+- The client budget is judged by the **same** arithmetic as the server one, asserted directly. The
+  two budgets nobody could measure are the two most likely to be handed a gentler rule on the way in,
+  and a budget with its own softer arithmetic is a budget reporting on itself.
+- A measurable budget whose beacon reported nothing comes back `no_observations` and is **not**
+  within budget. A budget that vanishes from the report when its beacon breaks is the same
+  "green implies more than was tested" failure arriving later and harder to spot.
+
+### Not done, deliberately
+
+- **`panel_load` stays `measurable: False`, and its REASON changed rather than vanished.** The
+  blocker was never really the beacon — it was a *moment*. This app has no single point at which a
+  panel becomes usable: `apps/web/src/ui/modal.ts` builds an empty shell and each of its ~20 callers
+  fills it afterwards, so timing that chokepoint would record a few hundred microseconds of shell
+  construction and file it as a panel load. **A budget reported green against a measurement of the
+  wrong thing is worse than one openly unmeasured** — it is the exact failure this module exists to
+  prevent, wearing the module's own badge. Flipping it would have been the easy half of the item and
+  the dishonest one. `why_unmeasured` now names the missing moment instead of the missing beacon, so
+  the next reader is not sent to build something that already exists; what remains is per-site work.
+- The `STATUS_UNMEASURED` path is kept and still tested — against a temporary declaration, since no
+  real budget exercises it now. An unexercised branch is one nobody notices deleting, and the next
+  budget stated before it can be measured needs the slot.
+
 ## v0.3.1062 (2026-08-24) — the sixth site of a defect whose own fix enumerated five
 
 ### Fixed

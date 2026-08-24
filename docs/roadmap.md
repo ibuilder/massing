@@ -1469,11 +1469,32 @@ refute one, so this goes first even though it is the least visible.
   the p95 read from the live histogram rather than a synthetic number, and `quantile` returning None
   is treated as a **failure** on the `beyond_histogram` branch, because reading None as "no problem"
   would make the budget pass hardest exactly when latency is worst.
-  **The true remainder is the client beacon, and it is Lane A/E, not Lane C.** `BUDGETS` lists all
-  three and marks `click_echo` and `panel_load` `measurable: False` with a stated reason — nothing on
-  the server can observe a click-to-paint interval. That is the honest shape, not a gap: a budget file
-  listing three and quietly checking one is how a green suite implies more than it tested. Whoever
-  takes this should build the beacon and flip those two, and should not expect to write a backend test.
+  **The client beacon is BUILT (v0.3.1063) — and only one of the two budgets was flipped.**
+  `apps/web/src/ui/perfBeacon.ts` installs a single capture-phase click listener at the app entry and
+  measures click → the paint that answers it across two animation frames (a `requestAnimationFrame`
+  callback runs *before* the paint; the one scheduled from inside it runs after). One listener rather
+  than instrumented call sites, deliberately: a p95 over whichever handlers somebody remembered to
+  wire is a figure whose population nobody can state. Untrusted events are ignored — a dispatched
+  click answers instantly because no human was waiting, so counting them would pull the percentile
+  down with intervals nobody experienced. It posts to `POST /metrics/client`, which refuses an
+  anonymous caller, matches the budget name against `BUDGETS` rather than using it as a dict key, and
+  **drops** implausible durations instead of clamping them (clamping files a hostile value in the
+  slowest real bucket and quietly moves the p95).
+
+  **`panel_load` was NOT flipped, and that is the finding.** The blocker was never really the beacon —
+  it was a *moment*. This app has no single point where a panel becomes usable: `apps/web/src/ui/modal.ts`
+  builds an empty shell and each of its ~20 callers fills it afterwards, so timing that chokepoint
+  would record a few hundred microseconds of shell construction and file it as a panel load. Flipping
+  it on the strength of the beacon landing would have been the easy half of this item and the
+  dishonest one — a budget marked measurable with no producer reports `no_observations` for ever,
+  which reads like an outage rather than the stated gap it is. The `why_unmeasured` text now names
+  the missing moment instead of the missing beacon, so the next reader is not sent to build a thing
+  that already exists. **What remains is per-site: an explicit ready() signal at each panel's
+  data-render point.**
+
+  `within_budget` is now an AND across every *measured* budget, so a slow client fails it — and the
+  client figure is per-process and survivor-weighted (a browser that hung hard enough never to beacon
+  is absent from it), which the report says in words rather than leaving to be inferred.
 ### Sprint 2 — cash the moat *(the differentiation no competitor can copy)*
 
 - ~~**R24-TRACE-UI ②**~~ *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
