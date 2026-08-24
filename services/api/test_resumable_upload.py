@@ -17,6 +17,12 @@ import os
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_resumable_upload.db"
 os.environ["STORAGE_DIR"] = "./test_storage_resumable_upload"
+# IFC_DIR is REQUIRED here, not optional tidiness. It defaults to "/app/ifc" — a container path — and
+# the consumer test below registers a model, which writes an IFC under it. On Windows that default
+# resolves to a drive-root path that happens to be writable, so this file passed locally and failed on
+# the Linux runner with `PermissionError: [Errno 13] Permission denied: '/app'`. It cost two red
+# releases (v0.3.1069, v0.3.1070). Any test that registers a model must set this.
+os.environ["IFC_DIR"] = "./test_ifc_resumable_upload"          # matches .gitignore test_ifc*/
 os.environ["AEC_TRUST_XUSER"] = "1"
 os.environ.pop("AEC_RBAC", None)
 if os.path.exists("./test_resumable_upload.db"):

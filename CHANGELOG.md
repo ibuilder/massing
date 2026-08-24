@@ -4,6 +4,25 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1072 (2026-08-24) — a default that only fails on Linux
+
+### Fixed — main was red on v0.3.1069 and v0.3.1070, both from this
+
+- **`test_resumable_upload` did not set `IFC_DIR`.** It defaults to **`/app/ifc`** — a container path
+  — and that file's consumer test registers a model, which writes an IFC under it. On Windows the
+  default resolves to a drive-root path that happens to be writable, so the suite passed locally
+  **623/623** and the Linux runner failed with
+  `PermissionError: [Errno 13] Permission denied: '/app'`.
+
+  This is the second passes-locally-fails-in-CI defect in two days and the same shape as the first:
+  **an environment-dependent default that the local platform happens to satisfy.** A green local run
+  says nothing about a path whose default is only wrong on the other operating system.
+
+  Not gated. The obvious rule — "a test that sets `STORAGE_DIR` must set `IFC_DIR`" — was measured
+  before being written: **397 test files set `STORAGE_DIR` and most do not need `IFC_DIR`**, because
+  they never touch an IFC path. A gate there would be several hundred false positives, so the fix is
+  the one test plus a note at the setting saying why it is required rather than tidy.
+
 ## v0.3.1071 (2026-08-24) — mark up the drawing where you are looking at it
 
 R36-VIEWER-SUBAPP slice 6. Marking up a sheet was only possible in the Drawings room, because the
