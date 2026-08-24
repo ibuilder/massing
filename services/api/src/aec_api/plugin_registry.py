@@ -21,10 +21,12 @@ changed plugin re-registers cleanly. Refusals are returned AND logged; a half-lo
 visible, never silent."""
 from __future__ import annotations
 
-import importlib.util
 import json
 import logging
 import os
+import subprocess
+import sys
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -47,6 +49,88 @@ def enabled() -> bool:
     return os.environ.get("AEC_PLUGINS_ENABLED") == "1"
 
 
+#: How long a plugin gets, in seconds, for one discovery or one recipe run.
+#:
+#: Wall-clock only. `setrlimit` would cap memory too and is POSIX-only; this repo has already refused
+#: a Windows-unavailable memory cap rather than ship a guard that silently does nothing on the
+#: platform it is developed on. Stated here rather than left as an unnoticed gap.
+PLUGIN_TIMEOUT_S = int(os.environ.get("AEC_PLUGIN_TIMEOUT_S", "30") or 30)
+
+#: Environment the child must NOT inherit. It has no DB session and no storage handle because there is
+#: nothing here to build one from — not because it declines to build one.
+_STRIPPED = ("DATABASE_URL", "STORAGE_DIR", "IFC_DIR", "AEC_API_KEY", "AEC_JWT_SECRET",
+             "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "S3_ENDPOINT", "AEC_METRICS_TOKEN")
+
+
+def _child_env() -> dict[str, str]:
+    env = {k: v for k, v in os.environ.items() if k not in _STRIPPED}
+    env["AEC_PLUGIN_CHILD"] = "1"          # so anything imported down there can tell where it is
+    # UTF-8 on the pipe, in both directions, because on Windows it otherwise defaults to the ANSI
+    # codepage — cp1252 on this machine, checked rather than assumed.
+    #
+    # **Narrower than it first looks, and the first version of this comment was wrong about it.**
+    # `json.dumps` escapes non-ASCII by default, so the PROTOCOL is pure ASCII whatever the codepage
+    # is; a recipe named in Chinese round-trips fine without any of this. What the pipe carries raw is
+    # the DIAGNOSTIC path — the stderr tail `_host` reports when the child produced no JSON at all —
+    # and that is exactly the path you are on when something has already gone wrong. Decoded as
+    # cp1252, a UTF-8 traceback comes back as mojibake, and the refusal that was meant to explain the
+    # failure misdescribes it instead. `test_plugin_isolation.py` asserts on that path specifically,
+    # because an assertion on the protocol passes with or without these two lines.
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+    return env
+
+
+def _host(args: list[str], stdin: str = "") -> dict[str, Any]:
+    """Run `plugin_host` in a child process and read its one JSON line.
+
+    A non-zero exit with parseable JSON is a REFUSAL and carries its reason; anything else — a crash,
+    a timeout, output that is not JSON — is reported as a failure with what was actually seen. The two
+    are different and the caller has to be able to tell them apart, which is why the child prints a
+    protocol rather than letting a traceback stand in for one.
+    """
+    cmd = [sys.executable, "-m", "aec_api.plugin_host", *args]
+    try:
+        proc = subprocess.run(cmd, input=stdin, capture_output=True, text=True, shell=False,
+                              encoding="utf-8", errors="replace",   # never the ANSI codepage
+                              timeout=PLUGIN_TIMEOUT_S, env=_child_env(),
+                              cwd=str(Path(__file__).resolve().parents[1]))
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": f"timed out after {PLUGIN_TIMEOUT_S}s"}
+    try:
+        return json.loads((proc.stdout or "").strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        tail = (proc.stderr or proc.stdout or "")[-400:]
+        return {"ok": False, "error": f"no JSON from plugin host (exit {proc.returncode}): {tail}"}
+
+
+def _proxy_recipe(plugin_dir: Path, entry: str, key: str) -> Callable[[Any, dict], Any]:
+    """A recipe that runs the plugin's code in a CHILD process, not this one.
+
+    The signature the host registry expects is `fn(model, params)` over an in-memory model, so this
+    writes the model out, runs the child against the file, and reopens the result. `edit` accepts a
+    `(model, changed)` return, which is how the reopened model gets back to the caller.
+
+    **This costs a model round-trip per call**, and `edit.apply_recipes` otherwise keeps a whole batch
+    in memory. That is the price of the code not being in this process; it is only paid when plugins
+    are enabled, which is off by default.
+    """
+    def call(model: Any, params: dict) -> Any:
+        import ifcopenshell  # type: ignore
+
+        with tempfile.TemporaryDirectory(prefix="aec-plugin-") as td:
+            src, dst = str(Path(td) / "in.ifc"), str(Path(td) / "out.ifc")
+            model.write(src)
+            res = _host(["run", str(plugin_dir), entry, PLUGIN_API_VERSION, key, src, dst],
+                        stdin=json.dumps(params or {}))
+            if not res.get("ok"):
+                raise ValueError(f"plugin recipe {key} failed: {res.get('error')}")
+            if not Path(dst).exists():
+                raise ValueError(f"plugin recipe {key} wrote no model")
+            return ifcopenshell.open(dst), res.get("changed")
+    return call
+
+
 class PluginApi:
     """The facade handed to a plugin's `register(api)` — the ONLY supported extension surface.
     Everything registered is tracked so a reload can cleanly unregister it."""
@@ -67,6 +151,10 @@ class PluginApi:
         if key in edit.RECIPES:
             raise ValueError(f"recipe key {key!r} already registered")
         edit.RECIPES[key] = fn
+        # A plugin recipe ALWAYS hands back `(model, changed)`, because `_proxy_recipe` reopens what
+        # the child wrote. Without this line the drivers use that tuple as the change summary and save
+        # the pre-edit model: a green run, a plausible report, and the edit written nowhere.
+        edit.REPLACING_RECIPES.add(key)
         self._registered.append(key)
         try:                                             # surface it in the authoring matrix, categorized
             from . import authoring_matrix
@@ -102,6 +190,7 @@ def _unregister_all() -> None:
 
     for key in _STATE["registered_keys"]:
         edit.RECIPES.pop(key, None)
+        edit.REPLACING_RECIPES.discard(key)
     _STATE["registered_keys"] = []
 
 
@@ -130,21 +219,28 @@ def load_all() -> dict[str, Any]:
             _STATE["refused"].append({"name": mf["name"], "reason": reason})
             log.warning("plugin %s refused: %s", mf["name"], reason)
             continue
-        entry = d / (mf.get("entry") or "plugin.py")
+        entry_name = mf.get("entry") or "plugin.py"
         registered: list[str] = []
+        # SEC-PLUGIN-LOADER — the plugin's code is imported in a CHILD PROCESS, never here. What comes
+        # back is a list of declarations; the callables stay on the other side of the boundary and are
+        # reached through `_proxy_recipe`. Everything this function checked before still runs, and now
+        # it runs on data rather than in the same interpreter as the code it is checking.
+        found = _host(["discover", str(d), entry_name, PLUGIN_API_VERSION])
+        if not found.get("ok"):
+            _STATE["refused"].append({"name": mf["name"], "reason": f"load failed: {found.get('error')}"})
+            log.warning("plugin %s refused: load failed: %s", mf["name"], found.get("error"))
+            continue
         try:
-            spec = importlib.util.spec_from_file_location(f"aec_plugin_{mf['name']}", entry)
-            if spec is None or spec.loader is None:
-                raise ValueError(f"cannot load entry {entry.name}")
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            if not hasattr(mod, "register"):
-                raise ValueError("entry module has no register(api) function")
-            mod.register(PluginApi(mf["name"], registered))
-        except Exception as e:  # noqa: BLE001 — a broken plugin is refused with its error, never fatal
+            api = PluginApi(mf["name"], registered)
+            for r in found.get("recipes") or []:
+                api.register_recipe(r["name"], _proxy_recipe(d, entry_name, r["key"]),
+                                    category=r.get("category") or "plugin",
+                                    produces=r.get("produces") or "")
+        except Exception as e:  # noqa: BLE001 — a colliding key is refused with its error, never fatal
             for key in registered:                       # roll back anything it managed to register
                 from aec_data import edit  # type: ignore
                 edit.RECIPES.pop(key, None)
+                edit.REPLACING_RECIPES.discard(key)
             _STATE["refused"].append({"name": mf["name"], "reason": f"load failed: {e}"})
             log.warning("plugin %s refused: load failed: %s", mf["name"], e)
             continue

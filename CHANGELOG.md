@@ -4,6 +4,57 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1081 (2026-08-24) — third-party plugin code stops running in the API process
+
+**SEC-PLUGIN-LOADER.** `plugin_registry` used to `exec_module` a plugin's entry in this interpreter
+and then call its `register(api)`. Every check around that line — the manifest, the `api_version`
+major, the rollback of a plugin that raises — happens *before* it and constrains nothing the code
+then does. Import-time plugin code had the API's DB session, filesystem, network and environment.
+
+It now runs in a child process. `plugin_host.py` has two modes: `discover` imports the entry and
+records what it declares against a recording API, and `run` executes one recipe against an IFC on
+disk. `plugin_registry` no longer contains `exec_module` at all — it shells out and registers
+*proxies*, so a plugin's callable is only ever held in a child.
+
+**`run` is there because sandboxing only registration would have been half a boundary that read like
+a whole one.** The item asked for "registration in a separate process", but a plugin's recipe is
+`fn(model, params)` — an arbitrary callable invoked later, from the API process, on every use.
+Isolating the import while leaving the work in-process contains the smaller half and leaves the
+larger one open, under a heading that says the problem is solved.
+
+**The load-bearing assertion is process identity**, and everything else is decoration without it. A
+probe plugin records `os.getpid()` at import and again inside its recipe; both must differ from the
+API's pid *and from each other*. A version that quietly ran in-process would satisfy every other
+check in the file — the timeouts, the stripped environment, the refusals.
+
+Three things this cost, all of them found by checks rather than by reading:
+
+* **A silent lost edit.** The proxy reopens what the child wrote and hands back `(model, changed)`,
+  which `edit` only rebinds for recipes in `REPLACING_RECIPES` — a frozen set the plugin path could
+  not join. Without that registration the driver writes the *pre-edit* model and reports a healthy
+  change count: no error, a green run, the edit gone. The pre-existing plugin fixture only counted
+  storeys, so nothing would have shown it; the new suite asserts against the **written file**.
+* **A gate that agreed with itself.** The first encoding check asserted that a non-ASCII recipe
+  result survived the pipe. It passes with the encoding pin deleted, because `json.dumps` escapes
+  non-ASCII by default and the protocol is ASCII whatever the codepage is. What is actually raw on
+  the pipe is the *diagnostic* path — the stderr tail reported when the child prints no JSON at all,
+  which is the path you are on precisely when something has already gone wrong.
+* **A gate that discriminated only under an invocation nobody uses.** The replacement check was real
+  when run bare and vacuous under `run_tests.py`, which sets `PYTHONUTF8=1` and puts the parent in
+  UTF-8 mode regardless of what the child is asked for. It now runs its own probe with that variable
+  removed, and was mutation-tested under the suite's own invocation rather than a convenient one.
+
+**The deferral in the entry was overridden deliberately, not overlooked.** It said to build this when
+plugins are *distributed* and not before, and that reasoning still holds: no path exists from an
+unprivileged caller to plugin execution, so this retires no live vulnerability. It buys the
+marketplace prerequisite in advance instead of it being discovered as a blocker later.
+
+**SCALE-SEAM ㉖** — the code-compliance group out of `client.ts` (8 methods, 2,961 → 2,883) as
+`api/codecheck.ts`. First slice grouped by what the methods *answer* rather than by route prefix: it
+spans `/projects/{pid}/codecheck`, `/codes/adoptions` and `/codes/ebc/pathways`, and splitting on the
+prefix would have put `ebcClassify` and `ebcPathways` — two halves of one screen — in two files. Two
+RFI methods sat inside the run and stayed; adjacency in a file is not a relationship.
+
 ## v0.3.1080 (2026-08-24) — the same scan over the rest of the tree, and why it stays out of it
 
 Having found 23 stranded doc comments in `api/`, the obvious next move was to run the scan repo-wide

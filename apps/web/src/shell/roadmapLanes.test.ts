@@ -56,7 +56,7 @@ const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
  * ㉕ is not a considered limit either, just a further-off one. **A vocabulary this check defines is
  * part of its population, so widening it is a real change and not housekeeping.**
  */
-const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕";
+const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖";
 
 /**
  * One source for the marker vocabulary, because there were **two** and they had already drifted.
@@ -293,7 +293,12 @@ describe("the roadmap lane table", () => {
     // 32 → 31: PERF-THREADS ③ closed (✅ v0.3.1074). The reverse check added in the same release
     // caught the lane cell on the very next change — closing an item now costs both edits or the
     // build says so, which is the whole point of adding it.
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(31);
+    // 31 → 30: SEC-PLUGIN-LOADER closed (✅ v0.3.1081). Unlike most of the drops above this is NOT
+    // the record catching up — it is work that was deliberately deferred in its own entry ("build
+    // the boundary when plugins are distributed, not before") and then built anyway on the user's
+    // instruction. The deferral reasoning was and remains correct; overriding it is a scope
+    // decision, not a discovery, and the entry says so in those words rather than quietly flipping.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(30);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {

@@ -1026,7 +1026,18 @@ def _sandbox_replace(model: ifcopenshell.file, code: str) -> tuple[ifcopenshell.
 #: `model` for these, or the edit is silently discarded — see `_sandbox_replace`. Kept as a set beside
 #: `RECIPES` rather than as a flag inside each entry so the drivers can ask one question, and so a new
 #: replacing recipe cannot be added without landing in a place both drivers already read.
-REPLACING_RECIPES = frozenset({"execute_ifc_code"})
+#: Mutable, and the reason is SEC-PLUGIN-LOADER. It was a `frozenset` while `execute_ifc_code` was the
+#: only member; a plugin recipe now runs in a child process, so its proxy writes the model out, runs
+#: the child, and reopens the result — which makes every plugin recipe a replacing one, discovered at
+#: load time rather than written here. `plugin_registry` adds each key as it registers and drops it on
+#: unregister, so the set still answers the drivers' one question and still has exactly one reader.
+#:
+#: **The failure this prevents is silent.** A replacing recipe whose key is missing here has its return
+#: value used as `changed` and its NEW model thrown away: the driver writes the pre-edit object, reports
+#: a healthy count, and the user's edit is gone with no error anywhere. That is precisely the bug
+#: `_sandbox_replace`'s docstring describes, and a plugin would have hit it the moment one mutated
+#: anything — the first plugin fixture in the tree only counted storeys, so nothing would have shown.
+REPLACING_RECIPES: set[str] = {"execute_ifc_code"}
 
 
 def _rep():

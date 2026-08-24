@@ -637,13 +637,13 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `main.ts` | R24-RUNS-INBOX *(✅ SHIPPED v0.3.947 + routing, pending archive)* · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ *(✅ SHIPPED v0.3.1074 — the parse cap, pending archive)* · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ① *(✅ COMPLETE — front half v0.3.876, store sites v0.3.941–942)* · R41-UPLOAD-WARK *(✅ COMPLETE v0.3.1069 — the resumable handshake, its consumer and the client)* · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER *(✅ SHIPPED v0.3.1081 — the plugin process boundary, pending archive)* · PERF-WORKERS ① · PERF-THREADS ③ *(✅ SHIPPED v0.3.1074 — the parse cap, pending archive)* · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ① *(✅ COMPLETE — front half v0.3.876, store sites v0.3.941–942)* · R41-UPLOAD-WARK *(✅ COMPLETE v0.3.1069 — the resumable handshake, its consumer and the client)* · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | R38-ARRAY-LIVE ③ *(✅ SHIPPED — persist + re-edit UI, pending archive)* · R21-4D-CLASH *(✅ SHIPPED — phase 1 v0.3.682 + install-before-support, pending archive)* · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(✅ COMPLETE — its own entry has been marked ✅ since the cursor PR; this cell said "only cursor sync left" after that shipped)* · R38-SOLVER-LOCKS ③ *(CLOSED v0.3.1065 — built end to end, pending archive)* · R23-BATCH-OVERLAYS *(CLOSED v0.3.1064, pending archive — every clause was already resolved)* · R39-VIEWER-OBS ② *(SHIPPED 2026-08-07 in #249, pending archive — it was listed open for a fortnight after landing)* · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN *(COMPLETE v0.3.1070 — both halves; pending archive)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉕ *(the only open slice; ②–㉔ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉖ *(the only open slice; ②–㉕ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(SHIPPED v0.3.1028, pending archive — this cell said "the three cache locations drop all seven security headers" for a day after they stopped doing so)* · R39-CONTAINER-PR *(SHIPPED v0.3.1055, pending archive)* · R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -2950,7 +2950,20 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉕ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉕ `/specialty` SHIPPED v0.3.1079; ②–㉔ already shipped)*
+- ◧ ⭐ **SCALE-SEAM ㉖ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉖ code compliance SHIPPED v0.3.1081; ②–㉕ already shipped)*
+  **㉖ took the code-compliance group out** (8 methods; `client.ts` 2,961 → 2,883) as
+  `apps/web/src/api/codecheck.ts`. **It is the first slice grouped by what the methods ANSWER rather
+  than by a shared route prefix**, and that is a deliberate departure: the group spans
+  `/projects/{pid}/codecheck`, `/codes/adoptions` and `/codes/ebc/pathways`, so a prefix split would
+  have put `ebcClassify` and `ebcPathways` — the two halves of one screen — in two files. The prefix
+  was only ever a cheap proxy for "one feature"; here it stops being one, and following it would have
+  been rigour about the wrong thing.
+  **㉗ needs `MARKS` widened again** in `apps/web/src/shell/roadmapLanes.test.ts` — ㉖ was added for
+  this slice, and the vocabulary now stops there.
+  *Two RFI methods (`rfiReadiness`, `rfiReadinessBcf`) sat INSIDE this run in the file and did not
+  come with it. Adjacency in a file is not a relationship — the same lesson ㉕ recorded about
+  `MaterialEntry`, met again and acted on the same way.*
+
   **㉕ took `/projects/{pid}/specialty` out** (5 methods + 5 types; `client.ts` 3,019 → 2,961) as
   `apps/web/src/api/specialty.ts`. Two neighbouring types stayed: `MaterialEntry` is imported by
   `apps/web/src/portal/panels/materials.ts`, so moving it would have been a breaking change dressed
@@ -3086,7 +3099,47 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   and the second deleted a docstring line naming the method. **A mutation you have not confirmed landed
   tells you nothing.**
 
-- **SEC-PLUGIN-LOADER** *(L)* — **renamed from SEC-PLUGIN-SANDBOX on 2026-08-05: it was a different
+- ✅ **SEC-PLUGIN-LOADER** *(L)* — **SHIPPED v0.3.1081. The boundary is a process, and it covers
+  execution as well as registration.** `services/api/src/aec_api/plugin_host.py` is the child; it has
+  two modes, `discover` (import the entry, call `register` against a recording API, print what was
+  declared) and `run` (execute ONE recipe against an IFC on disk). `plugin_registry.py` no longer
+  contains `exec_module` at all — it shells out and registers *proxies*, so the callable a plugin
+  supplies is only ever held in a child.
+
+  **`run` is here because sandboxing only registration would have been half a boundary that read like
+  a whole one.** The text below asked for "registration in a separate process", and a plugin's recipe
+  is `fn(model, params)` — an arbitrary callable invoked later, from the API process, on every use.
+  Isolating the import while leaving the work in-process would contain the smaller half and leave the
+  larger one open, under a heading that says the problem is solved. Taking the instruction literally
+  was the wrong reading of it.
+
+  **The load-bearing assertion is process identity, and everything else is decoration without it.** A
+  probe plugin writes `os.getpid()` at import and again inside its recipe; `services/api/test_plugin_isolation.py`
+  requires both to differ from the API's pid *and from each other* (nothing is kept warm across the
+  boundary). A version that quietly ran in-process would satisfy every other check in that file — the
+  timeouts, the stripped environment, the refusals — which is exactly why that one is named in capitals.
+  Also asserted: the child cannot see `DATABASE_URL`, `STORAGE_DIR` or the API key; a plugin that hangs
+  at import is cut off by the wall-clock cap and refused *as a timeout*; a plugin that raises at import
+  is refused while its healthy neighbours still load; the `api_version` gate still refuses on the
+  manifest without importing the entry; and `load_all()` is genuinely idempotent, which the module has
+  promised in prose since it was written and nothing had ever checked.
+
+  **What it costs, stated rather than hidden:** a model round-trip per plugin recipe call, because the
+  batch path opens a model once in memory and a plugin recipe now writes it out, runs a process, and
+  reads it back. Paid only when `AEC_PLUGINS_ENABLED=1`, which is off by default. **No memory cap** —
+  `setrlimit` is POSIX-only and this repo has already declined a Windows-unavailable guard rather than
+  ship one that silently does nothing on the platform it develops on; the wall-clock cap is portable
+  and is enforced.
+
+  **The deferral below was deliberately overridden, not overlooked.** It said to build this when
+  plugins are *distributed*, "not before", and that reasoning was sound: the threat-model paragraph is
+  still correct, there is still no path from an unprivileged caller to plugin execution, and this
+  retired no live vulnerability. It was built anyway on the user's instruction to integrate whatever
+  is useful. What that buys is that the marketplace prerequisite is now met in advance instead of
+  being discovered as a blocker by whoever ships the marketplace. The original text is kept below
+  verbatim because the analysis in it is still the correct analysis.
+
+  — *original entry follows* — **renamed from SEC-PLUGIN-SANDBOX on 2026-08-05: it was a different
   item wearing the same ID.** The other SEC-PLUGIN-SANDBOX (Band 1) is `sandbox.py`'s
   `execute_ifc_code` AST allowlist, shipped v0.3.864. This one is `plugin_registry.py` importing
   third-party Python into the API process. Different file, different lane, different status — and

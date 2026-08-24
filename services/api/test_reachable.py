@@ -47,6 +47,15 @@ ENTRY_POINTS = {
               "*launched*, not by being imported — which is exactly why this list has to name the way "
               "in: `docker-compose.yml` is the caller, and no amount of walking Python imports from a "
               "route will ever find it",
+    "plugin_host": "separate process entry point: `python -m aec_api.plugin_host`, launched by "
+                   "`plugin_registry._host` for every plugin discovery and every plugin recipe run. "
+                   "SEC-PLUGIN-LOADER put a process boundary between third-party code and the API, so "
+                   "the module being unreachable BY IMPORT is the point rather than an oversight — an "
+                   "import edge from here to there would mean the boundary had a hole in it. "
+                   "Unlike `worker`, whose caller is docker-compose, this one's caller is first-party "
+                   "Python and the launch is proven end to end: `test_plugin_isolation.py` asserts the "
+                   "plugin's import and its recipe both report a pid different from the API's, which "
+                   "cannot happen unless this module really ran",
 }
 
 # Real gaps: tested, shipped, and callable by nothing. Each carries the date it was found so an entry
