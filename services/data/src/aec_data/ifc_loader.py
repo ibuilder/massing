@@ -3,6 +3,7 @@ so results reconcile against model updates (CLAUDE.md non-negotiable)."""
 from __future__ import annotations
 
 import os
+import threading
 from collections import OrderedDict
 from collections.abc import Iterable
 
@@ -151,6 +152,30 @@ class _ModelCache:
         return {"size": len(self._d), "maxsize": self.maxsize}
 
 
+#: PERF-THREADS ③ — how many IFC files may be PARSED at once in this process.
+#:
+#: **The risk is not unbounded threads.** Starlette/anyio's pool is 40, not unlimited, and the report
+#: that raised this said otherwise. The real problem is what those threads are each holding: an IFC
+#: parse materialises a whole model, hundreds of MB for a large one, so forty concurrent parses is an
+#: out-of-memory kill rather than a slow response. The cap therefore wants to be **small and specific
+#: to model work**, not a change to the general thread pool — every other route that goes off the
+#: event loop is cheap and should stay unthrottled.
+#:
+#: Queuing is the intended behaviour when the cap binds. A request that waits is worse than one that
+#: returns immediately and better than a worker that dies taking every in-flight request with it.
+#:
+#: Per PROCESS, so the deployed bound is this times `UVICORN_WORKERS`. That is the same shape the
+#: model cache already has (8 per worker) and is stated here rather than left to be discovered — see
+#: PERF-WORKERS ①, which is about exactly that multiplication.
+_PARSE_SLOTS = max(1, int(os.environ.get("AEC_IFC_PARSE_SLOTS", "3") or 3))
+_parse_gate = threading.BoundedSemaphore(_PARSE_SLOTS)
+
+
+def parse_slots() -> int:
+    """The configured cap, for a test or a health readout to assert against rather than assume."""
+    return _PARSE_SLOTS
+
+
 def _open_uncached(path: str) -> ifcopenshell.file:
     # R31-SCHEMA-DIAG pre-flight. ifcopenshell 0.8.5 **segfaults** (exit 139, reproduced 3/3) on an
     # IFC that ends inside an unclosed `'` literal — the shape a truncated upload or an interrupted
@@ -175,7 +200,11 @@ def _open_uncached(path: str) -> ifcopenshell.file:
         raise UnreadableIfc(
             f"{os.path.basename(path)} ends inside an unclosed string literal, which crashes the IFC "
             f"parser. The file is most likely truncated — re-export or re-upload it.")
-    return ifcopenshell.open(path)
+    # The pre-flight scan above deliberately runs OUTSIDE the gate: refusing a truncated file costs a
+    # read, not a model, and making it queue behind three real parses would make the cheap refusal the
+    # slow path. `with` releases on the exception path too, so a parse that raises frees its slot.
+    with _parse_gate:
+        return ifcopenshell.open(path)
 
 
 #: The one cache. A second cache keyed on the same thing is how two answers to "what is in this

@@ -96,8 +96,23 @@ const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑�
  */
 const CLOSED = "⛔";
 
+// `*` not `?` on the marker prefix, because an item may carry more than one.
+//
+// `- ◧ ⭐ **SCALE-SEAM ㉒ …**` has two, and with `?` the regex matched `◧ `, then required `**` and
+// found `⭐ ` — so that bullet parsed as nothing at all. The item was invisible: never counted as
+// open, never required to be in a lane, and the lane row that should have named it drifted for
+// eight slices without anything noticing. **A parser that silently skips a line it cannot read
+// removes the very evidence that would show it is skipping.**
+//
+// `{1,}` not `{2,}` on the code tail, for the same reason: `REL-4`, `REL-7`, `UX-3` and `SITE-1`
+// each carry ONE character after the dash and were invisible too. Between the two faults the
+// gate was measuring 28 of 32 open items and reporting completeness over the 28.
+//
+// Both widenings were MEASURED first — one bullet gained by the marker fix, four by the length
+// fix. A regex change to a population check is a population change, and an unmeasured one is a
+// new number with no idea what moved.
 const ITEM = new RegExp(
-  String.raw`^\s*[-*] (?:✅ |◧ |🟡 |⭐ |${CLOSED}️? )?\*\*([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,}?)(?:\s*([${MARKS}]))?(?:\s|\*\*|—)`,
+  String.raw`^\s*[-*] (?:(?:✅|◧|🟡|⭐|${CLOSED})️? )*\*\*([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{1,}?)(?:\s*([${MARKS}]))?(?:\s|\*\*|—)`,
 );
 
 function itemCodes(lines: string[]): Set<string> {
@@ -126,7 +141,9 @@ function itemCodes(lines: string[]): Set<string> {
  * thing keeping two sessions out of `routers/` was a sentence. Writing the carve-out in the same
  * syntax the check reads is what makes it a rule.
  */
-interface Lane { name: string; paths: string[]; excludes: string[]; items: string[] }
+interface LaneItem { code: string; text: string }
+interface Lane { name: string; paths: string[]; excludes: string[]; items: string[];
+                 entries: LaneItem[] }
 
 /**
  * Line numbers consumed by `laneRows()`. Recorded BY THE PARSER ITSELF so the "has this item left the
@@ -155,11 +172,18 @@ function laneRows(): Lane[] {
       .map((m) => m[1]).filter((p): p is string => Boolean(p));
     const paths = all.filter((p) => !p.startsWith("!"));
     const excludes = all.filter((p) => p.startsWith("!")).map((p) => p.slice(1));
-    const items = itemCell.split("·").map((s) => s.trim())
-      // Only take things shaped like a code; prose cells ("no standalone items…") contribute none.
-      .map((s) => new RegExp(String.raw`^([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]+(?: [${MARKS}])?)`).exec(s)?.[1])
-      .filter((s): s is string => Boolean(s));
-    rows.push({ name, paths, excludes, items });
+    // Keep each item's WHOLE segment, not just its code. The reverse check has to tell a cell that
+    // deliberately notes a shipped item ("· R23-BATCH-OVERLAYS *(CLOSED v0.3.1064…)*") apart from one
+    // that simply went stale, and the annotation is the only thing that distinguishes them.
+    const entries = itemCell.split("·").map((s) => s.trim())
+      // Only things shaped like a code; prose cells ("no standalone items…") contribute none.
+      .map((text) => ({
+        text,
+        code: new RegExp(String.raw`^([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]+(?: [${MARKS}])?)`).exec(text)?.[1],
+      }))
+      .filter((e): e is LaneItem => Boolean(e.code));
+    const items = entries.map((e) => e.code);
+    rows.push({ name, paths, excludes, items, entries });
   }
   return rows;
 }
@@ -175,7 +199,10 @@ function parkedCodes(): Set<string> {
     if (line === undefined || line.trim() === "") break;
     text += `${line} `;
   }
-  return new Set([...text.matchAll(/\b([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,})\b/g)]
+  // `{1,}` for the same reason as the item regex above: `REL-7` was listed here as parked and this
+  // pattern could not see it, so the item check reported it unassigned while the Parked paragraph
+  // said otherwise. Two regexes over one vocabulary, and both were wrong the same way.
+  return new Set([...text.matchAll(/\b([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{1,})\b/g)]
     .map((m) => m[1]).filter((c): c is string => Boolean(c)));
 }
 
@@ -259,7 +286,11 @@ describe("the roadmap lane table", () => {
     // 29 → 27: R41-UPLOAD-WARK and R39-UPLOAD-CAP-APP ① closed (✅, v0.3.1069). Both had TWO
     // entries — a summary bullet and a ring entry — and the first pass updated only one, so they
     // kept reading as open. Two places describing one item; the item marker is the authority.
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(27);
+    // 27 → 32 on 2026-08-24, and this is a CORRECTION rather than new work: two faults in the item
+    // regex hid five items from this gate. It allowed one leading marker where `SCALE-SEAM ㉒`
+    // carries two, and required two characters after the code's dash where `REL-4`, `REL-7`,
+    // `UX-3` and `SITE-1` have one. The gate was reporting completeness over 27 of 32.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(32);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {
@@ -323,6 +354,29 @@ describe("the roadmap lane table", () => {
       }
     }
     expect(orphanCarves, "a carved-out path with no owner is editable by everyone").toEqual([]);
+  });
+
+  /**
+   * The other direction — which the roadmap already claimed this file checked, and it did not.
+   *
+   * The prose above the table says the gate fails "if any is missing from the table below, **or if the
+   * table names a code that no longer exists**". Only the first half existed. Lane I was the proof: it
+   * listed `SCALE-SEAM ⑬`…`⑳`, eight slice numbers that had all shipped, while the open slice was `㉒`
+   * — which the item regex could not even see. Nothing failed, because nothing looked.
+   *
+   * **An annotated entry is not stale.** A cell saying `R23-BATCH-OVERLAYS *(CLOSED v0.3.1064, pending
+   * archive)*` is doing its job: it names a finished item on purpose, so a reader of the lane knows
+   * where it went. What this catches is the unannotated kind — a code sitting in a lane with no open
+   * entry behind it and nothing saying why, which reads as available work and is not.
+   */
+  it("names no code that has neither an open entry nor a note saying it is done", () => {
+    const parked = parkedCodes();
+    const base = (c: string) => c.split(" ")[0] ?? c;
+    const done = /SHIPPED|CLOSED|COMPLETE|pending archive|✅|moved from|in flight/i;
+    const stale = LANES.flatMap((l) => l.entries.map((e) => ({ lane: l.name, ...e })))
+      .filter((e) => !CODES.has(e.code) && !parked.has(base(e.code)) && !done.test(e.text))
+      .map((e) => `${e.lane} names ${e.code}, which has no open entry and no note saying it shipped`);
+    expect(stale, "a lane cell that outlived its item reads as available work").toEqual([]);
   });
 
   it("assigns every open item to a lane, or parks it explicitly", () => {

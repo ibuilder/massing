@@ -4,6 +4,54 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1074 (2026-08-24) — forty concurrent parses, and a gate measuring 27 of 32
+
+### Added — PERF-THREADS ③: concurrent IFC parses are capped
+
+**The entry this closes corrects its own premise, and that is why the fix is shaped this way.** The
+claim was "unbounded threads → resource exhaustion". Starlette/anyio's pool is **40, not unbounded**.
+The real risk is what those threads each hold: an IFC parse materialises a whole model, hundreds of MB
+for a large one, so forty concurrent parses is an out-of-memory kill rather than a slow response.
+
+So the cap is small and **specific to model work** — not a change to the general thread pool, where
+every other off-loop route is cheap and should stay unthrottled. It sits at the **resource**, inside
+the loader's uncached parse, so all 31 model-touching call sites are covered without editing any of
+them. Configurable via `AEC_IFC_PARSE_SLOTS` (default 3), and **per process**, so the deployed bound
+is that times `UVICORN_WORKERS` — the same multiplication `PERF-WORKERS ①` is about, stated rather
+than left to be discovered.
+
+`test_ifc_parse_gate.py` asserts the properties that are easy to get wrong, each mutation-checked:
+peak **observed** concurrency never exceeds the cap (removing the semaphore takes it from 3 to 12);
+the cap is actually *reached*, so this is not a cap of one that serialises every model read; and a
+failing parse does not leak its slot — four deliberate failures, then the gate still admits the full
+cap. The truncated-file screen runs **outside** the gate, so refusing a bad upload costs a read rather
+than queueing behind three real parses.
+
+### Fixed — the lane gate was blind to five items and to a whole direction
+
+`roadmapLanes.test.ts` is the check that every open roadmap item belongs to exactly one lane. It had
+three faults, found by pulling one thread:
+
+- **Its item regex allowed ONE leading marker.** `- ◧ ⭐ **SCALE-SEAM ㉒ …**` carries two, so the line
+  parsed as nothing and that item was invisible: never counted, never required to be in a lane.
+  **A parser that silently skips a line it cannot read destroys the evidence that it is skipping.**
+- **It required two characters after a code's dash.** `REL-4`, `REL-7`, `UX-3` and `SITE-1` have one.
+  `parkedCodes()` carried the identical flaw, so `REL-7` was listed as parked *and* reported
+  unassigned — two regexes over one vocabulary, wrong the same way.
+- **It never checked the direction the roadmap says it checks.** The prose above the table promises a
+  failure "if the table names a code that no longer exists". Only the converse was implemented.
+
+Between them the gate was reporting completeness over **27 of 32** open items. Both widenings were
+**measured before applying** — one bullet gained from the marker fix, four from the length fix —
+because a regex change to a population check *is* a population change.
+
+The new reverse check then found **eight stale lane cells** on its first run, including Lane I naming
+`SCALE-SEAM ⑬`–`⑳`, eight slice numbers whose extractions had all shipped, while the open slice is
+`㉒`. Each was verified against its entry and annotated with what actually happened; `UX-3` and
+`SITE-1` were assigned to Lane E by where their code lives. An entry deliberately noting a shipped
+item stays legal — that is a cell doing its job; what fails is an unannotated code that reads as
+available work and is not.
+
 ## v0.3.1073 (2026-08-24) — two entries for one item, again
 
 Docs and one test floor. No runtime change.
