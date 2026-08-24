@@ -29,6 +29,22 @@ import { describe, expect, it } from "vitest";
  * cleverer would need to understand the prose, and this only has to catch a comment that belongs to
  * a *different* method, which shares nothing with this one by construction.
  *
+ * ## Why this is scoped to `api/` and not the whole tree
+ *
+ * The same scan was run over all of `apps/web/src` and found eight more. **Only one was safe to act
+ * on.** The rest are two shapes this gate would get wrong outside this directory:
+ *
+ *   * a **module header placed after the imports** — `portal/panels/budget.ts` has one, and a blanket
+ *     cleanup would have deleted the file's own documentation;
+ *   * a **context block above a related declaration** — `viewer/app.ts` and `main.ts` both carry a
+ *     RAIL-SPLIT narrative above the thing it motivates, which is deliberate prose, not residue.
+ *
+ * In `api/` neither shape occurs: headers sit at line 1 above imports, and the methods are a flat
+ * list with one comment each. **A gate's scope is part of its claim** — widening this one would need
+ * a rule that can tell a header and a narrative from a leftover, and that rule does not exist yet.
+ * The one safe case outside `api/` was fixed by hand: `portal.ts` held the comment for `panelCtx()`,
+ * which had none.
+ *
  * **It has exactly two false positives, and they are frozen below rather than silenced.** Both are
  * comments that describe their method correctly using a compound identifier the rule cannot see
  * through. The set may only ever shrink: a new entry means someone is adding a comment this check

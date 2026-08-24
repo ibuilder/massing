@@ -104,7 +104,6 @@ export class PortalUI {
     });
   }
 
-  /** Build the PanelContext handed to extracted feature panels (portal/panels/*). */
   /** The `__key__` → render map for first-class portal destinations. Hoisted out of buildNav so a panel
    *  can programmatically jump to a destination (SPRINT MB deep-links) via `PanelContext.navigate`. */
   private destDispatch(): Record<string, () => unknown> {
@@ -151,6 +150,7 @@ export class PortalUI {
     this.buildNav();
   }
 
+  /** Build the PanelContext handed to extracted feature panels (portal/panels/*). */
   private panelCtx(): PanelContext {
     const self = this;
     return {

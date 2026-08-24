@@ -4,6 +4,37 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1080 (2026-08-24) — the same scan over the rest of the tree, and why it stays out of it
+
+Having found 23 stranded doc comments in `api/`, the obvious next move was to run the scan repo-wide
+and widen the gate. **The scan was worth running; widening the gate was not**, and the reason is the
+useful part.
+
+Eight more hits across `apps/web/src`. **Only one was safe to act on.** The other seven are two shapes
+that do not occur in `api/` and that the rule cannot tell from residue:
+
+- **A module header placed after the imports.** `portal/panels/budget.ts` has one. A blanket cleanup —
+  the exact thing the `api/` result invited — would have deleted the file's own documentation.
+- **A context block above the declaration it motivates.** `viewer/app.ts` and `main.ts` both carry a
+  RAIL-SPLIT narrative (with its live measurement: *182 buttons and 11 inputs under 7 headings*) above
+  the code that acts on it. That is deliberate prose, not leftover.
+
+In `api/` neither shape occurs: headers sit at line 1 above the imports, and the methods are a flat
+list with one comment each. **A gate's scope is part of its claim**, so the scope is now argued in the
+test rather than assumed — widening it needs a rule that can tell a header and a narrative from a
+leftover, and that rule does not exist yet.
+
+### Fixed
+
+The one safe case: `portal.ts` was holding the comment for `panelCtx()`, which had none of its own.
+Moved, same shape as `riskBoard` in v0.3.1078.
+
+### Not done, and why
+
+`client.ts` extraction stops here for now. The largest contiguous route group left is **four methods**
+— about 1% of the file — where the last four slices took six, six, five and five. The stated goal is
+met (**5,064 → 2,961 lines**); one 4-method slice per release cycle is churn rather than progress.
+
 ## v0.3.1079 (2026-08-24) — SCALE-SEAM ㉕: specialty, and a type that nearly moved with it
 
 `/projects/{pid}/specialty` out of `client.ts` into `apps/web/src/api/specialty.ts` — five methods and
