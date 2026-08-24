@@ -11,6 +11,7 @@ import { withDocuments } from "./documents";
 import { withMep } from "./mep";
 import { withTopics } from "./topics";
 import { withAi } from "./ai";
+import { withEvm } from "./evm";
 import { withPrecon } from "./precon";
 import { withEntitlements } from "./entitlements";
 import { withRisk } from "./risk";
@@ -56,7 +57,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))))))))))))) {
+export class ApiClient extends withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -2728,54 +2729,6 @@ export class ApiClient extends withRisk(withEntitlements(withPrecon(withAi(withT
       percent_complete: number; gross_profit: number }[];
       totals: Record<string, number>; project_count: number; note: string }>(`/wip/portfolio`);
   }
-  /** Earned Value: control accounts and activities with PV/EV/AC, CV/SV, CPI/SPI, plus earned schedule. */
-  evm(pid: string, dataDate?: string) {
-    return this.json<{
-      totals: { data_date: string; bac: number; pv: number; ev: number; ac: number; cv: number; sv: number;
-        cpi: number | null; spi: number | null; cpi_band: string; spi_band: string;
-        percent_complete: number; percent_spent: number;
-        forecast: { eac: { cpi: number | null; at_plan: number; cpi_spi: number | null };
-          eac_working: number | null; etc: number | null; vac: number | null;
-          tcpi_bac: number | null; tcpi_eac: number | null; tcpi_warning: boolean;
-          recommended: { stage: string; recommended_eac: string; guidance: string } };
-        activity_count: number; note: string };
-      control_accounts: { cost_code: string; bac: number; pv: number; ev: number; ac: number; cv: number;
-        sv: number; cpi: number | null; spi: number | null; percent_complete: number }[];
-      activities: { ref: string; name: string; cost_code: string; budget: number; percent: number;
-        ev: number; pv: number; sv: number }[];
-      earned_schedule: EvmEarnedSchedule | null;
-    }>(`/projects/${pid}/evm${dataDate ? `?data_date=${dataDate}` : ""}`);
-  }
-  /** Earned Schedule (time-based EVM): ES, SV(t), SPI(t), IEAC(t) → forecast finish + PV curve. */
-  earnedSchedule(pid: string, period: "week" | "month" = "week") {
-    return this.json<EvmEarnedSchedule & { note?: string }>(
-      `/projects/${pid}/evm/earned-schedule?period=${period}`);
-  }
-  /** Model-based EV: EV from physically-installed model elements × BAC, vs schedule EV. */
-  evmModelEv(pid: string) {
-    return this.json<{ total_elements: number; installed_elements: number; tracked_elements: number;
-      model_percent_complete: number; has_field_data: boolean;
-      bac: number; ev_model: number; ev_schedule: number; divergence: number; front_loaded_flag: boolean;
-      note: string }>(`/projects/${pid}/evm/model-ev`);
-  }
-  /** EVM S-curve: cumulative PV (full baseline) + EV + AC to the data date, for the 3-line chart. */
-  evmScurve(pid: string, period: "week" | "month" = "week") {
-    return this.json<{ period: string; labels: string[]; pv: number[]; ev: number[]; ac: number[];
-      bac: number; eac: number | null; data_date_period: number; note: string }>(
-      `/projects/${pid}/evm/scurve?period=${period}`);
-  }
-  /** CPI/SPI performance-index trend across captured EVM snapshots (oldest-first). */
-  evmTrend(pid: string) {
-    return this.json<{ count: number; labels: string[]; cpi: number[]; spi: number[]; spi_t: number[];
-      points: { data_date: string; period_label: string; cpi: number | null; spi: number | null;
-        spi_t: number | null; eac: number | null; percent_complete: number | null }[]; note: string }>(
-      `/projects/${pid}/evm/trend`);
-  }
-  /** Capture the current EVM state as a dated snapshot baseline (feeds the trend). */
-  evmCaptureSnapshot(pid: string, body: { data_date?: string; period_label?: string; notes?: string } = {}) {
-    return this.json<{ id: string; ref: string }>(`/projects/${pid}/evm/snapshot`,
-      { method: "POST", body: JSON.stringify(body) });
-  }
   /** Full GC project budget (GMP): direct + GC/GR + overhead/fee/contingency, each budget vs
    *  committed vs actual vs variance; reconciled to the prime contract + developer proforma. */
   gmpBudget(pid: string) {
@@ -3091,13 +3044,6 @@ export interface TypeDetail {
   materials: { material: string | null; thickness: number | null }[];
   occurrence_count: number;
   occurrences: { guid: string; name: string; ifc_class: string }[];
-}
-export interface EvmEarnedSchedule {
-  period: string; planned_start: string; planned_finish: string;
-  planned_duration_periods: number; actual_time_periods: number; earned_schedule_periods: number;
-  sv_t_periods: number; spi_t: number | null; spi_t_band: string;
-  ieac_t_periods: number | null; forecast_finish: string | null; days_late: number | null;
-  bac: number; ev: number; curve: { period: number; date: string; pv: number }[]; note: string;
 }
 export interface EgressResult {
   compliant: boolean; flags: string[]; max_travel_m: number; limit_m: number;

@@ -643,7 +643,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉒ *(the only open slice; ②–㉑ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉓ *(the only open slice; ②–㉒ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(SHIPPED v0.3.1028, pending archive — this cell said "the three cache locations drop all seven security headers" for a day after they stopped doing so)* · R39-CONTAINER-PR *(SHIPPED v0.3.1055, pending archive)* · R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -2950,7 +2950,14 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉒ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉒ `/precon` SHIPPED v0.3.1027; ②–㉑ already shipped)*
+- ◧ ⭐ **SCALE-SEAM ㉓ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉓ `/evm` SHIPPED v0.3.1075; ②–㉒ already shipped)*
+  **㉓ took `/projects/{pid}/evm` out** (6 methods, one contiguous run — the tightest group left;
+  `client.ts` 3,120 → 3,066) as `apps/web/src/api/evm.ts`, with `EvmEarnedSchedule`, whose only
+  readers were those methods. *Measuring which group to take found that `evm()` was documented as
+  `resourceLoading()`'s job — eleven methods carried a neighbour's comment, left behind by earlier
+  slices of this same extraction. Fixed in v0.3.1075; `apps/web/src/api/docComments.test.ts` now
+  stands where that got in.*
+
   **㉒ took `/projects/{pid}/precon` out** (6 methods, one contiguous run; `client.ts` 3,170 → 3,128)
   as `apps/web/src/api/precon.ts`.
 

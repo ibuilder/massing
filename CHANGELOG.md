@@ -4,6 +4,21 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1076 (2026-08-24) — SCALE-SEAM ㉓: the EVM group
+
+`/projects/{pid}/evm` out of `client.ts` and into `apps/web/src/api/evm.ts` — six methods in one
+contiguous run, the tightest group left in the file. **3,120 → 3,066 lines**, ratchet lowered with it.
+
+`EvmEarnedSchedule` moved with them: two of these methods are its only readers anywhere in the
+codebase, so leaving it behind would have kept a type in `client.ts` whose consumers had all gone.
+
+A mixin, so every call site resolves unchanged — `api/surface.test.ts` is what proves that rather than
+a reading of the diff.
+
+*This is the extraction whose measuring step turned up v0.3.1075's defect: `evm()` was documented as
+`resourceLoading()`'s job, and ten other methods carried a neighbour's comment left behind by earlier
+slices of this same split. The extraction that caused it is the one that found it.*
+
 ## v0.3.1075 (2026-08-24) — thirteen methods documented as something else
 
 ### Fixed — the API client's doc comments described the wrong methods
