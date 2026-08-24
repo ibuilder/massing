@@ -29,7 +29,7 @@ const TYPE_FIELDS: Record<string, { key: string; label: string; secret?: boolean
 
 function schedulesModal(api: ApiClient, getPid: GetPid, connectionId: string) {
   const pid = getPid(); if (!pid) return;
-  const { card, msg } = modalShell("Auto-sync schedules", 500);
+  const { card, msg, ready } = modalShell("Auto-sync schedules", 500);
   msg.style.color = "var(--err)";
   const list = document.createElement("div"); card.appendChild(list);
   const render = async () => {
@@ -66,11 +66,11 @@ function schedulesModal(api: ApiClient, getPid: GetPid, connectionId: string) {
     };
     form.append(pp, iv, tw, twl, add); list.appendChild(form);
   };
-  card.appendChild(msg); void render();
+  card.appendChild(msg); void render().finally(ready);
 }
 
 function mappingModal(api: ApiClient, connectionId: string, name: string) {
-  const { card, msg } = modalShell(`Field mapping — ${name}`, 560);
+  const { card, msg, ready } = modalShell(`Field mapping — ${name}`, 560);
   msg.style.color = "var(--err)";
   const intro = document.createElement("div"); intro.className = "meta"; intro.style.marginBottom = "8px";
   intro.textContent = "Map each module field to a Procore source path (dotted, e.g. questions.0.body). Leave blank to use the default.";
@@ -106,13 +106,13 @@ function mappingModal(api: ApiClient, connectionId: string, name: string) {
     reset.onclick = async () => { try { await api.saveConnectionMappings(connectionId, {}); toast("Mapping reset to defaults", "info"); await render(); } catch { msg.textContent = "could not reset"; } };
     bar.append(save, reset); body.appendChild(bar);
   };
-  card.appendChild(msg); void render();
+  card.appendChild(msg); void render().finally(ready);
 }
 
 /** Read-only data browser for a SQL connection (local / Postgres / Supabase): table list +
  *  a SELECT console with a results grid. Closes the interoperability gap — data, not just config. */
 function browseConnection(api: ApiClient, id: string, name: string) {
-  const { card, msg } = modalShell(`Browse — ${name}`, 720);
+  const { card, msg, ready } = modalShell(`Browse — ${name}`, 720);
   msg.style.color = "var(--err)";
   const tablesBox = document.createElement("div"); tablesBox.className = "meta"; tablesBox.textContent = "loading tables…";
   const sql = document.createElement("textarea"); sql.className = "portal-filter";
@@ -151,14 +151,14 @@ function browseConnection(api: ApiClient, id: string, name: string) {
       b.onclick = () => void runSql(`SELECT * FROM "${n}"`);
       tablesBox.appendChild(b);
     }
-  }).catch(() => { tablesBox.textContent = "could not list tables"; });
+  }).catch(() => { tablesBox.textContent = "could not list tables"; }).finally(ready);
 
   card.append(tablesBox, sql, runRow, grid, msg);
 }
 
 /** The Data-connections admin modal (entry point). `getPid` reads the live current project id. */
 export function openConnectionsModal(api: ApiClient, getPid: GetPid) {
-  const { card, msg } = modalShell("Data connections", 560);
+  const { card, msg, ready } = modalShell("Data connections", 560);
   msg.style.color = "var(--err)";
   const list = document.createElement("div"); list.style.cssText = "display:flex;flex-direction:column;gap:8px";
   card.appendChild(list);
@@ -248,5 +248,5 @@ export function openConnectionsModal(api: ApiClient, getPid: GetPid) {
     list.appendChild(form);
   };
   card.appendChild(msg);
-  void render();
+  void render().finally(ready);
 }

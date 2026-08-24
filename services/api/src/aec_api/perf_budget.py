@@ -5,16 +5,22 @@ stated budget, and `quantile` returns a bucket upper bound rather than interpola
 precise-looking figure out of bucketed data. What was missing is the budget itself, asserted — per
 *Verify, don't recall*, a target held only as prose is a target nobody enforces.
 
-**Two of three are measured, and the third's reason CHANGED rather than went away:**
+**All three are measured as of v0.3.1083 — and the third took fourteen releases longer than its
+beacon did, for a reason worth keeping:**
 
 * **request p95 < 100 ms** — server-side, read from `metrics.quantile(0.95)`;
 * **click echo < 100 ms** — CLIENT-side: the interval between a user's click and the first paint that
   answers it. Measured since v0.3.1063 by beacon (`apps/web/src/ui/perfBeacon.ts`) into
   `metrics.observe_client`. A capture-phase listener sees every click in the app, so this is a
   genuine global figure and not a sample of whichever call sites someone remembered to wire;
-* **panel load < 1 s** — still `measurable: False`, but **not for the old reason**. The blocker was
-  "no beacon exists"; the beacon exists. The blocker now is that there is no MOMENT to measure —
-  see `why_unmeasured`, which is worth reading before anyone assumes this is a wiring job.
+* **panel load < 1 s** — CLIENT-side, measured since v0.3.1083. It stayed `measurable: False` for
+  fourteen releases *after* its beacon landed, because the blocker was never the beacon: there was no
+  MOMENT. `ui/modal.ts` builds an empty shell and each caller fills it afterwards, so timing that
+  chokepoint measures DOM construction. Closed by measuring from the **click** — which is also what
+  makes it correct for the several dialogs whose CALLER fetches before the shell exists — with each
+  panel calling `ready()` when its data is on screen. Unlike the other two it has a stated
+  `population`: a modal counts only if the user waited for data, and `panelReady.test.ts` enumerates
+  every call site so that subset is one someone can name rather than one nobody can.
 
 Until v0.3.1063 both client budgets read `measurable: False`, because *"a budget file that lists
 three budgets and quietly checks one is the failure this product keeps finding: a green suite that
@@ -22,7 +28,8 @@ implies more was verified than was."* **That sentence is why one of them was clo
 named the missing beacon instead of quietly asserting a server number in its place, so the work left
 to do stayed legible for as long as it went undone. The same discipline is why the third was NOT
 flipped to `True` on the strength of the beacon landing: a budget marked measurable with no producer
-reports `no_observations` forever, which reads like a quiet outage rather than a stated gap.
+reports `no_observations` forever, which reads like a quiet outage rather than a stated gap. The
+flip finally happened when a producer existed, not when a beacon did.
 
 **What the client budgets do NOT tell you.** They are read from a per-process in-process histogram,
 so behind several workers each holds its own slice — the same limitation `request_p95` already has,
@@ -59,19 +66,30 @@ BUDGETS: dict[str, dict[str, Any]] = {
         "what": "the interval between a user's click and the first paint answering it",
     },
     "panel_load": {
-        "limit_s": 1.0, "measurable": False, "side": "client",
-        "source": None,
+        "limit_s": 1.0, "measurable": True, "side": "client",
+        "source": 'metrics.client_quantile("panel_load", 0.95)',
         "what": "a panel becoming usable after it is opened",
-        "why_unmeasured": ("the beacon exists now and click_echo reports through it, so this is no "
-                           "longer 'nothing can observe it'. What is missing is a MOMENT. This app "
-                           "has no single point where a panel becomes usable: `ui/modal.ts`'s "
-                           "modalShell creates an EMPTY shell and each caller fills it afterwards, "
-                           "so timing that chokepoint would measure shell construction — a few "
-                           "hundred microseconds — and file it as panel load. That is worse than no "
-                           "number: a budget reported green on a measurement of the wrong thing is "
-                           "the exact failure this file was written to prevent. Closing it needs an "
-                           "explicit ready() signal at each panel's data-render point, which is "
-                           "per-site work across ~20 modal callers plus the tool sections"),
+        # The population is stated rather than implied, because this budget has one and the other two
+        # do not: `request_p95` covers every route and `click_echo` every trusted click, but a panel
+        # load is only a load if the user waited for data. Most modals in this app are dialogs built
+        # from arguments, and counting those would let a healthy p95 be produced entirely by panels
+        # that never load anything, however slow the real ones are.
+        "population": ("modals that await data between the click and the panel being usable. The "
+                       "classification is per call site in apps/web/src/ui/panelReady.test.ts, which "
+                       "fails if a new modal is neither wired nor declared synchronous — so this "
+                       "figure is over a set someone can enumerate, not over whichever panels were "
+                       "remembered. 18 of 29 report; the 11 that do not each carry a reason, "
+                       "including one EXCLUDED because a native file chooser sits between the click "
+                       "and the panel and would time the human rather than the app"),
+        # Kept after the flip, past tense, because it is the reasoning that stopped this being wired
+        # fourteen releases early and it is still the reason the measurement is shaped as it is.
+        "was_unmeasured_because": ("the beacon existed from v0.3.1063 and click_echo reported through "
+                                   "it; what was missing was a MOMENT. `ui/modal.ts`'s modalShell "
+                                   "creates an EMPTY shell and each caller fills it afterwards, so "
+                                   "timing that chokepoint would have measured shell construction — a "
+                                   "few hundred microseconds — and filed it as a panel load. Closed "
+                                   "by measuring from the CLICK instead, with each panel calling "
+                                   "`ready()` when its data is on screen"),
     },
 }
 

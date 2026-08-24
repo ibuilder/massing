@@ -4,6 +4,63 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1083 (2026-08-24) — the budget that was waiting for a moment, not a beacon
+
+**R24-PERF-BUDGET is complete.** All three stated budgets are now measured. `panel_load` had had its
+beacon since v0.3.1063 and stayed `measurable: False` for fourteen releases, because the blocker was
+never the beacon — `ui/modal.ts` builds an empty shell and each caller fills it afterwards, so timing
+that chokepoint records DOM construction and files it as a panel load.
+
+**Measured from the click, not from the shell.** That is what makes it correct for the several
+dialogs whose *caller* fetches before the shell exists — `conceptBudgetView`,
+`estimateConfidenceView`, `composeExhibit`, `openReportCenter` all await, then open a shell that
+builds synchronously. A timer starting at `modalShell` would have missed the user's entire wait and
+reported the DOM work in its place. A click seeds at most one panel, so a modal opened by a timer
+thirty seconds later cannot invent a thirty-second load.
+
+**Wiring alone would have replaced one honest gap with a dishonest number.** A p95 over whichever
+panels somebody remembered to wire is a figure whose population nobody can state — the objection
+`perfBeacon.ts` already makes against instrumenting click handlers one at a time. So
+`apps/web/src/ui/panelReady.test.ts` enumerates every `modalShell` call site and requires each to
+either report or be declared synchronous with a reason; the budget itself carries a `population`
+field, because it is the only one of the three with a subset. 18 of 29 report.
+
+**The classification is human, and it had to be — it was wrong twice by inference.** `qr.ts` was
+assumed instant from its file name and awaits `QRCode.toCanvas`; three register dialogs were assumed
+instant because their own bodies contain no `await`, and their callers fetch. Both caught by reading,
+neither by a rule. One site is *excluded* rather than synchronous: `openProjectBundle` sits behind a
+native file chooser, so its interval would time the human browsing for a file rather than the app —
+and a handful of those would move the p95 further than any real regression.
+
+Two checks changed shape rather than being deleted. The route test used `panel_load` as its example
+of a declared-but-unmeasurable budget; that property still matters and now runs against an injected
+one, because a property with no current instance is still a property. And the flip got its twin — the
+budget that just became measurable must actually be *accepted* by `/metrics/client`, or a
+`measurable: True` the route still rejected would report `no_observations` for ever while every flag
+in the table said it was wired.
+
+**The gate itself had to be fixed, and the way it broke is worth keeping.** It first asked whether
+the `modalShell(` line mentioned `ready` — the destructure. Mid-release a botched edit removed two
+`ready()` *calls* while leaving those destructures in place: two panels silently stopped reporting
+and the gate stayed green. A gate that reads the declaration and not the use is satisfied by dead
+wiring, which is the same shape as a beacon that is installed and never fires. It now requires a call
+in the enclosing function, and that was mutation-tested by deleting one.
+
+And its file list had a hole for the same kind of reason: `ui/modal.ts` *defines* `modalShell`, so
+the instinct is to skip it — but it also **calls** it twice, for `confirmModal` and `promptModal`.
+Excluded, those two sat outside a population the file claims to enumerate. The definition is now
+skipped by line rather than the file by name, and the population is 31.
+
+One incidental find while flipping the flag: `_EDGE_BUDGETS` — the tuple naming which budgets sit on
+a histogram bucket edge — had **no reader at all**, and the test that should have used it hardcoded
+the same two numbers instead. A dead constant sitting beside a comment explaining why it matters is
+the shape a rule takes just before it stops being true. The check now derives from it, and asserts it
+still names every client budget.
+
+Along the way the click and panel budgets were put on one shared sender (rolling cap, implausible
+drop, non-throwing reporter). Copying those three rules would not have crashed anything; it would
+have let the two budgets quietly disagree about what counts as a measurement.
+
 ## v0.3.1082 (2026-08-24) — the leaf that was a leaf, and the one that only looked like one
 
 **REL-4.** `renderDeveloperHome` out of `portal.ts` into `portal/homes/developerHome.ts`

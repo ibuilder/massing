@@ -53,7 +53,7 @@ export function openSignIn(): void {
 }
 
 function loginModal() {
-  const { card, msg, close } = modalShell("Sign in");
+  const { card, msg, close, ready } = modalShell("Sign in");
   msg.style.color = "var(--err)";
   const u = document.createElement("input"); u.placeholder = "username"; u.className = "portal-filter";
   const p = document.createElement("input"); p.type = "password"; p.placeholder = "password"; p.className = "portal-filter";
@@ -120,7 +120,7 @@ function loginModal() {
     const div = document.createElement("div"); div.className = "meta"; div.textContent = "— or sign in with a password —";
     div.style.cssText = "text-align:center;margin:4px 0";
     card.insertBefore(div, u); card.insertBefore(wrap, div);
-  }).catch(() => {});
+  }).catch(() => {}).finally(ready);
 }
 
 /** Login step 2 — the account has MFA on: enter a 6-digit authenticator code (or a recovery code). */
@@ -146,7 +146,7 @@ function mfaChallengeModal(mfaToken: string) {
 
 /** Manage two-factor auth for the signed-in user: enroll (QR + code), view recovery status, disable. */
 async function mfaModal() {
-  const { card, msg, close } = modalShell("Two-factor authentication");
+  const { card, msg, close, ready } = modalShell("Two-factor authentication");
   msg.style.color = "var(--err)";
   const body = document.createElement("div"); body.style.cssText = "display:flex;flex-direction:column;gap:8px";
   card.append(body);
@@ -204,7 +204,7 @@ async function mfaModal() {
     note.textContent = "Add a second factor: after your password, you'll enter a time-based code at sign-in.";
     body.append(note, start);
   };
-  await render();
+  await render().finally(ready);
 }
 
 /** Set a new password using an admin-issued one-time reset token (no email infra). */
@@ -286,7 +286,7 @@ function passwordModal() {
 
 /** Admin user management: create accounts, toggle role/active, reset passwords. */
 function adminModal() {
-  const { card, msg } = modalShell("Manage users", 460);
+  const { card, msg, ready } = modalShell("Manage users", 460);
   const list = document.createElement("div"); list.style.cssText = "display:flex;flex-direction:column;gap:6px";
   msg.style.color = "var(--err)";
   const api = D.api;
@@ -358,12 +358,12 @@ function adminModal() {
   };
   form.append(nu, np, ne, nr, add);
   card.append(list, document.createElement("hr"), form, msg);
-  void render();
+  void render().finally(ready);
 }
 
 /** Project-member management (project admins): grant/change role + party, set company, remove. */
 function membersModal(pid: string) {
-  const { card, msg } = modalShell("Project members", 520);
+  const { card, msg, ready } = modalShell("Project members", 520);
   const list = document.createElement("div"); list.style.cssText = "display:flex;flex-direction:column;gap:6px";
   msg.style.color = "var(--err)";
   const api = D.api;
@@ -420,12 +420,12 @@ function membersModal(pid: string) {
   const hint = document.createElement("div"); hint.className = "meta";
   hint.textContent = "Role = capability (viewer→admin). Party = workflow side (GC, Owner, …). The account must already exist (Manage users).";
   card.append(list, document.createElement("hr"), form, hint, msg);
-  void render();
+  void render().finally(ready);
 }
 
 /** Read-only audit-trail viewer (global admins): filter by action/actor/since, newest first. */
 function auditModal() {
-  const { card, msg } = modalShell("Audit log", 620);
+  const { card, msg, ready } = modalShell("Audit log", 620);
   msg.style.color = "var(--err)";
   const api = D.api;
   const filters = document.createElement("div"); filters.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center";
@@ -455,11 +455,11 @@ function auditModal() {
   apply.onclick = () => void render();
   fAction.onkeydown = fActor.onkeydown = (e) => { if (e.key === "Enter") void render(); };
   card.append(filters, table, msg);
-  void render();
+  void render().finally(ready);
 }
 
 function errorsModal() {
-  const { card, msg } = modalShell("Errors", 680);
+  const { card, msg, ready } = modalShell("Errors", 680);
   msg.style.color = "var(--err)";
   const api = D.api;
   const filters = document.createElement("div"); filters.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;align-items:center";
@@ -506,5 +506,5 @@ function errorsModal() {
   fSource.onchange = () => void render();
   prune.onclick = async () => { try { const r = await api.clearErrorLog(); msg.style.color = "var(--muted)"; msg.textContent = `pruned ${r.pruned} old row(s)`; await render(); } catch { msg.style.color = "var(--err)"; msg.textContent = "prune failed"; } };
   card.append(filters, table, msg);
-  void render();
+  void render().finally(ready);
 }

@@ -23,7 +23,7 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   const pid = projectId;
   let cat;
   try { cat = (await api.reports()).reports; } catch { toast("couldn't load reports (connect a project)", "error"); return; }
-  const { card } = modalShell("Report Center", 420);
+  const { card, ready } = modalShell("Report Center", 420);
 
   /** One report's row. Extracted so a moment and a group render the identical thing — the audit's
    *  "one model, one card" applied at the smallest scale: learn the row once. */
@@ -577,6 +577,11 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   // ids are the server's own catalog keys — an id the catalog no longer serves simply finds nothing
   // and the Center opens normally, which is the right failure for a convenience.
   if (focusId) focusReportRow(card, focusId);
+  // R24-PERF-BUDGET. The shell opens with `cat` already fetched, so nothing here is awaited — but the
+  // user's wait was real: `api.reports()` ran BEFORE the shell existed. The interval is measured from
+  // their click, not from the shell, which is the whole reason the timer does not live in modalShell's
+  // construction. A `ready()` at the end of a synchronous body still reports the fetch.
+  ready();
 }
 
 /**

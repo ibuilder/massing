@@ -4,14 +4,30 @@
  * place: backdrop-click + Esc to close, dialog role/aria-modal, autofocus on open, and focus
  * restored to the previously-focused element on close.
  */
+import { beginPanelLoad } from "./perfBeacon";
+
 export interface ModalHandle {
   ov: HTMLDivElement;
   card: HTMLDivElement;
   msg: HTMLDivElement;
   close: () => void;
+  /**
+   * R24-PERF-BUDGET — call when the panel is USABLE, not when the shell exists.
+   *
+   * The interval is measured from the **click**, so it includes any fetch the caller did before
+   * opening this shell. Idempotent, so a panel that refilters reports only the load the user waited
+   * through, and safe to call from a `finally`: a panel that failed to load still ends its interval,
+   * because the user's wait ended when the error appeared.
+   *
+   * A dialog built entirely from data already in hand should NOT call it — see the classification in
+   * `panelReady.test.ts`. Reporting those would let a healthy p95 be produced by dialogs that never
+   * load anything.
+   */
+  ready: () => void;
 }
 
 export function modalShell(titleText: string, minWidth = 280): ModalHandle {
+  const ready = beginPanelLoad();
   const prevFocus = document.activeElement as HTMLElement | null;
   const ov = document.createElement("div");
   ov.style.cssText = "position:fixed;inset:0;z-index:201;background:#000a;display:flex;align-items:center;justify-content:center";
@@ -49,7 +65,7 @@ export function modalShell(titleText: string, minWidth = 280): ModalHandle {
   document.body.appendChild(ov);
   // focus the first field if there is one, else the dialog itself (so Esc/Tab work)
   setTimeout(() => ((card.querySelector("input,select,textarea,button") as HTMLElement) || card).focus(), 0);
-  return { ov, card, msg, close };
+  return { ov, card, msg, close, ready };
 }
 
 /** Accessible replacement for window.confirm(): a modalShell dialog with a message + Confirm/Cancel.

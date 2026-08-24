@@ -637,7 +637,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/homes/`, `main.ts` | R24-RUNS-INBOX *(✅ SHIPPED v0.3.947 + routing, pending archive)* · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER *(✅ SHIPPED v0.3.1081 — the plugin process boundary, pending archive)* · PERF-WORKERS ① · PERF-THREADS ③ *(✅ SHIPPED v0.3.1074 — the parse cap, pending archive)* · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ① *(✅ COMPLETE — front half v0.3.876, store sites v0.3.941–942)* · R41-UPLOAD-WARK *(✅ COMPLETE v0.3.1069 — the resumable handshake, its consumer and the client)* · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET *(✅ SHIPPED v0.3.1083 — panel_load measured, pending archive)* · SEC-PLUGIN-LOADER *(✅ SHIPPED v0.3.1081 — the plugin process boundary, pending archive)* · PERF-WORKERS ① · PERF-THREADS ③ *(✅ SHIPPED v0.3.1074 — the parse cap, pending archive)* · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ① *(✅ COMPLETE — front half v0.3.876, store sites v0.3.941–942)* · R41-UPLOAD-WARK *(✅ COMPLETE v0.3.1069 — the resumable handshake, its consumer and the client)* · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | R38-ARRAY-LIVE ③ *(✅ SHIPPED — persist + re-edit UI, pending archive)* · R21-4D-CLASH *(✅ SHIPPED — phase 1 v0.3.682 + install-before-support, pending archive)* · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(✅ COMPLETE — its own entry has been marked ✅ since the cursor PR; this cell said "only cursor sync left" after that shipped)* · R38-SOLVER-LOCKS ③ *(CLOSED v0.3.1065 — built end to end, pending archive)* · R23-BATCH-OVERLAYS *(CLOSED v0.3.1064, pending archive — every clause was already resolved)* · R39-VIEWER-OBS ② *(SHIPPED 2026-08-07 in #249, pending archive — it was listed open for a fortnight after landing)* · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN *(COMPLETE v0.3.1070 — both halves; pending archive)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -1485,7 +1485,7 @@ Everything after this sprint is a claim about adoption. Nothing in the stack can
 refute one, so this goes first even though it is the least visible.
 
 
-- ◧ **R24-PERF-BUDGET** *(S — `perf_budget.py` shipped)* — **premise re-checked 2026-08-06: the work
+- ✅ **R24-PERF-BUDGET** *(S — COMPLETE v0.3.1083: all three budgets measured)* — **premise re-checked 2026-08-06: the work
   this entry describes as remaining is done.** It reads "the remaining work is the asserted budget
   itself … as a `test_*`". That test exists — `services/api/test_perf_budget.py` — and it is the
   strong form: the server budget is asserted against **real traffic** driven through the app, with
@@ -1504,7 +1504,38 @@ refute one, so this goes first even though it is the least visible.
   **drops** implausible durations instead of clamping them (clamping files a hostile value in the
   slowest real bucket and quietly moves the p95).
 
-  **`panel_load` was NOT flipped, and that is the finding.** The blocker was never really the beacon —
+  **`panel_load` IS FLIPPED as of v0.3.1083, and the fourteen releases it took are the finding.**
+  The paragraph below stays because its diagnosis was right and is still the reason the measurement
+  is shaped as it is: the blocker was never the beacon, it was a *moment*. What closed it:
+
+  * **`modalShell` returns a `ready()`**, and each panel calls it when its data is on screen. The
+    interval runs from the **click**, not from the shell — which is what makes it correct for the
+    several dialogs whose *caller* fetches before the shell exists (`conceptBudgetView`,
+    `estimateConfidenceView`, `composeExhibit`, `openReportCenter`). A click seeds at most one panel,
+    so a modal opened by a timer thirty seconds later cannot invent a thirty-second load.
+  * **`apps/web/src/ui/panelReady.test.ts` enumerates every call site**, and each must either report
+    or be declared synchronous with a reason. Wiring alone would have replaced one honest gap with a
+    p95 over whichever panels somebody remembered — the same objection `perfBeacon.ts` already makes
+    against instrumenting click handlers one at a time. 18 of 29 report; the 11 that do not each
+    carry a reason.
+  * **The budget states its population**, because it is the only one of the three with a subset:
+    every route counts toward `request_p95` and every trusted click toward `click_echo`, but a modal
+    counts here only if the user waited for data.
+
+  **The classification is a human one, and it had to be — twice.** `qr.ts` was assumed instant from
+  its file name and awaits `QRCode.toCanvas`; three register dialogs were assumed instant because
+  their own bodies contain no `await`, and their callers fetch. Both wrong, both caught by reading,
+  neither by a rule. One site is *excluded* rather than synchronous: `openProjectBundle` sits behind
+  a native file chooser, so its interval would time the human browsing for a file rather than the app.
+
+  **Two checks changed shape rather than being deleted.** The route test used `panel_load` as its
+  example of a declared-but-unmeasurable budget; that property still matters and now runs against an
+  injected one, because a property with no current instance is still a property. And the flip got its
+  twin: the budget that just became measurable must actually be *accepted* by `/metrics/client`, or a
+  `measurable: True` the route still rejected would report `no_observations` for ever while every
+  flag said it was wired.
+
+  **What the entry said before the flip, kept because the diagnosis was correct.** The blocker was never really the beacon —
   it was a *moment*. This app has no single point where a panel becomes usable: `apps/web/src/ui/modal.ts`
   builds an empty shell and each of its ~20 callers fills it afterwards, so timing that chokepoint
   would record a few hundred microseconds of shell construction and file it as a panel load. Flipping

@@ -8,7 +8,7 @@ import { toast } from "./feedback";
 import { modalShell } from "./modal";
 
 export async function showQrModal(url: string, title = "Share via QR"): Promise<void> {
-  const { card } = modalShell(title, 300);
+  const { card, ready } = modalShell(title, 300);
 
   const canvas = document.createElement("canvas");
   canvas.style.cssText = "align-self:center;background:#fff;border-radius:8px;padding:8px";
@@ -19,6 +19,11 @@ export async function showQrModal(url: string, title = "Share via QR"): Promise<
     const err = document.createElement("div"); err.className = "meta";
     err.textContent = "Couldn't render the QR code.";
     card.appendChild(err);
+  } finally {
+    // The QR render is the load: `QRCode.toCanvas` is real work on the client, and the panel is not
+    // usable until the code is on screen. `finally`, so a panel that failed to render still ends its
+    // interval — the user's wait ended when the error appeared.
+    ready();
   }
 
   const link = document.createElement("div");

@@ -28,7 +28,7 @@ import { icon } from "./ui/icons";
 import { jobLabel, mountJobTray } from "./ui/jobTray";
 import { showKeyHelp } from "./ui/keys";
 import { installErrorReporting } from "./errorReporting";
-import { installClickEcho } from "./ui/perfBeacon";
+import { installClickEcho, installPanelLoad } from "./ui/perfBeacon";
 import type { Settings, ViewerApp } from "./viewer/app";
 
 // ---- shell DOM + shared state (no three/@thatopen here — those load lazily) --
@@ -45,11 +45,19 @@ installErrorReporting((e) => api.reportClientError(e));
 // capture-phase listener sees every click in the app, which is what makes the resulting p95 a figure
 // whose population can be stated; instrumenting call sites would measure whichever ones were
 // remembered. Best-effort throughout: the transport swallows its own failures.
-installClickEcho(document, {
-  send: (budget, ms) => api.reportClientInterval(budget, ms),
+const perfDeps = {
+  send: (budget: string, ms: number) => api.reportClientInterval(budget, ms),
   now: () => performance.now(),
-  raf: (fn) => requestAnimationFrame(fn),
-});
+  raf: (fn: () => void) => requestAnimationFrame(fn),
+};
+installClickEcho(document, perfDeps);
+// R24-PERF-BUDGET — the second client budget. Installed separately from the click tracker rather
+// than folded into it: the click listener produces `click_echo` and this produces `panel_load`, and
+// one install doing both silently would make it impossible to have one measured and the other not.
+// That is not hypothetical — it is the state this app was deliberately in for fourteen releases,
+// while `panel_load` had a beacon and no honest MOMENT to measure. `modalShell` starts each
+// interval; each panel ends it when its data is on screen.
+installPanelLoad(perfDeps);
 
 let projectId: string | null = null;
 let connected = false;
@@ -1487,7 +1495,7 @@ function buildProjectPicker(projects: { id: string; name: string; model_kind?: s
 
 /** Settings panel: keyboard shortcuts (everyone) + integration API keys (admins only). */
 function settingsModal() {
-  const { ov, card, msg } = modalShell("Settings", 560);
+  const { ov, card, msg, ready } = modalShell("Settings", 560);
   msg.style.color = "var(--err)";
 
   // capability status badges (what's wired) — visible to everyone
@@ -1502,7 +1510,10 @@ function settingsModal() {
       + `color:${on ? "#33d17a" : "var(--muted)"}`;
     return b;
   };
-  void api.capabilities().then((cap) => {
+  // R24-PERF-BUDGET: the two placeholders below ("checking…", "checking licence…") are what make
+  // this panel unfinished, so it is usable when BOTH have resolved — not when the first does and not
+  // when the shell appears. Held rather than voided for exactly that reason.
+  const capsFilled = api.capabilities().then((cap) => {
     badges.textContent = "";
     badges.append(badge("AI assist", cap.ai), badge("Email digests", cap.email),
       badge(`SSO${cap.sso.length ? " (" + cap.sso.join(", ") + ")" : ""}`, cap.sso.length > 0));
@@ -1510,7 +1521,7 @@ function settingsModal() {
   // Massing licence — plan tier + what it unlocks (everyone can see; admins enter the key below)
   const lic = document.createElement("div"); lic.className = "meta"; lic.style.cssText = "margin-top:8px;font-size:12px";
   lic.textContent = "checking licence…"; about.appendChild(lic);
-  void api.license().then((l) => {
+  const licFilled = api.license().then((l) => {
     const f = l.features;
     const unlocked = [f.exports.length ? `exports: ${f.exports.join(", ").toUpperCase()}` : "core exports",
       f.api_access ? "REST API" : null, f.sso ? "SSO" : null, f.navisworks ? "Navisworks" : null].filter(Boolean).join(" · ");
@@ -1547,6 +1558,9 @@ function settingsModal() {
       row.append(b, msg); lic.appendChild(row);
     }
   }).catch(() => { lic.textContent = ""; });
+  // Both placeholders resolved — allSettled, not all: a failed status fetch still ends the
+  // user's wait, and dropping those would measure only the panels that loaded successfully.
+  void Promise.allSettled([capsFilled, licFilled]).finally(ready);
   const credit = document.createElement("div");
   credit.className = "meta"; credit.style.cssText = "margin-top:8px;font-size:11px";
   credit.innerHTML = `Massing <b>v${currentVersion()}</b> — created by <b>Matthew M. Emma</b>, built with Claude Code as AI assistant.`;

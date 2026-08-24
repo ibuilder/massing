@@ -1817,14 +1817,14 @@ export class RegisterUI {
       });
     } catch (e) { toast(`concept budget failed: ${(e as Error).message}`, "error"); return; }
 
-    const { card } = modalShell("Concept budget", 480);
+    const { card, ready } = modalShell("Concept budget", 480);
     const head = document.createElement("div");
     head.style.cssText = "font-weight:600;font-size:14px";
     head.textContent = usd(b.total);
     const sub = document.createElement("div"); sub.className = "meta";
     sub.textContent = `${b.line_count} uses · subtotal ${usd(b.subtotal)}`
       + (b.contingency ? ` + ${b.contingency_pct}% contingency ${usd(b.contingency)}` : "");
-    card.append(head, sub);
+    card.append(head, sub);  ready();   // R24-PERF-BUDGET: fetch is above, before the shell; two frames make the spot moot
 
     // `unpriced` is a COUNT, and it is the number that matters: a total computed over a program the
     // endpoint could not fully price is not a budget, it is a partial one, and it must not read as
@@ -1859,7 +1859,7 @@ export class RegisterUI {
     let c;
     try { c = await this.ctx.host.api.estimateConfidence(pid, lines); }
     catch (e) { toast(`confidence failed: ${(e as Error).message}`, "error"); return; }
-    const { card } = modalShell("Estimate confidence", 460);
+    const { card, ready } = modalShell("Estimate confidence", 460);
     const head = document.createElement("div");
     head.style.cssText = "font-weight:600;font-size:14px";
     head.textContent = `${confidenceReading(c).confidencePct}% confidence · ${c.band}`;
@@ -1868,7 +1868,7 @@ export class RegisterUI {
     // default, and saying so is the difference between a number and a number you can act on.
     sub.textContent = `${c.line_count} lines · ${usd(c.total_cost)} · `
       + (phase ? `basis “${basis}” → phase ${phase}` : `basis “${basis || "unset"}” — phase unspecified, scored at the neutral default`);
-    card.append(head, sub);
+    card.append(head, sub);  ready();   // R24-PERF-BUDGET: fetch is above, before the shell; two frames make the spot moot
 
     const kpi = document.createElement("div"); kpi.className = "meta"; kpi.style.marginTop = "6px";
     // BOE-MAPPING-DEDUP: the units are applied ONCE, in `ui/confidenceReading.ts`, and asserted by
@@ -1914,7 +1914,7 @@ export class RegisterUI {
       [lib, def] = await Promise.all([api.scopeLibrary({ trade }), api.scopeExhibit({ trade })]);
     } catch { toast("couldn't load scope library", "error"); return; }
 
-    const { card } = modalShell("Compose Exhibit A — Scope of Work", 460);
+    const { card, ready } = modalShell("Compose Exhibit A — Scope of Work", 460);
     // OFFER ONLY WHAT EXHIBIT A CAN HOLD, using the server's own definition.
     //
     // `library(division)` returns clauses whose division matches **or is None**, and every `gc-*` /
@@ -2024,7 +2024,7 @@ export class RegisterUI {
       window.open(api.exhibitDocxUrl(pid, m.key, rid, ids.join(",")), "_blank");
     };
     row.append(prev, open, docx);
-    card.append(row, out);
+    card.append(row, out); ready();   // R24-PERF-BUDGET: the fetch is above, before the shell — see ModalHandle.ready
   }
 
   private async signContract(m: ModuleDef, r: ModuleRecord, rid: string) {
@@ -2047,17 +2047,17 @@ export class RegisterUI {
     let t;
     try { t = await this.ctx.host.api.triageRfi(pid, rid); }
     catch (e) { toast(`triage failed: ${(e as Error).message}`, "error"); return; }
-    const { card } = modalShell("RFI triage (AI)", 360);
+    const { card, ready } = modalShell("RFI triage (AI)", 360);
     if (!t.ai_enabled) card.append(Object.assign(document.createElement("div"), { className: "meta", textContent: "AI not configured — showing a template suggestion." }));
     const kv = (k: string, v: string) => { const d = document.createElement("div"); d.className = "meta"; d.innerHTML = `<b>${k}:</b> `; d.append(v); card.appendChild(d); };
     kv("Discipline", t.discipline); kv("Category", t.category); kv("Urgency", t.urgency); kv("Ball-in-court", t.ball_in_court);
     const h = document.createElement("div"); h.className = "meta"; h.style.marginTop = "6px"; h.innerHTML = "<b>Draft response:</b>"; card.appendChild(h);
-    const body = document.createElement("div"); body.style.cssText = "white-space:pre-wrap;font-size:12.5px"; body.textContent = t.draft_response; card.appendChild(body);
+    const body = document.createElement("div"); body.style.cssText = "white-space:pre-wrap;font-size:12.5px"; body.textContent = t.draft_response; card.appendChild(body); ready();   // R24-PERF-BUDGET: the triage fetch is above, before the shell
   }
 
   private async openPermitImport(m: ModuleDef) {
     const pid = this.ctx.host.projectId()!;
-    const { card } = modalShell("Import permits from city open data", 420);
+    const { card, ready } = modalShell("Import permits from city open data", 420);
     const note = (t: string) => card.append(Object.assign(document.createElement("div"), { className: "meta", textContent: t }));
     note("Pull a city's building-permit filings for the site and add them to this log (source-tagged, deduped on re-import).");
     const sel = document.createElement("select"); sel.className = "portal-filter"; sel.style.width = "100%";
@@ -2074,7 +2074,7 @@ export class RegisterUI {
     let cities: { id: string; label: string; geo: boolean }[] = [];
     try { cities = (await this.ctx.host.api.permitCities()).cities; }
     catch (e) { out.textContent = `Could not load cities: ${(e as Error).message}`; }
-    sel.innerHTML = cities.map((c) => `<option value="${esc(c.id)}">${esc(c.label)}${c.geo ? "" : " (text search only)"}</option>`).join("");
+    sel.innerHTML = cities.map((c) => `<option value="${esc(c.id)}">${esc(c.label)}${c.geo ? "" : " (text search only)"}</option>`).join(""); ready();   // the city list is the wait; after the catch, so a failed load still ends it
     const opts = () => ({
       city: sel.value, address: addr.value.trim() || undefined,
       lat: lat.value ? Number(lat.value) : undefined, lon: lon.value ? Number(lon.value) : undefined,

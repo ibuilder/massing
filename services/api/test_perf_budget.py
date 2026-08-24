@@ -63,17 +63,39 @@ check("click_echo is measurable now — the beacon closed that one",
 check("  ...and names the beacon as its source, not a server reading",
       "client_quantile" in (pb.BUDGETS["click_echo"]["source"] or ""),
       pb.BUDGETS["click_echo"]["source"])
-# panel_load stays False ON PURPOSE. Flipping it when the beacon landed would have been the easy
-# half of the item and the dishonest one: a budget marked measurable with no producer reports
-# `no_observations` for ever, which reads like an outage rather than the stated gap it is.
-check("panel_load is still UNMEASURED — no producer, so not marked measurable",
-      pb.BUDGETS["panel_load"]["measurable"] is False)
-check("  ...and its reason names the MISSING MOMENT, not the missing beacon",
-      "missing is a MOMENT" in pb.BUDGETS["panel_load"]["why_unmeasured"]
-      and "modalShell" in pb.BUDGETS["panel_load"]["why_unmeasured"],
-      pb.BUDGETS["panel_load"]["why_unmeasured"][:100])
-check("  BOTH client budgets are histogram BUCKET EDGES, so neither reading is an interpolation",
-      0.1 in metrics._BUCKETS and 1.0 in metrics._BUCKETS, metrics._BUCKETS)
+# panel_load is measurable AS OF v0.3.1083, and it stayed False for fourteen releases after its
+# beacon landed because the missing thing was a MOMENT, not a producer. `modalShell` returns a
+# `ready()` that each panel calls when its data is on screen, and the interval runs from the CLICK —
+# which is what makes it right for the several dialogs whose CALLER fetches before the shell exists.
+check("panel_load is measurable now — the moment closed it, not the beacon",
+      pb.BUDGETS["panel_load"]["measurable"] is True)
+check("  ...and names the beacon as its source, not a server reading",
+      "client_quantile" in (pb.BUDGETS["panel_load"]["source"] or ""),
+      pb.BUDGETS["panel_load"]["source"])
+# The assertion that matters more than the flag. This budget is the only one of the three whose
+# population is a SUBSET of what it could observe: every route counts toward request_p95 and every
+# trusted click toward click_echo, but a modal only counts here if the user waited for data. A p95
+# over an unstated subset is the failure this whole file exists to refuse, so the subset is written
+# down and the gate that enumerates it is named.
+check("  ...and STATES ITS POPULATION, because it is the one budget that has a subset",
+      "panelReady.test.ts" in pb.BUDGETS["panel_load"]["population"]
+      and "enumerate" in pb.BUDGETS["panel_load"]["population"],
+      pb.BUDGETS["panel_load"].get("population", "")[:120])
+check("  ...and keeps WHY it was unmeasured, so the reasoning outlives the gap",
+      "MOMENT" in pb.BUDGETS["panel_load"]["was_unmeasured_because"]
+      and "modalShell" in pb.BUDGETS["panel_load"]["was_unmeasured_because"],
+      pb.BUDGETS["panel_load"]["was_unmeasured_because"][:100])
+# Derived from `pb._EDGE_BUDGETS` rather than the literals 0.1 and 1.0, which is what this line used
+# to hold. Two problems with the literals, and the second is the reason to bother: they were a second
+# copy of the constant, and the constant had NO other reader — so it was dead, and a dead constant
+# beside a comment explaining why it matters is the shape a rule takes just before it stops being
+# true. Deriving makes the constant load-bearing and makes a new client budget land here on its own.
+check("  EVERY client budget's limit is a histogram BUCKET EDGE, so no reading is an interpolation",
+      all(pb.BUDGETS[b]["limit_s"] in metrics._BUCKETS for b in pb._EDGE_BUDGETS),
+      {b: pb.BUDGETS[b]["limit_s"] for b in pb._EDGE_BUDGETS})
+check("  ...and _EDGE_BUDGETS still names every client budget, so none escapes that check",
+      set(pb._EDGE_BUDGETS) == {n for n, sp in pb.BUDGETS.items() if sp["side"] == "client"},
+      (sorted(pb._EDGE_BUDGETS), sorted(n for n, sp in pb.BUDGETS.items() if sp["side"] == "client")))
 
 # THE TWIN for the flip above. Every budget being measurable means the `unmeasured` path is no longer
 # exercised by real data -- and an unexercised branch is one nobody notices deleting. It is kept
@@ -137,13 +159,19 @@ check("SERVER REQUEST p95 IS WITHIN THE 100 ms BUDGET",
 check("  judged from the LIVE histogram, not a supplied number",
       verdict["p95_s"] == p95 and verdict["observations"] == obs, verdict)
 
-rep = pb.report(p95, obs, {"click_echo": (0.05, 30)})
+rep = pb.report(p95, obs, {"click_echo": (0.05, 30), "panel_load": (0.5, 12)})
 check("the report lists all three budgets", len(rep["budgets"]) == 3, len(rep["budgets"]))
-check("  two measured, one still unmeasured — and the unmeasured one is NAMED",
-      (rep["measured_count"], rep["unmeasured_count"]) == (2, 1)
-      and [b["budget"] for b in rep["budgets"] if b["status"] == pb.STATUS_UNMEASURED]
-      == ["panel_load"],
+check("  ALL THREE are measured now, and none is silently dropped",
+      (rep["measured_count"], rep["unmeasured_count"]) == (3, 0)
+      and {b["budget"] for b in rep["budgets"]} == {"request_p95", "click_echo", "panel_load"},
       [(b["budget"], b["status"]) for b in rep["budgets"]])
+# The twin that stops "all measured" being read as "all fine". A budget with no reading is still
+# reported, and it is NOT within — a browser that never beacons must not look like a fast one.
+_quiet = pb.report(p95, obs, {"click_echo": (0.05, 30)})
+check("  a measurable budget with NO reading reports no_observations and fails, not passes",
+      [b["status"] for b in _quiet["budgets"] if b["budget"] == "panel_load"] == [pb.STATUS_NO_DATA]
+      and _quiet["within_budget"] is False,
+      [(b["budget"], b["status"]) for b in _quiet["budgets"]])
 check("  with every budget within, within_budget is True", rep["within_budget"] is True, rep)
 
 # `within_budget` is an AND across all three. Before the beacon it described one budget while
@@ -218,10 +246,30 @@ with TestClient(app) as c2:
     r = c2.post("/metrics/client", json={"budget": "request_p95", "ms": 42})
     check("  a SERVER budget cannot be beaconed either -- the client does not get to set it",
           r.status_code == 422, f"{r.status_code} {r.text[:120]}")
-    r = c2.post("/metrics/client", json={"budget": "panel_load", "ms": 42})
-    check("  a DECLARED-BUT-UNMEASURABLE budget is refused too -- no producer means no data, and a "
-          "beacon slipping one in would make an unmeasured budget look measured",
-          r.status_code == 422, f"{r.status_code} {r.text[:120]}")
+    # panel_load USED to be the example here, being the one declared-but-unmeasurable budget. It is
+    # measurable as of v0.3.1083, so the property needs an injected budget instead of deletion: there
+    # is no unmeasurable budget in the table today and there will be one again the moment somebody
+    # states a budget before they can measure it. A property with no current instance is still a
+    # property; dropping the check because the example graduated is how a guard quietly disappears.
+    pb.BUDGETS["zz_probe"] = {"limit_s": 1.0, "measurable": False, "side": "client",
+                              "source": None, "what": "a probe", "why_unmeasured": "injected by the test"}
+    try:
+        r = c2.post("/metrics/client", json={"budget": "zz_probe", "ms": 42})
+        check("  a DECLARED-BUT-UNMEASURABLE budget is refused too -- no producer means no data, and a "
+              "beacon slipping one in would make an unmeasured budget look measured",
+              r.status_code == 422, f"{r.status_code} {r.text[:120]}")
+    finally:
+        pb.BUDGETS.pop("zz_probe", None)
+
+    # The TWIN of the flip: the budget that just became measurable must actually be ACCEPTED. Without
+    # this, a `measurable: True` that the route still rejected would leave the budget reporting
+    # `no_observations` for ever while every flag in the table said it was wired.
+    n_panel = metrics.client_count("panel_load")
+    r = c2.post("/metrics/client", json={"budget": "panel_load", "ms": 420})
+    check("  PANEL_LOAD IS ACCEPTED NOW, and reaches the histogram",
+          r.status_code == 200 and r.json().get("recorded") is True
+          and metrics.client_count("panel_load") == n_panel + 1,
+          f"{r.status_code} {r.text[:120]} count {n_panel}->{metrics.client_count('panel_load')}")
 
     n_before = metrics.client_count("click_echo")
     for bad in (-1, 600_001, "42", True, None):

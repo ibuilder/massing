@@ -298,7 +298,12 @@ describe("the roadmap lane table", () => {
     // the boundary when plugins are distributed, not before") and then built anyway on the user's
     // instruction. The deferral reasoning was and remains correct; overriding it is a scope
     // decision, not a discovery, and the entry says so in those words rather than quietly flipping.
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(30);
+    // 30 → 29: R24-PERF-BUDGET closed (✅ v0.3.1083). Its remaining half was `panel_load`, which had
+    // had a beacon since v0.3.1063 and stayed unmeasured for fourteen releases because the missing
+    // thing was a MOMENT, not a producer. Closing it needed per-site work AND a gate enumerating the
+    // sites, because wiring alone would have swapped an honest gap for a percentile over an unstated
+    // population — the failure `perf_budget.py` exists to refuse.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(29);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {
