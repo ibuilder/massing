@@ -4,6 +4,53 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1068 (2026-08-24) — a bare `WALL` now asks for its points
+
+The one idea worth taking from the `@massing/embed` facade before discarding it. Everything else in
+that package is **our own code** — `pixelGovernor` is symbol-for-symbol identical to ours (shipped
+v0.3.678), `shadowFrustum` is ours, `section` and `walk` are ours under other filenames — because the
+extraction ran this-repo → those-packages. There was no upstream improvement to pull back. There was
+one genuinely new shape.
+
+### Added
+
+- **An interactive prompt loop for the CAD command line** (`apps/web/src/viewer/promptLoop.ts`).
+  CADCMD (v0.3.430) parses a whole line — `WALL 0,0 5,0 3` — and typing a bare `WALL` was an error
+  message telling you the usage and making you retype the verb. Now it arms the command and asks:
+  *Specify start point* → *Specify end point* → *Height <3>*, taking a typed coordinate **or a click
+  in the viewport** for each.
+  - **A pure reducer.** `step(state, event) → state`, so the entire interactive CAD flow is unit
+    tested with nothing mocked — no DOM, no viewport, no kernel, no clock. The usual implementation
+    is mutable state spread across viewport handlers, which cannot be tested without a renderer and
+    therefore never is.
+  - **It collects TOKENS, not typed values**, and hands back an ordinary command line. So the
+    prompted path and the typed path converge on one parser: every coordinate form (`x,y`, `d<a`,
+    `@dx,dy`, `@d<a`), every default and every validation message is shared **by construction**. A
+    test asserts a clicked wall produces the identical recipe to a typed one.
+  - **A typo does not disarm the command.** It is reported inline and the collected points survive —
+    losing three placed points to one mistyped number is the most annoying failure a CAD tool has.
+  - Snapping stays **outside** the reducer, so it can be frame-immediate and the reducer stays
+    deterministic: the same event sequence always yields the same state.
+- **`apps/web/src/viewer/cadBar.ts`** — the command line extracted out of `app.ts` and given the
+  interactive mode, with 15 tests covering the wiring rather than the reducer. A mistake in that
+  extraction would have left every reducer test green while the command line did nothing.
+
+### Changed
+
+- **`app.ts` 2,885 → 2,865 lines**, and the per-file ratchet drops with it. The 39-line inline block
+  became a 10-line mount call. The ratchet is *why* the interactive mode went into a new module
+  rather than on top of the god-file — the friction working as intended.
+
+### Fixed — two behaviour bugs the tests caught before shipping
+
+- **A finished-but-uncommitted command ignored Escape.** `cancel` was handled after the
+  all-arguments-consumed guard, so the only way out of a completed command was to commit it.
+- **Completing the required arguments applied immediately**, which made every optional argument
+  unreachable: a wall committed at the default height while the user was still typing one, with no
+  error and no value. The rule is now *Enter advances; Enter applies only when nothing is left to
+  ask* — and the first version of the reducer had the matching flaw, freezing at `ready` and silently
+  dropping the next token.
+
 ## v0.3.1067 (2026-08-24) — the viewer facade, evaluated from the tarball and declined
 
 Docs only. No runtime change. Records a decision the user delegated: *"review it and pull it in if

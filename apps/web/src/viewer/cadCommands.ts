@@ -12,11 +12,35 @@ export type CadParse =
   | { kind: "info"; text: string }
   | { kind: "error"; text: string };
 
+/**
+ * One argument a command collects, for the interactive prompt loop (`promptLoop.ts`).
+ *
+ * The specs exist alongside `usage` rather than being parsed out of it. A usage string is written for a
+ * human — `SLAB x1,y1 x2,y2 x3,y3 [… xn,yn] [thickness]` — and deriving structure from it would make the
+ * prompt loop's behaviour depend on prose formatting, so a wording change would silently alter what the
+ * tool asks for.
+ */
+export interface CadArg {
+  readonly name: string;
+  readonly kind: "point" | "number" | "text";
+  /** Consumes values until `accept`. Only `point` uses this today (SLAB's outline). */
+  readonly variadic?: boolean;
+  readonly optional?: boolean;
+  /** What the command line asks, without the trailing colon. */
+  readonly prompt: string;
+  /** The value used when an optional argument is skipped — shown in the prompt so the default is visible. */
+  readonly def?: string;
+  /** Fewest values a variadic argument needs before `accept` may finish it. */
+  readonly min?: number;
+}
+
 interface CadCommand {
   name: string;
   aliases: string[];
   usage: string;
   summary: string;
+  /** Absent means the command cannot be driven interactively — it is still typable in full. */
+  args?: readonly CadArg[];
   build(args: string[]): CadParse;
 }
 
@@ -61,6 +85,11 @@ const err = (usage: string, why: string): CadParse => ({ kind: "error", text: `$
 const COMMANDS: CadCommand[] = [
   {
     name: "WALL", aliases: ["W"], usage: "WALL x1,y1 x2,y2 [height]",
+    args: [
+      { name: "start", kind: "point", prompt: "Specify start point" },
+      { name: "end", kind: "point", prompt: "Specify end point" },
+      { name: "height", kind: "number", optional: true, def: "3", prompt: "Height" },
+    ],
     summary: "draw a wall between two XY points (m); optional height (default 3)",
     build(a) {
       const s = point(a[0]); const e = point(a[1], s ?? undefined);
@@ -73,6 +102,11 @@ const COMMANDS: CadCommand[] = [
   },
   {
     name: "COLUMN", aliases: ["C", "COL"], usage: "COLUMN x,y [height] [width]",
+    args: [
+      { name: "at", kind: "point", prompt: "Specify insertion point" },
+      { name: "height", kind: "number", optional: true, def: "3", prompt: "Height" },
+      { name: "width", kind: "number", optional: true, def: "0.4", prompt: "Width" },
+    ],
     summary: "place a column at an XY point (m); optional height (3) and square width (0.4)",
     build(a) {
       const p = point(a[0]);
@@ -85,6 +119,12 @@ const COMMANDS: CadCommand[] = [
   },
   {
     name: "BEAM", aliases: ["B"], usage: "BEAM x1,y1 x2,y2 [width] [depth]",
+    args: [
+      { name: "start", kind: "point", prompt: "Specify start point" },
+      { name: "end", kind: "point", prompt: "Specify end point" },
+      { name: "width", kind: "number", optional: true, def: "0.2", prompt: "Width" },
+      { name: "depth", kind: "number", optional: true, def: "0.4", prompt: "Depth" },
+    ],
     summary: "draw a beam between two XY points (m); optional width (0.3) and depth (0.5)",
     build(a) {
       const s = point(a[0]); const e = point(a[1], s ?? undefined);
@@ -97,6 +137,10 @@ const COMMANDS: CadCommand[] = [
   },
   {
     name: "SLAB", aliases: ["S"], usage: "SLAB x1,y1 x2,y2 x3,y3 [… xn,yn] [thickness]",
+    args: [
+      { name: "outline", kind: "point", variadic: true, min: 3, prompt: "Specify next point" },
+      { name: "thickness", kind: "number", optional: true, def: "0.2", prompt: "Thickness" },
+    ],
     summary: "draw a slab from ≥3 boundary points (m); a trailing bare number is the thickness (0.2)",
     build(a) {
       // a trailing bare number (no comma, not a polar d<a) is the thickness; the rest are points
@@ -121,6 +165,10 @@ const COMMANDS: CadCommand[] = [
   },
   {
     name: "LEVEL", aliases: ["LVL"], usage: "LEVEL <name> <elevation-m>",
+    args: [
+      { name: "name", kind: "text", prompt: "Level name" },
+      { name: "elevation", kind: "number", prompt: "Elevation (m)" },
+    ],
     summary: "add a building storey/level at an elevation (m)",
     build(a) {
       const name = a[0];
@@ -132,6 +180,9 @@ const COMMANDS: CadCommand[] = [
   },
   {
     name: "SPACE", aliases: ["SP"], usage: "SPACE [rooms-per-storey]",
+    args: [
+      { name: "rooms", kind: "number", optional: true, def: "4", prompt: "Rooms per storey" },
+    ],
     summary: "auto-generate IfcSpace rooms per storey (default 4)",
     build(a) {
       const n = num(a[0], 4);
@@ -180,4 +231,16 @@ export function parseCadCommand(line: string): CadParse {
   const cmd = BY_TOKEN.get(verb);
   if (!cmd) return { kind: "error", text: `unknown command '${verb}'. Type HELP for the list.` };
   return cmd.build(tokens.slice(1));
+}
+
+
+/**
+ * The argument specs for a command, by name or alias — `null` when the verb is unknown or not
+ * interactively drivable. `promptLoop` goes through this rather than importing `COMMANDS`, so the table
+ * stays private and there is one place that resolves an alias.
+ */
+export function cadCommandArgs(verb: string): { name: string; args: readonly CadArg[] } | null {
+  const v = verb.trim().toUpperCase();
+  const c = COMMANDS.find((x) => x.name === v || x.aliases.includes(v));
+  return c && c.args && c.args.length ? { name: c.name, args: c.args } : null;
 }

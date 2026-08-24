@@ -16,7 +16,7 @@ import {
 } from "./snapOverride";
 import { canAcceptDraftDrag, dropCompletion, readDraftDragKey } from "./railDrag";
 import { parseDynConstraint } from "./dynInput";
-import { parseCadCommand } from "./cadCommands";
+import { mountCadBar } from "./cadBar";
 import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
 import { DeltaStore, deltaCommitter, deltaIndicator } from "./deltaCommit";
@@ -576,6 +576,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // An ARMED draw tool always wins over a lingering measure mode — otherwise a measure tool left on
     // silently eats every draft click with zero feedback (the drafter sees an armed wall tool and dead
     // clicks). Measure keeps the click only when nothing is armed.
+    // A CAD command asking for a point takes the click first, for the same reason the armed-draw rule
+    // below exists: a prompt on screen that silently loses clicks reads as broken. `cadPick` reports
+    // whether it wanted the click, so an unarmed bar leaves selection alone.
+    if (cadPick) {
+      const g = screenToGround(e);                      // plan is E = x, N = -z
+      if (g && cadPick([g.x, -g.z])) return;
+    }
     if (measure.mode !== "off" && !armed) { measure.create(); return; }
     if (gizmo?.dragging) return;                 // a gizmo-handle drag isn't a select/deselect click
     mouse.set(e.clientX, e.clientY);
@@ -883,6 +890,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // panel (see `guideUnderlay.ts`) so this file stays out of it; app.ts is near its size ceiling.
   const guideUnderlay = new GuideUnderlay(viewer.world.scene.three);
   const draftProxies = new DraftProxyLayer(viewer.world.scene.three);   // P6: optimistic placement feedback
+  // Set when the CAD bar mounts; a viewport click answers an armed point prompt through it.
+  let cadPick: ((at: readonly [number, number]) => boolean) | null = null;
   let activeStorey: string | null = null;       // name passed to Draft recipes; sets the work-plane Z
   let activeStoreyZ = 0;
   // R38-SYNC-VIEW + R38-SYNC-SELECT — the plan docked beside the model, following the active level,
@@ -1774,45 +1783,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     // --- Grid & Levels: drafting reference frame (grid snap + active work-plane) ----------
     const glBody = section("gridlevels", "Build · Grids & levels", { requires: "sourceIfc" });
     if (glBody) {
-      // CADCMD — a deterministic CAD command line (instant, offline) over the same recipes. AutoCAD
-      // grammar + aliases; up-arrow history; spacebar on an empty line repeats the last command.
-      const cadWrap = document.createElement("div"); cadWrap.style.cssText = "display:flex;gap:4px;margin-bottom:4px";
-      const cadIn = document.createElement("input");
-      cadIn.type = "text"; cadIn.className = "portal-filter"; cadIn.style.cssText = "flex:1;font-family:var(--mono)";
-      cadIn.placeholder = "⌨ CAD command — e.g. WALL 0,0 5,0 3  ·  type HELP";
-      cadIn.setAttribute("aria-label", "CAD command line");
-      const cadStatus = document.createElement("div"); cadStatus.className = "meta"; cadStatus.style.cssText = "min-height:14px;margin:-2px 0 6px 2px";
-      const cadHistory: string[] = []; let cadHistIdx = -1; let cadLast = "";
-      const runCad = async () => {
-        const line = cadIn.value.trim();
-        if (!line) { if (cadLast) { cadIn.value = cadLast; } return; }   // empty Enter = recall last (space handled below)
-        const parsed = parseCadCommand(line);
-        if (parsed.kind === "info") { cadStatus.textContent = parsed.text; return; }
-        if (parsed.kind === "error") { cadStatus.innerHTML = `<span style="color:var(--status-warn)">${escapeHtml(parsed.text)}</span>`; return; }
-        cadHistory.push(line); cadHistIdx = cadHistory.length; cadLast = line;
-        cadIn.value = ""; cadStatus.textContent = `applying ${parsed.echo}…`;
-        await withLoading(container, `authoring ${parsed.echo} + republishing`, async () => {
-          try {
-            for (let i = 0; i < parsed.steps.length; i++) {
-              const s = parsed.steps[i]!;
-              await api.editIfc(projectId!, s.recipe, s.params, i === parsed.steps.length - 1);
-            }
-            const state = await waitForPublish(projectId!);
-            if (state === "done") { const shown = await loadProjectModel(); draftProxies.clear(); await reloadModelPins(); cadStatus.textContent = `✓ ${parsed.echo}${shown ? " — shown" : ""}`; notify(`${parsed.echo} applied`, "success"); }
-            else { cadStatus.textContent = `authored — publish ${state}`; notify(`authored — publish ${state}`, state === "error" ? "error" : "info"); }
-          } catch (err) { cadStatus.innerHTML = `<span style="color:var(--status-crit)">${escapeHtml((err as Error).message)}</span>`; notify(`${parsed.echo} failed: ${escapeHtml((err as Error).message)}`, "error"); }
-        });
-      };
-      cadIn.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { e.preventDefault(); void runCad(); }
-        else if (e.key === " " && cadIn.value === "" && cadLast) { e.preventDefault(); cadIn.value = cadLast; }  // spacebar repeats last
-        else if (e.key === "ArrowUp") { e.preventDefault(); if (cadHistory.length) { cadHistIdx = Math.max(0, cadHistIdx - 1); cadIn.value = cadHistory[cadHistIdx] || ""; } }
-        else if (e.key === "ArrowDown") { e.preventDefault(); if (cadHistIdx < cadHistory.length - 1) { cadHistIdx++; cadIn.value = cadHistory[cadHistIdx] || ""; } else { cadHistIdx = cadHistory.length; cadIn.value = ""; } }
-        else if (e.key === "Escape") { cadIn.value = ""; cadStatus.textContent = ""; }
-      });
-      const cadGo = document.createElement("button"); cadGo.className = "mini-btn"; cadGo.textContent = "↵"; cadGo.title = "Run CAD command"; cadGo.onclick = () => void runCad();
-      cadWrap.append(cadIn, cadGo);
-      glBody.appendChild(cadWrap); glBody.appendChild(cadStatus);
+      // CADCMD — the CAD command line, extracted to ./cadBar.ts, which also adds the interactive
+      // prompt loop (a bare `WALL` now asks for its points instead of printing a usage error).
+      cadPick = mountCadBar({
+        host: glBody, container, notify,
+        applyRecipe: (recipe, params, last) => api.editIfc(projectId!, recipe, params, last),
+        waitForPublish: () => waitForPublish(projectId!),
+        reload: () => loadProjectModel(),
+        reloadPins: () => reloadModelPins(),
+        clearDrafts: () => draftProxies.clear(),
+      }).pick;
 
       // Natural-language command bar — the low-barrier "type what you want" authoring surface.
       const cmdWrap = document.createElement("div"); cmdWrap.className = "nl-cmd";
