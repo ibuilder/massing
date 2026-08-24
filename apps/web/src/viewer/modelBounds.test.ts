@@ -203,9 +203,50 @@ describe("modelBox3 — the section box and the storey grid measure the MODEL", 
     expect(gridSize(modelBox3([m])), "104.5 m for a 95 m building").toBeCloseTo(104.5, 1);
   });
 
+  /**
+   * CAMERA FIT -- the SIXTH site, and the one R41-MODEL-ALIGN named when it said to check
+   * "section box, zoom-to-model and any bounding-box UI". The 2026-08-06 pass fixed the two above
+   * and left this one, so `modelBox3` shipped with a third caller still hand-rolling the walk.
+   *
+   * `fitToModels` hands `box.getBoundingSphere(...)` to `controls.fitToSphere`, so the sphere's
+   * RADIUS is the thing the user experiences -- it is how far the camera pulls back. Asserted here
+   * rather than the box, for the same reason as the two tests above: a correct box handed to a fit
+   * that takes the wrong sphere still frames the wrong thing.
+   */
+  it("CAMERA FIT: frames the building, not the 2 km catcher", () => {
+    const radius = (b: THREE.Box3) => b.getBoundingSphere(new THREE.Sphere()).radius;
+    const m = model(0, 0, 90, 95);
+    const swallowed = new THREE.Box3().setFromCenterAndSize(
+      new THREE.Vector3(0, 0, 0), new THREE.Vector3(SHADOW_HALF * 2, 3, SHADOW_HALF * 2));
+
+    const wrong = radius(swallowed), right = radius(modelBox3([m])!);
+    expect(wrong, "the old behaviour: a ~1.4 km sphere about the origin").toBeGreaterThan(1400);
+    expect(right, "a 90 x 95 m building").toBeLessThan(70);
+    // The consequence as the user met it: the building drew at ~5% of the framed view -- a speck.
+    expect(right / wrong).toBeLessThan(0.05);
+  });
+
+  // THE TWIN, and the half that makes the fix above safe to make.
+  //
+  // `modelBox3`'s population is loaded fragments models, while the scene walk it replaced included
+  // `isPoints` ON PURPOSE -- reference overlays and survey point clouds. So `fitToModels` passes
+  // `referenceModels` explicitly. Without this test, a "fix" that simply dropped them would trade a
+  // 2 km fit for one that silently ignores a survey scan, and every assertion above still passes.
+  it("CAMERA FIT: a reference point cloud is still inside the fit", () => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(
+      new Float32Array([200, 0, 0, 210, 0, 5]), 3));
+    const pts = new THREE.Points(geo);
+    pts.updateMatrixWorld(true);
+
+    const withRef = modelBox3([model(0, 0, 90, 95), { object: pts }])!;
+    expect(withRef.max.x, "a reference overlay must widen the fit").toBeCloseTo(210, 0);
+    expect(modelBox3([model(0, 0, 90, 95)])!.max.x, "and the model alone does not").toBeCloseTo(45, 0);
+  });
+
   // The population guard, in the same spirit as the one above for `modelPlanBounds`.
-  it("neither consumer walks the scene for bounds any more", () => {
-    for (const f of ["measureSection.ts", "envTools.ts"]) {
+  it("no consumer walks the scene for bounds any more", () => {
+    for (const f of ["measureSection.ts", "envTools.ts", "app.ts"]) {
       const src = readFileSync(resolve(process.cwd(), "src/viewer", f), "utf8");
       expect(src, `${f} walks the scene for a bounding box — the shadow ground is back in it`)
         .not.toMatch(/scene\.three\.traverse\((?:[^)]|\)(?!\s*;))*expandByObject/s);

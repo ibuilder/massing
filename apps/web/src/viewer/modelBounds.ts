@@ -65,10 +65,29 @@ export function planBoundsFromModels(models: Iterable<BoundedModel>): PlanBounds
  * The same population as a full 3D box — for callers that need Y as well as the plan extent.
  *
  * Added 2026-08-06 after the docstring above turned out to be understating the problem. It says the
- * bounds walk "was the third site that needed to and did not". It was the third of **five**:
+ * bounds walk "was the third site that needed to and did not". It was the third of **six** — and
+ * this very sentence said **five** until 2026-08-23, because the pass that wrote it fixed the two it
+ * had found and did not go looking for a third:
  *
  *     measureSection.ts  installSectionBox   scene.traverse(...expandByObject)   ← 4th
  *     envTools.ts        storey levels grid  scene.traverse(...expandByObject)   ← 5th
+ *     app.ts             fitToModels         scene.traverse(...expandByObject)   ← 6th, fixed v0.3.1062
+ *
+ * The sixth is the one that stings: **R41-MODEL-ALIGN had written the instruction that finds it** —
+ * *"check whether the AABB-versus-OBB gap already affects our section box, zoom-to-model and any
+ * bounding-box UI"* — and the pass acting on that instruction fixed the section box and the storey
+ * grid and left zoom-to-model. A checklist naming three things was followed for two, and the miss
+ * was invisible precisely because the two fixes were real. *N−1 correct sites prove nothing about
+ * the Nth, and that applies to the pass doing the fixing as much as to the code being fixed.*
+ *
+ * What it cost the user: with presentation mode on the fit received a **~1.4 km bounding sphere for
+ * a ~65 m building — the model drew at roughly 5% of the view.** Silent, permissive, one render mode.
+ *
+ * **`fitToModels` passes `referenceModels` explicitly**, and a caller adding a new population must
+ * do the same rather than restore the walk. The scene walk included `isPoints` on purpose — survey
+ * scans and reference overlays — and this function's population is loaded fragments models alone, so
+ * dropping them would trade a wrong fit for an incomplete one. That has its own twin test; without
+ * it, a "fix" that silently ignored a survey scan would pass every other assertion in the file.
  *
  * Both computed a scene-wide box including the `2000 × 2000` shadow-catcher, and both are
  * user-visible in exactly the way this file predicts — silently, and only with presentation mode on:

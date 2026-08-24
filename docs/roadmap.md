@@ -617,7 +617,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET · SEC-PLUGIN-LOADER · PERF-WORKERS ① · PERF-THREADS ③ · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ①◧ · R41-UPLOAD-WARK · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | R38-ARRAY-LIVE ③ · R21-4D-CLASH · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(mostly built; only cursor sync left)* · R38-SOLVER-LOCKS ③ · R23-BATCH-OVERLAYS · R39-VIEWER-OBS ② *(SHIPPED 2026-08-07 in #249, pending archive — it was listed open for a fortnight after landing)* · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN · R43-VIEWER-CONFORMANCE |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
@@ -1923,6 +1923,21 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   instead of hand-rolling a traverse. The OBB work then remains a real feature at its stated size:
   fitting an oriented box on top of these two sites would compute a beautiful oriented box over a 2 km
   ground plane.
+
+  **The defect half is DONE, and it took two passes — there were six sites, not five.** Sites 4 and 5
+  were fixed on 2026-08-06 and both call `modelBox3` today. **Site 6 was `fitToModels` — the
+  zoom-to-model this entry names in its own instruction to "check the section box, zoom-to-model and
+  any bounding-box UI".** The pass that acted on that instruction fixed the two it found and left the
+  third, so `modelBounds.ts` shipped with its docstring enumerating five sites while a sixth caller
+  sat in `app.ts` still walking the scene for `isMesh || isPoints`. With presentation mode on the fit
+  framed a ~1.4 km sphere against a ~65 m building: **the model drew at about 5% of the view.**
+  Fixed v0.3.1062, and the source gate in `apps/web/src/viewer/modelBounds.test.ts` now covers
+  `app.ts` alongside the other two, mutation-checked by restoring the walk and watching it fail.
+
+  *Note for whoever takes the OBB feature: the fit passes `referenceModels` explicitly, because
+  `modelBox3`'s population is loaded fragments models and the walk it replaced included `isPoints` on
+  purpose — survey scans and reference overlays. Dropping them would trade a wrong fit for an
+  incomplete one, which is why that has its own twin test.* The OBB work itself is untouched.
 - ◧ **R41-UPLOAD-WARK** *(M — Lane C; **the byte-bound half SHIPPED v0.3.876** — `services/api/src/aec_api/bodycap.py` measures the request body instead of trusting `Content-Length`, and `storage.put_stream` gives callers a way to write without holding the object. **The resumable handshake below is untouched, and no upload route has been converted to the streaming write yet** — that is what is left)* — **content-addressed resumable upload in front of object
   storage.** Technique from an MIT-licensed file server (verified from its LICENSE); reimplement the
   handshake rather than adopt the server. Three parts: chunk size chosen so the **chunk *count* stays
@@ -2096,10 +2111,20 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   end. **Two entries, one mechanism** — fix either in isolation and the other still holds the memory
   open.
 
-- **R39-VIEWER-OBS ②** *(M, Lane E)* — the viewer has no timing record: "loads slowly" arrives as a
-  feeling, not a number. Instrument the load journey (fetch → parse → first frame, keyed by model
-  size) and POST the timings to the platform's own API — no third-party telemetry, nothing new to
-  approve — so p50/p95 by model-size bucket is a queryable fact before any perf work is prioritised.
+- ✅ **R39-VIEWER-OBS ②** *(M, Lane E)* — **SHIPPED 2026-08-07 in #249**, and listed open here for
+  a fortnight afterwards. Everything the entry asked for is in the tree and was verified end to end
+  on 2026-08-23 rather than read: `apps/web/src/viewer/loadTimings.ts` tracks fetch → parse → first
+  frame with one row per load, `apps/web/src/viewer/app.ts` supplies the transport,
+  `POST /projects/{pid}/model/load-timing` stores it and
+  `GET /projects/{pid}/model/load-timings` answers p50/p95 per size band — with `ok_rate` beside
+  every percentile, so a band whose loads mostly stall cannot show an excellent p95 drawn from its
+  survivors. No third-party telemetry.
+
+  **The wiring is pinned, which was checked by breaking it.** `timings` is an optional dependency, so
+  deleting one line in `app.ts` would have taken the whole feature dark. It does not:
+  `apps/web/src/api/clientCallers.test.ts` holds the uncalled-client-method set, and dropping that
+  line fails it by name (`+ "reportViewerLoad"`). Confirmed by applying the mutation, watching it go
+  red, and restoring — not by reading the gate.
 - 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **seven slices shipped; `app.ts` is 5,160 → 3,311, a 36%
   cut. The `builders` map is entirely gone.** The paragraph below saying the extraction "is NOT begun"
   was true on 2026-08-06 and stayed on the page until 2026-08-17, through six shipped slices — a

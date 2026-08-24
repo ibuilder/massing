@@ -4,6 +4,53 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1062 (2026-08-24) — the sixth site of a defect whose own fix enumerated five
+
+### Fixed
+
+- **Zoom-to-model framed a 2 km ground plane instead of the building, with presentation mode on.**
+  `fitToModels` in `apps/web/src/viewer/app.ts` walked the whole scene expanding a `Box3` over every
+  `isMesh || isPoints`, which swallowed the `2000 × 2000` shadow-catcher `world.ts` adds in that one
+  render mode. The fit then received a **~1.4 km bounding sphere against a ~65 m building — the model
+  drew at roughly 5% of the view.** It now measures the model population via `modelBox3`.
+
+  **This is the sixth site of a defect whose own fix documented five.** `modelBounds.ts` exists
+  because a scene walk kept swallowing that plane; its docstring names the first three, then records
+  `measureSection.ts` and `envTools.ts` as "the fourth and fifth". R41-MODEL-ALIGN had *also* written
+  the instruction that would have found this one — *"check whether the AABB-versus-OBB gap already
+  affects our section box, zoom-to-model and any bounding-box UI"* — and the pass that acted on it
+  fixed the section box and the storey grid and left zoom-to-model. **A checklist naming three things
+  was followed for two, and the miss was invisible because the two fixes were real.** N−1 correct
+  sites prove nothing about the Nth, and that holds for the pass that fixes them as much as for the
+  code being fixed.
+
+  Why it hid: it misbehaves only with presentation mode on, silently, in the permissive direction —
+  nothing errors, the camera just sits too far back.
+
+### Changed
+
+- **`apps/web/src/viewer/modelBounds.test.ts` now gates `app.ts` too**, alongside the two files it
+  already covered, and adds the camera fit as a *consequence* assertion in the style of its
+  neighbours: the bounding-sphere **radius** the fit receives, not the box, because a correct box
+  handed to a fit that takes the wrong sphere still frames the wrong thing. **Mutation-checked** by
+  restoring the scene walk and confirming the gate fails by filename.
+- **A twin test pins reference overlays inside the fit.** `modelBox3`'s population is loaded
+  fragments models, while the walk it replaced included `isPoints` deliberately — survey scans and
+  reference geometry. So the fit passes `referenceModels` explicitly. Without the twin, a "fix" that
+  simply dropped them would trade a 2 km fit for one that silently ignores a survey scan and every
+  other assertion would still pass.
+
+### Docs
+
+- **R39-VIEWER-OBS ② closed — it shipped on 2026-08-07 in #249 and sat listed as open for a
+  fortnight.** Verified end to end before closing rather than read: the load journey is instrumented
+  (fetch → parse → first frame, one row per load), posted to our own API, and
+  `GET /projects/{pid}/model/load-timings` answers p50/p95 per size band with `ok_rate` beside every
+  percentile so a stalling band cannot show a good p95 drawn from its survivors. The optional
+  `timings` dependency **is** pinned — dropping it fails `clientCallers.test.ts` by name
+  (`+ "reportViewerLoad"`), confirmed by applying that mutation and watching it go red.
+- R41-MODEL-ALIGN records the defect half as done and leaves the OBB feature at its stated size.
+
 ## v0.3.1061 (2026-08-24) — main went red on a frozen route that had quietly gained a caller
 
 ### Fixed

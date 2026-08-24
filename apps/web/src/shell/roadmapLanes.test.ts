@@ -248,7 +248,9 @@ describe("the roadmap lane table", () => {
     // 38 → 37: BUILD-WORKTREE-CHUNKS closed (✅). 37 → 35: R24-RUNS-INBOX + R38-SYNC-VIEW
     // closed (✅); ARRAY-LIVE was already not in this extractor's open set in the same way.
     // 35 → 33: R21-4D-CLASH + R28-BUNDLE ② closed (✅).
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(33);
+    // 33 → 32: R39-VIEWER-OBS ② closed (✅) — it had shipped on 2026-08-07 in #249 and was still
+    // listed open a fortnight later, so this is a correction to the record rather than new work.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(32);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {

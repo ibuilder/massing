@@ -55,7 +55,7 @@ import { CanvasModeSwitch } from "./canvasMode";
 import { SpecPane } from "./specPane";
 import { PlanPane } from "./planPane";
 import { type PlanBounds, validatePlacement } from "./placeValid";
-import { planBoundsFromModels } from "./modelBounds";
+import { modelBox3, planBoundsFromModels } from "./modelBounds";
 import { buildExportsSection } from "./tools/exportsSection";
 import { type ModelStateDeps, openAsBuiltPanel, openGroupsPanel, openLodPanel,
   openPhasingPanel, openTypeBrowser } from "./tools/modelStatePanels";
@@ -1298,12 +1298,12 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // ---- camera fit ----------------------------------------------------------
   let fitPending = false;   // set when a fit was skipped because the viewport was hidden (0×0)
   async function fitToModels() {
-    const box = new THREE.Box3();
-    viewer.world.scene.three.traverse((o) => {
-      const m = o as THREE.Mesh & THREE.Points;
-      if (m.isMesh || m.isPoints) box.expandByObject(o);   // include reference point clouds, not just meshes
-    });
-    if (box.isEmpty()) return;
+    // Sixth site of the ground-plane defect; references passed explicitly. See `modelBounds.ts`.
+    const box = modelBox3([
+      ...[...loader.fragments.list].map(([, m]) => m as unknown as { object: THREE.Object3D }),
+      ...referenceModels.values(),
+    ]);
+    if (!box) return;
     // Defer when the viewport is hidden (0×0): fitting then divides by a zero aspect ratio and leaves
     // the camera at NaN, so the model is broken once the Model workspace is shown. onModelShown() runs
     // the pending fit once the container has real dimensions.
