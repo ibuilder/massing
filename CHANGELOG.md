@@ -4,6 +4,29 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1079 (2026-08-24) — SCALE-SEAM ㉕: specialty, and a type that nearly moved with it
+
+`/projects/{pid}/specialty` out of `client.ts` into `apps/web/src/api/specialty.ts` — five methods and
+five types, **3,019 → 2,961 lines**, ratchet lowered with it.
+
+**Two neighbouring types deliberately stayed.** `MaterialEntry` and `MaterialPaletteResult` sat
+interleaved among the specialty types, and `portal/panels/materials.ts` imports `MaterialEntry` from
+`api/client` — moving it would have been a breaking change dressed as tidying. *Adjacency in a file is
+not a relationship.*
+
+**And one type nearly moved without its consumer.** I checked that the specialty types were unused
+outside `client.ts` with a grep I had truncated using `head -4`, and `SpecialtySummary`'s single
+outside reference — in `proforma/proforma.ts` — was on the line after the cut. The typecheck caught it;
+my check did not. **A population derived from a truncated list is not a population**, and the failure
+is invisible because the truncated output looks exactly like a complete one. The import now points at
+the new home, and the near-miss is recorded in the module header where the next mover will read it.
+
+### Note for ㉖
+
+`MARKS` in `apps/web/src/shell/roadmapLanes.test.ts` stops at ㉕. The next slice cannot be written into
+the roadmap until that vocabulary is widened — the lane gate would stop seeing the item, which is
+precisely the blindness v0.3.1074 fixed.
+
 ## v0.3.1078 (2026-08-24) — 23 comments about declarations that are not there
 
 The cleanup v0.3.1077 booked, done with the gate that belongs beside it rather than ahead of it.

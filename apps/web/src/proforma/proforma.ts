@@ -896,7 +896,7 @@ export class ProformaUI {
         ["Battery units", "energy", "battery_units"], ["Rainwater $", "energy", "rainwater_capex"],
         ["PFAL SF", "pfal", "pfal_sf"], ["Greens $/lb", "pfal", "green_price_lb"], ["Herbs $/lb", "pfal", "herb_price_lb"],
       ];
-      const paint = (sum?: import("../api/client").SpecialtySummary) => {
+      const paint = (sum?: import("../api/specialty").SpecialtySummary) => {
         bodyEl.innerHTML = "";
         // enable toggles
         const tog = document.createElement("div"); tog.style.cssText = "display:flex;gap:14px;margin-bottom:6px";

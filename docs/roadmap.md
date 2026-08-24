@@ -643,7 +643,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉔ *(the only open slice; ②–㉓ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉕ *(the only open slice; ②–㉔ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(SHIPPED v0.3.1028, pending archive — this cell said "the three cache locations drop all seven security headers" for a day after they stopped doing so)* · R39-CONTAINER-PR *(SHIPPED v0.3.1055, pending archive)* · R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -2950,7 +2950,16 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉔ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉔ `/ids` SHIPPED v0.3.1077; ②–㉓ already shipped)*
+- ◧ ⭐ **SCALE-SEAM ㉕ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉕ `/specialty` SHIPPED v0.3.1079; ②–㉔ already shipped)*
+  **㉕ took `/projects/{pid}/specialty` out** (5 methods + 5 types; `client.ts` 3,019 → 2,961) as
+  `apps/web/src/api/specialty.ts`. Two neighbouring types stayed: `MaterialEntry` is imported by
+  `apps/web/src/portal/panels/materials.ts`, so moving it would have been a breaking change dressed
+  as tidying. **Adjacency in a file is not a relationship.** *`SpecialtySummary` nearly went the
+  other way — the grep proving the types were unused outside had been truncated with `head -4`, and
+  its one outside reference was on the line after the cut. Caught by the typecheck, not by me.*
+  **㉖ needs `MARKS` widened** in `apps/web/src/shell/roadmapLanes.test.ts`: the marker vocabulary
+  stops at ㉕, so the next slice cannot be written down before that is extended.
+
   **㉔ took `/ids` and `/projects/{pid}/ids` out** (6 methods, one contiguous run; `client.ts`
   3,066 → 3,026) as `apps/web/src/api/ids.ts`. The group was found by **measuring the longest
   same-prefix run left in the file**, not by picking a domain that sounded tidy — `/specialty` is
