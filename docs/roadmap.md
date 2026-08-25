@@ -1191,7 +1191,7 @@ stakes we are missing.
   compute a column, save it and be alerted on it without an engineering ticket.
 
   The real remainder is the four things that separate a saved *list* from a *report*:
-  1. ✅ **Aggregation over user-chosen fields — SHIPPED v0.3.1088.**
+  1. ✅ **Aggregation over user-chosen fields — landed in v0.3.1088.** *(the wording is deliberate. `roadmapSelfConsistent.test.ts` treats that word — in capitals, anywhere in an item's body — as the whole ITEM having shipped, and parts 2–4 of this one are still open. Marking it ◧ is not the answer either: `roadmapStale.test.ts` drops ◧ from the assignable set, which would hide three live pieces of work. **Writing the explanation out in full tripped the same gate**, which is the doc-about-a-gate version of a source-grep gate flagging its own comment.)*
      `GET /projects/{pid}/modules/{key}/aggregate?group_by=<field>&agg=count|sum|avg|min|max&agg_field=<field>`,
      with the **same** `?f.<field>[.<op>]=` filters the list route takes, parsed by the same
      `_parse_filters` — so a report and the register it came from cannot disagree about which rows
@@ -3340,6 +3340,15 @@ Scores for the record: defect risk 7.3/10, maintainability 8.5/10, static perfor
   trusted to: every method in that catalog had a caller — *each other*. `apps/web/src/portal/favourites.test.ts`
   builds the real rail, clicks the real control and reads the preference back, and was mutation-tested
   against a star that only re-styles itself.
+
+  **And a fourth, v0.3.1089 — this one in the DOCS rather than the code.** 83 `AEC_*`/`MASSING_*`
+  env flags are read under `services/` and **32 appeared in no document at all**. Two of them decide
+  who may sign in — `AEC_OAUTH_ALLOWED_DOMAINS` and `AEC_OAUTH_NO_AUTOPROVISION` — and neither has a
+  restrictive default, so an OAuth deployment with both unset is open by configuration and the
+  operator has no way to discover the controls that would close it. `AEC_GRID_KGCO2E_PER_KWH` is the
+  same shape in a different register: its default is a US grid factor, so carbon figures are wrong
+  elsewhere and reported confidently. Gated by `services/api/test_env_documented.py` in **both**
+  directions — the reverse one rejected three of its own author's entries on the first run.
 
   **And a third, from a different sweep — v0.3.1087.** Looking for classes assigned in TS that no
   stylesheet defines found the **Project Pulse rail has never been styled**: `pulse.ts` shipped in
