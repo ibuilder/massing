@@ -277,6 +277,37 @@ with TestClient(app) as c:
     assert c.post("/auth/cloud/disconnect", headers=BEARER(chief_tok)).status_code == 200
     assert role_of("chief@example.com") == "user",         "disconnect MUST strip an elevation this path granted"
 
+    # ── AEC_OAUTH_ALLOWED_DOMAINS applies to THIS door too ───────────────────────────────────
+    # It did not originally. The flag reads as if it were scoped to the four direct IdPs, so this
+    # path was written from that callback without carrying it — an operator who had restricted
+    # sign-in to their own domain got it enforced on four doors and bypassed by the fifth. A control
+    # that is true for four paths and false for the fifth is worse than none, because it is believed.
+    os.environ["AEC_OAUTH_ALLOWED_DOMAINS"] = "acme.com"
+    try:
+        cloud.fetch_userinfo = lambda token: {
+            "sub": "9100", "name": "Outsider", "email": "someone@evil.example",
+            "tier": "commercial", "providers": [], "roles": []}
+        c.cookies.clear()
+        lg = c.get("/auth/cloud/login", follow_redirects=False)
+        st5 = urllib.parse.parse_qs(urllib.parse.urlparse(lg.headers["location"]).query)["state"][0]
+        r = c.get("/auth/cloud/callback", params={"code": "d1", "state": st5}, follow_redirects=False)
+        assert r.status_code == 403 and "domain is not permitted" in r.text, r.text
+        assert role_of("someone@evil.example") is None, "...and no account was provisioned"
+
+        # ...and the twin: an ALLOWED domain still gets in, or "it refuses" is satisfied by a door
+        # that refuses everyone.
+        cloud.fetch_userinfo = lambda token: {
+            "sub": "9101", "name": "Insider", "email": "someone@acme.com",
+            "tier": "commercial", "providers": [], "roles": []}
+        c.cookies.clear()
+        lg = c.get("/auth/cloud/login", follow_redirects=False)
+        st6 = urllib.parse.parse_qs(urllib.parse.urlparse(lg.headers["location"]).query)["state"][0]
+        r = c.get("/auth/cloud/callback", params={"code": "d2", "state": st6}, follow_redirects=False)
+        assert r.status_code == 303, r.text
+        assert role_of("someone@acme.com") == "user"
+    finally:
+        os.environ.pop("AEC_OAUTH_ALLOWED_DOMAINS", None)
+
     # ── the feature is off by default: no flag ⇒ the routes are not there at all ─────────────
     settings_store._cache["MASSING_CLOUD_SSO_ENABLED"] = "0"
     assert c.get("/auth/cloud/login", follow_redirects=False).status_code == 404
