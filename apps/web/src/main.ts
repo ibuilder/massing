@@ -1895,6 +1895,20 @@ async function startup() {
       getProjectId: () => projectId,
       getIsProjectAdmin: () => isProjectAdmin,
       openSettings: settingsModal,
+      openCloudModel: async (blob, name) => {
+        // CLOUD-LIBRARY: bytes pulled from a massing.cloud vault go through exactly the same path
+        // as a local file open — including R28-UNIFY — so a cloud project behaves like any other
+        // once it is here. `.mass` is a container this build cannot read yet (the writer does not
+        // exist), so it is refused explicitly rather than handed to the IFC loader to fail on.
+        const lower = name.toLowerCase();
+        const kind = lower.endsWith(".frag") ? "frag" : lower.endsWith(".ifc") ? "ifc" : null;
+        if (!kind) return false;
+        const file = new File([blob], name, { type: "application/octet-stream" });
+        const v = await ensureViewer();
+        await v.openFile(kind, file);
+        await unifyAfterModelOpen(name);
+        return true;
+      },
     });
   }
   // Help (?) — relaunch the welcome / tour, the guides, or the getting-started checklist

@@ -11,6 +11,8 @@ import type { ApiClient, AccountUser, AuditEntry, ProjectMember, ProjectRole } f
 import { modalShell, confirmModal } from "../ui/modal";
 import { askText } from "../ui/prompt";
 import { escapeHtml, toast } from "../ui/feedback";
+import { renderChip, type ChipIdentity } from "./accountChip";
+import { cloudLoginUrl, cloudStatus, cloudRefresh, cloudDisconnect, type CloudStatus } from "../api/cloud";
 
 export interface AccountDeps {
   api: ApiClient;
@@ -19,9 +21,15 @@ export interface AccountDeps {
   getProjectId: () => string | null;
   getIsProjectAdmin: () => boolean;
   openSettings: () => void;        // main owns settingsModal (tied to viewer settings state)
+  /** CLOUD-LIBRARY: hand a model downloaded from massing.cloud to the app. Returns false when the
+   *  container type isn't something this build can open, so the library can say so instead of
+   *  closing on a no-op. main.ts owns it because opening a model is a viewer/session concern. */
+  openCloudModel: (blob: Blob, name: string) => Promise<boolean> | boolean;
 }
 
 let D: AccountDeps;
+/** The signed-in identity as the chip and the profile panel render it. Set once at startup. */
+let ME: ChipIdentity = { username: "account" };
 const PROJECT_ROLES = ["viewer", "reviewer", "editor", "admin"] as const;
 const PARTY_ROLES = ["", "GC", "Owner", "OwnersRep", "Consultant", "Subcontractor"];
 
@@ -33,12 +41,21 @@ export async function buildAuthControl(deps: AccountDeps): Promise<void> {
   el.className = "tool-btn"; el.style.marginLeft = "6px"; el.dataset.tour = "account";
   if (api.authed) {
     let name = "account", platformAdmin = false, tier = "free";
+    let displayName: string | null = null, avatarUrl: string | null = null;
     try {
       const m = await api.me();
-      if (m.authenticated) { name = m.username; platformAdmin = !!m.platform_admin; tier = m.tier || "free"; }
-      else api.setToken("");
+      if (m.authenticated) {
+        name = m.username; platformAdmin = !!m.platform_admin; tier = m.tier || "free";
+        // CLOUD-SSO: `/auth/me` carries the cloud profile so the chip draws in ONE round trip.
+        // Absent for password and direct-IdP accounts — `renderChip` falls back to initials.
+        const withCloud = m as typeof m & { display_name?: string | null; avatar_url?: string | null };
+        displayName = withCloud.display_name ?? null;
+        avatarUrl = withCloud.avatar_url ?? null;
+      } else api.setToken("");
     } catch { /* keep token; offline */ }
-    el.textContent = `${name} ▾`; el.title = "Account";
+    ME = { username: name, displayName, avatarUrl, isAdmin: platformAdmin };
+    renderChip(el, ME);
+    primeCloudStatus();     // so the dropdown knows on FIRST open whether to offer the library
     el.onclick = () => accountMenu(el, platformAdmin, tier);
   } else {
     el.textContent = "Sign in"; el.title = "Sign in";
@@ -75,6 +92,26 @@ function loginModal() {
   resetLink.style.cssText = "font-size:12px;color:var(--muted);align-self:flex-start";
   resetLink.onclick = (e) => { e.preventDefault(); close(); resetModal(); };
   row.append(cancel, go); card.append(u, p, msg, row, resetLink);
+
+  // CLOUD-SSO leads, when the operator has enabled it. massing.cloud is the identity broker: behind
+  // this one button the user picks Microsoft / Google / Procore / Autodesk / password on the site,
+  // and this deployment never holds a provider secret. It is deliberately rendered ABOVE the direct
+  // IdP buttons below — those remain for deployments that federate on their own.
+  void cloudStatus(D.api).then((st) => {
+    if (!st.enabled) return;
+    const b = document.createElement("button");
+    b.className = "file-btn";
+    b.style.cssText = "padding:11px 14px;font-size:14px;font-weight:600";
+    b.textContent = "Continue with massing.cloud";
+    b.onclick = connectCloud;
+    const hint = document.createElement("div");
+    hint.className = "meta";
+    hint.style.cssText = "text-align:center;font-size:11px;margin:-2px 0 2px";
+    hint.textContent = "Sign in with Microsoft, Google, Procore or Autodesk — and open your cloud projects";
+    card.insertBefore(b, card.firstChild);
+    card.insertBefore(hint, b.nextSibling);
+  }).catch(() => { /* status unavailable — the password form below still works */ });
+
   // SSO buttons (only the providers configured on the server), shown above the password form
   void D.api.authProviders().then(({ providers }) => {
     if (!providers.length) {
@@ -245,26 +282,96 @@ function accountMenu(anchor: HTMLElement, platformAdmin = false, tier = "free") 
     return b;
   };
   const pid = D.getProjectId();
-  if (platformAdmin) menu.append(item("Manage users…", adminModal));
-  if (platformAdmin) menu.append(item("Audit log…", auditModal));
-  if (platformAdmin) menu.append(item("Errors…", errorsModal));
-  if (platformAdmin) menu.append(item("Data connections…",
-    () => void import("../connections/connectionsUI").then((m) => m.openConnectionsModal(D.api, D.getProjectId))));
+  // The four platform-admin entries that used to sit here — users, audit, errors, data connections —
+  // are now the "Administration" SECTION of the profile panel, shown only when the account carries
+  // the capability. The dropdown is back to being a short list of things you do often; anything that
+  // is *about your account* lives one click deeper, in one place, instead of being split across a
+  // dropdown, a settings modal and four admin consoles. See `profileSettings.ts`.
+  menu.append(item("Profile & settings…", () => void openProfile(platformAdmin, tier)));
+  if (cloudLink?.enabled && cloudLink.linked && cloudLink.library_access) {
+    menu.append(item("My cloud projects…", openLibrary));
+  }
+  if (cloudLink?.enabled && !cloudLink.linked) {
+    menu.append(item("Connect massing.cloud…", connectCloud));
+  }
   if (D.getIsProjectAdmin() && pid) menu.append(item("Project members…", () => membersModal(pid)));
-  menu.append(item("Settings…", D.openSettings));
-  menu.append(item("Change password…", passwordModal));
-  menu.append(item("Two-factor auth…", () => void mfaModal()));
-  menu.append(item("Sign out everywhere…", async () => {
-    if (!await confirmModal("Sign out everywhere",
-        "Sign out of every other device and session? This tab stays signed in.", "Revoke sessions")) return;
-    try { await D.api.logoutAll(); toast("Signed out of all other sessions", "info"); }
-    catch { toast("Could not revoke sessions", "error"); }
-  }));
   menu.append(item("Sign out", async () => { await D.api.logout(); D.api.setToken(""); location.reload(); }));
   document.body.appendChild(menu);
   setTimeout(() => document.addEventListener("pointerdown", function off(e) {
     if (!menu.contains(e.target as Node)) { menu.remove(); document.removeEventListener("pointerdown", off); }
   }), 0);
+}
+
+/** Cached `/auth/cloud/status`. `undefined` = not fetched yet, `null` = the call failed (offline),
+ *  which the profile panel renders as "could not check" rather than as "not connected" — those are
+ *  different facts and conflating them would tell a user to reconnect a link they already have. */
+let cloudLink: CloudStatus | null | undefined;
+
+/** Fetch (once) and cache the cloud link state. */
+async function ensureCloudStatus(): Promise<CloudStatus | null> {
+  if (cloudLink !== undefined) return cloudLink;
+  try { cloudLink = await cloudStatus(D.api); }
+  catch { cloudLink = null; }
+  return cloudLink;
+}
+
+/** Warm the cloud status at startup so the dropdown can offer the right items on first open. */
+export function primeCloudStatus(): void {
+  void ensureCloudStatus();
+}
+
+function connectCloud(): void {
+  // A full-page navigation, not fetch/XHR: the broker must render its own login UI on its own
+  // origin and set its own cookies. It returns to /auth/cloud/callback, which redirects back in.
+  window.location.href = cloudLoginUrl(D.api);
+}
+
+function openLibrary(): void {
+  void import("./cloudLibrary").then((m) => m.openCloudLibrary({
+    api: D.api,
+    siteUrl: cloudLink?.site_url || "https://www.massing.cloud",
+    connectCloud,
+    onOpenModel: (blob, name) => D.openCloudModel(blob, name),
+  }));
+}
+
+/** Open the unified profile panel (see `profileSettings.ts` for why admin lives inside it). */
+async function openProfile(platformAdmin: boolean, tier: string, initial = "profile") {
+  const cloud = await ensureCloudStatus();
+  const pid = D.getProjectId();
+  const [{ openProfileSettings }] = await Promise.all([import("./profileSettings")]);
+  openProfileSettings({
+    identity: { ...ME, isAdmin: platformAdmin, tierLabel: cloud?.tier_label || tier },
+    platformAdmin,
+    cloud,
+    tierLabel: cloud?.tier_label || tier.charAt(0).toUpperCase() + tier.slice(1),
+    actions: {
+      manageUsers: adminModal,
+      auditLog: auditModal,
+      errorLog: errorsModal,
+      dataConnections: () => void import("../connections/connectionsUI")
+        .then((m) => m.openConnectionsModal(D.api, D.getProjectId)),
+      projectMembers: D.getIsProjectAdmin() && pid ? () => membersModal(pid) : null,
+      changePassword: passwordModal,
+      twoFactor: () => void mfaModal(),
+      appSettings: D.openSettings,
+      signOutEverywhere: async () => {
+        if (!await confirmModal("Sign out everywhere",
+            "Sign out of every other device and session? This tab stays signed in.", "Revoke sessions")) return;
+        try { await D.api.logoutAll(); toast("Signed out of all other sessions", "info"); }
+        catch { toast("Could not revoke sessions", "error"); }
+      },
+      signOut: async () => { await D.api.logout(); D.api.setToken(""); location.reload(); },
+      connectCloud,
+      refreshCloud: async () => { cloudLink = await cloudRefresh(D.api); return cloudLink; },
+      disconnectCloud: async () => {
+        await cloudDisconnect(D.api);
+        cloudLink = undefined;          // force a re-read; the link is gone and so is the elevation
+        location.reload();              // role/tier may have changed — redraw from a clean state
+      },
+      openLibrary,
+    },
+  }, initial);
 }
 
 /** Self-service password change (any signed-in user). */

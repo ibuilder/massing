@@ -368,9 +368,25 @@ def me(db: Session = Depends(get_db), user: str = Depends(current_user)):
     from .. import tiers
     u = db.get(User, user)
     tier = tiers.normalize(u.tier if u else None)
-    return {"username": user, "role": (u.role if u else None), "authenticated": u is not None,
-            "tier": tier, "features": tiers.features_for(tier),
-            "platform_admin": _is_platform_admin(u)}
+    out = {"username": user, "role": (u.role if u else None), "authenticated": u is not None,
+           "tier": tier, "features": tiers.features_for(tier),
+           "platform_admin": _is_platform_admin(u)}
+    # CLOUD-SSO: the identity the account chip renders. Folded into /auth/me rather than left to a
+    # second round trip because the chip is drawn at startup on every load, and a name that arrives
+    # after the button does is a visible flicker on the most-looked-at control in the app.
+    # `display_name`/`avatar_url` are absent for password and direct-IdP accounts — the chip falls
+    # back to initials, so the absence is a rendering branch and never an error.
+    from ..models import CloudIdentity
+    link = db.get(CloudIdentity, user) if u is not None else None
+    if link is not None:
+        from .. import massing_cloud_auth as cloud
+        cloud_tier = cloud.normalize_tier(link.cloud_tier)
+        out["display_name"] = link.display_name
+        out["avatar_url"] = link.avatar_url
+        out["cloud"] = {"linked": True, "email": link.cloud_email, "tier": cloud_tier,
+                        "roles": link.cloud_roles or [], "providers": link.providers or [],
+                        "library_access": cloud.has_library_access(cloud_tier)}
+    return out
 
 
 # --- self-service -------------------------------------------------------------

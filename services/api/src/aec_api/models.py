@@ -178,6 +178,46 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class CloudIdentity(Base):
+    """A user's link to their **massing.cloud** account (CLOUD-SSO — see [[massing_cloud_auth]]).
+
+    A separate table rather than columns on `users` for two reasons. The link is optional and
+    sparse — password and direct-IdP accounts never have one — and it holds *live credentials* that
+    must be deletable on disconnect without touching the account itself: "unlink my cloud" is a row
+    delete here, not a partial wipe of six nullable columns on `users`.
+
+    `access_token` / `refresh_token` are the user's **cloud** credentials, not this app's session.
+    They are stored so the app can call the Vault API on the user's behalf between requests, which is
+    the entire reason the project library can exist server-side; they are never returned by any
+    route, never logged, and never sent to the browser. `/auth/cloud/status` reports only whether a
+    link exists and what it grants.
+
+    `cloud_roles` is the raw role list as the broker reported it, kept verbatim so that a change in
+    the mapping rules re-evaluates against what the site actually said rather than against a decision
+    frozen at link time.
+    """
+    __tablename__ = "cloud_identities"
+    # One cloud link per local account. The username is the FK into `users`.
+    username: Mapped[str] = mapped_column(String, ForeignKey("users.username"), primary_key=True)
+    # The broker's stable subject id (WordPress user id as a string). Indexed because a re-link from
+    # a renamed/re-emailed account resolves by `sub`, not by address.
+    cloud_sub: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    cloud_email: Mapped[str | None] = mapped_column(String, nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    # massing.cloud licence vocabulary: free | home | commercial | enterprise (licensing.TIER_ORDER),
+    # NOT the three-value `tiers.TIERS` used by `User.tier`. See massing_cloud_auth.normalize_tier.
+    cloud_tier: Mapped[str | None] = mapped_column(String, nullable=True)
+    cloud_roles: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    providers: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Unix seconds at which `access_token` expires; refreshed ahead of this by the route layer.
+    expires_at: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    last_sync: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class ProfessionalLicense(Base):
     """A PE/RA licence held by a user — the record a seal is drawn FROM, never typed into.
 

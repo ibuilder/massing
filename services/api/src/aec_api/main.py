@@ -34,6 +34,7 @@ from .routers import (
     classify,
     client_portal,
     closeout,
+    cloud,
     codecheck,
     conceptual,
     connections,
@@ -547,6 +548,7 @@ app.include_router(closeout.router, tags=["closeout"])
 app.include_router(convert.router, tags=["convert"])
 app.include_router(uploads.router, tags=["uploads"])   # R41-UPLOAD-WARK resumable handshake
 app.include_router(auth.router, tags=["auth"])
+app.include_router(cloud.router, tags=["cloud"])
 app.include_router(scim.router, tags=["scim"])
 app.include_router(saml.router, tags=["saml"])
 app.include_router(connections.router, tags=["connections"])
