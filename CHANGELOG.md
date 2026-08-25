@@ -4,6 +4,91 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1099 (2026-08-25) — the source that gates the build was, for the second time, the source nobody linted
+
+Following v0.3.1098's question — *what else is not covered?* — to the linter.
+
+### The gap
+
+`apps/web/eslint.config.js` lints `scripts/**/*.mjs` **relative to its own base path**, so it reaches
+`apps/web/scripts/` and *structurally cannot* reach the repository-root `scripts/`. A flat config
+cannot lint above its own directory; pointing it there fails with *"was not found by the project
+service"*. So the root `scripts/` was covered by nothing — and it holds
+`scripts/check-fragments-version.mjs`, the program CI runs to gate the fragments/web-ifc pin and, as
+of v0.3.1097, the shared Node base image.
+
+**That is verbatim PR #219's finding of 2026-08-06, one directory up and _nineteen days_ later:** *"the
+only web source nobody linted was the source that gates the build."* Its note is the part that
+matters — the directory was ignored *"rather than a decision anyone made about linting build
+scripts."* An accident of configuration reads, from outside, exactly like a choice.
+
+*(This entry first said "eleven weeks later", which was simply wrong — 2026-08-06 to 2026-08-25 is
+**19 days**. Caught in review. The correction sharpens the point rather than softening it: the same
+structural defect recurred inside three weeks, in a repository that had just written the lesson down.
+A recurrence at eleven weeks is drift; a recurrence at nineteen days is a pattern the prose could not
+prevent — which is the argument for the check.)*
+
+### Enumerating the population found three more, in the same service as yesterday's
+
+Every tracked `.mjs`/`.js` outside `apps/web` is four files: one in `scripts/`, and
+`services/converter/src/{cli,ifcToFrag,rvtToIfc}.mjs` — **the IFC→Fragments conversion named in the
+first non-negotiable at the top of CLAUDE.md**, read by no linter.
+
+Which makes the converter the least-covered corner of this repository in two independent ways found
+hours apart: **its image was built by no CI job (v0.3.1098) and its source was read by no linter.**
+Neither caused the other. Both are the same absence, and the second was found only because fixing the
+first prompted the question.
+
+The first lint of that source found one issue — `no-useless-escape` on
+`objectName.replace(/[^\w.\-]/g, "_")`, the sanitiser for a filename sent to Autodesk APS. **It is
+cosmetic**: `\-` and `-` are identical inside a character class, verified across 8,192 code points
+with zero behavioural differences before touching it. Reported as what it is rather than dressed up —
+the value here is that a linter now reads these files at all, not that this one found a bug.
+
+### The check, and how its own first draft failed
+
+A recurring gap does not want a third careful config; it wants **a check that fails**.
+`apps/web/src/shell/lintCoverage.test.ts` asserts every tracked JavaScript file resolves an ESLint
+config carrying at least one rule.
+
+**Its first draft ran `eslint . --format json` and treated every path in the output as covered — and
+it passed its own mutation.** Removing `services/converter/src/**` from the root config, reproducing
+the exact defect the file was written for, left those three files linted by nothing and the test
+still went green: ESLint emits a zero-message result for a file it merely *walked past* without
+matching any `files` entry, so *"appears in the output"* and *"had rules applied to it"* are
+different questions, and the draft asked the easier one.
+
+**A measurement whose population quietly includes the failure case — reproduced inside the test
+written to catch that exact shape.** The fix asks ESLint's own config resolution
+(`calculateConfigForFile`) for a rule count, which a file ESLint declined to lint cannot satisfy. The
+mutation run is the only thing that told the two drafts apart; their PASS lines were identical.
+
+Mutation-verified three ways: dropping the converter globs now names all three files, deleting the
+root config fails, and narrowing the population to one tree trips the span guard.
+
+### The check's first CI run failed, on the config that was added with it
+
+`eslint.config.mjs` is tracked JavaScript, and no config linted it — which would have made the root
+ESLint config **the one file in the repository exempt from the rule it exists to enforce.** It now
+appears in its own `files` list.
+
+**The local run had missed it for a reason worth generalising.** The population is `git ls-files`, so
+it contains *tracked* files, and `eslint.config.mjs` had been written but not yet `git add`ed when the
+suite was run. CI checks out a tree where everything is tracked, so it saw immediately what the local
+run structurally could not. The test was right; the local run was under-populated.
+
+**A `git ls-files` gate cannot see the change being made until it is staged**, so a green from one
+before `git add` is weaker than it looks. That applies to most of the gates in this repository —
+`test_claude_md_gates`, `roadmapLanes.test.ts`, `test_file_sizes` and this one all derive their
+population the same way.
+
+### Also
+
+`npm run lint` at the repo root, wired into CI immediately before the existing web lint — the step
+that lints the program the step above it runs. And `apps/web/public/coi-serviceworker.js` (Guido
+Zuidhof, MIT) joins the excluded list beside `src/vendor/`: third-party source vendored verbatim is
+not ours to restyle. **That entry exists because the check found the file on its first execution.**
+
 ## v0.3.1098 (2026-08-25) — the one Dockerfile no job has ever built, and the hardening that never ran
 
 Following the v0.3.1097 Node-base fix to its cause. **`services/converter/Dockerfile` is built by
