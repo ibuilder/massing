@@ -102,7 +102,7 @@ TESTS = ["test_provenance_report", "test_provenance_estimate_leg", "test_answers
          # AEC_ALLOW_IFC_CODE/AEC_SEAL_ALLOW_PROFILE; codes.MAX_AMENDMENTS) were ALSO dropped —
          # Security restores those from their branches; an unregistered test hides that honest red.
          "test_dispatcher_privilege_coverage", "test_ifc_path_containment", "test_outbound_fetch_guard",
-         "test_preflight_covers_settings", "test_storage_key_parity", "test_stored_collection_caps", "test_massing_cloud_sso"]
+         "test_preflight_covers_settings", "test_storage_key_parity", "test_stored_collection_caps"]
 
 
 #: Engine tests that live beside the data service (services/data/test_*.py) — the massing /

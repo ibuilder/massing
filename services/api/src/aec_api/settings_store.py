@@ -29,22 +29,6 @@ CATALOG: list[dict[str, Any]] = [
          "secret": False},
         {"key": "MASSING_CLOUD_SECRET", "label": "Shared secret (X-Massing-Secret header)", "secret": True},
     ]},
-    # CLOUD-SSO: massing.cloud as the identity broker (OAuth2 PKCE). There is deliberately **no
-    # secret in this group** — the app is a registered *public* client (`massing-desktop`) and PKCE
-    # is what replaces the secret, so an operator only has to turn it on. See massing_cloud_auth.py.
-    {"group": "massing.cloud sign-in", "keys": [
-        {"key": "MASSING_CLOUD_SSO_ENABLED", "label": "Enable massing.cloud sign-in (1/0)",
-         "secret": False, "default": "0"},
-        {"key": "MASSING_CLOUD_SITE_URL", "label": "Site URL (e.g. https://www.massing.cloud)",
-         "secret": False, "default": "https://www.massing.cloud"},
-        {"key": "MASSING_CLOUD_SSO_CLIENT_ID", "label": "OAuth client id",
-         "secret": False, "default": "massing-desktop"},
-        {"key": "MASSING_CLOUD_ROLE_SYNC",
-         "label": "Grant app admin to massing.cloud admins/editors (1/0)",
-         "secret": False, "default": "1"},
-        {"key": "MASSING_CLOUD_ADMIN_ROLES", "label": "Cloud roles that map to app admin",
-         "secret": False, "default": "administrator,editor"},
-    ]},
     {"group": "AI assist (Draft RFI)", "keys": [
         {"key": "ANTHROPIC_API_KEY", "label": "Anthropic API key", "secret": True},
         {"key": "AEC_AI_MODEL", "label": "Model", "secret": False, "default": "claude-opus-4-8"},
