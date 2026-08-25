@@ -3341,6 +3341,15 @@ Scores for the record: defect risk 7.3/10, maintainability 8.5/10, static perfor
   builds the real rail, clicks the real control and reads the preference back, and was mutation-tested
   against a star that only re-styles itself.
 
+  **And a fourth, v0.3.1089 — this one in the DOCS rather than the code.** 83 `AEC_*`/`MASSING_*`
+  env flags are read under `services/` and **32 appeared in no document at all**. Two of them decide
+  who may sign in — `AEC_OAUTH_ALLOWED_DOMAINS` and `AEC_OAUTH_NO_AUTOPROVISION` — and neither has a
+  restrictive default, so an OAuth deployment with both unset is open by configuration and the
+  operator has no way to discover the controls that would close it. `AEC_GRID_KGCO2E_PER_KWH` is the
+  same shape in a different register: its default is a US grid factor, so carbon figures are wrong
+  elsewhere and reported confidently. Gated by `services/api/test_env_documented.py` in **both**
+  directions — the reverse one rejected three of its own author's entries on the first run.
+
   **And a third, from a different sweep — v0.3.1087.** Looking for classes assigned in TS that no
   stylesheet defines found the **Project Pulse rail has never been styled**: `pulse.ts` shipped in
   v0.3.749 and no stylesheet has ever contained the string `pulse`. It is not dead code —

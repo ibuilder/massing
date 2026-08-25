@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1089 (2026-08-25) — two sign-in restrictions existed in code and in no document
+
+83 `AEC_*`/`MASSING_*` environment flags are read under `services/`. **32 appeared nowhere** — not in
+`.env.example`, not in `docs/`, not in `README.md`, not in `docker-compose.yml`. Two of them decide
+who may sign in:
+
+    AEC_OAUTH_ALLOWED_DOMAINS    unset ⇒ any domain the IdP will authenticate may sign in
+    AEC_OAUTH_NO_AUTOPROVISION   unset ⇒ an unknown identity mints a local account
+
+Neither has a restrictive default, so a deployment with OAuth enabled and these unset is open *by
+configuration* — and an operator who cannot discover them cannot close it. **A hardening control that
+exists in code and in no document is a control nobody can use.** Timely rather than theoretical: SSO
+landed one release ago.
+
+The same argument, less sharply, for `AEC_GRID_KGCO2E_PER_KWH`: its default is a US-average grid
+factor (~0.386 kgCO2e/kWh), so carbon figures are wrong for any other region — and reported
+confidently anyway. Also now documented: the untrusted-code limits (`AEC_IFC_CODE_CPU_SECONDS`,
+`AEC_IFC_CODE_MEMORY_MB`, `AEC_SANDBOX_STARTUP_SECONDS`, `AEC_PLUGIN_TIMEOUT_S`, `AEC_MAX_UNZIP_MB`),
+`AEC_LOCAL_MODE` (which disables access control and belongs to the desktop build, not a served
+deployment), error-log retention, and the three external endpoints an air-gapped install needs to
+point elsewhere.
+
+**It is a gate, not an edit, because a list of names is exactly what rots here.** `clearCache.ts`'s
+`KEEP_KEYS` named six keys the app never wrote and shipped a button that deleted the session it
+promised to keep — four releases ago. So `services/api/test_env_documented.py` checks **both**
+directions: a flag the code reads must be documented or declared internal, and **a name in the
+internal list must actually be read**.
+
+That second check rejected three of its own author's entries on its first run — `AEC_PIDFILE` and
+`AEC_ENVFILE` are set and read entirely inside a test, and `AEC_PLUGIN_CHILD` is *written* by
+`plugin_registry._child_env` and read by nobody. The gate caught its own list rotting before it
+shipped, which is the whole argument for checking the direction that feels redundant.
+
+Mutation-checked by undocumenting `AEC_OAUTH_ALLOWED_DOMAINS`: it fails and names the file that reads
+it. An anti-vacuity check requires documented flags to outnumber internal ones two to one, so the
+exemption cannot quietly swallow the population — 67 documented, 18 internal.
+
 ## v0.3.1088 (2026-08-25) — a register can finally be grouped, which is what makes it a report
 
 **R22-REPORT-BUILDER item 1**, which its own entry calls "the substantive one" of four. Until now the
