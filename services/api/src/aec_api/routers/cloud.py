@@ -49,7 +49,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from .. import audit, auth
+from .. import audit, auth, oauth
 from .. import massing_cloud_auth as cloud
 from .. import massing_cloud_vault as vault
 from ..db import get_db
@@ -131,6 +131,14 @@ def cloud_callback(request: Request, code: str | None = None, state: str | None 
     sub = str(info.get("sub") or "").strip()
     if not email or not sub:
         raise HTTPException(403, "massing.cloud did not return an identified account")
+    # `AEC_OAUTH_ALLOWED_DOMAINS` governs WHO MAY SIGN IN, whichever provider proved the address —
+    # so it applies here too. It did not, originally: the flag reads as if it were scoped to the
+    # four direct IdPs, and this path was written from that callback without carrying it. An
+    # operator who had restricted sign-in to their own domain would have had it enforced on four
+    # doors and silently bypassed by the fifth, which is worse than no control because they believe
+    # it holds. Shared helper rather than a second copy, so the next sign-in path cannot miss it.
+    if not oauth.domain_allowed(email):
+        raise HTTPException(403, "this email domain is not permitted to sign in")
 
     username = _link_account(db, info, tok, access)
     resp = RedirectResponse(_app_url(), status_code=303)

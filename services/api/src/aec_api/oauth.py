@@ -171,3 +171,26 @@ def email_from_login(provider: str, code: str, redirect_uri: str) -> str | None:
     info = fetch_userinfo(provider, access)
     email = PROVIDERS[provider]["email"](info)
     return email.strip().lower() if email else None
+
+
+def domain_allowed(email: str) -> bool:
+    """Is this email's domain permitted to sign in? (`AEC_OAUTH_ALLOWED_DOMAINS`, empty = any.)
+
+    Lives here, shared, because it was inline in the direct-IdP callback and **the massing.cloud
+    broker path did not carry it** — so an operator who had restricted sign-in to their own domain
+    got that enforced on Google/Microsoft/Procore/Autodesk and silently bypassed by the fifth door.
+    A control that is true for four sign-in paths and false for the fifth is worse than no control,
+    because the operator believes it holds.
+
+    The flag is named `AEC_OAUTH_*` and reads as if it were scoped to the direct providers, which is
+    part of how it was missed; it is not — it governs **who may sign in**, whichever provider proved
+    the address. Any future sign-in path must call this rather than re-deriving it, which is the
+    reason it is a function and not a copied five lines.
+    """
+    import os as _os
+    domains = [d.strip().lower().lstrip("@") for d in
+               _os.environ.get("AEC_OAUTH_ALLOWED_DOMAINS", "").split(",") if d.strip()]
+    if not domains:
+        return True
+    dom = email.rsplit("@", 1)[-1].lower() if "@" in email else ""
+    return dom in domains

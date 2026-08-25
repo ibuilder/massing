@@ -335,11 +335,10 @@ def oauth_callback(provider: str, request: Request, code: str | None = None,
     # Enterprise gate: only self-provision accounts for allowed email domains. Without an allowlist,
     # any verified email at an enabled provider could create an account (and, with cross-tenant reads
     # closed, still see only its own projects — but provisioning itself should be controlled).
+    # Shared with the massing.cloud broker path via `oauth.domain_allowed` — that sharing IS the
+    # fix: this was five inline lines here, and the fifth sign-in door did not carry them.
     import os as _os
-    _domains = [d.strip().lower().lstrip("@") for d in
-                _os.environ.get("AEC_OAUTH_ALLOWED_DOMAINS", "").split(",") if d.strip()]
-    _dom = email.rsplit("@", 1)[-1].lower() if "@" in email else ""
-    if _domains and _dom not in _domains:
+    if not oauth.domain_allowed(email):
         raise HTTPException(403, "this email domain is not permitted to sign in")
 
     def _make_user() -> User:

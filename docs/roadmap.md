@@ -3138,18 +3138,20 @@ first. · **REL-6 tail** — cargo-audit / gitleaks in CI when available.
 - **Copyright deposit upload** — case 1-15213313031, still pending on the government account.
 - ~~**Local Node 20.3.1 → 22**~~ — **DONE, and stale here for weeks.** The supported baseline is
   Node 24 (CI pins it; both manifests require `>=24`). See the RT-NODE-LANE note in ⛔ Gated.
-- ⚠️ **`fix/cloud-domain-allowlist` is an unmerged SECURITY fix and needs your call** *(found
-  2026-08-25 by walking the remote branches; commit `de935a26`, pushed 06:34 — **now PR
-  [#339](https://github.com/ibuilder/massing/pull/339)**, opened while this audit was running)*. On `main`,
-  `AEC_OAUTH_ALLOWED_DOMAINS` is enforced in **one** place — `routers/auth.py`, the direct-IdP
-  callback — and `routers/cloud.py`, the massing.cloud SSO door, has no check at all. Verified by
-  grep, not by reading the branch's own claim. So an operator who has restricted sign-in to their
-  own domain gets it enforced on four doors and bypassed by the fifth, which is worse than no
-  control because they believe it holds. The branch hoists the check into `oauth.domain_allowed()`
-  and calls it from the cloud callback, with tests. **It is not merged here on purpose:** this is an
-  authentication behaviour change and belongs in its own release, not inside a documentation
-  reconciliation. Timely rather than theoretical — v0.3.1089 *documented* that flag one release
-  before this gap was found, so operators are being told to rely on it now.
+- ~~**`fix/cloud-domain-allowlist` — an unmerged SECURITY fix**~~ — **MERGED as PR #339, and it
+  landed on `main` while this audit was still running.** Found 2026-08-25 by walking the remote
+  branches: `AEC_OAUTH_ALLOWED_DOMAINS` was enforced in `routers/auth.py` only, so a restriction
+  held on four sign-in doors and was bypassed by the massing.cloud one. It now hoists the check into
+  `oauth.domain_allowed()` and calls it from both.
+
+  **Two things about it are worth keeping.** First, it is the reason this branch had to merge `main`
+  mid-session: `main` shipped its own **v0.3.1090** at the same time, which collided with the
+  number this branch had already used, and every release here shifted up one. *The ship-release
+  guidance says to fetch before bumping precisely to avoid that race; fetching once at the start of
+  a long session is not the same thing.* Second, `oauth.domain_allowed` and this branch's
+  `auth.get_or_create_sso_user` are **two independent fixes to the same two functions**, made in
+  parallel by different sessions, and they composed cleanly — verified after the merge by checking
+  both are called at both doors rather than by trusting git's silence.
 - **Stale remote branches — 38 of 40 are fully merged into `main`** and can be deleted whenever you
   like; `lock/cve-floors-2026-08-09` looks unmerged but is **superseded**, not pending (`main`
   already carries `pypdf>=6.15.0`, `cryptography>=50.0.0` and the transitive-floors block, and the

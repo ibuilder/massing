@@ -4,7 +4,7 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.1094 (2026-08-25) — a distribution statement whose parts did not add up to its own total
+## v0.3.1095 (2026-08-25) — a distribution statement whose parts did not add up to its own total
 
 **The money sweep**, the third and last of the axes Band 1 names. It found a live defect, in the
 JV waterfall.
@@ -70,9 +70,9 @@ fails with **52 of 598** periods off by a cent; and satisfying the sum by **coll
 promote. A gate that only checked "the parts add up" would have applauded a waterfall that pays the
 GP nothing.
 
-## v0.3.1093 (2026-08-25) — a ratchet went red about the wrong thing, loudly enough to expose the right one
+## v0.3.1094 (2026-08-25) — a ratchet went red about the wrong thing, loudly enough to expose the right one
 
-**v0.3.1092 turned `test_mutating_get` red, and the interesting part is not the red.** Moving
+**v0.3.1093 turned `test_mutating_get` red, and the interesting part is not the red.** Moving
 `db.add` out of the OAuth callback into `auth.get_or_create_sso_user` changed the route's recorded
 ops from `('add','commit')` to `('commit',)`, and that ratchet exists to notice exactly such a
 change. Fixing it needed one line. Asking *why* the shape could change at all found a hole that had
@@ -125,7 +125,7 @@ already see. It fired about a cosmetic change to a route it *could* see, and fol
 one step led to the route it could not. **A gate that goes red for a boring reason is still worth
 reading properly** — the boring reason was bookkeeping, and the answer underneath it was a hole.
 
-## v0.3.1092 (2026-08-25) — three sign-in doors, one seeding race, and a test that took three drafts to mean anything
+## v0.3.1093 (2026-08-25) — three sign-in doors, one seeding race, and a test that took three drafts to mean anything
 
 **The concurrency sweep**, the second of the three axes Band 1 names. Unlike the authz sweep one
 release ago, this one found a live defect.
@@ -191,7 +191,7 @@ separately here for exactly that reason.
 
 **A test that cannot fail is not evidence, however many PASS lines it prints.**
 
-## v0.3.1091 (2026-08-25) — the id in the path is not the project's, it is the resource's
+## v0.3.1092 (2026-08-25) — the id in the path is not the project's, it is the resource's
 
 **Sprint 1 of the re-cut roadmap: an authorisation sweep.** Axis picked before starting, as that
 sprint row's own premise-check demands — two of the three subsystems added since the last sweep
@@ -263,7 +263,7 @@ claiming to settle it would be worse than one that names the gap.
 2026-08-01 and is defensible again on the authz axis as of today. **Concurrency and money were the
 other two candidate axes and remain unswept.**
 
-## v0.3.1090 (2026-08-25) — a status glyph is a note to a reader; only the move is a change to the file
+## v0.3.1091 (2026-08-25) — a status glyph is a note to a reader; only the move is a change to the file
 
 A full-repo reconciliation. Nothing here is a new capability: it is the record catching up with the
 code, plus four gates so the same drift fails a build next time instead of being found by reading.
@@ -390,6 +390,98 @@ this session, and `docs/roadmap-directions.md` §7 is explicit that a green *run
 Band 1 is empty for the first time and says so in those terms: it measures when someone last swept,
 not that nothing is wrong. The next three sprints are re-cut, each row now carrying the premise to
 check first — the one row of the previous cut that was correctly sized was the one that demanded it.
+## v0.3.1090 (2026-08-25) — sign in through massing.cloud, and open your cloud library
+
+massing.cloud becomes the **identity broker**. The user signs in once on the site — picking
+Microsoft, Google, Procore, Autodesk or a password *there* — and this deployment holds **no provider
+secret at all**. If their plan is anything but Free, their massing.cloud project vault becomes
+browsable and openable in the app.
+
+OAuth2 authorization code + **PKCE (S256)** against the already-registered public client
+`massing-desktop`. The redirect URI is our own `/auth/cloud/callback`, which for a desktop or
+self-hosted install is already a loopback address. Off by default; the routes 404 until
+`MASSING_CLOUD_SSO_ENABLED=1`.
+
+**The toolbar account control becomes an identity chip** — the massing.cloud (WordPress) avatar,
+display name and an admin badge — falling back to a generated initials disc for password and
+direct-IdP accounts, which have no avatar and never will. Absence is a rendering branch, never an
+error.
+
+**Administration stops being a place you go.** The four admin-only dropdown entries (users, audit
+log, errors, data connections) are now the *Administration section* of one **Profile & settings**
+panel, shown only when the account carries the capability. A non-admin and an admin see the same
+panel; the admin's has one section more. That is the whole reorganisation — admin settings live in
+your profile — without deleting a capability the product still needs.
+
+### Three decisions a reader should be able to question
+
+**The code exchange runs server-side, not in the browser.** The cloud refresh token is good for 30
+days and has no business in `localStorage`; doing it here also means massing.cloud never has to
+CORS-allow this origin. PKCE needs no client secret, so nothing about being a public client is bent.
+
+**The PKCE verifier is derived, never stored.** The cookie carries an opaque flow id; the verifier is
+`HMAC(signing key, flow id)`, recomputed at callback time. Nothing the browser holds is secret
+material. An earlier version sealed the verifier into the cookie — signed but not encrypted — which
+CodeQL flagged; the rule's own concern was a false positive (SHA-256 inside HMAC is the correct
+primitive and a slow KDF would be *wrong*), but it pointed at a real question the rule does not ask,
+so the design changed rather than the alert being argued away.
+
+**The two tier vocabularies must not be crossed, and this nearly shipped as a bug.**
+`licensing.TIER_ORDER` is `free|home|commercial|enterprise` — what the site sends. `tiers.TIERS` is
+`free|pro|enterprise`, the seam on `User.tier`. Running a cloud tier through `tiers.normalize` maps
+**`commercial` → `free`**, telling a paying customer they have no library.
+
+### Roles: built, and inert until the site publishes them
+
+`userinfo` returns `{sub, name, email, avatar_url, tier, providers}` and **no role key** — verified
+against the plugin source, not the docs. So `administrator`/`editor` ⇒ app admin is implemented,
+two-way and fail-closed, and **does nothing today**. Worth stating plainly, because it makes the
+feature's most visible behaviour a no-op: someone testing "does my cloud admin role grant admin
+here?" will see nothing happen and reasonably conclude it is broken. The four-line
+`massing_sso_userinfo` filter that activates it is in `docs/internal/massing-cloud-sso.md`.
+
+### Four admin lockouts, one missing fact
+
+Nothing recorded whether an account's admin role came from the cloud or predated it, while three
+comments asserted the distinction. Because `userinfo` publishes no roles, `is_admin` is *always*
+False and the bootstrap admin's username *is* their email — so each of these was a guaranteed lockout
+in the default configuration, not an edge case:
+
+1. a first link demoted a pre-existing local admin;
+2. a first-link-only guard merely **delayed** that to the second sign-in — a fix that postpones the
+   write rather than preventing the state, and the test asserted the delayed demotion as correct;
+3. `/auth/cloud/refresh` demoted them on an explicit Refresh;
+4. `/auth/cloud/disconnect` demoted them on the way out.
+
+`CloudIdentity.local_admin_at_link` snapshots the provenance at first link, before any sync write.
+Role sync may now promote freely and demote **only an elevation it granted**; disconnect reads the
+flag before deleting the row, since afterwards there is nothing left to ask. All four sites are
+mutation-checked — including removing the *promotion*, without which "never demotes" would pass on a
+build with role sync switched off entirely, which is exactly how the second defect hid.
+
+**Intended consequence:** for a cloud-linked account that was not already an admin, the site is
+authoritative — promoting it locally under Manage users is undone at the next sign-in.
+`MASSING_CLOUD_ROLE_SYNC=0` opts out.
+
+### A restriction that held on four doors and not the fifth
+
+`AEC_OAUTH_ALLOWED_DOMAINS` was enforced on the four direct-IdP callbacks and **not** on the
+massing.cloud path — so an operator who restricted sign-in to their own domain had it hold on four
+doors and silently bypassed on the fifth, which is worse than no control because they believe it
+holds. The cloud callback was written from the direct-IdP one and carried `AEC_OAUTH_NO_AUTOPROVISION`
+across but not the five inline lines above it; the flag reads `AEC_OAUTH_*` as though scoped to those
+providers, when what it governs is *who may sign in*. Now `oauth.domain_allowed`, shared by both, so
+a sixth sign-in path cannot miss it. Found by reading v0.3.1089 — the release that made the control
+discoverable is the one that made its gap visible.
+
+### Not included, deliberately
+
+Saving back to the cloud (docs/31 §3 is an open joint decision and there is no `.mass` container
+writer, so a save button would record a pointer to nothing); opening `.mass` (refused explicitly
+rather than handed to the IFC loader); and the `massing://open` deep links.
+
+**Not verified:** the real broker handshake. Every test stubs it at the module seam, so the first
+live sign-in against production is untested.
 
 ## v0.3.1089 (2026-08-25) — two sign-in restrictions existed in code and in no document
 
