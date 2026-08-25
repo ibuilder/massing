@@ -434,16 +434,32 @@ describe("apps/web/README.md's pinned versions", () => {
     const text = doc("apps/web/README.md");
     // Table rows only: `| name | version | notes |`. The version cell may carry a "(dev)" tag.
     const rows = [...text.matchAll(/^\|\s*([@a-z0-9/.-]+)\s*\|\s*([0-9][^|]*?)\s*\|/gm)]
-      .map((m) => ({ name: m[1] ?? "", cell: (m[2] ?? "").replace(/\s*\(dev\)\s*$/, "").trim() }))
-      // A row naming something the manifest does not install is not this check's business.
-      .filter((r) => r.name in manifest);
+      .map((m) => ({ name: m[1] ?? "", cell: (m[2] ?? "").replace(/\s*\(dev\)\s*$/, "").trim() }));
 
     // Anti-vacuity, and it is not decoration: a heading rename or a switch to a bullet list would
     // otherwise leave this suite green while measuring an empty table.
     expect(rows.length, "no version rows parsed from apps/web/README.md — this assertion is vacuous")
       .toBeGreaterThanOrEqual(8);
 
+    // A row naming a package the manifest does not install is the STALEST row the table can hold,
+    // and the first draft of this block dropped exactly those rows with the comment "not this
+    // check's business" — so removing a dependency from `package.json` while leaving its README row
+    // behind would have left the table describing a package nobody installs, green.
+    //
+    // That is the one-directional-gate shape this repository keeps re-finding: the version
+    // comparison only ever ran over rows that survived a filter derived from the thing being
+    // checked, so the population was defined to exclude the failure. `test_env_documented` is
+    // bidirectional for the same reason, and `test_lock_satisfies_requirements` records two
+    // incidents from the half of its own claim it left unstated. Filtering by the source of truth
+    // is how a check quietly stops asking its own question.
+    //
+    // Every row is now accounted for: named-and-installed, or named-and-not-installed and reported.
+    const uninstalled = rows.filter((r) => !(r.name in manifest)).map((r) => r.name);
+    expect(uninstalled, "apps/web/README.md's version table lists packages apps/web/package.json " +
+      "does not install — delete the rows, or restore the dependencies").toEqual([]);
+
     const wrong = rows
+      .filter((r) => r.name in manifest)
       .filter((r) => (manifest[r.name] ?? "").replace(/^[\^~]/, "") !== r.cell)
       .map((r) => `${r.name}: README says ${r.cell}, package.json says ${manifest[r.name]}`);
     expect(wrong, "the README's pinned-version table disagrees with package.json — re-derive it " +

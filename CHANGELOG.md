@@ -4,6 +4,50 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1096 (2026-08-25) — a version table that filtered out the only row that could be stale
+
+Two review findings on the v0.3.1091–1095 pull request, both real, both the same shape: **a check
+whose population was defined so that the failure it exists for could not appear in it.**
+
+### The README table check could not see a removed dependency
+
+`docsCurrent.test.ts` asserts `apps/web/README.md`'s pinned-version table against
+`apps/web/package.json` — the gate added at v0.3.1091 after six of that table's ten rows turned out
+to be wrong. It parsed the rows, then dropped every row naming a package the manifest does not
+install, with the comment *"not this check's business"*.
+
+**That filter is derived from the thing being checked, so it defines the failure out of the
+population.** Delete a dependency from `package.json` and leave its README row behind, and the row
+describing a package nobody installs is silently excluded from the comparison — the stalest row the
+table can hold is the one row the check refuses to look at. Nothing is wrong today (all ten rows
+resolve), so this was latent, not live.
+
+Every row is now accounted for: named-and-installed, or named-and-not-installed and **reported**.
+Mutation-verified — adding a row for an uninstalled package fails the suite and names it; removing
+the row passes again.
+
+**This is the third recorded instance of the one-directional gate in this repository**, and worth
+naming as a class rather than as three coincidences. `test_env_documented` is bidirectional
+deliberately. `test_lock_satisfies_requirements` carries two incidents in its own docstring, both
+from the half of its claim it left unstated. A check that filters its input by the source of truth
+has stopped asking its own question.
+
+### The roadmap said the next action was work the same release had finished
+
+§Band 1 read *"The last sweep that filled it was 2026-08-01"* and *"the honest next action for this
+band is to run one"* — four lines above the three sweep records from **2026-08-25** that this very
+release range added. A reader picking up Band 1 would have been sent to run a sweep that had just
+run. The sprint table said it twice: row 1 still ranked *"a correctness sweep — refill Band 1"*
+first, on the premise *"the last sweep was 2026-08-01, ~270 releases ago"*.
+
+Both re-derived. The sprint row is **struck through rather than deleted**, because that table's own
+preamble says its *predictions* are the part worth checking — and this one was right: its
+premise-check ("pick the axis before starting") is what made two of the three axes produce a defect.
+
+**A staleness clock that nobody winds when the work happens is the A29-GUIDE-UNDERLAY defect** —
+*"(in flight, PR #199)"*, which read as current for 214 releases after the feature shipped. v0.3.1091
+archived that entry and then left a date next to it that had gone false in the same commit.
+
 ## v0.3.1095 (2026-08-25) — a distribution statement whose parts did not add up to its own total
 
 **The money sweep**, the third and last of the axes Band 1 names. It found a live defect, in the

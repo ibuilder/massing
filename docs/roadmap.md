@@ -112,12 +112,20 @@ archived beside them.
 **Read that as "nothing is currently KNOWN to be wrong", never as "nothing is wrong."** Every item
 this band has ever held arrived from a sweep — the R35 race sweep, the FIN suite audit — and not one
 of them arrived from a failing test, because a defect the suite can catch never reaches a roadmap.
-So an empty Band 1 measures how long it has been since someone last went looking. The last sweep
-that filled it was 2026-08-01.
+So an empty Band 1 measures how long it has been since someone last went looking.
 
-**The next entry here will come from a sweep, so the honest next action for this band is to run
-one** rather than to wait for it to fill. That is a different kind of work from picking a lane item
-and it is nobody's default, which is exactly why it is written down here.
+**Three sweeps ran on 2026-08-25 — authz, concurrency and money — and they are recorded below.** Two
+of the three found a live defect, and both were fixed in the same release rather than filed here, so
+this band is empty *because someone looked*, which is a different state from the one the paragraph
+above warns about. **The date to re-derive this from is 2026-08-25, not the 2026-08-01 this passage
+carried until the sweeps landed** — a staleness clock that does not get wound when the work happens
+is the same defect as A29-GUIDE-UNDERLAY's "(in flight, PR #199)", which read as current for 214
+releases.
+
+**The next entry here will still come from a sweep**, and the three axes named in the sweep records
+are now spent for this round. The honest next action for this band is therefore *not* another sweep
+immediately: it is to pick the next axis deliberately when the surface has moved again — the
+concurrency record names the specific thing to watch, a fourth sign-in path.
 
 > ### ✅ AUTHZ SWEEP RUN 2026-08-25 (v0.3.1091) — **no live hole; the gate is the finding**
 >
@@ -646,7 +654,7 @@ entry demanded a premise-check before starting. **That is now the first line of 
 
 | # | Sprint | Why here | Size | Premise to check FIRST |
 |---|---|---|---|---|
-| 1 | **A correctness sweep** — refill Band 1 | Band 1 is empty for the first time, and §Band 1 above argues that this measures *when someone last looked*, not that nothing is wrong. Every item it has ever held came from a sweep (R35 races, the FIN audit) and none from a failing test — by construction, since a defect the suite catches never reaches a roadmap. **The last sweep was 2026-08-01, ~270 releases ago**, and the surface has grown by a resumable upload path, an SSO login and a plugin process boundary since. This ranks first because it is the only item on the list whose *absence* is invisible. | M | That the sweep has a target. Pick the axis before starting — concurrency, authz, or money — because "sweep the codebase" is how a sweep becomes a week with no findings. The three named above each produced items last time. |
+| 1 | ~~**A correctness sweep** — refill Band 1~~ **DONE 2026-08-25 (v0.3.1091–1095)** | **Struck rather than deleted, because the prediction is the part worth checking.** All three axes it named were run: **authz** (43 routes, no live hole, `services/api/test_resource_id_authz.py` is the finding), **concurrency** (a 500 on concurrent first sign-in at all three SSO doors), **money** (52 of 399 JV distribution periods whose parts did not sum to their own total). Its premise-check was the load-bearing part — "pick the axis before starting" is what made two of the three produce a defect. Records in §Band 1 above. | M | — |
 | 2 | **R22-REPORT-BUILDER — items 2–4** | The only row here with live momentum: item 1 of 4 ("the substantive one", by its own entry) shipped in **v0.3.1088**, one release ago, and the person who built the aggregate route has the shape of the remaining three in hand. Registers that can group are what turn a register into a report, and the GC portal is the pillar where that lands. Cheapest good work available. | S/M | That three items really remain. v0.3.1088 shipped a *part*, and commit `84fec46` exists **only** because the roadmap first recorded that part as the whole item. Re-read the entry, not the release note. |
 | 3 | **R36-VIEWER-SUBAPP** — the canvas switches 2D/3D in place, including PRINT | The remaining half of the rail arc, and a **user directive** rather than an agent's idea — the rooms "must each be a product". It is also the largest thing standing between the drawing surface and the roadmap's own headline judgement at the top of this file: *what is thin now is the drawing*. | L | The R43 collision. `@massing/embed` was evaluated and **declined** on 2026-08-23 for an architectural reason (its load path is IFC text into a browser tessellator, against two non-negotiables), and two breaking changes are still coming: async viewport creation, and add/remove replacing `showModel`. Build behind the existing seams, not into `apps/web/src/viewer/app.ts`. |
 
