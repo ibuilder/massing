@@ -445,8 +445,46 @@ engines once shipped with no route at all.
 - Roadmap entries carry the **reasoning**, not just the title — that is what makes them re-readable in
   a month.
 - When an item is finished, move it to [`roadmap-completed.md`](roadmap-completed.md) **with its text**
-  if the reasoning is worth keeping; one-line it if not.
+  if the reasoning is worth keeping; one-line it if not. **Move it in the same change that finishes
+  it.** Marking ✅ and leaving it in place is the single most common defect this roadmap has: the
+  2026-08-25 reconciliation archived **twenty-one** such entries, and the words *"pending archive"*
+  appeared **14 times in the lane table** — the cells an agent reads to choose work. Nothing could catch them, because `roadmapLanes.test.ts` skips ✅ lines when it
+  builds the open population — **a shipped item that stays put is invisible to the only check that
+  reads the file.** A status glyph is a note to a reader; only the move is a change to the file.
 - When an item is checked and found already built, say so in place rather than deleting it.
 - When a source is reviewed and rejected, **record the reason** — the rejected list is often the more
   useful half of a research pass, because it stops the exercise being re-run.
 - Never leave a dangling item code in prose; the lane gate will fail on it, which is the point.
+- **An in-progress marker is worse than a stale ✅, and it needs an expiry.** A29-GUIDE-UNDERLAY ③ read
+  *"(in flight, PR #199)"* for **214 releases** after that PR merged. A ✅ merely leaves clutter;
+  "in flight" reads as *someone else has this*, so it actively deters the reader who would have
+  discovered it was done. **A pull-request number is the one staleness clock in the roadmap with a
+  real timestamp attached — if a cell cites one, check whether it merged before believing the cell.**
+- **Write an item's code ONCE.** A second bullet opening with the same code — a band summary, or the
+  review a live entry rests on — parses as a second item, and `itemCodes()` collects into a `Set`, so
+  the duplicate collapses and the count comes out right for the wrong reason. v0.3.1073 shipped as
+  *"two entries for one item, again"*; it happened a third time and survived because the check that
+  would see it de-duplicates before it counts. Supporting material goes under a heading that does
+  **not** start with the code.
+
+---
+
+## 9. Editing a long doc — replace between markers, never splice at a match
+
+`docs/roadmap.md` once accumulated **three duplicate NOW sections** with contradictory content,
+because scripted edits *inserted* a section instead of replacing one, over several releases. That
+lesson was written down — in `docs/roadmap.md`, about `docs/roadmap.md`.
+
+**It then happened to `CHANGELOG.md`, and the note did not travel.** The v0.3.1019 nineteen-branch
+integration renumbered colliding releases by splicing new `## vX.Y.Z` headers **above** the existing
+ones, leaving **four orphan headers** — a version line with no body, directly on top of another
+version line. Found 2026-08-25, roughly seventy releases later.
+
+**A lesson recorded as prose about one file does not protect the file next to it.** So the rule now
+lives where it can fail: `services/api/test_changelog_current.py` checks the changelog's *structure*
+— no orphan headers, headers strictly newest-first, no entry duplicated, and version reuse pinned to
+the one genuine historical collision (two commits really did both ship as v0.3.1019) by a down-only
+ratchet. All four checks are mutation-verified.
+
+When you must edit one of these files with a script: anchor on a unique marker, assert the anchor
+appears **exactly once**, and replace a *range* — never insert at a matched string.

@@ -12,13 +12,13 @@ ifctester>=0.8        # IDS / openBIM model validation
 # 3.5.2) and 2D section cuts, so a major move there is not free. `test_lock_satisfies_requirements.py`
 # now reads this file, so the two can no longer disagree silently.
 trimesh>=5.0.0         # clash narrow phase (mesh booleans) + 2D section cuts
-manifold3d>=2.0       # boolean intersection engine for trimesh
+manifold3d>=3.5.2     # boolean intersection engine for trimesh
 scipy>=1.18.0           # trimesh path assembly (section drawings)
 networkx>=3.6.1         # trimesh path traversal (section drawings)
 shapely>=2.1.2          # trimesh planar paths
-reportlab>=4.0        # PDF sheet composition
+reportlab>=5.0.0      # PDF sheet composition
 pillow>=12.3.0        # reportlab's image dep — floor over 8 CVEs in 12.2.x (PYSEC-2026-2253..3453)
-defusedxml>=0.7       # XXE-safe parser for untrusted P6 (PMXML) schedule uploads — schedule.py
+defusedxml>=0.7.1     # XXE-safe parser for untrusted P6 (PMXML) schedule uploads — schedule.py
 # svglib (SVG→PNG for docs gallery) is a dev-only tool — it pulls pycairo/cairo and is not
 # needed at runtime (the API serves SVG directly). Install ad hoc when regenerating docs/img.
 rdflib>=7.6.0            # R28-ICDD — ISO 21597 container linksets (BSD-3)

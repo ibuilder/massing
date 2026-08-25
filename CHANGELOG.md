@@ -4,6 +4,517 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1097 (2026-08-25) — a floor that is too low satisfies every check written to catch a floor that is too high
+
+The dependency half of the full branch/PR review. **272 of 340 pull requests merged; 68 closed
+without merging.** Sixty-two of those 68 are Dependabot proposals superseded by later, higher bumps
+that did land, and four are deliberate declines (the `@thatopen` group, per the version-coupling pin
+CLAUDE.md calls the #1 risk here; Python 3.14; TypeScript 7; Node 26). Two feature pull requests
+(#210/#211, #260) were traced into `main` by content — #260's `git ls-files` claim resolver and its
+`!services/api/src/aec_api/main.py` carve-out are both present, so nothing was left stranded.
+
+**Six of the remaining closed pull requests left something behind, and it is the same defect six
+times.**
+
+### Five of twelve shared packages had drifted apart
+
+`services/api/requirements.in` and `services/data/requirements.txt` both declare floors, and both
+are read by `test_lock_satisfies_requirements`. Twelve packages appear in both. Five disagreed:
+
+    defusedxml     requirements.in >=0.7.1     services/data >=0.7       (lock 0.7.1)
+    ifcopenshell   requirements.in >=0.8.0     services/data >=0.8.5     (lock 0.8.5)
+    manifold3d     requirements.in >=3.5.2     services/data >=2.0       (lock 3.5.2)
+    rdflib         requirements.in >=7.1       services/data >=7.6.0     (lock 7.6.0)
+    reportlab      requirements.in >=5.0.0     services/data >=4.0       (lock 5.0.0)
+
+**They disagree in both directions**, which is what makes this drift rather than a decision: nobody
+deliberately requires `ifcopenshell 0.8.0` in one file and `0.8.5` in the file beside it. Two of the
+five carry a stated security reason in the very file that then declares the weaker floor —
+`defusedxml` is commented "XXE / billion-laughs hardening" in one and "XXE-safe parser for untrusted
+P6 (PMXML) schedule uploads" in the other, and only one of those lines actually delivers 0.7.1.
+
+### Why nothing was broken, and why that is the problem
+
+The lock pins at or above the higher floor in all five cases, and the lock is the only thing
+installed. **The runtime was right, so the declaration could stay wrong indefinitely.** It becomes
+real the moment the lock is recompiled: pip resolves against these files, so with `defusedxml>=0.7`
+written down a fresh resolution may pick 0.7 while every check stays green.
+
+It also explains six pull requests closed rather than merged (#37, #38, #40, #89, #90, #92). Each
+raised a floor in `services/data/requirements.txt`; each was correct that the lock already carried
+the version; and closing them left the *declaration* behind. **"Already covered by the lock" is a
+true answer to the wrong question** — a floor is not a report of what is installed, it is the
+constraint the next resolution is bound by.
+
+`test_lock_satisfies_requirements` could not have caught it. Its existing check asks whether the pin
+is *at least* the floor, so **a floor that is too low satisfies it for free**. Its docstring already
+records two incidents, both in the opposite direction, both from the half of its claim it had left
+unstated. It now also asserts that two files declaring the same package declare the same thing — a
+deliberately narrow claim with one unambiguous right answer and no resolver required. Anti-vacuity
+guarded (a rename that stopped the two files sharing packages would otherwise pass over an empty
+set, reporting "all 0 shared packages agree" — demonstrated live in the mutation run) and
+mutation-verified both ways.
+
+### The Node base image, one line above the ARGs that were already gated
+
+`scripts/check-fragments-version.mjs` gates the fragments/web-ifc ARGs across
+`services/api/Dockerfile` and `services/converter/Dockerfile`. The `FROM node:` line sits directly
+above those ARGs and was gated by nothing.
+
+Dependabot raised both converter images to `node:25-slim` together (#117, #116; both merged
+2026-07-31). Four days later the api one went back to `24-slim` in an unrelated release, with a
+comment giving the reason — 25 is an EOL major with no security patches, both manifests declare
+`engines.node >= 24`, CI runs 24. **That comment said "one Node runtime across the product", and it
+was false as it was written**: `services/converter/Dockerfile` was still on 25-slim, and stayed
+there for 25 days while Dependabot re-proposed the bump (#227, closed).
+
+A reason applied to some of the files it argues about is the "one rule, some of the doors" shape
+this repository keeps finding — the SSO domain allowlist (PR #339) and the three unguarded sign-in
+doors (v0.3.1093) are the same sentence. **A decision recorded in a comment protects the file the
+comment is in.** All three Dockerfiles now share one base, and B1c asserts tag *and* digest, because
+`node:24-slim` is a moving tag and two files naming it without the same digest can still build two
+different images. Mutation-verified three ways: a different major, a different digest under the same
+tag, and a Dockerfile that stops naming a Node base at all.
+
+### A limit recorded rather than fixed
+
+The repo-root `scripts/` directory — which holds `check-fragments-version.mjs`, a gate CI runs — is
+**not linted**. `apps/web/eslint.config.js` covers `scripts/**/*.mjs` relative to its own base path,
+so it reaches `apps/web/scripts/` and structurally cannot reach the root one. That is PR #219's finding
+("the only web source nobody linted was the source that gates the build") one directory up, and
+fixing it needs a root ESLint config rather than a glob edit, so it is named here instead of widened
+into this change.
+
+## v0.3.1096 (2026-08-25) — a version table that filtered out the only row that could be stale
+
+Two review findings on the v0.3.1091–1095 pull request, both real, both the same shape: **a check
+whose population was defined so that the failure it exists for could not appear in it.**
+
+### The README table check could not see a removed dependency
+
+`docsCurrent.test.ts` asserts `apps/web/README.md`'s pinned-version table against
+`apps/web/package.json` — the gate added at v0.3.1091 after six of that table's ten rows turned out
+to be wrong. It parsed the rows, then dropped every row naming a package the manifest does not
+install, with the comment *"not this check's business"*.
+
+**That filter is derived from the thing being checked, so it defines the failure out of the
+population.** Delete a dependency from `package.json` and leave its README row behind, and the row
+describing a package nobody installs is silently excluded from the comparison — the stalest row the
+table can hold is the one row the check refuses to look at. Nothing is wrong today (all ten rows
+resolve), so this was latent, not live.
+
+Every row is now accounted for: named-and-installed, or named-and-not-installed and **reported**.
+Mutation-verified — adding a row for an uninstalled package fails the suite and names it; removing
+the row passes again.
+
+**This is the third recorded instance of the one-directional gate in this repository**, and worth
+naming as a class rather than as three coincidences. `test_env_documented` is bidirectional
+deliberately. `test_lock_satisfies_requirements` carries two incidents in its own docstring, both
+from the half of its claim it left unstated. A check that filters its input by the source of truth
+has stopped asking its own question.
+
+### The roadmap said the next action was work the same release had finished
+
+§Band 1 read *"The last sweep that filled it was 2026-08-01"* and *"the honest next action for this
+band is to run one"* — four lines above the three sweep records from **2026-08-25** that this very
+release range added. A reader picking up Band 1 would have been sent to run a sweep that had just
+run. The sprint table said it twice: row 1 still ranked *"a correctness sweep — refill Band 1"*
+first, on the premise *"the last sweep was 2026-08-01, ~270 releases ago"*.
+
+Both re-derived. The sprint row is **struck through rather than deleted**, because that table's own
+preamble says its *predictions* are the part worth checking — and this one was right: its
+premise-check ("pick the axis before starting") is what made two of the three axes produce a defect.
+
+**A staleness clock that nobody winds when the work happens is the A29-GUIDE-UNDERLAY defect** —
+*"(in flight, PR #199)"*, which read as current for 214 releases after the feature shipped. v0.3.1091
+archived that entry and then left a date next to it that had gone false in the same commit.
+
+## v0.3.1095 (2026-08-25) — a distribution statement whose parts did not add up to its own total
+
+**The money sweep**, the third and last of the axes Band 1 names. It found a live defect, in the
+JV waterfall.
+
+### The defect
+
+`run_waterfall` emits a row per period: `distributable`, and the `lp` / `gp` shares it was split
+into. Each was rounded on its own:
+
+    "distributable": round(cash, 2), "lp": round(lp_take, 2), "gp": round(gp_take, 2)
+
+Three independent roundings of what is arithmetically one identity — every tier allocates out of
+`cash`, so `lp_take + gp_take == cash` before rounding. Rounding the parts separately breaks it.
+**Measured over 399 distribution periods on awkward fractions: 52 of them, 13%, had
+`lp + gp != distributable`**, a penny out in both directions:
+
+    distributable 1051.33   lp 1051.10 + gp 0.24 = 1051.34   (+0.01)
+    distributable 1053.67   lp 1052.97 + gp 0.69 = 1053.66   (-0.01)
+
+**A partner reading a distribution statement whose parts do not add up to its own total has found an
+error in the document.** Being a penny is not a defence — the same class as the retainage convention
+`test_money_spine` pins, whose docstring says *"a pay application out by a penny is rejected, which
+makes this a document defect rather than a rounding curiosity"*. This is real money to real
+partners, and it is what a promote gets argued from.
+
+The capital-call branch had the identical shape and got the identical fix.
+
+### `money.allocate` existed for exactly this, with no caller here
+
+`test_money_wire` already describes the helper: *"the parts sum to the whole, and the leftover cents
+are distributed by a defensible rule rather than dumped on whoever sorts last."* The waterfall never
+called it. Also `q2` on the total rather than `round()`: `allocate` takes its total half-up and
+`round()` is half-even, so a bare `round(cash, 2)` could disagree with its own parts by a cent at
+precisely the `.xx5` boundary the fix is about — two conventions inside one statement, which is the
+defect `test_money_spine` was written about.
+
+### Why this axis needed a different kind of sweep, and what that says
+
+The authz and concurrency sweeps each had a population you could enumerate and read — 43 routes,
+36 get-or-create sites. **This one does not.** `round(x, 2)` appears **732 times** under
+`services/api/src`, and converting them would be the mistake R39-UPLOAD-CAP-APP's entry names:
+*a count is not a work list*. Most are display figures where half-even versus half-up changes
+nothing anyone can act on.
+
+So it was swept **by a property instead of by a population**: *where money is SPLIT, do the parts
+still add up?* That has a yes/no answer, needs no reading of 732 sites, and is exactly the boundary
+where a rounding difference stops being cosmetic and becomes a wrong document. `accounting.py` was
+checked against the same question first and is sound — each journal entry debits and credits the
+same figure, so there is no asymmetry to drift.
+
+**The three sweeps did not want the same method, and assuming they would was the thing to avoid.**
+
+### The gate, and both mutations
+
+`services/api/test_waterfall_cents.py` asserts the identity over a sweep of deliberately awkward
+fractions rather than pinning frozen figures — a fixed expected-value table would freeze today's
+arithmetic and say nothing about the identity, and a sweep of round numbers cannot produce the
+defect at all.
+
+Mutation-checked two ways, and the second is the one that matters: reverting to independent rounding
+fails with **52 of 598** periods off by a cent; and satisfying the sum by **collapsing the split**
+(handing the LP everything) is caught by a separate assertion that the GP still receives a real
+promote. A gate that only checked "the parts add up" would have applauded a waterfall that pays the
+GP nothing.
+
+## v0.3.1094 (2026-08-25) — a ratchet went red about the wrong thing, loudly enough to expose the right one
+
+**v0.3.1093 turned `test_mutating_get` red, and the interesting part is not the red.** Moving
+`db.add` out of the OAuth callback into `auth.get_or_create_sso_user` changed the route's recorded
+ops from `('add','commit')` to `('commit',)`, and that ratchet exists to notice exactly such a
+change. Fixing it needed one line. Asking *why* the shape could change at all found a hole that had
+been open since the massing.cloud door shipped.
+
+### The scan only ever read the route's own body
+
+`test_mutating_get` guards the CSRF property: the session cookie is `samesite=lax` with no CSRF
+middleware anywhere, and Lax **sends the cookie on a top-level GET** — so a mutating GET is
+triggerable by a link in an email, and the whole defence is a property of the route table.
+
+Its AST walk covered the route function and nothing else. **Any write moved one call away left its
+remit** — and one already had:
+
+    GET /auth/cloud/callback   ->  _link_account()  ->  db.add(User(...)), db.commit()
+
+The route body touches the session **not at all**, so a GET that creates a user was invisible to the
+gate from the day that door shipped. The assertion *"no GET route touches the DB session without a
+written reason"* was passing over it, which is worse than not having the assertion: it reads as
+coverage.
+
+The scan now follows **same-module** helper calls, depth-limited and cycle-safe. Cross-module calls
+remain invisible, stated as a limit rather than solved — widening it means resolving imports, and a
+scanner that guessed which `foo()` it is would be worse than one whose blind spot is written down.
+
+### Four unreviewed GETs, now reviewed
+
+Following helpers took the population from 5 to 9. The four new ones are all `cloud.py`, and each
+was read rather than baselined on assumption:
+
+- **`/auth/cloud/callback`** creates a user and writes the link. Safe for the same reason the OAuth
+  callback is: it must be a GET because the broker chooses the method, and the authority is the
+  broker's one-time code plus the PKCE state, not our cookie. A forged link carries neither.
+- **the three `/cloud/library/*` reads** commit only because `_fresh_access_token` rotates the
+  **caller's own** massing.cloud token at expiry and must store the rotated pair — refresh tokens
+  rotate on use, so dropping the new one strands the link. Nothing an attacker supplies is written.
+  The residual is stated instead of waved away: a cross-site GET can force a rotation, whose worst
+  case is the victim's own link needing a re-sign-in. A nuisance, not an escalation, and making
+  these POSTs would stop the library being browsable.
+
+### Mutation-checked both ways
+
+A new GET whose only write sits one call away — the precise blind spot — is now caught. And
+reverting the scan to body-only makes all four `cloud.py` entries go **dead**, which the
+"BASELINE carries no dead entries" check flags: the two halves corroborate each other, so the new
+entries cannot be quietly kept by a scanner that stopped finding them.
+
+**The lesson is about ratchets, not about GETs.** This one could only ever fire on a route it could
+already see. It fired about a cosmetic change to a route it *could* see, and following that question
+one step led to the route it could not. **A gate that goes red for a boring reason is still worth
+reading properly** — the boring reason was bookkeeping, and the answer underneath it was a hole.
+
+## v0.3.1093 (2026-08-25) — three sign-in doors, one seeding race, and a test that took three drafts to mean anything
+
+**The concurrency sweep**, the second of the three axes Band 1 names. Unlike the authz sweep one
+release ago, this one found a live defect.
+
+### The defect
+
+OAuth, SAML and the massing.cloud broker each auto-provision a local account on first sign-in, and
+all three did it the same unguarded way:
+
+    u = db.get(User, email)
+    if u is None:
+        u = User(username=email, ...)
+        db.add(u)
+
+`User.username` is the **primary key**. Two concurrent *first* sign-ins for one person — two tabs,
+two devices, a retried callback — both read `None`, both INSERT the same key, and the loser's
+`commit()` raises `IntegrityError`. **The person who did nothing wrong gets a 500 on a legitimate
+login.** A retry then succeeds, because the winner's row exists by then, which is exactly what makes
+this easy to dismiss as a blip instead of finding.
+
+**Seeding is the one moment no row-level mechanism can protect, because there is no row yet** — the
+sentence `modules._next_ref` already carries about its ref counter. This is the third instance of
+that pattern in this codebase, after `_next_ref` and `rbac.consume_stepup`, and the fix is theirs:
+INSERT inside a SAVEPOINT so the refusal stays local, then re-read and use the winner's row.
+
+**One helper, not three copies** — `auth.get_or_create_sso_user`. The defect this repository keeps
+finding in these three doors is *one rule applied at some of them*: `AEC_OAUTH_ALLOWED_DOMAINS` held
+on four doors and was bypassed by the fifth (PR #339), and this race was present at all three. A
+fourth sign-in path should have to call the helper rather than re-derive it.
+
+### How the sweep found it
+
+`test_race_conditions` names the shape its two defects share — *"read state, decide, write, with
+nothing holding the world still in between"*. Scanning for that shape across `services/api/src`
+(a lookup, an if-absent branch, an INSERT inside it, no savepoint) returned **36 candidates**; only
+**3** savepoints exist in the whole tree. The three sign-in doors were the ones where a primary key
+turns the loser's refusal into a 500 on a user-facing action.
+
+### The test took three drafts, and the first two were worthless
+
+**Draft 1 passed against the broken code.** It committed the competing row *before* calling the
+helper, so the helper's own lookup already saw the winner and never reached the INSERT. Twenty-one
+green assertions, proving nothing — the same trap `test_stepup_race` records about *its*
+predecessor, in a new costume.
+
+**Draft 2 deadlocked.** Committing the competing row from a second connection while the loser's
+transaction is open is not a race on SQLite, it is `OperationalError: database is locked` — the
+constraint `test_race_conditions` states in its own docstring and which this file had to rediscover.
+
+**Draft 3 reproduces the STATE a lost race leaves, not the concurrency that causes it**, which is
+what `test_race_conditions` settled on for the same reason. The winner's row is committed first, and
+the loser's session is made to read as though it had looked before that commit — its first
+`Session.get` for that username returns `None` **once**, and an assertion checks that exactly one
+answer was faked. Everything after is real: a real INSERT, a real primary key, a real
+`IntegrityError`, a real savepoint rollback.
+
+**Only the mutation run separated draft 3 from drafts 1 and 2.** Reverted to the unguarded shape it
+now fails with `UNIQUE constraint failed: users.username` **and** `PendingRollbackError` on the
+following commit — the second one meaning the `auth.sso_login` audit row is silently lost. That is
+the failure `rbac.consume_stepup`'s docstring calls the nastier of the two: *a security control
+quietly erasing its own evidence while still reporting the correct outcome.* It is asserted
+separately here for exactly that reason.
+
+**A test that cannot fail is not evidence, however many PASS lines it prints.**
+
+## v0.3.1092 (2026-08-25) — the id in the path is not the project's, it is the resource's
+
+**Sprint 1 of the re-cut roadmap: an authorisation sweep.** Axis picked before starting, as that
+sprint row's own premise-check demands — two of the three subsystems added since the last sweep
+(2026-08-01) are auth-adjacent.
+
+**No live hole was found. The gate is the finding.**
+
+### The blind spot every existing authz gate names about itself
+
+Four gates guard this surface, and each closed one way a project id arrives by a route other than
+the path — `test_global_authz` (global mutating routes), `test_global_mutating_authz` (that they
+actually refuse anonymity), `test_body_pid_authz` (a `pid` in the request BODY), and
+`test_protected_prefix_coverage` (a new top-level prefix outside `_PROTECTED_PREFIXES`). All four
+docstrings contain some form of the same sentence: *a route with no `{pid}` in the PATH is outside
+`test_route_authz`'s remit entirely.*
+
+**The one nobody had closed is that the id in the path is not the project's — it is the
+resource's.** `GET /attachments/{aid}/download` names an attachment, which names a project.
+`PUT /proforma/scenarios/{sid}` names a scenario, which names a project. There is no `{pid}` for
+`require_role` to read, so the dependency cannot be applied and the walker never looks.
+
+### What the sweep measured
+
+Enumerated from the live app: **43 routes** have a path parameter, no `{pid}`, and no role gate.
+**All 43 are correctly protected today** — this release fixes no defect and should not be read as
+though it did:
+
+| how | count |
+|---|---|
+| a real admin/platform-admin/SCIM dependency | 20 |
+| authorised **inside the handler body** | 11 |
+| `require_identified` — identity, by a recorded decision | 4 |
+| deliberately public (OAuth redirects, `/shared/{token}` capability URLs) | 8 |
+
+Each of the 11 and each of the 8 was read rather than inferred. `/families/{key}/types` looked like
+the odd one out and is not: it serves the shared family catalog, which is global content with no
+project data in it.
+
+### Why 11 correct routes are still a finding
+
+They are correct **only because of hand-written call-site checks that no gate can see** — and this
+exact class has failed here twice in three weeks. `_scenario_for`'s own docstring records the first:
+`_can_read` "was called by **2 of the 8** `{sid}` routes… The other six — share, update, clone,
+review, forecast, draw-package — **fetched by id and acted, with no ownership check at all**."
+`/proforma` is in `_PROTECTED_PREFIXES`, so anonymous callers were refused and every route *looked*
+guarded; what was missing was authorisation, not authentication. The second is the massing.cloud
+sign-in door (PR #339), where a domain allowlist held on four doors and was bypassed by the fifth.
+
+That docstring also says the helper exists "so that a ninth route cannot be added without answering
+the question." **That is a convention, and a convention is what has just failed twice.**
+
+`services/api/test_resource_id_authz.py` freezes the four buckets and pins each in-handler route to
+the specific helper it calls — not to "some check", because the failure it catches is a refactor
+dropping the call while the route keeps working for the person testing it, who is a member of the
+project. Both directions, like `test_env_documented`: a new route in this shape fails until someone
+says which bucket it is in, **and** a listed route that no longer exists fails too, so the lists
+cannot rot into a place where things are parked and forgotten.
+
+Mutation-checked three ways, each red then green again: dropping `_scenario_for` from `clone`,
+adding an unguarded `/proforma/zzfake/{zid}`, and leaving a deleted route in the declared list.
+
+**It names its own limit.** It cannot tell `_can_read` from `_can_write` — a read helper where a
+write helper was needed would pass. `_can_write`'s docstring is about exactly that confusion
+("Read permission is not write permission, and reusing one guard for both is the quiet way to grant
+the second while auditing only the first"), so the distinction is real and stays with review. A gate
+claiming to settle it would be worse than one that names the gap.
+
+**Band 1 stays empty, and the sweep is what makes that mean something** — it was last defensible on
+2026-08-01 and is defensible again on the authz axis as of today. **Concurrency and money were the
+other two candidate axes and remain unswept.**
+
+## v0.3.1091 (2026-08-25) — a status glyph is a note to a reader; only the move is a change to the file
+
+A full-repo reconciliation. Nothing here is a new capability: it is the record catching up with the
+code, plus four gates so the same drift fails a build next time instead of being found by reading.
+
+### The roadmap was carrying 600-odd lines of finished work
+
+**Twenty-one shipped entries moved to `docs/roadmap-completed.md`.** Twenty were already marked ✅,
+and **18 of the 21** were named in lane-table cells — the table an agent reads to choose what to pick
+up. The phrase *"pending archive"* appears **17** times in the roadmap they came from: **14 in those
+lane cells**, 3 in the item bullets. `roadmap.md` held **30** open items in **3,715** lines; it holds
+**28** in **3,084**.
+
+**Nothing could have caught them**, and that is the finding rather than the count.
+`roadmapLanes.test.ts` deliberately skips ✅ lines when it builds the open population, so a shipped
+item that stays put is invisible to the only check that reads the file. **A status glyph is a note
+to a reader; only the move is a change to the file.**
+
+**The twenty-first was not marked at all.** A29-GUIDE-UNDERLAY ③ read *"(in flight, PR #199)"* for
+**214 releases**. PR #199 merged 2026-08-06 and the feature shipped in v0.3.875. A pull request is
+the one staleness clock in that file with a real timestamp attached, and nothing consulted it. It is
+worse than a stale ✅: *"in flight"* reads as **someone else has this**, so it actively deterred the
+reader who would have found it done.
+
+**R43-MASSINGBILL-CORE was being counted twice** — a second bullet opening with the same code, for
+the kit review the live entry rests on. `itemCodes()` collects into a `Set`, so the duplicate
+collapsed and the total came out right for the wrong reason. v0.3.1073 shipped as *"two entries for
+one item, again"*; this was the third time, surviving because the check that would see it
+de-duplicates before it counts.
+
+### The CHANGELOG had four orphan headers
+
+A `## vX.Y.Z` line sitting directly on top of another, with one body between the two — the v0.3.1019
+nineteen-branch integration renumbered colliding releases by splicing new headers **above** the old
+ones instead of replacing them.
+
+**`docs/roadmap.md` already carried that exact lesson** — *"replace between the section markers,
+never splice at a matched string"* — written after scripted edits produced three duplicate NOW
+sections. It was written about `roadmap.md`, and it did not travel. **A lesson recorded as prose
+about one file does not protect the file next to it.**
+
+`services/api/test_changelog_current.py` now checks the changelog's *structure*: no orphan headers,
+headers newest-first, no entry duplicated, and version reuse pinned by a **down-only ratchet** to the
+one genuine historical collision — two commits really did both ship as v0.3.1019, so renumbering one
+would invent a release that never existed. All four mutation-verified.
+
+### Three toolchain floors had moved under notes phrased as advice
+
+- **RT-NODE-LANE was gated on a user action the user had already taken.** It read *"CI is on Node 22;
+  the local Node is still 20.3.1 (user action), then unpin eslint off 9.39.5, then Vite 6→7 (defer
+  Vite 8)"*. Measured: CI pins **Node 24** in all five workflows that set a version, both manifests
+  require `>=24`, eslint is **10.8.1**, and Vite is **8.2.1** — the version it said to defer. **An
+  entry blocked on an external event has no mechanism to notice the event happening**; every other
+  kind of staleness eventually trips something, but not being worked on is a gated item's expected
+  state.
+- **Python's floor is `>=3.12`, not "prefer 3.11+ if available".** `requirements.lock` pins
+  `numpy==2.5.2`, and numpy dropped <3.12 at 2.5.0 — so on 3.11 the install does not degrade, it
+  fails: `No matching distribution found`. Found by building the venv, which is the only way this
+  kind of claim can be checked.
+- **`apps/web/README.md`'s pinned-version table was wrong in six of ten rows.** It is the table
+  CLAUDE.md calls the project's #1 risk — the components ↔ fragments ↔ three coupling. Its `vite`
+  row was wrong three times in one cell: it named 6.4.3, declared the repo pinned to v6, and
+  justified that with *"this machine has 20.3.1"*. The table was last **edited** at v0.3.1048, in a
+  commit about colouring plans by discipline — *edited while stale, not merely left alone.* **A
+  stale row that carries its own reasoning is worse than a stale number**, because the reasoning is
+  what stops the next reader checking. `docsCurrent.test.ts` now asserts every row against
+  `package.json`.
+
+### Two build warnings, one of them the shape of a silent no-op
+
+- **`advancedChunks` → `codeSplitting`.** Rolldown deprecated the name; the build printed it on
+  every run and still split correctly. That is the same trap the config's own comment describes one
+  rename later — *"a vendor split that silently stops splitting is the worst kind of build
+  regression"*. Verified the way that comment demands, by grepping the **output**: chunk hashes and
+  `WebGLRenderer` counts (41 in `three-*.js`, 0 in `thatopen-*.js`) are byte-identical across the
+  change.
+- **`vendorAlias` imported without a file extension** in `vite.config.ts` / `vitest.config.ts`,
+  which Vite's native config loader warns on.
+
+### The public status page had three sections titled "Recently shipped"
+
+`docs/status.html` — the page the landing page links as *"What's shipped"* — carried three of them,
+oldest first: v0.3.298–306, v0.3.911–929, v0.3.988–1018. **The same splice-instead-of-replace defect
+as the CHANGELOG, on the public site.** One current wave (v0.3.1019–1089) now leads; the rest are
+retitled as dated earlier waves and ordered newest-first.
+
+One card also **contradicted the roadmap**: it said the viewer sub-app work *"closed the rail arc"*,
+while R36-VIEWER-SUBAPP is open as *"the remaining half of the rail arc"*. The page now says what
+shipped and names what has not.
+
+### And the archive pass broke a gate, which is the best thing that happened here
+
+Rewriting Band 1 **deleted** its summary bullet instead of moving it, and `test_env_documented` went
+red: the phrase *"`properties.py` rejects over `AEC_PROPS_MAX_MB` before parsing"* inside that bullet
+was the **only** mention of the flag anywhere the gate reads. So `AEC_PROPS_MAX_MB` had never really
+been documented — **a planning entry had been standing in for operator documentation and the gate
+could not tell the difference.** It is now in `.env.example` beside the other caps, and the deleted
+bullet is preserved in the archive. That gate shipped one release ago, in v0.3.1089, and caught a
+real regression on its first contact with unrelated work.
+
+### Walking the branches found an unmerged security fix
+
+40 remote branches, **38 fully merged**. Of the two that are not:
+
+- **`fix/cloud-domain-allowlist` is a real, open gap on `main`** (commit `de935a26`, pushed today at
+  06:34; **PR [#339](https://github.com/ibuilder/massing/pull/339)** — opened partway through this
+  audit, which is why the branch first showed up here with nothing pointing at it). `AEC_OAUTH_ALLOWED_DOMAINS` is enforced in exactly one place — `routers/auth.py`,
+  the direct-IdP callback — and `routers/cloud.py`, the massing.cloud SSO door, has no check.
+  Confirmed by grepping `main`, not by trusting the branch's description. An operator who restricted
+  sign-in to their own domain has it enforced on four doors and bypassed by the fifth. **Not merged
+  in this release on purpose** — an authentication change belongs in its own release, not inside a
+  documentation reconciliation. It is recorded under Outstanding USER actions with the evidence.
+- **`lock/cve-floors-2026-08-09` reads as an open CVE hole and is not one.** It is superseded: `main`
+  already carries `pypdf>=6.15.0`, `cryptography>=50.0.0` and the transitive-floors block, with the
+  lock resolving to exactly those. Checked before reporting, because a branch named for three CVEs
+  is the kind of thing that raises a false alarm on sight.
+
+### Also
+
+The roadmap status block was **311 releases stale** and had itself recorded that its predecessor was
+thirty-eight stale — twice in a row is not bad luck. Re-derived: backend **628/628** suites, vitest
+**2,007** tests across 196 files, `test_reachable` **358/364**, **28** open items. **CodeQL is
+recorded as NOT MEASURED rather than carried forward as 0** — no alerts-API tool was available in
+this session, and `docs/roadmap-directions.md` §7 is explicit that a green *run* is not zero alerts.
+Band 1 is empty for the first time and says so in those terms: it measures when someone last swept,
+not that nothing is wrong. The next three sprints are re-cut, each row now carrying the premise to
+check first — the one row of the previous cut that was correctly sized was the one that demanded it.
 ## v0.3.1090 (2026-08-25) — sign in through massing.cloud, and open your cloud library
 
 massing.cloud becomes the **identity broker**. The user signs in once on the site — picking
@@ -1889,7 +2400,6 @@ assumptions, VE, alignment) moved to `apps/web/src/api/precon.ts`. One contiguou
 `client.ts` 3,170 → 3,128.
 
 ## v0.3.1038 (2026-08-20) — `/ai` leaves client.ts
-## v0.3.1026 (2026-08-20) — `/ai` leaves client.ts
 
 SCALE-SEAM ㉑. Six AI methods (risk summary, ask, RFI triage/draft, estimate,
 author) moved to `apps/web/src/api/ai.ts`. Five regions. `aiReadiness`
@@ -1935,7 +2445,6 @@ The upgrade audit's remaining code slice, not another library.
   survives without contradicting the newer layout.
 
 ## v0.3.1034 (2026-08-20) — `/topics` leaves client.ts
-## v0.3.1025 (2026-08-20) — `/topics` leaves client.ts
 
 SCALE-SEAM ⑳. Seven BCF methods (create, viewpoints, board, timeline, comments)
 moved to `apps/web/src/api/topics.ts`. Three regions. `pins()` stays (`/pins`).
@@ -2115,7 +2624,6 @@ statements about one fact, two of them stale.
   should — the friction buys a cluster out of the file instead of buying the pin a higher number.
   3,606 → 3,579.
 
-## v0.3.1025 (2026-08-20) — `/models` leaves client.ts
 ## v0.3.1024 (2026-08-20) — `/mep` leaves client.ts
 
 SCALE-SEAM ⑲. Seven MEP methods (summary, connectivity, sizing, sprinkler, fittings,
@@ -2134,7 +2642,6 @@ SCALE-SEAM ⑰. Nine health/QA/georef/federation methods moved to
 `apps/web/src/api/models.ts` (`withModels`; `model.ts` remains `/model`).
 Four regions. `client.ts` 3,412 → 3,353.
 
-## v0.3.1022 (2026-08-20) — `/drawing-set` leaves client.ts
 ## v0.3.1021 (2026-08-20) — `/elements` leaves client.ts
 
 SCALE-SEAM ⑯. Eleven inspector/list/colour/QA/citation/cost methods moved to

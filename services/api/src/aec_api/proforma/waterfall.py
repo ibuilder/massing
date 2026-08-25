@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from .. import money
 from .returns import xirr
 
 TOL = 1e-6
@@ -139,9 +140,13 @@ def run_waterfall(distributable: list[float], dates: list[date], lp_contrib: flo
             lp_calls += lp_call
             gp_calls += gp_call
             lp_cf.append(-lp_call); gp_cf.append(-gp_call); lp_dates.append(d)
-            periods.append({"date": d.isoformat(), "distributable": round(cash, 2),
+            # The two calls are ROUNDED TOGETHER, not independently: rounding each to cents on
+            # its own lets `lp_call + gp_call` miss the amount actually called by a penny. See the
+            # distribution branch below for the measurement — the same defect, same fix.
+            lp_call_r, gp_call_r = money.allocate(call, [lp_call, gp_call])
+            periods.append({"date": d.isoformat(), "distributable": -money.q2(call),
                             "lp": 0.0, "gp": 0.0,
-                            "lp_call": round(lp_call, 2), "gp_call": round(gp_call, 2)})
+                            "lp_call": lp_call_r, "gp_call": gp_call_r})
             prev = d
             continue
 
@@ -184,8 +189,26 @@ def run_waterfall(distributable: list[float], dates: list[date], lp_contrib: flo
                 remaining -= split
 
         lp_cf.append(lp_take); gp_cf.append(gp_take); lp_dates.append(d)
-        periods.append({"date": d.isoformat(), "distributable": round(cash, 2),
-                        "lp": round(lp_take, 2), "gp": round(gp_take, 2),
+        # **The LP and GP shares are rounded TOGETHER against the period's distributable, not
+        # independently.** `round(lp_take, 2)` and `round(gp_take, 2)` each round their own float,
+        # so the pair can miss the total they were split from: measured over 399 distribution
+        # periods, **52 of them (13%) had `lp + gp != distributable`**, a penny out in both
+        # directions — e.g. distributable 1051.33 against lp 1051.10 + gp 0.24 = 1051.34.
+        #
+        # A partner reading a distribution statement whose parts do not sum to its own total has
+        # found an error in the document, and being a penny is not a defence: it is the same class
+        # as the retainage convention `test_money_spine` pins, where "a pay application out by a
+        # penny is rejected".
+        #
+        # `money.allocate` splits the total by largest-remainder so the parts sum to it exactly,
+        # and it is the helper `test_money_wire` says exists for precisely this — "the leftover
+        # cents are distributed by a defensible rule rather than dumped on whoever sorts last".
+        # `q2` on the total for the same reason: `allocate` takes its total half-up, and `round()`
+        # is half-even, so a bare `round(cash, 2)` here could disagree with the parts by a cent
+        # at exactly the .xx5 boundary the fix is about.
+        lp_r, gp_r = money.allocate(cash, [lp_take, gp_take])
+        periods.append({"date": d.isoformat(), "distributable": money.q2(cash),
+                        "lp": lp_r, "gp": gp_r,
                         "lp_call": 0.0, "gp_call": 0.0})
         prev = d
 

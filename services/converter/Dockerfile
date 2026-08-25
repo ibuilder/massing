@@ -1,5 +1,11 @@
 # IFC→Fragments converter (Node). Build context = repo root.
-FROM node:25-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370
+# Node 24 LTS, the same pinned digest as `services/api/Dockerfile` and `apps/web/Dockerfile` —
+# one Node runtime across the product, which is what those two already say in as many words. The
+# previous pin here was node:25-slim, an EOL major with no security patches: #117 and #116 raised
+# both converter images together, the api one was reverted to 24 four days later for that reason,
+# and this file was not. `scripts/check-fragments-version.mjs` gates the two ARGs below across
+# both Dockerfiles and stops one line short of the base image.
+FROM node:24-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 WORKDIR /app
 
 # install just what the converter needs; web-ifc ships its own WASM. Pin to the SAME versions as the

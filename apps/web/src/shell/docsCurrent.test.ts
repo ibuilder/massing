@@ -405,3 +405,64 @@ describe("the changelog is not a ring behind the shipped version", () => {
     ).toBeLessThanOrEqual(LAG);
   });
 });
+
+/**
+ * `apps/web/README.md`'s pinned-version table must agree with `apps/web/package.json`.
+ *
+ * CLAUDE.md calls the `@thatopen/components` <-> `@thatopen/fragments` <-> `three` coupling the #1
+ * risk in this project, and that table is where a human reads it. On 2026-08-25 **six of its ten
+ * rows were wrong** — components 3.4.6 (really 3.4.8), fragments 3.4.5 (3.4.7), components-front
+ * 3.4.3 (3.4.4), ui 3.4.3 (3.4.10), three 0.184.0 (0.185.1), @types/three 0.184.1 (0.185.4) — and
+ * the `vite` row was wrong three times over in one cell: it named 6.4.3, declared the repo pinned
+ * to v6, and justified it with "this machine has 20.3.1" while the repo shipped vite 8.2.1 on
+ * node >=24.
+ *
+ * The table had been *edited* at v0.3.1048 without being *re-derived*, which is the failure this
+ * whole file exists for, aimed at the one document whose job is to say what is installed. Same
+ * construction as the rest of the file: **the expectation is not written twice.** The manifest is
+ * the source, the prose has to agree with it, and bumping a dependency without touching the README
+ * is what goes red.
+ */
+describe("apps/web/README.md's pinned versions", () => {
+  it("match apps/web/package.json exactly", () => {
+    const pkg = JSON.parse(readFileSync(resolve(REPO, "apps/web/package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    const manifest = { ...pkg.dependencies, ...pkg.devDependencies };
+
+    const text = doc("apps/web/README.md");
+    // Table rows only: `| name | version | notes |`. The version cell may carry a "(dev)" tag.
+    const rows = [...text.matchAll(/^\|\s*([@a-z0-9/.-]+)\s*\|\s*([0-9][^|]*?)\s*\|/gm)]
+      .map((m) => ({ name: m[1] ?? "", cell: (m[2] ?? "").replace(/\s*\(dev\)\s*$/, "").trim() }));
+
+    // Anti-vacuity, and it is not decoration: a heading rename or a switch to a bullet list would
+    // otherwise leave this suite green while measuring an empty table.
+    expect(rows.length, "no version rows parsed from apps/web/README.md — this assertion is vacuous")
+      .toBeGreaterThanOrEqual(8);
+
+    // A row naming a package the manifest does not install is the STALEST row the table can hold,
+    // and the first draft of this block dropped exactly those rows with the comment "not this
+    // check's business" — so removing a dependency from `package.json` while leaving its README row
+    // behind would have left the table describing a package nobody installs, green.
+    //
+    // That is the one-directional-gate shape this repository keeps re-finding: the version
+    // comparison only ever ran over rows that survived a filter derived from the thing being
+    // checked, so the population was defined to exclude the failure. `test_env_documented` is
+    // bidirectional for the same reason, and `test_lock_satisfies_requirements` records two
+    // incidents from the half of its own claim it left unstated. Filtering by the source of truth
+    // is how a check quietly stops asking its own question.
+    //
+    // Every row is now accounted for: named-and-installed, or named-and-not-installed and reported.
+    const uninstalled = rows.filter((r) => !(r.name in manifest)).map((r) => r.name);
+    expect(uninstalled, "apps/web/README.md's version table lists packages apps/web/package.json " +
+      "does not install — delete the rows, or restore the dependencies").toEqual([]);
+
+    const wrong = rows
+      .filter((r) => r.name in manifest)
+      .filter((r) => (manifest[r.name] ?? "").replace(/^[\^~]/, "") !== r.cell)
+      .map((r) => `${r.name}: README says ${r.cell}, package.json says ${manifest[r.name]}`);
+    expect(wrong, "the README's pinned-version table disagrees with package.json — re-derive it " +
+      "from the manifest rather than editing the number you noticed").toEqual([]);
+  });
+});

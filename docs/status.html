@@ -144,8 +144,104 @@
 
   <section>
     <p class="h2">Recently shipped</p>
+    <h2>The work becomes a Run, the register becomes a report, and the plugin leaves the process</h2>
+    <p class="lead">This wave is about the platform being answerable for itself. Long analyses stop being blocking calls and become tracked Runs; a register can finally be grouped, which is what makes it a report; third-party plugin code stops executing inside the API process; and an upload that fails halfway can be resumed by the same request that started it.</p>
+    <div class="cards">
+      <div class="card" style="--accent:var(--cyan)">
+        <div class="k">Runs</div>
+        <h3>Analyses go through the queue</h3>
+        <p>Clash, IDS, cost and energy stop being requests you hold a browser tab open for. Each becomes a durable Run with an identity, a role check and a place to land — and a job kind that needs to know who you are now says so instead of believing the caller.</p>
+        <span class="tag">v0.3.1057 &middot; v0.3.1060</span>
+      </div>
+      <div class="card" style="--accent:var(--cyan)">
+        <div class="k">Upload</div>
+        <h3>Resuming is the same request as starting</h3>
+        <p>A content-addressed handshake identifies a file by its size and chunk hashes, so resuming an interrupted upload and beginning a fresh one are one call — and deduplication falls out of it. Every chunk is verified on arrival, so a corrupt byte is refused by index before conversion runs.</p>
+        <span class="tag">v0.3.1069</span>
+      </div>
+      <div class="card" style="--accent:var(--blue)">
+        <div class="k">Reports</div>
+        <h3>A register you can group</h3>
+        <p>&ldquo;Cost by discipline&rdquo;, &ldquo;RFIs by month&rdquo;, &ldquo;hours by trade&rdquo; had no expression at all — the answer was an export into a spreadsheet. An aggregate route now takes the same filters the register takes, through the same parser, so a report and the list it came from cannot disagree about which rows they describe.</p>
+        <span class="tag b">v0.3.1088</span>
+      </div>
+      <div class="card" style="--accent:var(--blue)">
+        <div class="k">Drawings</div>
+        <h3>Mark up the sheet you are looking at</h3>
+        <p>Markup lands on the drawing in view rather than on an abstraction of it, a pin on a wall is that wall and raises an RFI against it, the level list says which cut height will actually pass through the building, and plans can be coloured by discipline.</p>
+        <span class="tag b">v0.3.1033 &middot; v0.3.1048 &middot; v0.3.1071</span>
+      </div>
+      <div class="card" style="--accent:var(--violet)">
+        <div class="k">Boundary</div>
+        <h3>Plugin code leaves the API process</h3>
+        <p>Third-party plugin code runs behind a process boundary instead of inside the service. Alongside it the supply-chain scan grew the half it had been skipping — every npm advisory was in the part it never read — and the spatial tree became an actual tree.</p>
+        <span class="tag v">v0.3.1055&ndash;1058 &middot; v0.3.1081</span>
+      </div>
+      <div class="card" style="--accent:var(--violet)">
+        <div class="k">Deploy</div>
+        <h3>Sign-in, and the flags that govern it</h3>
+        <p>Sign in through massing.cloud and open your cloud library. Then the harder half: 32 environment flags were read by the services and documented nowhere, two of them deciding who may sign in at all. A gate now checks both directions — a flag the code reads must be documented, and a name on the internal list must actually be read.</p>
+        <span class="tag v">v0.3.1084&ndash;1089</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="h2">Earlier &middot; v0.3.988&ndash;1018</p>
+    <h2>A mark on the paper is the element, and the phone stops being a shrunken desktop</h2>
+    <p class="lead">This wave pushed identity down into the 2D surfaces and gave field work its own shape. A pin dropped on a generated sheet now carries the IFC GlobalId of the linework under it, so the mark survives the element moving — and an RFI raised from that pin lands on the wall, not on a coordinate. Field mode stops presenting a desktop at phone size, and the numbers on screen say where they came from.</p>
+    <div class="cards">
+      <div class="card" style="--accent:var(--cyan)">
+        <div class="k">Sheets &amp; markup</div>
+        <h3>A pin on a wall is that wall</h3>
+        <p>Generated sheets already carried <code>data-guid</code> on their linework; the drawings room was dropping coordinate-only pins, so a wall that moved left the markup pointing at empty paper. Pins now persist the GlobalId, promote to an RFI against that element, and select it in the 3D viewer. Symbol takeoff followed the same idea: box one symbol on the sheet and the rest are found by matching it, not by guessing a count.</p>
+        <span class="tag">v0.3.1010–1014</span>
+      </div>
+      <div class="card" style="--accent:var(--blue)">
+        <div class="k">Field mode</div>
+        <h3>The phone gets its own shape</h3>
+        <p>Field mode hides the seven-room spine rather than shrinking it, lands on capture instead of a dashboard, and the action button no longer covers the thing it acts on. Keyboard journeys are asserted end to end — Tab reaches a room’s actual job and lands there — so the shortest path through a room is a test rather than a claim.</p>
+        <span class="tag b">v0.3.1004–1008</span>
+      </div>
+      <div class="card" style="--accent:var(--violet)">
+        <div class="k">Legibility &amp; seams</div>
+        <h3>Numbers that say where they came from</h3>
+        <p>Series colour stopped borrowing the discipline palette, so a chart line no longer reads as a trade. A readiness strip sits on every home, the Gantt shows this week rather than a month of bars, and report packages assemble off the request thread. Underneath, the API client kept shedding weight into per-domain seams, and a worktree build now uses the pinned Vite instead of a different one that silently succeeded.</p>
+        <span class="tag v">v0.3.988 · v0.3.1002–1003 · v0.3.1009 · v0.3.1015–1018</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="h2">Earlier &middot; v0.3.911&ndash;929</p>
+    <h2>Drawings that explain themselves, one canvas, and a model that admits when it is behind</h2>
+    <p class="lead">That wave was about output you can trust without opening the model to check. A plan that finds nothing at the cut plane now says so and why; a sheet publishes the transform it drew with; the canvas is one surface at a time instead of two fighting; and a converted model tells you when it is behind the file rather than quietly serving stale geometry.</p>
+    <div class="cards">
+      <div class="card" style="--accent:var(--cyan)">
+        <div class="k">Drawings</div>
+        <h3>A plan that says why it is blank</h3>
+        <p>A plan could compose perfectly — titleblock, scale bar, grid — while the cut plane found no geometry, and nothing in the output said so. An empty plan now states the reason. Sheets publish the transform they were drawn with, so a drawing can be checked against the model rather than trusted, and a sheet asking for an axonometric no longer quietly draws a plan.</p>
+        <span class="tag">v0.3.913–915 · v0.3.928–929</span>
+      </div>
+      <div class="card" style="--accent:var(--blue)">
+        <div class="k">Rooms &amp; viewer</div>
+        <h3>The canvas is one surface at a time</h3>
+        <p>The viewer sub-app work stopped two canvases fighting: cross-mode selection is asserted rather than working by accident, and Specs ships into the room rail. Leaving a drawing returns you where you were — a rule that now lives at the event, not at the two crossings that happened to be wired. The arc is not closed; switching 2D and 3D fully in place, print included, is still open work.</p>
+        <span class="tag b">v0.3.913–914 · v0.3.917–922</span>
+      </div>
+      <div class="card" style="--accent:var(--violet)">
+        <div class="k">Model freshness &amp; money</div>
+        <h3>Keep the geometry, and admit when it is stale</h3>
+        <p>Re-converting a model no longer throws away geometry that has not changed — and when the converted model is behind the file, it says so instead of serving the previous version under this version's name. Alongside it, money is <code>Decimal</code> end to end, so a rounded display value can no longer become a stored total.</p>
+        <span class="tag v">v0.3.911–912 · v0.3.927</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="h2">Earlier &middot; v0.3.298&ndash;306</p>
     <h2>In-browser authoring came of age</h2>
-    <p class="lead">The last stretch turned the web app from a strong reviewer into a genuine modeling tool — draw, slope, mesh, and undo real geometry, then stock the site with properly-classified content.</p>
+    <p class="lead">The wave that turned the web app from a strong reviewer into a genuine modeling tool — draw, slope, mesh, and undo real geometry, then stock the site with properly-classified content.</p>
     <div class="cards">
       <div class="card" style="--accent:var(--cyan)">
         <div class="k">Draw</div>
@@ -182,58 +278,6 @@
         <h3>Sandboxed code hatch</h3>
         <p>An AST-sandboxed ifcopenshell escape hatch (off by default, red-teamed hard) for the one-off geometry the fixed recipes don't cover.</p>
         <span class="tag v">v0.3.300</span>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <p class="h2">Recently shipped</p>
-    <h2>Drawings that explain themselves, one canvas, and a model that admits when it is behind</h2>
-    <p class="lead">The recent wave is about output you can trust without opening the model to check. A plan that finds nothing at the cut plane now says so and why; a sheet publishes the transform it drew with; the canvas is one surface at a time instead of two fighting; and a converted model tells you when it is behind the file rather than quietly serving stale geometry.</p>
-    <div class="cards">
-      <div class="card" style="--accent:var(--cyan)">
-        <div class="k">Drawings</div>
-        <h3>A plan that says why it is blank</h3>
-        <p>A plan could compose perfectly — titleblock, scale bar, grid — while the cut plane found no geometry, and nothing in the output said so. An empty plan now states the reason. Sheets publish the transform they were drawn with, so a drawing can be checked against the model rather than trusted, and a sheet asking for an axonometric no longer quietly draws a plan.</p>
-        <span class="tag">v0.3.913–915 · v0.3.928–929</span>
-      </div>
-      <div class="card" style="--accent:var(--blue)">
-        <div class="k">Rooms &amp; viewer</div>
-        <h3>The canvas is one surface at a time</h3>
-        <p>The viewer sub-app work closed the rail arc: the canvas switches 2D and 3D in place instead of running two surfaces at once, cross-mode selection is asserted rather than working by accident, and Specs ships into the room rail. Leaving a drawing returns you where you were — a rule that now lives at the event, not at the two crossings that happened to be wired.</p>
-        <span class="tag b">v0.3.913–914 · v0.3.917–922</span>
-      </div>
-      <div class="card" style="--accent:var(--violet)">
-        <div class="k">Model freshness &amp; money</div>
-        <h3>Keep the geometry, and admit when it is stale</h3>
-        <p>Re-converting a model no longer throws away geometry that has not changed — and when the converted model is behind the file, it says so instead of serving the previous version under this version's name. Alongside it, money is <code>Decimal</code> end to end, so a rounded display value can no longer become a stored total.</p>
-        <span class="tag v">v0.3.911–912 · v0.3.927</span>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <p class="h2">Recently shipped</p>
-    <h2>A mark on the paper is the element, and the phone stops being a shrunken desktop</h2>
-    <p class="lead">This wave pushed identity down into the 2D surfaces and gave field work its own shape. A pin dropped on a generated sheet now carries the IFC GlobalId of the linework under it, so the mark survives the element moving — and an RFI raised from that pin lands on the wall, not on a coordinate. Field mode stops presenting a desktop at phone size, and the numbers on screen say where they came from.</p>
-    <div class="cards">
-      <div class="card" style="--accent:var(--cyan)">
-        <div class="k">Sheets &amp; markup</div>
-        <h3>A pin on a wall is that wall</h3>
-        <p>Generated sheets already carried <code>data-guid</code> on their linework; the drawings room was dropping coordinate-only pins, so a wall that moved left the markup pointing at empty paper. Pins now persist the GlobalId, promote to an RFI against that element, and select it in the 3D viewer. Symbol takeoff followed the same idea: box one symbol on the sheet and the rest are found by matching it, not by guessing a count.</p>
-        <span class="tag">v0.3.1010–1014</span>
-      </div>
-      <div class="card" style="--accent:var(--blue)">
-        <div class="k">Field mode</div>
-        <h3>The phone gets its own shape</h3>
-        <p>Field mode hides the seven-room spine rather than shrinking it, lands on capture instead of a dashboard, and the action button no longer covers the thing it acts on. Keyboard journeys are asserted end to end — Tab reaches a room’s actual job and lands there — so the shortest path through a room is a test rather than a claim.</p>
-        <span class="tag b">v0.3.1004–1008</span>
-      </div>
-      <div class="card" style="--accent:var(--violet)">
-        <div class="k">Legibility &amp; seams</div>
-        <h3>Numbers that say where they came from</h3>
-        <p>Series colour stopped borrowing the discipline palette, so a chart line no longer reads as a trade. A readiness strip sits on every home, the Gantt shows this week rather than a month of bars, and report packages assemble off the request thread. Underneath, the API client kept shedding weight into per-domain seams, and a worktree build now uses the pinned Vite instead of a different one that silently succeeded.</p>
-        <span class="tag v">v0.3.988 · v0.3.1002–1003 · v0.3.1009 · v0.3.1015–1018</span>
       </div>
     </div>
   </section>

@@ -317,3 +317,58 @@ def verify_reset_token(token: str, pw_hash: str) -> str | None:
         return payload.get("sub")
     except Exception:
         return None
+
+
+def get_or_create_sso_user(db, username: str, make_user):
+    """Find-or-create the local account for an SSO identity. Returns ``(user, created)``.
+
+    **The seeding race, in the one place all three sign-in doors reach it.** OAuth
+    (`routers/auth.py`), SAML (`routers/saml.py`) and the massing.cloud broker (`routers/cloud.py`)
+    each auto-provision on first sign-in, and each did it the same unguarded way::
+
+        u = db.get(User, email)
+        if u is None:
+            u = User(username=email, ...)
+            db.add(u)
+
+    `User.username` is the PRIMARY KEY, so two concurrent *first* sign-ins for one person — two
+    tabs, two devices, a retried callback — both read `None`, both INSERT the same key, and the
+    loser's `commit()` raises `IntegrityError`. The person who did nothing wrong gets a **500 on a
+    legitimate login**, and a retry then succeeds because the winner's row now exists, which is
+    what makes it easy to dismiss as a blip.
+
+    **Seeding is the one moment no row-level mechanism can protect, because there is no row yet** —
+    the same sentence `modules._next_ref` carries about its ref counter, and the same fix:
+    INSERT inside a SAVEPOINT so the refusal stays local, then re-read and use the winner's row.
+    `rbac.consume_stepup` is the third instance of the pattern in this codebase.
+
+    **One helper rather than three copies, deliberately.** The defect this repository keeps finding
+    in these three doors is *one rule, applied at some of them* — the `AEC_OAUTH_ALLOWED_DOMAINS`
+    check held on four doors and was bypassed by the fifth (PR #339), and this race was present at
+    all three. A fourth sign-in path should have to call this, not re-derive it.
+
+    `make_user` is a callable rather than a set of fields because the three doors genuinely differ:
+    the password-hash sentinel is per-provider, SAML sets `provisioned=True`, and the cloud door
+    computes `role` and `tier` from the broker's claims.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    from .models import User
+
+    u = db.get(User, username)
+    if u is not None:
+        return u, False
+    try:
+        with db.begin_nested():
+            u = make_user()
+            db.add(u)
+            db.flush()
+        return u, True
+    except IntegrityError:
+        # Another writer created it between our read and our insert. The refusal is the database
+        # working; the bug was ever treating it as a crash. The savepoint kept it local, so the
+        # session is still usable and the caller's other staged rows (the audit entry) survive.
+        u = db.get(User, username)
+        if u is None:                       # pragma: no cover - not a seeding collision after all
+            raise
+        return u, False
