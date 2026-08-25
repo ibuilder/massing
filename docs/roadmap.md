@@ -119,6 +119,41 @@ that filled it was 2026-08-01.
 one** rather than to wait for it to fill. That is a different kind of work from picking a lane item
 and it is nobody's default, which is exactly why it is written down here.
 
+> ### ✅ AUTHZ SWEEP RUN 2026-08-25 (v0.3.1091) — **no live hole; the gate is the finding**
+>
+> Axis chosen before starting, per the sprint row's own premise-check: **authorisation**, because two
+> of the three subsystems added since the last sweep are auth-adjacent.
+>
+> **Every one of the four existing authz gates says the same thing about its own limit** — a route
+> with no `{pid}` in the PATH is outside `test_route_authz`'s remit. Each closed one way the project
+> id arrives by another route: `test_global_authz` (global mutating), `test_body_pid_authz` (a `pid`
+> in the BODY), `test_protected_prefix_coverage` (a new top-level prefix). **The remaining one is
+> that the id in the path is not the project's, it is the RESOURCE's** — `/attachments/{aid}`,
+> `/proforma/scenarios/{sid}`. `require_role` cannot be applied, because there is no `{pid}` for it
+> to read.
+>
+> Enumerated from the live app: **43 routes** in that shape. **All 43 are correctly protected today**
+> — 20 by a real admin/scim dependency, 11 by a check in the handler body, 4 by identity as a
+> recorded decision, 8 deliberately public. Each of the 11 and each of the 8 was read, not inferred.
+>
+> **So the sweep found no defect, and that is the result rather than a disappointment.** What it
+> found is that the 11 are correct only because of hand-written call-site checks that **no gate can
+> see** — and this exact class has failed here twice in three weeks: six of the eight
+> `/proforma/scenarios/{sid}` routes "fetched by id and acted, with no ownership check at all"
+> (fixed 2026-08-13), and the massing.cloud sign-in door (PR #339, today). `_scenario_for`'s
+> docstring says it exists "so that a ninth route cannot be added without answering the question" —
+> **which is a convention, and a convention is what has just failed twice.**
+>
+> `services/api/test_resource_id_authz.py` freezes the four buckets and pins each in-handler route to
+> the helper it calls. Mutation-checked three ways: dropping `_scenario_for` from `clone`, adding an
+> unguarded route, and leaving a deleted route in the list. **It names its own limit** — it cannot
+> tell `_can_read` from `_can_write`, and `_can_write`'s docstring is about precisely that confusion,
+> so that distinction stays with review.
+>
+> **Band 1 is still empty, and the sweep is why that now means something.** It was last defensible
+> on 2026-08-01; it is defensible again on the authz axis as of today. **Concurrency and money have
+> not been swept** — those were the other two candidate axes and they remain unexamined.
+
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
 

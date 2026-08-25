@@ -4,6 +4,78 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1091 (2026-08-25) — the id in the path is not the project's, it is the resource's
+
+**Sprint 1 of the re-cut roadmap: an authorisation sweep.** Axis picked before starting, as that
+sprint row's own premise-check demands — two of the three subsystems added since the last sweep
+(2026-08-01) are auth-adjacent.
+
+**No live hole was found. The gate is the finding.**
+
+### The blind spot every existing authz gate names about itself
+
+Four gates guard this surface, and each closed one way a project id arrives by a route other than
+the path — `test_global_authz` (global mutating routes), `test_global_mutating_authz` (that they
+actually refuse anonymity), `test_body_pid_authz` (a `pid` in the request BODY), and
+`test_protected_prefix_coverage` (a new top-level prefix outside `_PROTECTED_PREFIXES`). All four
+docstrings contain some form of the same sentence: *a route with no `{pid}` in the PATH is outside
+`test_route_authz`'s remit entirely.*
+
+**The one nobody had closed is that the id in the path is not the project's — it is the
+resource's.** `GET /attachments/{aid}/download` names an attachment, which names a project.
+`PUT /proforma/scenarios/{sid}` names a scenario, which names a project. There is no `{pid}` for
+`require_role` to read, so the dependency cannot be applied and the walker never looks.
+
+### What the sweep measured
+
+Enumerated from the live app: **43 routes** have a path parameter, no `{pid}`, and no role gate.
+**All 43 are correctly protected today** — this release fixes no defect and should not be read as
+though it did:
+
+| how | count |
+|---|---|
+| a real admin/platform-admin/SCIM dependency | 20 |
+| authorised **inside the handler body** | 11 |
+| `require_identified` — identity, by a recorded decision | 4 |
+| deliberately public (OAuth redirects, `/shared/{token}` capability URLs) | 8 |
+
+Each of the 11 and each of the 8 was read rather than inferred. `/families/{key}/types` looked like
+the odd one out and is not: it serves the shared family catalog, which is global content with no
+project data in it.
+
+### Why 11 correct routes are still a finding
+
+They are correct **only because of hand-written call-site checks that no gate can see** — and this
+exact class has failed here twice in three weeks. `_scenario_for`'s own docstring records the first:
+`_can_read` "was called by **2 of the 8** `{sid}` routes… The other six — share, update, clone,
+review, forecast, draw-package — **fetched by id and acted, with no ownership check at all**."
+`/proforma` is in `_PROTECTED_PREFIXES`, so anonymous callers were refused and every route *looked*
+guarded; what was missing was authorisation, not authentication. The second is the massing.cloud
+sign-in door (PR #339), where a domain allowlist held on four doors and was bypassed by the fifth.
+
+That docstring also says the helper exists "so that a ninth route cannot be added without answering
+the question." **That is a convention, and a convention is what has just failed twice.**
+
+`services/api/test_resource_id_authz.py` freezes the four buckets and pins each in-handler route to
+the specific helper it calls — not to "some check", because the failure it catches is a refactor
+dropping the call while the route keeps working for the person testing it, who is a member of the
+project. Both directions, like `test_env_documented`: a new route in this shape fails until someone
+says which bucket it is in, **and** a listed route that no longer exists fails too, so the lists
+cannot rot into a place where things are parked and forgotten.
+
+Mutation-checked three ways, each red then green again: dropping `_scenario_for` from `clone`,
+adding an unguarded `/proforma/zzfake/{zid}`, and leaving a deleted route in the declared list.
+
+**It names its own limit.** It cannot tell `_can_read` from `_can_write` — a read helper where a
+write helper was needed would pass. `_can_write`'s docstring is about exactly that confusion
+("Read permission is not write permission, and reusing one guard for both is the quiet way to grant
+the second while auditing only the first"), so the distinction is real and stays with review. A gate
+claiming to settle it would be worse than one that names the gap.
+
+**Band 1 stays empty, and the sweep is what makes that mean something** — it was last defensible on
+2026-08-01 and is defensible again on the authz axis as of today. **Concurrency and money were the
+other two candidate axes and remain unswept.**
+
 ## v0.3.1090 (2026-08-25) — a status glyph is a note to a reader; only the move is a change to the file
 
 A full-repo reconciliation. Nothing here is a new capability: it is the record catching up with the
