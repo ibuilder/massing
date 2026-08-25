@@ -86,6 +86,15 @@ MIN_SEGMENT = 5
 #: **Not an allowlist of acceptable routes** — a record of what existed when the gate was written, so
 #: the NEXT one cannot arrive unnoticed. Shrinking this set is always allowed and never fails.
 KNOWN_UNCALLED: set[str] = {
+    #: CLOUD-SSO, added 2026-08-24. `/auth/cloud/callback` has no web caller and **must not have
+    #: one**: it is the OAuth redirect target. massing.cloud sends the user's browser here with the
+    #: authorization code after they sign in on the site, so the caller is the *broker*, not this
+    #: app. `/auth/cloud/login` — the route the app does navigate to — has a caller
+    #: (`cloudLoginUrl` in `apps/web/src/api/cloud.ts`), which is the pair that proves the flow is
+    #: wired; a grep of the web source structurally cannot see the other half of a redirect.
+    #: Expiry condition: none. This is not parked work — a client caller here would mean the app was
+    #: forging its own callback, which is the thing PKCE exists to prevent.
+    "/auth/cloud/callback",
     #: R39-VIEWER-OBS, added 2026-08-07 with an expiry condition rather than a shrug. The POST that
     #: WRITES load timings has a caller (`reportViewerLoad` in `apps/web/src/api/model.ts`, called
     #: from the viewer's load path) — it is only this read-side aggregate that has none yet.

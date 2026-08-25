@@ -39,7 +39,7 @@ from .. import massing_cloud_auth as cloud
 from .. import massing_cloud_vault as vault
 from ..db import get_db
 from ..models import CloudIdentity, User
-from ..rbac import current_user
+from ..rbac import current_user, require_identified
 
 router = APIRouter()
 
@@ -194,8 +194,14 @@ def _utcnow():
 def cloud_status(db: Session = Depends(get_db), user: str = Depends(current_user)):
     """What the UI needs to render the account chip and the library entry point.
 
-    Deliberately returns `enabled` even when the caller is not linked, so the sign-in surface can
-    offer the button; and never returns a token."""
+    **Identify-only on purpose — this is the one cloud route an ANONYMOUS caller must reach.** The
+    sign-in modal calls it while signed out to decide whether to offer "Continue with massing.cloud";
+    gating it with `require_identified` would 401 exactly the caller it exists to serve, and the
+    button would never appear. Safe because an anonymous or unlinked caller gets only
+    `{enabled, linked: false, site_url}` — deployment configuration, no user data and never a token.
+    Every route below that reads or mutates a *link* takes `require_identified`, and `test_global_authz`
+    flags only mutating routes, so this read is outside that gate by its rule as well as by intent.
+    """
     link = db.get(CloudIdentity, user) if user else None
     if link is None:
         return {"enabled": cloud.is_enabled(), "linked": False, "site_url": cloud.site_url()}
@@ -225,7 +231,7 @@ def _tier_label(tier: str) -> str:
 
 
 @router.post("/auth/cloud/refresh")
-def cloud_refresh_profile(db: Session = Depends(get_db), user: str = Depends(current_user)):
+def cloud_refresh_profile(db: Session = Depends(get_db), user: str = Depends(require_identified)):
     """Re-read `userinfo` and re-apply tier + role. Lets an upgrade or a role change take effect
     without making the user sign out and back in."""
     link = _linked_or_403(db, user)
@@ -250,7 +256,7 @@ def cloud_refresh_profile(db: Session = Depends(get_db), user: str = Depends(cur
 
 
 @router.post("/auth/cloud/disconnect")
-def cloud_disconnect(db: Session = Depends(get_db), user: str = Depends(current_user)):
+def cloud_disconnect(db: Session = Depends(get_db), user: str = Depends(require_identified)):
     """Unlink. Revokes at the broker best-effort, then deletes the row — the local account and its
     projects survive; only the cloud credential is destroyed."""
     link = db.get(CloudIdentity, user)
@@ -326,19 +332,19 @@ def _vault(fn, *args):
 
 
 @router.get("/cloud/library/projects")
-def library_projects(db: Session = Depends(get_db), user: str = Depends(current_user)):
+def library_projects(db: Session = Depends(get_db), user: str = Depends(require_identified)):
     token = _library_token(db, user)
     return {"projects": _vault(vault.list_projects, token)}
 
 
 @router.get("/cloud/library/projects/{project_id}")
-def library_project(project_id: str, db: Session = Depends(get_db), user: str = Depends(current_user)):
+def library_project(project_id: str, db: Session = Depends(get_db), user: str = Depends(require_identified)):
     token = _library_token(db, user)
     return _vault(vault.get_project, token, project_id)
 
 
 @router.get("/cloud/library/models/{model_id}")
-def library_model(model_id: str, db: Session = Depends(get_db), user: str = Depends(current_user)):
+def library_model(model_id: str, db: Session = Depends(get_db), user: str = Depends(require_identified)):
     """A model record plus its signed `download_url`.
 
     The URL is handed to the browser deliberately: it is short-lived, model-scoped, and carries its

@@ -604,7 +604,14 @@ _CSP = "frame-ancestors 'none'" if not _CSP_ENV else (_CSP_STRICT if _CSP_ENV ==
 # that lacks its own require_role dependency still can't be reached anonymously. Public auth / health /
 # capability / catalog / stateless-compute paths stay open.
 _PROTECTED_PREFIXES = ("/projects", "/proforma", "/connections", "/settings", "/audit", "/auth/users",
-                       "/convert", "/interop", "/pipeline", "/routines")
+                       "/convert", "/interop", "/pipeline", "/routines", "/cloud")
+# `/cloud` (CLOUD-LIBRARY) is here because every route under it reads one user's massing.cloud vault
+# — tenant state by definition. Note `/auth/cloud/*` is deliberately NOT covered: sign-in has to be
+# reachable by someone who is not signed in yet, which is the whole point of it. Those routes carry
+# their own `require_identified` individually, except `login`/`callback`/`status`, which must serve
+# an anonymous caller. This prefix is defence in depth and NOT the gate — the routes under it each
+# take `require_identified`, because an armed middleware makes a guarded and an unguarded route look
+# identical from outside, and then nothing is testing the route's own guard.
 
 
 def _routed_path(request: Request) -> str:
