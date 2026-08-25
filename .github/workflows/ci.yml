@@ -122,6 +122,7 @@ jobs:
         include:
           - { name: api, context: ., dockerfile: services/api/Dockerfile }
           - { name: web, context: ., dockerfile: apps/web/Dockerfile }
+          - { name: converter, context: ., dockerfile: services/converter/Dockerfile }
     steps:
       - uses: actions/checkout@v7
 
@@ -248,13 +249,14 @@ jobs:
     permissions:
       contents: read
     strategy:
-      # Both images, even when one fails: "the api image broke" and "both images broke" are
+      # Every image, even when one fails: "the api image broke" and "all three images broke" are
       # different findings, and fail-fast would report the first as the second.
       fail-fast: false
       matrix:
         include:
           - { name: api, context: ., dockerfile: services/api/Dockerfile }
           - { name: web, context: ., dockerfile: apps/web/Dockerfile }
+          - { name: converter, context: ., dockerfile: services/converter/Dockerfile }
     steps:
       - uses: actions/checkout@v7
 
