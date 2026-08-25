@@ -117,7 +117,7 @@ export async function rvtToIfc(rvtBytes, objectName, onStage = () => {}) {
   const token = await getToken();
   const auth = { Authorization: `Bearer ${token}` };
   const bucketKey = process.env.APS_BUCKET || "aec-bim-rvt";
-  const name = objectName.replace(/[^\w.\-]/g, "_");
+  const name = objectName.replace(/[^\w.-]/g, "_");
 
   onStage("bucket");
   await ensureBucket(auth, bucketKey);

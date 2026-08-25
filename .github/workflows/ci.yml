@@ -84,6 +84,12 @@ jobs:
       - name: Fragments/web-ifc version guard
         run: node scripts/check-fragments-version.mjs
 
+      # The root `scripts/` and `services/converter/src/` were covered by no ESLint config until
+      # v0.3.1099 — `apps/web`'s config reaches `apps/web/scripts/` and cannot reach above its own
+      # base path. The step below is the one that lints the program the step ABOVE runs.
+      - name: Lint (ESLint — root scripts + converter)
+        run: npm run lint
+
       - name: Lint (ESLint)
         run: npm run lint --workspace apps/web
 
