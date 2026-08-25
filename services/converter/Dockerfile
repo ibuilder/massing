@@ -6,6 +6,33 @@
 # and this file was not. `scripts/check-fragments-version.mjs` gates the two ARGs below across
 # both Dockerfiles and stops one line short of the base image.
 FROM node:24-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+
+# Security updates for the base OS, which a digest pin deliberately freezes.
+#
+# Pinning by digest (SEC F4) buys reproducibility and costs currency: the apt packages inside a
+# pinned image are as old as the day it was built, and they keep accruing CVEs while the digest
+# stays honest. The other two images never had to reckon with that — they are multi-stage, so the
+# Debian layers of the node base stay in a build stage and are never published. This one publishes
+# its base, so it inherits the base's CVEs.
+#
+# The second Trivy scan this image has ever had found them:
+#
+#     libgnutls30  CVE-2026-33845  CRITICAL  fixed  3.7.9-2+deb12u6 -> 3.7.9-2+deb12u7
+#     libgnutls30  CVE-2026-42010  CRITICAL  fixed  3.7.9-2+deb12u6 -> 3.7.9-2+deb12u7
+#
+# Upgraded by name rather than by a blanket `apt-get upgrade`: the scanner names the package and the
+# fixed version, so the change is bounded and reviewable, where a blanket upgrade would move an
+# unbounded set of packages in an image no one can build locally (no Docker daemon in the agent
+# container — CI is the only place this is exercised).
+#
+# **This is a treadmill and should be named as one.** Every future CRITICAL in the base will red this
+# gate until the shared digest is re-pinned to a newer node:24-slim. That is the correct direction —
+# re-pin, don't accumulate `--only-upgrade` lines — and the digest is shared by all three Dockerfiles
+# (`scripts/check-fragments-version.mjs` B1c), so re-pinning is one coordinated change.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade libgnutls30 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # install just what the converter needs; web-ifc ships its own WASM. Pin to the SAME versions as the

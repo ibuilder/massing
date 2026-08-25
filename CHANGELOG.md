@@ -99,9 +99,37 @@ the `node` binary and the resolved `node_modules`, which is all the ENTRYPOINT i
 state the other two reach by being multi-stage, and a smaller attack surface besides, which is what
 v0.3.936 was reaching for when it added the non-root user it could not build.
 
-**This is what the gate was for.** A CRITICAL, fixable CVE was sitting in a published-on-`main`
-image, and the reason it went unreported is not that anyone dismissed it — it is that no scan had
-ever been pointed at that image. A finding cannot be triaged by a check that never runs.
+### ...and then two more, in the base OS
+
+With npm gone, the node-package scan came back clean and the **OS** scan failed instead:
+
+    libgnutls30  CVE-2026-33845  CRITICAL  fixed  3.7.9-2+deb12u6 -> 3.7.9-2+deb12u7
+    libgnutls30  CVE-2026-42010  CRITICAL  fixed  3.7.9-2+deb12u6 -> 3.7.9-2+deb12u7
+
+Same root cause as the npm one, one layer down. **Pinning a base image by digest (SEC F4) buys
+reproducibility and costs currency**: the apt packages inside a pinned image are as old as the day
+it was built and keep accruing CVEs while the digest stays perfectly honest. The other two images
+never had to reckon with that, because their Debian layers stay in a build stage and are never
+published. This one publishes its base, so it inherits the base's CVEs.
+
+Upgraded by name rather than by a blanket `apt-get upgrade`: the scanner names the package and the
+fixed version, so the change stays bounded and reviewable, where a blanket upgrade would move an
+unbounded set of packages in an image nobody can build locally.
+
+**Recorded as a treadmill, because that is what it is.** Every future CRITICAL in the base will red
+this gate until the shared digest is re-pinned to a newer `node:24-slim`. Re-pinning is the right
+answer and accumulating `--only-upgrade` lines is not; the digest is shared by all three Dockerfiles
+and asserted by `scripts/check-fragments-version.mjs` B1c, so it is one coordinated change when it
+comes.
+
+### What this says about the gate
+
+Three CRITICAL, fixable CVEs — one vendored inside npm, two in the base OS — were sitting in an
+image that `main` publishes to ghcr. **Nobody triaged them and decided they were acceptable. No scan
+had ever been pointed at that image.** A finding cannot be dismissed, or accepted, or even seen, by a
+check that never runs; and the check never ran because the file was in the trigger's population and
+not in the matrix's. That is the whole argument for the assertion this release adds, stated in CVEs
+rather than in principle.
 
 ## v0.3.1097 (2026-08-25) — a floor that is too low satisfies every check written to catch a floor that is too high
 
