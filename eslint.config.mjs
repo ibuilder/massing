@@ -41,7 +41,12 @@ export default [
     // discovered hours apart: **its image was built by no CI job (v0.3.1098) and its source was read
     // by no linter.** Neither fact caused the other; both are the same absence of coverage, and the
     // second was found only because fixing the first prompted the question "what else is uncovered?"
-    files: ["scripts/**/*.mjs", "scripts/**/*.js",
+    // `eslint.config.mjs` lints ITSELF. It is tracked JavaScript like any other, and leaving it out
+    // would make this file the one piece of JavaScript in the repository exempt from the rule it
+    // exists to enforce. `lintCoverage.test.ts` caught the omission on its first CI run — see the
+    // note there about why a local run did not.
+    files: ["eslint.config.mjs",
+            "scripts/**/*.mjs", "scripts/**/*.js",
             "services/converter/src/**/*.mjs", "services/converter/src/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",

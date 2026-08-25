@@ -43,6 +43,19 @@
  * includes the failure case — reproduced inside the very test written to catch it. A rule *count*
  * cannot be satisfied by a file ESLint declined to lint, so that is the question worth asking.
  * **The mutation run is the only thing that told the difference; the PASS lines were identical.**
+ *
+ * ## A local green that CI was right to reject
+ *
+ * The population is `git ls-files`, so it contains **tracked** files — and on the run that produced
+ * this file's own commit, `eslint.config.mjs` had been written but not yet `git add`ed. It was
+ * therefore invisible to the check locally, and CI, which checks out a tree where everything is
+ * tracked, immediately reported it: the root ESLint config was itself JavaScript that no config
+ * linted, which would have made it the one file in the repository exempt from the rule it exists to
+ * enforce.
+ *
+ * **The test was right and the local run was under-populated.** A `git ls-files` gate does not see
+ * the change being made until it is staged, so a green from it before `git add` is weaker than it
+ * looks — worth knowing for every check in this repository built the same way, which is most of them.
  */
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";

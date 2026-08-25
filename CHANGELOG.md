@@ -60,6 +60,22 @@ mutation run is the only thing that told the two drafts apart; their PASS lines 
 Mutation-verified three ways: dropping the converter globs now names all three files, deleting the
 root config fails, and narrowing the population to one tree trips the span guard.
 
+### The check's first CI run failed, on the config that was added with it
+
+`eslint.config.mjs` is tracked JavaScript, and no config linted it — which would have made the root
+ESLint config **the one file in the repository exempt from the rule it exists to enforce.** It now
+appears in its own `files` list.
+
+**The local run had missed it for a reason worth generalising.** The population is `git ls-files`, so
+it contains *tracked* files, and `eslint.config.mjs` had been written but not yet `git add`ed when the
+suite was run. CI checks out a tree where everything is tracked, so it saw immediately what the local
+run structurally could not. The test was right; the local run was under-populated.
+
+**A `git ls-files` gate cannot see the change being made until it is staged**, so a green from one
+before `git add` is weaker than it looks. That applies to most of the gates in this repository —
+`test_claude_md_gates`, `roadmapLanes.test.ts`, `test_file_sizes` and this one all derive their
+population the same way.
+
 ### Also
 
 `npm run lint` at the repo root, wired into CI immediately before the existing web lint — the step
