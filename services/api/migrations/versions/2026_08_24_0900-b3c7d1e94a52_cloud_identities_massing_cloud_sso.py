@@ -39,7 +39,12 @@ def upgrade() -> None:
         sa.Column('access_token', sa.Text(), nullable=True),
         sa.Column('refresh_token', sa.Text(), nullable=True),
         sa.Column('expires_at', sa.Integer(), nullable=True),
-        sa.Column('linked_at', sa.DateTime(timezone=True), nullable=True),
+        # NOT NULL to match the model: `linked_at` is `Mapped[datetime]`, not `Mapped[datetime | None]`,
+        # and it always has a value because the row is created at link time with a default. The module
+        # tables nearby use nullable=True for their timestamps because THEIR models declare them
+        # optional — `alembic check` compares the two and fails on any disagreement, which is how this
+        # was caught.
+        sa.Column('linked_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('last_sync', sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(['username'], ['users.username'], ),
         sa.PrimaryKeyConstraint('username'),
