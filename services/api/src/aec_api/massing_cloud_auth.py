@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import secrets
 import urllib.parse
@@ -100,9 +101,34 @@ def _b64url(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
 
-def new_verifier() -> str:
-    """A fresh PKCE `code_verifier` (RFC 7636 §4.1: 43–128 chars of unreserved ASCII)."""
-    return _b64url(secrets.token_bytes(64))
+def new_flow_id() -> str:
+    """A random, **non-secret** handle for one authorization attempt.
+
+    This is what the browser carries between `/login` and `/callback`. It is not a credential:
+    holding it reveals nothing and permits nothing, because the verifier is derived from it *and*
+    the server signing key (see `verifier_for`)."""
+    return _b64url(secrets.token_bytes(32))
+
+
+def verifier_for(flow_id: str) -> str:
+    """Derive this flow's PKCE `code_verifier` from the server signing key + the flow id.
+
+    **The verifier is never stored and never leaves this process.** It is recomputed at callback
+    time from the same two inputs, so nothing the browser holds contains secret material.
+
+    The earlier design sealed the verifier itself into the cookie — signed, HttpOnly, `Path=/auth/
+    cloud`, 600 s — which was defensible and is what most OAuth libraries do. CodeQL's
+    `py/weak-sensitive-data-hashing` flagged it, and although the rule's own concern (never hash
+    passwords with a fast digest) was a false positive here — SHA-256 inside HMAC is the correct
+    primitive for authenticating a blob, and a slow KDF would be *wrong* — the alert pointed at a
+    real question the rule does not ask: the verifier sat in a client-held value in recoverable
+    form. Deriving it removes that entirely rather than arguing the alert away. Reading the cookie
+    now yields an opaque id and no path to the verifier without `AEC_AUTH_SECRET`.
+
+    43 characters of unreserved base64url, satisfying RFC 7636 §4.1 (43–128) at its floor."""
+    from .auth import signing_key
+    return _b64url(hmac.new(signing_key(), b"massing-cloud-pkce:" + flow_id.encode(),
+                            hashlib.sha256).digest())
 
 
 def challenge_for(verifier: str) -> str:

@@ -24,6 +24,21 @@ look the same, which is the same rule as everywhere else in this codebase.
 **Role gate.** Cloud `administrator`/`editor` → platform admin *here*, and only for this provider.
 See `massing_cloud_auth.role_sync_enabled` for why that is a deliberate exception to the standing
 "regular SSO users are never platform admins" rule in `routers/auth.py`.
+
+**Two assumptions this rests on, written down because neither is enforced in code.**
+
+*The broker's `email` is verified.* `_link_account` matches a cloud identity to a local account by
+email on first link, so an unverified address would let someone claim another person's account.
+massing.cloud creates its accounts through provider OIDC or its own registration and does not expose
+an `email_verified` claim to check, so this is trust in a **first-party** identity provider, not an
+oversight — but it is the load-bearing assumption behind email matching. If the broker ever federates
+an IdP that does not verify addresses, this must become an explicit check.
+
+*The cloud tokens are stored unencrypted.* `CloudIdentity.access_token` / `refresh_token` are
+plaintext at rest, which matches how this codebase already stores `Connection.config` (DSN passwords,
+vendor access tokens) — there is no at-rest encryption helper in `services/api/src` to use. Noted
+rather than hidden: a 30-day first-party refresh token is a more valuable row than a vendor token, so
+if secrets-at-rest is ever taken up, this table is the one to start from.
 """
 from __future__ import annotations
 
@@ -69,11 +84,14 @@ def cloud_login(request: Request):
     """Start the PKCE flow. The verifier is sealed into an HttpOnly cookie (never into `state`)."""
     _require_enabled()
     redirect_uri = str(request.url_for("cloud_callback"))
-    verifier = cloud.new_verifier()
+    # The cookie carries an opaque flow id; the verifier is DERIVED from it plus the server signing
+    # key and never leaves this process. See massing_cloud_auth.verifier_for.
+    flow_id = cloud.new_flow_id()
+    verifier = cloud.verifier_for(flow_id)
     state = auth.create_oauth_state("massing-cloud")
     resp = RedirectResponse(cloud.authorize_url(redirect_uri, state, verifier), status_code=307)
     resp.set_cookie(
-        _PKCE_COOKIE, auth.seal_pkce(verifier, state),
+        _PKCE_COOKIE, auth.seal_pkce(flow_id, state),
         max_age=600, httponly=True, samesite="lax", path="/auth/cloud",
         secure=_cookie_secure(request))
     return resp
@@ -88,11 +106,12 @@ def cloud_callback(request: Request, code: str | None = None, state: str | None 
     sealed = request.cookies.get(_PKCE_COOKIE) or ""
     if not code or not state or auth.verify_oauth_state(state) != "massing-cloud":
         raise HTTPException(400, "invalid callback (missing code or bad state)")
-    verifier = auth.open_pkce(sealed, state)
-    if not verifier:
+    flow_id = auth.open_pkce(sealed, state)
+    if not flow_id:
         # Either the cookie is gone (browser blocked it / flow resumed in another browser) or it is
         # bound to a different attempt. Both are "start again", not "trust the code".
         raise HTTPException(400, "sign-in session expired — please start again")
+    verifier = cloud.verifier_for(flow_id)
 
     redirect_uri = str(request.url_for("cloud_callback"))
     try:
@@ -153,11 +172,27 @@ def _link_account(db: Session, info: dict, tok: dict, access: str) -> str:
         if not u.email:
             u.email = email
         u.tier = cloud.app_tier_for(cloud_tier)
-        # Role sync is two-way *for this provider*: losing `editor` on the site must also drop the
-        # elevation here, otherwise a revoked cloud role leaves a live admin behind. Only ever
-        # touches accounts that are cloud-linked, so a local admin is never demoted by this path.
+        # Role sync is two-way *for this provider* — but only ONCE THE LINK EXISTS. Losing `editor`
+        # on the site must drop the elevation here, or a revoked cloud role leaves a live admin
+        # behind; that is the `link is not None` arm.
+        #
+        # **A first link may PROMOTE and must never DEMOTE.** `link` is None on a first cloud
+        # sign-in, and `username` is then just the email — so this branch is also reached for a
+        # pre-existing LOCAL account that has never been cloud-linked, and a two-way write there
+        # would demote it on the strength of a role nobody has published. That is not hypothetical:
+        # `userinfo` ships no roles at all today, so `is_admin` is always False, and the bootstrap
+        # admin (whose username IS their email) demoted itself to `user` by signing in once — a
+        # lockout when they were the only admin. Reproduced before fixing; twin test below.
+        #
+        # The comment this replaces asserted "only ever touches accounts that are cloud-linked",
+        # which was the property the code NEEDED and did not have — the exact shape this repo's
+        # doc-comment discipline exists to catch, found in review by a second session rather than
+        # by any gate.
         if cloud.role_sync_enabled():
-            u.role = "admin" if is_admin else "user"
+            if link is not None:
+                u.role = "admin" if is_admin else "user"
+            elif is_admin:
+                u.role = "admin"
     if u.active is False:
         raise HTTPException(403, "account is deactivated")
 

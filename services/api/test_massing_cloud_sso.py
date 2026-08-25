@@ -44,18 +44,30 @@ from aec_api.main import app  # noqa: E402
 BEARER = lambda t: {"Authorization": f"Bearer {t}"}  # noqa: E731
 
 # ── unit: PKCE + role/tier shaping ────────────────────────────────────────────────────────────
-v = cloud.new_verifier()
+flow = cloud.new_flow_id()
+v = cloud.verifier_for(flow)
 assert 43 <= len(v) <= 128, len(v)                       # RFC 7636 §4.1
+assert cloud.verifier_for(flow) == v, "derivation must be deterministic — the callback recomputes it"
+assert cloud.verifier_for(cloud.new_flow_id()) != v, "different flows get different verifiers"
 assert cloud.challenge_for("abc") == cloud.challenge_for("abc")
 assert cloud.challenge_for("abc") != "abc"               # S256, not plain
 assert "=" not in cloud.challenge_for(v)                 # base64url, unpadded
 
 state = auth_mod.create_oauth_state("massing-cloud")
-sealed = auth_mod.seal_pkce(v, state)
-assert auth_mod.open_pkce(sealed, state) == v
+sealed = auth_mod.seal_pkce(flow, state)
+assert auth_mod.open_pkce(sealed, state) == flow
 assert auth_mod.open_pkce(sealed, "someone-elses-state") is None, "seal must bind to its state"
 assert auth_mod.open_pkce("garbage", state) is None
-# THE property: the authorize URL carries the challenge and the state, and NOT the verifier.
+# THE property the whole flow rests on: the verifier exists in NEITHER thing the browser touches.
+# The seal is signed but not encrypted, so "the verifier is not in it" has to be asserted against
+# the decoded bytes, not assumed from the fact that it is signed.
+assert v not in sealed, "the cookie must carry an opaque flow id, never the verifier itself"
+import base64 as _b64mod  # noqa: E402
+
+_decoded = _b64mod.urlsafe_b64decode(sealed.split(".")[0] + "==").decode()
+assert v not in _decoded, "the verifier must not be recoverable by decoding the cookie"
+assert flow in _decoded, "...and the flow id is what IS in there"
+# ...and the authorize URL carries the challenge and the state, and NOT the verifier.
 url = cloud.authorize_url("http://127.0.0.1:8093/auth/cloud/callback", state, v)
 assert v not in url, "the code_verifier must never travel to the broker"
 q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
@@ -126,8 +138,11 @@ with TestClient(app) as c:
     assert q["code_challenge_method"] == ["S256"]
     jar_seal = c.cookies.get("mc_pkce")
     assert jar_seal, "the verifier seal must be set as a cookie"
-    real_verifier = auth_mod.open_pkce(jar_seal, sent_state)
-    assert real_verifier and real_verifier not in loc, "verifier must not be in the authorize URL"
+    sent_flow = auth_mod.open_pkce(jar_seal, sent_state)
+    assert sent_flow, "the cookie must seal a flow id"
+    real_verifier = cloud.verifier_for(sent_flow)
+    assert real_verifier not in loc, "verifier must not be in the authorize URL"
+    assert real_verifier not in jar_seal, "...nor recoverable from the cookie"
 
     # a callback whose state does not match the seal is refused (CSRF / mix-up)
     bad = c.get("/auth/cloud/callback", params={"code": "abc", "state": "forged"},
@@ -139,7 +154,7 @@ with TestClient(app) as c:
               follow_redirects=False)
     assert r.status_code == 303, r.text
     assert STATE["exchanges"] == 1
-    assert STATE["last_verifier"] == real_verifier, "the sealed verifier is what gets exchanged"
+    assert STATE["last_verifier"] == real_verifier, "the DERIVED verifier is what gets exchanged"
     tok = c.cookies.get("aec_token")
     assert tok, "the callback must mint an app session"
 
@@ -194,6 +209,59 @@ with TestClient(app) as c:
     assert st2["linked"] is False, st2
     # the library is gone with the link, and says so as "not linked" rather than "not entitled"
     assert c.get("/cloud/library/projects", headers=BEARER(tok)).status_code == 403
+
+    # ── a FIRST link may promote, and must never DEMOTE a pre-existing local admin ───────────
+    # Regression test for a real lockout: `link` is None on a first cloud sign-in and `username` is
+    # then just the email, so the "existing user" branch fires for a LOCAL account that has never
+    # been cloud-linked. A two-way role write there demoted it. Because `userinfo` publishes no
+    # roles today, `is_admin` is always False — so the bootstrap admin demoted ITSELF by signing in
+    # once, and if it was the only admin that is a lockout. Found in review, reproduced, then fixed.
+    from aec_api.db import SessionLocal          # noqa: E402
+    from aec_api.models import CloudIdentity, User  # noqa: E402
+
+    STATE["roles"] = []                          # the LIVE shape: the broker publishes no roles
+    STATE["tier"] = "commercial"
+    with SessionLocal() as s:
+        s.add(User(username="boss@example.com", password_hash="x", role="admin", active=True))
+        s.commit()
+    cloud.fetch_userinfo = lambda token: {
+        "sub": "9001", "name": "Boss", "email": "boss@example.com",
+        "tier": STATE["tier"], "providers": [], "roles": STATE["roles"]}
+    c.cookies.clear()
+    lg = c.get("/auth/cloud/login", follow_redirects=False)
+    st2 = urllib.parse.parse_qs(urllib.parse.urlparse(lg.headers["location"]).query)["state"][0]
+    assert c.get("/auth/cloud/callback", params={"code": "z", "state": st2},
+                 follow_redirects=False).status_code == 303
+    with SessionLocal() as s:
+        assert s.get(User, "boss@example.com").role == "admin",             "a first cloud link must NOT demote a pre-existing local admin"
+        assert s.get(CloudIdentity, "boss@example.com") is not None, "...and the link was created"
+
+    # ...but once linked, the sync IS two-way — the same absent role now demotes, which is the half
+    # that stops a revoked cloud role leaving a live admin behind. Asserting only the no-demote side
+    # would pass on a build that had disabled role sync entirely.
+    assert c.post("/auth/cloud/refresh", headers=BEARER(c.cookies.get("aec_token") or "")).status_code in (200, 401)
+    lg = c.get("/auth/cloud/login", follow_redirects=False)
+    st3 = urllib.parse.parse_qs(urllib.parse.urlparse(lg.headers["location"]).query)["state"][0]
+    assert c.get("/auth/cloud/callback", params={"code": "z2", "state": st3},
+                 follow_redirects=False).status_code == 303
+    with SessionLocal() as s:
+        assert s.get(User, "boss@example.com").role == "user",             "once LINKED, losing the cloud role must drop the elevation"
+
+    # ...and a cloud admin IS promoted on a first link (the direction that is meant to work).
+    with SessionLocal() as s:
+        s.add(User(username="chief@example.com", password_hash="x", role="user", active=True))
+        s.commit()
+    STATE["roles"] = ["administrator"]
+    cloud.fetch_userinfo = lambda token: {
+        "sub": "9002", "name": "Chief", "email": "chief@example.com",
+        "tier": "commercial", "providers": [], "roles": STATE["roles"]}
+    c.cookies.clear()
+    lg = c.get("/auth/cloud/login", follow_redirects=False)
+    st4 = urllib.parse.parse_qs(urllib.parse.urlparse(lg.headers["location"]).query)["state"][0]
+    assert c.get("/auth/cloud/callback", params={"code": "z3", "state": st4},
+                 follow_redirects=False).status_code == 303
+    with SessionLocal() as s:
+        assert s.get(User, "chief@example.com").role == "admin",             "a first link SHOULD promote a cloud administrator"
 
     # ── the feature is off by default: no flag ⇒ the routes are not there at all ─────────────
     settings_store._cache["MASSING_CLOUD_SSO_ENABLED"] = "0"

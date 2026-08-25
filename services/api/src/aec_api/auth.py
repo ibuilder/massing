@@ -238,24 +238,29 @@ def create_oauth_state(provider: str) -> str:
     return f"{payload}.{sig}"
 
 
-def seal_pkce(verifier: str, state: str) -> str:
-    """Seal a PKCE `code_verifier` for the round trip through the identity broker (CLOUD-SSO).
+def seal_pkce(flow_id: str, state: str) -> str:
+    """Seal a PKCE **flow id** for the round trip through the identity broker (CLOUD-SSO).
 
-    **The verifier must not travel in `state`.** `state` is echoed by the broker through the user
-    agent, so anything inside it is visible to whoever can observe the redirect — and an attacker who
-    holds both the authorization code and the verifier has exactly what PKCE exists to deny them.
-    This sealed blob is therefore carried in an HttpOnly, SameSite=Lax cookie on **our own** origin
-    and never sent to the broker; only the opaque `state` makes that trip. The `state` is bound into
-    the signature so a sealed verifier cannot be replayed against a different authorization attempt.
+    **What is sealed is an opaque handle, not a credential.** `massing_cloud_auth.verifier_for`
+    derives the actual `code_verifier` from this id *and* the server signing key, so the value the
+    browser carries reveals nothing and permits nothing on its own. An earlier version sealed the
+    verifier itself; see that function for why deriving it is strictly better than sealing it.
+
+    **Neither may travel in `state`.** `state` is echoed by the broker through the user agent, so
+    anything inside it is visible to whoever can observe the redirect — and an attacker holding both
+    the authorization code and the verifier has exactly what PKCE exists to deny them. This sealed
+    blob rides an HttpOnly, SameSite=Lax cookie on **our own** origin and is never sent to the
+    broker; only the opaque `state` makes that trip. `state` is bound into the signature, so a seal
+    cannot be replayed against a different authorization attempt.
     """
-    payload = _b64(json.dumps({"v": verifier, "st": state, "exp": int(time.time()) + _STATE_TTL,
+    payload = _b64(json.dumps({"v": flow_id, "st": state, "exp": int(time.time()) + _STATE_TTL,
                                "purpose": "pkce"}).encode())
     sig = _b64(hmac.new(_SECRET, payload.encode(), hashlib.sha256).digest())
     return f"{payload}.{sig}"
 
 
 def open_pkce(sealed: str, state: str) -> str | None:
-    """Return the `code_verifier` if `sealed` is a valid, unexpired seal bound to `state`, else None."""
+    """Return the flow id if `sealed` is a valid, unexpired seal bound to `state`, else None."""
     try:
         payload_b64, sig_b64 = sealed.split(".")
         expected = _b64(hmac.new(_SECRET, payload_b64.encode(), hashlib.sha256).digest())
