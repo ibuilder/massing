@@ -342,16 +342,18 @@ def oauth_callback(provider: str, request: Request, code: str | None = None,
     if _domains and _dom not in _domains:
         raise HTTPException(403, "this email domain is not permitted to sign in")
 
-    u = db.get(User, email)
-    if u is None:
+    def _make_user() -> User:
         if _os.environ.get("AEC_OAUTH_NO_AUTOPROVISION") == "1":
             raise HTTPException(403, "no account for this email — ask an admin to invite you first")
         # SSO accounts are always plain users — no admin tier for end users. Platform admins are
         # ops, set via AEC_ADMIN_EMAILS. Free tier by default (entitlements seam).
-        u = User(username=email, password_hash="oauth!" + provider,  # unusable for password login
-                 role="user", email=email, tier="free")
-        db.add(u)
-    elif not u.email:
+        return User(username=email, password_hash="oauth!" + provider,  # unusable for password login
+                    role="user", email=email, tier="free")
+
+    # Seeding is a race: `username` is the PK, so two concurrent FIRST sign-ins both read None and
+    # the loser used to 500 on a legitimate login. See `auth.get_or_create_sso_user`.
+    u, created = auth.get_or_create_sso_user(db, email, _make_user)
+    if not created and not u.email:
         u.email = email
     if u.active is False:
         raise HTTPException(403, "account is deactivated")

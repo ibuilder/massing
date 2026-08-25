@@ -151,8 +151,35 @@ and it is nobody's default, which is exactly why it is written down here.
 > so that distinction stays with review.
 >
 > **Band 1 is still empty, and the sweep is why that now means something.** It was last defensible
-> on 2026-08-01; it is defensible again on the authz axis as of today. **Concurrency and money have
-> not been swept** — those were the other two candidate axes and they remain unexamined.
+> on 2026-08-01; it is defensible again on the authz axis as of today.
+
+> ### ⚠️ CONCURRENCY SWEEP RUN 2026-08-25 (v0.3.1092) — **this one found a live defect**
+>
+> Second of the three axes. `test_race_conditions` names the shape its own two defects share —
+> *"read state, decide, write, with nothing holding the world still in between"*. Scanned for that
+> shape across `services/api/src` (a lookup, an if-absent branch, an INSERT inside it, no
+> savepoint): **36 candidates**, against only **3** savepoints in the entire tree.
+>
+> **Three of them are the sign-in doors, and all three were unguarded.** OAuth, SAML and the
+> massing.cloud broker each auto-provision on first sign-in; `User.username` is the primary key, so
+> two concurrent first sign-ins both read `None`, both INSERT, and the loser gets a **500 on a
+> legitimate login**. Fixed through one shared helper, `auth.get_or_create_sso_user`, using the
+> savepoint idiom `modules._next_ref` and `rbac.consume_stepup` already carry.
+>
+> **The same "one rule, some of the doors" shape as PR #339**, which is the second time in two days
+> this subsystem has produced it. That is worth watching: a fourth sign-in path is the risk.
+>
+> `services/api/test_sso_provision_race.py` holds it. **Its first two drafts were worthless and the
+> mutation run is the only thing that said so** — draft 1 passed against the broken code, draft 2
+> deadlocked on SQLite's single writer. The entry in `CHANGELOG.md` records why, because the failure
+> mode is generic: *a test that cannot fail is not evidence, however many PASS lines it prints.*
+>
+> **The remaining 33 candidates are NOT all defects** and were not converted — most are get-or-create
+> against non-unique rows, where a duplicate is harmless or already impossible. They are a
+> population to read, not a work list; the same warning R39-UPLOAD-CAP-APP's entry carries about its
+> own count of 34.
+>
+> **Money is the one axis still unswept.**
 
 
 ### Band 2 — built but unreachable (cheapest real value in the file)

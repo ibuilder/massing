@@ -166,15 +166,19 @@ def _link_account(db: Session, info: dict, tok: dict, access: str) -> str:
     # what was recorded then, because the provenance of the original elevation does not change.
     was_local_admin = bool(link.local_admin_at_link) if link is not None else (
         u is not None and u.role == "admin")
-    if u is None:
+
+    def _make_user() -> User:
         if os.environ.get("AEC_OAUTH_NO_AUTOPROVISION") == "1":
             raise HTTPException(403, "no account for this cloud user — ask an admin to invite you first")
-        u = User(username=username, password_hash="cloud!massing",  # unusable for password login
-                 role="admin" if is_admin else "user", email=email,
-                 tier=cloud.app_tier_for(cloud_tier))
-        db.add(u)
-        db.flush()
-    else:
+        return User(username=username, password_hash="cloud!massing",  # unusable for password login
+                    role="admin" if is_admin else "user", email=email,
+                    tier=cloud.app_tier_for(cloud_tier))
+
+    # Seeding is a race and `username` is the PK: two concurrent FIRST sign-ins both read None and
+    # the loser used to 500 on a legitimate login. `was_local_admin` above is read BEFORE this, so
+    # the provenance snapshot is unaffected by who wins. See `auth.get_or_create_sso_user`.
+    u, _created = auth.get_or_create_sso_user(db, username, _make_user)
+    if not _created:
         if not u.email:
             u.email = email
         u.tier = cloud.app_tier_for(cloud_tier)

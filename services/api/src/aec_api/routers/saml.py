@@ -111,14 +111,15 @@ def saml_acs(request: Request, SAMLResponse: str = Form(...), RelayState: str = 
     if domains and email.rsplit("@", 1)[-1] not in domains:
         raise HTTPException(403, "this email domain is not permitted to sign in")
 
-    u = db.get(User, email)
-    if u is None:
+    def _make_user() -> User:
         if os.environ.get("AEC_OAUTH_NO_AUTOPROVISION") == "1":
             raise HTTPException(403, "no account for this email — ask an admin to invite you first")
-        u = User(username=email, password_hash="saml!" + uuid.uuid4().hex,   # unusable password
-                 role="user", email=email, tier="free", provisioned=True)
-        db.add(u)
-    elif not u.email:
+        return User(username=email, password_hash="saml!" + uuid.uuid4().hex,   # unusable password
+                    role="user", email=email, tier="free", provisioned=True)
+
+    # Same seeding race as the OAuth and cloud doors — see `auth.get_or_create_sso_user`.
+    u, created = auth.get_or_create_sso_user(db, email, _make_user)
+    if not created and not u.email:
         u.email = email
     if u.active is False:
         raise HTTPException(403, "account is deactivated")

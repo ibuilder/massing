@@ -4,6 +4,72 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1092 (2026-08-25) — three sign-in doors, one seeding race, and a test that took three drafts to mean anything
+
+**The concurrency sweep**, the second of the three axes Band 1 names. Unlike the authz sweep one
+release ago, this one found a live defect.
+
+### The defect
+
+OAuth, SAML and the massing.cloud broker each auto-provision a local account on first sign-in, and
+all three did it the same unguarded way:
+
+    u = db.get(User, email)
+    if u is None:
+        u = User(username=email, ...)
+        db.add(u)
+
+`User.username` is the **primary key**. Two concurrent *first* sign-ins for one person — two tabs,
+two devices, a retried callback — both read `None`, both INSERT the same key, and the loser's
+`commit()` raises `IntegrityError`. **The person who did nothing wrong gets a 500 on a legitimate
+login.** A retry then succeeds, because the winner's row exists by then, which is exactly what makes
+this easy to dismiss as a blip instead of finding.
+
+**Seeding is the one moment no row-level mechanism can protect, because there is no row yet** — the
+sentence `modules._next_ref` already carries about its ref counter. This is the third instance of
+that pattern in this codebase, after `_next_ref` and `rbac.consume_stepup`, and the fix is theirs:
+INSERT inside a SAVEPOINT so the refusal stays local, then re-read and use the winner's row.
+
+**One helper, not three copies** — `auth.get_or_create_sso_user`. The defect this repository keeps
+finding in these three doors is *one rule applied at some of them*: `AEC_OAUTH_ALLOWED_DOMAINS` held
+on four doors and was bypassed by the fifth (PR #339), and this race was present at all three. A
+fourth sign-in path should have to call the helper rather than re-derive it.
+
+### How the sweep found it
+
+`test_race_conditions` names the shape its two defects share — *"read state, decide, write, with
+nothing holding the world still in between"*. Scanning for that shape across `services/api/src`
+(a lookup, an if-absent branch, an INSERT inside it, no savepoint) returned **36 candidates**; only
+**3** savepoints exist in the whole tree. The three sign-in doors were the ones where a primary key
+turns the loser's refusal into a 500 on a user-facing action.
+
+### The test took three drafts, and the first two were worthless
+
+**Draft 1 passed against the broken code.** It committed the competing row *before* calling the
+helper, so the helper's own lookup already saw the winner and never reached the INSERT. Twenty-one
+green assertions, proving nothing — the same trap `test_stepup_race` records about *its*
+predecessor, in a new costume.
+
+**Draft 2 deadlocked.** Committing the competing row from a second connection while the loser's
+transaction is open is not a race on SQLite, it is `OperationalError: database is locked` — the
+constraint `test_race_conditions` states in its own docstring and which this file had to rediscover.
+
+**Draft 3 reproduces the STATE a lost race leaves, not the concurrency that causes it**, which is
+what `test_race_conditions` settled on for the same reason. The winner's row is committed first, and
+the loser's session is made to read as though it had looked before that commit — its first
+`Session.get` for that username returns `None` **once**, and an assertion checks that exactly one
+answer was faked. Everything after is real: a real INSERT, a real primary key, a real
+`IntegrityError`, a real savepoint rollback.
+
+**Only the mutation run separated draft 3 from drafts 1 and 2.** Reverted to the unguarded shape it
+now fails with `UNIQUE constraint failed: users.username` **and** `PendingRollbackError` on the
+following commit — the second one meaning the `auth.sso_login` audit row is silently lost. That is
+the failure `rbac.consume_stepup`'s docstring calls the nastier of the two: *a security control
+quietly erasing its own evidence while still reporting the correct outcome.* It is asserted
+separately here for exactly that reason.
+
+**A test that cannot fail is not evidence, however many PASS lines it prints.**
+
 ## v0.3.1091 (2026-08-25) — the id in the path is not the project's, it is the resource's
 
 **Sprint 1 of the re-cut roadmap: an authorisation sweep.** Axis picked before starting, as that
