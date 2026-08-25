@@ -4,7 +4,7 @@ import path from "node:path";
 import { defineConfig, searchForWorkspaceRoot, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-import { vendorAlias } from "./vendorAlias";
+import { vendorAlias } from "./vendorAlias.ts";
 
 // Emit .br + .gz siblings for every text asset so a self-hosted static server (nginx/caddy) or the
 // desktop app can serve pre-compressed bytes — no runtime compression, no extra dependency (Node's
@@ -150,7 +150,13 @@ return {
         // Split heavy vendor libs into cacheable chunks — they change far less often than app code,
         // and three + the That Open stack are the bulk of the bundle.
         //
-        // `advancedChunks` — Rolldown's NATIVE grouping, not the deprecated `manualChunks`.
+        // `codeSplitting` — Rolldown's NATIVE grouping, not the deprecated `manualChunks`.
+        //
+        // It was spelled `advancedChunks` until 2026-08-25, which Rolldown now deprecates in favour
+        // of `codeSplitting` (`AdvancedChunksOptions` is a type alias of `CodeSplittingOptions`, so
+        // the rename is the whole migration). The build printed the deprecation on every run and
+        // still split correctly — which is the same trap the paragraph below describes, one rename
+        // later: a warning nobody actions is how the next rename lands as a silent no-op.
         //
         // Vite 8 removed the object form of `manualChunks` and deprecated the function form. The
         // deprecated function still *runs*, and that is the trap: the build succeeds, still emits a
@@ -162,7 +168,7 @@ return {
         // bundle still works, so nothing fails, but three.js is no longer separately cacheable and
         // every That Open patch re-downloads it. Verify by grepping the OUTPUT, never by reading the
         // config and believing it.
-        advancedChunks: {
+        codeSplitting: {
           groups: [
             { name: "three", test: /[\\/]node_modules[\\/]three[\\/]/ },
             { name: "thatopen", test: /[\\/]@thatopen[\\/](components|components-front|fragments)[\\/]/ },

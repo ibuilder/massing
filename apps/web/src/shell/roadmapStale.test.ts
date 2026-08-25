@@ -263,16 +263,35 @@ describe("the roadmap does not call an implemented item open", () => {
       .toEqual([]);
   });
 
-  it("the duplicate check has duplicates to look at — it is not vacuously green", () => {
-    // Roughly seven ids legitimately appear more than once. If that count collapses to zero the
-    // check above passes trivially, and would keep passing after the ITEM regex stopped matching.
+  it("can SEE an id repeated — the duplicate check's reader, not its population", () => {
+    // This required the live roadmap to contain at least one repeated id ("roughly seven do"), on
+    // the reasoning that a collapse to zero would leave the check above passing trivially. The
+    // 2026-08-25 reconciliation took it to **zero**, legitimately: nearly every repeat was one item
+    // written twice — a band summary bullet AND a ring entry — and archiving the shipped ones took
+    // both copies. R43-MASSINGBILL-CORE, the last survivor, was a live entry plus the review it
+    // rests on, and the second bullet was renamed so it stops parsing as an item.
+    //
+    // **So an empty population here is the goal, not a regression** — a duplicated id is exactly
+    // the defect the check above exists to find. A vacuity guard that goes red when the file gets
+    // clean teaches one lesson: leave a duplicate lying around to keep the gate fed.
+    //
+    // What it was really protecting is the READER — if `ITEM` stops matching, "no id appears twice"
+    // and "nothing parses at all" are the same observation. A reader is testable without a
+    // population, so it is tested against a synthetic pair instead, the same way the ⭐ case below
+    // has always been.
+    const fixture = [
+      "- ◧ **ZZ-TWICE** *(M)* — first entry",
+      "- **ZZ-TWICE** *(M)* — second entry, same id",
+      "- **ZZ-ONCE** *(S)* — appears once",
+    ].join("\n");
     const counts = new Map<string, number>();
-    for (const line of md.split("\n")) {
+    for (const line of fixture.split("\n")) {
       const m = ITEM.exec(line);
       if (m) counts.set(m[2]!, (counts.get(m[2]!) ?? 0) + 1);
     }
-    expect([...counts.values()].filter((c) => c > 1).length,
-      "no id appears twice at all — the bullet regex has probably stopped matching").toBeGreaterThan(0);
+    expect(counts.get("ZZ-TWICE"), "ITEM must match BOTH bullets or the check above cannot see a repeat")
+      .toBe(2);
+    expect(counts.get("ZZ-ONCE"), "...and must still count a single occurrence once").toBe(1);
   });
 
   it("⭐ is a priority flag and must NOT satisfy this check", () => {

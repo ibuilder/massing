@@ -4,6 +4,134 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1090 (2026-08-25) — a status glyph is a note to a reader; only the move is a change to the file
+
+A full-repo reconciliation. Nothing here is a new capability: it is the record catching up with the
+code, plus four gates so the same drift fails a build next time instead of being found by reading.
+
+### The roadmap was carrying 600-odd lines of finished work
+
+**Twenty-one shipped entries moved to `docs/roadmap-completed.md`.** Twenty were already marked ✅,
+and **18 of the 21** were named in lane-table cells — the table an agent reads to choose what to pick
+up. The phrase *"pending archive"* appears **17** times in the roadmap they came from: **14 in those
+lane cells**, 3 in the item bullets. `roadmap.md` held **30** open items in **3,715** lines; it holds
+**28** in **3,084**.
+
+**Nothing could have caught them**, and that is the finding rather than the count.
+`roadmapLanes.test.ts` deliberately skips ✅ lines when it builds the open population, so a shipped
+item that stays put is invisible to the only check that reads the file. **A status glyph is a note
+to a reader; only the move is a change to the file.**
+
+**The twenty-first was not marked at all.** A29-GUIDE-UNDERLAY ③ read *"(in flight, PR #199)"* for
+**214 releases**. PR #199 merged 2026-08-06 and the feature shipped in v0.3.875. A pull request is
+the one staleness clock in that file with a real timestamp attached, and nothing consulted it. It is
+worse than a stale ✅: *"in flight"* reads as **someone else has this**, so it actively deterred the
+reader who would have found it done.
+
+**R43-MASSINGBILL-CORE was being counted twice** — a second bullet opening with the same code, for
+the kit review the live entry rests on. `itemCodes()` collects into a `Set`, so the duplicate
+collapsed and the total came out right for the wrong reason. v0.3.1073 shipped as *"two entries for
+one item, again"*; this was the third time, surviving because the check that would see it
+de-duplicates before it counts.
+
+### The CHANGELOG had four orphan headers
+
+A `## vX.Y.Z` line sitting directly on top of another, with one body between the two — the v0.3.1019
+nineteen-branch integration renumbered colliding releases by splicing new headers **above** the old
+ones instead of replacing them.
+
+**`docs/roadmap.md` already carried that exact lesson** — *"replace between the section markers,
+never splice at a matched string"* — written after scripted edits produced three duplicate NOW
+sections. It was written about `roadmap.md`, and it did not travel. **A lesson recorded as prose
+about one file does not protect the file next to it.**
+
+`services/api/test_changelog_current.py` now checks the changelog's *structure*: no orphan headers,
+headers newest-first, no entry duplicated, and version reuse pinned by a **down-only ratchet** to the
+one genuine historical collision — two commits really did both ship as v0.3.1019, so renumbering one
+would invent a release that never existed. All four mutation-verified.
+
+### Three toolchain floors had moved under notes phrased as advice
+
+- **RT-NODE-LANE was gated on a user action the user had already taken.** It read *"CI is on Node 22;
+  the local Node is still 20.3.1 (user action), then unpin eslint off 9.39.5, then Vite 6→7 (defer
+  Vite 8)"*. Measured: CI pins **Node 24** in all five workflows that set a version, both manifests
+  require `>=24`, eslint is **10.8.1**, and Vite is **8.2.1** — the version it said to defer. **An
+  entry blocked on an external event has no mechanism to notice the event happening**; every other
+  kind of staleness eventually trips something, but not being worked on is a gated item's expected
+  state.
+- **Python's floor is `>=3.12`, not "prefer 3.11+ if available".** `requirements.lock` pins
+  `numpy==2.5.2`, and numpy dropped <3.12 at 2.5.0 — so on 3.11 the install does not degrade, it
+  fails: `No matching distribution found`. Found by building the venv, which is the only way this
+  kind of claim can be checked.
+- **`apps/web/README.md`'s pinned-version table was wrong in six of ten rows.** It is the table
+  CLAUDE.md calls the project's #1 risk — the components ↔ fragments ↔ three coupling. Its `vite`
+  row was wrong three times in one cell: it named 6.4.3, declared the repo pinned to v6, and
+  justified that with *"this machine has 20.3.1"*. The table was last **edited** at v0.3.1048, in a
+  commit about colouring plans by discipline — *edited while stale, not merely left alone.* **A
+  stale row that carries its own reasoning is worse than a stale number**, because the reasoning is
+  what stops the next reader checking. `docsCurrent.test.ts` now asserts every row against
+  `package.json`.
+
+### Two build warnings, one of them the shape of a silent no-op
+
+- **`advancedChunks` → `codeSplitting`.** Rolldown deprecated the name; the build printed it on
+  every run and still split correctly. That is the same trap the config's own comment describes one
+  rename later — *"a vendor split that silently stops splitting is the worst kind of build
+  regression"*. Verified the way that comment demands, by grepping the **output**: chunk hashes and
+  `WebGLRenderer` counts (41 in `three-*.js`, 0 in `thatopen-*.js`) are byte-identical across the
+  change.
+- **`vendorAlias` imported without a file extension** in `vite.config.ts` / `vitest.config.ts`,
+  which Vite's native config loader warns on.
+
+### The public status page had three sections titled "Recently shipped"
+
+`docs/status.html` — the page the landing page links as *"What's shipped"* — carried three of them,
+oldest first: v0.3.298–306, v0.3.911–929, v0.3.988–1018. **The same splice-instead-of-replace defect
+as the CHANGELOG, on the public site.** One current wave (v0.3.1019–1089) now leads; the rest are
+retitled as dated earlier waves and ordered newest-first.
+
+One card also **contradicted the roadmap**: it said the viewer sub-app work *"closed the rail arc"*,
+while R36-VIEWER-SUBAPP is open as *"the remaining half of the rail arc"*. The page now says what
+shipped and names what has not.
+
+### And the archive pass broke a gate, which is the best thing that happened here
+
+Rewriting Band 1 **deleted** its summary bullet instead of moving it, and `test_env_documented` went
+red: the phrase *"`properties.py` rejects over `AEC_PROPS_MAX_MB` before parsing"* inside that bullet
+was the **only** mention of the flag anywhere the gate reads. So `AEC_PROPS_MAX_MB` had never really
+been documented — **a planning entry had been standing in for operator documentation and the gate
+could not tell the difference.** It is now in `.env.example` beside the other caps, and the deleted
+bullet is preserved in the archive. That gate shipped one release ago, in v0.3.1089, and caught a
+real regression on its first contact with unrelated work.
+
+### Walking the branches found an unmerged security fix
+
+40 remote branches, **38 fully merged**. Of the two that are not:
+
+- **`fix/cloud-domain-allowlist` is a real, open gap on `main`** (commit `de935a26`, pushed today at
+  06:34; **PR [#339](https://github.com/ibuilder/massing/pull/339)** — opened partway through this
+  audit, which is why the branch first showed up here with nothing pointing at it). `AEC_OAUTH_ALLOWED_DOMAINS` is enforced in exactly one place — `routers/auth.py`,
+  the direct-IdP callback — and `routers/cloud.py`, the massing.cloud SSO door, has no check.
+  Confirmed by grepping `main`, not by trusting the branch's description. An operator who restricted
+  sign-in to their own domain has it enforced on four doors and bypassed by the fifth. **Not merged
+  in this release on purpose** — an authentication change belongs in its own release, not inside a
+  documentation reconciliation. It is recorded under Outstanding USER actions with the evidence.
+- **`lock/cve-floors-2026-08-09` reads as an open CVE hole and is not one.** It is superseded: `main`
+  already carries `pypdf>=6.15.0`, `cryptography>=50.0.0` and the transitive-floors block, with the
+  lock resolving to exactly those. Checked before reporting, because a branch named for three CVEs
+  is the kind of thing that raises a false alarm on sight.
+
+### Also
+
+The roadmap status block was **311 releases stale** and had itself recorded that its predecessor was
+thirty-eight stale — twice in a row is not bad luck. Re-derived: backend **628/628** suites, vitest
+**2,007** tests across 196 files, `test_reachable` **358/364**, **28** open items. **CodeQL is
+recorded as NOT MEASURED rather than carried forward as 0** — no alerts-API tool was available in
+this session, and `docs/roadmap-directions.md` §7 is explicit that a green *run* is not zero alerts.
+Band 1 is empty for the first time and says so in those terms: it measures when someone last swept,
+not that nothing is wrong. The next three sprints are re-cut, each row now carrying the premise to
+check first — the one row of the previous cut that was correctly sized was the one that demanded it.
+
 ## v0.3.1089 (2026-08-25) — two sign-in restrictions existed in code and in no document
 
 83 `AEC_*`/`MASSING_*` environment flags are read under `services/`. **32 appeared nowhere** — not in
@@ -1796,7 +1924,6 @@ assumptions, VE, alignment) moved to `apps/web/src/api/precon.ts`. One contiguou
 `client.ts` 3,170 → 3,128.
 
 ## v0.3.1038 (2026-08-20) — `/ai` leaves client.ts
-## v0.3.1026 (2026-08-20) — `/ai` leaves client.ts
 
 SCALE-SEAM ㉑. Six AI methods (risk summary, ask, RFI triage/draft, estimate,
 author) moved to `apps/web/src/api/ai.ts`. Five regions. `aiReadiness`
@@ -1842,7 +1969,6 @@ The upgrade audit's remaining code slice, not another library.
   survives without contradicting the newer layout.
 
 ## v0.3.1034 (2026-08-20) — `/topics` leaves client.ts
-## v0.3.1025 (2026-08-20) — `/topics` leaves client.ts
 
 SCALE-SEAM ⑳. Seven BCF methods (create, viewpoints, board, timeline, comments)
 moved to `apps/web/src/api/topics.ts`. Three regions. `pins()` stays (`/pins`).
@@ -2022,7 +2148,6 @@ statements about one fact, two of them stale.
   should — the friction buys a cluster out of the file instead of buying the pin a higher number.
   3,606 → 3,579.
 
-## v0.3.1025 (2026-08-20) — `/models` leaves client.ts
 ## v0.3.1024 (2026-08-20) — `/mep` leaves client.ts
 
 SCALE-SEAM ⑲. Seven MEP methods (summary, connectivity, sizing, sprinkler, fittings,
@@ -2041,7 +2166,6 @@ SCALE-SEAM ⑰. Nine health/QA/georef/federation methods moved to
 `apps/web/src/api/models.ts` (`withModels`; `model.ts` remains `/model`).
 Four regions. `client.ts` 3,412 → 3,353.
 
-## v0.3.1022 (2026-08-20) — `/drawing-set` leaves client.ts
 ## v0.3.1021 (2026-08-20) — `/elements` leaves client.ts
 
 SCALE-SEAM ⑯. Eleven inspector/list/colour/QA/citation/cost methods moved to

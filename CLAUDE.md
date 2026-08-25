@@ -41,8 +41,16 @@ Phase 0 smoke tests → 1 conversion → 2 large-model → 3 viewer/tools → 4 
   *after* fixing the PATH rather than the one you get, then naming a major nobody has run for weeks.
   **A config file that is subtly wrong is worse than one that is silent** — and a line that has
   drifted twice will drift again, so check it against `node -v` rather than reading it.
-- python 3.10.6 — guide targets ≥ 3.11. Works for ifcopenshell 0.8.x / FastAPI / pydantic v2,
-  but prefer a 3.11+ interpreter for the `services/` venvs if available.
+- **Python ≥ 3.12 is now a HARD FLOOR, not a preference** (corrected 2026-08-25; this line said
+  "guide targets ≥ 3.11" and "prefer a 3.11+ interpreter … if available"). `requirements.lock` pins
+  `numpy==2.5.2`, and numpy dropped <3.12 at 2.5.0 — so on 3.11 the install does not degrade, it
+  **fails outright**: `No matching distribution found for numpy==2.5.2`. CI pins `python-version:
+  "3.12"` in `ci.yml`, `db-migrations.yml`, `desktop.yml` and `security.yml`, and the lock is
+  compiled in `python:3.12-slim`, the prod base image.
+  *Same failure as the Node line above, in the other language: a floor that moved under a note
+  phrased as advice.* "Prefer if available" is what a version note says when nobody has tried the
+  alternative — and the alternative had stopped working. **Check a floor by creating the venv, not
+  by reading this line.**
 - Repo root: C:\Server\modelmaker (Windows / PowerShell).
 - Backend suite runs **from `services/api`**, never the repo root — the root exits 127 and reports
   "0 failures", which reads exactly like a pass.

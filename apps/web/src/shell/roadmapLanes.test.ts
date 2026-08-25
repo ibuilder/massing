@@ -303,7 +303,18 @@ describe("the roadmap lane table", () => {
     // thing was a MOMENT, not a producer. Closing it needed per-site work AND a gate enumerating the
     // sites, because wiring alone would have swapped an honest gap for a percentile over an unstated
     // population — the failure `perf_budget.py` exists to refuse.
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(29);
+    // 29 → 28 on 2026-08-25, and NEITHER of the two moves was work finishing:
+    //   * A29-GUIDE-UNDERLAY ③ was archived — it shipped in **v0.3.875** and its cell had read
+    //     "(in flight, PR #199)" ever since. PR #199 merged 2026-08-06. **A pull request is the one
+    //     staleness clock in this file with a real timestamp on it, and nothing consulted it.**
+    //     Worse than a stale ✅: "in flight" reads as *taken*, so it deterred the reader who would
+    //     have found it done.
+    //   * R43-MASSINGBILL-CORE stopped being counted twice. Its second bullet — the original kit
+    //     review the live entry rests on — opened with the item code, so `itemCodes()` parsed one
+    //     item as two. **It could not have failed on that**: the codes land in a `Set`, so a
+    //     duplicated code collapses and the total is right for the wrong reason. Renaming the
+    //     second bullet took the phantom out; the population lost a member it never really had.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(28);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {

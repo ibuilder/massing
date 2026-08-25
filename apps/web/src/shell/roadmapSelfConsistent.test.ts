@@ -127,12 +127,12 @@ function bullets(): Map<string, Bullet> {
  * sentence trailing the last code in a cell is not misattributed to it — which is exactly what a
  * naive split on "·" does. See the blind-spot note above.
  */
-function laneClaims(): Map<string, string> {
+function laneClaims(lines: readonly string[] = OPEN): Map<string, string> {
   const out = new Map<string, string>();
   const CLAIM = new RegExp(
     String.raw`^([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]+(?: [${MARKS}])?)\s*\*\(([^)]*)\)\*`,
   );
-  for (const l of OPEN) {
+  for (const l of lines) {
     if (!/^\|\s*\*\*[A-Z] · /.test(l)) continue;
     const cell = l.split("|")[3] ?? "";
     for (const part of cell.split("·")) {
@@ -193,9 +193,34 @@ describe("the roadmap is self-consistent about what has shipped", () => {
       .toEqual([]);
   });
 
-  it("finds lane-table entries to cross-check, so the second assertion is not vacuous either", () => {
-    expect(CLAIMS.size, "no item-scoped lane annotations parsed — the cross-check is measuring nothing")
-      .toBeGreaterThan(0);
+  it("can parse a lane-table SHIPPED annotation at all — the cross-check's reader, not its population", () => {
+    // This asserted `CLAIMS.size > 0` against the live document until 2026-08-25, and the
+    // 2026-08-25 reconciliation took it to **zero** — legitimately. Every lane cell carrying a
+    // `*(✅ SHIPPED …, pending archive)*` note was there because a shipped item had never been
+    // moved out of `roadmap.md`; archiving all twenty removed the annotations along with them.
+    //
+    // **So the empty population is the goal state, not a regression** — and a guard that goes red
+    // when the file gets *clean* teaches exactly one lesson, which is to leave a shipped item
+    // lying around to keep the gate fed. That is the ratchet-in-reverse the floor above warns
+    // about, wearing a different hat.
+    //
+    // What the guard was actually protecting is the READER: if `CLAIM` drifts and matches nothing,
+    // "agrees with its own lane table" passes over an empty set and proves nothing. A reader is
+    // testable without a population, so it is tested against a synthetic row instead — the same
+    // split `roadmapLanes.test.ts` makes for ⛔ (a fixture proves the regex parses, the live
+    // document proves the fixture is faithful). Here only the first half is available today, and
+    // saying so is the honest version.
+    const fixture = laneClaims([
+      "| **Z · Fixture** | `nowhere/` | ZZFAKE-SHIPPED ② *(✅ SHIPPED v0.3.999, pending archive)* · ZZFAKE-OPEN *(M — still open)* |",
+    ]);
+    expect([...fixture.keys()], "CLAIM must find the SHIPPED annotation and only that one")
+      .toEqual(["ZZFAKE-SHIPPED ②"]);
+
+    // ...and the live count is reported rather than bounded, so a future cell reappearing is
+    // cross-checked by the assertion below without this one having an opinion about how many
+    // there should be.
+    expect(CLAIMS.size, `live lane-table SHIPPED annotations: ${CLAIMS.size}`)
+      .toBeGreaterThanOrEqual(0);
   });
 
   it("marks an item ✅ when its own text says it shipped", () => {

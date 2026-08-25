@@ -95,6 +95,78 @@ check("...and the matcher rejects a version that was never released", not absurd
       f"v{absurd} appears to match, so the check above proves nothing" if absurd_hit
       else f"sentinel v{absurd} correctly absent")
 
+# ---- the changelog's STRUCTURE, not just its coverage -------------------------------------------
+#
+# Added 2026-08-25 after an audit found **four orphan release headers** in this file: a `## vX.Y.Z`
+# line sitting directly on top of another `## vX.Y.Z` line, with one body between the two of them.
+#
+#     ## v0.3.1038 (2026-08-20) - `/ai` leaves client.ts     <- no body of its own
+#     ## v0.3.1026 (2026-08-20) - `/ai` leaves client.ts     <- the entry
+#
+# The cause is already written down in `docs/roadmap.md`, about a different file: *"If you are
+# editing this file with a script, replace between the section markers - never splice at a matched
+# string."* That lesson was learned when scripted edits INSERTED a NOW section instead of replacing
+# one, three times over. The same splice then happened here, during the v0.3.1019 nineteen-branch
+# integration that renumbered colliding releases - and nothing failed, because the check above asks
+# only whether the CURRENT version appears somewhere in the text.
+#
+# **A lesson recorded as prose about one file does not protect the file next to it.** So the rule
+# moves from that paragraph into this gate, where it applies to the structure rather than to whoever
+# remembers reading the paragraph.
+#
+# Three shapes, because the splice produced three distinguishable defects:
+HEADERS = [
+    (i, m.group(0), tuple(int(x) for x in m.groups()), line.split("\u2014", 1)[-1].strip())
+    for i, line in enumerate(log.split("\n"))
+    if (m := re.match(r"## v(\d+)\.(\d+)\.(\d+) ", line))
+]
+
+# Anti-vacuity FIRST, same argument as `roadmapLanes.test.ts`: every check below is a statement about
+# a population, and a population of zero satisfies all of them. If the header format ever changes,
+# this is the line that says so instead of three silent OKs.
+check("the release headers parse", len(HEADERS) > 900, f"{len(HEADERS)} headers found")
+
+# 1. ORPHANS - a header whose next line is another header. This is the splice's own fingerprint, and
+#    the only one of the three that names the mechanism rather than a symptom.
+_lines = log.split("\n")
+orphans = [h for i, h, _v, _t in HEADERS
+           if i + 1 < len(_lines) and re.match(r"## v\d+\.\d+\.\d+ ", _lines[i + 1])]
+check("no release header is immediately followed by another release header", not orphans,
+      "" if not orphans else
+      f"{len(orphans)} orphan header(s), first: {orphans[0]!r}. A header with no body under it is a "
+      "splice that inserted where it should have replaced. Delete the stray line - do not give it a "
+      "body, and do not renumber a neighbour to make the pair look intentional.")
+
+# 2. ORDER - newest first, and non-increasing rather than strictly decreasing, because v0.3.1019 is
+#    genuinely held by two entries (below).
+disorder = [(HEADERS[i][1], HEADERS[i - 1][1])
+            for i in range(1, len(HEADERS)) if HEADERS[i][2] > HEADERS[i - 1][2]]
+check("release headers run newest-first", not disorder,
+      "" if not disorder else
+      f"{len(disorder)} out of order, first: {disorder[0][0]!r} sits below {disorder[0][1]!r}")
+
+# 3. The SAME entry twice - one version AND one title appearing at two places. Distinct from (1):
+#    an orphan is adjacent and bodiless, this is a whole duplicated section anywhere in the file.
+_seen: dict[tuple, str] = {}
+repeats = []
+for _i, _h, _v, _t in HEADERS:
+    if (_v, _t) in _seen:
+        repeats.append(_h)
+    _seen[(_v, _t)] = _h
+check("no release entry appears twice", not repeats,
+      "" if not repeats else f"{len(repeats)} duplicated, first: {repeats[0]!r}")
+
+# 4. A DOWN-ONLY ratchet on version reuse. Two commits really did both bump to v0.3.1019 - the
+#    integration pass and the `/drawing-set` seam - so the collision is history, not a typo, and
+#    renumbering a shipped release to tidy the list would be inventing a version that never shipped.
+#    It is pinned by exact count instead: a NEW collision fails, and fixing this one fails too,
+#    telling you to lower the number. A ratchet allowed to sag is an allowlist in disguise.
+_versions = [v for _i, _h, v, _t in HEADERS]
+reused = sorted({v for v in _versions if _versions.count(v) > 1}, reverse=True)
+check("version reuse stays at the one known historical collision", reused == [(0, 3, 1019)],
+      f"reused={['v%d.%d.%d' % v for v in reused]}; expected exactly ['v0.3.1019']. If you removed "
+      "the collision, tighten this to [] rather than widening it.")
+
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)

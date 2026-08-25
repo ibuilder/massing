@@ -4,7 +4,7 @@ import path from "node:path";
 import { searchForWorkspaceRoot } from "vite";
 import { defineConfig } from "vitest/config";
 
-import { vendorAlias } from "./vendorAlias";
+import { vendorAlias } from "./vendorAlias.ts";
 
 // From a git worktree (.claude/worktrees/*) node_modules resolves up into the MAIN clone's root,
 // which sits outside Vite's default fs-allow scope — ?url asset imports (pdfjs worker) then fail

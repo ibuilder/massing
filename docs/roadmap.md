@@ -12,13 +12,27 @@ Three pillars on one IFC-keyed model: **BIM authoring/viewer** · **GC portal** 
 5D/4D spine from R25, the interaction surface from R26. **What is thin now is the drawing**: the sheet
 is still handled as an image with text behind it rather than as data (📐 R27).
 
-**Status — reconciled 2026-07-29 at v0.3.778.** CodeQL **0** open (queried from the alerts API, not
-inferred from a green run) · backend **423** suites · vitest **715** (incl. vendored kernel + PDF
-engine) · `test_reachable` **301/305** modules callable · single-source version in
-`apps/web/package.json` · all 18 CI runs green across v0.3.776–777.
+**Status — reconciled 2026-08-25 at v0.3.1089.** Backend **628/628** suites green (1,242 s wall, 3
+parallel) · vitest **2,006** tests across **196** files · `test_reachable` **358/364** modules
+reachable from a route/MCP tool/main (5 entry points reached another way, 1 declared gap) ·
+open items **28** · typecheck, eslint and the production build all clean · single-source version in
+`apps/web/package.json` · all 7 workflows green on `ee90b2c9`.
 
-*The previous status block claimed 416 / 557 as of v0.3.740 — thirty-eight releases stale. A status
-line nobody re-derives is just an old measurement wearing the present tense.*
+**CodeQL: NOT MEASURED HERE, and that is deliberately not the same as zero.** The previous block
+claimed "**0** open (queried from the alerts API, not inferred from a green run)" — the right
+standard, and it is the standard this pass could not meet: no code-scanning-alerts tool was
+available in this session, so all that is known is that the CodeQL *runs* are green.
+[`docs/roadmap-directions.md`](roadmap-directions.md) §7 carries the rule in as many words — *"a
+green *run* is not zero alerts; query the alerts API"* — and
+carrying an unverified **0** forward would have been the exact failure the parenthesis was written
+to prevent. **A number nobody re-derived is worse than an admitted gap**, because it reads as
+evidence.
+
+*The block this replaces was reconciled at v0.3.778 — **311 releases stale**, and it had already
+carried the note that its own predecessor was thirty-eight releases stale. Twice in a row is not
+bad luck; it is what a hand-written measurement does. The counts above are the ones this file can
+already fail on (`roadmapLanes.test.ts` extracts the item count, `run_tests.py` prints the suite
+total) — prefer re-running them to reading this line.*
 
 **The seven-room shell is the ONLY shell.** It renders in the Construction, Developer and Design
 workspaces; opening a project lands on the persona's home and every other workspace carries a
@@ -89,99 +103,21 @@ Sizes are the roadmap's own. ⭐ marks the highest-value item in a band.
 
 ### Band 1 — correctness and safety (do first; each is a live wrong answer or an open door)
 
-**FIN-SUITE-BLIND closed here on 2026-08-01** (G702 retainage, the 0%-read-as-unset money bug, and
-the reserve/benchmarking/proforma sweep) — its full record is in
-[`roadmap-completed.md`](roadmap-completed.md). Two seams took its place, both found by the R35 race
-sweep rather than by a failing test, which is the reason they rank first: **nothing in the suite can
-currently fail if either regresses.**
+**EMPTY as of 2026-08-25, and that is a real state rather than a gap in the writing.** Both entries
+that occupied this band — **R39-UPLOAD-CAP-APP ①** (v0.3.941–942) and **R41-UPLOAD-WARK**
+(v0.3.1069, the content-addressed resumable handshake) — are complete and their full records are in
+[`roadmap-completed.md`](roadmap-completed.md). FIN-SUITE-BLIND closed here on 2026-08-01 and is
+archived beside them.
 
-- ✅ **BOTH COMPLETE — R39-UPLOAD-CAP-APP ① (v0.3.941–942) and R41-UPLOAD-WARK (v0.3.1069).**
-  **The resumable handshake is BUILT**: `POST /projects/{pid}/uploads/handshake` →
-  `PUT …/chunk/{index}` → `POST …/complete`, in `services/api/src/aec_api/routers/uploads.py` over the
-  pure arithmetic in `services/api/src/aec_api/resumable.py`, with the client half in
-  `apps/web/src/api/resumableUpload.ts`. All three parts the entry asked for are there: the chunk
-  **count** is bounded rather than the size, so the manifest stays roughly constant however large the
-  file; the identity is `sha256(salt + size + chunk hashes)`, so **resuming and starting are the same
-  request** and deduplication falls out; and every chunk is verified on arrival, so corruption is
-  refused by index before conversion ever runs.
-  `services/api/test_resumable_upload.py` drives it as a client would and asserts the assembled object
-  is **byte-identical**. `POST /projects/{pid}/models/from-upload` consumes it, and
-  `apps/web/src/api/models.ts` picks the transport by file size so no screen has to know what a chunk
-  is. **The salt is the project id on purpose** — platform-wide content addressing would let one
-  project learn whether another holds a file by reading `need: []`.
-  *(Kept below for the reasoning; the earlier ◧ text is now history.)* Its front half shipped v0.3.876 and its whole back-half work list — the
-  three (a) store sites — converted in v0.3.941–942. Re-verified against the tree rather than the
-  entry: `routers/documents.py` and `routers/modules.py` ×2 now pass `storage.upload_chunks(...)`,
-  and the two `await file.read()` calls still in `modules.py` are the Excel/CSV sheet readers, which
-  this entry itself files under (b) as a different item with a different risk profile. Category (c)
-  is explicitly not worth a code change. **Nothing remains under ①.**
-  **R41-UPLOAD-WARK's resumable handshake is genuinely unbuilt** — grepped for it, and `storage.py`'s
-  only "resumable" is about range-request *downloads*. The primitive (`put_stream`, `upload_chunks`,
-  `stream_to_path`, `file_chunks`) exists; the content-addressed handshake does not.
-  **The front half is closed; the back half has its primitive and no adopters.** The cap existed and
-  decided from `Content-Length`, so a chunked body — the ordinary HTTP/1.1 way to send a body of
-  unknown length — short-circuited the condition and was **never measured at all**.
-  `bodycap.MaxBodySizeMiddleware` now counts bytes on the ASGI `receive` channel, which bounds every
-  route at once rather than a hand-listed set that would be stale the day it was written.
-  `storage.put_stream` is the back half's missing primitive (local `.part`+rename, S3 multipart, both
-  cleaning up on refusal). **Corrected 2026-08-10: "no call site has been converted" was already
-  false when written.** Four were — `routers/authoring.py` (twice), `routers/bcf_api.py`,
-  `routers/bim.py` — and `storage.py`'s own docstring says "the four converted routes", so the
-  roadmap contradicted the code it was describing. The caller-side helpers exist too:
-  `storage.upload_chunks`, `storage.stream_to_path`, `storage.file_chunks`. A fifth converted
-  v0.3.927: the APS **RVT** path in `routers/convert.py`, which did
-  `rvt.write_bytes(await file.read())` on the largest files anything uploads here.
+**Read that as "nothing is currently KNOWN to be wrong", never as "nothing is wrong."** Every item
+this band has ever held arrived from a sweep — the R35 race sweep, the FIN suite audit — and not one
+of them arrived from a failing test, because a defect the suite can catch never reaches a roadmap.
+So an empty Band 1 measures how long it has been since someone last went looking. The last sweep
+that filled it was 2026-08-01.
 
-  **The remaining ~34 sites are NOT all convertible, and counting them as if they were is what made
-  this item look bigger than it is.** They split three ways, and only the first is work:
-  *(a)* routes that **store** the upload — convertible, same one-line shape as the five done;
-  *(b)* routes that hand the bytes to a **whole-buffer parser** — CityGML XML, E57 point-cloud
-  decode, BFAST/VIM, `bcf_io.parse_records_bcfzip`, the Excel/CSV sheet readers. Streaming those
-  means changing the parsers, which is a different item with a different risk profile, and pretending
-  otherwise is how a "convert the call sites" ticket quietly becomes a rewrite;
-  *(c)* routes whose payload is **structurally small** — an IDS file, a JSON config, a `.bcf` —
-  where the copy is not worth a code change.
-
-  So the honest remaining scope is (a), and the next step is to *classify the 34* rather than
-  convert them — **a count is not a work list.**
-
-  **CLASSIFIED 2026-08-13.** Every `await file.read()` in `services/api/src/aec_api/routers/` was
-  read together with what it does with the bytes on the next two or three lines, because the call
-  itself is identical in all three buckets — which is exactly why the count read as one work item.
-
-  * **(a) stores the bytes — convertible, and this is the whole work list.**
-    `documents.py` (`docmanager.upload`) and `modules.py` ×2 (`mod_engine.add_attachment`, single and
-    bulk). These hand a `bytes` object to a function that persists it, so converting them means
-    widening *that* function to take chunks — `storage.put_stream` already does. **Three, not
-    thirty-four. All three converted in v0.3.941–942.**
-
-    **Corrected 2026-08-13: this first said FIVE and named `authoring.py`'s content-shelf asset.**
-    That route never stores the upload — it hands the buffer to `content.parse_mesh` and keeps only
-    the resulting verts/faces, so it belongs in (b). The misclassification came from reading the two
-    lines *after* `await file.read()` (a filename suffix and a category lookup, which read like the
-    preamble to a store) instead of following `data` to its single use. **Classify an upload by where
-    its bytes are USED, not by what surrounds the read.**
-
-    `bim.py`'s BCF topic attachment is a fourth store site and is absent from this list on purpose:
-    R41-UPLOAD-WARK converted it back in v0.3.876, so it has no `await file.read()` left to find. A
-    population derived from "sites that still read the whole body" correctly excludes what is already
-    fixed — but it also means the list is not "every store site", and reading it as one would
-    undercount the surface.
-  * **(b) hands the buffer to a parser** — `analysis.py` ×4 (point cloud, sheet recover, IDS),
-    `bim.py` ×5 (bundle, BCF zip, clash XLSX/XML), `drafting.py` ×2 and `drawings.py` ×2 (PDF),
-    `modules.py` ×2 (openpyxl, BCF), `authoring.py` (IFC open), `verification.py` (`photo_cv`),
-    `convert.py` ×3, plus `standards.py` / `research.py` / `review.py`. Streaming these means
-    changing the parsers, which is a different item with a different risk profile.
-  * **(c) structurally small or already capped** — `properties.py` rejects over `AEC_PROPS_MAX_MB`
-    before parsing; the remaining config/IDS uploads are small by construction.
-
-  **Two of (a)'s neighbours were converted in v0.3.940** and were not on anyone's list, because they
-  are the one shape that hides in bucket (b): `cost.py`'s DXF takeoff and `authoring.py`'s raise-plan
-  both read the whole upload and then **wrote it straight back out to a temp file** to hand a *path*
-  to a parser. Starlette had already spooled that upload to disk, so each was a
-  disk-to-memory-to-disk copy of a file that existed the whole time — the identical conversion
-  `convert.py`'s RVT path already carried. Both routes have real upload tests, and mutation-checking
-  proved those tests reach the new code rather than merely passing beside it.
+**The next entry here will come from a sweep, so the honest next action for this band is to run
+one** rather than to wait for it to fill. That is a different kind of work from picking a lane item
+and it is nobody's default, which is exactly why it is written down here.
 
 
 ### Band 2 — built but unreachable (cheapest real value in the file)
@@ -601,11 +537,51 @@ lane assignment.
 ranked list serialises work with no reason to be serial. For a ranked view of the same items, see
 **[What is left, prioritised](#-what-is-left--prioritised)** above.
 
-### Proposed next three sprints *(added 2026-08-17 — a PROPOSAL, not a decision)*
+### Proposed next three sprints *(re-cut 2026-08-25 — a PROPOSAL, not a decision)*
 
-**This is the agent's ordering, not the user's.** It is written down because five consecutive
-releases were each one item chosen in the moment: that worked, but it is not a sequence anybody else
-could pick up. Reorder it freely — the reasoning is given so disagreeing with it is cheap.
+**This is the agent's ordering, not the user's.** Reorder it freely; the reasoning is given so
+disagreeing with it is cheap. The previous cut (2026-08-17) ran as sprints 1–3 in v0.3.978–980 and
+is kept below, because its *predictions* are the part worth checking.
+
+**What the last cut got wrong, and it was the same mistake twice.** Two of its three rows were
+mis-sized, both because a written number was trusted instead of re-derived — a stale size ceiling in
+row 2, a stale dead-code population in row 3. The one that was correctly sized is the one whose
+entry demanded a premise-check before starting. **That is now the first line of every row below.**
+
+| # | Sprint | Why here | Size | Premise to check FIRST |
+|---|---|---|---|---|
+| 1 | **A correctness sweep** — refill Band 1 | Band 1 is empty for the first time, and §Band 1 above argues that this measures *when someone last looked*, not that nothing is wrong. Every item it has ever held came from a sweep (R35 races, the FIN audit) and none from a failing test — by construction, since a defect the suite catches never reaches a roadmap. **The last sweep was 2026-08-01, ~270 releases ago**, and the surface has grown by a resumable upload path, an SSO login and a plugin process boundary since. This ranks first because it is the only item on the list whose *absence* is invisible. | M | That the sweep has a target. Pick the axis before starting — concurrency, authz, or money — because "sweep the codebase" is how a sweep becomes a week with no findings. The three named above each produced items last time. |
+| 2 | **R22-REPORT-BUILDER — items 2–4** | The only row here with live momentum: item 1 of 4 ("the substantive one", by its own entry) shipped in **v0.3.1088**, one release ago, and the person who built the aggregate route has the shape of the remaining three in hand. Registers that can group are what turn a register into a report, and the GC portal is the pillar where that lands. Cheapest good work available. | S/M | That three items really remain. v0.3.1088 shipped a *part*, and commit `84fec46` exists **only** because the roadmap first recorded that part as the whole item. Re-read the entry, not the release note. |
+| 3 | **R36-VIEWER-SUBAPP** — the canvas switches 2D/3D in place, including PRINT | The remaining half of the rail arc, and a **user directive** rather than an agent's idea — the rooms "must each be a product". It is also the largest thing standing between the drawing surface and the roadmap's own headline judgement at the top of this file: *what is thin now is the drawing*. | L | The R43 collision. `@massing/embed` was evaluated and **declined** on 2026-08-23 for an architectural reason (its load path is IFC text into a browser tessellator, against two non-negotiables), and two breaking changes are still coming: async viewport creation, and add/remove replacing `showModel`. Build behind the existing seams, not into `apps/web/src/viewer/app.ts`. |
+
+**Why not the obvious candidates.** Stated so that disagreeing with the omission is as cheap as
+disagreeing with the inclusion. *(Each bullet deliberately opens with "Not X" rather than with the
+item code: a bullet shaped `- **CODE** …` parses as an ITEM, so the first draft of this list minted
+four phantom entries — one of them a bare `SCALE-SEAM` with its `㉘` silently dropped, which is the
+exact failure `roadmapLanes.test.ts` documents in its `MARKS` note. The gates caught all four.)*
+
+* **Not R39-DECOMP-VIEWER ③.** It ranked second last time on a size-ceiling argument that had
+  already gone false. `app.ts` is decomposing steadily (5,064 → 3,444 → and thirteen slices since), the ratchet
+  is pinned, and it moves on its own whenever a feature pushes it. It does not need a sprint; it
+  needs to keep being interleaved. **Re-measure the ceiling before ever promoting it again** — that
+  is the specific error row 2 made.
+* **Not the next SCALE-SEAM slice.** ㉘ is genuinely next in a series that has shipped twenty-six
+  increments, but the series is now cutting into `client.ts` at 2,837 lines from a 3,600-odd start. The marginal slice
+  is worth less than it was, and ㉘ additionally needs `MARKS` widened in
+  `apps/web/src/shell/roadmapLanes.test.ts` — a vocabulary change to a population check, which that
+  file's own docstring calls a real change and not housekeeping.
+* **Not R22-ENTITLEMENT.** It led the last cut and two of its three parts shipped. What is left is the part
+  its own entry warns about: two name collisions (`tiers.py` is *subscription* tiers;
+  `proforma/approval_risk.py` scores risk and runs no workflow) that have produced a naming-based
+  false blocker **four times**. It is not a bad sprint — it is one that must not be started from
+  the entry alone, and that makes it a worse fit for a proposed sequence than for a deliberate pick.
+* **Not QTO-TRADE.** It reads as backend work and is not: its backend closed 2026-08-13, and the remainder
+  is three screens in Lane B for engines (`procurementLevel`, `procurementLevelQuotes`,
+  `buyoutSchedule`) that need *returned quotes* — an input the model cannot produce. Wiring them
+  over model data reproduces the exact "0 packages" reading the entry exists to warn about.
+
+
+#### The previous cut, 2026-08-17 — kept for its outcomes
 
 **All three ran, v0.3.978–980.** Kept below with outcomes, because the *predictions* are the part
 worth checking: two of the three were mis-sized, and both in the same direction.
@@ -635,16 +611,16 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | R24-RUNS-INBOX *(✅ SHIPPED v0.3.947 + routing, pending archive)* · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET *(✅ SHIPPED v0.3.1083 — panel_load measured, pending archive)* · SEC-PLUGIN-LOADER *(✅ SHIPPED v0.3.1081 — the plugin process boundary, pending archive)* · PERF-WORKERS ① · PERF-THREADS ③ *(✅ SHIPPED v0.3.1074 — the parse cap, pending archive)* · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ① *(✅ COMPLETE — front half v0.3.876, store sites v0.3.941–942)* · R41-UPLOAD-WARK *(✅ COMPLETE v0.3.1069 — the resumable handshake, its consumer and the client)* · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
-| **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | R38-ARRAY-LIVE ③ *(✅ SHIPPED — persist + re-edit UI, pending archive)* · R21-4D-CLASH *(✅ SHIPPED — phase 1 v0.3.682 + install-before-support, pending archive)* · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
-| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | A29-GUIDE-UNDERLAY ③ *(in flight, PR #199)* · R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R38-SYNC-VIEW ③ *(✅ COMPLETE — its own entry has been marked ✅ since the cursor PR; this cell said "only cursor sync left" after that shipped)* · R38-SOLVER-LOCKS ③ *(CLOSED v0.3.1065 — built end to end, pending archive)* · R23-BATCH-OVERLAYS *(CLOSED v0.3.1064, pending archive — every clause was already resolved)* · R39-VIEWER-OBS ② *(SHIPPED 2026-08-07 in #249, pending archive — it was listed open for a fortnight after landing)* · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R38-SYNC-SELECT ③ *(SHIPPED v0.3.829, pending archive)* · R41-MODEL-ALIGN *(COMPLETE v0.3.1070 — both halves; pending archive)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R35-DEAL-MEMORY · R37-TRIAGE · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
+| **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
+| **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
 | **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉗ *(the only open slice; ②–㉖ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
-| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(SHIPPED v0.3.1028, pending archive — this cell said "the three cache locations drop all seven security headers" for a day after they stopped doing so)* · R39-CONTAINER-PR *(SHIPPED v0.3.1055, pending archive)* · R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
+| **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
 nobody starts one thinking it is a sprint item: QUALITY-ROOM · R26-V-TIMING · R24-PERSONA-SHAPE ·
@@ -1026,7 +1002,13 @@ the only item here with real scope.
 
   **The requisition half is untouched** and still needs the per-site decision described below.
 
-- ◧ **R43-MASSINGBILL-CORE — the original review** *(kit reviewed 2026-08-10 at their pin `3af9124c`)* —
+- ◧ **The original R43-MASSINGBILL-CORE review** *(kit reviewed 2026-08-10 at their pin `3af9124c`;
+  **not a second item** — this is the evidence the entry above rests on, and it opened with the
+  item code until 2026-08-25, so the extractor parsed one item as two. It could not FAIL on it:
+  `itemCodes()` collects into a `Set`, so a duplicated code collapses silently and the count is
+  right for the wrong reason. v0.3.1073 shipped under the title "two entries for one item,
+  again"; this is the same shape a third time, surviving because the check that would see it
+  de-duplicates before it counts)* —
   **the core now exists and is MIT; their "pure addition" claim does NOT survive checking.** They
   shipped `massingbill/core/` — four stdlib-only modules (`money`, `retainage`, `requisition`,
   `enums`) with a CI job that pip-installs nothing at all, so "zero deps" is measured rather than
@@ -1064,19 +1046,6 @@ These are the gaps between what the platform draws today and what that package c
 
 **Tier 1 — the set cannot be issued without these**
 
-- ✅ **R21-4D-CLASH** *(phase 1 v0.3.682 · install-before-support this PR, pending archive)* — **sequence clash**: two trades occupying one space in the same schedule
-  window, or an install ordered before its support. Analyze → Sequence clash. Directed pairs come from
-  `services/data/src/aec_data/support_graph.py`; the engine is
-  `services/api/src/aec_api/sequence_clash.py`. Unstated joins are not treated as support.
-
-  **Blocker retired (2026-08-02):** the "no task→element binding" prerequisite was FIXED by
-  R25-TASK-BIND (element_guids reaches analyze(); bound_activities counts it in
-  `services/api/src/aec_api/sequence_clash.py`) — this prose outlived the code. Phase 2 SHIPPED
-  same day: `services/data/src/aec_data/support_graph.py` reports what the IFC *states*, graded by
-  what it licenses (connected/assembly/structural; direction only from an analysis model), and
-  deliberately refuses to infer support from geometry — a column and beam that touch but are
-  unrelated produce zero edges. No relations returns stated:false — absent data, not absent
-  conflicts.
 - ~~**R21-MULTISCALE**~~ *(S)* — several viewports at **different scales** on one sheet (1:100 overall +
   1:50 parts), each with its own title/scale block. `sheet_layout.py` composes viewports; per-viewport
   scale is the missing parameter.
@@ -1348,75 +1317,6 @@ exists: the repo has a 220 KB bundle budget and **zero** runtime perf assertions
   1500 ms timeout fallback. Replacing a prose performance claim with a number is precisely what this
   ring exists to do. If the number comes back single-digit ms, **close the item unbuilt** and keep the
   measurement.
-- ✅ **R23-BATCH-OVERLAYS** *(S)* — **CLOSED 2026-08-23. Every clause is resolved and the entry was still carried as partial.** Verified in the tree rather than read off the prose below: `apps/web/src/viewer/cameraProfile.ts` exists (the FOV/FAR clause), `apps/web/src/viewer/draft/gridOverlay.ts` caches bubble textures by tag with ownership moved to `dispose()` (the measured GPU leak), and `apps/web/src/viewer/draft/gridOverlay.test.ts` now exists — the file that had no tests because `getContext("2d")!` was unassertable under happy-dom, which was the same root cause as the defect. The instancing clause is closed UNBUILT with its measurement, the `MeshStandardMaterial` clause needs no work, and `ifclite-geom` is DECLINED on licence. Nothing below is outstanding; it is kept as the record of a decision, which is the point of closing an item unbuilt rather than deleting it.
-  The original text follows. — **the instancing clause is CLOSED UNBUILT, with the measurement,
-  and the sweep found a different defect in the same place.** Following the precedent set by the item
-  directly above: replace the prose claim with a number, and if the number does not justify the work,
-  keep the number.
-
-  The premise was "app-authored overlays use **zero** instancing", which is true and turns out not to
-  matter, because **there is almost no population to instance.** Enumerated every scene-object
-  construction in app code — 31 sites across 11 files, all forms, not a sample — and of the five
-  families named above:
-
-  | named family | what it actually is | instanceable? |
-  |---|---|---|
-  | pins | **DOM `<div>`s** projected per frame (`apps/web/src/pins/pins.ts`) | no — `BatchedMesh` cannot batch DOM |
-  | grid | 1 `Line` + 1 `Sprite` per axis (`apps/web/src/viewer/draft/gridOverlay.ts`) | **the only real population** |
-  | snap markers · dimensions · clash markers | no mesh overlay exists | nothing to batch |
-  | (unnamed) GIS context | **already hand-merged** into 3 objects (`apps/web/src/viewer/gis.ts`) | already optimal |
-
-  Everything else — peer cursors, reference models, the guide underlay, the gizmos — is O(1) or
-  O(peers). And where the population *is* real, `BatchedMesh` is still the wrong tool: each grid
-  bubble carries its **own 64×64 `CanvasTexture` and material**, and `BatchedMesh` requires a shared
-  one. The correct fix there is a texture atlas or a cache, not instancing.
-
-  **What the measurement did find, in `gridOverlay.ts`:** `set()` rebuilds on every work-plane move,
-  and `clearMeshes` disposed geometry and material but not the texture — in three.js
-  `Material.dispose()` does **not** release `material.map`. Measured `AXES=8 → 8 textures made → 8
-  leaked after ONE rebuild`, i.e. a GPU leak proportional to axes × elevation changes during ordinary
-  authoring. Fixed by caching bubbles by tag (which also removes the re-rasterisation churn) and
-  moving ownership to `dispose()`. A third bug fell out: `getContext("2d")!` asserted a context that
-  is null under happy-dom, which is **why the file had no tests at all** — the untestability and the
-  defect had one cause.
-
-  **The FOV/FAR clause is now BUILT** (`apps/web/src/viewer/cameraProfile.ts`), and measuring it found
-  a second defect the clause did not describe. The library constructs the camera as
-  `PerspectiveCamera(60, aspect, 1, 1e3)` and nothing had revisited it:
-
-  - **A fixed VERTICAL fov gives a phone a third of the view a desktop gets** — horizontal fov is
-    derived from vertical and aspect, so portrait collapses it: **30°** on a phone against **85°** on
-    desktop. Now derived from a target horizontal angle and clamped, so a phone gets ~46°. The clamp
-    floor is 60° — today's value — deliberately: this can only ever *widen*, never narrow. A profile
-    that computed a "better" 51° for desktop would be a regression shipped as an improvement, and
-    nobody reports seeing less as a bug.
-  - **`near = 1 m` is wrong for the first-person walkthrough.** `apps/web/src/viewer/walkMode.ts` puts
-    the eye at 1.65 m and exists for close inspection — but everything within a metre of the eye was
-    clipped, so walking up to a wall or a column made it vanish before you reached it.
-
-  **Why the near plane moves only in walk mode, with the number that decides it.** Depth precision at
-  distance scales with `near`; for a 24-bit buffer the resolvable gap is about `z²/(near·2²⁴)`:
-  `near=1` gives 2.4 mm at 200 m, `near=0.1` gives **6.0 mm at 100 m**. `apps/web/src/viewer/guideUnderlay.ts`
-  lifts its plane 5 mm to avoid z-fighting, so a *global* change would make that underlay z-fight on
-  any model of real size — trading a walk-mode defect for a rendering one.
-
-  The `MeshStandardMaterial` clause needs no work — every remaining use is GIS context, not the BIM
-  pass.
-
-**Watch, not work:** WebGPU (`WebGPURenderer` exists in the pinned three, but Fragments targets WebGL
-— 2–3 year horizon) · browser-side IFC parsing (a streaming WASM parser now exists; server-side
-pre-conversion still buys caching, GUID-stable recipes and offline tiles, so the non-negotiable holds).
-
-**DECLINED 2026-07-25 — do not revisit without a new reason.** `ifclite-geom` is **MPL-2.0**, which
-is off the stated MIT/BSD/Apache list, and its **99.9% agreement is not bit-identical**. It could only
-ever have accelerated `world_bounds` and the clash AABB pre-pass — a narrow win — while adding a
-file-level-copyleft Rust binary wheel and a second geometry answer that must be reconciled against the
-first. A determinism guarantee is worth more than a bounds speed-up. *Original note kept below for the
-record:* `ifclite-geom` as an *accelerator only* for
-`world_bounds` and the clash AABB pre-pass. It is **MPL-2.0 (file-level copyleft, not on our
-MIT/BSD/Apache list)**, a new Rust binary wheel, and **99.9% agreement is not bit-identical** — so it
-must never touch drawing generation, which has to stay deterministic. Would ship behind a flag with a
-per-GlobalId AABB cross-check against the ifcopenshell path.
 ## 🎛 R24 — INTERFACE RING *(external design audit 2026-07-25; see [design-audit.md](internal/archive/design-audit.md))*
 
 **The thesis, and it is not "add features".** Adoption is the binding constraint, not capability.
@@ -1496,70 +1396,6 @@ Everything after this sprint is a claim about adoption. Nothing in the stack can
 refute one, so this goes first even though it is the least visible.
 
 
-- ✅ **R24-PERF-BUDGET** *(S — COMPLETE v0.3.1083: all three budgets measured)* — **premise re-checked 2026-08-06: the work
-  this entry describes as remaining is done.** It reads "the remaining work is the asserted budget
-  itself … as a `test_*`". That test exists — `services/api/test_perf_budget.py` — and it is the
-  strong form: the server budget is asserted against **real traffic** driven through the app, with
-  the p95 read from the live histogram rather than a synthetic number, and `quantile` returning None
-  is treated as a **failure** on the `beyond_histogram` branch, because reading None as "no problem"
-  would make the budget pass hardest exactly when latency is worst.
-  **The client beacon is BUILT (v0.3.1063) — and only one of the two budgets was flipped.**
-  `apps/web/src/ui/perfBeacon.ts` installs a single capture-phase click listener at the app entry and
-  measures click → the paint that answers it across two animation frames (a `requestAnimationFrame`
-  callback runs *before* the paint; the one scheduled from inside it runs after). One listener rather
-  than instrumented call sites, deliberately: a p95 over whichever handlers somebody remembered to
-  wire is a figure whose population nobody can state. Untrusted events are ignored — a dispatched
-  click answers instantly because no human was waiting, so counting them would pull the percentile
-  down with intervals nobody experienced. It posts to `POST /metrics/client`, which refuses an
-  anonymous caller, matches the budget name against `BUDGETS` rather than using it as a dict key, and
-  **drops** implausible durations instead of clamping them (clamping files a hostile value in the
-  slowest real bucket and quietly moves the p95).
-
-  **`panel_load` IS FLIPPED as of v0.3.1083, and the fourteen releases it took are the finding.**
-  The paragraph below stays because its diagnosis was right and is still the reason the measurement
-  is shaped as it is: the blocker was never the beacon, it was a *moment*. What closed it:
-
-  * **`modalShell` returns a `ready()`**, and each panel calls it when its data is on screen. The
-    interval runs from the **click**, not from the shell — which is what makes it correct for the
-    several dialogs whose *caller* fetches before the shell exists (`conceptBudgetView`,
-    `estimateConfidenceView`, `composeExhibit`, `openReportCenter`). A click seeds at most one panel,
-    so a modal opened by a timer thirty seconds later cannot invent a thirty-second load.
-  * **`apps/web/src/ui/panelReady.test.ts` enumerates every call site**, and each must either report
-    or be declared synchronous with a reason. Wiring alone would have replaced one honest gap with a
-    p95 over whichever panels somebody remembered — the same objection `perfBeacon.ts` already makes
-    against instrumenting click handlers one at a time. 18 of 29 report; the 11 that do not each
-    carry a reason.
-  * **The budget states its population**, because it is the only one of the three with a subset:
-    every route counts toward `request_p95` and every trusted click toward `click_echo`, but a modal
-    counts here only if the user waited for data.
-
-  **The classification is a human one, and it had to be — twice.** `qr.ts` was assumed instant from
-  its file name and awaits `QRCode.toCanvas`; three register dialogs were assumed instant because
-  their own bodies contain no `await`, and their callers fetch. Both wrong, both caught by reading,
-  neither by a rule. One site is *excluded* rather than synchronous: `openProjectBundle` sits behind
-  a native file chooser, so its interval would time the human browsing for a file rather than the app.
-
-  **Two checks changed shape rather than being deleted.** The route test used `panel_load` as its
-  example of a declared-but-unmeasurable budget; that property still matters and now runs against an
-  injected one, because a property with no current instance is still a property. And the flip got its
-  twin: the budget that just became measurable must actually be *accepted* by `/metrics/client`, or a
-  `measurable: True` the route still rejected would report `no_observations` for ever while every
-  flag said it was wired.
-
-  **What the entry said before the flip, kept because the diagnosis was correct.** The blocker was never really the beacon —
-  it was a *moment*. This app has no single point where a panel becomes usable: `apps/web/src/ui/modal.ts`
-  builds an empty shell and each of its ~20 callers fills it afterwards, so timing that chokepoint
-  would record a few hundred microseconds of shell construction and file it as a panel load. Flipping
-  it on the strength of the beacon landing would have been the easy half of this item and the
-  dishonest one — a budget marked measurable with no producer reports `no_observations` for ever,
-  which reads like an outage rather than the stated gap it is. The `why_unmeasured` text now names
-  the missing moment instead of the missing beacon, so the next reader is not sent to build a thing
-  that already exists. **What remains is per-site: an explicit ready() signal at each panel's
-  data-render point.**
-
-  `within_budget` is now an AND across every *measured* budget, so a slow client fails it — and the
-  client figure is per-process and survivor-weighted (a browser that hung hard enough never to beacon
-  is absent from it), which the report says in words rather than leaving to be inferred.
 ### Sprint 2 — cash the moat *(the differentiation no competitor can copy)*
 
 - ~~**R24-TRACE-UI ②**~~ *(**L, and BACKEND** — re-scoped 2026-07-29 after a premise check)* — make the
@@ -1579,51 +1415,6 @@ refute one, so this goes first even though it is the least visible.
   like it walks to a GlobalId while actually asserting one. That is the fabrication shape this repo
   has spent a day naming, and it would have been shipped as the on-stage demo. Whoever picked up
   Sprint 2 would have started in the client and found nothing to render.
-- ✅ **R24-RUNS-INBOX** *(M; history v0.3.947 · routing this PR — pending archive)* — clash, IDS, cost
-  and envelope energy become durable Runs (inputs, timestamp, author, artifact, **diff against the
-  previous run**) with a per-project inbox.
-
-  **The recorded premise, "no runs concept in the web app", was half wrong — and the wrong half is
-  the expensive one to assume.** `models.py:Job` already stores every field a run needs: `params`
-  (inputs), `actor` (who), `created_at`/`finished_at` (when), `result` (the artifact), and
-  `routers/jobs.py` has served them for a long time. There was never a missing table, so the item
-  splits into a cheap half and a risky one:
-
-  - ✅ **History and comparison** — `apps/web/src/ui/runs.ts` (pure) and
-    `apps/web/src/ui/runsInbox.ts` (render). Runs group by kind, newest first, each diffed against
-    the previous **comparable** run. Reachable from the job tray's footer and from ⌘K.
-    The decision the module exists to get right: **a metric present in one run and absent in the
-    other has a `null` delta, never zero.** Absence-as-zero turns a detector that stopped reporting
-    `count` into a confident, precise, invented −412 — worse than no number, because it reads as a
-    finding. Same reasoning refuses a **failed** run as a baseline: a run with no result is not a run
-    whose every metric fell to zero. Both are mutation-checked.
-  - ✅ **Routing the analyses through the queue** — Tools enqueue `clash_detect`, `clash_federated`,
-    `ids_validate`, `labor_estimate`, `energy_analyze` and poll via `apps/web/src/api/waitForJob.ts`.
-    Direct routes remain for scripts. Empty inbox copy is now "nobody has run one yet", not "the
-    screens still skip the queue". Claude Code owns other items; this does not touch them.
-
-    **HANDLER HALF STARTED v0.3.1057 — `clash_federated` is a registered job kind.** And the premise
-    needed checking twice before it was right. `clash_detect` *was* already registered, which reads
-    as "clash is done"; it is the **single-model narrow phase**. The run the coordination screen
-    actually performs is `POST /projects/{pid}/clash/federated`, which cross-checks every discipline
-    model and then hands the hits to `clash_intel.coordinate`. That one had no kind. *Two job kinds
-    whose names differ by one word do different jobs, and the shorter name is not the general case.*
-
-    **It carried a security half nobody had needed to care about yet.** A handler is called
-    `fn(db, params)` and never sees the Job row, so identity travels in `params` — which
-    `routers/jobs.py` built by merging the caller's request body. Nothing read `params["actor"]`, so
-    it was harmless; `coordinate()` reads it, records it against every issue it creates, and would
-    have believed whatever the body said. The route now writes `actor` last. **A latent hole becomes
-    live in the commit that first reads the field**, so that ordering fix had to ship with the
-    handler rather than after it.
-
-    Also shipped: `services/api/test_job_kind_labels.py`, because `jobs.KINDS` and the tray's
-    `KIND_LABEL` are two hand-maintained lists of one thing in two languages with nothing comparing
-    them — and the tray's raw-name fallback, correct for a plugin, hides one of ours.
-
-    **Call sites shipped in this PR.** Tools enqueue-and-poll; the kind was already reachable through
-    `POST /projects/{pid}/jobs`. Direct analysis routes remain for scripts.
-
 ### Sprint 3 — the front door earns its keyboard
 
 
@@ -1787,57 +1578,6 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
 
 ### Wave 2 — parameters stay alive *(Lane E + C)*
 
-- ✅ **R38-ARRAY-LIVE ③** *(M — persist already shipped; Re-edit UI this PR, pending archive)* —
-  "arrays whose count/spacing stay editable after placement". The old premise ("stores nothing") is
-  stale: `array_element` writes an IfcGroup + `Pset_MassingArray`, `set_array_params` reconciles
-  members, `list_groups` returns the definition, and Groups panel **Re-edit** calls that recipe.
-- ✅ **R38-SOLVER-LOCKS ③** *(M — **SHIPPED; CLOSED 2026-08-23.** The decided scope — within-element locks against the existing solver — is built end to end, and the entry's "the route has no client caller, so the whole feature is server-only today" is no longer true. Verified in the tree: `apps/web/src/api/authoring.ts` exposes `solveConstraints`, `apps/web/src/viewer/dimLocks.ts` maps solved variables onto the guid-keyed recipes in `services/data/src/aec_data/edit.py` and REFUSES a variable with no recipe by name rather than dropping it, `apps/web/src/viewer/tools/authoringSection.ts` drives solve → plan → apply → publish → reload and reports over-constraint, conflicts and remaining degrees of freedom whether or not anything is applicable, and `apps/web/src/viewer/dimLocks.test.ts` covers it with 12 tests. **Across-element locks remain a separate later item by the user's own decision below, not an unfinished part of this one.**)* — the R23
-  dimensional locks as UI.
-
-  **The user's call:** ship *within*-element locks (hold depth, drive width, keep area) against the
-  existing solver now, and treat *across*-elements (align these walls, hold this offset) as a separate
-  later item once multi-element parameter edits exist. That gets a usable feature out without
-  committing to the larger build up front.
-
-  **Premise-checked 2026-08-07, and the entry's framing was wrong in a way that makes this cheaper
-  than it reads.** The question was posed as though the solver constrained the answer. It does not:
-
-  - `services/data/src/aec_data/dim_constraints.py` exposes `solve(variables, constraints)` over a
-    **flat dict of named scalars**. It has no concept of an element, so within-element and
-    across-element are the same call with different variable names. Its own docstring's example —
-    *"keep a wall 3000 from a grid"* — is an **across**-element relationship, so the general case is
-    what shipped.
-  - **The route already exists**: `POST /projects/{pid}/constraints/solve` in
-    `services/api/src/aec_api/routers/analysis.py`. It has **no client caller**, so the whole feature
-    is server-only today — the same shape the reachability gate exists to catch, and it is not in
-    `KNOWN_UNCALLED`, so it slipped past on the last-static-segment rule.
-
-  **So the solving is done; the work is UI plus a write-back.** The route says so itself: *"pure
-  computation over caller-supplied values — it neither reads nor writes the model."* A UI must gather
-  variables from the selection, call solve, and apply the result back through an edit recipe.
-
-  **The instance-level write path DOES exist** — `services/data/src/aec_data/edit.py`'s `RECIPES`
-  table has **14 entries keyed by `p["guid"]`**, a single element rather than a type. The relevant
-  ones: `set_extrusion_depth(guid, depth)`, `set_wall_thickness(guid, thickness)`,
-  `set_wall_slope(guid, start_height, end_height)`, `move_element(guid, dx, dy, dz)` and
-  `set_element_pset(guid, pset, prop, value, dtype)`.
-
-  *This entry claimed the opposite for one revision, and the way it went wrong is the reusable part.*
-  The functions that ARE the wrong granularity are easy to find by name — `edit_type_params` (type),
-  `set_pset_on_class` (class), `set_storey_elevation` (storey), `instance_props` (read + reset only) —
-  and a grep for guessed setter names finds exactly those and stops. The guid-keyed writes live in a
-  **dispatch table**, not under names anyone would guess. **If a claim is load-bearing, enumerate the
-  whole table rather than the functions you can name.**
-
-  **So the remaining work is a MAPPING, not a capability.** `solve()` returns named scalars, and
-  something must decide that `thickness` on a wall writes through `set_wall_thickness(guid, …)` while
-  `depth` on a column writes through `set_extrusion_depth(guid, …)`. That mapping is the substance of
-  Apply; it is Lane E/C work and needs no new recipe.
-
-  **Where a variable has no recipe, refuse that one BY NAME and apply the rest.** A partial apply that
-  says which locks it could not write is honest; one that silently drops them is the
-  `suggestion_clears_horizon` failure in a new place — a result that looks complete and is not.
-
 ### Wave 3 — model and documents in one room *(Lane B + E)*
 
 - ◧ **split by premise-check 2026-08-02 — un-archived 2026-08-10, the ✅ was wrong.** Only
@@ -1849,50 +1589,6 @@ server's report stays authoritative on the authored element. Wave 1 and its foll
   `shape.guid` in hand and keeps only `(cls, mesh)`, so `cut_baked` emits anonymous polylines and
   `cut_baked_classed` adds back the class but never the GUID. Nothing in a plan can name what it
   draws. Hence:
-  - ✅ **R38-SYNC-VIEW ③** *(M, Lane E — storey/pan/zoom already shipped; **cursor this PR**, pending
-    archive)* — `apps/web/src/viewer/planPane.ts` + `apps/web/src/viewer/planTransform.ts`. **Storey
-    sync** ships (`planParams(storey)`, refetch only when the *cut* changes). **Pan and zoom** ship
-    (`overflow:auto`; client-side `zoomPct` does *not* refetch). **Cursor**: 3D pointer → plan via
-    the six `data-plan-*` terms PLAN-TRANSFORM serialises (v0.3.928); `groundToPlan` is East=`three.x`,
-    North=`-three.z`. Inventing the same map from a polyline is still refused.
-
-    *The tempting workaround is the one to refuse*: the transform could be back-solved from a
-    polyline whose element geometry is known, which would work in a demo and drift silently the
-    first time a cut differs from what the client thinks it is. That is the same shape as
-    R24-TRACE-UI's rejected plan — **inventing in the client a fact the server threw away**.
-    Original text: the second viewport with **cursor, pan/zoom and storey sync**. Buildable today;
-    needs no identity.
-  - ✅ **R38-PLAN-TRANSFORM — SHIPPED v0.3.928.** The plan SVG root now carries the six terms of its
-    own transform: `data-plan-scale`, `-ox`, `-oy`, `-minx`, `-miny`, `-drawh`. `plan_drawing_svg`
-    derived all six to place every polyline through a local `T(x, y)` and serialised none of them, so
-    the drawing knew where everything was and the client could not ask. Full float precision, not
-    formatted: a rounded scale puts a cursor visibly off at the far end of a large plan, which reads
-    as a sync bug rather than as rounding.
-
-    `services/api/test_plan_transform.py` asserts the **round trip, not the attributes** — it reads
-    the terms off the root, rebuilds the inverse independently, takes a real pixel off a real
-    polyline the server placed, and requires pixel → world → pixel agreement to 1e-3. Plus an extent
-    check (catches a self-consistent but wrongly-scaled transform) and a two-storey comparison
-    (catches a hardcoded one; `scale`, `minx`, `miny`, `drawh` all move). *Asserting the attribute
-    exists would pass on a value that is wrong, stale, or from a different cut — the presence of an
-    attribute says nothing about it being the transform the drawing actually used.*
-
-    **This unblocks R38-SYNC-VIEW's cursor sync**, the last third of that item, and with it anything
-    that needs to point at a place rather than at an element.
-  - ✅ **R38-PLAN-IDENTITY — ALREADY DONE when this entry was written; confirmed 2026-08-10.**
-    `cut_baked_guided` exists in `services/data/src/aec_data/drawings.py`, returns
-    `(guid, ifc_class, polyline)`, and its own docstring opens with this item's id. The SVG has
-    emitted `data-guid` per cut polyline since R38-SYNC-SELECT shipped v0.3.829. The entry stayed
-    open anyway and kept being cited as a prerequisite blocking three other items. **Third stale
-    premise found the same day** — after massingbill's "pure addition" claim and R41-UPLOAD-WARK's
-    "no call site has been converted" — and all three overstated the work remaining, which is the
-    direction that makes a roadmap quietly wrong rather than loudly wrong.
-  - ✅ **R38-SYNC-SELECT ③** *(S, Lane E)* — **SHIPPED v0.3.829** — selection sync in both directions.
-    The SVG emits `data-guid` per cut polyline (both rendering modes), the pane adds invisible fat
-    hit-twins to ~1px linework, and one element lights as MANY loops. Shipping it also surfaced that
-    the pane had been unreachable (toggle button never appended), its fetch had failed cross-origin
-    since v0.3.826 (`credentials:"include"` without a credentials CORS grant), and the live route
-    dropped the `storey` param entirely — three defects only a live drive could see.
 - Consumes: R24-ELEMENT-CARD ② and R31-CITE-HIGHLIGHT (both already coded) as the "everything
   about this thing" surface.
 
@@ -1957,24 +1653,6 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
 
 ### Capability items
 
-- ✅ **R41-MODEL-ALIGN — COMPLETE v0.3.1070.** Both halves are done: the ground-plane defect closed in
-  v0.3.1062, and the oriented-box fit here. `services/data/src/aec_data/align.py` fits a yaw-only OBB
-  to a model's footprint (`drawings.plan_points` walks the same geom iterator `world_bounds` uses,
-  keeping the points instead of collapsing them to a min/max — an axis-aligned box is precisely what a
-  rotated building's *bounds* cannot distinguish). `GET /projects/{pid}/models/{mid}/alignment-fit`
-  proposes it and `apps/web/src/viewer/tools/alignmentPanel.ts` shows it beside the existing alignment
-  report, which answers the complementary question: the report says the models *disagree*, the fit says
-  one of them is *rotated*, and a rotated model has the same storeys and the same origin as a square-on
-  one.
-  **The acceptance rule is the part that mattered, and it is implemented as specified**: a fit is
-  proposed only when the oriented box is ≥20% tighter than the axis-aligned one, which buys a
-  *wall-parallel* answer rather than the *smallest* one. `services/api/test_model_align.py` reproduces
-  this entry's own measurement — a 54 × 78 m building at 37° against a **90.1 × 94.8 m** box, **2.03×**
-  the true area — and pins the refusals: an already-square model, and the marginal-saving case this
-  entry warns about.
-  **A proposal, never an edit**: the IFC is opened read-only, so no Alembic revision was needed after
-  all. *Storing* an alignment still would be — `ProjectModel` has no transform column — and that is
-  what a follow-up would add. *(The lane note below is kept: the work was Lane D + G + E, as it said.)*
 - ~~**R41-MODEL-ALIGN**~~ *(**the remaining half is Lane D, not Lane E, and bigger than M** — the defect half was Lane E and is DONE, see below. What is left is the OBB feature, and it lives in `services/data/src/aec_data/` (Lane D · Geometry & drawings) with a route in Lane G and a per-model transform that needs an Alembic revision — `ProjectModel` has no transform column today. **Lanes are assigned by directory**, so an agent taking this under a Lane E label would write straight into another lane's files.)* — **align a federated model that arrived with wrong, missing or
   unit-mismatched georeferencing, without touching the source file.** This is the daily reality of GC
   federation and is *not* the same problem as our standing set-origin note. Two techniques, both
@@ -2042,58 +1720,6 @@ requiring a manual read** — filed below as R41-LICENCE-GATE.
   `modelBox3`'s population is loaded fragments models and the walk it replaced included `isPoints` on
   purpose — survey scans and reference overlays. Dropping them would trade a wrong fit for an
   incomplete one, which is why that has its own twin test.* The OBB work itself is untouched.
-- ✅ **R41-UPLOAD-WARK — COMPLETE v0.3.1069.** *(Byte-bound half v0.3.876; the resumable handshake, its
-  consumer and the client here. This bullet said "the resumable handshake below is untouched, and no
-  upload route has been converted" — **the second clause was already false when written**, and the
-  first is now too. This is the SECOND entry for this item; the other one is in the R39/R41 upload
-  bullet above, and updating one and not the other is what kept it reading as open. Two places
-  describing one item, again.)* — **content-addressed resumable upload in front of object
-  storage.** Technique from an MIT-licensed file server (verified from its LICENSE); reimplement the
-  handshake rather than adopt the server. Three parts: chunk size chosen so the **chunk *count* stays
-  bounded**, keeping the handshake manifest roughly constant regardless of file size — a fixed part
-  size gives a manifest that grows linearly with a large IFC; an upload identity derived from
-  `hash(salt + filesize + chunk hashes)` so **resumption is not a special code path** (re-handshake,
-  receive the still-needed list) and deduplication falls out for free; and per-chunk hashes catching
-  corruption **before** IFC-to-Fragments conversion runs. **IFC revisions are large and mostly
-  identical between uploads**, so an unchanged re-upload currently costs a full transfer.
-
-  **PREMISE-CHECKED 2026-08-06; the hazard it surfaced is now FIXED and half the mechanism landed.**
-  The premise holds — nothing is chunked, resumable or content-addressed — but two things changed the
-  shape of it.
-  *The hazard, and it was worse than the version I first wrote.* I flagged that a chunked upload would
-  defeat `AEC_MAX_UPLOAD_MB` because the guard reads `content-length` on a single request and N small
-  chunks each pass. The real mechanism was simpler and already live: **with no `content-length` header
-  at all the condition short-circuited and the body was never measured** — so the cap was defeatable
-  without chunking anything. Fixed in v0.3.876 by `bodycap.MaxBodySizeMiddleware`, which counts bytes
-  on the ASGI `receive` channel. Recorded because the correction matters: I reasoned to the right
-  conclusion from the wrong mechanism, and a guard that *fails open on a missing header* is a
-  different class of bug from one that is out-scoped by chunking.
-  *The other half stands and has moved.* `storage.put(key, data: bytes)` was whole-bytes on both
-  backends; `put_stream` now exists (local `.part`+rename, S3 multipart) — but **no call site is
-  converted**, verified in the tree. So the remaining work is the conversion plus the content-addressed
-  handshake itself, and whatever lands must still cap the *assembled* size at the handshake rather
-  than trusting a declared filesize. Their
-  sparse-file capability check is this codebase's own house style expressed in a network protocol: on a
-  mismatch it **refuses loudly**, naming file, chunk index and offset, rather than silently writing a
-  corrupt file.
-
-  **CHECKED 2026-08-06 — the premise HOLDS, and the tree is one step worse than the entry says.**
-  Nothing in `services/` mentions resumable, chunked, multipart or part-number uploads. Every upload
-  is a single FastAPI `UploadFile` multipart POST, and `services/api/src/aec_api/storage.py`'s
-  interface is `put(key, data: bytes)` — **there is no streaming put at all**. Six call sites do
-  `await file.read()`, so **the whole file is materialised in memory** before it reaches storage.
-
-  So the entry's framing — "an unchanged re-upload currently costs a full transfer" — is a *bandwidth*
-  argument, and it is right. But the same fact is also a **memory** argument for a 50 MB IFC, and that
-  half is not in the entry. Note the asymmetry that makes this cheap to miss: `storage.py` already has
-  `get_range(key, start, end)`, so ranged **reads** are supported and only **writes** are all-or-nothing
-  — the capability looks half-present when the half that matters is absent.
-
-  Nothing is content-addressed either: storage keys are caller-supplied paths sanitised by `safe_seg`
-  / `validate_key`, and there is no hashing in the storage layer, so deduplication has nothing to key
-  on. The entry's `hash(salt + filesize + chunk hashes)` identity would be the first content address
-  in the system rather than a change to an existing one.
-
 ### Gate and process items
 
 ### Reclassified, and worth acting on separately
@@ -2114,52 +1740,6 @@ plausible IoT reading — the connection was checked and deliberately not manufa
 **Three items added 2026-08-20 from the PR-reconciliation pass** — each is a control that reads
 stronger than it is, which is this ring's whole theme:
 
-- ✅ **R39-NGINX-INHERIT ②** *(S, Lane J)* — **SHIPPED v0.3.1028, on the same day this entry was
-  written, and the entry never said so.** Re-checked 2026-08-21 before starting the work: all seven
-  headers are present in all four scoped locations, and `nginx.test.ts` already derives the
-  population exactly as the text below asks — `locationsDeclaringAddHeader()` walks the brace
-  structure, and the assertion that the four found blocks are *exactly* `/assets/`, `/wasm/`,
-  `= /index.html` and `~* \.mjs$` is what makes a fifth location fail on the day it is added.
-  Verified by running it: 13/13. **The premise-check was the whole of the work here** — an entry
-  written the same morning as its fix is the most convincing stale entry there is, because nothing
-  about its age suggests re-reading it. *Original text kept below, because the trap it describes is
-  the reason the gate is shaped the way it is:*  **`nosniff` was absent from every bundle, WASM binary
-  and worker we serve.** nginx drops **all** server-level `add_header`s in any location that
-  declares one of its own. `apps/web/nginx.conf` has three such locations — `~* \.mjs$`,
-  `/assets/` and `/wasm/`, each declaring `Cache-Control` — so all **seven** security headers
-  vanish from exactly the responses where MIME sniffing matters most. Only `location = /index.html`
-  repeats the set. Found while reviewing the first outside contribution
-  ([#311](https://github.com/ibuilder/massing/pull/311)), which correctly identified the trap and
-  restored **2 of 7** headers on **1 of 3** locations — its accompanying test then froze that
-  partial state as correct by special-casing `Cross-Origin-*` to three scopes and everything else to
-  two. Take the contribution, then finish it: the gate should **derive** the locations that declare
-  an `add_header` and require the full set in each, so a *fourth* such location fails on the day it
-  is added rather than the day someone re-audits.
-- ✅ **R39-CONTAINER-PR** *(S, Lane J)* — **SHIPPED v0.3.1055.** Two jobs in `.github/workflows/ci.yml`:
-  `docker-scope` decides whether the PR touches a container build, and `containers-pr` builds both
-  images with `push: false`, no ghcr login and no `packages: write`, then runs the same pinned Trivy
-  CRITICAL gate. Held by `services/api/test_container_pr_gate.py`, whose load-bearing assertion is
-  **not** "a PR job exists" but *the two matrices are equal* — a third image added to the publish
-  job alone restores the hole for that image and every other assertion here would still pass.
-  Mutation-checked five ways (third image, `push: true`, a Dockerfile moved out from under the
-  filter, the filter widened to `.`, the fail-safe flipped to fail-quiet); all five go red, and the
-  fourth had to be re-run because the first attempt's `sed` silently matched nothing and the green
-  read as confirmation. Three details worth keeping: the scope check is **its own job** rather than
-  an `if:` on the steps, because a job whose steps all skipped still reports *success* — which is
-  the exact confusion this item is about, one level down; it **fails safe**, so a PR whose file list
-  cannot be enumerated (API error, or the 3000-file cap that makes truncation indistinguishable from
-  a short list) builds anyway; and the filter regex is **extracted from the YAML and executed**
-  against each matrix path plus four decoys, because a regex and a matrix are two independent lists
-  of the same thing. *Original finding:*  **a Docker-action bump could not be verified before it landed.**
-  `Container build + scan + publish` is gated `if: github.event_name == 'push' && github.ref ==
-  'refs/heads/main'`, so it reports **`skipping`** on every PR and *structurally cannot* run on one.
-  Dependabot's [#276](https://github.com/ibuilder/massing/pull/276) (`build-push-action` 6→7) and
-  [#279](https://github.com/ibuilder/massing/pull/279) (`setup-buildx-action` 3→4) both showed
-  all-green — a 21-minute API gate, a web build, CodeQL — and **not one of those greens exercised
-  the thing that changed.** A break lands directly on `main`. Wanted: a build-only, no-push
-  container job on PRs touching `**/Dockerfile` or `.github/workflows/ci.yml`. *Until it exists,
-  land such bumps alone, after an unrelated push has proven the baseline, so a red build has one
-  suspect and a one-commit revert.* **A skipped job is not a passed job.**
 - **R39-TSC-CACHE** *(XS, any lane)* — **a local typecheck once passed where CI's identical command
   failed, and the cause is not known.** On v0.3.1020 two type imports orphaned by SCALE-SEAM ⑭ passed
   `npm run typecheck` locally and failed CI with TS6196. That divergence is real and recorded.
@@ -2185,58 +1765,6 @@ re-open): the converter build stage moved to the supported Node LTS with a pinne
 refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the secret-scan job.
 
 
-- ✅ **R39-UPLOAD-CAP-APP ① — COMPLETE.** *(Front half v0.3.876; the three category-(a) store sites
-  v0.3.941–942, re-verified against the tree 2026-08-23. The remaining `await file.read()` calls are
-  the whole-buffer parsers this entry itself files under (b) as a different item. Second entry for
-  this item — see the note on R41-UPLOAD-WARK below.)* — *(original text)* *(S, Lane C — **FRONT HALF SHIPPED v0.3.876; the conversion of the
-  36+ `await file.read()` call sites onto `storage.put_stream` remains, and is the rest of
-  R41-UPLOAD-WARK.** premise corrected 2026-08-06: an app-level cap DOES
-  exist**, so the item is not "add one" but "make the existing one measure rather than trust")* —
-  the entry said the cap lives only in nginx (`client_max_body_size`) and that a deployment exposing
-  the API directly has **no cap at all**. That is wrong: `services/api/src/aec_api/main.py` defines
-  `_MAX_UPLOAD_BYTES` from `AEC_MAX_UPLOAD_MB` (1 GB default) and the `security` middleware rejects
-  oversized bodies with a 413.
-
-  **The residue is exactly the sentence the entry already wrote as its prescription, and it is worth
-  keeping for that reason:** *"count as chunks arrive and cut off at the limit, never
-  buffer-then-measure"*. The present guard does neither — it is **header-derived**, and its own
-  comment says so (*"cheap Content-Length check — avoids reading them into memory"*). A request that
-  does not carry that header is not measured. So the work is to make the limit a property of the
-  bytes received rather than of what the request declared about itself.
-
-  *Deliberately not spelled out further here: the repo is public and this is a request-handling
-  boundary. The precise reachability note went to the release holder for `docs/internal/`, per the
-  non-negotiable that security detail stays out of published docs.*
-
-  **How to size it, so the next reader neither panics nor dismisses it.** An unbounded body read is
-  **DoS-shaped**, and the standing security-review policy explicitly excludes DoS and
-  memory-exhaustion from vulnerability reporting. That does not make it a non-issue — it makes it
-  **tracked engineering work rather than an incident**. No drop-everything fix; a real entry with a
-  real fix.
-
-  **It composes with `R41-UPLOAD-WARK`, and neither entry could see this alone.**
-  `services/api/src/aec_api/storage.py` has **no streaming put**: the protocol is
-  `put(key, data: bytes)`, and **36 call sites across 15 router modules** do `await file.read()`
-  before handing the bytes over — counted 2026-08-06. So the same request is **both unmeasured and
-  fully materialised**: this entry bounds it from the front, `R41-UPLOAD-WARK`'s chunked handshake
-  bounds it from the back, and *"count as chunks arrive"* is the identical instruction from either
-  end. **Two entries, one mechanism** — fix either in isolation and the other still holds the memory
-  open.
-
-- ✅ **R39-VIEWER-OBS ②** *(M, Lane E)* — **SHIPPED 2026-08-07 in #249**, and listed open here for
-  a fortnight afterwards. Everything the entry asked for is in the tree and was verified end to end
-  on 2026-08-23 rather than read: `apps/web/src/viewer/loadTimings.ts` tracks fetch → parse → first
-  frame with one row per load, `apps/web/src/viewer/app.ts` supplies the transport,
-  `POST /projects/{pid}/model/load-timing` stores it and
-  `GET /projects/{pid}/model/load-timings` answers p50/p95 per size band — with `ok_rate` beside
-  every percentile, so a band whose loads mostly stall cannot show an excellent p95 drawn from its
-  survivors. No third-party telemetry.
-
-  **The wiring is pinned, which was checked by breaking it.** `timings` is an optional dependency, so
-  deleting one line in `app.ts` would have taken the whole feature dark. It does not:
-  `apps/web/src/api/clientCallers.test.ts` holds the uncalled-client-method set, and dropping that
-  line fails it by name (`+ "reportViewerLoad"`). Confirmed by applying the mutation, watching it go
-  red, and restoring — not by reading the gate.
 - 🟡 **R39-DECOMP-VIEWER ③** *(L, Lane E — **seven slices shipped; `app.ts` is 5,160 → 3,311, a 36%
   cut. The `builders` map is entirely gone.** The paragraph below saying the extraction "is NOT begun"
   was true on 2026-08-06 and stayed on the page until 2026-08-17, through six shipped slices — a
@@ -2597,64 +2125,6 @@ Shipped 2026-08-01:
   an existing control still tells you the control is hard to find.**
 
 Shipped 2026-08-21:
-
-* ✅ **SEC-NPM-GATE — the npm half of the supply-chain scan was neutered THREE ways at once, and
-  every one of them individually was enough.** `audit_lock_gate.py` exists because the pip-audit step
-  carried `continue-on-error: true` and a trailing `|| true`, so it found a HIGH and reported
-  success. The npm step **fifty lines below it in the same file** had both of those — and a third:
-  `--omit=dev`, over a tree in which **every** advisory is dev-only. Measured before writing
-  anything: `npm audit --omit=dev` printed *"found 0 vulnerabilities"* and exited 0, while
-  `npm audit` reported five affected packages, two of them HIGH — three HIGH *advisories*, since
-  `brace-expansion` carries two. (npm's headline counts packages, not advisories; both numbers are
-  right about different things and it is worth saying which is which.) Fixing the Python half and leaving its twin is the
-  shape this ring keeps finding: the lesson was written down, and it was written down in one
-  language.
-
-  What was behind it: `brace-expansion` (two DoS advisories, three copies in the tree) and `nanoid`,
-  all **HIGH**, all fixed by an in-range bump — four packages, a 17-line lockfile diff from
-  `npm audit fix --package-lock-only`. Not hard.
-  Invisible. *"dev-only" is not "harmless"*: this is the tree that builds and signs the desktop and
-  mobile artifacts, so a build tool that can be made to hang or exhaust memory is a supply-chain
-  problem even though no byte of it reaches a browser.
-
-  `scripts/audit_npm_gate.py` mirrors its Python sibling's asymmetry — block on advisories with a
-  published fix, report the rest — with one deliberate difference: npm's *semver-major* fixes block
-  too, rather than being waved through, because npm's proposed "fix" here is a **downgrade** of
-  `@capacitor/cli` from the 8.5.x line to 8.4.2, and a rule that excused those would excuse a real
-  major fix as well. Exemptions are keyed `package:GHSA-id` rather than by package, so a NEW advisory
-  on an exempt package is not silently covered by the old decision — asserted directly in
-  `services/api/test_npm_advisories.py`, along with dated-and-unexpired exemptions, a broken audit run
-  failing loudly rather than reading as clean, and the workflow step carrying neither escape hatch.
-
-  **v0.3.1059 — the per-test sweep covered the database and not the storage beside it.** `_run_one`
-  has swept each test's SQLite file as that test finishes since R41-TEST-RESIDUE; the object-storage
-  dir beside it was never added to that line, so it accumulated across the run and then across runs —
-  93 dirs and 1.42 GB, until a run exhausted the disk mid-suite and reported `database or disk is
-  full` across 71 unrelated suites. One `rmtree` under the guard that was already there. Measured:
-  before, free space fell 544 MB per 20 s; after, 440 tests with live `_storage_*` dirs at **0** and
-  disk flat. The first explanation written into the file — *"lower TEST_JOBS, the peak scales with
-  the worker count"* — is **retracted in place with both measurements**: 8 workers consumed ~11.6 GB,
-  3 workers ~12.5 GB, so the footprint is cumulative over tests, not concurrent over workers.
-
-  **CORRECTED v0.3.1058 — the exemption matched the PACKAGE, not the advisory.** The key was
-  `package:GHSA-id`, but `classify()` used `next((k for k in keys if k in EXEMPT), None)`, so one
-  exempt advisory anywhere on a package suppressed every other advisory on it. That fails in the
-  *normal* case: an exemption exists because that advisory has no acceptable fix, so it persists and
-  the next one lands beside it. A synthetic fresh CRITICAL came back `blocking = []`. Each advisory
-  is now classified independently. **And the test that named this property passed `via=OTHER`,
-  replacing the exempt advisory rather than adding to it** — it only ever ran the shape that already
-  worked. *A test can assert a property by name and not test it.*
-
-  There are **three exemption entries for one finding** — npm reports each hop of a dependency chain
-  as its own row, so `uuid`, `xcode` and `@capacitor/cli` each need one or the same advisory blocks
-  three times. The entry that carries the analysis is the `uuid` one, and it records a reading rather
-  than a rationale: the advisory is a missing bounds check in **v3/v5/v6 when a buffer is passed**,
-  and the only consumer here calls `uuid.v4()` with no arguments, at one line of
-  "node_modules/xcode/lib/pbxProject.js" and nowhere else. Checked by opening the file. *(Plain
-  quotes: it exists, but under a gitignored directory, and a backticked path reads as a citation to
-  something tracked.)*
-
-Open:
 
 - ◧ **R35-DEAL-MEMORY** *(M — `deal_memory.py` shipped)* — the platform's own closed deals as a comp database: when underwriting
   a new deal, surface this portfolio's realised outcomes (exit cap achieved vs assumed, actual
@@ -3155,91 +2625,6 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   and the second deleted a docstring line naming the method. **A mutation you have not confirmed landed
   tells you nothing.**
 
-- ✅ **SEC-PLUGIN-LOADER** *(L)* — **SHIPPED v0.3.1081. The boundary is a process, and it covers
-  execution as well as registration.** `services/api/src/aec_api/plugin_host.py` is the child; it has
-  two modes, `discover` (import the entry, call `register` against a recording API, print what was
-  declared) and `run` (execute ONE recipe against an IFC on disk). `plugin_registry.py` no longer
-  contains `exec_module` at all — it shells out and registers *proxies*, so the callable a plugin
-  supplies is only ever held in a child.
-
-  **`run` is here because sandboxing only registration would have been half a boundary that read like
-  a whole one.** The text below asked for "registration in a separate process", and a plugin's recipe
-  is `fn(model, params)` — an arbitrary callable invoked later, from the API process, on every use.
-  Isolating the import while leaving the work in-process would contain the smaller half and leave the
-  larger one open, under a heading that says the problem is solved. Taking the instruction literally
-  was the wrong reading of it.
-
-  **The load-bearing assertion is process identity, and everything else is decoration without it.** A
-  probe plugin writes `os.getpid()` at import and again inside its recipe; `services/api/test_plugin_isolation.py`
-  requires both to differ from the API's pid *and from each other* (nothing is kept warm across the
-  boundary). A version that quietly ran in-process would satisfy every other check in that file — the
-  timeouts, the stripped environment, the refusals — which is exactly why that one is named in capitals.
-  Also asserted: the child cannot see `DATABASE_URL`, `STORAGE_DIR` or the API key; a plugin that hangs
-  at import is cut off by the wall-clock cap and refused *as a timeout*; a plugin that raises at import
-  is refused while its healthy neighbours still load; the `api_version` gate still refuses on the
-  manifest without importing the entry; and `load_all()` is genuinely idempotent, which the module has
-  promised in prose since it was written and nothing had ever checked.
-
-  **What it costs, stated rather than hidden:** a model round-trip per plugin recipe call, because the
-  batch path opens a model once in memory and a plugin recipe now writes it out, runs a process, and
-  reads it back. Paid only when `AEC_PLUGINS_ENABLED=1`, which is off by default. **No memory cap** —
-  `setrlimit` is POSIX-only and this repo has already declined a Windows-unavailable guard rather than
-  ship one that silently does nothing on the platform it develops on; the wall-clock cap is portable
-  and is enforced.
-
-  **The deferral below was deliberately overridden, not overlooked.** It said to build this when
-  plugins are *distributed*, "not before", and that reasoning was sound: the threat-model paragraph is
-  still correct, there is still no path from an unprivileged caller to plugin execution, and this
-  retired no live vulnerability. It was built anyway on the user's instruction to integrate whatever
-  is useful. What that buys is that the marketplace prerequisite is now met in advance instead of
-  being discovered as a blocker by whoever ships the marketplace. The original text is kept below
-  verbatim because the analysis in it is still the correct analysis.
-
-  — *original entry follows* — **renamed from SEC-PLUGIN-SANDBOX on 2026-08-05: it was a different
-  item wearing the same ID.** The other SEC-PLUGIN-SANDBOX (Band 1) is `sandbox.py`'s
-  `execute_ifc_code` AST allowlist, shipped v0.3.864. This one is `plugin_registry.py` importing
-  third-party Python into the API process. Different file, different lane, different status — and
-  while they shared an ID, "SEC-PLUGIN-SANDBOX is partially shipped" was simultaneously true and
-  false. An ID collision is worse than a stale line: a stale line is merely out of date, whereas this
-  made a *correct* status report misleading. — **plugin Python executes inside the API process.**
-  `plugin_registry.py:136-141` does `spec_from_file_location` → `module_from_spec` →
-  `spec.loader.exec_module(mod)`, then calls `mod.register(PluginApi(...))`. Whatever the entry
-  module does at import time runs with the API's full privileges: its DB session, its filesystem, its
-  network, its environment.
-
-  **What is already right, so nobody re-does it:** discovery is **opt-in and off by default**
-  (`AEC_PLUGINS_ENABLED=1`), the manifest is validated before the entry is touched, `api_version`
-  major must match, and a plugin that raises is refused non-fatally with its recipes rolled back out
-  of `edit.RECIPES`. That is a careful loader. It is not a boundary — every one of those checks
-  happens *before* `exec_module`, and none of them constrains what the code then does.
-
-  The work is a real boundary, not more validation: run registration in a **separate process** with
-  a narrow IPC contract (register-only, returning recipe names), a wall-clock and memory cap, and no
-  ambient DB or storage handle. Signing is the weaker alternative — it answers *who wrote this*, not
-  *what it may do*, and this repo already learned from [[sandbox-object-api-surface]] that a denylist
-  cannot see methods reached through an injected object. Gate the design on that lesson.
-
-  **Threat model, checked 2026-07-31 — this is a PRODUCT gap, not a live vulnerability, so it does not
-  belong in the exploitable band.** What was checked, not concluded: `_plugins_dir()` defaults to
-  `<repo-root>/plugins` and is overridden only by `AEC_PLUGINS_DIR`; user uploads land under
-  `STORAGE_DIR` (`./storage`) — **the two do not overlap**; no route anywhere under `routers/` writes
-  into the plugin directory (`/plugins` is a GET, `/plugins/reload` is platform-admin gated); and
-  discovery is off unless `AEC_PLUGINS_ENABLED=1`. So the only way a `.py` reaches `exec_module` today
-  is an operator putting it on the disk — which is the same privilege as `pip install`, and an env var
-  is a trusted input. **There is no path from an unprivileged caller to plugin execution.**
-
-  That changes the moment plugins are *distributed* — a marketplace, a shared pack, anything a user
-  installs rather than the operator. Build the boundary **when that ships, and as its prerequisite**,
-  not before; an L-sized process boundary for a dormant operator-only path is cost with no risk retired.
-
-  **Do not confuse this with the A1 `execute_ifc_code` sandbox — a different surface that IS bounded.**
-  Probed 2026-07-31 by execution rather than by reading its docstring; all 12 escapes refused and the
-  benign case ran: dunder ladder (`__subclasses__`), `import`, `__import__`, `open`, `eval`, `getattr`,
-  `lambda`, `def`, `while True`, `model.write` → `SandboxError`; `for i in range(10**12)` hit the
-  5s wall-clock deadline at 5.02 s; `10**10**9` hit the chained-`**` integer-blowup guard. No file was
-  written. This retires the [[sandbox-object-api-surface]] note's "banning `while` does not bound
-  execution" — a deadline now exists and was observed firing.
-
 - ❌ **SRI for the offline WASM/fragment assets — considered 2026-07-29 and REJECTED.** An external
   audit recommended Subresource Integrity for the WASM and fragment assets. **It does not apply
   here**, and the reason is worth recording because the next outside reading will recommend it again:
@@ -3409,10 +2794,6 @@ latched itself permanently empty. Both were repaired at the symptom. The cause i
 "model" are two states the app keeps having to re-marry, and every feature built on top inherits the
 seam.
 
-* ✅ **R28-BUNDLE ② — make `.mass` legible.** Export already stated `_SKIP_TABLES`. Open Project now
-  previews the container (POST /projects/preview-bundle) and names what will not arrive (users,
-  audit log, settings, connections) before import. Legacy `.mmproj` still opens. ⌘K save matches the
-  File menu (`.mass`).
 * **THE `@massing/embed` FACADE WAS EVALUATED AND DECLINED, 2026-08-23** *(the user delegated the
   call: "review it and pull it in if it's great and beneficial")*. Measured from the published
   tarball, not from a summary. **The reason is architectural:** the facade's load path is IFC text
@@ -3462,25 +2843,6 @@ fix does not get made later from the same report.
   finding ③ contradicts its finding ①. The real options are a bounded **shared** cache (a loader
   process or Redis-backed handle), or worker affinity so one model lives in one worker. Sizing is the
   last lever, not the first.
-* ✅ **PERF-THREADS ③ — SHIPPED v0.3.1074.** The cap lives in `services/data/src/aec_data/ifc_loader.py`
-  at the uncached parse — the resource, not the 31 call sites — with `AEC_IFC_PARSE_SLOTS` (default 3,
-  per process) and `services/api/test_ifc_parse_gate.py` asserting peak OBSERVED concurrency, that the
-  cap is reached rather than a cap of one, and that a failing parse does not leak its slot. The
-  original text is kept because its correction is the reason the fix is shaped this way —
-  **cap the pool, but the stated mechanism is wrong.** The claim was "unbounded
-  threads → resource exhaustion". Starlette/anyio's default pool is **40 threads, not unbounded**. The
-  genuine risk is different and worth fixing: 40 concurrent *IFC* operations at hundreds of MB each is
-  an OOM, so the cap wants to be small and explicit for model work specifically — not because threads
-  are unbounded but because each one is expensive.
-
-**Not adopted.** "No evidence of query batching" is an absence of evidence offered as a finding — the
-report did not examine the ORM layer and does not name an endpoint. It is the inverse of this repo's
-own rule: *a check that examined nothing must not report anything*, clean **or** dirty. Lazy imports
-are also deliberate — they keep cold start cheap for the paths a deployment never touches — and the
-bake cache's `id()` key is already sound: it holds a strong model reference and re-checks identity.
-
----
-
 ### 🐍 DDC ecosystem scan *(2026-07-26 — a Python construction-data org, 30 repos)*
 
 Scanned at the user's request. The headline is a **licence trap worth recording**, because the
@@ -3602,38 +2964,6 @@ the screen stops waiting for it.
 > why a filename-based check would also have missed it). Widening that gate to the web tree is filed
 > as ROADMAP-GATE-TS.
 
-* 🟡 **A29-GUIDE-UNDERLAY ③** *(in flight, PR #199)* — *trace over a plan.* A 2D reference image
-  pinned to a level and scaled, for redrawing an existing building from a scan or a PDF. Small,
-  self-contained, and the one place their `Guide` node maps onto something we do not have.
-  `apps/web/src/viewer/guideUnderlay.ts` holds the calibration, the refusals and the plane;
-  `app.ts` gets six lines.
-
-  **Scale is the whole feature, and the entry undersold it.** An underlay that is merely *placed* is
-  decoration — the reason to build it is that walls traced over it come out at real dimensions. So
-  every path reduces to metres-per-pixel and every derivation **refuses rather than guesses**: a
-  silently-wrong scale is the one failure that poisons everything traced afterwards, and unlike a
-  mis-placed image it looks completely fine on screen. The coincident two-point pick is the one that
-  matters, because it is what a real user produces by double-clicking, and dividing by a zero pixel
-  distance yields `Infinity`.
-
-  **This item is what found the `modelPlanBounds` defect** (PR #198). Premise-checking "can I add a
-  plane to the scene?" led to "what already reads the scene?", and the answer was that a
-  2000 × 2000 shadow-catcher had been defeating the mis-click guard. *Before adding an object to a
-  shared structure, check what already reads that structure* — a new object is the moment you finally
-  have a reason to enumerate the readers.
-
-  **A mutation pass caught a decorative test of my own.** "the guide is not a raycast target" passed
-  whether or not the guard existed: calling `mesh.raycast()` by hand on a mesh whose world matrix was
-  never updated intersects nothing either way, so it asserted an empty array that was empty for the
-  wrong reason. It now runs a **control** first — an identical unguarded plane must be hit by the same
-  ray — so empty means "the guard worked" rather than "the ray missed". Same shape as the picking
-  benchmark that reported a confident p50 with `hits: 0`.
-
-**Explicitly NOT in this ring:** adopting React/R3F, adopting a bespoke node schema beside IFC,
-vendoring `engine_clay` (dormant), and anything from IFChili (AGPL). If client-side booleans become
-necessary later, that is a separate decision with **Manifold** as the candidate and a dependency
-conversation attached.
-
 ## ⛔ Gated — each entry names its unblocking event
 
 **~~Verification-gated~~ — THE GATE WAS FALSE (corrected 2026-07-25).** This block was held for
@@ -3652,9 +2982,31 @@ the `toDataURL` thumbnail)* · CLASH step-through UI *(S)* · FILL-MATRIX fronte
 
 **Binary/toolchain-gated:** **SPRINT A — ENERGY phase 2** — ship the EnergyPlus (BSD) / Radiance
 (LBNL) binaries through the durable job queue and parse results back onto the model *(phase 1 —
-gbXML + IDF export — shipped v0.3.655)* · **RT-NODE-LANE** — CI is on Node 22; the **local** Node is
+gbXML + IDF export — shipped v0.3.655)* · ~~**RT-NODE-LANE** — CI is on Node 22; the **local** Node is
 still 20.3.1 *(user action)*, then unpin eslint off 9.39.5, then Vite 6→7 behind a build benchmark
-*(defer Vite 8/rolldown)*.
+*(defer Vite 8/rolldown)*.~~
+
+> **~~RT-NODE-LANE~~ — EVERY STEP IT NAMES HAS ALREADY HAPPENED (checked 2026-08-25).** The line
+> above is kept struck through rather than deleted, because *how* it went stale is the useful part.
+> Measured against the tree, not recalled: CI pins **Node 24** in all five workflows that set a
+> version (`ci.yml`, `desktop.yml`, `mobile.yml`, `pages.yml`, `security.yml`), both manifests declare
+> `"engines": {"node": ">=24"}`, eslint is **10.8.1** (pinned in the root `overrides` AND
+> `devDependencies`, so it is unpinned from 9.39.5 in the only sense that matters), and Vite is
+> **8.2.1** — the version this entry told a reader to *defer*. `apps/web/vite.config.ts` has been
+> using Rolldown's native `codeSplitting` grouping for long enough to have survived one deprecation
+> rename.
+>
+> **It was gated on a user action that the user had already taken.** The entry named a real blocker
+> — a local Node too old to run Vite 7 — and nothing re-read it once that stopped being true; the
+> *"(user action)"* tag is what made it un-owned, because a gate waiting on somebody else is a gate
+> nobody re-checks. CLAUDE.md fixed its own copy of this number on 2026-07-29 and recorded that it
+> had then been wrong **three times in three lines**; this is the fourth site, and it sat two
+> sections apart from the "Outstanding USER actions" bullet that repeated it.
+>
+> **The generalisation is about gates, not about Node.** An entry blocked on an external event
+> records the world as it was on the day it was written and has no mechanism to notice the event
+> happening. Every other kind of staleness in this file eventually trips something; a gated item
+> trips nothing, because not being worked on is its expected state.
 
 **New-dependency-gated (needs an explicit OK):** **RT-BVH** — three-mesh-bvh for the raw-three
 raycast paths *(already present transitively, MIT — instrument before adding)* · **RT-KNIP** —
@@ -3688,7 +3040,25 @@ first. · **REL-6 tail** — cargo-audit / gitleaks in CI when available.
 ## 📋 Outstanding USER actions (not engineering work)
 
 - **Copyright deposit upload** — case 1-15213313031, still pending on the government account.
-- **Local Node 20.3.1 → 22** — unblocks RT-NODE-LANE's local half.
+- ~~**Local Node 20.3.1 → 22**~~ — **DONE, and stale here for weeks.** The supported baseline is
+  Node 24 (CI pins it; both manifests require `>=24`). See the RT-NODE-LANE note in ⛔ Gated.
+- ⚠️ **`fix/cloud-domain-allowlist` is an unmerged SECURITY fix and needs your call** *(found
+  2026-08-25 by walking the remote branches; commit `de935a26`, pushed 06:34 — **now PR
+  [#339](https://github.com/ibuilder/massing/pull/339)**, opened while this audit was running)*. On `main`,
+  `AEC_OAUTH_ALLOWED_DOMAINS` is enforced in **one** place — `routers/auth.py`, the direct-IdP
+  callback — and `routers/cloud.py`, the massing.cloud SSO door, has no check at all. Verified by
+  grep, not by reading the branch's own claim. So an operator who has restricted sign-in to their
+  own domain gets it enforced on four doors and bypassed by the fifth, which is worse than no
+  control because they believe it holds. The branch hoists the check into `oauth.domain_allowed()`
+  and calls it from the cloud callback, with tests. **It is not merged here on purpose:** this is an
+  authentication behaviour change and belongs in its own release, not inside a documentation
+  reconciliation. Timely rather than theoretical — v0.3.1089 *documented* that flag one release
+  before this gap was found, so operators are being told to rely on it now.
+- **Stale remote branches — 38 of 40 are fully merged into `main`** and can be deleted whenever you
+  like; `lock/cve-floors-2026-08-09` looks unmerged but is **superseded**, not pending (`main`
+  already carries `pypdf>=6.15.0`, `cryptography>=50.0.0` and the transitive-floors block, and the
+  lock resolves to exactly those). Checked before reporting, because an unmerged branch named for
+  three CVEs is precisely the kind of thing that reads as an open hole when it is not.
 ## Non-goals (documented rationale — not gaps)
 
 `.mpp` parsing (XML/CSV import is the path) · custom Revit plugin (certified `revit-ifc` covers it) ·
