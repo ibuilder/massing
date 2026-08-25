@@ -4,6 +4,61 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1093 (2026-08-25) — a ratchet went red about the wrong thing, loudly enough to expose the right one
+
+**v0.3.1092 turned `test_mutating_get` red, and the interesting part is not the red.** Moving
+`db.add` out of the OAuth callback into `auth.get_or_create_sso_user` changed the route's recorded
+ops from `('add','commit')` to `('commit',)`, and that ratchet exists to notice exactly such a
+change. Fixing it needed one line. Asking *why* the shape could change at all found a hole that had
+been open since the massing.cloud door shipped.
+
+### The scan only ever read the route's own body
+
+`test_mutating_get` guards the CSRF property: the session cookie is `samesite=lax` with no CSRF
+middleware anywhere, and Lax **sends the cookie on a top-level GET** — so a mutating GET is
+triggerable by a link in an email, and the whole defence is a property of the route table.
+
+Its AST walk covered the route function and nothing else. **Any write moved one call away left its
+remit** — and one already had:
+
+    GET /auth/cloud/callback   ->  _link_account()  ->  db.add(User(...)), db.commit()
+
+The route body touches the session **not at all**, so a GET that creates a user was invisible to the
+gate from the day that door shipped. The assertion *"no GET route touches the DB session without a
+written reason"* was passing over it, which is worse than not having the assertion: it reads as
+coverage.
+
+The scan now follows **same-module** helper calls, depth-limited and cycle-safe. Cross-module calls
+remain invisible, stated as a limit rather than solved — widening it means resolving imports, and a
+scanner that guessed which `foo()` it is would be worse than one whose blind spot is written down.
+
+### Four unreviewed GETs, now reviewed
+
+Following helpers took the population from 5 to 9. The four new ones are all `cloud.py`, and each
+was read rather than baselined on assumption:
+
+- **`/auth/cloud/callback`** creates a user and writes the link. Safe for the same reason the OAuth
+  callback is: it must be a GET because the broker chooses the method, and the authority is the
+  broker's one-time code plus the PKCE state, not our cookie. A forged link carries neither.
+- **the three `/cloud/library/*` reads** commit only because `_fresh_access_token` rotates the
+  **caller's own** massing.cloud token at expiry and must store the rotated pair — refresh tokens
+  rotate on use, so dropping the new one strands the link. Nothing an attacker supplies is written.
+  The residual is stated instead of waved away: a cross-site GET can force a rotation, whose worst
+  case is the victim's own link needing a re-sign-in. A nuisance, not an escalation, and making
+  these POSTs would stop the library being browsable.
+
+### Mutation-checked both ways
+
+A new GET whose only write sits one call away — the precise blind spot — is now caught. And
+reverting the scan to body-only makes all four `cloud.py` entries go **dead**, which the
+"BASELINE carries no dead entries" check flags: the two halves corroborate each other, so the new
+entries cannot be quietly kept by a scanner that stopped finding them.
+
+**The lesson is about ratchets, not about GETs.** This one could only ever fire on a route it could
+already see. It fired about a cosmetic change to a route it *could* see, and following that question
+one step led to the route it could not. **A gate that goes red for a boring reason is still worth
+reading properly** — the boring reason was bookkeeping, and the answer underneath it was a hole.
+
 ## v0.3.1092 (2026-08-25) — three sign-in doors, one seeding race, and a test that took three drafts to mean anything
 
 **The concurrency sweep**, the second of the three axes Band 1 names. Unlike the authz sweep one
