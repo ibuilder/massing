@@ -56,7 +56,7 @@ const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
  * ㉕ is not a considered limit either, just a further-off one. **A vocabulary this check defines is
  * part of its population, so widening it is a real change and not housekeeping.**
  */
-const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖";
+const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗";
 
 /**
  * One source for the marker vocabulary, because there were **two** and they had already drifted.

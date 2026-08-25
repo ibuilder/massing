@@ -4,6 +4,23 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1086 (2026-08-24) — SCALE-SEAM ㉗: the PDF tools, and the plumbing that stayed
+
+Nine methods out of `client.ts` into `api/pdfTools.ts` (2,883 → 2,837): merge, split, rotate, extract,
+the stamp library, stamping, the PAdES-signed seal, and the licences that back it.
+
+Grouped by what they **do**, following ㉖ rather than the route prefix. The run spans `/pdf/*`,
+`/stamps/library` and `/licenses/mine`; splitting on the prefix would put `stampLibrary` in one file
+and the `pdfStamp` that consumes it in another, and separate `myLicenses` from the seal dialog that is
+its only reason to exist.
+
+**`_pdfPost` did not move.** It is `protected` on `HttpCore`, which every mixin extends, so it is
+already where shared transport belongs — the seam is the feature, not the plumbing.
+
+The doc-comment gate earned its keep on the way through: `myLicenses`'s comment spelled it "licences"
+while the code, the type and the route all say `licenses`, so it shared no word with its method. Fixed
+by matching the code, not by widening the exemption set — that set is frozen and may only shrink.
+
 ## v0.3.1085 (2026-08-24) — "Clear cached data" kept nothing, and said it kept everything
 
 Found by sweeping for more instances of yesterday's favourites defect — state that is read but cannot

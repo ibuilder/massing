@@ -635,7 +635,7 @@ two rows share a path, so two agents in different rows cannot collide.
 
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
-| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | R24-RUNS-INBOX *(✅ SHIPPED v0.3.947 + routing, pending archive)* · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
+| **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | R24-RUNS-INBOX *(✅ SHIPPED v0.3.947 + routing, pending archive)* · REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · R24-PERF-BUDGET *(✅ SHIPPED v0.3.1083 — panel_load measured, pending archive)* · SEC-PLUGIN-LOADER *(✅ SHIPPED v0.3.1081 — the plugin process boundary, pending archive)* · PERF-WORKERS ① · PERF-THREADS ③ *(✅ SHIPPED v0.3.1074 — the parse cap, pending archive)* · R35-DEAL-MEMORY · R37-TRIAGE · R39-UPLOAD-CAP-APP ① *(✅ COMPLETE — front half v0.3.876, store sites v0.3.941–942)* · R41-UPLOAD-WARK *(✅ COMPLETE v0.3.1069 — the resumable handshake, its consumer and the client)* · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | R38-ARRAY-LIVE ③ *(✅ SHIPPED — persist + re-edit UI, pending archive)* · R21-4D-CLASH *(✅ SHIPPED — phase 1 v0.3.682 + install-before-support, pending archive)* · R28-BUNDLE ② — **the three that landed in PRs #176/#178/#179 on 2026-08-02** (R28-ICDD, R23-STOREY-LOD, R28-UNIFY) are shipped and pending archive. **Corrected 2026-08-06: this read "all SHIPPED and MERGED", which was false for 8 of the 11 codes beside it** — SEC-PLUGIN-SANDBOX is ◧ with its `setrlimit` half explicitly REFUSED, R38-SYNC-VIEW and R21-4D-CLASH are ◧, and five carry no marker at all. A row-level word like "all" has no defined scope, so it drifts the moment the row grows; the item markers are the authority and this sentence is not. **Three carried defects a post-merge review then found, all fixed v0.3.843**: the array editor repositioned nothing on a pitch change, the ICDD writer left a truncated container when it refused, and the guided cut dropped linework silently. *Merged is not verified — that is the argument for the review pass, not against it.* |
@@ -643,7 +643,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉖ *(the only open slice; ②–㉕ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉗ *(the only open slice; ②–㉖ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-NGINX-INHERIT ② *(SHIPPED v0.3.1028, pending archive — this cell said "the three cache locations drop all seven security headers" for a day after they stopped doing so)* · R39-CONTAINER-PR *(SHIPPED v0.3.1055, pending archive)* · R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -2981,7 +2981,21 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉖ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉖ code compliance SHIPPED v0.3.1081; ②–㉕ already shipped)*
+- ◧ ⭐ **SCALE-SEAM ㉗ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉗ PDF tools SHIPPED v0.3.1086; ②–㉖ already shipped)*
+  **㉗ took the PDF tools and A/E/C seals out** (9 methods, one contiguous run; `client.ts` 2,883 →
+  2,837) as `apps/web/src/api/pdfTools.ts`. Grouped by what they DO, following ㉖: the run spans
+  `/pdf/*`, `/stamps/library` and `/licenses/mine`, and a prefix split would separate `stampLibrary`
+  from the `pdfStamp` that consumes it, and `myLicenses` from the seal dialog that is its only reason
+  to exist.
+  **`_pdfPost` did NOT move.** It is `protected` on `HttpCore`, which every mixin already extends, so
+  it is where shared transport belongs — the seam is the feature, not the plumbing. Same call ㉔ made
+  when `idsDownload` and `pinProjectIds` moved despite not being `json()` calls.
+  *The doc-comment gate caught a real inconsistency on the way through: `myLicenses`'s comment spelled
+  it "licences" while the code, the type and the route all say `licenses`, so the comment shared no
+  word with its method. Fixed by matching the code rather than by widening the exemption set, which is
+  frozen and may only shrink.*
+  **㉘ needs `MARKS` widened again** in `apps/web/src/shell/roadmapLanes.test.ts`.
+
   **㉖ took the code-compliance group out** (8 methods; `client.ts` 2,961 → 2,883) as
   `apps/web/src/api/codecheck.ts`. **It is the first slice grouped by what the methods ANSWER rather
   than by a shared route prefix**, and that is a deliberate departure: the group spans
