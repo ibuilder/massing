@@ -179,7 +179,41 @@ and it is nobody's default, which is exactly why it is written down here.
 > population to read, not a work list; the same warning R39-UPLOAD-CAP-APP's entry carries about its
 > own count of 34.
 >
-> **Money is the one axis still unswept.**
+> ### ⚠️ MONEY SWEEP RUN 2026-08-25 (v0.3.1094) — **a live defect, and a different method**
+>
+> Third and last of the axes. **It could not be swept the way the other two were, and noticing that
+> was most of the work.** `round(x, 2)` appears **732 times** under `services/api/src` — against 43
+> routes for authz and 36 sites for concurrency. Converting them would be the mistake
+> R39-UPLOAD-CAP-APP's entry names in as many words: *a count is not a work list.* Most are display
+> figures where half-even versus half-up changes nothing anyone can act on.
+>
+> So it was swept **by a property rather than by a population**: *where money is SPLIT, do the parts
+> still add up?* That has a yes/no answer, needs no reading of 732 sites, and is the exact boundary
+> where a rounding difference stops being cosmetic and becomes a wrong document.
+>
+> **The JV waterfall failed it.** `run_waterfall` rounded `distributable`, `lp` and `gp`
+> independently, though every tier allocates out of the same `cash` — so the parts drifted from the
+> total they came from. Measured: **52 of 399 distribution periods (13%) had `lp + gp !=
+> distributable`**, a penny out in both directions. A partner reading a statement whose parts do not
+> add up to its own total has found an error in the document; this is real money, and it is what a
+> promote is argued from. `money.allocate` exists for precisely this and had **no caller here**.
+> The capital-call branch had the same shape and the same fix.
+>
+> `accounting.py` was put to the same question first and is sound — each journal entry debits and
+> credits the same figure, so there is no asymmetry to drift.
+>
+> `services/api/test_waterfall_cents.py` holds it, over a sweep of awkward fractions rather than
+> frozen figures. Mutation-checked twice, and **the second matters more**: satisfying the sum by
+> *collapsing the split* — handing the LP everything — is caught by a separate assertion that the GP
+> still receives a real promote. A gate that only checked "the parts add up" would have applauded a
+> waterfall that pays the GP nothing.
+>
+> **BAND 1 NOW HAS ALL THREE AXES SWEPT** — authz (v0.3.1091, no defect), concurrency (v0.3.1092, one
+> defect), money (v0.3.1094, one defect). That is the first time the band's emptiness rests on
+> something measured rather than on nobody having looked. **It decays from here**: the next
+> subsystem to ship re-opens all three, and the date above is what to compare against.
+>
+> **The three sweeps did not want the same method, and assuming they would was the thing to avoid.**
 
 
 ### Band 2 — built but unreachable (cheapest real value in the file)

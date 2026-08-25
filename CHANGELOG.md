@@ -4,6 +4,72 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1094 (2026-08-25) — a distribution statement whose parts did not add up to its own total
+
+**The money sweep**, the third and last of the axes Band 1 names. It found a live defect, in the
+JV waterfall.
+
+### The defect
+
+`run_waterfall` emits a row per period: `distributable`, and the `lp` / `gp` shares it was split
+into. Each was rounded on its own:
+
+    "distributable": round(cash, 2), "lp": round(lp_take, 2), "gp": round(gp_take, 2)
+
+Three independent roundings of what is arithmetically one identity — every tier allocates out of
+`cash`, so `lp_take + gp_take == cash` before rounding. Rounding the parts separately breaks it.
+**Measured over 399 distribution periods on awkward fractions: 52 of them, 13%, had
+`lp + gp != distributable`**, a penny out in both directions:
+
+    distributable 1051.33   lp 1051.10 + gp 0.24 = 1051.34   (+0.01)
+    distributable 1053.67   lp 1052.97 + gp 0.69 = 1053.66   (-0.01)
+
+**A partner reading a distribution statement whose parts do not add up to its own total has found an
+error in the document.** Being a penny is not a defence — the same class as the retainage convention
+`test_money_spine` pins, whose docstring says *"a pay application out by a penny is rejected, which
+makes this a document defect rather than a rounding curiosity"*. This is real money to real
+partners, and it is what a promote gets argued from.
+
+The capital-call branch had the identical shape and got the identical fix.
+
+### `money.allocate` existed for exactly this, with no caller here
+
+`test_money_wire` already describes the helper: *"the parts sum to the whole, and the leftover cents
+are distributed by a defensible rule rather than dumped on whoever sorts last."* The waterfall never
+called it. Also `q2` on the total rather than `round()`: `allocate` takes its total half-up and
+`round()` is half-even, so a bare `round(cash, 2)` could disagree with its own parts by a cent at
+precisely the `.xx5` boundary the fix is about — two conventions inside one statement, which is the
+defect `test_money_spine` was written about.
+
+### Why this axis needed a different kind of sweep, and what that says
+
+The authz and concurrency sweeps each had a population you could enumerate and read — 43 routes,
+36 get-or-create sites. **This one does not.** `round(x, 2)` appears **732 times** under
+`services/api/src`, and converting them would be the mistake R39-UPLOAD-CAP-APP's entry names:
+*a count is not a work list*. Most are display figures where half-even versus half-up changes
+nothing anyone can act on.
+
+So it was swept **by a property instead of by a population**: *where money is SPLIT, do the parts
+still add up?* That has a yes/no answer, needs no reading of 732 sites, and is exactly the boundary
+where a rounding difference stops being cosmetic and becomes a wrong document. `accounting.py` was
+checked against the same question first and is sound — each journal entry debits and credits the
+same figure, so there is no asymmetry to drift.
+
+**The three sweeps did not want the same method, and assuming they would was the thing to avoid.**
+
+### The gate, and both mutations
+
+`services/api/test_waterfall_cents.py` asserts the identity over a sweep of deliberately awkward
+fractions rather than pinning frozen figures — a fixed expected-value table would freeze today's
+arithmetic and say nothing about the identity, and a sweep of round numbers cannot produce the
+defect at all.
+
+Mutation-checked two ways, and the second is the one that matters: reverting to independent rounding
+fails with **52 of 598** periods off by a cent; and satisfying the sum by **collapsing the split**
+(handing the LP everything) is caught by a separate assertion that the GP still receives a real
+promote. A gate that only checked "the parts add up" would have applauded a waterfall that pays the
+GP nothing.
+
 ## v0.3.1093 (2026-08-25) — a ratchet went red about the wrong thing, loudly enough to expose the right one
 
 **v0.3.1092 turned `test_mutating_get` red, and the interesting part is not the red.** Moving
