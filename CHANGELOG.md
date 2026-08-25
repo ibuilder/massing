@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1088 (2026-08-25) — a register can finally be grouped, which is what makes it a report
+
+**R22-REPORT-BUILDER item 1**, which its own entry calls "the substantive one" of four. Until now the
+only `group_by` anywhere in the module path was hardcoded to `workflow_state` (two call sites in
+`modules_query.py`), so "cost by discipline", "RFIs by month" or "hours by trade" had no expression
+at all and the answer was an export into a spreadsheet.
+
+    GET /projects/{pid}/modules/{key}/aggregate
+        ?group_by=<field>&agg=count|sum|avg|min|max&agg_field=<field>
+
+It takes the **same** `?f.<field>[.<op>]=` filters the list route takes, through the same
+`_parse_filters` — so a report and the register it came from cannot disagree about which rows they
+describe.
+
+**Field names are validated by `_resolve_field`, the one the filters and sort already use.** Not a
+new check beside it: `_json_text` interpolates a field name into a SQLite JSON path, so an
+unvalidated name is an injection site rather than a typo, and a second validator would be a second
+answer to "what is a field" — which is how two sources of truth start disagreeing.
+
+**`sum` and `avg` are refused on a non-numeric declared field.** This is the load-bearing behaviour,
+and the reason was verified rather than assumed: with the guard removed, SQLite returns `0.0` per
+group for a sum over text. Not an error — a confident number, which a reader takes as *this project
+has none*. The refusal names the declared type so the caller can act on it, and it is
+mutation-checked. Its twin asserts that a sum over a real numeric field still returns the right
+number, because "it refuses" is otherwise satisfied by an implementation that refuses everything.
+
+**The group cap is announced, not silently applied.** A `group_by` over a free-text field with
+thousands of distinct values is a denial of service dressed as a report; a silently truncated one is
+worse, because a short list reads as the whole answer. The query asks for one past the cap so
+"there were more" is observed rather than inferred, and the response carries `truncated` and
+`max_groups`.
+
+The test's fixture is derived from the registry rather than naming a module, so a renamed module
+fails as a stale fixture rather than as broken aggregation — and it found the create-vs-patch
+asymmetry on the way through: `create_record` takes `{"data": {…}}` while PATCH takes the field map
+flat, and getting it wrong reports as "missing required field(s)".
+
 ## v0.3.1087 (2026-08-24) — the Project Pulse rail has never been styled
 
 `pulse.ts` shipped in v0.3.749 and **no stylesheet has ever contained the string `pulse`**. The rail

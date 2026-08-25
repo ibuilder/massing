@@ -197,6 +197,73 @@ def list_records(db: Session, key: str, project_id: str, state: str | None = Non
     stmt = stmt.order_by(t.c.created_at).limit(limit).offset(offset)
     return [dict(r._mapping) for r in db.execute(stmt)]
 
+#: R22-REPORT-BUILDER — the aggregate functions a grouped query may ask for.
+#: `count` needs no field; the other three do, and only over a numeric one.
+AGG_FNS = {"count", "sum", "avg", "min", "max"}
+
+#: How many groups one aggregate may return. A `group_by` over a free-text field with thousands of
+#: distinct values is a denial of service dressed as a report — and a SILENTLY truncated one is worse,
+#: because a short list reads as the whole answer. Over this, the response says it was capped.
+MAX_GROUPS = 200
+
+
+def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = "count",
+              agg_field: str | None = None, state: str | None = None,
+              filters: list[tuple[str, str, str]] | None = None) -> dict:
+    """Group a module's records by a DECLARED field and aggregate over them.
+
+    This is what separates a saved *list* from a *report*: until now the only `group_by` in the module
+    path was hardcoded to `workflow_state`, so "cost by discipline" or "RFIs per month" could not be
+    expressed at all and the answer was a spreadsheet export.
+
+    **Field names are validated by `_resolve_field`, the same one `_apply_filters` and `_apply_sort`
+    use, and for the same reason** — `_json_text` interpolates the name into a JSON path, so an
+    unvalidated name is an injection site, not a typo. A second validator here would be a second
+    answer to "what is a field", which is how two sources of truth start disagreeing.
+
+    **`sum`/`avg` are REFUSED on a non-numeric field rather than returning 0.** SQLite will happily
+    sum text as zero and hand back a confident `0`, which reads as *this project has none* — the exact
+    shape of wrong answer this module's header already warns about for text-compared numbers.
+    """
+    if key not in TABLES:
+        raise HTTPException(404, f"unknown module {key!r}")
+    if agg not in AGG_FNS:
+        raise HTTPException(400, f"unknown aggregate {agg!r} (expected one of {sorted(AGG_FNS)})")
+    t = TABLES[key]
+    mod = REGISTRY.get(key) or {}
+
+    gexpr, _gf = _field_expr(db, t, mod, group_by)
+    value_expr = None
+    if agg != "count":
+        if not agg_field:
+            raise HTTPException(400, f"{agg} needs a field to aggregate (agg_field)")
+        aexpr, af = _field_expr(db, t, mod, agg_field)
+        if agg in ("sum", "avg") and (af.get("_system") or af.get("type") not in _NUMERIC_FIELD_TYPES):
+            raise HTTPException(400, f"{agg} needs a numeric field; {agg_field!r} is declared "
+                                     f"{af.get('type') or 'text'!r}")
+        value_expr = {"sum": func.sum, "avg": func.avg,
+                      "min": func.min, "max": func.max}[agg](aexpr)
+
+    cols = [gexpr.label("key"), func.count().label("count")]
+    if value_expr is not None:
+        cols.append(value_expr.label("value"))
+    stmt = select(*cols).where(t.c.project_id == project_id)
+    if state:
+        stmt = stmt.where(t.c.workflow_state == state)
+    if filters:
+        stmt = _apply_filters(db, stmt, t, mod, filters)
+    # One past the cap, so "there were more" is observed rather than inferred from a full page.
+    stmt = stmt.group_by(gexpr).order_by(func.count().desc()).limit(MAX_GROUPS + 1)
+
+    rows = [dict(r._mapping) for r in db.execute(stmt)]
+    truncated = len(rows) > MAX_GROUPS
+    if truncated:
+        rows = rows[:MAX_GROUPS]
+    return {"module": key, "group_by": group_by, "agg": agg, "agg_field": agg_field,
+            "groups": rows, "group_count": len(rows),
+            "truncated": truncated, "max_groups": MAX_GROUPS}
+
+
 def count_records(db: Session, key: str, project_id: str, state: str | None = None,
                   q: str | None = None, since: datetime | None = None,
                   filters: list[tuple[str, str, str]] | None = None) -> int:

@@ -1191,9 +1191,20 @@ stakes we are missing.
   compute a column, save it and be alerted on it without an engineering ticket.
 
   The real remainder is the four things that separate a saved *list* from a *report*:
-  1. **No aggregation over user-chosen fields.** The only `group_by` in the whole module path is
-     internal and hardcoded to `workflow_state` (`modules_query.py:230,241`). No count/sum/avg by
-     discipline, trade or month. **This is the substantive one.**
+  1. ✅ **Aggregation over user-chosen fields — SHIPPED v0.3.1088.**
+     `GET /projects/{pid}/modules/{key}/aggregate?group_by=<field>&agg=count|sum|avg|min|max&agg_field=<field>`,
+     with the **same** `?f.<field>[.<op>]=` filters the list route takes, parsed by the same
+     `_parse_filters` — so a report and the register it came from cannot disagree about which rows
+     they describe. Field names are validated by `_resolve_field`, the one the filters and sort
+     already use: `_json_text` interpolates a name into a JSON path, so an unvalidated name is an
+     **injection site**, and a second validator here would be a second answer to "what is a field".
+     **`sum`/`avg` are REFUSED on a non-numeric declared field.** Verified rather than assumed: with
+     the guard removed, SQLite returns `0.0` per group for a sum over text — a confident number that
+     reads as *this project has none*, which is the failure shape this codebase keeps meeting. The
+     group count is capped at 200 and the response **says** when it capped, because a short list that
+     does not say so reads as the whole answer. `services/api/test_module_aggregate.py`; the refusal
+     is mutation-checked, and its twin asserts a real numeric sum still works so "it refuses" is not
+     satisfied by refusing everything.
   2. **Single-module only.** `SavedView.module` is one string and nothing spans modules, so "RFIs
      against change orders by trade" is not expressible — and that is most of what a report *is*.
   3. **`SavedView.config` is an unvalidated JSON blob**, "filter/sort/column config" by docstring only.

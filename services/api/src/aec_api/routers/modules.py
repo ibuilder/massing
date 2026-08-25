@@ -595,6 +595,23 @@ def list_records(request: Request, pid: str, key: str, state: str | None = None,
                                    sort=sort, sort_dir=sort_dir)
 
 
+@router.get("/projects/{pid}/modules/{key}/aggregate")
+def aggregate_records(request: Request, pid: str, key: str, group_by: str, agg: str = "count",
+                      agg_field: str | None = None, state: str | None = None,
+                      db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
+    """R22-REPORT-BUILDER — count/sum/avg/min/max a module's records, grouped by a declared field.
+
+    `?group_by=discipline&agg=sum&agg_field=amount`, with the SAME `?f.<field>[.<op>]=` filters the
+    list route takes, parsed by the same `_parse_filters` — so a report and the register it came from
+    cannot disagree about which rows they describe.
+
+    This is the difference between a saved list and a report. Until now the only `group_by` anywhere
+    in the module path was hardcoded to `workflow_state`, so "cost by discipline" or "RFIs by month"
+    had no expression and the answer was an export into a spreadsheet."""
+    return mod_engine.aggregate(db, key, pid, group_by=group_by, agg=agg, agg_field=agg_field,
+                                state=state, filters=_parse_filters(request.query_params))
+
+
 @router.post("/projects/{pid}/modules/{key}", status_code=201)
 def create_record(pid: str, key: str, body: dict = Body(...), db: Session = Depends(get_db),
                   user: str = Depends(require_role("reviewer"))):

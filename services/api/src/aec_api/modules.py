@@ -33,6 +33,7 @@ from .modules_query import (  # noqa: F401
     _json_text,
     _transition,
     active_records,
+    aggregate,
     available_actions,
     count_records,
     court_party,
