@@ -74,9 +74,34 @@ Mutation-verified two ways. Reverting the matrices to their previous state — t
 the new assertion **and nothing else in the file**, which is the claim about invisibility stated as
 a test result. Adding `converter` to the publish matrix only fails rule 1 instead.
 
-**CI builds this image for the first time in this pull request**, which is the real verification and
-could not be done locally: this container has no Docker daemon. If the build reveals more than the
-`RUN` line, that is the point of building it.
+### What the first build revealed — a CRITICAL CVE, shipped by the base image
+
+**CI built this image for the first time in this pull request, and that first build immediately
+earned its keep.** The `useradd` fix was correct — the build ran to completion — and then the Trivy
+gate, also running against this image for the first time, failed it:
+
+    tar (package.json)  CVE-2026-59873  CRITICAL  fixed  installed 6.2.1  fixed in 7.5.19
+    node-tar: Denial of Service via crafted gzip bomb
+
+**Nothing this Dockerfile installs is `tar`.** A clean `npm install` of `@thatopen/fragments@3.4.7`
+and `web-ifc@0.0.77` resolves seven packages, none of them tar — verified by running it. The
+vulnerable copy is `/usr/local/lib/node_modules/npm/node_modules/tar`, **vendored inside npm**, which
+`node:24-slim` ships.
+
+The reason the other two images are clean is structural, and it is the same reason they were never
+caught by this: **the converter is the only single-stage image in the repository.** Its base *is* its
+runtime, so the whole toolchain publishes with it. `services/api/Dockerfile` takes exactly two things
+out of its node stage — `/usr/local/bin/node` and `/conv/node_modules` — and `apps/web/Dockerfile`
+ships nginx with only `dist`. Neither has ever shipped npm.
+
+So npm, corepack and the npm cache are removed in the same layer that uses them. The runtime keeps
+the `node` binary and the resolved `node_modules`, which is all the ENTRYPOINT invokes — the same end
+state the other two reach by being multi-stage, and a smaller attack surface besides, which is what
+v0.3.936 was reaching for when it added the non-root user it could not build.
+
+**This is what the gate was for.** A CRITICAL, fixable CVE was sitting in a published-on-`main`
+image, and the reason it went unreported is not that anyone dismissed it — it is that no scan had
+ever been pointed at that image. A finding cannot be triaged by a check that never runs.
 
 ## v0.3.1097 (2026-08-25) — a floor that is too low satisfies every check written to catch a floor that is too high
 

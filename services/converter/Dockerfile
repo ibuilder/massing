@@ -13,7 +13,28 @@ WORKDIR /app
 ARG FRAGMENTS_VERSION=3.4.7
 ARG WEBIFC_VERSION=0.0.77
 RUN npm init -y >/dev/null 2>&1 \
-    && npm install @thatopen/fragments@${FRAGMENTS_VERSION} web-ifc@${WEBIFC_VERSION}
+    && npm install --no-audit --no-fund \
+       @thatopen/fragments@${FRAGMENTS_VERSION} web-ifc@${WEBIFC_VERSION} \
+    && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+              /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /root/.npm
+
+# npm is a BUILD tool here and must not ship. This image is the only single-stage one in the repo:
+# `node:24-slim` is its runtime, so everything the base carries — including npm and the copy of
+# node-tar npm bundles — lands in the published image. The first Trivy scan this file has ever had
+# failed on exactly that:
+#
+#     tar (package.json)  CVE-2026-59873  CRITICAL  fixed  installed 6.2.1  fixed in 7.5.19
+#
+# Nothing in the two lines above installs `tar`; a clean `npm install` of these two packages pulls
+# seven packages and none of them is tar. It is `/usr/local/lib/node_modules/npm/node_modules/tar`,
+# vendored inside npm itself.
+#
+# The other two images never had this problem and never had to solve it either — they are
+# multi-stage, so npm stays in a build stage. `services/api/Dockerfile` takes exactly two things out
+# of its node stage, `/usr/local/bin/node` and `/conv/node_modules`; `apps/web/Dockerfile` ships
+# nginx and copies only `dist`. Removing npm here reaches the same end state: the runtime keeps the
+# `node` binary and the resolved `node_modules`, which is all the ENTRYPOINT below uses.
 
 COPY services/converter /app/services/converter
 
