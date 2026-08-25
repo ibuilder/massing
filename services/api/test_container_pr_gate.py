@@ -13,6 +13,13 @@ This file is the part that keeps it honest, and the assertions are ordered by wh
 1.  **The two matrices stay equal.** This is the ratchet. A third image added to the publish matrix
     and not to the PR matrix would restore the original hole for that image alone, silently, and
     every other assertion here would still pass. Derived from both jobs, never listed here.
+
+    **That was written about an image entering the MATRIX, and the gap was an image entering the
+    REPOSITORY.** `services/converter/Dockerfile` existed in neither list, so it was invisible to
+    every assertion here: the path filter matched it (editing it started the container jobs) while
+    the matrix did not build it. No job had ever built that image on any event, which is why a
+    non-root `RUN` written in BusyBox syntax on a Debian base -- a build failure, not a warning --
+    shipped green in v0.3.936 and survived. Rule 3 now closes it from the `git ls-files` side.
 2.  **The PR job cannot push.** No `docker/login-action`, no write permission, no `docker push`,
     and every `build-push-action` step sets `push: false`. A build job that acquires registry
     credentials on a fork PR is a worse problem than the one this item fixes.
@@ -34,6 +41,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import subprocess
 import sys
 
 import yaml
@@ -121,6 +129,39 @@ if pat:
           not unmatched, ", ".join(unmatched) or f"all {len(pub_images)} matched")
     check("...and it matches ci.yml itself, so an action bump triggers a build",
           bool(rx.search(".github/workflows/ci.yml")))
+
+    # ...AND THE CONVERSE, which is the half this rule did not have.
+    #
+    # Above asks "does the filter match every Dockerfile in the matrix?". That direction catches a
+    # Dockerfile that MOVED. It cannot catch a Dockerfile that EXISTS and was never added, because
+    # such a file appears in neither list being compared — it is outside the population entirely.
+    #
+    # `services/converter/Dockerfile` sat in exactly that gap. The filter matched it, so editing it
+    # TRIGGERED the container jobs; the matrix did not list it, so those jobs built the other two
+    # images and never the one that changed. **No job has ever built it, on any event.** The cost
+    # was not hypothetical: v0.3.936 added a non-root user to it in BusyBox syntax on a Debian base,
+    # which fails the build outright, and that shipped green and stayed for months. A separate
+    # 25-day EOL Node base in the same file has the same explanation.
+    #
+    # The file docstring's rule 1 anticipated "a third image added to the publish matrix and not to
+    # the PR matrix" — a third image entering the MATRIX. It did not anticipate a third Dockerfile
+    # entering the REPOSITORY. **A gate's population is part of its claim**, which is the sentence
+    # `test_lock_satisfies_requirements` had to learn twice, and the same shape as
+    # `docsCurrent.test.ts` filtering README rows by the manifest it was checking them against.
+    #
+    # Derived from `git ls-files`, never listed here: a hardcoded list would rot the same way.
+    tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True,
+                             check=True).stdout.split("\n")
+    dockerfiles = sorted(f.strip() for f in tracked
+                         if f.strip().endswith("Dockerfile") or f.strip() == "Dockerfile")
+    check("git ls-files finds the Dockerfiles -- otherwise the converse below is vacuous",
+          len(dockerfiles) >= 2, f"{len(dockerfiles)}: {', '.join(dockerfiles)}")
+    unbuilt = sorted(d for d in dockerfiles if rx.search(d) and d not in set(pub_images.values()))
+    check("...and every Dockerfile the filter TRIGGERS on is one the matrix actually BUILDS",
+          not unbuilt,
+          ", ".join(unbuilt) + " -- editing it starts the container jobs and no job builds it; "
+          "add it to both matrices, or stop the filter matching it" if unbuilt
+          else f"all {len(dockerfiles)} tracked Dockerfiles are in the matrix")
     decoys = ["README.md", "docs/roadmap.md", "apps/web/src/viewer/app.ts",
               ".github/workflows/codeql.yml"]
     wrong = sorted(d for d in decoys if rx.search(d))

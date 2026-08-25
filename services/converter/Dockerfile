@@ -18,10 +18,28 @@ RUN npm init -y >/dev/null 2>&1 \
 COPY services/converter /app/services/converter
 
 # Drop root. This image is a CLI entrypoint — it binds no port, so there is no privileged-port
-# problem and nothing to trade away. `--chown` on the app tree so the non-root user can read
-# what it was given and write nothing it was not.
-RUN addgroup -S app && adduser -S -G app app && chown -R app:app /app
-USER app
+# problem and nothing to trade away. `chown` on the app tree so the non-root user can read what it
+# was given and write nothing it was not.
+#
+# `useradd`, NOT `adduser -S`. This line read `addgroup -S app && adduser -S -G app app` from
+# v0.3.936 — BusyBox/Alpine syntax on a Debian base. Debian's adduser is a Perl script whose short
+# options are Getopt::Long abbreviations, and both of those are ambiguous there:
+#
+#     $ addgroup -S app
+#     Option s is ambiguous (shell, stderrmsglevel, stdoutmsglevel, system)
+#     $ adduser -S -G app app
+#     Option s is ambiguous (...)   Option g is ambiguous (gecos, gid, group)
+#
+# Both exit non-zero, so this RUN failed and **the image could not be built at all**. The commit
+# that introduced it is titled "drop root in the converter image": the hardening it describes has
+# never run anywhere, because nothing has ever built this file. See ci.yml's container matrix —
+# until this change it listed api and web only, so `services/converter/Dockerfile` was the one
+# Dockerfile in the repo that no job built, on any event.
+#
+# Same idiom and same uid as `services/api/Dockerfile`, which is Debian too and does build.
+RUN useradd -m -u 10001 appuser \
+    && chown -R appuser:appuser /app
+USER appuser
 
 # usage: docker compose run --rm converter /data/model.ifc /data/model.frag
 ENTRYPOINT ["node", "services/converter/src/cli.mjs"]

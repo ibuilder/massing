@@ -4,6 +4,80 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1098 (2026-08-25) — the one Dockerfile no job has ever built, and the hardening that never ran
+
+Following the v0.3.1097 Node-base fix to its cause. **`services/converter/Dockerfile` is built by
+nothing** — not on a pull request, not on a push to `main`, not on any event — and it has not been
+buildable at all since v0.3.936.
+
+### The image cannot be built
+
+v0.3.936 is titled *"drop root in the converter image"*. It added:
+
+    RUN addgroup -S app && adduser -S -G app app && chown -R app:app /app
+    USER app
+
+That is BusyBox/Alpine syntax. This image is `node:24-slim`, which is Debian, and Debian's
+`adduser` is a Perl script whose short options are Getopt::Long abbreviations. Run on the Debian
+family:
+
+    $ addgroup -S app
+    Option s is ambiguous (shell, stderrmsglevel, stdoutmsglevel, system)
+    $ adduser -S -G app app
+    Option s is ambiguous (...)   Option g is ambiguous (gecos, gid, group)
+
+Both exit non-zero, so the `RUN` fails and the build stops there. **The hardening that commit
+describes has never run anywhere, because the image it hardens has never been produced.** The file
+was never Alpine-based — checked back to the initial commit — so this was wrong on the day it
+landed. Now `useradd -m -u 10001 appuser`, the same idiom and the same uid as
+`services/api/Dockerfile`, which is Debian too and does build.
+
+### Why nothing said so, and it is the same shape again
+
+`ci.yml`'s container matrices listed `api` and `web`. `docker-scope`'s path filter is
+`(^|/)Dockerfile$|...`, which **does** match `services/converter/Dockerfile`. So editing that file
+*triggers* the container jobs, and those jobs then build the two images it did not change:
+
+    apps/web/Dockerfile              filter-matches=True   in-matrix=True
+    services/api/Dockerfile          filter-matches=True   in-matrix=True
+    services/converter/Dockerfile    filter-matches=True   in-matrix=False
+
+`test_container_pr_gate.py` exists to keep the filter and the matrix in sync and asked one
+direction: *does the filter match every Dockerfile in the matrix?* That catches a Dockerfile that
+**moved**. It cannot catch one that **exists and was never added**, because such a file is in
+neither list being compared — outside the population entirely. Its own rule 1 anticipated *"a third
+image added to the publish matrix"*: a third image entering the **matrix**, not a third Dockerfile
+entering the **repository**.
+
+**This is the fifth instance of one shape in this release range**, and they are worth reading
+together rather than as five coincidences — a check whose population was defined so that the failure
+it exists for could not appear in it:
+
+| gate | the population it chose | what that excluded |
+|---|---|---|
+| `test_lock_satisfies_requirements` (2026-08-01) | `requirements.in` | the floors in `services/data` |
+| `test_lock_satisfies_requirements` (2026-08-07) | pin ≥ floor | a floor that is too **low** |
+| `docsCurrent.test.ts` (v0.3.1096) | README rows present in the manifest | a row for a **removed** package |
+| `check-fragments-version.mjs` (v0.3.1097) | the two version ARGs | the `FROM` line above them |
+| `test_container_pr_gate.py` (here) | Dockerfiles in the matrix | a Dockerfile **not** in the matrix |
+
+Four of the five filtered their input by the very thing they were checking it against.
+
+### The fix
+
+`converter` is in both matrices, so the image is built on every PR that touches a Dockerfile and
+built, scanned and published on `main`. Rule 3 gains its converse, derived from `git ls-files` so a
+hardcoded list cannot rot: **every Dockerfile the filter triggers on must be one the matrix
+actually builds.** Anti-vacuity guarded on the `git ls-files` result.
+
+Mutation-verified two ways. Reverting the matrices to their previous state — the live defect — fails
+the new assertion **and nothing else in the file**, which is the claim about invisibility stated as
+a test result. Adding `converter` to the publish matrix only fails rule 1 instead.
+
+**CI builds this image for the first time in this pull request**, which is the real verification and
+could not be done locally: this container has no Docker daemon. If the build reveals more than the
+`RUN` line, that is the point of building it.
+
 ## v0.3.1097 (2026-08-25) — a floor that is too low satisfies every check written to catch a floor that is too high
 
 The dependency half of the full branch/PR review. **272 of 340 pull requests merged; 68 closed
