@@ -11,16 +11,18 @@ Namespace: `{site}/wp-json/massing-vault/v1`
     GET    /projects           → the user's vaults        {user_id, projects:[…]}
     GET    /projects/{id}      → one vault
     GET    /models/{id}        → a model + a signed, ~15-min `download_url`
-    POST   /models             → save a model back (pointer; see the `.mass` note below)
-    DELETE /models/{id}        → remove a model
 
-**Reading is what ships here.** `save_model` is included because the round trip is the point of a
-library, but the byte-upload half of it is an open joint decision in massing.cloud docs/31 §3 — the
-site's `POST /models` records a *pointer* (`storage_key`) and assumes the bytes already live in
-storage. A recent site commit adds a `.mass` binary upload endpoint; until this app actually writes
-`.mass` containers there is nothing to push, so `save_model` is deliberately not wired to a route
-yet. Wiring it before the container writer exists would give us a save button that silently records
-a pointer to nothing.
+**Reading is all this module does, and the write half is deliberately ABSENT rather than parked.**
+The site also offers `POST /models` (save a pointer) and `DELETE /models/{id}`, and an earlier draft
+of this file wrapped both. They were removed: the byte-upload half is an open joint decision in
+massing.cloud docs/31 §3 — the site's `POST /models` records a *pointer* (`storage_key`) and assumes
+the bytes already live in storage — and this app has no `.mass` container writer, so there is nothing
+to push. Wiring a save button now would record a pointer to nothing.
+
+Keeping the wrappers "ready for later" is the thing `test_dead_code_population` exists to prevent,
+and it caught them: two public functions with no caller anywhere. They are four lines each and the
+shape is recorded right here, so re-adding them when the writer lands costs nothing — whereas code
+that is present, untested against a live endpoint, and believed to work is a liability.
 
 Plan limits are enforced site-side and come back as **409** with a message meant for the user —
 surfaced verbatim rather than reworded, because it names the actual limit they hit.
@@ -95,15 +97,6 @@ def get_model(token: str, model_id: int | str) -> dict:
     model-scoped token and needs **no** Authorization header — so it must never be handed a Bearer
     header on fetch, and it must never be cached or logged."""
     return _shape_model(call(f"/models/{urllib.parse.quote(str(model_id))}", token))
-
-
-def save_model(token: str, payload: dict) -> dict:
-    """Ingest/update a model pointer. See the module note: not routed until the `.mass` writer lands."""
-    return _shape_model(call("/models", token, method="POST", body=payload))
-
-
-def delete_model(token: str, model_id: int | str) -> None:
-    call(f"/models/{urllib.parse.quote(str(model_id))}", token, method="DELETE")
 
 
 def _shape_project(p: Any) -> dict:

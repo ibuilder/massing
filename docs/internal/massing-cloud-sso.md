@@ -113,11 +113,18 @@ built at all for a non-admin (a hidden tab whose body still rendered would leak 
 
 ## What is deliberately NOT here
 
-**Saving back to the cloud.** `massing_cloud_vault.save_model` exists but is not routed. Doc 31 §3
-is an open joint decision: the site's `POST /models` records a **pointer** (`storage_key`) and
-assumes the bytes already live in storage. A recent site commit adds a `.mass` binary upload
-endpoint, but this app has no `.mass` container writer yet, so there is nothing to push — wiring a
-save button now would record a pointer to nothing.
+**Saving back to the cloud.** Doc 31 §3 is an open joint decision: the site's `POST /models` records
+a **pointer** (`storage_key`) and assumes the bytes already live in storage. A recent site commit
+adds a `.mass` binary upload endpoint, but this app has no `.mass` container writer yet, so there is
+nothing to push — wiring a save button now would record a pointer to nothing.
+
+An earlier draft kept `save_model` / `delete_model` wrappers in `massing_cloud_vault.py` "ready for
+later". `test_dead_code_population` caught them — two public functions with no caller anywhere — and
+they were **removed rather than allowlisted**. That gate's own history is the argument: its
+population was corrected 877 → 35 → 13, and eight of the survivors turned out to be live symbols, so
+it is not a rule to argue with from the comfort of having just written the code. Re-adding four lines
+when the writer lands costs nothing; code that is present, never exercised against a live endpoint,
+and believed to work is a liability.
 
 **Opening `.mass`.** `openCloudModel` in `main.ts` accepts `.ifc` and `.frag` and refuses anything
 else explicitly, so the library says "can't be opened here yet" rather than handing an unknown
