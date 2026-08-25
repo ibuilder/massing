@@ -10,7 +10,7 @@
 // source nobody linted.**
 //
 // That is verbatim the finding PR #219 recorded about `apps/web/scripts/` on 2026-08-06, one
-// directory up and eleven weeks later. Its note is worth re-reading rather than paraphrasing: the
+// directory up and NINETEEN DAYS later. Its note is worth re-reading rather than paraphrasing: the
 // directory was ignored "rather than a decision anyone made about linting build scripts" — an
 // accident of configuration that reads, from the outside, exactly like a choice.
 //

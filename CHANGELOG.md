@@ -17,10 +17,16 @@ service"*. So the root `scripts/` was covered by nothing — and it holds
 `scripts/check-fragments-version.mjs`, the program CI runs to gate the fragments/web-ifc pin and, as
 of v0.3.1097, the shared Node base image.
 
-**That is verbatim PR #219's finding of 2026-08-06, one directory up and eleven weeks later:** *"the
+**That is verbatim PR #219's finding of 2026-08-06, one directory up and _nineteen days_ later:** *"the
 only web source nobody linted was the source that gates the build."* Its note is the part that
 matters — the directory was ignored *"rather than a decision anyone made about linting build
 scripts."* An accident of configuration reads, from outside, exactly like a choice.
+
+*(This entry first said "eleven weeks later", which was simply wrong — 2026-08-06 to 2026-08-25 is
+**19 days**. Caught in review. The correction sharpens the point rather than softening it: the same
+structural defect recurred inside three weeks, in a repository that had just written the lesson down.
+A recurrence at eleven weeks is drift; a recurrence at nineteen days is a pattern the prose could not
+prevent — which is the argument for the check.)*
 
 ### Enumerating the population found three more, in the same service as yesterday's
 
