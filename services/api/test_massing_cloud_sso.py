@@ -210,17 +210,28 @@ with TestClient(app) as c:
     # the library is gone with the link, and says so as "not linked" rather than "not entitled"
     assert c.get("/cloud/library/projects", headers=BEARER(tok)).status_code == 403
 
-    # ── a FIRST link may promote, and must never DEMOTE a pre-existing local admin ───────────
-    # Regression test for a real lockout: `link` is None on a first cloud sign-in and `username` is
-    # then just the email, so the "existing user" branch fires for a LOCAL account that has never
-    # been cloud-linked. A two-way role write there demoted it. Because `userinfo` publishes no
-    # roles today, `is_admin` is always False — so the bootstrap admin demoted ITSELF by signing in
-    # once, and if it was the only admin that is a lockout. Found in review, reproduced, then fixed.
-    from aec_api.db import SessionLocal          # noqa: E402
+    # ── PROVENANCE OF THE ADMIN BIT: promote freely, demote only what this path granted ───────
+    # Three lockouts came from not recording where the admin bit came from, all reproduced first:
+    # a first link demoted a pre-existing local admin; a first-link-only guard merely DELAYED that
+    # to the second sign-in; and `disconnect` demoted them on the way out. `/auth/cloud/refresh`
+    # had it too. All four are asserted below, in BOTH directions — asserting only "never demotes"
+    # would pass on a build with role sync switched off entirely, which is the refusal-test trap.
+    from aec_api.db import SessionLocal             # noqa: E402
     from aec_api.models import CloudIdentity, User  # noqa: E402
 
-    STATE["roles"] = []                          # the LIVE shape: the broker publishes no roles
-    STATE["tier"] = "commercial"
+    def role_of(name):
+        with SessionLocal() as s:
+            u = s.get(User, name)
+            return u.role if u else None
+
+    def cloud_signin(nonce):
+        lg = c.get("/auth/cloud/login", follow_redirects=False)
+        st = urllib.parse.parse_qs(urllib.parse.urlparse(lg.headers["location"]).query)["state"][0]
+        r = c.get("/auth/cloud/callback", params={"code": nonce, "state": st}, follow_redirects=False)
+        assert r.status_code == 303, r.text
+
+    # (A) a PRE-EXISTING LOCAL admin, against a broker that publishes no roles (today's live shape)
+    STATE["roles"], STATE["tier"] = [], "commercial"
     with SessionLocal() as s:
         s.add(User(username="boss@example.com", password_hash="x", role="admin", active=True))
         s.commit()
@@ -228,26 +239,19 @@ with TestClient(app) as c:
         "sub": "9001", "name": "Boss", "email": "boss@example.com",
         "tier": STATE["tier"], "providers": [], "roles": STATE["roles"]}
     c.cookies.clear()
-    lg = c.get("/auth/cloud/login", follow_redirects=False)
-    st2 = urllib.parse.parse_qs(urllib.parse.urlparse(lg.headers["location"]).query)["state"][0]
-    assert c.get("/auth/cloud/callback", params={"code": "z", "state": st2},
-                 follow_redirects=False).status_code == 303
+    cloud_signin("a1")
+    assert role_of("boss@example.com") == "admin", "a FIRST link must not demote a local admin"
     with SessionLocal() as s:
-        assert s.get(User, "boss@example.com").role == "admin",             "a first cloud link must NOT demote a pre-existing local admin"
-        assert s.get(CloudIdentity, "boss@example.com") is not None, "...and the link was created"
+        assert s.get(CloudIdentity, "boss@example.com").local_admin_at_link is True
+    cloud_signin("a2")
+    assert role_of("boss@example.com") == "admin", "...nor may the SECOND sign-in"
+    boss_tok = c.cookies.get("aec_token")
+    assert c.post("/auth/cloud/refresh", headers=BEARER(boss_tok)).status_code == 200
+    assert role_of("boss@example.com") == "admin", "...nor may an explicit Refresh"
+    assert c.post("/auth/cloud/disconnect", headers=BEARER(boss_tok)).status_code == 200
+    assert role_of("boss@example.com") == "admin", "...nor may Disconnect"
 
-    # ...but once linked, the sync IS two-way — the same absent role now demotes, which is the half
-    # that stops a revoked cloud role leaving a live admin behind. Asserting only the no-demote side
-    # would pass on a build that had disabled role sync entirely.
-    assert c.post("/auth/cloud/refresh", headers=BEARER(c.cookies.get("aec_token") or "")).status_code in (200, 401)
-    lg = c.get("/auth/cloud/login", follow_redirects=False)
-    st3 = urllib.parse.parse_qs(urllib.parse.urlparse(lg.headers["location"]).query)["state"][0]
-    assert c.get("/auth/cloud/callback", params={"code": "z2", "state": st3},
-                 follow_redirects=False).status_code == 303
-    with SessionLocal() as s:
-        assert s.get(User, "boss@example.com").role == "user",             "once LINKED, losing the cloud role must drop the elevation"
-
-    # ...and a cloud admin IS promoted on a first link (the direction that is meant to work).
+    # (B) an account elevated BY the cloud — the demotions that must still happen
     with SessionLocal() as s:
         s.add(User(username="chief@example.com", password_hash="x", role="user", active=True))
         s.commit()
@@ -256,12 +260,22 @@ with TestClient(app) as c:
         "sub": "9002", "name": "Chief", "email": "chief@example.com",
         "tier": "commercial", "providers": [], "roles": STATE["roles"]}
     c.cookies.clear()
-    lg = c.get("/auth/cloud/login", follow_redirects=False)
-    st4 = urllib.parse.parse_qs(urllib.parse.urlparse(lg.headers["location"]).query)["state"][0]
-    assert c.get("/auth/cloud/callback", params={"code": "z3", "state": st4},
-                 follow_redirects=False).status_code == 303
+    cloud_signin("b1")
+    assert role_of("chief@example.com") == "admin", "a first link SHOULD promote a cloud admin"
     with SessionLocal() as s:
-        assert s.get(User, "chief@example.com").role == "admin",             "a first link SHOULD promote a cloud administrator"
+        assert s.get(CloudIdentity, "chief@example.com").local_admin_at_link is False
+    STATE["roles"] = ["subscriber"]                 # the site revokes the role
+    cloud_signin("b2")
+    assert role_of("chief@example.com") == "user",         "losing the cloud role MUST drop a cloud-granted elevation"
+
+    # ...and disconnect strips a cloud-granted elevation too
+    STATE["roles"] = ["administrator"]
+    c.cookies.clear()
+    cloud_signin("b3")
+    assert role_of("chief@example.com") == "admin"
+    chief_tok = c.cookies.get("aec_token")
+    assert c.post("/auth/cloud/disconnect", headers=BEARER(chief_tok)).status_code == 200
+    assert role_of("chief@example.com") == "user",         "disconnect MUST strip an elevation this path granted"
 
     # ── the feature is off by default: no flag ⇒ the routes are not there at all ─────────────
     settings_store._cache["MASSING_CLOUD_SSO_ENABLED"] = "0"

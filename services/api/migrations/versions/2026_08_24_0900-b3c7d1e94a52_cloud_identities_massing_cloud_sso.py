@@ -35,6 +35,9 @@ def upgrade() -> None:
         sa.Column('avatar_url', sa.String(), nullable=True),
         sa.Column('cloud_tier', sa.String(), nullable=True),
         sa.Column('cloud_roles', sa.JSON(), nullable=True),
+        # Provenance of the admin bit — see the model. Added to this (unshipped) migration rather
+        # than as a follow-up: the table has never existed outside a dev database.
+        sa.Column('local_admin_at_link', sa.Boolean(), nullable=True),
         sa.Column('providers', sa.JSON(), nullable=True),
         sa.Column('access_token', sa.Text(), nullable=True),
         sa.Column('refresh_token', sa.Text(), nullable=True),

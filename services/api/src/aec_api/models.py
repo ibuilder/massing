@@ -209,6 +209,14 @@ class CloudIdentity(Base):
     # NOT the three-value `tiers.TIERS` used by `User.tier`. See massing_cloud_auth.normalize_tier.
     cloud_tier: Mapped[str | None] = mapped_column(String, nullable=True)
     cloud_roles: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # PROVENANCE OF THE ADMIN BIT, and the reason three separate lockouts were possible without it.
+    # Snapshotted at FIRST link, before role sync writes anything: was this account already a
+    # platform admin before massing.cloud touched it? Role sync may then promote freely, but may
+    # only demote an account it is itself responsible for elevating — and `disconnect` may only
+    # strip an elevation this path granted. Without it the code could not tell "admin because of
+    # the cloud" from "admin before the cloud", while three comments claimed it could.
+    # NULL = legacy/unknown, treated as False (safe: the account is then subject to sync).
+    local_admin_at_link: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     providers: Mapped[list | None] = mapped_column(JSON, nullable=True)
     access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)

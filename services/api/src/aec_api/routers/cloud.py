@@ -81,7 +81,8 @@ def _require_enabled() -> None:
 
 @router.get("/auth/cloud/login")
 def cloud_login(request: Request):
-    """Start the PKCE flow. The verifier is sealed into an HttpOnly cookie (never into `state`)."""
+    """Start the PKCE flow. An opaque **flow id** is sealed into an HttpOnly cookie (never into
+    `state`); the verifier is derived from it and never leaves this process."""
     _require_enabled()
     redirect_uri = str(request.url_for("cloud_callback"))
     # The cookie carries an opaque flow id; the verifier is DERIVED from it plus the server signing
@@ -160,6 +161,11 @@ def _link_account(db: Session, info: dict, tok: dict, access: str) -> str:
     username = link.username if link else email
 
     u = db.get(User, username)
+    # Provenance snapshot, taken BEFORE role sync writes anything. On a first link this records
+    # whether the account was already an admin without the cloud's help; on later logins we keep
+    # what was recorded then, because the provenance of the original elevation does not change.
+    was_local_admin = bool(link.local_admin_at_link) if link is not None else (
+        u is not None and u.role == "admin")
     if u is None:
         if os.environ.get("AEC_OAUTH_NO_AUTOPROVISION") == "1":
             raise HTTPException(403, "no account for this cloud user — ask an admin to invite you first")
@@ -172,27 +178,30 @@ def _link_account(db: Session, info: dict, tok: dict, access: str) -> str:
         if not u.email:
             u.email = email
         u.tier = cloud.app_tier_for(cloud_tier)
-        # Role sync is two-way *for this provider* — but only ONCE THE LINK EXISTS. Losing `editor`
-        # on the site must drop the elevation here, or a revoked cloud role leaves a live admin
-        # behind; that is the `link is not None` arm.
+        # Role sync **may promote freely, and may only demote an elevation it granted.**
         #
-        # **A first link may PROMOTE and must never DEMOTE.** `link` is None on a first cloud
-        # sign-in, and `username` is then just the email — so this branch is also reached for a
-        # pre-existing LOCAL account that has never been cloud-linked, and a two-way write there
-        # would demote it on the strength of a role nobody has published. That is not hypothetical:
-        # `userinfo` ships no roles at all today, so `is_admin` is always False, and the bootstrap
-        # admin (whose username IS their email) demoted itself to `user` by signing in once — a
-        # lockout when they were the only admin. Reproduced before fixing; twin test below.
+        # `was_local_admin` is the whole rule. Without it the code cannot tell "admin because of
+        # the cloud" from "admin before the cloud", and three separate lockouts followed from
+        # exactly that gap — each one reproduced before being fixed:
         #
-        # The comment this replaces asserted "only ever touches accounts that are cloud-linked",
-        # which was the property the code NEEDED and did not have — the exact shape this repo's
-        # doc-comment discipline exists to catch, found in review by a second session rather than
-        # by any gate.
+        #   1. first link demoted a pre-existing local admin (`link` is None here, `username` is
+        #      just the email, so this branch is reached for accounts that were never cloud-linked);
+        #   2. after a first-link-only guard, the SECOND sign-in demoted them instead — the lockout
+        #      was delayed by one login, not prevented;
+        #   3. `disconnect` demoted them on the way out (see `cloud_disconnect`).
+        #
+        # None of the three is hypothetical: `userinfo` ships no roles at all today, so `is_admin`
+        # is ALWAYS False, and the bootstrap admin's username IS their email. Every one of them was
+        # a guaranteed lockout in the default configuration, not an edge case.
+        #
+        # Note the consequence, which is intended: for a cloud-linked account that was NOT already
+        # an admin, the site is authoritative — promoting it locally under "Manage users" will be
+        # undone at the next sign-in. Set `MASSING_CLOUD_ROLE_SYNC=0` if that is not wanted.
         if cloud.role_sync_enabled():
-            if link is not None:
-                u.role = "admin" if is_admin else "user"
-            elif is_admin:
+            if is_admin:
                 u.role = "admin"
+            elif not was_local_admin:
+                u.role = "user"
     if u.active is False:
         raise HTTPException(403, "account is deactivated")
 
@@ -205,6 +214,9 @@ def _link_account(db: Session, info: dict, tok: dict, access: str) -> str:
     link.avatar_url = str(info.get("avatar_url") or "") or None
     link.cloud_tier = cloud_tier
     link.cloud_roles = roles
+    # Written on every sync, but the value is the FIRST-link snapshot carried forward (see above):
+    # the provenance of the original elevation does not change because the user signed in again.
+    link.local_admin_at_link = was_local_admin
     link.providers = info.get("providers") if isinstance(info.get("providers"), list) else []
     link.access_token = access
     link.refresh_token = str(tok.get("refresh_token") or "") or link.refresh_token
@@ -284,8 +296,14 @@ def cloud_refresh_profile(db: Session = Depends(get_db), user: str = Depends(req
     u = db.get(User, user)
     if u is not None:
         u.tier = cloud.app_tier_for(link.cloud_tier)
+        # Same rule as `_link_account`: promote freely, demote only an elevation this path granted.
+        # This site had the bug too — a plain two-way write here demoted a pre-existing local admin
+        # the moment they hit "Refresh" in their profile.
         if cloud.role_sync_enabled():
-            u.role = "admin" if cloud.is_cloud_admin(roles) else "user"
+            if cloud.is_cloud_admin(roles):
+                u.role = "admin"
+            elif not link.local_admin_at_link:
+                u.role = "user"
     db.commit()
     return cloud_status(db=db, user=user)
 
@@ -300,11 +318,17 @@ def cloud_disconnect(db: Session = Depends(get_db), user: str = Depends(require_
     for tok in (link.access_token, link.refresh_token):
         if tok:
             cloud.revoke_token(tok)
+    # Read the provenance BEFORE deleting the row — it is the only record of where the admin bit
+    # came from, and after `db.delete` there is nothing left to ask.
+    was_local_admin = bool(link.local_admin_at_link)
     db.delete(link)
     u = db.get(User, user)
-    # An account that was only ever an admin *because* of its cloud role must not keep that
-    # elevation after the link is gone.
-    if u is not None and cloud.role_sync_enabled() and u.role == "admin":
+    # An elevation this path GRANTED must not survive the link being removed — but an account that
+    # was already an admin before it ever linked must keep what it had. The comment here used to
+    # assert the first half while the code could not evaluate it, so a pre-existing local admin was
+    # demoted by pressing "Disconnect" — the same lockout as the sign-in path, reachable by a user
+    # doing exactly what the button is for. Caught in review; reproduced before fixing.
+    if u is not None and cloud.role_sync_enabled() and u.role == "admin" and not was_local_admin:
         u.role = "user"
     audit.record(db, action="auth.cloud_disconnect", actor=user, method="POST",
                  path="/auth/cloud/disconnect", detail={})
