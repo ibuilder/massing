@@ -224,8 +224,63 @@ check("the lock satisfies every floor the requirements sources declare",
         " 'requirements-lock' artifact, and commit it." if violations else
       f"{len(floors)} floors checked against {len(pinned)} pins")
 
+# --- and the two sources must not disagree with EACH OTHER ---------------------------------------
+# The check above is one-directional by construction: it asks whether the pin is at least the floor.
+# A floor that is too LOW satisfies it for free — every pin is >= a floor of 0 — so a stale floor is
+# invisible to it, and 5 of the 12 packages BOTH files declare had drifted apart by 2026-08-25:
+#
+#     defusedxml     requirements.in >=0.7.1     services/data >=0.7       (lock 0.7.1)
+#     ifcopenshell   requirements.in >=0.8.0     services/data >=0.8.5     (lock 0.8.5)
+#     manifold3d     requirements.in >=3.5.2     services/data >=2.0       (lock 3.5.2)
+#     rdflib         requirements.in >=7.1       services/data >=7.6.0     (lock 7.6.0)
+#     reportlab      requirements.in >=5.0.0     services/data >=4.0       (lock 5.0.0)
+#
+# **They disagree in BOTH directions**, which is what makes this drift rather than a decision:
+# nobody deliberately requires ifcopenshell 0.8.0 in one file and 0.8.5 in the file next to it.
+# Two of the five carry a stated security reason in the very file that then declares the weaker
+# floor — `defusedxml` is commented "XXE / billion-laughs hardening" in one and "XXE-safe parser for
+# untrusted P6 (PMXML) schedule uploads" in the other, and only one of those two lines actually
+# delivers 0.7.1.
+#
+# Nothing shipped wrong: the lock pins at or above the higher floor in all five cases, and the lock
+# is the only thing installed. That is exactly why it survived — **the runtime was right, so the
+# declaration could be wrong indefinitely**. It becomes real the moment the lock is recompiled,
+# because pip resolves against these files: with `defusedxml>=0.7` still written down, a fresh
+# resolution is free to pick 0.7, and every check in this file stays green while the XXE floor the
+# comment promises quietly disappears.
+#
+# It also explains six Dependabot pull requests that were closed rather than merged (#37, #38, #40,
+# #89, #90, #92). Each raised a floor in `services/data/requirements.txt`; each was correct that the
+# lock already carried the version; and closing them left the *declaration* behind. **"Already
+# covered by the lock" is a true answer to the wrong question** — the floor is not a report of what
+# is installed, it is the constraint the next resolution is bound by.
+#
+# The assertion is deliberately narrow: it does not require a floor to equal the pin (a floor
+# legitimately sits below a resolved version), only that **two files declaring the same package
+# declare the same thing**. That has one unambiguous right answer and needs no resolver.
+by_pkg: dict[str, dict[str, list[str]]] = {}
+for name, floor, lineno in floors:
+    by_pkg.setdefault(name, {}).setdefault(floor, []).append(lineno)
+multi = {n: v for n, v in by_pkg.items()
+         if len({c.split(":")[0] for cs in v.values() for c in cs}) > 1}
+
+# Anti-vacuity: if the two files ever stop sharing packages — a rename, a split, a source dropped
+# from SOURCES — this check would pass over an empty set and report agreement it never tested.
+check("the two requirements sources share packages to compare", len(multi) >= 8,
+      f"{len(multi)} packages declared in more than one source")
+
+disagree = sorted(n for n, v in multi.items() if len(v) > 1)
+check("no package is declared with two different floors",
+      not disagree,
+      "\n        " + "\n        ".join(
+          f"{n}: " + ", ".join(f"{c} says >={f}" for f, cs in sorted(by_pkg[n].items()) for c in cs)
+          for n in disagree)
+      + "\n        -> raise the lower one to match; the lock already pins at or above the higher."
+      if disagree else f"all {len(multi)} shared packages agree")
+
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)
 print(f"test_lock_satisfies_requirements OK - {len(floors)} declared floors all satisfied by the "
-      f"{len(pinned)} pins the container actually installs")
+      f"{len(pinned)} pins the container actually installs, and the {len(multi)} packages both "
+      "requirements sources declare agree with each other")

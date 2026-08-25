@@ -4,6 +4,87 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1097 (2026-08-25) — a floor that is too low satisfies every check written to catch a floor that is too high
+
+The dependency half of the full branch/PR review. **272 of 340 pull requests merged; 68 closed
+without merging.** Sixty-two of those 68 are Dependabot proposals superseded by later, higher bumps
+that did land, and four are deliberate declines (the `@thatopen` group, per the version-coupling pin
+CLAUDE.md calls the #1 risk here; Python 3.14; TypeScript 7; Node 26). Two feature pull requests
+(#210/#211, #260) were traced into `main` by content — #260's `git ls-files` claim resolver and its
+`!services/api/src/aec_api/main.py` carve-out are both present, so nothing was left stranded.
+
+**Six of the remaining closed pull requests left something behind, and it is the same defect six
+times.**
+
+### Five of twelve shared packages had drifted apart
+
+`services/api/requirements.in` and `services/data/requirements.txt` both declare floors, and both
+are read by `test_lock_satisfies_requirements`. Twelve packages appear in both. Five disagreed:
+
+    defusedxml     requirements.in >=0.7.1     services/data >=0.7       (lock 0.7.1)
+    ifcopenshell   requirements.in >=0.8.0     services/data >=0.8.5     (lock 0.8.5)
+    manifold3d     requirements.in >=3.5.2     services/data >=2.0       (lock 3.5.2)
+    rdflib         requirements.in >=7.1       services/data >=7.6.0     (lock 7.6.0)
+    reportlab      requirements.in >=5.0.0     services/data >=4.0       (lock 5.0.0)
+
+**They disagree in both directions**, which is what makes this drift rather than a decision: nobody
+deliberately requires `ifcopenshell 0.8.0` in one file and `0.8.5` in the file beside it. Two of the
+five carry a stated security reason in the very file that then declares the weaker floor —
+`defusedxml` is commented "XXE / billion-laughs hardening" in one and "XXE-safe parser for untrusted
+P6 (PMXML) schedule uploads" in the other, and only one of those lines actually delivers 0.7.1.
+
+### Why nothing was broken, and why that is the problem
+
+The lock pins at or above the higher floor in all five cases, and the lock is the only thing
+installed. **The runtime was right, so the declaration could stay wrong indefinitely.** It becomes
+real the moment the lock is recompiled: pip resolves against these files, so with `defusedxml>=0.7`
+written down a fresh resolution may pick 0.7 while every check stays green.
+
+It also explains six pull requests closed rather than merged (#37, #38, #40, #89, #90, #92). Each
+raised a floor in `services/data/requirements.txt`; each was correct that the lock already carried
+the version; and closing them left the *declaration* behind. **"Already covered by the lock" is a
+true answer to the wrong question** — a floor is not a report of what is installed, it is the
+constraint the next resolution is bound by.
+
+`test_lock_satisfies_requirements` could not have caught it. Its existing check asks whether the pin
+is *at least* the floor, so **a floor that is too low satisfies it for free**. Its docstring already
+records two incidents, both in the opposite direction, both from the half of its claim it had left
+unstated. It now also asserts that two files declaring the same package declare the same thing — a
+deliberately narrow claim with one unambiguous right answer and no resolver required. Anti-vacuity
+guarded (a rename that stopped the two files sharing packages would otherwise pass over an empty
+set, reporting "all 0 shared packages agree" — demonstrated live in the mutation run) and
+mutation-verified both ways.
+
+### The Node base image, one line above the ARGs that were already gated
+
+`scripts/check-fragments-version.mjs` gates the fragments/web-ifc ARGs across
+`services/api/Dockerfile` and `services/converter/Dockerfile`. The `FROM node:` line sits directly
+above those ARGs and was gated by nothing.
+
+Dependabot raised both converter images to `node:25-slim` together (#117, #116; both merged
+2026-07-31). Four days later the api one went back to `24-slim` in an unrelated release, with a
+comment giving the reason — 25 is an EOL major with no security patches, both manifests declare
+`engines.node >= 24`, CI runs 24. **That comment said "one Node runtime across the product", and it
+was false as it was written**: `services/converter/Dockerfile` was still on 25-slim, and stayed
+there for 25 days while Dependabot re-proposed the bump (#227, closed).
+
+A reason applied to some of the files it argues about is the "one rule, some of the doors" shape
+this repository keeps finding — the SSO domain allowlist (PR #339) and the three unguarded sign-in
+doors (v0.3.1093) are the same sentence. **A decision recorded in a comment protects the file the
+comment is in.** All three Dockerfiles now share one base, and B1c asserts tag *and* digest, because
+`node:24-slim` is a moving tag and two files naming it without the same digest can still build two
+different images. Mutation-verified three ways: a different major, a different digest under the same
+tag, and a Dockerfile that stops naming a Node base at all.
+
+### A limit recorded rather than fixed
+
+The repo-root `scripts/` directory — which holds `check-fragments-version.mjs`, a gate CI runs — is
+**not linted**. `apps/web/eslint.config.js` covers `scripts/**/*.mjs` relative to its own base path,
+so it reaches `apps/web/scripts/` and structurally cannot reach the root one. That is PR #219's finding
+("the only web source nobody linted was the source that gates the build") one directory up, and
+fixing it needs a root ESLint config rather than a glob edit, so it is named here instead of widened
+into this change.
+
 ## v0.3.1096 (2026-08-25) — a version table that filtered out the only row that could be stale
 
 Two review findings on the v0.3.1091–1095 pull request, both real, both the same shape: **a check

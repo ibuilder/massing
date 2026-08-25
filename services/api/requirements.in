@@ -22,7 +22,7 @@ boto3>=1.43.73            # MinIO/S3 object storage (range reads); lazy-imported
 psycopg[binary]>=3.1      # Postgres driver (prod). Locked here so `--require-hashes` covers it too.
 
 # --- analysis / QA + export bridge to the data service (services/data/src) ---
-ifcopenshell>=0.8.0,<0.9
+ifcopenshell>=0.8.5,<0.9
 openpyxl>=3.1
 numpy>=2.5.2              # floor raised WITH services/data/requirements.txt: pip-compile reads
                           # only this file, so a floor raised only there cannot move the lock
@@ -79,7 +79,7 @@ opentelemetry-instrumentation-sqlalchemy>=0.65b0
 # --- R28-ICDD: ISO 21597 Information Container (icdd.py) ---
 # BSD-3, approved 2026-07-26 and recorded in ATTRIBUTIONS.md. Pinned in the change that FIRST USES
 # it, per the roadmap: a dependency carried ahead of its code is supply-chain surface for no benefit.
-rdflib>=7.1
+rdflib>=7.6.0
 
 # --- R22-PHOTO-CV Tier 2: site-photo object detection (photo_detect.py) ---
 # MIT, recorded in docs/ATTRIBUTIONS.md. INFERENCE ONLY — torch/torchvision are used offline by
