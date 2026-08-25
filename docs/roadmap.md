@@ -3330,6 +3330,20 @@ Scores for the record: defect risk 7.3/10, maintainability 8.5/10, static perfor
   builds the real rail, clicks the real control and reads the preference back, and was mutation-tested
   against a star that only re-styles itself.
 
+  **And a third, from a different sweep — v0.3.1087.** Looking for classes assigned in TS that no
+  stylesheet defines found the **Project Pulse rail has never been styled**: `pulse.ts` shipped in
+  v0.3.749 and no stylesheet has ever contained the string `pulse`. It is not dead code —
+  `portal.ts:renderPulse` mounts it on the dashboard — so it rendered as bare HTML for ~330 releases,
+  and `pulse.test.ts` stayed green throughout because it tests what `buildPulse` computes, which was
+  always right. The cost is the tone: `good | watch | risk` is derived across five domains and
+  rendered only as a class, so **a risk card was pixel-identical to a healthy one**. Fixed with the
+  R26 status tokens, gated by `apps/web/src/portal/panels/pulseStyled.test.ts`, which requires the
+  three tones to resolve to three *different* tokens rather than merely to exist.
+
+  *The scan returns 62 unstyled classes and most are selector hooks on components that style inline.
+  `pulse.ts` was the only file with unstyled classes AND zero inline styling — that one condition is
+  what separated a finding from a list.*
+
   **The sweep that followed found a worse one — v0.3.1085.** Looking for other state that is read but
   cannot be written turned up `apps/web/src/ui/clearCache.ts`, whose `KEEP_KEYS` matched **no key this
   app writes**: the session is `aec-token` and the list said `aec_token`, while its other six strings

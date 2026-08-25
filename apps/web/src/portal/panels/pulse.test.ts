@@ -182,7 +182,10 @@ describe("rendering honours the rules the logic sets", () => {
   it("the tone reaches the DOM so colour is not decided twice", async () => {
     const { pulseCardEl } = await import("./pulse");
     const [c] = buildPulse({ schedule: { floatDays: -2 } });
-    expect(pulseCardEl(c!).className).toContain("pulse-risk");
+    expect(pulseCardEl(c!).className).toContain("pulse-tone-risk");
+    // The tone must NOT collide with the risk-sentence class, or a stylesheet rule for one
+    // silently paints the other. It did until v0.3.1087, harmlessly, because neither was styled.
+    expect(pulseCardEl(c!).className).not.toContain(" pulse-risk");
   });
 
   it("free text is escaped — risk strings come from server data", async () => {

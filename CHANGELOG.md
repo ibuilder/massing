@@ -4,6 +4,45 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1087 (2026-08-24) — the Project Pulse rail has never been styled
+
+`pulse.ts` shipped in v0.3.749 and **no stylesheet has ever contained the string `pulse`**. The rail
+is not dead code — `portal.ts:renderPulse` builds it and mounts it on the dashboard — so for ~330
+releases it rendered as bare HTML: no card, no rule, no colour. `pulse.test.ts` was thorough and green
+throughout, because it tests what `buildPulse` *computes*, and the computation was always right.
+
+**The part that matters is the tone.** `pulseCardEl` writes `pulse-card pulse-tone-${tone}`, where
+tone is `good | watch | risk` derived across five domains: a blocking model issue, cost variance,
+negative float, overdue work, a failing reserve. With no rule for those classes **a risk card was
+pixel-identical to a healthy one** — which is the entire thing an at-a-glance rail is for. The app
+computed the distinction correctly and threw it away at the last step.
+
+Colour comes from the status tokens per R26-COLOUR-DISCIPLINE, never `--accent`: accent means "you can
+act on this" and a pulse card says "this is how it is". The tone rides the left rule and the dot, once
+— five cards with full-bleed status backgrounds would be a wall of colour with no emphasis left to
+spend. The risk *sentence* is deliberately not tone-coloured: it appears on watch and risk cards
+alike, so colouring it would say "this is bad" about a line that often says "this is what to watch".
+
+**A class collision came out with it.** `pulse-${tone}` produced `pulse-risk` for the risk tone —
+which was *also* the class on the risk sentence inside the card, so one selector matched both a card
+and a paragraph within it. Nothing depended on the ambiguity only because nothing was styled; the
+moment a rule existed it would have painted both. Renamed to `pulse-tone-*`.
+
+`pulseStyled.test.ts` asserts every class the component emits has a rule, that the three tones resolve
+to three *different* status tokens (all three sharing one would be the same bug with extra steps),
+that the block uses no `--accent`, and that the tone class collides with nothing else the card emits.
+Mutation-tested both ways: giving watch the good token, and deleting one rule.
+
+**How it was found, and the discriminator that made it a finding rather than a list.** A scan for
+classes assigned in TS with no CSS rule returns 62 — mostly selector hooks on components that style
+inline, which is not a defect. `pulse.ts` was the only file with unstyled classes **and zero inline
+styling**. That single condition separated the real one from the noise.
+
+Verified in a real browser against the live stylesheet: the three tones compute to `rgb(51,209,122)`,
+`rgb(255,212,121)` and `rgb(226,85,74)` — `--status-good`, `--status-warn`, `--status-crit`. *The
+markup was injected rather than driven from the live rail, because this demo project's `projectPulse`
+returns nothing to build cards from; the emitted-class half is what `pulseStyled.test.ts` covers.*
+
 ## v0.3.1086 (2026-08-24) — SCALE-SEAM ㉗: the PDF tools, and the plumbing that stayed
 
 Nine methods out of `client.ts` into `api/pdfTools.ts` (2,883 → 2,837): merge, split, rotate, extract,

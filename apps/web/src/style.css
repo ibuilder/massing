@@ -1067,6 +1067,42 @@ body.embed #workspaces { display: none; }
 .insp-warn { margin-top: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
   background: var(--panel2); }
 
+/* PROJECT PULSE — the dashboard's at-a-glance status rail.
+   
+   These rules did not exist until v0.3.1087. The component shipped in v0.3.749 and NOTHING in any
+   stylesheet has ever matched `.pulse-*`, so the rail rendered as bare HTML for ~330 releases: no
+   card, no rule, no colour. The part that mattered is the last one — `pulseCardEl` writes
+   `pulse-card pulse-${tone}` where tone is good/watch/risk, computed across five domains (a blocking
+   model issue, cost variance, negative float, overdue work, a failing reserve). With no rule for
+   those three classes, **a risk card was pixel-identical to a healthy one**, which is the entire
+   thing a pulse is for.
+
+   Colour comes from the status tokens, never --accent: per R26-COLOUR-DISCIPLINE, accent means "you
+   can act on this" and these say "this is how it is". The left rule carries the tone rather than a
+   filled panel, matching .portal-schema-stale — five cards in a column with full-bleed status
+   backgrounds would be a wall of colour with no emphasis left to spend. */
+.pulse-rail { display: flex; flex-direction: column; gap: 8px; }
+.pulse-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); margin: 0 0 2px; font-weight: 600; }
+.pulse-card { padding: 8px 10px; border-radius: 6px; background: var(--panel2);
+  border: 1px solid var(--line); border-left: 3px solid var(--line); }
+.pulse-head { display: flex; align-items: center; gap: 6px; }
+.pulse-head h4 { margin: 0; font-size: 13px; font-weight: 600; flex: 1; }
+.pulse-value { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
+.pulse-headline { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+/* `risk` is the sentence naming what would change the number. It is deliberately NOT tone-coloured:
+   it is present on watch and risk cards alike, so colouring it would say "this is bad" about a line
+   that often says "this is what to watch". The tone is on the rule and the dot, once. */
+.pulse-risk { margin: 4px 0 0; font-size: 11.5px; color: var(--text); opacity: .85; }
+
+.pulse-tone-good { border-left-color: var(--status-good); }
+.pulse-tone-good .pulse-dot { background: var(--status-good); }
+.pulse-tone-watch { border-left-color: var(--status-warn); }
+.pulse-tone-watch .pulse-dot { background: var(--status-warn); }
+.pulse-tone-risk { border-left-color: var(--status-crit); }
+.pulse-tone-risk .pulse-dot { background: var(--status-crit); }
+
 /* R41-SCHEMA-STALE — a record whose stored values no longer match the register's current fields.
    Uses --status-warn rather than --status-crit on purpose: nothing is broken and no data is lost,
    but a value is unreachable from the form and the reader has to be told, because the alternative

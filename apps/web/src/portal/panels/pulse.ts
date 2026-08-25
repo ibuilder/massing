@@ -204,7 +204,11 @@ import { escapeHtml as esc } from "../../ui/feedback";
  *  `null` risk turns back into a blank row that looks like a loading state. */
 export function pulseCardEl(c: PulseCard): HTMLElement {
   const el = document.createElement("article");
-  el.className = `pulse-card pulse-${c.tone}`;
+  // `pulse-tone-`, not `pulse-`: the tones are good/watch/risk, and `pulse-risk` was ALSO the
+  // class on the risk sentence below — one selector matching both the card and a paragraph
+  // inside it. Nothing depended on the ambiguity because nothing styled either, which is how it
+  // survived from v0.3.749 to v0.3.1087.
+  el.className = `pulse-card pulse-tone-${c.tone}`;
   el.setAttribute("data-pulse", c.key);
   const risk = c.risk ? `<p class="pulse-risk">${esc(c.risk)}</p>` : "";
   el.innerHTML =
