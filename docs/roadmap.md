@@ -2522,8 +2522,19 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   `plan:<storeyGuid>`, the pre-GUID key is read so nothing already stored disappears, and the
   forbidden fallback is now a failing test in `apps/web/src/viewer/planPane.test.ts`.
 
-  Remaining: the **keynote → spec section** link (the spec surface now exists; keynotes do not yet
-  carry their section code). **One residual limitation, stated rather than buried:** a markup created
+  **PREMISE-CHECK 2026-08-26 on the last remaining item, and it found the surface that item points at
+  was EMPTY.** "The spec surface now exists" was true and misleading: `project_manual` defaulted to
+  `system="MasterFormat"` and `routers/authoring_docs.spec_manual` passed nothing, while **57 of this
+  repository's 58 tracked IFC files declare Uniclass and none declare MasterFormat**. Every project's
+  manual returned zero sections and reported no error, because an empty manual is also what an
+  unclassified model returns. `services/api/test_specmanual.py` passed throughout — its fixture
+  classifies with MasterFormat, so the population was filtered by the thing under test. Fixed in
+  v0.3.1107, gated by `services/api/test_spec_system.py`, which measures the corpus rather than
+  quoting it.
+
+  Remaining: the **keynote → spec section** link (keynotes do not yet carry their section code —
+  `keynote_text` builds them from class, material and thickness and never consults the element's
+  classification). Its prerequisite is now met. **One residual limitation, stated rather than buried:** a markup created
   before v0.3.1106 is still name-keyed and still orphans on rename — rekeying it needs a
   name→GlobalId map only the source IFC holds, so it is a backfill, not a code change. **Print paper picker (v0.3.993):**
   Issue / Sheet PDF / Place and the paper-space editor share `drawings.py` `PAGES` — ARCH-C/D/B/A and

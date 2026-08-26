@@ -246,25 +246,38 @@ def sheet_pdf(pid: str, storey: str | None = None, scale: int = 100, number: str
 
 
 @router.get("/projects/{pid}/spec/manual")
-def spec_manual(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """W11 D6: the 3-part MasterFormat **project manual** seeded from the model — elements grouped into CSI
-    divisions → sections, each in SectionFormat Part 1/2/3 (Products from element types+materials, Execution
-    from attached install docs). The spec book that accompanies the drawings."""
+def spec_manual(pid: str, system: str | None = None, db: Session = Depends(get_db),
+                _: str = Depends(require_role("viewer"))):
+    """W11 D6: the 3-part **project manual** seeded from the model — elements grouped into
+    divisions/tables → sections, each in SectionFormat Part 1/2/3 (Products from element
+    types+materials, Execution from attached install docs). The spec book that accompanies the drawings.
+
+    `system` is OPTIONAL and defaults to the classification system **the model actually uses**. It used
+    to be absent, which meant `project_manual`'s own MasterFormat default applied to every project —
+    and none of this repository's 58 tracked IFC files declares MasterFormat (57 Uniclass, 1
+    OmniClass). The response answered nothing, for every model, without reporting an error. The
+    response now carries `system` and `available_systems` so a caller can offer the choice rather
+    than infer it.
+    """
     from aec_data import specmanual  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
     p = _project(db, pid)
-    return specmanual.project_manual(open_model(p.source_ifc))
+    return specmanual.project_manual(open_model(p.source_ifc), system=system)
 
 
 @router.get("/projects/{pid}/spec/manual.txt")
-def spec_manual_text(pid: str, db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
-    """W11 D6: the project manual rendered as a downloadable plain-text spec outline."""
+def spec_manual_text(pid: str, system: str | None = None, db: Session = Depends(get_db),
+                     _: str = Depends(require_role("viewer"))):
+    """W11 D6: the project manual rendered as a downloadable plain-text spec outline.
+
+    `system` behaves exactly as on the JSON route above — omit it and the model's own system is used.
+    """
     from aec_data import specmanual  # type: ignore
     from aec_data.ifc_loader import open_model  # type: ignore
 
     p = _project(db, pid)
-    text = specmanual.manual_text(open_model(p.source_ifc), project=p.name or "Project")
+    text = specmanual.manual_text(open_model(p.source_ifc), project=p.name or "Project", system=system)
     return Response(content=text, media_type="text/plain",
                     headers={"Content-Disposition": f'attachment; filename="{_safe_filename(pid, "manual")}-manual.txt"'})
 

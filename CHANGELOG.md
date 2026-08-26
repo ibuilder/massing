@@ -4,6 +4,54 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1107 (2026-08-26) — the spec manual answered nothing, for every model this project ships
+
+R36-VIEWER-SUBAPP's last remaining item is the **keynote → spec section** link. The premise-check
+before starting it found the surface that link would point at is empty.
+
+`specmanual.project_manual(model, system="MasterFormat")` had a default, and its only caller —
+`routers/authoring_docs.spec_manual` — passed nothing. So every project got MasterFormat. Measured
+across the repository's own corpus:
+
+    58 tracked .ifc files:  57 Uniclass · 1 OmniClass · 0 MasterFormat
+
+**Not one model this project ships declares MasterFormat**, so the spec manual returned zero sections
+for all of them — and reported no error, because an empty manual is exactly what an *unclassified*
+model returns. The two states were indistinguishable.
+
+**Why nothing caught it.** `test_specmanual.py` passes and always did: it builds a synthetic model and
+classifies it *with MasterFormat*, so the fixture supplies precisely the system the code demands. That
+is the one-directional gate again — **a check whose population is filtered by the very thing it is
+checking for cannot observe that thing being wrong.** It is a good test of the grouping logic and was
+never a test of the default.
+
+`project_manual` now resolves the system from the model: an explicit argument wins, else MasterFormat
+or OmniClass when present (their codes are the numeric ones `MF_DIVISIONS` describes), else the
+most-used system the model actually carries. A model with no classifications keeps the old default and
+the old empty answer, which is the true one there.
+
+Three things travel with it, because a non-empty answer that misdescribes itself would be worse than
+the empty one:
+
+* **the `note` named MasterFormat unconditionally** — a Uniclass manual described itself as a
+  MasterFormat manual. It now names what it read, as does `manual_text`'s "no classified elements" line;
+* **division roll-up assumed CSI numbers.** `MF_DIVISIONS.get("Pr")` misses, so every Uniclass section
+  filed under a division title that asserts something the code never said. Uniclass codes now group by
+  their table (`Pr` → Products, `Ss` → Systems, …) — the twelve table names, not a code dictionary;
+* **`available_systems` is published**, so a UI can offer the choice rather than infer it, and
+  `SpecManual.system` is documented as the thing to read before treating `division` as CSI.
+
+Both routes take an optional `?system=`, and an explicit system is still obeyed when it yields zero —
+asserted, because "auto-detect" that silently substitutes a system that works would replace a visible
+wrong answer with an invisible one.
+
+`test_spec_system.py` measures the corpus claim rather than quoting it, so if a MasterFormat-classified
+sample is ever added the guard says so instead of letting the case go vacuous. Mutation-checked:
+restoring the old default fails five of its assertions.
+
+**The keynote → spec link is not built here.** It is the roadmap's named next item and this was its
+prerequisite; building it first would have pointed drawings at an empty book.
+
 ## v0.3.1106 (2026-08-26) — markups were keyed on a name the user can change
 
 R36-VIEWER-SUBAPP's sprint row asks for a premise-check before starting. This is the third row in a
