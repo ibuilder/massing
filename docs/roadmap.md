@@ -2545,9 +2545,16 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   spec partition, and a citation covering only some of the elements a leader points at is a false
   statement on a construction document. `services/api/test_keynote_spec.py`.
 
-  **Everything this entry named is now shipped.** What remains is not R36's: the markup backfill
-  recorded under v0.3.1106 (pre-GUID keys, needs a name→GlobalId map only the source IFC holds), and
-  the live DOM verification this entry has flagged as unverified since slice 4. **One residual limitation, stated rather than buried:** a markup created
+  **Everything this entry named is now shipped**, and the one carried-over limitation with it: the
+  pre-GUID markup backfill landed in v0.3.1110 as
+  `POST /projects/{pid}/drawings/markups/rekey-storeys` — dry-run by default, idempotent, and
+  refusing to resolve a duplicated storey name rather than guessing which level a pin belonged to.
+  `services/api/test_markup_rekey.py`.
+
+  What remains is **the live DOM verification this entry has flagged as unverified since slice 4** —
+  `createViewerApp` needs a WebGL context and a Fragments worker, so the tab strip, the spec pane and
+  the keynote column have never been seen in a browser. Unit tests cover the behaviour and `tsc`
+  covers the wiring; that is not the same claim and the entry has never pretended otherwise. **One residual limitation, stated rather than buried:** a markup created
   before v0.3.1106 is still name-keyed and still orphans on rename — rekeying it needs a
   name→GlobalId map only the source IFC holds, so it is a backfill, not a code change. **Print paper picker (v0.3.993):**
   Issue / Sheet PDF / Place and the paper-space editor share `drawings.py` `PAGES` — ARCH-C/D/B/A and

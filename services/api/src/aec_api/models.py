@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -292,11 +292,13 @@ class SavedView(Base):
     project, and every query is filtered by `project_id`, so a shared view cannot cross a project
     boundary or show its holder rows they could not already list.
 
-    **Alerts deliberately stay with the owner.** `last_seen_at` is ONE column on ONE row, so a shared
-    view has a single "last opened" timestamp; showing it in a second person's 🔔 feed would compute
-    their "new since" from *the author's* last visit and hand them a confidently wrong number — the
-    defect item 3 just fixed one layer down. Per-viewer alerts need a per-viewer timestamp, which is
-    a table this item does not add. `view_alerts` filters on `user` and stays that way on purpose.
+    **Alerts are PER VIEWER as of v0.3.1109 — see `SavedViewSeen`.** This entry used to read: *"a
+    shared view has a single 'last opened' timestamp; showing it in a second person's 🔔 feed would
+    compute their 'new since' from the author's last visit and hand them a confidently wrong number.
+    Per-viewer alerts need a per-viewer timestamp, which is a table this item does not add."* That
+    was right about the defect and right about the fix, and the table now exists — so the `last_seen_at`
+    column is GONE rather than left in place unread. A column that still looks authoritative and is
+    not read is how a future reader "fixes" something by reading it again.
     """
     __tablename__ = "saved_views"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
@@ -308,7 +310,31 @@ class SavedView(Base):
     scope: Mapped[str] = mapped_column(String, default="private", server_default="private")
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # saved-search alerts
+
+
+class SavedViewSeen(Base):
+    """When ONE person last opened ONE saved view — the per-viewer half of the 🔔 alert feed.
+
+    R22-REPORT-BUILDER item 4 shipped sharing (`SavedView.scope`) and deliberately stopped short of
+    per-viewer alerts, because `saved_views.last_seen_at` was a single column on a single row: a
+    project-scoped view in a second person's feed would have computed *their* "new since" from **the
+    author's** last visit. That is the same confidently-wrong-number shape as the alert miscount item
+    3 removed one layer down, so faking it would have reintroduced the defect the item had just fixed.
+
+    One row per (view, viewer). The unique constraint is the point rather than housekeeping — two
+    rows for one pair would make "when did I last look at this" ambiguous, and the feed would answer
+    with whichever the query happened to return first.
+
+    The owner is not special here: their own visits are rows in this table like anybody else's, seeded
+    from the column this replaces. A design where the author's timestamp lived somewhere different
+    would be two sources of truth for one question.
+    """
+    __tablename__ = "saved_view_seen"
+    __table_args__ = (UniqueConstraint("view_id", "user", name="uq_saved_view_seen_view_user"),)
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    view_id: Mapped[str] = mapped_column(String, index=True)
+    user: Mapped[str] = mapped_column(String, index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class EnumOption(Base):

@@ -473,16 +473,31 @@ def view_alerts(pid: str, db: Session = Depends(get_db), user: str = Depends(req
 @router.post("/projects/{pid}/modules/{key}/views/{vid}/seen")
 def mark_view_seen(pid: str, key: str, vid: str, db: Session = Depends(get_db),
                    user: str = Depends(require_role("reviewer"))):
-    """Mark a saved view as seen now — clears its 'new' alert count."""
+    """Mark a saved view as seen **by this user** now — clears their 'new' alert count.
+
+    Per-viewer since v0.3.1109. Marking a shared view seen used to require being its author, so the
+    only person who could clear an alert was the one person the feed showed it to. Now anyone who may
+    READ the view may record their own visit, and doing so touches nobody else's count.
+    """
     from datetime import datetime, timezone
 
-    from ..models import SavedView
+    from ..models import SavedView, SavedViewSeen
     v = db.get(SavedView, vid)
-    if not v or v.user != user or v.project_id != pid or v.module != key:
+    # Readable means: mine, or shared with the project I am already a `reviewer` on. The same test
+    # the list route applies — a second answer to "may I see this view" is how the two start
+    # disagreeing about a row.
+    if not v or v.project_id != pid or v.module != key or (v.user != user and v.scope != "project"):
         raise HTTPException(404, "view not found")
-    v.last_seen_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    row = db.query(SavedViewSeen).filter(SavedViewSeen.view_id == vid,
+                                         SavedViewSeen.user == user).one_or_none()
+    if row is None:
+        row = SavedViewSeen(view_id=vid, user=user, last_seen_at=now)
+        db.add(row)
+    else:
+        row.last_seen_at = now
     db.commit()
-    return {"ok": True, "last_seen_at": v.last_seen_at.isoformat()}
+    return {"ok": True, "last_seen_at": now.isoformat()}
 
 
 @router.delete("/projects/{pid}/modules/{key}/views/{vid}")

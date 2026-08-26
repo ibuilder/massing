@@ -4,6 +4,58 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1110 (2026-08-26) — the pre-GUID markups can be moved, and nothing has to guess a level
+
+The residual limitation recorded with v0.3.1106, cleared. Storey markups saved before that release
+are keyed `plan:<storeyName>`; the new key is read alongside the old one so nothing disappeared, but
+a markup still sitting under a name **still orphans when its level is renamed**.
+
+`POST /projects/{pid}/drawings/markups/rekey-storeys` moves them. It is a route rather than an
+alembic migration for a reason that is not preference: rekeying needs a `name → GlobalId` map and
+only the project's source IFC holds one. A migration has the database and not the model.
+
+Three things it refuses to guess, each reported by name:
+
+* **`dry_run` defaults to TRUE.** The mapping depends on a model that may have been re-uploaded since
+  the markups were made, so the caller sees exactly what would move before anything does.
+* **A duplicated storey name is skipped**, not resolved. Two levels called "Level 1" mean the name
+  does not identify a GlobalId — and picking either is the same guess, in the other direction, that
+  this whole line of work exists to stop making.
+* **A vanished storey is skipped.** Nothing to map it to.
+
+A key that is *already* a GlobalId is reported under `already_keyed_by_guid` rather than lumped in
+with the unmappable, because a clean second run that reads as a partial failure is a report
+misdescribing itself. That also makes the operation idempotent, which is asserted rather than
+assumed: `test_markup_rekey.py` runs it twice and checks nothing moves the second time.
+
+## v0.3.1109 (2026-08-26) — a shared saved view now alerts every reader, each from their own visit
+
+R22-REPORT-BUILDER item 4 shipped `SavedView.scope` and stopped deliberately short of alerting anyone
+but the author. Its note said why, and was right: `saved_views.last_seen_at` was ONE column on ONE
+row, so a shared view in a second person's 🔔 feed would have computed *their* "new since" from **the
+author's** last visit — the confidently-wrong-number shape item 3 had just removed one layer down.
+It also meant the one person the feed showed a view to was the only person allowed to mark it seen.
+
+`SavedViewSeen` is the per-viewer timestamp that item named: one row per (view, viewer), unique on
+the pair, because two rows would make "when did I last look at this" ambiguous and the feed would
+answer with whichever the query returned first.
+
+**The migration moves the data and then drops the old column.** Every non-null `last_seen_at` becomes
+a row for that view's owner, so nobody's feed resets — an author who last looked on Tuesday still
+counts from Tuesday. The column is then removed rather than left in place unread: a populated,
+authoritative-looking column that nothing reads is how a later change "fixes" something by reading it
+again. The downgrade restores owners exactly; other viewers' visits have nowhere to go in the old
+shape, which is precisely the limitation being removed.
+
+The load-bearing assertions are not "a shared view appears in Bob's feed" — a scope filter alone
+satisfies that. They are that **Bob's count is Bob's**: Alice marking the view seen leaves Bob's alert
+untouched, and vice versa. Mutation-checked — ignoring *whose* visit it was fails both.
+
+`test_view_sharing.py` had pinned the old behaviour on purpose, so the gap stayed visible. That pin is
+released **and the release is recorded** rather than the assertion quietly flipped: a pin removed
+without a note reads, later, as a leak somebody stopped checking for. What it still asserts is what is
+still true — sharing reaches the reader, and does not reach their edit rights or another project.
+
 ## v0.3.1108 (2026-08-26) — a section keynote now names the spec section that governs it
 
 R36-VIEWER-SUBAPP's last remaining item, unblocked by v0.3.1107. A keynote said what an assembly

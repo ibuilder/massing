@@ -19,13 +19,13 @@ The assertions below are ordered by what actually goes wrong when this is built 
 2. **Into someone else's edit rights.** Visible is not writable. A second user saving under the same
    name gets THEIR OWN row, not an edit of the shared one — which is also why ownership stays part
    of the key rather than being replaced by it.
-3. **Into the alert feed, where it would produce a wrong number.** This one is a deliberate
-   *non*-feature and is asserted as such. `last_seen_at` is one column on one row, so a shared view
-   has a single "last opened" timestamp; showing it in a second person's 🔔 feed would compute their
-   "new since" from *the author's* last visit. That is precisely the confidently-wrong-number shape
-   `test_view_config` fixed one layer down, and re-introducing it while adding sharing would trade
-   one defect for another. Per-viewer alerts need a per-viewer timestamp — a table this item does
-   not add, and the test below pins the current behaviour so the gap is visible rather than assumed.
+3. **Into the alert feed, where it would have produced a wrong number.** This was a deliberate
+   *non*-feature, asserted as such, until `SavedViewSeen` landed in v0.3.1109. The original reason
+   still explains the shape of the fix: `last_seen_at` was one column on one row, so showing a shared
+   view in a second person's 🔔 feed would have computed their "new since" from *the author's* last
+   visit — the confidently-wrong-number shape `test_view_config` fixed one layer down. Per-viewer
+   alerts needed a per-viewer timestamp; that table now exists, so the feed carries shared views and
+   each reader counts from their own visit. `test_view_alerts_per_viewer.py` owns those assertions.
 
 Run: cd services/api && PYTHONPATH=src:../data/src ./.venv/bin/python test_view_sharing.py
 """
@@ -112,22 +112,38 @@ try:
                                         SavedView.name == "Open structural").one()
     check("...and the author's row still holds the author's config",
           alices.config.get("filters") == [["discipline", "eq", "Structural"]], str(alices.config))
+    alice_private = db.query(SavedView).filter(SavedView.project_id == P1, SavedView.user == ALICE,
+                                               SavedView.name == "Alice private").one()
 
-    # The deliberate non-feature, pinned so the gap stays visible.
+    # THE PIN IS RELEASED, v0.3.1109 — and the release is recorded rather than the assertion quietly
+    # flipped. This block used to assert the opposite: *"every entry in a user's alert feed is a view
+    # THEY own (last_seen_at is per row)"*, pinning a deliberate non-feature so the gap stayed
+    # visible. That was the right assertion for as long as `saved_views.last_seen_at` was one column
+    # on one row. `SavedViewSeen` is the per-viewer timestamp that limitation named, so the feed now
+    # carries shared views to their readers and the pin no longer describes the system.
     #
-    # Asserted on OWNERSHIP, not on names, and the first draft of this block got that wrong twice
-    # over: it read `all(a["name"] != "Open structural" or True ...)`, which is `X or True` — a
-    # tautology that cannot fail — over a fixture where Bob owns his own row of that name, so a name
-    # could not have distinguished a leak from his own view even had the clause been real. A vacuous
-    # assertion inside the test written to pin a deliberate limit is the same shape as everything
-    # else in this release; it is recorded rather than quietly deleted.
+    # A pin removed without a note reads, later, as a leak somebody stopped checking for. What
+    # remains asserted here is the part that is still true: sharing reaches the reader, and it still
+    # does not reach their EDIT rights or another project — both above.
+    #
+    # (Kept from the original: this asserts on OWNERSHIP, not on names. The first draft read
+    # `all(a["name"] != "Open structural" or True ...)` — `X or True`, a tautology that cannot fail —
+    # over a fixture where Bob owns his own row of that name, so a name could not have distinguished
+    # a leak from his own view even had the clause been real.)
     owned_by = {v.id: v.user for v in db.query(SavedView).filter(SavedView.project_id == P1).all()}
     bob_feed = mod.view_alerts(db, P1, BOB)
     check("bob's alert feed is non-empty, so the next assertion is not vacuous", len(bob_feed) >= 1,
           f"{len(bob_feed)} entries")
-    foreign = [a["name"] for a in bob_feed if owned_by.get(a["id"]) != BOB]
-    check("every entry in a user's alert feed is a view THEY own (last_seen_at is per row)",
-          not foreign, f"not bob's: {foreign}" if foreign else "all bob's own")
+    foreign = [a for a in bob_feed if owned_by.get(a["id"]) != BOB]
+    check("a view SHARED with bob now reaches his alert feed",
+          any(a["id"] == alices.id for a in foreign),
+          f"{len(foreign)} shared entries: {[a['name'] for a in foreign]}")
+    check("...and each such entry says it is not his, so the feed can explain itself",
+          all(a["mine"] is False and a["owner"] != BOB for a in foreign))
+    # The boundary that did NOT move: a private view of Alice's is still hers alone.
+    check("a PRIVATE view of another user's still never reaches the feed",
+          not any(a["id"] == alice_private.id for a in bob_feed),
+          f"bob sees {[a['name'] for a in bob_feed]}")
     alice_ids = {a["id"] for a in mod.view_alerts(db, P1, ALICE)}
     check("...while the author still gets alerts for the view she shared",
           alices.id in alice_ids, f"alice's feed holds {len(alice_ids)} views")
@@ -139,6 +155,6 @@ if FAILED:
     sys.exit(1)
 print(
     "VIEW SHARING OK - a project-scoped saved view reaches the project and stops at its boundary, "
-    "ownership still gates writes so a shared view cannot be edited by its readers, and alerts stay "
-    "with the owner because last_seen_at is one column per row."
+    "ownership still gates writes so a shared view cannot be edited by its readers, and a shared "
+    "view now reaches its readers' alert feeds while a private one still does not."
 )
