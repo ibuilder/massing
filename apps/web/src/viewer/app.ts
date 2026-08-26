@@ -893,12 +893,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // Set when the CAD bar mounts; a viewport click answers an armed point prompt through it.
   let cadPick: ((at: readonly [number, number]) => boolean) | null = null;
   let activeStorey: string | null = null;       // name passed to Draft recipes; sets the work-plane Z
-  let activeStoreyZ = 0;
-  // The active level's IFC GlobalId — the markup key for its plan. Tracked BESIDE the name rather
-  // than instead of it: Draft recipes and the AI author take the human name, markups take the GUID.
-  // `modelGrid` has served `levels[].guid` since it shipped; nothing here read it until R36's
-  // premise-check found markups keyed on the renameable name.
-  let activeStoreyGuid: string | null = null;
+  let activeStoreyZ = 0; let activeStoreyGuid: string | null = null;   // GUID: the plan's markup key (names are renameable)
   // R38-SYNC-VIEW + R38-SYNC-SELECT — the plan docked beside the model, following the active level,
   // and now selection-synced both ways: PLAN-IDENTITY carried the GlobalId through the bake, the
   // SVG carries it as data-guid, so a click on plan linework is a real selection and a 3D pick
@@ -906,10 +901,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   const planPane = new PlanPane({
     url: (p) => api.url(p),
     projectId: () => projectId,
-    activeStorey: () => activeStorey,
-    // Accessor, not a value: `activeStoreyGuid` is a `let` reassigned by the level selector, and the
-    // pane is built before any level exists.
-    activeStoreyGuid: () => activeStoreyGuid,
+    activeStorey: () => activeStorey, activeStoreyGuid: () => activeStoreyGuid,
     notify,
     onPick: (guid) => { void selectByGuid(guid, true); },
     headers: () => api.authHeaders(), markupApi: api,   // R36 slice 6: pins on the Sheets canvas
@@ -1879,8 +1871,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       levelSel.style.cssText = "width:100%;margin:4px 0"; levelSel.setAttribute("aria-label", "Active level");
       const applyLevel = () => {
         const opt = levelSel.selectedOptions[0]; if (!opt) return;
-        activeStorey = opt.dataset.name || null; activeStoreyZ = Number(opt.dataset.z || 0);
-        activeStoreyGuid = opt.dataset.guid || null;
+        activeStorey = opt.dataset.name || null; activeStoreyZ = Number(opt.dataset.z || 0); activeStoreyGuid = opt.dataset.guid || null;
         groundPlane.constant = -activeStoreyZ;                       // draft on the active level's plane
         if (gridOverlay.data) gridOverlay.set(gridOverlay.data, activeStoreyZ);
         setStatus(`active level: ${activeStorey ?? "—"} (Z ${activeStoreyZ.toFixed(2)} m)`);
@@ -1895,8 +1886,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
           for (const lv of g.levels) {
             const o = document.createElement("option");
             o.textContent = `${lv.name ?? "Level"} (${lv.elevation.toFixed(2)} m)`;
-            o.dataset.name = lv.name ?? ""; o.dataset.z = String(lv.elevation);
-            o.dataset.guid = lv.guid; levelSel.appendChild(o);
+            o.dataset.name = lv.name ?? ""; o.dataset.z = String(lv.elevation); o.dataset.guid = lv.guid; levelSel.appendChild(o);
           }
           if (g.levels.length) applyLevel();
           status.textContent = `grid: ${g.grid.source} · ${g.grid.axes.length} axes · `
