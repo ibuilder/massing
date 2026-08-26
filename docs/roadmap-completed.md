@@ -86,10 +86,20 @@ which is the argument for writing one into every sprint row rather than trusting
      premise-check that row itself demanded is what caught it.)*
      **A completeness check has to ask what it did not look at, not only what it found.**
 
-  Still (M), but a *different* (M): add aggregation and cross-module scope to the surface that exists,
-  give `SavedView.config` a schema, and let a view be shared. **Building the entry as written would
-  have rebuilt working filtering.** Items 3 and 4 land in `models.py`/`routers/modules.py` — check the
-  lane table before starting, that is not lane C's to take unilaterally.
+  **What the 2026-07-31 rescope concluded, kept for the reasoning rather than the status** — every
+  one of the four things it names shipped in v0.3.1088 and 1101–1104, so read it as the plan it was,
+  not as work outstanding: *"Still (M), but a different (M): add aggregation and cross-module scope to
+  the surface that exists, give `SavedView.config` a schema, and let a view be shared. **Building the
+  entry as written would have rebuilt working filtering.** Items 3 and 4 land in
+  `models.py`/`routers/modules.py` — check the lane table before starting, that is not lane C's to
+  take unilaterally."*
+
+  That last paragraph stayed present-tense under a **COMPLETE** heading until review caught it on
+  2026-08-26, alongside item 2 above — **the third time this entry's own prose was wrong about this
+  entry's own status.** The first two are recorded in the header. The pattern across all three is one
+  thing: a *summary* was left to age while the *list* it summarised moved. Marking an entry complete
+  has to include re-reading what it says about itself, because the reader who is misled is the one who
+  never opens the list.
 
 
 ## Reconciliation 2026-08-25 (v0.3.1090) — twenty-one shipped entries that were still listed as work
