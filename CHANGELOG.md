@@ -4,6 +4,51 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1106 (2026-08-26) — markups were keyed on a name the user can change
+
+R36-VIEWER-SUBAPP's sprint row asks for a premise-check before starting. This is the third row in a
+row whose premise-check found the row wrong, and the first where what it found was a live defect
+rather than a stale sentence.
+
+**Slice 6 shipped keyed on the storey NAME.** Both surfaces — the Drawings room and the viewer's plan
+pane — stored sheet markups under `plan:<storeyName>`. Rename a level and every pin on it orphans
+silently: the plan renders, nothing is marked, and it reads as *"there was never anything here."*
+
+What makes it worth writing down is how thoroughly the correct answer was already present:
+
+* **the roadmap entry specified it** — *"keying on the storey NAME would look natural and is wrong…
+  the key is the storey's GlobalId"*, three paragraphs above the shipped code;
+* **the first non-negotiable says it** — reference by IFC GlobalId, never a transient id;
+* **the payload always carried it** — `storey_elevations` returns `{name, elevation, guid}` from
+  `s.GlobalId`, through `drawingStoreys` and `modelGrid` alike;
+* **the client type had been widened to expose it for this exact fix**, with a comment arguing
+  against declaring it optional because *"that is precisely where a `?? level.name` fallback gets
+  written, reintroducing the rename orphan this field exists to prevent."*
+
+Four statements of the right answer, and the code did the other thing. **A specification written in
+the same entry as the work is not a check on the work — only a test is.** So the fallback that
+comment predicted is now a test that fails when it is written.
+
+**The key is `plan:<storeyGuid>`.** `modelGrid` already served `levels[].guid`; the level `<select>`
+now carries it, and it reaches `PlanPane` as an accessor rather than a value, for the reason
+`drawingsSection.ts` documents — a value freezes at panel-build time, before any level exists.
+
+**Nothing already stored disappears.** The pre-GUID key is read alongside the new one and merged.
+Switching the key without that would have "fixed" the bug by hiding every markup already saved, which
+is the same data loss arriving through the front door. Nothing is written to the legacy key and
+nothing is rewritten.
+
+**Residual limitation, stated rather than buried:** a markup created before this release is still
+name-keyed and still orphans if its level is renamed. Rekeying it needs a name→GlobalId map that only
+the source IFC holds, so it is a backfill rather than a code change. Every new markup is immune.
+
+The test stub was part of the defect's cover. It ignored the key and served the same rows for every
+id — modelling an API that does not exist, since `sheet_id` is a column — so the legacy read appeared
+to double every pin. Fixed by making the stub key-aware rather than by adding a dedupe to the layer,
+which would have hidden the unrealistic fixture behind correct-looking code. Both halves are
+mutation-checked: reverting the key fails six tests, and re-adding `?? activeStorey()` fails the one
+written for it.
+
 ## v0.3.1105 (2026-08-26) — a saved view that cannot be replayed is worse than one that was refused
 
 Review follow-up on R22-REPORT-BUILDER. `validate_view_config`'s docstring promised that **a view is

@@ -20,6 +20,9 @@ interface FakeOpts {
   storeys?: Array<{ name: string | null; elevation: number; guid: string }>;
   pins?: unknown[];
   takeoff?: unknown[];
+  /** Markups stored under the PRE-GUID key `plan:<storeyName>` — read-only legacy rows. */
+  legacyPins?: unknown[];
+  legacyTakeoff?: unknown[];
   failStoreys?: boolean;
   failMarkup?: boolean;
 }
@@ -44,9 +47,21 @@ function mount(opts: FakeOpts = {}) {
       if (opts.failStoreys) throw new Error("no source IFC");
       return opts.storeys ?? [{ name: "L1", elevation: 0, guid: "g1" }];
     },
+    // KEY-AWARE on purpose. This stub used to ignore `id` and serve the same rows for every key,
+    // which modelled an API that does not exist: `sheet_id` is a column, so two keys never return
+    // the same row. That mattered the moment plans gained a legacy key — the layer reads
+    // `plan:<guid>` and `plan:<name>`, and a key-blind stub reported every pin twice, which looks
+    // exactly like a merge bug in code that is correct.
     drawingMarkup: async (_pid: string, id: string) => {
       calls.push(`markup:${id}`);
       if (opts.failMarkup) throw new Error("markup down");
+      const base = id.replace(/#pdf$/, "");
+      const storeys = opts.storeys ?? [{ name: "L1", elevation: 0, guid: "g1" }];
+      // The pre-GUID form for this project's storeys. Derived from the same list the sheet builder
+      // uses, so renaming the fixture cannot make the two disagree.
+      if (storeys.some((st) => base === `plan:${st.name}`)) {
+        return (id.endsWith("#pdf") ? opts.legacyTakeoff : opts.legacyPins) ?? [];
+      }
       return (id.endsWith("#pdf") ? opts.takeoff : opts.pins) ?? [];
     },
     markupStream: (_pid: string, _cb: () => void) => {
@@ -155,6 +170,44 @@ describe("the markup layer, as it behaves today", () => {
     await ui.open();
     await settle();
     // t2 has no `nx`, so it cannot be placed and is dropped.
+    expect(host.querySelectorAll(".dwg-pin")).toHaveLength(2);
+  });
+
+  // R36 premise-check, 2026-08-26. Slice 6 shipped keyed on the storey NAME. The entry itself had
+  // specified the GlobalId ("levels can be renamed here, and every markup on that level would orphan
+  // silently"), the project's first non-negotiable says the same, and `drawingStoreys` had been
+  // serving `guid` beside `name` all along. The key was the one thing that did not follow.
+  it("keys a storey plan's markups on the storey GUID, never its renameable name", async () => {
+    const { ui, calls } = mount({ storeys: [{ name: "Level 1", elevation: 0, guid: "3aB7xQ" }] });
+    await ui.open();
+    await settle();
+    const keys = calls.filter((c) => c.startsWith("markup:") && !c.endsWith("#pdf"));
+    expect(keys, "the GUID is the key new markups are written under").toContain("markup:plan:3aB7xQ");
+  });
+
+  it("still reads markups stored under the pre-GUID name key, so none disappear", async () => {
+    const { ui, host, calls } = mount({
+      storeys: [{ name: "Level 1", elevation: 0, guid: "3aB7xQ" }],
+      pins: [{ id: "new", data: {} }],
+      legacyPins: [{ id: "old", data: {} }],
+    });
+    await ui.open();
+    await settle();
+    expect(calls.filter((c) => c.startsWith("markup:"))).toContain("markup:plan:Level 1");
+    // Both sources on one surface. Switching the key WITHOUT this read would have "fixed" the
+    // rename bug by hiding every markup already stored, which is the same data loss by other means.
+    expect(host.querySelectorAll(".dwg-pin"), "the new GUID-keyed pin and the legacy one").toHaveLength(2);
+  });
+
+  // The inverse. Reading two keys is only correct if it does not double-count: a stub that served
+  // every key the same rows reported 4 pins for 2 and looked exactly like this feature misbehaving.
+  it("does not double-count when the legacy key holds nothing", async () => {
+    const { ui, host } = mount({
+      storeys: [{ name: "Level 1", elevation: 0, guid: "3aB7xQ" }],
+      pins: [{ id: "p1", data: {} }, { id: "p2", data: {} }],
+    });
+    await ui.open();
+    await settle();
     expect(host.querySelectorAll(".dwg-pin")).toHaveLength(2);
   });
 
