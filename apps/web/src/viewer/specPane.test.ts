@@ -15,6 +15,7 @@ import { type SpecManual, SpecPane, sectionDomId, sectionForGuid } from "./specP
 function manual(over: Partial<SpecManual> = {}): SpecManual {
   return {
     system: "MasterFormat", section_count: 2, division_count: 1, note: "",
+    available_systems: { MasterFormat: 2 },
     divisions: [{
       division: "08", title: "Openings",
       sections: [

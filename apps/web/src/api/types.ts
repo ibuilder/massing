@@ -722,7 +722,8 @@ export interface ViewerLoadTiming {
 }
 
 /**
- * The 3-part MasterFormat project manual (`GET /projects/{pid}/spec/manual`).
+ * The 3-part project manual (`GET /projects/{pid}/spec/manual`), in whichever classification system
+ * the model uses — see `SpecManual.system`.
  *
  * `elements` is capped at **50 per section** server-side (`specmanual.py`) while `element_count` is
  * the true total. The two must be shown together or the shorter list reads as the whole set — and
@@ -750,11 +751,25 @@ export interface SpecDivision {
 }
 
 export interface SpecManual {
+  /**
+   * The classification system the manual was actually built for — resolved from the MODEL, not
+   * assumed. The route's `system` query param overrides it.
+   *
+   * This used to be MasterFormat for every project, because `project_manual` defaulted to it and the
+   * route passed nothing. Not one of this repository's 58 tracked IFC files declares MasterFormat
+   * (57 Uniclass, 1 OmniClass), so the manual returned zero sections for every model the project
+   * ships — and an empty manual is exactly what an *unclassified* model returns, so nothing looked
+   * wrong. Read this field rather than assuming CSI: `division` is a CSI division number only when
+   * `system` is MasterFormat or OmniClass; for Uniclass it is the table code (`Pr`, `Ss`, `EF`…).
+   */
   system: string;
   section_count: number;
   division_count: number;
   note: string;
   divisions: SpecDivision[];
+  /** Every system the model carries, and how many references each has — so a UI can offer the
+   *  choice instead of guessing. Present since the system became resolvable. */
+  available_systems: Record<string, number>;
 }
 
 /** A citation returned by the extractive document QA (`doc_text.answer`, `rfi_qa`).
