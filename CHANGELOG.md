@@ -4,6 +4,41 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1100 (2026-08-25) — the re-pin the last release said was the right answer
+
+v0.3.1098 patched two CRITICAL `libgnutls30` CVEs by name and recorded the fix as a treadmill in the
+same commit: *"every future CRITICAL in the base will red this gate until the shared digest is
+re-pinned to a newer `node:24-slim`. Re-pinning is the right answer and accumulating `--only-upgrade`
+lines is not."* This is that re-pin, two releases later rather than left as a note.
+
+    was  sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+    now  sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df
+
+All three Dockerfiles move together, which is not diligence but arithmetic: `check-fragments-version.mjs`
+B1c (v0.3.1097) asserts they share one base, tag **and** digest, so a partial re-pin fails the build.
+
+### What is verified, and what is deliberately not
+
+The `--only-upgrade libgnutls30` line is **removed**, and whether the new base already carries
+`3.7.9-2+deb12u7` **could not be checked before pushing.** Stated plainly because the alternative is
+implying a confidence that does not exist: there is no Docker daemon in the agent container, and the
+proxy denies image *blob* fetches (`production.cloudfront.docker.com`, 403 at CONNECT), so the layers
+cannot be read either.
+
+What manifests *do* confirm: the digest resolves, and it still covers `linux/amd64` — the platform
+every Docker build here targets. The new index drops `armv7` and `s390x`, which nothing in this
+repository builds for, and that narrowing is itself consistent with a newer Node build.
+
+So the removal is a **hypothesis with Trivy as its adjudicator**, not a guess dressed as a fix. If the
+CRITICAL returns, the line comes back carrying the scan output as evidence and the treadmill becomes a
+measured fact rather than a prediction. Either outcome is knowledge; leaving a stopgap in place
+indefinitely is the only option that produces none.
+
+**And the scan can answer it at all only because of v0.3.1098.** Before that release this image was in
+no build matrix, so re-pinning its base would have been unfalsifiable — the change would have shipped
+to ghcr with nothing able to contradict it. A gate's first value is catching the defect; its second is
+making the *next* change testable.
+
 ## v0.3.1099 (2026-08-25) — the source that gates the build was, for the second time, the source nobody linted
 
 Following v0.3.1098's question — *what else is not covered?* — to the linter.
