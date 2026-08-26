@@ -58,6 +58,68 @@ def _division_title(div: str, system: str) -> str:
     return UNICLASS_TABLES.get(div) or f"Table {div}" if div else "Unassigned"
 
 
+def _rel_system(ref) -> str | None:
+    """The classification SYSTEM a reference belongs to, walking the `ReferencedSource` chain.
+
+    Factored out so `classification_systems`, `project_manual` and `element_codes` cannot drift into
+    three answers to "which system is this in" — the same rule `_resolve_field` follows elsewhere in
+    the codebase for "what is a field".
+    """
+    src = getattr(ref, "ReferencedSource", None)
+    while src is not None and src.is_a("IfcClassificationReference"):
+        src = getattr(src, "ReferencedSource", None)
+    if src is not None and getattr(src, "Name", None):
+        return str(src.Name)
+    # A bare IfcClassification attached directly (a whole-project statement) names itself.
+    if ref is not None and ref.is_a("IfcClassification") and getattr(ref, "Name", None):
+        return str(ref.Name)
+    return None
+
+
+def element_codes(model, system: str | None = None) -> dict[str, str]:
+    """`{GlobalId: classification code}` for every element the model classifies, in one system.
+
+    R36-VIEWER-SUBAPP — the keynote → spec section link. A keynote on a section says what an assembly
+    IS (`200mm CONCRETE WALL`, built from class + material + measured thickness); the spec section
+    says what governs it. Nothing joined the two, so a reader had to know the mapping by heart.
+
+    Keyed by **GlobalId**, which is the only identity that survives a re-tessellation or a reload —
+    the same rule the markup keys follow. Both an element and its TYPE may be classified, and a type
+    classification covers every occurrence of it, so occurrences inherit from their type unless
+    classified directly. A direct classification wins: it is the more specific statement.
+    """
+    system = resolve_system(model, system)
+    direct: dict[str, str] = {}
+    by_type: dict[int, str] = {}
+    for rel in model.by_type("IfcRelAssociatesClassification"):
+        ref = rel.RelatingClassification
+        if _rel_system(ref) != system:
+            continue
+        code = (getattr(ref, "Identification", None) or "").strip()
+        if not code:
+            continue
+        for obj in (getattr(rel, "RelatedObjects", None) or []):
+            guid = getattr(obj, "GlobalId", None)
+            if obj.is_a("IfcTypeObject") or obj.is_a("IfcTypeProduct"):
+                by_type[obj.id()] = code
+            elif guid:
+                direct[str(guid)] = code
+    if not by_type:
+        return direct
+    # Occurrences inherit their type's code. Done second so a direct classification is never
+    # overwritten by the broader statement its type makes.
+    out: dict[str, str] = {}
+    for el in model.by_type("IfcProduct"):
+        guid = getattr(el, "GlobalId", None)
+        if not guid:
+            continue
+        t = ue.get_type(el)
+        if t is not None and t.id() in by_type:
+            out[str(guid)] = by_type[t.id()]
+    out.update(direct)
+    return out
+
+
 def classification_systems(model) -> dict[str, int]:
     """Every classification system the model actually uses, and how many references each has.
 
@@ -71,12 +133,7 @@ def classification_systems(model) -> dict[str, int]:
     out: dict[str, int] = {}
     for rel in model.by_type("IfcRelAssociatesClassification"):
         ref = rel.RelatingClassification
-        src = getattr(ref, "ReferencedSource", None)
-        while src is not None and src.is_a("IfcClassificationReference"):
-            src = getattr(src, "ReferencedSource", None)
-        # A bare IfcClassification attached directly (a whole-project statement) names itself.
-        name = getattr(src, "Name", None) if src is not None else (
-            getattr(ref, "Name", None) if ref is not None and ref.is_a("IfcClassification") else None)
+        name = _rel_system(ref)
         if not name:
             continue
         # Only count references that carry a code — a system declared with nothing classified under

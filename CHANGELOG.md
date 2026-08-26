@@ -4,6 +4,46 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1108 (2026-08-26) — a section keynote now names the spec section that governs it
+
+R36-VIEWER-SUBAPP's last remaining item, unblocked by v0.3.1107. A keynote said what an assembly
+**is** — `200mm MASONRY WALL`, composed from the element's class, material and measured thickness.
+The spec section says what **governs** it. Nothing joined the two, so a reader holding a section had
+to know the mapping by heart.
+
+    before:   200mm MASONRY WALL
+    after:    04 22 00  200mm MASONRY WALL
+
+**What made it reachable was an identity that was already there and being discarded.**
+`section_drawing_svg` cut with `cut_baked_classed`, which keeps the IFC class and throws the GlobalId
+away — so the frame that builds keynotes had nothing to look a classification up by.
+`cut_baked_guided` has carried `(guid, class, polyline)` since R38-PLAN-IDENTITY; the section path now
+uses it. That also fixes an accounting gap in passing: the guided cut **logs** meshes that fail to
+section, where the classed variant dropped them silently — *"a plan missing a wall renders perfectly;
+nothing about it says a wall is missing."*
+
+**The interesting half is when a keynote may NOT cite.** The group is formed by
+`(class, material, rounded thickness)`, deliberately, so a wall cut at eight storeys is one keynote
+rather than eight. **That partition is not the spec partition**: an interior partition and a
+fire-rated shaft wall of the same build-up are identical to the grouping key and specified apart. So
+a group cites a section only when **every** member agrees, and an unclassified member counts as a
+disagreement — *"I do not know about this one"* cannot license a claim about it. A keynote printing a
+section that governs only some of the elements its leader points at is a false statement on a
+construction document, and worse than no citation, because a drawing is read as authored.
+
+`element_codes(model, system=None)` is the guid → code map, keyed by GlobalId like every other
+identity in this project. It resolves types too: a classification on an `IfcWallType` covers its
+occurrences, and a direct classification on an occurrence wins as the more specific statement. The
+system-resolution walk is factored into `_rel_system` so `classification_systems`, `project_manual`
+and `element_codes` cannot drift into three answers to "which system is this in".
+
+`test_keynote_spec.py` covers both halves, and its **fixture was the thing that had to be fixed
+twice**. The first draft used two walls meeting at a corner: they look equivalent to two parallel
+ones and are not — a plane of constant y crosses only one, so every group had a single member and the
+disagreement case asserted nothing while reporting a pass. The guard now counts the ELEMENTS the cut
+caught rather than the labels it drew. Mutation-checked: replacing unanimity with the largest
+member's code prints `04 22 00` on a group where only one of the two walls carries it.
+
 ## v0.3.1107 (2026-08-26) — the spec manual answered nothing, for every model this project ships
 
 R36-VIEWER-SUBAPP's last remaining item is the **keynote → spec section** link. The premise-check
