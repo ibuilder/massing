@@ -4,6 +4,62 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1104 (2026-08-26) — one answer to "what reports do I have here?"
+
+R22-REPORT-BUILDER item 5, **and the item said the decision itself was the deliverable**: unify
+`reports.REPORTS` with the saved-view layer, *or* decide deliberately that they stay separate.
+
+**They stay separate implementations behind one surface.** They are not the same kind of thing:
+
+* a **built-in report is code** — Earned Value, the WIP schedule, a tri-approach appraisal, 56 of
+  them. These compute things no query builder expresses. Folding them into saved views means either a
+  query language that can do EVM (it cannot) or 56 rows of config that secretly dispatch to Python,
+  which is a registry with extra steps;
+* a **saved view is data** — a user's query, authored without an engineering ticket, which is the
+  entire point of R22-REPORT-BUILDER.
+
+The entry's actual worry was *"a second way to make a report, sitting beside the one users already
+have"* — and re-reading it against the code, the duplication was never in the implementations. It was
+in the **surface**: `GET /reports` was global, knew nothing about saved views, and rendered in its own
+panel, so one question got two unrelated answers from two places.
+
+`GET /projects/{pid}/reports/catalog` is the one answer. `kind` is explicit rather than inferred,
+because the two differ in what a caller may *do* with them — a built-in renders to PDF at a fixed
+path, a saved view is replayed against its module — and a UI that guesses that from the shape of an
+id will guess wrong. The saved half obeys the same scope rules as the register's own view list, which
+`test_report_catalog.py` asserts against a second user rather than trusting the shared clause.
+
+## v0.3.1103 (2026-08-26) — a report can span two modules, along an edge the schema declares
+
+R22-REPORT-BUILDER item 2 — *"'RFIs against change orders by trade' is not expressible, and that is
+most of what a report is."*
+
+`aggregate` takes a `join`, and **the join comes from the schema, never from the request.**
+`reference_fields` already lists the edges a module declares, and a reference field stores the
+target's id in `data.<field>` — the shape `related_records` has always read. `_join_target` resolves
+a requested join against that list and refuses anything else, for two different reasons:
+
+* `_json_text` interpolates the name into a JSON path, so an arbitrary one is an **injection site** —
+  the one `_resolve_field` exists to close, one level further out;
+* an arbitrary *module* would let a report join two tables no schema says are related, producing a
+  number nobody can trace back to the data. That is worse than an error, because it looks like an
+  answer.
+
+`group_by` and `agg_field` may then name a field on the joined side as `<module>.<field>`, resolved
+against *that* module's declared fields. A saved view carrying `join` is validated exactly as the
+query it replays would be — otherwise a view could be saved that the aggregate route then refuses.
+
+### The join is LEFT, and that is a correctness choice rather than a default
+
+A base record with no related record still counts, under a `None` group. An inner join drops it
+silently: "RFIs by change-order trade" that omits every RFI *without* a change order answers a
+narrower question than the one asked, while looking complete. Mutation-verified — switching to an
+inner join turns the fixture's **4 of 4 into 3 of 4**, and the assertion names the missing one.
+
+The test picks its two modules **by resolution rather than by name**, walking the live registry for a
+real declared edge (it finds `action_item.responsible_contact → contact`). A fixture naming two
+modules by hand would keep passing after the schema connecting them changed.
+
 ## v0.3.1102 (2026-08-26) — a saved view can be a project report, and sharing it leaks nothing
 
 R22-REPORT-BUILDER item 4. `SavedView.user` was both the owner **and** the audience, which is what

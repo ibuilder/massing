@@ -171,8 +171,10 @@ describe("the roadmap does not call an implemented item open", () => {
   it("finds items to check — the population is not silently empty", () => {
     // Without this the whole file passes trivially if the ITEM regex ever stops matching, which is
     // how a gate becomes decorative. Same failure the lane test guards against.
+    // 10 -> 5 on 2026-08-26 for the reason spelled out in `roadmapSelfConsistent.test.ts`: this
+    // floor measures vacuity, not backlog size, and archiving shrinks the population by design.
     expect(openItems(md).size, "no open items extracted — has the bullet format changed?")
-      .toBeGreaterThan(10);
+      .toBeGreaterThan(5);
   });
 
   // The only test that pays for the scan (every later caller hits the memo). Measured cold on this

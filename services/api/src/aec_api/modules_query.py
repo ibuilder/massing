@@ -21,7 +21,7 @@ from sqlalchemy import Float, String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from . import rbac
-from .modules_registry import REGISTRY, TABLES
+from .modules_registry import REGISTRY, TABLES, reference_fields
 from .modules_search import _is_postgres, _pg_document, _pg_tsquery
 from .modules_search import search_filter as _search_filter
 
@@ -212,9 +212,47 @@ AGG_FNS = {"count", "sum", "avg", "min", "max"}
 MAX_GROUPS = 200
 
 
+#: R22-REPORT-BUILDER item 2 — the separator between a joined module and one of its fields in a
+#: `group_by` / `agg_field`, e.g. `change_order.trade`. A dot rather than a new parameter so the two
+#: names travel together: a field on the joined side is meaningless without the side it is on.
+JOIN_SEP = "."
+
+
+def _join_target(mod: dict, join: str) -> tuple[str, dict]:
+    """`(target_key, target_module)` for a DECLARED reference field — or HTTP 400.
+
+    R22-REPORT-BUILDER item 2. The join is never taken from the caller: `reference_fields` lists the
+    edges the module *declares*, and the field name is interpolated into a JSON path by `_json_text`
+    exactly as `_resolve_field`'s are. Accepting an arbitrary field here would reopen the injection
+    site that `_resolve_field` exists to close, one level out — and accepting an arbitrary *module*
+    would let a report join two tables that no schema says are related, which produces a number
+    nobody can trace back to the data.
+    """
+    for f in reference_fields(mod):
+        if f.get("name") == join:
+            target = REGISTRY.get(f["module"])
+            if target is None:
+                raise HTTPException(400, f"{join!r} references unknown module {f['module']!r}")
+            return f["module"], target
+    declared = sorted(f["name"] for f in reference_fields(mod))
+    raise HTTPException(400, f"{join!r} is not a declared reference field for this module"
+                             + (f" (expected one of {declared})" if declared else ""))
+
+
+def _side_field_expr(db: Session, base_t, base_mod: dict, join_key: str | None, join_t,
+                     join_mod: dict | None, name: str):
+    """A comparable expression for `field` or `joined_module.field`, resolved on the right side."""
+    if join_key and name.startswith(join_key + JOIN_SEP):
+        if join_mod is None:
+            raise HTTPException(400, f"{name!r} names a joined module but no join was given")
+        return _field_expr(db, join_t, join_mod, name[len(join_key) + 1:])
+    return _field_expr(db, base_t, base_mod, name)
+
+
 def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = "count",
               agg_field: str | None = None, state: str | None = None,
-              filters: list[tuple[str, str, str]] | None = None) -> dict:
+              filters: list[tuple[str, str, str]] | None = None,
+              join: str | None = None) -> dict:
     """Group a module's records by a DECLARED field and aggregate over them.
 
     This is what separates a saved *list* from a *report*: until now the only `group_by` in the module
@@ -237,12 +275,27 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
     t = TABLES[key]
     mod = REGISTRY.get(key) or {}
 
-    gexpr, _gf = _field_expr(db, t, mod, group_by)
+    # R22-REPORT-BUILDER item 2 — a report over ONE module is a saved list with totals. "RFIs against
+    # change orders by trade" needs two, and until now `SavedView.module` was a single string so it
+    # could not be expressed at all. The join runs along a DECLARED reference field: `data-><field>`
+    # holds the target's id (the same shape `related_records` already reads), so the edge comes from
+    # the schema rather than from the request.
+    join_key: str | None = None
+    join_t = None
+    join_mod: dict | None = None
+    if join:
+        join_key, join_mod = _join_target(mod, join)
+        join_t = TABLES[join_key].alias(f"j_{join_key}")
+
+    def side(name: str):
+        return _side_field_expr(db, t, mod, join_key, join_t, join_mod, name)
+
+    gexpr, _gf = side(group_by)
     value_expr = None
     if agg != "count":
         if not agg_field:
             raise HTTPException(400, f"{agg} needs a field to aggregate (agg_field)")
-        aexpr, af = _field_expr(db, t, mod, agg_field)
+        aexpr, af = side(agg_field)
         if agg in ("sum", "avg") and (af.get("_system") or af.get("type") not in _NUMERIC_FIELD_TYPES):
             raise HTTPException(400, f"{agg} needs a numeric field; {agg_field!r} is declared "
                                      f"{af.get('type') or 'text'!r}")
@@ -253,6 +306,13 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
     if value_expr is not None:
         cols.append(value_expr.label("value"))
     stmt = select(*cols).where(t.c.project_id == project_id)
+    if join_t is not None:
+        # LEFT join: a base record with no related record still counts, under a NULL group. An inner
+        # join would silently drop it, and "RFIs by change-order trade" that omits every RFI without
+        # a change order answers a narrower question than the one asked — while looking complete.
+        stmt = stmt.select_from(t).join(
+            join_t, _json_text(db, t.c.data, join) == join_t.c.id, isouter=True,
+        ).where(or_(join_t.c.project_id == project_id, join_t.c.id.is_(None)))
     if state:
         stmt = stmt.where(t.c.workflow_state == state)
     if filters:
@@ -265,6 +325,7 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
     if truncated:
         rows = rows[:MAX_GROUPS]
     return {"module": key, "group_by": group_by, "agg": agg, "agg_field": agg_field,
+            "join": join, "join_module": join_key,
             "groups": rows, "group_count": len(rows),
             "truncated": truncated, "max_groups": MAX_GROUPS}
 
@@ -365,7 +426,7 @@ def active_records(db: Session, key: str, project_id: str, exclude_states: set[s
 
 #: Every key a saved view's `config` may carry. Anything else is a 422.
 VIEW_CONFIG_KEYS = {"q", "state", "sort", "sort_dir", "filters", "columns", "group_by", "agg",
-                    "agg_field"}
+                    "agg_field", "join"}
 
 #: R22-REPORT-BUILDER item 4 — who may READ a saved view. Ownership (project+module+user+name) is a
 #: separate question and decides who may WRITE it; conflating the two is what made the builder a
@@ -396,15 +457,30 @@ def validate_view_config(key: str, config: dict | None) -> dict:
                                  f"(expected one of {sorted(VIEW_CONFIG_KEYS)})")
 
     out: dict = {}
-    for k in ("q", "state", "agg_field", "sort", "group_by"):
+    for k in ("q", "state", "agg_field", "sort", "group_by", "join"):
         if (v := config.get(k)) is not None:
             if not isinstance(v, str):
                 raise HTTPException(422, f"view config {k!r} must be a string")
             out[k] = v
-    # `sort`, `group_by` and `agg_field` name FIELDS, so they resolve like any other field name.
-    for k in ("sort", "group_by", "agg_field"):
+    # `join` names a DECLARED reference field and is resolved first, because it decides which module
+    # `group_by` / `agg_field` may name a field on. A view is validated exactly as the query it
+    # replays would be — otherwise a view could be saved that the aggregate route then refuses.
+    join_key: str | None = None
+    join_mod: dict | None = None
+    if "join" in out:
+        join_key, join_mod = _join_target(mod, out["join"])
+
+    # `sort`, `group_by` and `agg_field` name FIELDS. With a join in play they may name a field on
+    # the joined side as `<module>.<field>`; `sort` may not, because ordering happens on the base.
+    for k in ("group_by", "agg_field"):
         if k in out:
-            _resolve_field(mod, out[k])
+            name = out[k]
+            if join_key and name.startswith(join_key + JOIN_SEP):
+                _resolve_field(join_mod, name[len(join_key) + 1:])
+            else:
+                _resolve_field(mod, name)
+    if "sort" in out:
+        _resolve_field(mod, out["sort"])
 
     if (sd := config.get("sort_dir")) is not None:
         if str(sd).lower() not in ("asc", "desc"):

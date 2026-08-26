@@ -314,7 +314,10 @@ describe("the roadmap lane table", () => {
     //     item as two. **It could not have failed on that**: the codes land in a `Set`, so a
     //     duplicated code collapses and the total is right for the wrong reason. Renaming the
     //     second bullet took the phantom out; the population lost a member it never really had.
-    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(28);
+    // 28 -> 15 on 2026-08-26 (archiving R22-REPORT-BUILDER left 27), set from what makes the guard
+    // non-vacuous rather than from today's count — see the same reasoning written out at length in
+    // `roadmapSelfConsistent.test.ts`. A drifted ITEM regex yields ~0, not 15.
+    expect(CODES.size, `extracted ${CODES.size} open item codes`).toBeGreaterThanOrEqual(15);
   });
 
   it("SEES a closed ⛔ item and then excludes it — both halves, in both spellings", () => {

@@ -655,7 +655,7 @@ entry demanded a premise-check before starting. **That is now the first line of 
 | # | Sprint | Why here | Size | Premise to check FIRST |
 |---|---|---|---|---|
 | 1 | ~~**A correctness sweep** — refill Band 1~~ **DONE 2026-08-25 (v0.3.1091–1095)** | **Struck rather than deleted, because the prediction is the part worth checking.** All three axes it named were run: **authz** (43 routes, no live hole, `services/api/test_resource_id_authz.py` is the finding), **concurrency** (a 500 on concurrent first sign-in at all three SSO doors), **money** (52 of 399 JV distribution periods whose parts did not sum to their own total). Its premise-check was the load-bearing part — "pick the axis before starting" is what made two of the three produce a defect. Records in §Band 1 above. | M | — |
-| 2 | **R22-REPORT-BUILDER — items 2–5** | The only row here with live momentum: item 1 of **5** ("the substantive one", by its own entry) shipped in **v0.3.1088**, and the person who built the aggregate route has the shape of the remainder in hand. Registers that can group are what turn a register into a report, and the GC portal is the pillar where that lands. | S/M → M/L | **Premise-check RUN 2026-08-26, and it failed: FOUR items remain, not three.** This row said "items 2–4" because it was written when the entry listed four; the entry now lists five, and its own item 5 records that it "was missing from the four-item list above for a day". The row was never re-derived after the list grew — *the exact failure the row's own premise-check was written to catch, sitting in the row that asked for it.* Sized up accordingly: item 5 (unify `reports.REPORTS` with saved views) is an architecture decision, not a slice. |
+| 2 | ~~**R22-REPORT-BUILDER — items 2–5**~~ **COMPLETE 2026-08-26 (v0.3.1101–1104)** | All four remaining items shipped: a validated config schema (which exposed a live alert miscount), shareable views, cross-module reports along declared reference edges, and one report catalog. **The premise-check this row demanded is what found that FOUR remained rather than three** — the row was written when the entry listed four items and was never re-derived after it grew to five. Full record in [`roadmap-completed.md`](roadmap-completed.md). | S/M → M/L | — |
 | 3 | **R36-VIEWER-SUBAPP** — the canvas switches 2D/3D in place, including PRINT | The remaining half of the rail arc, and a **user directive** rather than an agent's idea — the rooms "must each be a product". It is also the largest thing standing between the drawing surface and the roadmap's own headline judgement at the top of this file: *what is thin now is the drawing*. | L | The R43 collision. `@massing/embed` was evaluated and **declined** on 2026-08-23 for an architectural reason (its load path is IFC text into a browser tessellator, against two non-negotiables), and two breaking changes are still coming: async viewport creation, and add/remove replacing `showModel`. Build behind the existing seams, not into `apps/web/src/viewer/app.ts`. |
 
 **Why not the obvious candidates.** Stated so that disagreeing with the omission is as cheap as
@@ -716,7 +716,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | Lane | Owns these paths — disjoint | Open items in this lane |
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
-| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE · R22-REPORT-BUILDER |
+| **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
 | **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R35-DEAL-MEMORY · R37-TRIAGE · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R36-VIEWER-SUBAPP *(the remaining half of the rail arc — the canvas must switch 2D/3D in place, including PRINT)* · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
@@ -1255,62 +1255,6 @@ stakes we are missing.
 
 **Tier 2 — evidence, provenance and procurement**
 
-- **R22-REPORT-BUILDER** *(M)* — **RESCOPED 2026-07-31; the original premise was false.** The entry
-  read "132 modules of structured data with **no end-user query surface**". There is one, and it is
-  good: per-field filtering with operators (`?f.discipline=Structural&f.amount.gte=1000`, capped at
-  `MAX_FILTERS = 12`), field names validated against the module's declared fields in **one** place so
-  the two cannot drift, calculated columns (`qty * unit_cost`), generic Excel/CSV import with preview,
-  and **saved views** persisted server-side with saved-search alerts. A user can already filter,
-  compute a column, save it and be alerted on it without an engineering ticket.
-
-  The real remainder is the four things that separate a saved *list* from a *report*:
-  1. ✅ **Aggregation over user-chosen fields — landed in v0.3.1088.** *(the wording is deliberate. `roadmapSelfConsistent.test.ts` treats that word — in capitals, anywhere in an item's body — as the whole ITEM having shipped, and parts 2–4 of this one are still open. Marking it ◧ is not the answer either: `roadmapStale.test.ts` drops ◧ from the assignable set, which would hide three live pieces of work. **Writing the explanation out in full tripped the same gate**, which is the doc-about-a-gate version of a source-grep gate flagging its own comment.)*
-     `GET /projects/{pid}/modules/{key}/aggregate?group_by=<field>&agg=count|sum|avg|min|max&agg_field=<field>`,
-     with the **same** `?f.<field>[.<op>]=` filters the list route takes, parsed by the same
-     `_parse_filters` — so a report and the register it came from cannot disagree about which rows
-     they describe. Field names are validated by `_resolve_field`, the one the filters and sort
-     already use: `_json_text` interpolates a name into a JSON path, so an unvalidated name is an
-     **injection site**, and a second validator here would be a second answer to "what is a field".
-     **`sum`/`avg` are REFUSED on a non-numeric declared field.** Verified rather than assumed: with
-     the guard removed, SQLite returns `0.0` per group for a sum over text — a confident number that
-     reads as *this project has none*, which is the failure shape this codebase keeps meeting. The
-     group count is capped at 200 and the response **says** when it capped, because a short list that
-     does not say so reads as the whole answer. `services/api/test_module_aggregate.py`; the refusal
-     is mutation-checked, and its twin asserts a real numeric sum still works so "it refuses" is not
-     satisfied by refusing everything.
-  2. **Single-module only.** `SavedView.module` is one string and nothing spans modules, so "RFIs
-     against change orders by trade" is not expressible — and that is most of what a report *is*.
-  3. ✅ **A validated config schema — landed in v0.3.1101.** *(lowercase deliberately, as in item 1
-     and for the same reason.)* `validate_view_config` resolves every field through `_resolve_field`
-     and every operator through `FILTER_OPS`, refuses unknown keys so the contract has a migration
-     path, and `MAX_FILTERS` moved to the engine so a stored view is capped like a URL is. It also
-     exposed a live miscount: `view_alerts` never passed `filters` to `count_records`, though that
-     parameter exists for this caller — a view filtered to one row reported two.
-     `services/api/test_view_config.py`.
-  4. ✅ **Shareable views — landed in v0.3.1102.** `scope` (`private` | `project`) separates who may
-     READ a view from who OWNS it; ownership still gates writes, and every clause stays bounded by
-     `project_id`. **Alerts deliberately remain the owner's**: `last_seen_at` is one column per row,
-     so a shared view in a second person's feed would compute "new since" from the author's last
-     visit. Per-viewer alerts need a per-viewer timestamp — named here rather than left to be
-     discovered. `services/api/test_view_sharing.py`.
-  5. **`reports.REPORTS` is a separate registry the saved-view layer knows nothing about.** Reports
-     already exist, with their own categories, rendered in their own panel — so a "report builder"
-     that only grows the module query surface would ship a *second* way to make a report, sitting
-     beside the one users already have. Unifying them, or deciding deliberately that they stay
-     separate, is part of this item.
-
-     **This fifth line was missing from the four-item list above for a day**, and how it was missed is
-     the point: the gap-check read the module and saved-view layer thoroughly and never opened the
-     report registry. The list was **accurate about what it examined and incomplete about the item** —
-     the same failure this entry exists to correct, committed while correcting it. `reports.REPORTS`
-     is invisible to a module-layer sweep because it renders in a different panel, which is also how
-     three of its categories came to name sections the product had retired (fixed separately).
-     **A completeness check has to ask what it did not look at, not only what it found.**
-
-  Still (M), but a *different* (M): add aggregation and cross-module scope to the surface that exists,
-  give `SavedView.config` a schema, and let a view be shared. **Building the entry as written would
-  have rebuilt working filtering.** Items 3 and 4 land in `models.py`/`routers/modules.py` — check the
-  lane table before starting, that is not lane C's to take unilaterally.
 - ◧ **R22-PIPELINE** *(M → S — premise-checked 2026-08-07; the backend is built, the remainder is mostly viz)* — **multi-site pipeline dashboard** above the project workspace. Acquisition
   is a funnel, not a project.
 

@@ -160,8 +160,16 @@ describe("the roadmap is self-consistent about what has shipped", () => {
     // the thing it exists to catch (a drifted ITEM regex yields ~0, not 25) while surviving a
     // couple more archive passes. **A floor tracking a deliberately shrinking population must be
     // set from what makes it non-vacuous, never from what the file happens to contain today.**
+    //
+    // 25 -> 15 on 2026-08-26, when archiving R22-REPORT-BUILDER took the count to exactly 25 and
+    // tripped the `>` — and the sentence above is why it moved to 15 rather than to 24. A floor
+    // seated one under today's count is the ratchet-in-reverse this comment already named: it goes
+    // red on the very next archive pass and teaches the next reader to shave it again. 15 still
+    // fails hard on the only thing this guard is for (a drifted ITEM regex yields ~0) and buys
+    // several passes of headroom. **The count moving is the roadmap working; the floor should only
+    // move when it stops measuring vacuity.**
     expect(BULLETS.size, `only ${BULLETS.size} roadmap bullets parsed — has the format changed?`)
-      .toBeGreaterThan(25);
+      .toBeGreaterThan(15);
   });
 
   it("leaves no bullet that LOOKS like an item behind — a floor cannot see partial drift", () => {

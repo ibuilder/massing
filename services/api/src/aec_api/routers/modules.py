@@ -633,6 +633,7 @@ def list_records(request: Request, pid: str, key: str, state: str | None = None,
 @router.get("/projects/{pid}/modules/{key}/aggregate")
 def aggregate_records(request: Request, pid: str, key: str, group_by: str, agg: str = "count",
                       agg_field: str | None = None, state: str | None = None,
+                      join: str | None = None,
                       db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """R22-REPORT-BUILDER — count/sum/avg/min/max a module's records, grouped by a declared field.
 
@@ -644,7 +645,8 @@ def aggregate_records(request: Request, pid: str, key: str, group_by: str, agg: 
     in the module path was hardcoded to `workflow_state`, so "cost by discipline" or "RFIs by month"
     had no expression and the answer was an export into a spreadsheet."""
     return mod_engine.aggregate(db, key, pid, group_by=group_by, agg=agg, agg_field=agg_field,
-                                state=state, filters=_parse_filters(request.query_params))
+                                state=state, filters=_parse_filters(request.query_params),
+                                join=join)
 
 
 @router.post("/projects/{pid}/modules/{key}", status_code=201)
