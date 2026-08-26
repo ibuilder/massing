@@ -23,10 +23,13 @@ FROM node:24-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7e
 # CONNECT), so the layers cannot be read either. Manifests resolve, which confirms only that the
 # digest is real and still covers `linux/amd64`.
 #
-# So the `--only-upgrade` line is removed as a **hypothesis under test, with Trivy as the
-# adjudicator** — the scan that v0.3.1098 made possible by putting this image in the build matrix in
-# the first place. If the CRITICAL returns, the line comes back with the scan output as its evidence,
-# and the treadmill is then a measured fact rather than a prediction.
+# So the `--only-upgrade` line was removed as a hypothesis under test, with Trivy as the adjudicator
+# — the scan v0.3.1098 made possible by putting this image in the build matrix in the first place.
+#
+# **CI ruled: confirmed.** `massing-converter:pr (debian 12.15) | debian | 0` — a clean scan, not an
+# absent one ('-' means not scanned; this reads 0). The base this replaces was `debian 12.13`, so two
+# point releases forward is what carries the patched `libgnutls30`: the removed line was doing by hand
+# what a current base does by construction.
 
 WORKDIR /app
 

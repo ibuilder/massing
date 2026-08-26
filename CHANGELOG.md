@@ -29,10 +29,17 @@ What manifests *do* confirm: the digest resolves, and it still covers `linux/amd
 every Docker build here targets. The new index drops `armv7` and `s390x`, which nothing in this
 repository builds for, and that narrowing is itself consistent with a newer Node build.
 
-So the removal is a **hypothesis with Trivy as its adjudicator**, not a guess dressed as a fix. If the
-CRITICAL returns, the line comes back carrying the scan output as evidence and the treadmill becomes a
-measured fact rather than a prediction. Either outcome is knowledge; leaving a stopgap in place
-indefinitely is the only option that produces none.
+So the removal was a **hypothesis with Trivy as its adjudicator**, not a guess dressed as a fix. It
+was pushed as one and **CI has since ruled: confirmed.**
+
+    massing-converter:pr (debian 12.15)   debian   0   -
+    Legend:  '0': Clean (no security findings detected)   '-': Not scanned
+
+The `debian` row reads **0**, not `-` — the OS scan ran (Trivy, 10.7 s, outcome success) and found
+nothing, so this is a clean scan rather than an absent one. **And the mechanism is legible in that
+line: `debian 12.15`, where the base this replaces was `debian 12.13`.** Two Debian point releases
+forward is what carries the patched `libgnutls30`; the `--only-upgrade` line was doing by hand what a
+current base does by construction.
 
 **And the scan can answer it at all only because of v0.3.1098.** Before that release this image was in
 no build matrix, so re-pinning its base would have been unfalsifiable — the change would have shipped
