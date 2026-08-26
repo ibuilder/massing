@@ -655,7 +655,7 @@ entry demanded a premise-check before starting. **That is now the first line of 
 | # | Sprint | Why here | Size | Premise to check FIRST |
 |---|---|---|---|---|
 | 1 | ~~**A correctness sweep** — refill Band 1~~ **DONE 2026-08-25 (v0.3.1091–1095)** | **Struck rather than deleted, because the prediction is the part worth checking.** All three axes it named were run: **authz** (43 routes, no live hole, `services/api/test_resource_id_authz.py` is the finding), **concurrency** (a 500 on concurrent first sign-in at all three SSO doors), **money** (52 of 399 JV distribution periods whose parts did not sum to their own total). Its premise-check was the load-bearing part — "pick the axis before starting" is what made two of the three produce a defect. Records in §Band 1 above. | M | — |
-| 2 | ~~**R22-REPORT-BUILDER — items 2–5**~~ **COMPLETE 2026-08-26 (v0.3.1101–1104)** | All four remaining items shipped: a validated config schema (which exposed a live alert miscount), shareable views, cross-module reports along declared reference edges, and one report catalog. **The premise-check this row demanded is what found that FOUR remained rather than three** — the row was written when the entry listed four items and was never re-derived after it grew to five. Full record in [`roadmap-completed.md`](roadmap-completed.md). | S/M → M/L | — |
+| 2 | ~~**R22-REPORT-BUILDER — items 2–5**~~ **COMPLETE 2026-08-26 (v0.3.1101–1105)** | All four remaining items shipped: a validated config schema (which exposed a live alert miscount), shareable views, cross-module reports along declared reference edges, and one report catalog. **The premise-check this row demanded is what found that FOUR remained rather than three** — the row was written when the entry listed four items and was never re-derived after it grew to five. Full record in [`roadmap-completed.md`](roadmap-completed.md). | S/M → M/L | — |
 | 3 | **R36-VIEWER-SUBAPP** — the canvas switches 2D/3D in place, including PRINT | The remaining half of the rail arc, and a **user directive** rather than an agent's idea — the rooms "must each be a product". It is also the largest thing standing between the drawing surface and the roadmap's own headline judgement at the top of this file: *what is thin now is the drawing*. | L | The R43 collision. `@massing/embed` was evaluated and **declined** on 2026-08-23 for an architectural reason (its load path is IFC text into a browser tessellator, against two non-negotiables), and two breaking changes are still coming: async viewport creation, and add/remove replacing `showModel`. Build behind the existing seams, not into `apps/web/src/viewer/app.ts`. |
 
 **Why not the obvious candidates.** Stated so that disagreeing with the omission is as cheap as
@@ -2483,7 +2483,10 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   element is a property of the surface, not of the markup**, and a layer that reached for one host's
   hook could only ever be mounted where that hook was right.
 
-  **Re-checked 2026-08-23 — slice 6 is still open, and "an INTEGRATION, not a build" understates it.**
+  **Re-checked 2026-08-23 — slice 6 was still open THEN, and "an INTEGRATION, not a build" understated
+  it.** *(Past tense as of 2026-08-26: it shipped in v0.3.1071, which the ✅ line above records. Left
+  in place because its prediction was right and that is the part worth keeping — but re-read it as
+  history, not as status. This entry has now had a stale present-tense paragraph twice.)*
   The five client methods and their callers are all present, exactly as measured. But every caller
   lives inside the `DrawingsRoom` class in `apps/web/src/drawings/drawings.ts`, and the markup layer
   is *class state coupled to that room's DOM* — `markupOn`, the `markup[]` array, `buildToolbar()`,
@@ -2507,8 +2510,22 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   the codebase already namespaces markup stores by suffix, so `plan:<storeyGuid>` fits the pattern
   that is there.
 
+  **PREMISE-CHECK 2026-08-26, before starting the sprint row — and it found the row's own subject
+  half-wrong.** Slice 6 had shipped, so "and slice 6 as specified above" was stale here too. But it
+  shipped **keyed on the storey NAME**, which this entry had specified against three paragraphs
+  earlier (*"keying on the storey NAME would look natural and is wrong"*), which the project's first
+  non-negotiable forbids, and which `drawingStoreys` had never required — it has served `guid` beside
+  `name` since it shipped. `apps/web/src/api/authoring.ts` had even been widened to expose
+  `levels[].guid` **for this exact purpose**, with a comment warning against the `?? level.name`
+  fallback. The groundwork was laid and the consumer never used it. *A specification written in the
+  same entry as the work is not a check — only a test is.* Fixed in v0.3.1106: the key is
+  `plan:<storeyGuid>`, the pre-GUID key is read so nothing already stored disappears, and the
+  forbidden fallback is now a failing test in `apps/web/src/viewer/planPane.test.ts`.
+
   Remaining: the **keynote → spec section** link (the spec surface now exists; keynotes do not yet
-  carry their section code), and slice 6 as specified above. **Print paper picker (v0.3.993):**
+  carry their section code). **One residual limitation, stated rather than buried:** a markup created
+  before v0.3.1106 is still name-keyed and still orphans on rename — rekeying it needs a
+  name→GlobalId map only the source IFC holds, so it is a backfill, not a code change. **Print paper picker (v0.3.993):**
   Issue / Sheet PDF / Place and the paper-space editor share `drawings.py` `PAGES` — ARCH-C/D/B/A and
   ISO A0–A4. Default is **ARCH-C (24×18 in)**; that is not an ISO A size. ARCH-D is full-size US
   CDs (36×24), ARCH-B is half of D, ARCH-A is the next ARCH step (often called quarter of D).

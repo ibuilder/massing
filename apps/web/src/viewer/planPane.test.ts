@@ -120,6 +120,59 @@ describe("syncPlanHighlight — one element is MANY loops", () => {
   });
 });
 
+describe("the markup key is the storey's GlobalId", () => {
+  /**
+   * R36 premise-check, 2026-08-26. This pane keyed its markups `plan:<activeStorey()>` — the human
+   * level NAME — so renaming a level orphaned every pin on it. The GUID was already reachable:
+   * `modelGrid` serves `levels[].guid` and its own type comment says why it matters, warning in
+   * as many words against the `?? level.name` fallback that would put the bug back.
+   */
+  function keysFetched(deps: { storey: string | null; guid?: string | null }) {
+    const asked: string[] = [];
+    const svg = '<svg data-plan-scale="1" data-plan-ox="0" data-plan-oy="0" '
+      + 'data-plan-minx="0" data-plan-miny="0" data-plan-drawh="10"></svg>';
+    vi.stubGlobal("fetch", async () => new Response(svg, { status: 200 }));
+    const pane = new PlanPane({
+      url: (p) => p, projectId: () => "p1",
+      activeStorey: () => deps.storey,
+      activeStoreyGuid: deps.guid === undefined ? undefined : () => deps.guid ?? null,
+      notify: () => {},
+      markupApi: {
+        drawingMarkup: async (_pid: string, id: string) => { asked.push(id); return []; },
+        promoteDrawingMarkup: async () => ({ topic: { title: "t" } }),
+        deleteDrawingMarkup: async () => undefined,
+      },
+    });
+    document.body.appendChild(pane.el);
+    pane.dock("full");
+    return { pane, asked };
+  }
+
+  it("asks for the GUID key, not the name", async () => {
+    const { pane, asked } = keysFetched({ storey: "Level 1", guid: "3aB7xQ" });
+    await pane.refresh(true);
+    expect(asked, "the key new markups are written under").toContain("plan:3aB7xQ");
+    vi.unstubAllGlobals();
+  });
+
+  it("also reads the pre-GUID name key, so existing pins still show", async () => {
+    const { pane, asked } = keysFetched({ storey: "Level 1", guid: "3aB7xQ" });
+    await pane.refresh(true);
+    expect(asked).toContain("plan:Level 1");
+    vi.unstubAllGlobals();
+  });
+
+  // The important negative. A host that has not wired the GUID must show NOTHING rather than fall
+  // back to the name — a fallback would be indistinguishable from the fixed code while carrying the
+  // exact defect, and it is the one line the client type's comment predicted somebody would write.
+  it("shows no pins at all when the host has not wired a GUID — it does not fall back to the name", async () => {
+    const { pane, asked } = keysFetched({ storey: "Level 1" });
+    await pane.refresh(true);
+    expect(asked, "no markup fetch is better than one keyed on a renameable name").toEqual([]);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("ground cursor survives an SVG refresh", () => {
   it("re-paints the last ground point after the drawing is replaced", async () => {
     const svg = '<svg data-plan-scale="1" data-plan-ox="0" data-plan-oy="0" '

@@ -59,8 +59,28 @@ export interface MarkupLayerDeps {
   readonly getScale: () => number;
   readonly api: MarkupApi;
   readonly projectId: () => string | null;
-  /** The markup key for what is on screen — `plan:L1`, `elev:north`… `null` when nothing is shown. */
+  /**
+   * The markup key for what is on screen — `plan:<storeyGuid>`, `elev:north`… `null` when nothing
+   * is shown. **New markups are always written under this key.**
+   */
   readonly sheetId: () => string | null;
+  /**
+   * The pre-GUID key the same surface used to be stored under, READ-ONLY and merged into the
+   * displayed set. `null` when there is no legacy form (elevations and sections were never keyed on
+   * a renameable thing).
+   *
+   * Storey plans were keyed `plan:<storeyName>` until the R36 premise-check found that keying markup
+   * on a renameable name orphans every pin on the level the moment somebody renames it — against the
+   * project's first non-negotiable, *reference by GlobalId, never a transient id*. Switching the key
+   * without reading the old one would have "fixed" the bug by hiding every markup already stored,
+   * which is the same data loss arriving through the front door.
+   *
+   * Nothing is written here and nothing is rewritten: a markup stored under the legacy key stays
+   * there and stays visible. **The residual limitation is real and stated rather than hidden** — a
+   * pin created before this change still orphans if its level is renamed, because rekeying it needs
+   * a name→GlobalId map that only the source IFC holds. New pins are immune from here on.
+   */
+  readonly legacySheetId?: () => string | null;
   readonly setStatus: (message: string) => void;
   /** Called after every render with the number of markups, for a host that shows a count. */
   readonly onCount?: (n: number) => void;
@@ -99,12 +119,24 @@ export class MarkupLayer {
     const pid = this.d.projectId();
     const id = this.d.sheetId();
     if (!pid || !id) { this.items = []; this.render(); return; }
+    // The legacy key is read only when it is genuinely a DIFFERENT key. Comparing rather than
+    // assuming matters: a host that wires `legacySheetId` to the same accessor as `sheetId` would
+    // otherwise fetch every markup twice and render each pin twice, which reads as duplicated work
+    // by the user rather than as a bug in the wiring.
+    const legacyKey = ((k) => (k && k !== id ? k : null))(this.d.legacySheetId?.() ?? null);
+    const none = Promise.resolve([] as DrawingMarkupItem[]);
     try {
-      const [pins, takeoff] = await Promise.all([
+      // The PRIMARY fetch is the only one without a catch, deliberately: an unreachable API still
+      // empties the layer exactly as it did before the legacy read existed. Both legacy fetches
+      // swallow their own failures, so a missing or unreadable legacy key can never take down the
+      // markups that are stored correctly.
+      const [pins, takeoff, oldPins, oldTakeoff] = await Promise.all([
         this.d.api.drawingMarkup(pid, id),
         this.d.api.drawingMarkup(pid, `${id}#pdf`).catch(() => [] as DrawingMarkupItem[]),
+        legacyKey ? this.d.api.drawingMarkup(pid, legacyKey).catch(() => []) : none,
+        legacyKey ? this.d.api.drawingMarkup(pid, `${legacyKey}#pdf`).catch(() => []) : none,
       ]);
-      this.items = placeable(pins, takeoff);
+      this.items = placeable([...pins, ...oldPins], [...takeoff, ...oldTakeoff]);
     } catch {
       this.items = [];                 // see the header: a legible drawing beats an error banner
     }

@@ -20,6 +20,13 @@ interface DrawingsHost {
 
 interface Sheet {
   id: string;                 // stable key (also the markup key)
+  /**
+   * The pre-GUID markup key, when this sheet used to have a different one. Read-only: markups found
+   * under it are shown, nothing is written or moved there. Only storey plans have one — they were
+   * keyed `plan:<storeyName>` until the R36 premise-check found that a rename orphans every pin on
+   * the level, against the GlobalId non-negotiable.
+   */
+  legacyId?: string;
   label: string;
   type: "plan" | "elevation" | "section" | "sheet";
   path: string;               // SVG endpoint (query string included)
@@ -121,7 +128,11 @@ export class DrawingsUI {
     try { storeys = await this.host_.api.drawingStoreys(pid); } catch { /* no source IFC */ }
     for (const s of storeys) {
       const q = pq({ elevation: s.elevation, cut_height: 1.2, title: `PLAN - ${s.name}` });
-      sheets.push({ id: `plan:${s.name}`, label: `Plan — ${s.name}`, type: "plan",
+      // Keyed on the storey's IFC GlobalId, never its name. `drawingStoreys` has always returned
+      // `guid` beside `name`; keying on the name meant a level rename silently orphaned every markup
+      // on it. The LABEL still shows the name, because that is what a person reads.
+      sheets.push({ id: `plan:${s.guid}`, legacyId: `plan:${s.name}`,
+                    label: `Plan — ${s.name}`, type: "plan",
                     path: `/projects/${pid}/drawings/plan.svg?${q}` });
     }
     for (const d of DIRS) {
@@ -313,6 +324,7 @@ export class DrawingsUI {
       api: this.host_.api,
       projectId: () => this.host_.projectId(),
       sheetId: () => this.current?.id ?? null,
+      legacySheetId: () => this.current?.legacyId ?? null,
       setStatus: (m) => this.host_.setStatus(m),
       // This room reveals in BOTH places: the 3D viewer selects the element and the plan lights it.
       onReveal: (g) => { selectInViewer(g); syncPlanHighlight(this.svgHost, g); },

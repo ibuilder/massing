@@ -105,6 +105,17 @@ export interface PlanPaneDeps {
   projectId: () => string | null;
   /** The storey the modeler is working in, or null for the whole model. */
   activeStorey: () => string | null;
+  /**
+   * The active storey's IFC GlobalId — the markup key. An ACCESSOR for the same reason
+   * `activeStorey` is one: both are `let` in `app.ts` and change with the level selector, so a value
+   * would freeze at panel-build time, before any level exists.
+   *
+   * Optional so a host that has not wired it keeps the pane it had; without it the pane shows no
+   * pins rather than falling back to the name. **The fallback is what is being removed** — keying on
+   * a renameable name is what orphaned markups on rename, and `?? activeStorey()` here would
+   * reintroduce it in the one place nobody would look.
+   */
+  activeStoreyGuid?: () => string | null;
   notify: (msg: string, kind: "info" | "success" | "error") => void;
   /** SYNC-SELECT: a click on identified linework names an element; the viewer selects it. */
   onPick?: (guid: string) => void;
@@ -148,9 +159,11 @@ export class PlanPane {
       getScale: () => this.zoomPct / 100,
       api,
       projectId: () => this.d.projectId(),
-      // The same key the Drawings room writes: `plan:<storey>`. A pane showing the whole model has no
-      // sheet to key against, so it shows no pins rather than guessing one.
-      sheetId: () => { const st = this.d.activeStorey(); return st ? `plan:${st}` : null; },
+      // The same key the Drawings room writes: `plan:<storeyGuid>`. A pane showing the whole model
+      // has no sheet to key against, so it shows no pins rather than guessing one.
+      sheetId: () => { const g = this.d.activeStoreyGuid?.(); return g ? `plan:${g}` : null; },
+      // Read-only, so markups stored before the key became a GlobalId still appear here.
+      legacySheetId: () => { const st = this.d.activeStorey(); return st ? `plan:${st}` : null; },
       setStatus: (m) => this.d.notify(m, "info"),
       // The pane already has a pick handler and its own highlighter — it does not need the viewer
       // hook the Drawings room uses, which is precisely why this is injected rather than imported.
