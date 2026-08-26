@@ -699,6 +699,11 @@ def _plan_pins(db: Session, pid: str, elevation: float, cut_height: float, model
     return out
 
 
+#: How many rekey rows the dry-run preview returns inline. Over this the response says it capped
+#: (`changes_truncated`) rather than handing back a short list that reads as the whole set.
+CHANGE_PREVIEW = 200
+
+
 @router.post("/projects/{pid}/drawings/markups/rekey-storeys")
 def rekey_storey_markups(pid: str, dry_run: bool = True, db: Session = Depends(get_db),
                          actor: str = Depends(require_role("editor"))):
@@ -738,7 +743,11 @@ def rekey_storey_markups(pid: str, dry_run: bool = True, db: Session = Depends(g
 
     rows = db.query(DrawingMarkup).filter(DrawingMarkup.project_id == pid,
                                           DrawingMarkup.sheet_id.like("plan:%")).all()
-    known_guids = {g for gs in by_name.values() for g in gs}
+    # Every storey's GlobalId, INCLUDING storeys with a blank name. `by_name` deliberately skips
+    # those (a nameless storey cannot be matched by name), so deriving this from it reported a markup
+    # already correctly keyed on such a storey as "unmatched" — i.e. as a problem, when it is the
+    # desired end state. The two sets answer different questions.
+    known_guids = {str(st["guid"]) for st in storeys if st.get("guid")}
     moved: list[dict] = []
     ambiguous: list[str] = []
     unmatched: list[str] = []
@@ -765,11 +774,20 @@ def rekey_storey_markups(pid: str, dry_run: bool = True, db: Session = Depends(g
         if not dry_run:
             r.sheet_id = new_key
     if not dry_run and moved:
-        db.commit()
+        # RECORD, THEN COMMIT — in that order, and it is not cosmetic. `audit.record` only `db.add`s
+        # the row; committing first meant the rekey landed and the AuditLog row was discarded when
+        # the request session closed, so a destructive operation ran with no trail. Every other call
+        # site in this repository records before it commits.
         audit.record(db, action="drawings.markups.rekey_storeys", actor=actor,
                      detail={"project_id": pid, "moved": len(moved),
                              "ambiguous_names": ambiguous, "unmatched_names": unmatched})
-    return {"dry_run": dry_run, "moved": len(moved), "changes": moved[:200],
+        db.commit()
+    # The preview is capped, and SAYS when it capped. The route's contract is "the caller sees exactly
+    # what would move"; a silently short list on a large project reads as the whole answer, which is
+    # the same shape as an aggregate that truncates without a flag.
+    return {"dry_run": dry_run, "moved": len(moved), "changes": moved[:CHANGE_PREVIEW],
+            "changes_truncated": len(moved) > CHANGE_PREVIEW,
+            "changes_shown": min(len(moved), CHANGE_PREVIEW),
             "ambiguous_names": ambiguous, "unmatched_names": unmatched,
             "already_keyed_by_guid": already,
             "note": ("nothing was written — call again with dry_run=false to apply" if dry_run

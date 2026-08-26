@@ -61,6 +61,9 @@ STOREYS = [
     {"name": "Level 2", "elevation": 3.5, "guid": "GUID_L2"},
     {"name": "Twin", "elevation": 7.0, "guid": "GUID_TWIN_A"},
     {"name": "Twin", "elevation": 10.5, "guid": "GUID_TWIN_B"},
+    # A storey with NO name. It can never be matched by name — but a markup already keyed on its
+    # GlobalId is correctly keyed, and must not be reported as "storey no longer exists".
+    {"name": None, "elevation": 14.0, "guid": "GUID_NONAME"},
 ]
 
 
@@ -102,6 +105,7 @@ def seed(db):
         DrawingMarkup(project_id=PID, sheet_id="plan:Twin", note="ambiguous name"),
         DrawingMarkup(project_id=PID, sheet_id="plan:Demolished", note="storey is gone"),
         DrawingMarkup(project_id=PID, sheet_id="elev:north", note="not a storey plan at all"),
+        DrawingMarkup(project_id=PID, sheet_id="plan:GUID_NONAME", note="guid of a nameless storey"),
     ]
     db.add_all(rows)
     db.commit()
@@ -126,7 +130,14 @@ try:
     # A key that is already a GlobalId is the DESIRED end state. Reporting it beside genuinely
     # unmappable names would make a clean second run read as a partial failure.
     check("...and a key already on a GlobalId is reported separately, not as a problem",
-          out["already_keyed_by_guid"] == ["GUID_L2"], f"{out['already_keyed_by_guid']}")
+          sorted(out["already_keyed_by_guid"]) == ["GUID_L2", "GUID_NONAME"],
+          f"{out['already_keyed_by_guid']}")
+    # Review finding: `known_guids` was derived from the name index, which skips nameless storeys —
+    # so a markup correctly keyed on one was reported as unmappable. The two sets answer different
+    # questions and only one of them may skip a storey.
+    check("a nameless storey's GlobalId still counts as already-keyed",
+          "GUID_NONAME" in out["already_keyed_by_guid"]
+          and "GUID_NONAME" not in out["unmatched_names"], f"{out['unmatched_names']}")
 
     # ---- apply -------------------------------------------------------------------------------------
     out = run(db, dry_run=False)
@@ -148,6 +159,22 @@ try:
           keys["not a storey plan at all"])
     check("a key that was ALREADY a guid is unchanged", keys["already a guid key"] == "plan:GUID_L2",
           keys["already a guid key"])
+
+    # ---- the audit trail actually persists ----------------------------------------------------------
+    # Review finding, 2026-08-26: `audit.record` only `db.add`s the row, and this route committed
+    # BEFORE recording — so the rekey landed and the AuditLog row was discarded when the session
+    # closed. A destructive operation with no trail, and nothing failed to say so.
+    from aec_api.models import AuditLog  # noqa: PLC0415
+    trail = db.query(AuditLog).filter(AuditLog.action == "drawings.markups.rekey_storeys").all()
+    check("the rekey leaves an audit row that SURVIVES the commit", len(trail) == 1,
+          f"{len(trail)} audit rows — record-then-commit, not commit-then-record")
+    check("...naming what moved", bool(trail) and trail[0].detail.get("moved") == 2,
+          str(trail[0].detail if trail else None))
+
+    # ---- a capped preview says it capped -------------------------------------------------------------
+    check("the preview reports whether it was truncated", out["changes_truncated"] is False
+          and out["changes_shown"] == 2,
+          f"truncated={out['changes_truncated']} shown={out['changes_shown']}")
 
     # ---- idempotence: the second run is the real test of "already a guid" ---------------------------
     again = run(db, dry_run=False)

@@ -149,6 +149,39 @@ try:
     check("both readers see the same TOTAL for one shared view",
           a["Open RFIs"]["total"] == b["Open RFIs"]["total"] == total,
           f"alice={a['Open RFIs']['total']} bob={b['Open RFIs']['total']}")
+    # ---- you must be able to CLEAR what you can SEE -------------------------------------------------
+    # Review finding, 2026-08-26. `/views/alerts` is gated at `viewer` and `/views/{vid}/seen` was at
+    # `reviewer`. That mismatch was unreachable while a viewer's feed only ever held their own views;
+    # per-viewer alerts made it reachable, and a viewer would have seen shared views they got a 403
+    # trying to clear — a permanent "N new" badge, with the 403 swallowed by the UI.
+    #
+    # Asserted as the INVARIANT rather than as two literals: whatever role shows a view in the feed
+    # must also be enough to record having read it. Pinning both to the string "viewer" would pass
+    # just as well if somebody raised one of them.
+    import inspect  # noqa: PLC0415
+
+    from aec_api.routers import modules as mod_routes  # noqa: PLC0415
+
+    def role_gate(fn) -> str | None:
+        """The `min_role` a handler's `require_role` dependency was built with.
+
+        Read off the FUNCTION rather than off `app.routes`: this API mounts its routers lazily, so a
+        freshly imported `app` carries 74 routes and neither of these two. A lookup that silently
+        finds nothing is exactly what the guard above exists to catch.
+        """
+        for prm in inspect.signature(fn).parameters.values():
+            dep = getattr(prm.default, "dependency", None)
+            gate = getattr(dep, "_role_gate", None)
+            if gate:
+                return gate
+        return None
+
+    feed = role_gate(mod_routes.view_alerts)
+    clear = role_gate(mod_routes.mark_view_seen)
+    check("both routes were found, so the comparison is not vacuous",
+          feed is not None and clear is not None, f"feed={feed!r} clear={clear!r}")
+    check("the role that SHOWS a view in the feed can also clear it", feed == clear,
+          f"feed requires {feed!r}, clearing requires {clear!r}")
 finally:
     db.close()
 

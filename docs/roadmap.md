@@ -2554,9 +2554,13 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   What remains is **the live DOM verification this entry has flagged as unverified since slice 4** —
   `createViewerApp` needs a WebGL context and a Fragments worker, so the tab strip, the spec pane and
   the keynote column have never been seen in a browser. Unit tests cover the behaviour and `tsc`
-  covers the wiring; that is not the same claim and the entry has never pretended otherwise. **One residual limitation, stated rather than buried:** a markup created
-  before v0.3.1106 is still name-keyed and still orphans on rename — rekeying it needs a
-  name→GlobalId map only the source IFC holds, so it is a backfill, not a code change. **Print paper picker (v0.3.993):**
+  covers the wiring; that is not the same claim and the entry has never pretended otherwise.
+  *(The sentence that stood here — "one residual limitation … a markup created before v0.3.1106 is
+  still name-keyed and still orphans on rename … it is a backfill, not a code change" — was true
+  when written and false three lines below a paragraph saying the backfill shipped. **The fourth time
+  this entry's prose contradicted its own status**, and the third caught by review rather than by me.
+  A status sentence is not a footnote: it has to be re-read whenever the thing it describes moves.)*
+  **Print paper picker (v0.3.993):**
   Issue / Sheet PDF / Place and the paper-space editor share `drawings.py` `PAGES` — ARCH-C/D/B/A and
   ISO A0–A4. Default is **ARCH-C (24×18 in)**; that is not an ISO A size. ARCH-D is full-size US
   CDs (36×24), ARCH-B is half of D, ARCH-A is the next ARCH step (often called quarter of D).
