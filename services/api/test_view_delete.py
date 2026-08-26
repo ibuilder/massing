@@ -55,7 +55,13 @@ with TestClient(app) as c:
 
     def make(name: str, user: str, project: str = pid) -> str:
         r = c.post(f"/projects/{project}/modules/{MOD}/views",
-                   json={"name": name, "config": {"filter": name}},
+                   # `{"q": name}` until v0.3.1101 — a key NOTHING has ever read. The only
+                   # writer in the repository was this line; every reader looks for `filters`,
+                   # `q`, `state`, `sort`. It went unnoticed because a view config was stored
+                   # verbatim, which is the defect R22-REPORT-BUILDER item 3 fixed, and the
+                   # schema's first act on landing was to refuse this fixture. `q` is a real key
+                   # and serves the same purpose here: a per-view marker that survives a round trip.
+                   json={"name": name, "config": {"q": name}},
                    headers={"X-User": user})
         assert r.status_code in (200, 201), (r.status_code, r.text)
         return r.json()["id"]

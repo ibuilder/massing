@@ -123,13 +123,24 @@ for label, cfg, expect in REFUSALS:
           "ACCEPTED" if detail is None else f"said {detail!r}")
 
 # The inverse: refusing everything would satisfy all eleven cases above.
+# Every declared key at once. `join` names a declared reference field, so this case is also what
+# keeps VIEW_CONFIG_KEYS honest: adding a key to the set without teaching the validator to accept it
+# fails here rather than shipping a key the schema advertises and refuses.
+#
+# The detail string used to print `len(VIEW_CONFIG_KEYS)` — the CONSTANT, not what actually round
+# -tripped — so when `join` was added to the set and not to this config, the failure reported
+# "10 keys round-tripped" while 9 had. A message that reads back the expectation instead of the
+# result describes a test that cannot tell you what went wrong.
+_every = validate_view_config(KEY, {
+    "q": "x", "state": "open", "sort": "discipline", "sort_dir": "asc",
+    "filters": [["discipline", "eq", "Structural"]], "columns": ["discipline"],
+    "group_by": "discipline", "agg": "count", "agg_field": "discipline",
+    "join": "location",
+})
 check("...while still accepting a config that uses every declared key",
-      set(validate_view_config(KEY, {
-          "q": "x", "state": "open", "sort": "discipline", "sort_dir": "asc",
-          "filters": [["discipline", "eq", "Structural"]], "columns": ["discipline"],
-          "group_by": "discipline", "agg": "count", "agg_field": "discipline",
-      })) == VIEW_CONFIG_KEYS,
-      f"{len(VIEW_CONFIG_KEYS)} keys round-tripped")
+      set(_every) == VIEW_CONFIG_KEYS,
+      f"{len(_every)} of {len(VIEW_CONFIG_KEYS)} round-tripped"
+      + (f"; missing {sorted(VIEW_CONFIG_KEYS - set(_every))}" if set(_every) != VIEW_CONFIG_KEYS else ""))
 
 # ---- the alert miscount, as state rather than as assertion ---------------------------------------
 db = SessionLocal()
