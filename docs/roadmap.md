@@ -655,7 +655,7 @@ entry demanded a premise-check before starting. **That is now the first line of 
 | # | Sprint | Why here | Size | Premise to check FIRST |
 |---|---|---|---|---|
 | 1 | ~~**A correctness sweep** — refill Band 1~~ **DONE 2026-08-25 (v0.3.1091–1095)** | **Struck rather than deleted, because the prediction is the part worth checking.** All three axes it named were run: **authz** (43 routes, no live hole, `services/api/test_resource_id_authz.py` is the finding), **concurrency** (a 500 on concurrent first sign-in at all three SSO doors), **money** (52 of 399 JV distribution periods whose parts did not sum to their own total). Its premise-check was the load-bearing part — "pick the axis before starting" is what made two of the three produce a defect. Records in §Band 1 above. | M | — |
-| 2 | **R22-REPORT-BUILDER — items 2–4** | The only row here with live momentum: item 1 of 4 ("the substantive one", by its own entry) shipped in **v0.3.1088**, one release ago, and the person who built the aggregate route has the shape of the remaining three in hand. Registers that can group are what turn a register into a report, and the GC portal is the pillar where that lands. Cheapest good work available. | S/M | That three items really remain. v0.3.1088 shipped a *part*, and commit `84fec46` exists **only** because the roadmap first recorded that part as the whole item. Re-read the entry, not the release note. |
+| 2 | **R22-REPORT-BUILDER — items 2–5** | The only row here with live momentum: item 1 of **5** ("the substantive one", by its own entry) shipped in **v0.3.1088**, and the person who built the aggregate route has the shape of the remainder in hand. Registers that can group are what turn a register into a report, and the GC portal is the pillar where that lands. | S/M → M/L | **Premise-check RUN 2026-08-26, and it failed: FOUR items remain, not three.** This row said "items 2–4" because it was written when the entry listed four; the entry now lists five, and its own item 5 records that it "was missing from the four-item list above for a day". The row was never re-derived after the list grew — *the exact failure the row's own premise-check was written to catch, sitting in the row that asked for it.* Sized up accordingly: item 5 (unify `reports.REPORTS` with saved views) is an architecture decision, not a slice. |
 | 3 | **R36-VIEWER-SUBAPP** — the canvas switches 2D/3D in place, including PRINT | The remaining half of the rail arc, and a **user directive** rather than an agent's idea — the rooms "must each be a product". It is also the largest thing standing between the drawing surface and the roadmap's own headline judgement at the top of this file: *what is thin now is the drawing*. | L | The R43 collision. `@massing/embed` was evaluated and **declined** on 2026-08-23 for an architectural reason (its load path is IFC text into a browser tessellator, against two non-negotiables), and two breaking changes are still coming: async viewport creation, and add/remove replacing `showModel`. Build behind the existing seams, not into `apps/web/src/viewer/app.ts`. |
 
 **Why not the obvious candidates.** Stated so that disagreeing with the omission is as cheap as
@@ -1280,11 +1280,19 @@ stakes we are missing.
      satisfied by refusing everything.
   2. **Single-module only.** `SavedView.module` is one string and nothing spans modules, so "RFIs
      against change orders by trade" is not expressible — and that is most of what a report *is*.
-  3. **`SavedView.config` is an unvalidated JSON blob**, "filter/sort/column config" by docstring only.
-     A saved view is whatever a client happened to write, so a schema change breaks views silently
-     with no migration path. Same family as `module.json` having no capability key.
-  4. **Per-user, never shared** — `user` is part of the identity key, so a view cannot be a firm or
-     project report. A builder whose output only its author can see is a personal filter.
+  3. ✅ **A validated config schema — landed in v0.3.1101.** *(lowercase deliberately, as in item 1
+     and for the same reason.)* `validate_view_config` resolves every field through `_resolve_field`
+     and every operator through `FILTER_OPS`, refuses unknown keys so the contract has a migration
+     path, and `MAX_FILTERS` moved to the engine so a stored view is capped like a URL is. It also
+     exposed a live miscount: `view_alerts` never passed `filters` to `count_records`, though that
+     parameter exists for this caller — a view filtered to one row reported two.
+     `services/api/test_view_config.py`.
+  4. ✅ **Shareable views — landed in v0.3.1102.** `scope` (`private` | `project`) separates who may
+     READ a view from who OWNS it; ownership still gates writes, and every clause stays bounded by
+     `project_id`. **Alerts deliberately remain the owner's**: `last_seen_at` is one column per row,
+     so a shared view in a second person's feed would compute "new since" from the author's last
+     visit. Per-viewer alerts need a per-viewer timestamp — named here rather than left to be
+     discovered. `services/api/test_view_sharing.py`.
   5. **`reports.REPORTS` is a separate registry the saved-view layer knows nothing about.** Reports
      already exist, with their own categories, rendered in their own panel — so a "report builder"
      that only grows the module query surface would ship a *second* way to make a report, sitting

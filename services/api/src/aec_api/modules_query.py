@@ -87,6 +87,11 @@ def _json_text(db: Session, col, jkey: str):
 #: Columns that live on the row rather than inside `data`, and may be filtered/sorted directly.
 SYSTEM_COLUMNS = {"workflow_state", "created_at", "updated_at", "ref", "assignee", "ball_in_court"}
 
+#: How many per-field filters one query may carry. Lives here rather than in the router because it
+#: bounds `_apply_filters`, and `validate_view_config` must apply the SAME cap to a saved view — a
+#: view that could store 50 filters would be refused only when someone replayed it as a URL.
+MAX_FILTERS = 12
+
 #: The operators a filter may use. `contains` is a case-insensitive substring; `in` takes a
 #: comma-separated list; `empty`/`nonempty` ignore the value.
 FILTER_OPS = {"eq", "ne", "gte", "lte", "contains", "in", "empty", "nonempty"}
@@ -338,3 +343,134 @@ def active_records(db: Session, key: str, project_id: str, exclude_states: set[s
     if limit is not None:
         stmt = stmt.limit(limit)
     return [dict(r._mapping) for r in db.execute(stmt)]
+
+
+# ---- R22-REPORT-BUILDER item 3: a saved view's `config` is a SCHEMA, not a blob -------------------
+#
+# `SavedView.config` was `Mapped[dict] = mapped_column(JSON, default=dict)` and the write route took
+# `config: dict = Body(...)` and stored it verbatim. "filter/sort/column config" was true only in the
+# docstring: a saved view was whatever a client happened to POST, so a schema change broke views
+# silently with no migration path and nothing could tell a typo from a feature.
+#
+# **The validator does not invent a second answer to "what is a field".** It resolves every field
+# name through `_resolve_field` and every operator through `FILTER_OPS` — the same two the list route
+# uses — because `_json_text` interpolates a name into a JSON path, and a second validator here is
+# how two sources of truth start disagreeing. That is the rule the `aggregate` docstring above
+# already states; this is the third caller to follow it.
+#
+# **Unknown keys are REFUSED rather than ignored.** A view saved with `{"filtres": [...]}` that is
+# accepted and then silently unused is the same class of wrong answer as a dropped filter: the user
+# is shown more rows than they asked for and told nothing. Refusing is also what gives the schema a
+# migration path — the set below is the contract, and changing it is a visible act.
+
+#: Every key a saved view's `config` may carry. Anything else is a 422.
+VIEW_CONFIG_KEYS = {"q", "state", "sort", "sort_dir", "filters", "columns", "group_by", "agg",
+                    "agg_field"}
+
+#: R22-REPORT-BUILDER item 4 — who may READ a saved view. Ownership (project+module+user+name) is a
+#: separate question and decides who may WRITE it; conflating the two is what made the builder a
+#: personal filter. `project` is bounded by the project the view already belongs to.
+VIEW_SCOPES = {"private", "project"}
+
+#: How many columns a view may pin. Same reasoning as MAX_FILTERS: a bound that is stated.
+MAX_VIEW_COLUMNS = 60
+
+
+def validate_view_config(key: str, config: dict | None) -> dict:
+    """The saved-view `config`, normalised — or HTTP 422 naming what was wrong.
+
+    Returns filters as a list of `[name, op, value]` lists (JSON has no tuples), which is what
+    `view_filters` reads back. Validation is by RESOLUTION, not by shape: a field name is accepted
+    because the module declares it, not because it is a string.
+    """
+    if config is None:
+        return {}
+    if not isinstance(config, dict):
+        raise HTTPException(422, "view config must be an object")
+    mod = REGISTRY.get(key)
+    if mod is None:
+        raise HTTPException(404, f"unknown module {key!r}")
+
+    if unknown := sorted(set(config) - VIEW_CONFIG_KEYS):
+        raise HTTPException(422, f"unknown view config key(s): {', '.join(unknown)} "
+                                 f"(expected one of {sorted(VIEW_CONFIG_KEYS)})")
+
+    out: dict = {}
+    for k in ("q", "state", "agg_field", "sort", "group_by"):
+        if (v := config.get(k)) is not None:
+            if not isinstance(v, str):
+                raise HTTPException(422, f"view config {k!r} must be a string")
+            out[k] = v
+    # `sort`, `group_by` and `agg_field` name FIELDS, so they resolve like any other field name.
+    for k in ("sort", "group_by", "agg_field"):
+        if k in out:
+            _resolve_field(mod, out[k])
+
+    if (sd := config.get("sort_dir")) is not None:
+        if str(sd).lower() not in ("asc", "desc"):
+            raise HTTPException(422, f"view config sort_dir must be 'asc' or 'desc', got {sd!r}")
+        out["sort_dir"] = str(sd).lower()
+
+    if (agg := config.get("agg")) is not None:
+        if agg not in AGG_FNS:
+            raise HTTPException(422, f"unknown aggregate {agg!r} (expected one of {sorted(AGG_FNS)})")
+        out["agg"] = agg
+
+    if (cols := config.get("columns")) is not None:
+        if not isinstance(cols, list):
+            raise HTTPException(422, "view config columns must be a list")
+        if len(cols) > MAX_VIEW_COLUMNS:
+            raise HTTPException(422, f"too many columns (max {MAX_VIEW_COLUMNS})")
+        for c in cols:
+            if not isinstance(c, str):
+                raise HTTPException(422, "view config columns must be field names")
+            _resolve_field(mod, c)
+        out["columns"] = list(cols)
+
+    if (filters := config.get("filters")) is not None:
+        if not isinstance(filters, list):
+            raise HTTPException(422, "view config filters must be a list")
+        if len(filters) > MAX_FILTERS:
+            raise HTTPException(422, f"too many filters (max {MAX_FILTERS})")
+        norm: list[list[str]] = []
+        for f in filters:
+            if not isinstance(f, (list, tuple)) or len(f) != 3:
+                raise HTTPException(422, "each filter must be [field, op, value]")
+            name, op, value = f
+            if not isinstance(name, str) or not isinstance(op, str):
+                raise HTTPException(422, "filter field and operator must be strings")
+            if op not in FILTER_OPS:
+                raise HTTPException(422, f"unknown filter operator {op!r} (expected one of "
+                                         f"{sorted(FILTER_OPS)})")
+            _resolve_field(mod, name)
+            norm.append([name, op, "" if value is None else str(value)])
+        out["filters"] = norm
+    return out
+
+
+def view_filters(config: dict | None) -> list[tuple[str, str, str]]:
+    """The `(field, op, value)` filters a stored config carries, for `count_records` / `list_records`.
+
+    **Raises `ValueError` when the stored `filters` cannot be read, and that is the whole point.**
+
+    The first draft returned `[]` for anything it could not parse — tolerant by shape — and that made
+    `view_alerts`' "uncountable" branch DEAD CODE: a row written before validation existed, holding
+    `{"filters": "this was never validated"}`, produced no filters, so the feed counted the whole
+    module and reported the wrong number confidently. The guard and the parser disagreed about what
+    an unreadable config means, and the guard lost silently.
+
+    Caught by `test_view_config.py` on its first run, which is the only reason it is not still there.
+    Rows saved BEFORE this schema may hold anything; a caller that cannot read one must be able to
+    tell that apart from a view that simply has no filters.
+    """
+    raw = (config or {}).get("filters")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"stored filters are {type(raw).__name__}, expected a list")
+    out: list[tuple[str, str, str]] = []
+    for f in raw:
+        if not isinstance(f, (list, tuple)) or len(f) != 3:
+            raise ValueError(f"stored filter {f!r} is not [field, op, value]")
+        out.append((str(f[0]), str(f[1]), str(f[2])))
+    return out

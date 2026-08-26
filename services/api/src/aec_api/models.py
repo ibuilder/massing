@@ -279,14 +279,33 @@ class StepUpSpent(Base):
 
 
 class SavedView(Base):
-    """A user's saved filter/sort/column config for a module's list (server-side, so it
-    follows them across devices). Keyed by project + module + user + name."""
+    """A saved filter/sort/column config for a module's list (server-side, so it follows its author
+    across devices). Owned by project + module + user + name; VISIBLE per `scope`.
+
+    R22-REPORT-BUILDER item 4 — `user` used to be the whole story, so a view could never be a firm or
+    project report: *"a builder whose output only its author can see is a personal filter."* `scope`
+    separates **who owns a view** from **who can see it**, which is the distinction that was missing:
+    ownership still decides who may edit or delete it, and scope decides who may read and run it.
+
+    `private` (the default, and what every existing row is) means author-only. `project` means anyone
+    who can already read that project's registers — the read route requires the `viewer` role on the
+    project, and every query is filtered by `project_id`, so a shared view cannot cross a project
+    boundary or show its holder rows they could not already list.
+
+    **Alerts deliberately stay with the owner.** `last_seen_at` is ONE column on ONE row, so a shared
+    view has a single "last opened" timestamp; showing it in a second person's 🔔 feed would compute
+    their "new since" from *the author's* last visit and hand them a confidently wrong number — the
+    defect item 3 just fixed one layer down. Per-viewer alerts need a per-viewer timestamp, which is
+    a table this item does not add. `view_alerts` filters on `user` and stays that way on purpose.
+    """
     __tablename__ = "saved_views"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     project_id: Mapped[str] = mapped_column(String, index=True)
     module: Mapped[str] = mapped_column(String, index=True)
     user: Mapped[str] = mapped_column(String, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    #: "private" (author-only) or "project" (anyone who can read this project's registers).
+    scope: Mapped[str] = mapped_column(String, default="private", server_default="private")
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # saved-search alerts

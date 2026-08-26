@@ -15,6 +15,7 @@ from .. import modules as mod_engine
 from .. import sync as sync_engine
 from ..db import get_db
 from ..models import Connection, Project, ProjectMember, SyncSchedule, User
+from ..modules_query import MAX_FILTERS, VIEW_SCOPES, validate_view_config
 from ..rbac import current_user, require_role
 from .authoring_shared import safe_filename
 
@@ -406,26 +407,61 @@ async def notifications_stream(pid: str, request: Request, user: str = Depends(r
 # --- saved views (server-side, per user+module) -----------------------------
 @router.get("/projects/{pid}/modules/{key}/views")
 def list_views(pid: str, key: str, db: Session = Depends(get_db), user: str = Depends(require_role("viewer"))):
+    """My saved views for this module, plus the ones shared with the project.
+
+    R22-REPORT-BUILDER item 4 — this used to return `SavedView.user == user` and nothing else, which
+    is what made the builder a personal filter rather than a report. A `project`-scoped view is
+    readable by anyone who can already read this project's registers (`require_role("viewer")`, and
+    every clause below is bounded by `pid`), so sharing shows nobody a row they could not already
+    list.
+
+    `mine` is returned per row rather than inferred from `owner == me` by the client, because the two
+    can disagree the moment a display name is not the identity key — and the UI uses it to decide
+    whether to offer Delete, which must match what the server will actually allow.
+    """
+    from sqlalchemy import or_
+
     from ..models import SavedView
-    rows = db.query(SavedView).filter(SavedView.project_id == pid, SavedView.module == key,
-                                      SavedView.user == user).order_by(SavedView.created_at).all()
-    return [{"id": v.id, "name": v.name, "config": v.config} for v in rows]
+    rows = (db.query(SavedView)
+            .filter(SavedView.project_id == pid, SavedView.module == key,
+                    or_(SavedView.user == user, SavedView.scope == "project"))
+            .order_by(SavedView.created_at).all())
+    return [{"id": v.id, "name": v.name, "config": v.config, "scope": v.scope or "private",
+             "owner": v.user, "mine": v.user == user} for v in rows]
 
 
 @router.post("/projects/{pid}/modules/{key}/views", status_code=201)
 def save_view(pid: str, key: str, name: str = Body(..., embed=True),
               config: dict = Body(default={}, embed=True),
+              scope: str = Body(default="private", embed=True),
               db: Session = Depends(get_db), user: str = Depends(require_role("reviewer"))):
+    """Create or replace one of MY saved views for this module.
+
+    R22-REPORT-BUILDER item 3 — `config` is VALIDATED and normalised before it is stored. It used to
+    be written verbatim, so a saved view was whatever a client happened to POST: a schema change
+    broke views silently, a typo in a key was indistinguishable from a feature, and nothing could
+    migrate what nothing had defined. `validate_view_config` resolves every field name through
+    `_resolve_field` and every operator through `FILTER_OPS` — the same two the list route uses,
+    because a second validator would be a second answer to "what is a field".
+    """
     from ..models import SavedView
+    config = validate_view_config(key, config)
+    if scope not in VIEW_SCOPES:
+        raise HTTPException(422, f"unknown view scope {scope!r} (expected one of {sorted(VIEW_SCOPES)})")
+    # Ownership is still (project, module, user, name): sharing a view does not move it, and two
+    # people may hold same-named views without colliding. Only the owner's row is ever written here,
+    # so this route cannot edit somebody else's shared report.
     v = db.query(SavedView).filter(SavedView.project_id == pid, SavedView.module == key,
                                    SavedView.user == user, SavedView.name == name).first()
     if v:
         v.config = config
+        v.scope = scope
     else:
-        v = SavedView(project_id=pid, module=key, user=user, name=name, config=config)
+        v = SavedView(project_id=pid, module=key, user=user, name=name, config=config, scope=scope)
         db.add(v)
     db.commit()
-    return {"id": v.id, "name": v.name, "config": v.config}
+    return {"id": v.id, "name": v.name, "config": v.config, "scope": v.scope,
+            "owner": v.user, "mine": True}
 
 
 @router.get("/projects/{pid}/views/alerts")
@@ -549,7 +585,6 @@ def calc_records(pid: str, key: str, body: dict = Body(default={}), db: Session 
 #: MOD-FILTER — how many per-field filters one request may carry. A bound, because each one is a
 #: separate WHERE over a JSON extraction and an unbounded list is a cheap way to make the server work
 #: hard on someone else's behalf.
-MAX_FILTERS = 12
 
 
 def _parse_filters(qp) -> list[tuple[str, str, str]]:
