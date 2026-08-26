@@ -10,6 +10,98 @@ chronological / thematic order; ✅ markers and version tags are the source of t
 
 ---
 
+## R22-REPORT-BUILDER — COMPLETE 2026-08-26 (v0.3.1088, 1101–1104)
+
+Rescoped 2026-07-31 when its original premise proved false, then finished in five parts.
+Archived with the entry intact, **including the two times its own list was wrong about itself** —
+the fifth item missing from the list for a day, and the sprint row still reading "items 2–4"
+three weeks after the list grew to five. Both were caught by the premise-check that row demanded,
+which is the argument for writing one into every sprint row rather than trusting the summary.
+
+- **R22-REPORT-BUILDER** *(M)* — **RESCOPED 2026-07-31; the original premise was false.** The entry
+  read "132 modules of structured data with **no end-user query surface**". There is one, and it is
+  good: per-field filtering with operators (`?f.discipline=Structural&f.amount.gte=1000`, capped at
+  `MAX_FILTERS = 12`), field names validated against the module's declared fields in **one** place so
+  the two cannot drift, calculated columns (`qty * unit_cost`), generic Excel/CSV import with preview,
+  and **saved views** persisted server-side with saved-search alerts. A user can already filter,
+  compute a column, save it and be alerted on it without an engineering ticket.
+
+  The real remainder is the four things that separate a saved *list* from a *report*:
+  1. ✅ **Aggregation over user-chosen fields — landed in v0.3.1088.** *(the wording is deliberate. `roadmapSelfConsistent.test.ts` treats that word — in capitals, anywhere in an item's body — as the whole ITEM having shipped, and parts 2–4 of this one are still open. Marking it ◧ is not the answer either: `roadmapStale.test.ts` drops ◧ from the assignable set, which would hide three live pieces of work. **Writing the explanation out in full tripped the same gate**, which is the doc-about-a-gate version of a source-grep gate flagging its own comment.)*
+     `GET /projects/{pid}/modules/{key}/aggregate?group_by=<field>&agg=count|sum|avg|min|max&agg_field=<field>`,
+     with the **same** `?f.<field>[.<op>]=` filters the list route takes, parsed by the same
+     `_parse_filters` — so a report and the register it came from cannot disagree about which rows
+     they describe. Field names are validated by `_resolve_field`, the one the filters and sort
+     already use: `_json_text` interpolates a name into a JSON path, so an unvalidated name is an
+     **injection site**, and a second validator here would be a second answer to "what is a field".
+     **`sum`/`avg` are REFUSED on a non-numeric declared field.** Verified rather than assumed: with
+     the guard removed, SQLite returns `0.0` per group for a sum over text — a confident number that
+     reads as *this project has none*, which is the failure shape this codebase keeps meeting. The
+     group count is capped at 200 and the response **says** when it capped, because a short list that
+     does not say so reads as the whole answer. `services/api/test_module_aggregate.py`; the refusal
+     is mutation-checked, and its twin asserts a real numeric sum still works so "it refuses" is not
+     satisfied by refusing everything.
+  2. ✅ **Cross-module reports — landed in v0.3.1103.** *(lowercase deliberately, as in items 1 and 3
+     and for the same reason.)* The entry read "**Single-module only.** `SavedView.module` is one
+     string and nothing spans modules, so 'RFIs against change orders by trade' is not expressible —
+     and that is most of what a report *is*." **`SavedView.module` is still one string**, and that is
+     the design rather than a shortfall: a report has a base register, and the second module arrives
+     as a `join` in the config naming a **declared reference field**, resolved by `_join_target`
+     against `reference_fields`. The edge therefore comes from the schema, not from the request —
+     accepting an arbitrary field would reopen, one level out, the injection site `_resolve_field`
+     exists to close, and accepting an arbitrary *module* would let a report relate two tables no
+     schema says are related, producing a number nobody can trace back to the data. Fields on the far
+     side are named `<module>.<field>`, so a name and the side it lives on travel together. The join
+     is a **LEFT** join and both sides stay bounded by `project_id`: an inner join would silently drop
+     every RFI with no change order, and "RFIs by change-order trade" that omits them answers a
+     narrower question than the one asked *while looking complete*.
+     `services/api/test_view_crossmodule.py`.
+  3. ✅ **A validated config schema — landed in v0.3.1101.** *(lowercase deliberately, as in item 1
+     and for the same reason.)* `validate_view_config` resolves every field through `_resolve_field`
+     and every operator through `FILTER_OPS`, refuses unknown keys so the contract has a migration
+     path, and `MAX_FILTERS` moved to the engine so a stored view is capped like a URL is. It also
+     exposed a live miscount: `view_alerts` never passed `filters` to `count_records`, though that
+     parameter exists for this caller — a view filtered to one row reported two.
+     `services/api/test_view_config.py`.
+  4. ✅ **Shareable views — landed in v0.3.1102.** `scope` (`private` | `project`) separates who may
+     READ a view from who OWNS it; ownership still gates writes, and every clause stays bounded by
+     `project_id`. **Alerts deliberately remain the owner's**: `last_seen_at` is one column per row,
+     so a shared view in a second person's feed would compute "new since" from the author's last
+     visit. Per-viewer alerts need a per-viewer timestamp — named here rather than left to be
+     discovered. `services/api/test_view_sharing.py`.
+  5. ✅ **One report surface — landed in v0.3.1104**, and the decision was the deliverable. They stay
+     **separate implementations behind one surface**: a built-in report is CODE (Earned Value, WIP,
+     appraisal — 56 of them) computing what no query builder expresses; a saved view is DATA, a query
+     authored with no engineering ticket. Folding one into the other buys a query language that can do
+     EVM, or 56 rows of config that secretly dispatch to Python. The real duplication was the
+     *surface* — `GET /reports` was global and knew nothing about saved views, so one question got two
+     answers from two panels. `GET /projects/{pid}/reports/catalog` is the one answer, `kind` explicit.
+     `services/api/test_report_catalog.py`.
+
+     **This fifth line was missing from the four-item list above for a day**, and how it was missed is
+     the point: the gap-check read the module and saved-view layer thoroughly and never opened the
+     report registry. The list was **accurate about what it examined and incomplete about the item**.
+     *(It cost a second time on 2026-08-26 — the sprint row still said "items 2–4" and "three items
+     really remain", written when the list had four and never re-derived after it grew. The
+     premise-check that row itself demanded is what caught it.)*
+     **A completeness check has to ask what it did not look at, not only what it found.**
+
+  **What the 2026-07-31 rescope concluded, kept for the reasoning rather than the status** — every
+  one of the four things it names shipped in v0.3.1088 and 1101–1104, so read it as the plan it was,
+  not as work outstanding: *"Still (M), but a different (M): add aggregation and cross-module scope to
+  the surface that exists, give `SavedView.config` a schema, and let a view be shared. **Building the
+  entry as written would have rebuilt working filtering.** Items 3 and 4 land in
+  `models.py`/`routers/modules.py` — check the lane table before starting, that is not lane C's to
+  take unilaterally."*
+
+  That last paragraph stayed present-tense under a **COMPLETE** heading until review caught it on
+  2026-08-26, alongside item 2 above — **the third time this entry's own prose was wrong about this
+  entry's own status.** The first two are recorded in the header. The pattern across all three is one
+  thing: a *summary* was left to age while the *list* it summarised moved. Marking an entry complete
+  has to include re-reading what it says about itself, because the reader who is misled is the one who
+  never opens the list.
+
+
 ## Reconciliation 2026-08-25 (v0.3.1090) — twenty-one shipped entries that were still listed as work
 
 Moved out of `roadmap.md` in one pass, in the same shape as the 2026-07-30 and 2026-07-31

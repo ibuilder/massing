@@ -40,6 +40,7 @@ from .modules_query import (  # noqa: F401
     list_records,
     state_counts,
     state_counts_all,
+    view_filters,
 )
 
 # the registry + table foundation is a leaf (imports only db.Base); re-exported so modules.get_module /
@@ -328,9 +329,43 @@ def view_alerts(db: Session, project_id: str, user: str) -> list[dict]:
     for v in views:
         cfg = v.config or {}
         state, q = cfg.get("state"), cfg.get("q")
-        total = count_records(db, v.module, project_id, state=state, q=q)
-        new = count_records(db, v.module, project_id, state=state, q=q, since=v.last_seen_at) \
-            if v.last_seen_at else total
+        # R22-REPORT-BUILDER item 3 — THE FILTERS COUNT TOO, and until now they did not.
+        #
+        # `count_records` has taken `filters` since MOD-FILTER, and its docstring names this caller:
+        # *"a count that ignores a filter the list applied reports a total the page cannot account
+        # for, and a total is exactly the number a user trusts without checking."* The parameter was
+        # built for saved-view alerts and the saved-view alert path never passed it.
+        #
+        # Measured on two RFIs differing by one declared field, with a view saved as
+        # `{"filters": [["discipline","eq","Structural"]]}` — which the write route accepted, because
+        # nothing validated a config: **the feed said 2 and the view showed 1.** A notification that
+        # over-counts trains people to stop opening it, and it is the same confident-wrong-number
+        # shape `aggregate` refuses `sum` over text to avoid.
+        #
+        # The shipped web register only ever saved `{q, state, sort}`, so no browser produced this —
+        # but the API accepted filters from anything else, and item 3's schema now *invites* them.
+        # Fixing the count is what makes storing them safe.
+        # `ValueError` — the stored `filters` are not readable at all. `HTTPException` — they are
+        # readable but name a field this module no longer declares, which `_apply_filters` refuses
+        # at count time. Both mean the same thing to a reader of the feed: this view's number cannot
+        # be computed, so it must not be guessed.
+        try:
+            filters = view_filters(cfg)
+            if filters:
+                count_records(db, v.module, project_id, filters=filters)
+        except (ValueError, HTTPException):
+            filters = None
+        if filters is None:
+            # Uncountable rather than counted wrong: a view whose stored config cannot be read is
+            # reported with `total: None` and a reason, so the UI can say "this view needs re-saving"
+            # instead of showing a number that describes different rows than the view does.
+            out.append({"id": v.id, "name": v.name, "module": v.module,
+                        "total": None, "new": None, "config": cfg,
+                        "error": "saved before view configs were validated; re-save to enable alerts"})
+            continue
+        total = count_records(db, v.module, project_id, state=state, q=q, filters=filters)
+        new = count_records(db, v.module, project_id, state=state, q=q, since=v.last_seen_at,
+                            filters=filters) if v.last_seen_at else total
         out.append({"id": v.id, "name": v.name, "module": v.module, "total": total, "new": new,
                     "config": cfg})
     return out

@@ -21,7 +21,7 @@ from sqlalchemy import Float, String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from . import rbac
-from .modules_registry import REGISTRY, TABLES
+from .modules_registry import REGISTRY, TABLES, reference_fields
 from .modules_search import _is_postgres, _pg_document, _pg_tsquery
 from .modules_search import search_filter as _search_filter
 
@@ -86,6 +86,11 @@ def _json_text(db: Session, col, jkey: str):
 
 #: Columns that live on the row rather than inside `data`, and may be filtered/sorted directly.
 SYSTEM_COLUMNS = {"workflow_state", "created_at", "updated_at", "ref", "assignee", "ball_in_court"}
+
+#: How many per-field filters one query may carry. Lives here rather than in the router because it
+#: bounds `_apply_filters`, and `validate_view_config` must apply the SAME cap to a saved view — a
+#: view that could store 50 filters would be refused only when someone replayed it as a URL.
+MAX_FILTERS = 12
 
 #: The operators a filter may use. `contains` is a case-insensitive substring; `in` takes a
 #: comma-separated list; `empty`/`nonempty` ignore the value.
@@ -207,9 +212,47 @@ AGG_FNS = {"count", "sum", "avg", "min", "max"}
 MAX_GROUPS = 200
 
 
+#: R22-REPORT-BUILDER item 2 — the separator between a joined module and one of its fields in a
+#: `group_by` / `agg_field`, e.g. `change_order.trade`. A dot rather than a new parameter so the two
+#: names travel together: a field on the joined side is meaningless without the side it is on.
+JOIN_SEP = "."
+
+
+def _join_target(mod: dict, join: str) -> tuple[str, dict]:
+    """`(target_key, target_module)` for a DECLARED reference field — or HTTP 400.
+
+    R22-REPORT-BUILDER item 2. The join is never taken from the caller: `reference_fields` lists the
+    edges the module *declares*, and the field name is interpolated into a JSON path by `_json_text`
+    exactly as `_resolve_field`'s are. Accepting an arbitrary field here would reopen the injection
+    site that `_resolve_field` exists to close, one level out — and accepting an arbitrary *module*
+    would let a report join two tables that no schema says are related, which produces a number
+    nobody can trace back to the data.
+    """
+    for f in reference_fields(mod):
+        if f.get("name") == join:
+            target = REGISTRY.get(f["module"])
+            if target is None:
+                raise HTTPException(400, f"{join!r} references unknown module {f['module']!r}")
+            return f["module"], target
+    declared = sorted(f["name"] for f in reference_fields(mod))
+    raise HTTPException(400, f"{join!r} is not a declared reference field for this module"
+                             + (f" (expected one of {declared})" if declared else ""))
+
+
+def _side_field_expr(db: Session, base_t, base_mod: dict, join_key: str | None, join_t,
+                     join_mod: dict | None, name: str):
+    """A comparable expression for `field` or `joined_module.field`, resolved on the right side."""
+    if join_key and name.startswith(join_key + JOIN_SEP):
+        if join_mod is None:
+            raise HTTPException(400, f"{name!r} names a joined module but no join was given")
+        return _field_expr(db, join_t, join_mod, name[len(join_key) + 1:])
+    return _field_expr(db, base_t, base_mod, name)
+
+
 def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = "count",
               agg_field: str | None = None, state: str | None = None,
-              filters: list[tuple[str, str, str]] | None = None) -> dict:
+              filters: list[tuple[str, str, str]] | None = None,
+              join: str | None = None) -> dict:
     """Group a module's records by a DECLARED field and aggregate over them.
 
     This is what separates a saved *list* from a *report*: until now the only `group_by` in the module
@@ -232,12 +275,27 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
     t = TABLES[key]
     mod = REGISTRY.get(key) or {}
 
-    gexpr, _gf = _field_expr(db, t, mod, group_by)
+    # R22-REPORT-BUILDER item 2 — a report over ONE module is a saved list with totals. "RFIs against
+    # change orders by trade" needs two, and until now `SavedView.module` was a single string so it
+    # could not be expressed at all. The join runs along a DECLARED reference field: `data-><field>`
+    # holds the target's id (the same shape `related_records` already reads), so the edge comes from
+    # the schema rather than from the request.
+    join_key: str | None = None
+    join_t = None
+    join_mod: dict | None = None
+    if join:
+        join_key, join_mod = _join_target(mod, join)
+        join_t = TABLES[join_key].alias(f"j_{join_key}")
+
+    def side(name: str):
+        return _side_field_expr(db, t, mod, join_key, join_t, join_mod, name)
+
+    gexpr, _gf = side(group_by)
     value_expr = None
     if agg != "count":
         if not agg_field:
             raise HTTPException(400, f"{agg} needs a field to aggregate (agg_field)")
-        aexpr, af = _field_expr(db, t, mod, agg_field)
+        aexpr, af = side(agg_field)
         if agg in ("sum", "avg") and (af.get("_system") or af.get("type") not in _NUMERIC_FIELD_TYPES):
             raise HTTPException(400, f"{agg} needs a numeric field; {agg_field!r} is declared "
                                      f"{af.get('type') or 'text'!r}")
@@ -248,6 +306,13 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
     if value_expr is not None:
         cols.append(value_expr.label("value"))
     stmt = select(*cols).where(t.c.project_id == project_id)
+    if join_t is not None:
+        # LEFT join: a base record with no related record still counts, under a NULL group. An inner
+        # join would silently drop it, and "RFIs by change-order trade" that omits every RFI without
+        # a change order answers a narrower question than the one asked — while looking complete.
+        stmt = stmt.select_from(t).join(
+            join_t, _json_text(db, t.c.data, join) == join_t.c.id, isouter=True,
+        ).where(or_(join_t.c.project_id == project_id, join_t.c.id.is_(None)))
     if state:
         stmt = stmt.where(t.c.workflow_state == state)
     if filters:
@@ -260,6 +325,7 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
     if truncated:
         rows = rows[:MAX_GROUPS]
     return {"module": key, "group_by": group_by, "agg": agg, "agg_field": agg_field,
+            "join": join, "join_module": join_key,
             "groups": rows, "group_count": len(rows),
             "truncated": truncated, "max_groups": MAX_GROUPS}
 
@@ -338,3 +404,163 @@ def active_records(db: Session, key: str, project_id: str, exclude_states: set[s
     if limit is not None:
         stmt = stmt.limit(limit)
     return [dict(r._mapping) for r in db.execute(stmt)]
+
+
+# ---- R22-REPORT-BUILDER item 3: a saved view's `config` is a SCHEMA, not a blob -------------------
+#
+# `SavedView.config` was `Mapped[dict] = mapped_column(JSON, default=dict)` and the write route took
+# `config: dict = Body(...)` and stored it verbatim. "filter/sort/column config" was true only in the
+# docstring: a saved view was whatever a client happened to POST, so a schema change broke views
+# silently with no migration path and nothing could tell a typo from a feature.
+#
+# **The validator does not invent a second answer to "what is a field".** It resolves every field
+# name through `_resolve_field` and every operator through `FILTER_OPS` — the same two the list route
+# uses — because `_json_text` interpolates a name into a JSON path, and a second validator here is
+# how two sources of truth start disagreeing. That is the rule the `aggregate` docstring above
+# already states; this is the third caller to follow it.
+#
+# **Unknown keys are REFUSED rather than ignored.** A view saved with `{"filtres": [...]}` that is
+# accepted and then silently unused is the same class of wrong answer as a dropped filter: the user
+# is shown more rows than they asked for and told nothing. Refusing is also what gives the schema a
+# migration path — the set below is the contract, and changing it is a visible act.
+
+#: Every key a saved view's `config` may carry. Anything else is a 422.
+VIEW_CONFIG_KEYS = {"q", "state", "sort", "sort_dir", "filters", "columns", "group_by", "agg",
+                    "agg_field", "join"}
+
+#: R22-REPORT-BUILDER item 4 — who may READ a saved view. Ownership (project+module+user+name) is a
+#: separate question and decides who may WRITE it; conflating the two is what made the builder a
+#: personal filter. `project` is bounded by the project the view already belongs to.
+VIEW_SCOPES = {"private", "project"}
+
+#: How many columns a view may pin. Same reasoning as MAX_FILTERS: a bound that is stated.
+MAX_VIEW_COLUMNS = 60
+
+
+def validate_view_config(key: str, config: dict | None) -> dict:
+    """The saved-view `config`, normalised — or HTTP 422 naming what was wrong.
+
+    Returns filters as a list of `[name, op, value]` lists (JSON has no tuples), which is what
+    `view_filters` reads back. Validation is by RESOLUTION, not by shape: a field name is accepted
+    because the module declares it, not because it is a string.
+    """
+    if config is None:
+        return {}
+    if not isinstance(config, dict):
+        raise HTTPException(422, "view config must be an object")
+    mod = REGISTRY.get(key)
+    if mod is None:
+        raise HTTPException(404, f"unknown module {key!r}")
+
+    if unknown := sorted(set(config) - VIEW_CONFIG_KEYS):
+        raise HTTPException(422, f"unknown view config key(s): {', '.join(unknown)} "
+                                 f"(expected one of {sorted(VIEW_CONFIG_KEYS)})")
+
+    out: dict = {}
+    for k in ("q", "state", "agg_field", "sort", "group_by", "join"):
+        if (v := config.get(k)) is not None:
+            if not isinstance(v, str):
+                raise HTTPException(422, f"view config {k!r} must be a string")
+            out[k] = v
+    # `join` names a DECLARED reference field and is resolved first, because it decides which module
+    # `group_by` / `agg_field` may name a field on. A view is validated exactly as the query it
+    # replays would be — otherwise a view could be saved that the aggregate route then refuses.
+    join_key: str | None = None
+    join_mod: dict | None = None
+    if "join" in out:
+        join_key, join_mod = _join_target(mod, out["join"])
+
+    # `sort`, `group_by` and `agg_field` name FIELDS. With a join in play they may name a field on
+    # the joined side as `<module>.<field>`; `sort` may not, because ordering happens on the base.
+    resolved: dict[str, dict] = {}
+    for k in ("group_by", "agg_field"):
+        if k in out:
+            name = out[k]
+            if join_key and name.startswith(join_key + JOIN_SEP):
+                resolved[k] = _resolve_field(join_mod, name[len(join_key) + 1:])
+            else:
+                resolved[k] = _resolve_field(mod, name)
+    if "sort" in out:
+        _resolve_field(mod, out["sort"])
+
+    if (sd := config.get("sort_dir")) is not None:
+        if str(sd).lower() not in ("asc", "desc"):
+            raise HTTPException(422, f"view config sort_dir must be 'asc' or 'desc', got {sd!r}")
+        out["sort_dir"] = str(sd).lower()
+
+    if (agg := config.get("agg")) is not None:
+        if agg not in AGG_FNS:
+            raise HTTPException(422, f"unknown aggregate {agg!r} (expected one of {sorted(AGG_FNS)})")
+        # `aggregate` refuses two more things than "is this a known function", and a view that is
+        # saved but unreplayable is the failure this whole validator exists to prevent — the
+        # docstring above promises a view is validated exactly as the query it replays would be, and
+        # until this block that promise was only kept for field NAMES. Both rules are re-asked of the
+        # same resolved field definition `aggregate` uses, not re-derived from the name.
+        if agg != "count":
+            if "agg_field" not in out:
+                raise HTTPException(422, f"{agg} needs a field to aggregate (agg_field)")
+            af = resolved["agg_field"]
+            if agg in ("sum", "avg") and (
+                    af.get("_system") or af.get("type") not in _NUMERIC_FIELD_TYPES):
+                raise HTTPException(422, f"{agg} needs a numeric field; {out['agg_field']!r} is "
+                                         f"declared {af.get('type') or 'text'!r}")
+        out["agg"] = agg
+
+    if (cols := config.get("columns")) is not None:
+        if not isinstance(cols, list):
+            raise HTTPException(422, "view config columns must be a list")
+        if len(cols) > MAX_VIEW_COLUMNS:
+            raise HTTPException(422, f"too many columns (max {MAX_VIEW_COLUMNS})")
+        for c in cols:
+            if not isinstance(c, str):
+                raise HTTPException(422, "view config columns must be field names")
+            _resolve_field(mod, c)
+        out["columns"] = list(cols)
+
+    if (filters := config.get("filters")) is not None:
+        if not isinstance(filters, list):
+            raise HTTPException(422, "view config filters must be a list")
+        if len(filters) > MAX_FILTERS:
+            raise HTTPException(422, f"too many filters (max {MAX_FILTERS})")
+        norm: list[list[str]] = []
+        for f in filters:
+            if not isinstance(f, (list, tuple)) or len(f) != 3:
+                raise HTTPException(422, "each filter must be [field, op, value]")
+            name, op, value = f
+            if not isinstance(name, str) or not isinstance(op, str):
+                raise HTTPException(422, "filter field and operator must be strings")
+            if op not in FILTER_OPS:
+                raise HTTPException(422, f"unknown filter operator {op!r} (expected one of "
+                                         f"{sorted(FILTER_OPS)})")
+            _resolve_field(mod, name)
+            norm.append([name, op, "" if value is None else str(value)])
+        out["filters"] = norm
+    return out
+
+
+def view_filters(config: dict | None) -> list[tuple[str, str, str]]:
+    """The `(field, op, value)` filters a stored config carries, for `count_records` / `list_records`.
+
+    **Raises `ValueError` when the stored `filters` cannot be read, and that is the whole point.**
+
+    The first draft returned `[]` for anything it could not parse — tolerant by shape — and that made
+    `view_alerts`' "uncountable" branch DEAD CODE: a row written before validation existed, holding
+    `{"filters": "this was never validated"}`, produced no filters, so the feed counted the whole
+    module and reported the wrong number confidently. The guard and the parser disagreed about what
+    an unreadable config means, and the guard lost silently.
+
+    Caught by `test_view_config.py` on its first run, which is the only reason it is not still there.
+    Rows saved BEFORE this schema may hold anything; a caller that cannot read one must be able to
+    tell that apart from a view that simply has no filters.
+    """
+    raw = (config or {}).get("filters")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"stored filters are {type(raw).__name__}, expected a list")
+    out: list[tuple[str, str, str]] = []
+    for f in raw:
+        if not isinstance(f, (list, tuple)) or len(f) != 3:
+            raise ValueError(f"stored filter {f!r} is not [field, op, value]")
+        out.append((str(f[0]), str(f[1]), str(f[2])))
+    return out

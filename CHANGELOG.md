@@ -4,6 +4,177 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1105 (2026-08-26) — a saved view that cannot be replayed is worse than one that was refused
+
+Review follow-up on R22-REPORT-BUILDER. `validate_view_config`'s docstring promised that **a view is
+validated exactly as the query it replays would be — otherwise a view could be saved that the
+aggregate route then refuses.** The code kept that promise for field *names* only. `aggregate`
+enforces two further rules, and the validator asked neither:
+
+* a non-`count` aggregate needs an `agg_field`;
+* `sum`/`avg` need a **numeric** one — it refuses rather than returning the confident `0` SQLite
+  gives for summed text.
+
+So three configs saved at 200 and then 400'd when the report was run, measured before the fix:
+
+    {"group_by": "target", "agg": "sum"}                        -> SAVED OK, 400 on replay
+    {"group_by": "target", "agg": "sum", "agg_field": "target"} -> SAVED OK, 400 on replay
+    {"group_by": "target", "agg": "avg", "agg_field": "target"} -> SAVED OK, 400 on replay
+
+The refusal now happens while the user is still looking at the form. Both rules are re-asked of the
+**same resolved field definition** `aggregate` uses rather than re-derived from the name — a second
+answer to "is this field numeric" is how two sources of truth start disagreeing, which is the rule
+this module's own header states.
+
+`test_view_config.py` covers it, and covers the inverse: `rfi` declares no numeric field, so the
+acceptance half could not be expressed there and **refusals alone would be satisfied by a validator
+that refuses every aggregate**. The numeric case resolves against whichever module declares a numeric
+field, guarded by an assertion that one was found. Mutation-checked — with the new block neutered,
+the three refusal cases fail and the three acceptance cases still pass.
+
+Also: the archived R22 entry described item 2 as open ("**Single-module only** … not expressible")
+after it shipped in v0.3.1103 — the one item of five that never got its landed line. Corrected, and
+the correction records the part that is easy to misread: **`SavedView.module` is still one string.**
+The base register is singular by design and the second module arrives as a declared-reference `join`,
+which is what keeps the edge coming from the schema instead of from the request.
+
+## v0.3.1104 (2026-08-26) — one answer to "what reports do I have here?"
+
+R22-REPORT-BUILDER item 5, **and the item said the decision itself was the deliverable**: unify
+`reports.REPORTS` with the saved-view layer, *or* decide deliberately that they stay separate.
+
+**They stay separate implementations behind one surface.** They are not the same kind of thing:
+
+* a **built-in report is code** — Earned Value, the WIP schedule, a tri-approach appraisal, 56 of
+  them. These compute things no query builder expresses. Folding them into saved views means either a
+  query language that can do EVM (it cannot) or 56 rows of config that secretly dispatch to Python,
+  which is a registry with extra steps;
+* a **saved view is data** — a user's query, authored without an engineering ticket, which is the
+  entire point of R22-REPORT-BUILDER.
+
+The entry's actual worry was *"a second way to make a report, sitting beside the one users already
+have"* — and re-reading it against the code, the duplication was never in the implementations. It was
+in the **surface**: `GET /reports` was global, knew nothing about saved views, and rendered in its own
+panel, so one question got two unrelated answers from two places.
+
+`GET /projects/{pid}/reports/catalog` is the one answer. `kind` is explicit rather than inferred,
+because the two differ in what a caller may *do* with them — a built-in renders to PDF at a fixed
+path, a saved view is replayed against its module — and a UI that guesses that from the shape of an
+id will guess wrong. The saved half obeys the same scope rules as the register's own view list, which
+`test_report_catalog.py` asserts against a second user rather than trusting the shared clause.
+
+## v0.3.1103 (2026-08-26) — a report can span two modules, along an edge the schema declares
+
+R22-REPORT-BUILDER item 2 — *"'RFIs against change orders by trade' is not expressible, and that is
+most of what a report is."*
+
+`aggregate` takes a `join`, and **the join comes from the schema, never from the request.**
+`reference_fields` already lists the edges a module declares, and a reference field stores the
+target's id in `data.<field>` — the shape `related_records` has always read. `_join_target` resolves
+a requested join against that list and refuses anything else, for two different reasons:
+
+* `_json_text` interpolates the name into a JSON path, so an arbitrary one is an **injection site** —
+  the one `_resolve_field` exists to close, one level further out;
+* an arbitrary *module* would let a report join two tables no schema says are related, producing a
+  number nobody can trace back to the data. That is worse than an error, because it looks like an
+  answer.
+
+`group_by` and `agg_field` may then name a field on the joined side as `<module>.<field>`, resolved
+against *that* module's declared fields. A saved view carrying `join` is validated exactly as the
+query it replays would be — otherwise a view could be saved that the aggregate route then refuses.
+
+### The join is LEFT, and that is a correctness choice rather than a default
+
+A base record with no related record still counts, under a `None` group. An inner join drops it
+silently: "RFIs by change-order trade" that omits every RFI *without* a change order answers a
+narrower question than the one asked, while looking complete. Mutation-verified — switching to an
+inner join turns the fixture's **4 of 4 into 3 of 4**, and the assertion names the missing one.
+
+The test picks its two modules **by resolution rather than by name**, walking the live registry for a
+real declared edge (it finds `action_item.responsible_contact → contact`). A fixture naming two
+modules by hand would keep passing after the schema connecting them changed.
+
+## v0.3.1102 (2026-08-26) — a saved view can be a project report, and sharing it leaks nothing
+
+R22-REPORT-BUILDER item 4. `SavedView.user` was both the owner **and** the audience, which is what
+made the builder — in the entry's own words — *"a personal filter"*.
+
+`scope` separates the two questions that were conflated: **ownership** (`project + module + user +
+name`) decides who may write or delete a view; **scope** (`private` | `project`) decides who may read
+and run it. Existing rows become `private`, which is exactly what they already were.
+
+### The three ways sharing leaks, each asserted
+
+**Across projects** — every clause is bounded by `pid` and the read route already requires `viewer`
+on that project, so a shared view shows nobody a row they could not already list.
+
+**Into edit rights** — visible is not writable. A second user saving under the same name gets their
+own row, which is why ownership stays *part* of the key rather than being replaced by it.
+
+**Into the alert feed, where it would produce a wrong number** — and this one is a deliberate
+*non*-feature. `last_seen_at` is one column on one row, so a shared view has a single "last opened"
+timestamp; showing it in a second person's feed would compute their "new since" from **the author's**
+last visit. That is exactly the confidently-wrong-number shape v0.3.1101 removed one layer down, and
+re-introducing it while adding sharing would trade one defect for another. Per-viewer alerts need a
+per-viewer timestamp — a table this item does not add — so `view_alerts` stays keyed to the owner and
+`test_view_sharing.py` pins that, making the gap visible rather than assumed.
+
+### A tautology, caught in the test written to pin the limit
+
+The first draft of that assertion read `all(a["name"] != "Open structural" or True for ...)`. **`X or
+True` cannot fail.** Worse, the fixture had Bob owning his own row of that name, so a name-based
+check could not have distinguished a leak from his own view even had the clause been real. It now
+asserts on **ownership** — every entry in a feed is a view that user owns — with an anti-vacuity
+guard that the feed is non-empty first. Mutation-verified: widening `view_alerts` to include
+project-scoped rows now fails, naming the foreign view.
+
+## v0.3.1101 (2026-08-26) — the alert feed counted rows the view itself would not show
+
+R22-REPORT-BUILDER item 3. `SavedView.config` was `mapped_column(JSON, default=dict)` and the write
+route stored whatever a client POSTed. "filter/sort/column config" was true only in the docstring.
+
+**That was two defects, one cause.**
+
+### The schema
+
+`validate_view_config` resolves every field name through `_resolve_field` and every operator through
+`FILTER_OPS` — **the same two the list route uses.** `_json_text` interpolates a field name into a
+JSON path, so an unvalidated name is an injection site rather than a typo, and a second validator
+would be a second answer to "what is a field". That rule is already written in `aggregate`'s
+docstring; this is the third caller to follow it. `MAX_FILTERS` moved from the router to the engine
+for the same reason — a view that could store 50 filters would have been refused only when someone
+replayed it as a URL.
+
+**Unknown keys are refused, not ignored**, which is what gives the schema a migration path: the key
+set is the contract, and changing it becomes a visible act.
+
+### The miscount the schema exposed
+
+`count_records` has taken `filters` since MOD-FILTER, and its docstring names this caller — *"a count
+that ignores a filter the list applied reports a total the page cannot account for, and a total is
+exactly the number a user trusts without checking."* **`view_alerts` never passed it.** The parameter
+was built for saved-view alerts, and the saved-view alert path was the one place it went unused.
+
+Measured on two RFIs differing by one declared field, with a view saved as
+`{"filters": [["discipline","eq","Structural"]]}` — which the write route accepted, because nothing
+validated a config:
+
+    alert feed total = 2        the view itself shows = 1
+
+The shipped web register only ever saved `{q, state, sort}`, so **no browser produced this** — but the
+API accepted filters from any other client, and the new schema positively *invites* them. Fixing the
+count is what makes storing them safe: the two had to land together, because either alone makes the
+other worse.
+
+### And a dead guard, caught by the test on its first run
+
+The "uncountable" branch — report `total: null` and a reason rather than a wrong number — was
+**unreachable**. `view_filters` was tolerant by shape, so an unreadable config returned `[]`, the
+`except` never fired, and a legacy row was counted as unfiltered: the same wrong number, by the
+guard meant to prevent it. `view_filters` now raises on a config it cannot read, and `view_alerts`
+catches that *and* the `HTTPException` from a field the module no longer declares. Both mean the same
+thing to a reader: this number cannot be computed, so it must not be guessed.
+
 ## v0.3.1100 (2026-08-25) — the re-pin the last release said was the right answer
 
 v0.3.1098 patched two CRITICAL `libgnutls30` CVEs by name and recorded the fix as a treadmill in the
