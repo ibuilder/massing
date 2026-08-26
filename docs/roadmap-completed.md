@@ -41,8 +41,21 @@ which is the argument for writing one into every sprint row rather than trusting
      does not say so reads as the whole answer. `services/api/test_module_aggregate.py`; the refusal
      is mutation-checked, and its twin asserts a real numeric sum still works so "it refuses" is not
      satisfied by refusing everything.
-  2. **Single-module only.** `SavedView.module` is one string and nothing spans modules, so "RFIs
-     against change orders by trade" is not expressible — and that is most of what a report *is*.
+  2. ✅ **Cross-module reports — landed in v0.3.1103.** *(lowercase deliberately, as in items 1 and 3
+     and for the same reason.)* The entry read "**Single-module only.** `SavedView.module` is one
+     string and nothing spans modules, so 'RFIs against change orders by trade' is not expressible —
+     and that is most of what a report *is*." **`SavedView.module` is still one string**, and that is
+     the design rather than a shortfall: a report has a base register, and the second module arrives
+     as a `join` in the config naming a **declared reference field**, resolved by `_join_target`
+     against `reference_fields`. The edge therefore comes from the schema, not from the request —
+     accepting an arbitrary field would reopen, one level out, the injection site `_resolve_field`
+     exists to close, and accepting an arbitrary *module* would let a report relate two tables no
+     schema says are related, producing a number nobody can trace back to the data. Fields on the far
+     side are named `<module>.<field>`, so a name and the side it lives on travel together. The join
+     is a **LEFT** join and both sides stay bounded by `project_id`: an inner join would silently drop
+     every RFI with no change order, and "RFIs by change-order trade" that omits them answers a
+     narrower question than the one asked *while looking complete*.
+     `services/api/test_view_crossmodule.py`.
   3. ✅ **A validated config schema — landed in v0.3.1101.** *(lowercase deliberately, as in item 1
      and for the same reason.)* `validate_view_config` resolves every field through `_resolve_field`
      and every operator through `FILTER_OPS`, refuses unknown keys so the contract has a migration

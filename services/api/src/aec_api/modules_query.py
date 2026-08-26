@@ -472,13 +472,14 @@ def validate_view_config(key: str, config: dict | None) -> dict:
 
     # `sort`, `group_by` and `agg_field` name FIELDS. With a join in play they may name a field on
     # the joined side as `<module>.<field>`; `sort` may not, because ordering happens on the base.
+    resolved: dict[str, dict] = {}
     for k in ("group_by", "agg_field"):
         if k in out:
             name = out[k]
             if join_key and name.startswith(join_key + JOIN_SEP):
-                _resolve_field(join_mod, name[len(join_key) + 1:])
+                resolved[k] = _resolve_field(join_mod, name[len(join_key) + 1:])
             else:
-                _resolve_field(mod, name)
+                resolved[k] = _resolve_field(mod, name)
     if "sort" in out:
         _resolve_field(mod, out["sort"])
 
@@ -490,6 +491,19 @@ def validate_view_config(key: str, config: dict | None) -> dict:
     if (agg := config.get("agg")) is not None:
         if agg not in AGG_FNS:
             raise HTTPException(422, f"unknown aggregate {agg!r} (expected one of {sorted(AGG_FNS)})")
+        # `aggregate` refuses two more things than "is this a known function", and a view that is
+        # saved but unreplayable is the failure this whole validator exists to prevent — the
+        # docstring above promises a view is validated exactly as the query it replays would be, and
+        # until this block that promise was only kept for field NAMES. Both rules are re-asked of the
+        # same resolved field definition `aggregate` uses, not re-derived from the name.
+        if agg != "count":
+            if "agg_field" not in out:
+                raise HTTPException(422, f"{agg} needs a field to aggregate (agg_field)")
+            af = resolved["agg_field"]
+            if agg in ("sum", "avg") and (
+                    af.get("_system") or af.get("type") not in _NUMERIC_FIELD_TYPES):
+                raise HTTPException(422, f"{agg} needs a numeric field; {out['agg_field']!r} is "
+                                         f"declared {af.get('type') or 'text'!r}")
         out["agg"] = agg
 
     if (cols := config.get("columns")) is not None:

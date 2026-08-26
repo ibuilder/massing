@@ -142,6 +142,59 @@ check("...while still accepting a config that uses every declared key",
       f"{len(_every)} of {len(VIEW_CONFIG_KEYS)} round-tripped"
       + (f"; missing {sorted(VIEW_CONFIG_KEYS - set(_every))}" if set(_every) != VIEW_CONFIG_KEYS else ""))
 
+# ---- a saved view must be REPLAYABLE, not merely well-formed --------------------------------------
+# `aggregate` refuses two things beyond "is `agg` a known function": a non-`count` aggregate needs an
+# `agg_field`, and `sum`/`avg` need a NUMERIC one (it refuses rather than returning SQLite's confident
+# `0` for summed text). This validator's docstring promises a view is validated exactly as the query
+# it replays would be — and until R22 follow-up that promise was kept only for field NAMES, so all
+# three configs below saved at 200 and then 400'd when the report was run. A view that cannot be
+# replayed is worse than one that was refused: the refusal happens while the user is still looking at
+# the form.
+#
+# `rfi` declares no numeric field, so the ACCEPTANCE half cannot be expressed there — and refusals
+# alone would be satisfied by a validator that refuses every aggregate. Both halves are needed, so
+# the numeric case resolves against whichever module declares a numeric field.
+_NUMERIC = {"number", "currency", "percent"}
+NUMKEY = NUMF = NUMTXT = None
+for _k in sorted(REGISTRY):
+    _types = {f.get("name"): f.get("type") for f in REGISTRY[_k].get("fields", []) if f.get("name")}
+    _nums = sorted(n for n, t in _types.items() if t in _NUMERIC)
+    _txts = sorted(n for n, t in _types.items() if t == "text")
+    if _nums and _txts:
+        NUMKEY, NUMF, NUMTXT = _k, _nums[0], _txts[0]
+        break
+check("a module declaring both a numeric and a text field exists to test aggregates against",
+      NUMKEY is not None, f"{NUMKEY}: numeric={NUMF!r} text={NUMTXT!r}")
+
+if NUMKEY:
+    AGG_REFUSALS = [
+        ("a numeric aggregate with no agg_field", {"group_by": NUMTXT, "agg": "sum"},
+         "needs a field to aggregate"),
+        ("sum over a non-numeric field", {"group_by": NUMTXT, "agg": "sum", "agg_field": NUMTXT},
+         "needs a numeric field"),
+        ("avg over a non-numeric field", {"group_by": NUMTXT, "agg": "avg", "agg_field": NUMTXT},
+         "needs a numeric field"),
+    ]
+    for label, cfg, expect in AGG_REFUSALS:
+        detail = refused(NUMKEY, cfg)
+        check(f"refuses {label} at SAVE time, not at replay time",
+              detail is not None and expect in detail,
+              "ACCEPTED — it will 400 when the report runs" if detail is None else f"said {detail!r}")
+
+    # The inverse. Refusing every aggregate would satisfy all three cases above.
+    AGG_ACCEPTED = [
+        ("count needs no field at all", {"group_by": NUMTXT, "agg": "count"}),
+        ("sum over a declared numeric field", {"group_by": NUMTXT, "agg": "sum", "agg_field": NUMF}),
+        ("min/max are meaningful on text", {"group_by": NUMTXT, "agg": "max", "agg_field": NUMTXT}),
+    ]
+    for label, cfg in AGG_ACCEPTED:
+        detail = refused(NUMKEY, cfg)
+        # The detail is built only when it is true. Passing it unconditionally is how this file's
+        # earlier "10 of 10 round-tripped" lie happened: a message that describes the failure case
+        # prints on the success case too, and then reads as a failure that passed.
+        check(f"...while still accepting {label}", detail is None,
+              "" if detail is None else f"REGRESSION: refused with {detail!r}")
+
 # ---- the alert miscount, as state rather than as assertion ---------------------------------------
 db = SessionLocal()
 try:

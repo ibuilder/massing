@@ -4,6 +4,40 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1105 (2026-08-26) — a saved view that cannot be replayed is worse than one that was refused
+
+Review follow-up on R22-REPORT-BUILDER. `validate_view_config`'s docstring promised that **a view is
+validated exactly as the query it replays would be — otherwise a view could be saved that the
+aggregate route then refuses.** The code kept that promise for field *names* only. `aggregate`
+enforces two further rules, and the validator asked neither:
+
+* a non-`count` aggregate needs an `agg_field`;
+* `sum`/`avg` need a **numeric** one — it refuses rather than returning the confident `0` SQLite
+  gives for summed text.
+
+So three configs saved at 200 and then 400'd when the report was run, measured before the fix:
+
+    {"group_by": "target", "agg": "sum"}                        -> SAVED OK, 400 on replay
+    {"group_by": "target", "agg": "sum", "agg_field": "target"} -> SAVED OK, 400 on replay
+    {"group_by": "target", "agg": "avg", "agg_field": "target"} -> SAVED OK, 400 on replay
+
+The refusal now happens while the user is still looking at the form. Both rules are re-asked of the
+**same resolved field definition** `aggregate` uses rather than re-derived from the name — a second
+answer to "is this field numeric" is how two sources of truth start disagreeing, which is the rule
+this module's own header states.
+
+`test_view_config.py` covers it, and covers the inverse: `rfi` declares no numeric field, so the
+acceptance half could not be expressed there and **refusals alone would be satisfied by a validator
+that refuses every aggregate**. The numeric case resolves against whichever module declares a numeric
+field, guarded by an assertion that one was found. Mutation-checked — with the new block neutered,
+the three refusal cases fail and the three acceptance cases still pass.
+
+Also: the archived R22 entry described item 2 as open ("**Single-module only** … not expressible")
+after it shipped in v0.3.1103 — the one item of five that never got its landed line. Corrected, and
+the correction records the part that is easy to misread: **`SavedView.module` is still one string.**
+The base register is singular by design and the second module arrives as a declared-reference `join`,
+which is what keeps the edge coming from the schema instead of from the request.
+
 ## v0.3.1104 (2026-08-26) — one answer to "what reports do I have here?"
 
 R22-REPORT-BUILDER item 5, **and the item said the decision itself was the deliverable**: unify
