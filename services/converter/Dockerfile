@@ -5,33 +5,31 @@
 # both converter images together, the api one was reverted to 24 four days later for that reason,
 # and this file was not. `scripts/check-fragments-version.mjs` gates the two ARGs below across
 # both Dockerfiles and stops one line short of the base image.
-FROM node:24-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+FROM node:24-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df
 
-# Security updates for the base OS, which a digest pin deliberately freezes.
+# The `libgnutls30` upgrade this file carried is GONE, and the base digest moved instead.
 #
-# Pinning by digest (SEC F4) buys reproducibility and costs currency: the apt packages inside a
-# pinned image are as old as the day it was built, and they keep accruing CVEs while the digest
-# stays honest. The other two images never had to reckon with that — they are multi-stage, so the
-# Debian layers of the node base stay in a build stage and are never published. This one publishes
-# its base, so it inherits the base's CVEs.
+# v0.3.1098 patched two CRITICAL CVEs by name — the only way to fix them without moving the pin, and
+# recorded in the same commit as a treadmill: *"every future CRITICAL in the base will red this gate
+# until the shared digest is re-pinned to a newer node:24-slim. Re-pinning is the right answer and
+# accumulating `--only-upgrade` lines is not."* This is that re-pin.
 #
-# The second Trivy scan this image has ever had found them:
+#     was  sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+#     now  sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df
 #
-#     libgnutls30  CVE-2026-33845  CRITICAL  fixed  3.7.9-2+deb12u6 -> 3.7.9-2+deb12u7
-#     libgnutls30  CVE-2026-42010  CRITICAL  fixed  3.7.9-2+deb12u6 -> 3.7.9-2+deb12u7
+# **Whether the new base already carries `libgnutls30 3.7.9-2+deb12u7` could not be checked before
+# pushing**, and that is worth stating rather than implying. There is no Docker daemon in the agent
+# container, and the proxy denies image *blob* fetches (`production.cloudfront.docker.com`, 403 at
+# CONNECT), so the layers cannot be read either. Manifests resolve, which confirms only that the
+# digest is real and still covers `linux/amd64`.
 #
-# Upgraded by name rather than by a blanket `apt-get upgrade`: the scanner names the package and the
-# fixed version, so the change is bounded and reviewable, where a blanket upgrade would move an
-# unbounded set of packages in an image no one can build locally (no Docker daemon in the agent
-# container — CI is the only place this is exercised).
+# So the `--only-upgrade` line was removed as a hypothesis under test, with Trivy as the adjudicator
+# — the scan v0.3.1098 made possible by putting this image in the build matrix in the first place.
 #
-# **This is a treadmill and should be named as one.** Every future CRITICAL in the base will red this
-# gate until the shared digest is re-pinned to a newer node:24-slim. That is the correct direction —
-# re-pin, don't accumulate `--only-upgrade` lines — and the digest is shared by all three Dockerfiles
-# (`scripts/check-fragments-version.mjs` B1c), so re-pinning is one coordinated change.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends --only-upgrade libgnutls30 \
-    && rm -rf /var/lib/apt/lists/*
+# **CI ruled: confirmed.** `massing-converter:pr (debian 12.15) | debian | 0` — a clean scan, not an
+# absent one ('-' means not scanned; this reads 0). The base this replaces was `debian 12.13`, so two
+# point releases forward is what carries the patched `libgnutls30`: the removed line was doing by hand
+# what a current base does by construction.
 
 WORKDIR /app
 
