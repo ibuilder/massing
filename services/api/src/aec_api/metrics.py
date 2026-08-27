@@ -197,6 +197,53 @@ def render_queue(stats: dict | None, worker_inline: bool) -> list[str]:
     return out
 
 
+def render_pid_lock(status: dict, writers: int) -> list[str]:
+    """R37-TESTED-UNWIRED — the sidecar write lock's ACTUAL serialisation, as a scrapeable fact.
+
+    `pid_lock.cross_process_status()` existed, was tested, and had no caller outside its own test. Its
+    docstring said it was "callable from a health surface and from the production guard", and
+    `main._production_guard`'s comment said the live-truth surface "stays `cross_process_status()` on
+    /health" — a surface that was never built. `/health` is deliberately dependency-free (liveness for
+    a restart probe), so it was never going to be the home; this is.
+
+    **Why a gauge and not a health field.** "Serialisation is in-process only" is not a reason to fail
+    a probe: the single-writer-per-project shape is supported and correct, and a 503 would take a
+    healthy deployment out of rotation for a configuration it is entitled to run.
+
+    **The writer count ships with it, because on its own neither number is the alarm.** The dangerous
+    condition is the conjunction — `aec_pid_lock_cross_process == 0 and aec_pid_lock_writers > 1` —
+    and that is exactly what `main._production_guard` refuses to boot on. So the interesting question
+    is which deployments it CANNOT refuse: it runs only when the DB is non-SQLite or `AEC_ENV` says
+    production, and it is skipped outright under `AEC_ALLOW_OPEN=1`. A self-hosted SQLite deployment
+    with two workers and no `AEC_ENV` boots clean and is exposed; so does any deployment that took the
+    escape hatch. Those are the deployments with nothing but this gauge to tell them.
+
+    `writers` is passed in rather than read here: `main._writer_processes()` is the one definition,
+    and the guard uses the same call, so a refusal at boot and a scrape at runtime cannot disagree
+    about how many writers there are.
+
+    `backend` rides as a label on a constant-1 `_info` series — the Prometheus idiom for a string —
+    rather than being encoded into the numeric gauge, so the number stays the number.
+    """
+    ok = 1 if status.get("cross_process") else 0
+    backend = _esc(str(status.get("backend", "unknown")))
+    dialect = _esc(str(status.get("dialect", "unknown")))
+    return [
+        "# HELP aec_pid_lock_cross_process 1 if sidecar writes are serialised across processes; 0 "
+        "means WITHIN THIS PROCESS ONLY and two writers can silently drop one's entry.",
+        "# TYPE aec_pid_lock_cross_process gauge",
+        f"aec_pid_lock_cross_process {ok}",
+        "# HELP aec_pid_lock_backend_info Which lock backend is in force, as a label. Always 1.",
+        "# TYPE aec_pid_lock_backend_info gauge",
+        f'aec_pid_lock_backend_info{{backend="{backend}",dialect="{dialect}"}} 1',
+        "# HELP aec_pid_lock_writers Processes that write this project's sidecar indexes (uvicorn "
+        "workers, plus one when the job worker runs in its own process). Alert on this ABOVE 1 "
+        "together with aec_pid_lock_cross_process at 0 — neither is a problem alone.",
+        "# TYPE aec_pid_lock_writers gauge",
+        f"aec_pid_lock_writers {int(writers)}",
+    ]
+
+
 def render() -> str:
     with _lock:
         req = dict(_req_total); lat_s = dict(_lat_sum); lat_c = dict(_lat_count); inflight = _inflight

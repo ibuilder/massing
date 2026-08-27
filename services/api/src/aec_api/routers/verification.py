@@ -156,6 +156,25 @@ async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Se
         retake while the person is still standing there, which is the only time a retake is cheap.
       * `change` — present only when this element already had a photo. Read `change.confidence`
         before believing `change_score`; see `photo_cv.compare_photos`.
+      * `duplicate` — **R37-TESTED-UNWIRED.** The same shot already filed against a DIFFERENT element
+        in this project. `photo_cv.duplicate_of` was built and tested for exactly the abuse its
+        docstring names — *one photo uploaded against thirty elements to clear a checklist* — and had
+        no caller: this route ran `photo_quality` and `compare_photos` and never it. So the abuse was
+        unguarded on the only path where it can happen.
+
+    **The duplicate is reported, not refused, and that is the same judgement as `quality` above.**
+    Two elements can legitimately share a frame — a wall and the conduit crossing it, an assembly
+    photographed once. The system cannot tell that from checklist-clearing, and a person reviewing the
+    verification set can. Refusing would also make the check adversarial: whoever wanted to defeat it
+    would take one step to the left, and the record of what happened would be gone. Flagged, the shot
+    is still on file and the pattern is visible across the set.
+
+    **`duplicate.compared_against` rides with it, and is the load-bearing field.** The comparison can
+    only see photos that were hashed, and nothing before v0.3.1115 was — the column is not backfilled.
+    Without a count, "no duplicate" on a project with three hundred unhashed photos is indistinguishable
+    from "checked all three hundred", and the second is the reading anybody makes. It is the same
+    reasoning as `aec_jobs_stats_ok` in `metrics.render_queue`: the number that says whether the other
+    number means anything.
 
     **Analysis never fails the upload — including when the bytes cannot be decoded at all.** The
     first version refused an undecodable file with a 400, on the reasoning that a non-image under a
@@ -207,6 +226,41 @@ async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Se
         except Exception:  # noqa: BLE001 — a missing or unreadable prior photo must not block the upload
             change = None
 
+    # R37-TESTED-UNWIRED — the same shot already filed against a DIFFERENT element of this project.
+    #
+    # Keyed by GUID, never a row id: the identity that survives a re-conversion is the one a reviewer
+    # will be handed. `v.guid` itself is excluded — re-photographing the SAME element is a retake, not
+    # a duplicate, and flagging it would fire on the ordinary corrective path.
+    #
+    # Compared against the stored hashes, not the stored photos. Re-reading every verification photo
+    # out of object storage per upload would be O(photos) network reads on a field device's request.
+    #
+    # **Two simultaneous uploads of the same shot can both miss it**, since each queries before either
+    # commits. Detective, not preventive, and deliberately left so: a project-wide `pid_lock.mutating`
+    # around every photo upload would serialise the whole field team to make an advisory flag exact.
+    # The window is self-healing — whichever lands second is on file, so the next upload of that shot
+    # flags it — and `compared_against` already says this answer is a floor, not a census.
+    duplicate = None
+    try:
+        phash = photo_cv.perceptual_hash(data)
+    except Exception:  # noqa: BLE001 — undecodable (HEIC) is already handled above; never fail here
+        phash = None
+    if phash is not None:
+        known = {row_guid: int(h, 16) for row_guid, h in db.execute(
+            select(ElementVerification.guid, ElementVerification.photo_phash).where(
+                ElementVerification.project_id == pid,
+                ElementVerification.guid != guid,
+                ElementVerification.photo_phash.is_not(None))).all() if h}
+        hit = photo_cv.duplicate_of(data, known)
+        duplicate = {"guid": hit, "compared_against": len(known),
+                     "note": (f"this photo is the same shot already filed against {hit}. Two elements "
+                              "can legitimately share a frame; it is kept either way, and flagged so "
+                              "a reviewer can tell that from a checklist cleared with one photo."
+                              if hit else
+                              "no element in this project has this shot on file. Only photos uploaded "
+                              "since v0.3.1115 are fingerprinted, so this compares against "
+                              f"{len(known)} of the project's photos, not all of them.")}
+
     # R22-PHOTO-CV Tier 2 — what is IN the frame: people, vehicles, plant. Returns a stated reason
     # instead of detections when no model is configured, which is the DEFAULT deployment: neither
     # onnxruntime nor the exported .onnx ships with the repo. Like the two analyses above, it can
@@ -218,7 +272,10 @@ async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Se
         v = ElementVerification(project_id=pid, guid=guid, status="installed", verified_by=user)
         db.add(v)
     v.photo_key = key
+    # NULL when the bytes could not be decoded, so this row stays out of every future comparison
+    # rather than joining it with a fingerprint of nothing.
+    v.photo_phash = f"{phash:016x}" if phash is not None else None
     v.modified_at = _now()
     db.commit()
     return {"guid": guid, "has_photo": True, "quality": quality, "change": change,
-            "detected": detected}
+            "duplicate": duplicate, "detected": detected}

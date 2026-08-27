@@ -33,10 +33,31 @@ The interface is unchanged — `with mutating(pid):` — because ten call sites 
    raised**. Every real error inside `with mutating(pid):` was masked on the SQLite path, which is
    the default for dev and for the test suite. Acquisition now completes before any yield.
 
-4. **On SQLite there is no advisory lock at all.** Rather than pretend, `cross_process_status()`
-   reports what is actually in force, and `main._production_guard` refuses to boot a multi-worker
-   deployment that cannot serialise across workers. A constraint the product genuinely has should
-   fail at boot, not be a sentence in a docstring nobody reads.
+4. **On SQLite there is no advisory lock at all.** Rather than pretend, two separate mechanisms say
+   so, and they read two different sources on purpose: `main._production_guard` refuses to boot a
+   multi-worker deployment that cannot serialise, reading `DATABASE_URL`; `cross_process_status()`
+   reports what is in force at runtime, reading the engine, and `/metrics` exports it. A constraint
+   the product genuinely has should fail at boot, not be a sentence in a docstring nobody reads.
+
+   *This sentence used to coordinate the two into one clause — "`cross_process_status()` reports …
+   and `main._production_guard` refuses …" — which reads as the guard calling the function.* It does
+   not, for the reason four paragraphs down. Each half was true alone and the pair implied something
+   false, which is the same defect as the two below it and the hardest of the three to see.
+
+   **And for a release and a half, that is what it was.** R37-TESTED-UNWIRED measured which public
+   functions nothing outside the test tree calls, and `cross_process_status()` came back with no
+   caller at all: the guard derived the dialect itself with `db_url.split("://")`, and the "health
+   surface" its own docstring pointed at had never been built. `/metrics` now exports it as
+   `aec_pid_lock_cross_process` beside `aec_pid_lock_writers` — because the guard runs only on a
+   production deployment and is skipped under `AEC_ALLOW_OPEN=1`, so the deployments actually exposed
+   to this are the ones it never sees. Not `/health`: that is dependency-free on purpose, and
+   "in-process only" is a supported shape, not a failed probe.
+
+   **The guard is still not a caller, and that is now a decision rather than an accident.** Making it
+   one broke `test_perf_rate.py` immediately: this function reports on the ENGINE, which is built once
+   at import, while the guard must answer about the DATABASE_URL a deployment (or a fixture) just set.
+   At boot they name the same database. `services/api/test_pid_lock_surface.py` pins both directions
+   so the next reader who spots the duplication finds the reason instead of the false one.
 """
 from __future__ import annotations
 
@@ -103,8 +124,18 @@ def _dialect() -> str:
 def cross_process_status() -> dict[str, Any]:
     """What serialisation is ACTUALLY in force, as opposed to what the docstring hopes.
 
-    Callable from a health surface and from the production guard, so "this deployment cannot
-    serialise sidecar writes across workers" is a fact somebody can read rather than infer."""
+    Read by `/metrics`, which exports it as `aec_pid_lock_cross_process` beside
+    `aec_pid_lock_writers`, so "this deployment cannot serialise sidecar writes across workers" is a
+    fact somebody can read rather than infer.
+
+    **This docstring used to say "callable from a health surface and from the production guard", and
+    neither was true** — that fiction is what R37-TESTED-UNWIRED found, and note 4 in the module
+    docstring records it. The health surface was never built; the guard reads DATABASE_URL, for the
+    reason stated at its call site and pinned in `services/api/test_pid_lock_surface.py`. Naming a
+    caller here that does not exist is precisely the defect, so this line names the one that does.
+
+    Note it reports on the ENGINE, which is built once at import. That is the right answer for a
+    scrape and the wrong one for a boot check, which must see the DATABASE_URL just set."""
     dialect = _dialect()
     ok = dialect == "postgresql"
     backend = BACKEND_ADVISORY if ok else BACKEND_IN_PROCESS

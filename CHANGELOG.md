@@ -4,6 +4,80 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1115 (2026-08-27) — two of R37's four real gaps, and both comments were describing surfaces nobody built
+
+R37-TESTED-UNWIRED classified 20 test-only functions last release and called five of them real gaps.
+**Four are** — one of the five is corrected below. Two of the four are now wired, and in both cases
+the code that *explained* why they were unreachable was itself the defect.
+
+**`pid_lock.cross_process_status` — a boot guard arguing against a function, for a false reason.**
+It reports what serialisation is actually in force for the sidecar write lock: a Postgres session
+advisory lock, or nothing a second worker can see. Its docstring said it was "callable from a health
+surface and from the production guard". Neither existed. `main._production_guard` derived the dialect
+itself with `db_url.split("://")` under a comment explaining that it must not call this function,
+because the call "opens a live session, so a transient connection blip would return `''`".
+
+**It does not connect.** `SessionLocal()` is lazy and `db.get_bind()` returns the engine, whose dialect
+is parsed from the URL string — it answers `postgresql` for a DSN pointing at an unroutable address,
+now pinned by `services/api/test_pid_lock_surface.py`. So the duplicate derivation looked like dead
+weight and the guard was switched to call the status.
+
+**The next full run failed `services/api/test_perf_rate.py`, and that is the part worth keeping.** Its
+own comment carried the real reason: the engine is built once, at import, so under any test runner it
+is SQLite whatever a fixture's env claims — and an earlier engine-probing version of that branch had
+"shipped a guard no fixture could ever satisfy". The guard reads the env var again, the comment above
+it now says *why* instead of saying something false, and both directions are pinned so the next reader
+who notices the duplication finds the reason rather than the fiction. They are not the same question:
+the guard asks whether the database this deployment is **configured** for can serialise, the status
+asks whether the engine this process is **using** can. At boot they agree. *A stated reason that is
+false is worse than no comment at all* — the true constraint stands behind it unrecorded, and the only
+thing that finds it is breaking what it was protecting.
+
+The "live-truth surface on /health" was never built either, and `/health` was never going to be it:
+it is dependency-free on purpose, and "in-process only" is a supported deployment shape, not a failed
+probe. It went to `/metrics` as `aec_pid_lock_cross_process`, beside a new `aec_pid_lock_writers`,
+**because the dangerous condition is a conjunction and neither number is the alarm alone.** That also
+answers which deployments needed telling: the guard refuses on exactly this conjunction, but runs only
+when the DB is non-SQLite or `AEC_ENV` says production, and is skipped entirely under
+`AEC_ALLOW_OPEN=1`. A self-hosted SQLite deployment with two uvicorn workers boots clean and is
+exposed. Both numbers come from one extracted `_writer_processes()`, so a refusal at boot and a scrape
+at runtime cannot disagree about how many writers there are.
+
+**`photo_cv.duplicate_of` — the abuse it exists for was unguarded on the only path where it happens.**
+*One photo uploaded against thirty elements to clear a checklist.* `routers/verification.py` ran
+`photo_quality` and `compare_photos` on upload and never this. The upload now compares against
+`element_verifications.photo_phash`, a new nullable column (migration `f7a3c82e19d4`), rather than
+re-reading every stored photo out of object storage per upload.
+
+**Flagged, never refused** — the same judgement the route already makes about a blurred frame. Two
+elements can legitimately share a frame; the server cannot tell that from checklist-clearing and a
+reviewer can, and refusing would teach whoever wanted to defeat it to take one step left, leaving no
+record at all. `photoVerdict` renders it second, behind only the retake prompt: both stop being cheap
+the moment the person walks away.
+
+**`compared_against` ships with every answer.** Photos predating the column are not backfilled, so a
+clean result over nothing must not read as a clean result over everything. The UI renders no line at
+all when no duplicate is found, for the same reason — saying nothing makes no claim, and a reassuring
+"no duplicates" would make one that is false on every project with older photos.
+
+**And one of the five was not a gap at all — `test_fit.depth_range`.** Last release's entry said the
+client "has to invent the sweep this function exists to generate". `optimize` generates it whenever
+`targets.sweep_depth` is set, `apps/web/src/proforma/testfitTab.ts` sets that from a checkbox, and
+`routers/generate.py` routes it: reachable end to end. The measurement flagged it because
+`src/aec_api/test_fit.py` is a **production** module — a *test fit* is the architectural exercise of
+fitting a program onto a plate — and the population rule sorted files into "test tree" by the
+`test_*.py` filename, so a production call inside it counted as a test reference. The WIRE list is
+four, not five. *A population rule that looks reasonable is wrong until you read what it selected* —
+and reading is not enough either: the first read produced a confident sentence about the route's
+`body.depths` and never opened the engine. The gate `services/api/test_dead_code_population.py` was
+never fooled; it counts same-file callers on purpose. The ad-hoc measurement reintroduced a
+distinction that gate had already learned to do without.
+
+*One fixture lesson, from the new test failing its first run:* the retake case was written against an
+element whose shot a second element also held, so the duplicate it reported was correct and the
+self-exclusion it was meant to test sat invisible under a legitimate match. **An exclusion can only be
+tested on an item that is otherwise unique.**
+
 ## v0.3.1114 (2026-08-27) — all 20 test-only functions read, and the answer is not "20 dead"
 
 R37-TESTED-UNWIRED said 20 public `aec_api` functions are referenced only by the test tree. All 20 are
