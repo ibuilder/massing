@@ -671,7 +671,7 @@ exact failure `roadmapLanes.test.ts` documents in its `MARKS` note. The gates ca
   is the specific error row 2 made.
 * **Not the next SCALE-SEAM slice.** ㉘ is genuinely next in a series that has shipped twenty-six
   increments, but the series is now cutting into `client.ts` at 2,837 lines from a 3,600-odd start. The marginal slice
-  is worth less than it was, and ㉘ additionally needs `MARKS` widened in
+  is worth less than it was. *(㉘ also needed `MARKS` widened; that shipped in v0.3.1112.)* The vocabulary lives in
   `apps/web/src/shell/roadmapLanes.test.ts` — a vocabulary change to a population check, which that
   file's own docstring calls a real change and not housekeeping.
 * **Not R22-ENTITLEMENT.** It led the last cut and two of its three parts shipped. What is left is the part
@@ -717,13 +717,13 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R35-DEAL-MEMORY · R37-TRIAGE · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R37-TRIAGE · R37-TESTED-UNWIRED · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉗ *(the only open slice; ②–㉖ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉘ *(the only open slice; ②–㉗ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -2182,13 +2182,36 @@ Shipped 2026-08-01:
 
 Shipped 2026-08-21:
 
-- ◧ **R35-DEAL-MEMORY** *(M — `deal_memory.py` shipped)* — the platform's own closed deals as a comp database: when underwriting
+- ✅ **R35-DEAL-MEMORY** *(M — SHIPPED v0.3.1112)* — the platform's own closed deals as a comp database: when underwriting
   a new deal, surface this portfolio's realised outcomes (exit cap achieved vs assumed, actual
   lease-up months, cost/SF by vintage) beside the assumption being entered. External research
   (2026-08) puts this "institutional knowledge" layer as the least-commoditised part of the
   AI-underwriting stack — and it is the one layer that cannot be bought, because it is made of the
   operator's own history. Builds on `benchmarking.py`'s cross-project aggregation and the
   provenance spine; no new dependency.
+
+  **PREMISE-CHECK 2026-08-27, and the entry was half-right in the way that reads as done.**
+  `deal_memory.py` had shipped, was tested, and was routed — `GET /portfolio/deal-memory`. But
+  `beside()`, the last function in it and the only one that answers the sentence above, **had no
+  caller anywhere**: not a route, not the client, not a screen. `test_reachable` passes because the
+  MODULE is imported, by the portfolio route. *A module can be reachable and its whole reason for
+  existing still be unreachable* — the same finding R46 recorded about `read_p6xml_all`, and the
+  second time this shape has been found by opening the file rather than by a gate.
+
+  Shipped as `GET /projects/{pid}/deal-memory/beside`, on the proforma's cost budget, held by
+  `services/api/test_deal_memory_beside.py`. **One of the engine's three metrics is offered and the
+  other two are refused on the record**: `cost_per_sf` is a unit conversion from an entered hard cost
+  and a GFA; `cost_variance_pct` beside a contingency would be the product asserting *"your
+  contingency should cover our historical overrun"*, the same domain call `/schedule/eot` is waiting
+  on; and a schedule VARIANCE beside an entered DURATION is a category error in matching units.
+
+  **The "by vintage" half was nearly left out, and two gates disagreeing is what caught it.**
+  `clientCallers.test.ts` refused a `portfolioDealMemory` with no screen; `test_route_reachability`
+  then read its own frozen entry as called, because the new route put the substring `deal-memory`
+  into the web source and that rule matches a leaf against the whole blob. Neither was wrong.
+  Re-reading this entry settled it — it asks for cost/SF **by vintage**, `comps` returns `vintage`
+  per project, and only the summary had been wired. **A gate collision is worth reading as evidence
+  about the work, not as an obstacle to it.**
 
 Also settled, no code change: **the Fragments converter stays Node, by constraint** — the Fragments
 serializer exists only in the JS kernel libraries, so `services/converter/` is the one deliberate
@@ -2217,6 +2240,41 @@ claim must be premise-checked against TODAY's tree before acting; several are al
 * Its hotspot list (§3) is corroborated independently: `main.ts`, `portal.ts`, `client.ts` are the
   repo's own known god-files, and SCALE-SEAM already split `client.ts` by domain after this index
   was taken. Credit what shipped; keep the rest.
+
+- ◧ **R37-TESTED-UNWIRED** *(M — Lane C; measured 2026-08-27, NOT yet read)*
+  — **20 public functions in `aec_api` are referenced only by the test tree.**
+
+  Found by looking for the general case of a specific defect: `deal_memory.beside()` was built,
+  tested and reachable by nothing in production, and `test_dead_code_population.py` scored it **60
+  references** — its own test among them. That gate counts the test tree as callers **on purpose**;
+  it is the 35 → 13 correction its header describes, and it is right for the question it asks. But it
+  means *"tested, and wired to nothing"* is invisible to it by construction, and no refinement of the
+  string rule reaches that — tightening it was tried the same day and `beside` still came back
+  referenced, by its own test.
+
+  This is the third instance of one shape, and the first two were each found by hand: `read_p6xml_all`
+  (R46 — *"a module can be reachable and its whole reason for existing still be unreachable"*),
+  `project_manual`'s MasterFormat default (a test whose fixture supplied the very system under test),
+  and now `beside`. **Three hand-finds is a population, not a coincidence.**
+
+  The 20, by defining module: `mep.block_cooling_load` · `ids_authoring.build_from_use_case` ·
+  `cited_answer.cite_record` · `pid_lock.cross_process_status` · `test_fit.depth_range` ·
+  `photo_cv.duplicate_of` · `ids_authoring.eir_for_use_case` · `parcels_bridge.fetch_parcels` ·
+  `supply_chain.is_dual_licensed` · `folder_template.owner_of` · `supply_chain.pdf_sanity` ·
+  `soft_clash.rule_for` · `supply_chain.sbom` · `takeoff_scope.scope_annotations` ·
+  `payments_bridge.send_payment` · `energy_star_bridge.sync_property` · `licensing.tier_at_least` ·
+  `agent_packs.tools_for` · `rooms.unmapped_sections` · `module_schema.validate_dir`.
+
+  **The number is not the deliverable and must not be ratcheted before it is read.** Several are
+  plainly legitimate test-only surface — `sbom`, `pdf_sanity` and `is_dual_licensed` exist for the
+  supply-chain *gates*, which are tests by design, and `sync_property` is the documented refusal stub
+  already exempted in `services/api/test_dead_code_population.py`. Others may be the same defect
+  `beside` was. R37-TRIAGE's own record is the warning: reading its 12 candidates found **eight
+  live**, and the two it deleted without reading had to be put back. *A population rule that looks
+  reasonable is wrong until you read what it selected* — and this one has not been read.
+
+  Output: each of the 20 marked wire / keep-as-test-surface / delete with the evidence, then a
+  ratchet at whatever survives.
 
 - ◧ **R37-TRIAGE** *(M — Lane C; do FIRST, before any deletion or split)*
 
@@ -2422,7 +2480,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉗ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉗ PDF tools SHIPPED v0.3.1086; ②–㉖ already shipped)*
+- ◧ ⭐ **SCALE-SEAM ㉘ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㉗ have shipped, ㉗ PDF tools in v0.3.1086. **This heading read `㉗` until 2026-08-27** — naming a slice its own next words called shipped, because `MARKS` in `apps/web/src/shell/roadmapLanes.test.ts` stopped at ㉗ and nothing could spell the open one)*
   **㉗ took the PDF tools and A/E/C seals out** (9 methods, one contiguous run; `client.ts` 2,883 →
   2,837) as `apps/web/src/api/pdfTools.ts`. Grouped by what they DO, following ㉖: the run spans
   `/pdf/*`, `/stamps/library` and `/licenses/mine`, and a prefix split would separate `stampLibrary`
@@ -2435,7 +2493,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   it "licences" while the code, the type and the route all say `licenses`, so the comment shared no
   word with its method. Fixed by matching the code rather than by widening the exemption set, which is
   frozen and may only shrink.*
-  **㉘ needs `MARKS` widened again** in `apps/web/src/shell/roadmapLanes.test.ts`.
+  **㉘ required `MARKS` widened, and that landed in v0.3.1112** — measured as that file demands (29 item codes before, 29 after), and with a new assertion so the NEXT slice fails a test rather than relying on this sentence. *Which it had to, because this sentence still read "㉘ needs `MARKS` widened again" in the very release that widened it — the fifth stale status line in this ring, caught by review. A note asking a future reader to remember something is the thing a gate replaces, and leaving it up after building the gate is the same defect one level out.*
 
   **㉖ took the code-compliance group out** (8 methods; `client.ts` 2,961 → 2,883) as
   `apps/web/src/api/codecheck.ts`. **It is the first slice grouped by what the methods ANSWER rather

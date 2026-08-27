@@ -109,7 +109,21 @@ KNOWN_UNCALLED: set[str] = {
     #: is a UI gap, not an unfinished endpoint.
     "/projects/{pid}/model/load-timings",
     "/bcf/3.0/projects/{pid}/topics/{guid}/document_references",
-    "/benchmarks/unit-rates", "/cost/datasets/import-custom", "/portfolio/deal-memory",
+    "/benchmarks/unit-rates", "/cost/datasets/import-custom",
+    # "/portfolio/deal-memory" REMOVED v0.3.1112 — it gained a real caller, `portfolioDealMemory` in
+    # apps/web/src/api/dealMemory.ts, behind the "which projects?" disclosure on the proforma's cost
+    # budget. Recorded because the route it should have been removed for is NOT the route that flagged
+    # it: adding `/projects/{pid}/deal-memory/beside` put the substring `deal-memory` into the web
+    # source, and this rule matches a leaf against the whole blob, so the frozen entry read as called
+    # while nothing called it. **A substring test cannot tell which route a string belongs to** — the
+    # same coarseness `MIN_SEGMENT` documents from the other end, met from this one.
+    #
+    # It was tempting to answer that by sharpening the needle or by shadowing the entry. Both were
+    # measured and rejected: a two-segment needle is already rejected above with numbers, and 328 of
+    # 941 routes share a leaf with another route, so "a shared leaf decides nothing" would take a
+    # third of the surface out of this gate's reach. The real fix was to stop half-wiring the item —
+    # R35-DEAL-MEMORY asks for realised outcomes *by vintage*, and only the summary comparison had
+    # been built. The gate collision is what made the missing half visible.
     "/proforma/entitlement-risk", "/proforma/provenance/admissibility",
     # "/projects/preview-bundle" REMOVED v0.3.1061 — it gained a real caller in
     # apps/web/src/api/library.ts (the `.mass` preview from PR #336), so freezing it as

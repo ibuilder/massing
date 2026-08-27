@@ -64,6 +64,7 @@ export class ProformaUI {
   private timer = 0;
   private lastResult?: ProformaResult;   // latest solve, for the Overview command center
   private overviewEl?: HTMLElement;       // the Overview tab's container (re-rendered on each solve)
+  private memoryEl?: HTMLElement;         // R35 deal-memory strip — repainted on every hard-cost edit
 
   constructor(private root: HTMLElement, private api: ApiClient,
               private setStatus: (m: string) => void,
@@ -88,7 +89,11 @@ export class ProformaUI {
         set(this.a, path, kind === "pct" ? v / 100 : v);
         if (path === "equity.lp_pct") set(this.a, "equity.gp_pct", 1 - v / 100);
         clearTimeout(this.timer);
-        this.timer = window.setTimeout(() => this.solve(), 350);  // debounced live solve
+        // The deal-memory strip rides the SAME debounce as the solve, because it describes the same
+        // numbers. It used to be painted once by `renderBudget()`, so editing "Hard cost $" left a
+        // $/SF comparison on screen for the PREVIOUS hard cost — a number describing an input that is
+        // no longer there, next to the one that replaced it.
+        this.timer = window.setTimeout(() => { void this.solve(); this.refreshDealMemory(); }, 350);
       };
       wrap.appendChild(inp); form.appendChild(wrap);
     }
@@ -103,7 +108,7 @@ export class ProformaUI {
         const v = parseFloat(inp.value);
         set(this.a, path, inp.value.trim() === "" || isNaN(v) ? null : v / scale);
         clearTimeout(this.timer);
-        this.timer = window.setTimeout(() => this.solve(), 350);
+        this.timer = window.setTimeout(() => { void this.solve(); this.refreshDealMemory(); }, 350);
       };
       wrap.appendChild(inp); form.appendChild(wrap);
     };
@@ -1012,6 +1017,79 @@ export class ProformaUI {
   /** Developer cost budget: line-item hard/soft/acquisition costs (description × $/unit × qty) with
    *  per-category contingency, that roll into the proforma's cost_lines. The institutional gap the
    *  flat cost drivers don't cover. */
+  /** Repaint the deal-memory strip from the CURRENT assumptions. Safe to call when it is not mounted.
+   *
+   *  Only $/SF is asked for. A realised cost VARIANCE has no counterpart among these fields — the
+   *  nearest is a contingency, and "your contingency should cover our historical overrun" is a claim
+   *  this product would be making, not a unit conversion — and a realised schedule VARIANCE is not a
+   *  duration, so putting it beside `construction_months` would be a category error in matching units.
+   */
+  private refreshDealMemory() {
+    const memory = this.memoryEl;
+    const pid = this.projectId();
+    if (!memory || !pid || !memory.isConnected) return;
+    // Summed by CATEGORY, not read from `cost_lines[1]`. The default deal happens to put hard cost
+    // second; a budget synced from the GC's does not, and an index would have quietly compared the
+    // wrong line against the firm's history.
+    const hardCost = (this.a.cost_lines as { category: string; amount: number }[])
+      .filter((c) => c.category === "hard").reduce((t, c) => t + (Number(c.amount) || 0), 0);
+    if (!hardCost) { memory.style.display = "none"; return; }
+    memory.style.display = "";
+    memory.textContent = "checking your own closed projects…";
+    void this.api.dealMemoryBeside(pid, hardCost).then((m) => {
+      // A late reply for a hard cost the user has already changed must not overwrite the current
+      // one. Same defect as the stale strip, one layer down: two in-flight requests, and the SLOWER
+      // one wins by arriving last.
+      if (m.hard_cost != null && m.hard_cost !== hardCost) return;
+      // Every non-ok status is SHOWN, not hidden. They are different answers with different remedies
+      // — load a model, close more projects, capture a disposition — and a blank strip reads as "we
+      // checked and there is nothing to say", which is true of none of them.
+      if (m.status === "ok") {
+        const at = m.position === "within_iqr" ? "inside" : m.position === "below_p25" ? "below" : "above";
+        const col = m.position === "within_iqr" ? "var(--status-good)" : "var(--status-warn)";
+        memory.innerHTML = `🏛 Your own history: this deal's hard cost is <b>$${m.entered}/SF</b> `
+          + `(${money(m.hard_cost ?? 0)} ÷ ${Math.round(m.gfa_sf ?? 0).toLocaleString()} SF) — `
+          + `<span style="color:${col}">${at}</span> the range your <b>${m.count}</b> closed `
+          + `project(s) landed in ($${m.p25}–$${m.p75}, median $${m.median}). `
+          + `A comparison, not a verdict. <button class="tool-btn" id="pf-dm-more" `
+          + `style="font-size:10px;padding:1px 6px">which projects?</button>`;
+        // "cost/SF BY VINTAGE" is in the roadmap item's own words, and a range with no projects
+        // behind it cannot be argued with — the reader cannot tell whether it is six comparable
+        // buildings or six unrelated ones. On demand: the range is the answer, the list is evidence.
+        const more = memory.querySelector<HTMLButtonElement>("#pf-dm-more");
+        if (more) more.onclick = () => {
+          more.disabled = true; more.textContent = "loading…";
+          void this.api.portfolioDealMemory().then((mem) => {
+            const withSf = mem.projects.filter((p) => p.cost_per_sf != null)
+              .sort((a, b) => (b.vintage ?? 0) - (a.vintage ?? 0));
+            const rows = withSf.map((p) =>
+              `<tr><td>${escapeHtml(p.name)}</td><td class="num">${p.vintage ?? "—"}</td>`
+              + `<td class="num">$${p.cost_per_sf}</td></tr>`).join("");
+            const box = document.createElement("div"); box.style.marginTop = "4px";
+            // The excluded count travels with the list. Showing six projects out of eight without
+            // saying so makes a partial comp set read as the whole history.
+            box.innerHTML = `<table class="fin-table"><tr><th>Project</th><th class="num">Vintage`
+              + `</th><th class="num">$/SF</th></tr>${rows}</table>`
+              + (mem.excluded_count
+                ? `<div class="meta" style="font-size:10px">${mem.excluded_count} project(s) `
+                  + `excluded — no actual spend recorded, so counting them as zero variance would `
+                  + `drag the range toward "we were exactly right".</div>`
+                : "");
+            more.replaceWith(box);
+          }).catch(() => { more.disabled = false; more.textContent = "which projects?"; });
+        };
+      } else if (m.status === "no_gfa") {
+        memory.textContent = "🏛 Your own history: load this project's model to compare its hard "
+          + "cost per square foot against your closed projects.";
+      } else if (m.status === "insufficient_history") {
+        memory.textContent = "🏛 Your own history: not enough closed projects yet to show a $/SF "
+          + "range — it fills in as they close, and a range from too few is noise wearing a dollar sign.";
+      } else {
+        memory.textContent = `🏛 Your own history: ${m.note ?? m.status}`;
+      }
+    }).catch(() => { memory.style.display = "none"; });   // endpoint absent → say nothing false
+  }
+
   private renderBudget() {
     this.root.querySelector("#pf-budget")?.remove();   // idempotent — re-render replaces, never duplicates
     const host = document.createElement("div"); host.id = "pf-budget";
@@ -1049,6 +1127,19 @@ export class ProformaUI {
       }).catch(() => { recon.style.display = "none"; });   // no GMP / endpoint absent → hide quietly
     };
     refreshRecon();
+
+    // R35-DEAL-MEMORY — the firm's OWN realised $/SF, beside the hard cost being entered.
+    //
+    // The engine and `/portfolio/deal-memory` shipped with the item; `deal_memory.beside()` — the
+    // function whose docstring says it is "the shape the underwriting screen wants" — had no caller
+    // anywhere. This is that caller. Painting lives in `refreshDealMemory()` so the same code runs
+    // on first render AND on every debounced hard-cost edit; it was inline here until review pointed
+    // out that a strip painted once describes whatever the hard cost USED to be.
+    const memory = document.createElement("div"); memory.className = "meta";
+    memory.style.cssText = "margin:0 0 8px;font-size:11px";
+    host.insertBefore(memory, body);
+    this.memoryEl = memory;
+    this.refreshDealMemory();
 
     // construction draw schedule — sourced from the GC's cost-loaded schedule (relational tie)
     const draws = document.createElement("div"); draws.className = "meta"; draws.style.cssText = "margin:0 0 8px;font-size:11px";

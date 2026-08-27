@@ -4,6 +4,141 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1113 (2026-08-27) — a dead-code gate that counted prose, and the gap it still cannot see
+
+**Two changes and one correction, and the correction is the useful part.**
+
+`test_dead_code_population.py` counted every non-docstring string literal as a reference, deliberately:
+registries dispatch on strings, and that rule is why `register_recipe` survived a sweep. But it makes
+no distinction between a dispatch key and an English sentence, so any function whose name is a common
+word is reached by prose. The gate had already recorded this once — `evm.quadrant`, *"a limitation,
+stated rather than hidden"* — and left it needing a human.
+
+It needed a rule: **a key is a token, a sentence has spaces.** A string literal now counts only when
+the whole literal is identifier-shaped — `add_wall`, `cost_per_sf`, `drawings.markups.rekey_storeys`
+match; a payload note reading *"…is shown beside it rather than folded into it"* does not.
+
+Measured before and after, because this file's own history is four corrections to a population rule:
+**0 unreferenced → 1**, and the one is `sync_property`, which R37-TRIAGE already documents as
+genuinely uncalled and masked by its own `NotImplementedError` string. It moves from invisible to
+**explicitly exempted, with the reason and a rot-check in both directions**. An exemption anybody can
+read beats a mask nobody can see; from the outside they are identical — a green run over a function
+nothing calls.
+
+**Writing that exemption list immediately broke the gate, which is the sharpest part.** Adding
+`"sync_property"` as a dict key made `sync_property` referenced — the key is identifier-shaped by
+construction, so it survives the very filter it was added because of. The ratchet went back to zero
+and the entry documenting it read as stale. **An exemption list that satisfies the check it exempts
+from is the gate measuring itself**, the same shape as the `specPane` string that made
+`canvasMode.test.ts` too weak in v0.3.1111. The gate no longer reads its own file: it names symbols to
+talk about them, and it is not a caller.
+
+### The correction: this is NOT why `beside` was missed
+
+Yesterday's find — `deal_memory.beside()`, built and wired to nothing — scored **60 references** here,
+and it would be neat to say the prose rule is why. It is not, and checking rather than asserting is
+the whole discipline: **under the tightened rule `beside` still has two references, one of them
+`test_deal_memory.py`, which has imported it since the engine shipped in PR #180.**
+
+The test tree counts as callers **by design** — that is the 35 → 13 correction in this gate's own
+header, and it is right for the question the gate asks. But it means *"tested, and wired to nothing"*
+is invisible to it by construction, and no string rule reaches that.
+
+So the gap was measured instead of narrated: **20 public functions in `aec_api` are referenced only by
+the test tree**, `beside` having been the 21st. That is the third instance of one shape after
+`read_p6xml_all` and the spec manual's MasterFormat default, and all three were found by hand. Three
+hand-finds is a population, not a coincidence.
+
+It is recorded as **R37-TESTED-UNWIRED** rather than ratcheted, because the number is not the
+deliverable: several of the 20 are legitimately test-only surface — `sbom`, `pdf_sanity` and
+`is_dual_licensed` exist for the supply-chain *gates*, which are tests by design. R37-TRIAGE's record
+is the warning: reading its 12 candidates found **eight live**, and the two deleted without reading
+had to be put back.
+
+### Review round on the above, and the sharpest finding was already a test
+
+**`test_route_authz.py` failed on the new route, and it was right about something a correct hand-check
+would still have got wrong.** The first version authorised with
+`if pid not in (member_project_ids(db, user) or {pid})`. `member_project_ids` returns **None** for "no
+restriction" and an **empty set** for "a member of nothing" — and `or {pid}` collapses the second into
+the first, so a signed-in user belonging to no project was authorised for any project id they typed.
+
+The route now uses `Depends(require_role("viewer"))`, like every other `/projects/{pid}` route in that
+file. The gate walks those routes and requires the *tagged* dependency, so a bespoke membership check
+is invisible to it **whether or not the check is correct** — it is not looking for authorization, it
+is looking for the one authorization anybody audits. Running it before pushing would have taken four
+seconds; the full backend suite takes twenty-two minutes, and skipping the suite meant skipping this.
+
+Three more, all real:
+
+* **`hard_cost` accepted NaN and Infinity.** `not x` is False for NaN and every comparison with NaN is
+  False, so both halves of `not hard_cost or hard_cost <= 0` let it through; it then divided into the
+  response and left as `null` under orjson — *a comparison with a missing number in it, which reads as
+  "no history" rather than as bad input.* Now `math.isfinite`, with all five cases pinned.
+* **The $/SF strip was painted once by `renderBudget()`**, so editing "Hard cost $" left a comparison
+  for the PREVIOUS hard cost beside the new number. It rides the same debounce as the solve now, and
+  a late reply for a superseded cost is dropped rather than allowed to win by arriving last. Three
+  regression tests, one of which fails on the `cost_lines[1]` shortcut the sum replaced.
+* **The test inherited `DATABASE_URL`.** `setdefault` keeps `run_tests.py` in control of the per-test
+  database, which is right — but it also inherits whatever a developer exported, and this file calls
+  `create_all` and commits fixtures. It now refuses to start against anything that is not a local
+  sqlite path, rather than quietly creating test schema in a real database.
+
+## v0.3.1112 (2026-08-27) — the firm's own closed projects, beside the number being underwritten
+
+**R35-DEAL-MEMORY's engine shipped with the item and the function it exists for had no caller
+anywhere.** `deal_memory.comps` has been routed since the start. `deal_memory.beside()` — the last
+function in that module, whose own docstring calls it *"the shape the underwriting screen wants"* —
+was never routed, never in the client, on no screen. Nothing failed, because `test_reachable` asks
+whether a MODULE is reachable and `deal_memory` is: the portfolio route imports it. *A module can be
+reachable and its whole reason for existing still be unreachable* — `read_p6xml_all` was the same
+shape one ring over.
+
+`GET /projects/{pid}/deal-memory/beside` is the route, and the proforma's cost budget is the screen:
+
+```text
+🏛 Your own history: this deal's hard cost is $250/SF ($500,000 ÷ 2,000 SF) — inside the range
+   your 6 closed project(s) landed in ($225–$275, median $250). A comparison, not a verdict.
+```
+
+**It offers one of the engine's three metrics, and the other two are decisions rather than an
+unfinished job.** `cost_per_sf` is a unit conversion: a hard cost and a GFA turn into it.
+`cost_variance_pct` is not — the nearest thing a proforma enters is a contingency, and *"your
+contingency should cover this firm's historical overrun"* is a claim the product would be making in
+an underwriting, which is the same call `/schedule/eot` is still waiting on. `schedule_variance_days`
+beside an entered `construction_months` would be a category error in matching units, which is the
+dangerous kind: both are numbers of time and the screen would look right.
+
+`no_gfa` is its own status rather than folded into `insufficient_history` — load a model versus close
+more projects are different remedies, and answering the first with the second sends somebody hunting
+for history they already have. `services/api/test_deal_memory_beside.py` holds all of it, including
+the anti-vacuity check that the deal on screen is excluded from its own comp set.
+
+**The "by vintage" half was nearly left out, and two gates arguing is what caught it.**
+`clientCallers.test.ts` rejected `portfolioDealMemory` — no screen, so a typed method would exist
+only to satisfy a gate. Then `test_route_reachability` failed the other way: the new route put the
+substring `deal-memory` into the web source, and that rule matches a leaf against the whole blob, so
+its frozen entry for `/portfolio/deal-memory` read as *"quietly became called"* while nothing called
+it. **A substring test cannot tell which route a string belongs to.**
+
+Neither gate was wrong and neither could be satisfied by wording. Re-reading the item settled it — it
+asks for realised outcomes *"(… cost/SF by vintage)"*, and `comps` returns `vintage` per project. The
+comp list was in the item all along; wiring only the summary was the half-build. A "which projects?"
+disclosure now shows them, newest first, with the excluded count beside them so a partial comp set
+cannot read as a whole history. Sharpening the needle instead was measured and rejected: a
+two-segment needle is already rejected in that file with numbers, and **328 of 941 routes share a
+leaf**, so "a shared leaf decides nothing" would take a third of the surface out of the gate's reach.
+
+Also in this release, and the same shape one level up: **the roadmap and its own gate were blind in
+the same place, so they agreed.** The SCALE-SEAM bullet was headed `㉗` while its own next words said
+㉗ shipped in v0.3.1086, and the Lane I cell called ㉗ "the only open slice". `MARKS` in
+`apps/web/src/shell/roadmapLanes.test.ts` stopped at ㉗, and marks are an optional group on both
+sides of that check — so a numeral it cannot spell does not fail to parse, it drops, and item and
+lane row degrade to the same bare code. Measured both ways: a mismatch *inside* the vocabulary fails
+correctly; one *outside* it passed 13 of 13. `MARKS` now spells ㉘ (29 item codes before, 29 after —
+nothing moved, which is the point), and forgetting to widen it next time fails a test instead of
+quietly narrowing what is enforced.
+
 ## v0.3.1111 (2026-08-27) — the viewer could not run offline, and nothing on screen said so
 
 **A non-negotiable was being broken by a transitive import, and it was found by opening the app in a
@@ -15,7 +150,7 @@ the Model tab selected.** The unit tests were right about every one of those.
 
 They could not have caught what the same run found in the first second:
 
-```
+```text
 pageerror: Failed to fetch dynamically imported module: .../viewer/app.ts
 REQFAIL https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/+esm :: ERR_CERT_AUTHORITY_INVALID
 ```
