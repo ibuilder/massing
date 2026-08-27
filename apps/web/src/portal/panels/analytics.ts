@@ -491,9 +491,42 @@ Builders Depot
       const recLbl = el("label", "meta"); recLbl.style.cssText = "display:flex;align-items:center;gap:4px";
       const recCb = el("input") as HTMLInputElement; recCb.type = "checkbox";
       recLbl.append(recCb, document.createTextNode("record to the price ledger (editor)"));
+      // PROCURE-LEVEL: score AGAINST A PACKAGE SCOPE, which is the step `buyout_packages` own note
+      // names and nothing has ever called — *"each carries an RFQ scope (item/qty/unit) to send to
+      // suppliers. Feed returned quotes to /procurement/level for a scored comparison."*
+      //
+      // Price-only leveling (above) cannot see the thing that decides a buyout: a supplier is
+      // cheapest per line precisely BECAUSE they left half the scope out. `score_quotes` reads the
+      // package's stored `scope_json` and reports coverage and the missing items alongside price.
+      // The two are one control on purpose — same pasted quotes, and the scope picker decides which
+      // question is being asked.
+      const scopeSel = el("select", "portal-filter") as HTMLSelectElement;
+      scopeSel.style.cssText = "max-width:260px";
+      scopeSel.innerHTML = `<option value="">Compare prices only (no scope)</option>`;
       const out = el("div"); out.style.marginTop = "8px";
-      ctl.append(runBtn, recLbl);
+      ctl.append(runBtn, scopeSel, recLbl);
       quoteLevelWrap.append(hint, ta, ctl, out);
+
+      // Saved buyout packages carry the scope. Absent (or unreachable) the picker just stays on
+      // "prices only" — the panel must not lose its existing tool because this list failed to load.
+      const pkgScope = new Map<string, { item: string; qty: number; unit: string }[]>();
+      void api.moduleRecords(pid, "procurement_package").then((recs) => {
+        for (const r of recs) {
+          const raw = (r.data as Record<string, unknown> | undefined)?.["scope_json"];
+          if (typeof raw !== "string" || !raw.trim()) continue;
+          try {
+            const parsed = JSON.parse(raw) as { item?: string; qty?: number; unit?: string }[];
+            const scope = parsed.filter((x) => x && x.item)
+              .map((x) => ({ item: String(x.item), qty: Number(x.qty) || 0, unit: String(x.unit ?? "") }));
+            if (!scope.length) continue;
+            pkgScope.set(r.id, scope);
+            const o = document.createElement("option");
+            o.value = r.id;
+            o.textContent = `Score vs ${String(r.title || r.ref || r.id)} (${scope.length} lines)`;
+            scopeSel.appendChild(o);
+          } catch { /* a hand-edited scope_json is not a reason to break the picker */ }
+        }
+      }).catch(() => { /* no packages, or offline — "prices only" remains available */ });
 
 
       runBtn.onclick = async () => {
@@ -508,6 +541,56 @@ Builders Depot
           return;
         }
         out.textContent = "leveling…";
+
+        // SCOPE PICKED -> the scored comparison, which answers a different question: not "who is
+        // cheapest per line" but "who is best value once the lines they did NOT price are counted".
+        const scope = pkgScope.get(scopeSel.value);
+        if (scope) {
+          try {
+            const r = await api.procurementLevel(pid, scope, quotes);
+            if (!r.suppliers.length) {
+              out.innerHTML = `<div class="meta">${esc(r.note || "No suppliers to score against this scope.")}</div>`;
+              return;
+            }
+            const t = el("table", "portal-table") as HTMLTableElement;
+            t.style.cssText = "width:100%;font-size:11px;margin-top:6px";
+            t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Supplier</th>`
+              + `<th scope="col" style="text-align:right">Score</th><th scope="col" style="text-align:right">Coverage</th>`
+              + `<th scope="col" style="text-align:right">Priced</th><th scope="col" style="text-align:right">Lead</th>`
+              + `<th scope="col" style="text-align:left">Scope gaps</th></tr></thead><tbody>`
+              + r.suppliers.map((sp) => {
+                // A gap list is the reason this view exists — never truncated to "…" alone, because
+                // the omitted item IS the finding. Capped for width, with the remainder counted.
+                const gaps = sp.scope_gaps.length
+                  ? esc(sp.scope_gaps.slice(0, 3).join(", "))
+                    + (sp.scope_gaps.length > 3 ? ` <span class="meta">+${sp.scope_gaps.length - 3} more</span>` : "")
+                  : `<span style="color:var(--status-good)">complete</span>`;
+                // `coverage_pct` IS A FRACTION (0..1), despite the name — `score_quotes` computes
+                // `len(covered) / n_scope` and multiplies it straight into the composite. Trusting
+                // the name rendered "0.6667%" for a supplier who had priced two thirds of the
+                // scope, and made the shortfall warning below fire on every complete bid.
+                const cov = sp.coverage_pct * 100;
+                return `<tr><td style="text-align:left">${esc(sp.supplier)}</td>`
+                  + `<td style="text-align:right;font-weight:700">${sp.score.toFixed(3)}</td>`
+                  + `<td style="text-align:right;color:${cov < 100 ? "var(--status-warn)" : "inherit"}">${cov.toFixed(cov % 1 ? 1 : 0)}%</td>`
+                  + `<td style="text-align:right">${sp.covered_lines}/${sp.scope_lines}</td>`
+                  + `<td style="text-align:right">${sp.lead_time_days == null ? "—" : `${sp.lead_time_days}d`}</td>`
+                  + `<td style="text-align:left">${gaps}</td></tr>`;
+              }).join("") + `</tbody>`;
+            const w = r.weights;
+            out.innerHTML = `<div class="meta">Best value: <b>${esc(r.best_value_supplier || "—")}</b>`
+              + ` over ${r.scope_lines} scope line(s) · weights price ${w.price} / coverage ${w.coverage}`
+              + ` / lead ${w.lead_time}</div>`;
+            out.append(t);
+            if (r.suppliers.some((sp) => sp.coverage_pct < 1)) {   // fraction, not percent
+              out.insertAdjacentHTML("beforeend",
+                `<div class="meta" style="color:var(--status-warn);margin-top:4px">⚠️ A supplier priced less `
+                + `than the full scope — the low total may not be a like-for-like bid.</div>`);
+            }
+          } catch (e) { out.innerHTML = `<div class="meta">Scoring failed: ${esc((e as Error).message)}</div>`; }
+          return;
+        }
+
         try {
           const r = await api.procurementLevelQuotes(pid, quotes, recCb.checked);
           if (!r.items.length) {

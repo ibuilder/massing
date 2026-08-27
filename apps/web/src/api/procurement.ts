@@ -31,11 +31,32 @@ export function withProcurement<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ grouped_by: string; package_count: number; total_est_cost: number; packages: Pkg[]; note: string }>(
       `/projects/${pid}/procurement/buyout-packages`, { method: "POST", body: JSON.stringify({ qto_lines: qtoLines, by }) });
   }
-  /** PROCURE-LEVEL: score returned quotes for a buyout package on price + coverage completeness + lead time. */
-  procurementLevel(pid: string, scope: Record<string, unknown>[], quotes: Record<string, unknown>[],
+  /**
+   * PROCURE-LEVEL — score returned quotes for ONE package against its RFQ scope.
+   *
+   * `scope` and `quotes` are typed to the shapes the route documents rather than to
+   * `Record<string, unknown>[]`. The vague version compiled and told a caller nothing: the engine
+   * reads `item`/`qty`/`unit` off the scope and `supplier`/`lines[]` off each quote, so a caller
+   * shipping `{name, quantity}` would have typechecked and then scored every supplier at zero
+   * coverage. `lead_time_days` is optional because the engine folds its weight into price and
+   * coverage when no lead times are supplied.
+   */
+  procurementLevel(pid: string,
+                   scope: { item: string; qty: number; unit: string }[],
+                   quotes: { supplier: string; lead_time_days?: number;
+                             lines: { item: string; qty: number; unit: string; unit_price: number }[] }[],
                    weights?: Record<string, number>) {
     type Supplier = {
-      supplier: string; coverage_pct: number; covered_lines: number; scope_lines: number;
+      supplier: string;
+      /**
+       * A FRACTION 0..1, NOT a percentage, despite the name. `score_quotes` returns
+       * `covered / scope` and folds it straight into the composite score. The first consumer this
+       * field ever had trusted the name and rendered `0.6667%` for a supplier who had priced two
+       * thirds of the scope — and made the shortfall warning fire on every complete bid too.
+       * Multiply by 100 before display; compare against 1, not 100.
+       */
+      coverage_pct: number;
+      covered_lines: number; scope_lines: number;
       covered_ext: number; est_full_scope: number | null; lead_time_days: number | null;
       scope_gaps: string[]; price_score: number; lead_score: number; score: number;
     };
