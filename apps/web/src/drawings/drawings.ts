@@ -1,7 +1,7 @@
 import type { ApiClient, DrawingMarkupItem } from "../api/client";
 import type { Measure } from "./pdfTakeoff";
 import { noProjectHtml } from "../ui/empty";
-import { askText } from "../ui/prompt";
+import { askConfirm, askText } from "../ui/prompt";
 import { sanitizeSvg } from "../ui/sanitizeSvg";
 import { escapeHtml } from "../ui/feedback";
 import { addHitTargets, guidFromEvent, postSheetPin, selectInViewer, syncPlanHighlight } from "../ui/sheetGuid";
@@ -406,6 +406,55 @@ export class DrawingsUI {
   /** MARKUP-2b: the cross-sheet markups grid — every markup in the project in one sortable list with
    *  Σ totals per kind, revision/carried status, and RFI links. DOM built with textContent throughout
    *  (XSS-safe by construction — markup notes/authors are user text). */
+  /**
+   * R36 backfill — dry-run, show what would move, then apply only on confirm.
+   *
+   * Two calls on purpose. The route defaults to `dry_run=true` and this mirrors it: the name → GUID
+   * mapping comes from the project's CURRENT source IFC, which may have been re-uploaded since the
+   * markups were made, so what would move is worth reading before it moves. The refusals are shown
+   * too — a duplicated storey name is not resolved, and saying so is the difference between a
+   * backfill you can trust and one that quietly guessed.
+   */
+  private async rekeyLegacyMarkups() {
+    const pid = this.host_.projectId();
+    if (!pid) return;
+    const api = this.host_.api;
+    let plan: Awaited<ReturnType<typeof api.rekeyStoreyMarkups>>;
+    try { plan = await api.rekeyStoreyMarkups(pid, true); }
+    catch { this.host_.setStatus("couldn't check legacy markup keys"); return; }
+
+    if (!plan.moved) {
+      const why = plan.ambiguous_names.length || plan.unmatched_names.length
+        ? `\n\nNot movable: ${[...plan.ambiguous_names, ...plan.unmatched_names].join(", ")}`
+        : "";
+      await askConfirm("Nothing to move", {
+        body: `Every storey markup is already keyed on a GlobalId.${why}`,
+        okLabel: "OK", cancelLabel: "",
+      });
+      return;
+    }
+    const lines = plan.changes.slice(0, 8).map((c) => `  ${c.from}  →  ${c.to}`).join("\n");
+    const more = plan.changes_truncated ? `\n  …and ${plan.moved - plan.changes_shown} more` : "";
+    const refused = [
+      plan.ambiguous_names.length
+        ? `Skipped — two storeys share the name, so it names no single level: ${plan.ambiguous_names.join(", ")}`
+        : "",
+      plan.unmatched_names.length
+        ? `Skipped — no such storey in the current model: ${plan.unmatched_names.join(", ")}`
+        : "",
+    ].filter(Boolean).join("\n");
+    const ok = await askConfirm(`Move ${plan.moved} markup(s) onto storey GlobalIds?`, {
+      body: `${lines}${more}${refused ? `\n\n${refused}` : ""}`,
+      okLabel: "Move them", cancelLabel: "Cancel",
+    });
+    if (!ok) return;
+    try {
+      const done = await api.rekeyStoreyMarkups(pid, false);
+      this.host_.setStatus(`${done.moved} markup(s) moved onto storey GlobalIds`);
+      await this.loadPins();
+    } catch { this.host_.setStatus("the rekey failed — nothing was changed"); }
+  }
+
   private async showMarkupGrid() {
     const pid = this.host_.projectId();
     if (!pid) return;
@@ -432,7 +481,16 @@ export class DrawingsUI {
     title.textContent = `☰ Markups — ${rows.length} across ${new Set(rows.map((m) => m.sheet_id.split("#")[0])).size} sheet(s)`;
     const x = document.createElement("button"); x.className = "tool-btn"; x.textContent = "✕";
     x.onclick = () => ov.remove();
-    head.append(title, x);
+    // Maintenance: move pre-v0.3.1106 storey markups onto their storey's GlobalId. It lives here
+    // rather than in the toolbar because it acts on markups ACROSS sheets, which is what this grid
+    // shows — and because a backfill that the product cannot trigger is a feature nobody can use.
+    const fix = document.createElement("button");
+    fix.className = "tool-btn";
+    fix.textContent = "⟲ Fix legacy keys";
+    fix.title = "Move markups still keyed on a storey NAME onto that storey's GlobalId, so a level "
+      + "rename stops orphaning them. Shows what would move before it moves anything.";
+    fix.onclick = () => void this.rekeyLegacyMarkups();
+    head.append(title, fix, x);
     const sub = document.createElement("div"); sub.className = "meta"; sub.textContent = sumTxt || "no markups yet";
     const scroll = document.createElement("div"); scroll.style.cssText = "overflow:auto;flex:1";
     const tbl = document.createElement("table"); tbl.style.cssText = "width:100%;border-collapse:collapse;font-size:12px";

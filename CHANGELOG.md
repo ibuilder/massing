@@ -28,6 +28,18 @@ with the unmappable, because a clean second run that reads as a partial failure 
 misdescribing itself. That also makes the operation idempotent, which is asserted rather than
 assumed: `test_markup_rekey.py` runs it twice and checks nothing moves the second time.
 
+**It shipped unreachable, and `test_route_reachability.py` caught it.** The route had no client
+caller, which that gate states plainly: *"a route the product cannot call is a feature nobody can
+use."* The gate offers an allowlist entry as the alternative, and taking it would have been the wrong
+answer here — a one-time backfill that only an operator with `curl` can run is exactly the shape the
+gate exists to stop. So it has a real caller: **⟲ Fix legacy keys** in the ☰ Markups grid, which is
+where markups across sheets are already listed. It dry-runs, shows what would move and what it
+refused to guess, and applies only on confirm — the two-call shape the route was designed for.
+
+*This is the mirror of the defect that motivated the reachability gates in the first place: seven of
+eleven things built across v0.3.701–710 shipped with no route at all. Here the route existed and
+nothing could reach it.*
+
 ## v0.3.1109 (2026-08-26) — a shared saved view now alerts every reader, each from their own visit
 
 R22-REPORT-BUILDER item 4 shipped `SavedView.scope` and stopped deliberately short of alerting anyone
