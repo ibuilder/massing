@@ -169,26 +169,41 @@ def scim_create_user(request: Request, _: bool = Depends(require_scim), db: Sess
     uname = (payload.get("userName") or "").strip()
     if not uname:
         raise _scim_error(400, "userName is required", "invalidValue")
-    existing = db.get(User, uname)
-    if existing:
+    def _make_user() -> User:
+        return User(
+            username=uname,
+            password_hash=auth.hash_password(secrets.token_urlsafe(24)),  # SSO-only; unusable
+            role="user",
+            active=bool(payload.get("active", True)),
+            email=_primary_email(payload),
+            external_id=payload.get("externalId"),
+            provisioned=True,
+        )
+
+    # THE SAME SEEDING RACE AS THE THREE SIGN-IN DOORS, arriving by a fourth path. This read
+    # `db.get(User, uname)`, branched, and INSERTed with nothing holding the world still in
+    # between — the exact shape the 2026-08-25 concurrency sweep named. `User.username` is the
+    # PRIMARY KEY, so two concurrent POSTs for one `userName` both read None, both INSERT, and the
+    # loser's commit raises IntegrityError: a **500 to the IdP**, on a request that was correct.
+    #
+    # SCIM is likelier to hit this than a human sign-in, not less: IdPs retry on timeout and run
+    # parallel sync workers, so a duplicate POST for one userName is ordinary traffic rather than
+    # the two-tabs edge case. Okta and Entra treat a 500 as a provisioning failure.
+    #
+    # The fix needs no new semantics, which is why it is this small: losing the race and being a
+    # re-provision are THE SAME OUTCOME — the row exists and this request must fold into it. The
+    # helper's `created` flag already distinguishes them, so the loser takes the rehire branch and
+    # answers 200, which is what SCIM wants anyway.
+    u, created = auth.get_or_create_sso_user(db, uname, _make_user)
+    if not created:
         # treat as re-provision: reactivate + refresh mapped attrs (avoids a hard 409 on rehire)
-        existing.active = bool(payload.get("active", True))
-        existing.external_id = payload.get("externalId") or existing.external_id
+        u.active = bool(payload.get("active", True))
+        u.external_id = payload.get("externalId") or u.external_id
         email = _primary_email(payload)
         if email:
-            existing.email = email
+            u.email = email
         db.commit()
-        return JSONResponse(status_code=200, content=_resource(existing, request))
-    u = User(
-        username=uname,
-        password_hash=auth.hash_password(secrets.token_urlsafe(24)),   # SSO-only; unusable password
-        role="user",
-        active=bool(payload.get("active", True)),
-        email=_primary_email(payload),
-        external_id=payload.get("externalId"),
-        provisioned=True,
-    )
-    db.add(u)
+        return JSONResponse(status_code=200, content=_resource(u, request))
     db.commit()
     return _resource(u, request)
 
