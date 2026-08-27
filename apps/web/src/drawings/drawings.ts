@@ -423,12 +423,27 @@ export class DrawingsUI {
     try { plan = await api.rekeyStoreyMarkups(pid, true); }
     catch { this.host_.setStatus("couldn't check legacy markup keys"); return; }
 
+    // Nothing to move has TWO causes that must not share a message. Either every key is already a
+    // GlobalId — the finished state — or some are legacy keys the route REFUSED to resolve. Saying
+    // "already keyed on a GlobalId" in the second case is a false all-clear about the exact entries
+    // that still orphan on rename, and the operator has no reason to look again.
     if (!plan.moved) {
-      const why = plan.ambiguous_names.length || plan.unmatched_names.length
-        ? `\n\nNot movable: ${[...plan.ambiguous_names, ...plan.unmatched_names].join(", ")}`
-        : "";
-      await askConfirm("Nothing to move", {
-        body: `Every storey markup is already keyed on a GlobalId.${why}`,
+      const refusals = [
+        plan.ambiguous_names.length
+          ? `Two storeys share the name, so it names no single level: ${plan.ambiguous_names.join(", ")}`
+          : "",
+        plan.unmatched_names.length
+          ? `No such storey in the current model: ${plan.unmatched_names.join(", ")}`
+          : "",
+      ].filter(Boolean).join("\n");
+      const stuck = plan.ambiguous_names.length + plan.unmatched_names.length;
+      await askConfirm(refusals ? `No markups can be moved — ${stuck} storey key(s) left in place`
+                                : "Nothing to move", {
+        body: refusals
+          ? `${refusals}\n\nThese are still keyed on a storey NAME and will orphan if it is renamed. `
+            + "Rename the duplicated levels apart, or re-upload the model they were drawn against, "
+            + "then run this again."
+          : "Every storey markup is already keyed on a GlobalId.",
         okLabel: "OK", cancelLabel: "",
       });
       return;
