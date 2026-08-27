@@ -188,7 +188,10 @@ describe("the roadmap does not call an implemented item open", () => {
   // out. What remains is irreducible directory-walk I/O over ~500 modules, so 20 s is ~8x the
   // measured cost: enough that a loaded machine cannot reach it, small enough that a genuine hang
   // still fails the build rather than stalling CI.
-  it("reads every module it found — a swallowed read must not read as 'nothing implemented'", { timeout: 20_000 }, () => {
+  // No per-test timeout: this measured 61,019 ms under full-suite contention, so its old 20s budget
+  // sat BELOW the 120s global and quietly undercut it. A per-test timeout smaller than the global
+  // is not extra safety, it is a hole in it.
+  it("reads every module it found — a swallowed read must not read as 'nothing implemented'", () => {
     const { scanned, failed } = declaringModules();
     expect(failed, "modules could not be read; this gate's answer is meaningless until they can")
       .toEqual([]);

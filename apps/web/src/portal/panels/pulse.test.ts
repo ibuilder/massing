@@ -220,7 +220,8 @@ describe("the portal actually calls it", () => {
     expect(src.length).toBeGreaterThan(1000);
     expect(src).toMatch(/from "\.\/panels\/pulse"/);
     expect(src, "defined but never called is the orphan case").toMatch(/this\.renderPulse\(/);
-  }, 15_000);
+    // No per-test timeout: 15s sat below the 120s global and would undercut it under contention.
+  });
 });
 
 /**
