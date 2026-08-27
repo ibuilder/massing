@@ -102,6 +102,18 @@ jobs:
       - name: Bundle-size budget (app shell)
         run: npm run budget --workspace apps/web
 
+      # "The viewer must run fully offline" is the fourth non-negotiable in CLAUDE.md, and until
+      # 2026-08-27 nothing enforced it — a headless-browser run found `three-*.js` opening with a
+      # static `import … from "https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/+esm"`, reached through
+      # `@thatopen/components-front` → three's `TTFLoader`. Offline, that chunk never evaluates and
+      # the whole viewer fails to mount with nothing on screen to say why.
+      #
+      # It runs after the build because it greps the OUTPUT: an alias that stops matching after a
+      # dependency bump still builds clean, which is the same trap `vite.config.ts` documents for the
+      # vendor split. Costs about a second.
+      - name: Offline check (no bundled import reaches the network)
+        run: npm run offline --workspace apps/web
+
       # R41-LICENCE-GATE. Runs HERE and not in the API gate on purpose: this job is the one that
       # runs `npm ci`, so `node_modules` exists. The API job does not install it, and a licence scan
       # over an absent tree passes by finding nothing — the vacuous-population failure this repo has

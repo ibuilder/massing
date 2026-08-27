@@ -7505,3 +7505,198 @@ wearing the same glyph.
   **Planning:** `apps/web/src/portal/panels/planningBrief.ts` on `__benchmarks__` — RFI clock, submittal clock, cost history.
   **Operate:** `apps/web/src/portal/panels/operateBrief.ts` on `__operations__` — overdue WOs, PM compliance (`null` is not 0%), FCI (no elements is not 0%).
   **Design is skipped on purpose:** `apps/web/src/shell/spine.ts` sets Design home to null — the 3D viewer is the room. A portal brief would be a second home.
+
+---
+
+## R36-VIEWER-SUBAPP — COMPLETE 2026-08-27 (v0.3.918–920, 1071, 1106–1111)
+
+The canvas became a surface that switches in place — Model ▸ Sheets ▸ Specs — rather than 3D with a
+2D strip attached to it. Seven slices, and the entry is archived intact because **five of them were
+found by a premise-check that contradicted this entry's own prose**, which is the part worth keeping:
+
+* Slice 5's model↔sheet link "already worked" — by the accidental alignment of three unrelated
+  mechanisms, none of them tested.
+* Slice 6 was scoped as "an INTEGRATION, not a build" from a census of *methods with callers*.
+  Reachability and reusability are different properties and a caller census measures only the first.
+* Slice 6 then shipped keyed on the storey **NAME** — which this same entry had specified against,
+  three paragraphs earlier. *A specification written in the same entry as the work is not a check.*
+* The spec surface "now exists" was true and empty: `project_manual` defaulted to MasterFormat while
+  57 of 58 tracked IFC files declare Uniclass, and the test that covered it supplied the very system
+  under test.
+* And the last one is the largest. This entry honestly flagged "not verified live" for 190 versions.
+  When somebody finally opened it in a browser, all the behaviour the unit tests asserted was
+  correct — and the **whole viewer failed to mount**, because a transitive dependency put a CDN
+  import at the top of the `three` chunk. *A suite over the source cannot see a defect the build
+  creates.*
+
+Its lesson, in one line: **an entry cannot check itself.** Every one of those was caught by running
+something — a gate, a browser, a corpus count — and none by re-reading the paragraph above it.
+
+- ✅ **R36-VIEWER-SUBAPP** *(L — Lane E; slice 4 shipped v0.3.918 — `apps/web/src/viewer/canvasMode.ts`)*
+  — **the mode switch is in.** The canvas is now one surface at a time (Model ▸ Sheets) rather than 3D
+  with a strip attached: the plan was `position:absolute; right:0; width:38%`, so 2D was a slice of the
+  model rather than a peer of it. Visibility is DERIVED from the mode, so "both visible" and "neither
+  visible" are unrepresentable rather than merely discouraged, and the old "◫ Plan beside model"
+  toggle now routes through the switch so one thing owns the pane. A refusal carries a reason —
+  Sheets before a project is open says so, because a tab that swallows the click reads as broken.
+
+  Slices 1–3 were the print path this depended on, and the roadmap's own sequencing note was right
+  that it had to come first: `axon` reaching the shipping dispatcher (it had been drawing a plan
+  titled ISO VIEW), the `views=` grammar, and "place this view on a sheet". Without them the switch
+  would have exposed 2D and 3D as non-peers immediately.
+
+  **SPECS SHIPPED v0.3.920 — all three modes are real.** `apps/web/src/viewer/specPane.ts` renders the
+  3-part MasterFormat manual as a canvas surface, and selecting an element reveals its section. It
+  needed **no backend work**: `specmanual.py` has served `elements: [{guid, name, ifc_class}]` per
+  section since it shipped, and the client's return type simply never declared the field — so the
+  section↔element link looked like unbuilt work while sitting in every response. Exact mirror of the
+  sheet-params defect: there the client SENT keys the route ignores, here it IGNORED keys the route
+  sends. A contract believed rather than read, in both directions.
+
+  The `elements` list is **capped at 50 per section** while `element_count` is the true total, so the
+  pane distinguishes *"no spec section"* from *"not in the first 50, so I cannot tell"* — the second
+  reported as the first would be a statement about the payload posing as one about the model.
+
+  The v0.3.918 guard that forbade registering `specs` without a surface now guards the general rule,
+  and a mutation showed it had been **too weak**: it matched the string `specPane` anywhere, which the
+  mode's own `enter`/`leave` satisfy, so a mode wired to a pane that is never built would have passed.
+  It now requires `new SpecPane(` AND the `appendChild` — "built but never appended" being this repo's
+  most repeated defect.
+
+  **Not verified live.** `createViewerApp` needs a WebGL context and a Fragments worker and the
+  dev-preview geometry loader stalls, so the tab strip has not been seen in a browser. 11 unit tests
+  cover the switch's behaviour and `tsc` covers the wiring; the DOM is unverified and said so.
+
+  **Slice 5, measured v0.3.919 — the model↔sheet half ALREADY WORKED, by accident.** Picking in 3D and
+  switching to Sheets does carry the GlobalId, because three unrelated mechanisms happen to line up:
+  `onSelectionChanged` fires whether or not the pane is visible and stores `sel` before touching the
+  DOM; `dock("full")` forces a refresh; `refresh` ends by re-applying `syncPlanHighlight`. Remove any
+  one and the feature vanishes silently — the plan renders, nothing is lit, and it reads as "that
+  element isn't on this level". `PlanPane` had **no instance-level tests at all**, so nothing would
+  have noticed. `apps/web/src/viewer/planPaneSelection.test.ts` is now the thing that fails first.
+
+  **Slice 6 scoped by measurement, 2026-08-09 — it is an INTEGRATION, not a build.** The markup and
+  takeoff layer is already complete and wired: all five client methods (`drawingMarkup`,
+  `addDrawingMarkup`, `saveDrawingMarkups`, `deleteDrawingMarkup`, `promoteDrawingMarkup`) have
+  callers, the read side has four, and every one of them is in `apps/web/src/drawings/drawings.ts`.
+  Nothing needs writing; it needs to be reachable from the Sheets canvas so a drawing is marked up
+  where it is being looked at, rather than in a different room.
+
+  **✅ SLICE 6 SHIPPED v0.3.1071 — and it was a build, as the re-check below predicted.**
+  `apps/web/src/drawings/markupLayer.ts` is the layer, mountable on any surface; the Drawings room and
+  the viewer's plan pane both mount it, and **both key it `plan:<storey>`** — the same key — so a pin
+  dropped in one appears in the other with no syncing and no second store. The identity does the work.
+  Three steps, not one: **characterise, extract, mount.** `apps/web/src/drawings/drawings.test.ts`
+  came first — 13 tests over a 493-line class nothing had ever mounted — because refactoring untested
+  code is how a room quietly loses a feature with every suite still green. Those same tests then
+  proved the extraction changed nothing.
+  **The import-cycle guard caught the design error**: putting the layer under `drawings/` and importing
+  it from `viewer/planPane` closed `markupLayer → ui/sheetGuid → viewer/planPane → markupLayer`. The
+  fix was not a re-route — the layer now takes an `onReveal` dependency, because **how you reveal an
+  element is a property of the surface, not of the markup**, and a layer that reached for one host's
+  hook could only ever be mounted where that hook was right.
+
+  **Re-checked 2026-08-23 — slice 6 was still open THEN, and "an INTEGRATION, not a build" understated
+  it.** *(Past tense as of 2026-08-26: it shipped in v0.3.1071, which the ✅ line above records. Left
+  in place because its prediction was right and that is the part worth keeping — but re-read it as
+  history, not as status. This entry has now had a stale present-tense paragraph twice.)*
+  The five client methods and their callers are all present, exactly as measured. But every caller
+  lives inside the `DrawingsRoom` class in `apps/web/src/drawings/drawings.ts`, and the markup layer
+  is *class state coupled to that room's DOM* — `markupOn`, the `markup[]` array, `buildToolbar()`,
+  `openPdfMarkup()` and a `.dwg-viewport` selector — not a mountable module. So "make it reachable
+  from the Sheets canvas" means **extracting the layer first**, which is a decomposition with the
+  usual seam questions, not a wiring change. The measurement that produced the original framing
+  counted *methods with callers*, which is the right check for "does this exist" and says nothing
+  about whether it can be mounted somewhere else. **Reachability and reusability are different
+  properties, and a caller census only measures the first.**
+
+  **The one real design question, and the non-negotiables answer it.** Markups key on a sheet id — a
+  persisted document record — and the viewer's Sheets mode renders `plan.svg?storey=…&scale=…`, a
+  live cut with no record and no id. So a generated plan needs an identity to attach markups to.
+  Keying on the storey NAME would look natural and is wrong: levels can be renamed here, and every
+  markup on that level would orphan silently. Per the non-negotiable — *reference by IFC GlobalId,
+  never transient ids* — the key is the **storey's GlobalId**. That is a rule the project already
+  holds, not a new decision, and it is the reason this is specified rather than open.
+
+  Cost that follows: `PlanPane` asks for a storey by name (`activeStorey()`), so slice 6 also has to
+  carry the storey's GUID down to the cut request. The existing `${sheet.id}#pdf` convention shows
+  the codebase already namespaces markup stores by suffix, so `plan:<storeyGuid>` fits the pattern
+  that is there.
+
+  **PREMISE-CHECK 2026-08-26, before starting the sprint row — and it found the row's own subject
+  half-wrong.** Slice 6 had shipped, so "and slice 6 as specified above" was stale here too. But it
+  shipped **keyed on the storey NAME**, which this entry had specified against three paragraphs
+  earlier (*"keying on the storey NAME would look natural and is wrong"*), which the project's first
+  non-negotiable forbids, and which `drawingStoreys` had never required — it has served `guid` beside
+  `name` since it shipped. `apps/web/src/api/authoring.ts` had even been widened to expose
+  `levels[].guid` **for this exact purpose**, with a comment warning against the `?? level.name`
+  fallback. The groundwork was laid and the consumer never used it. *A specification written in the
+  same entry as the work is not a check — only a test is.* Fixed in v0.3.1106: the key is
+  `plan:<storeyGuid>`, the pre-GUID key is read so nothing already stored disappears, and the
+  forbidden fallback is now a failing test in `apps/web/src/viewer/planPane.test.ts`.
+
+  **PREMISE-CHECK 2026-08-26 on the last remaining item, and it found the surface that item points at
+  was EMPTY.** "The spec surface now exists" was true and misleading: `project_manual` defaulted to
+  `system="MasterFormat"` and `routers/authoring_docs.spec_manual` passed nothing, while **57 of this
+  repository's 58 tracked IFC files declare Uniclass and none declare MasterFormat**. Every project's
+  manual returned zero sections and reported no error, because an empty manual is also what an
+  unclassified model returns. `services/api/test_specmanual.py` passed throughout — its fixture
+  classifies with MasterFormat, so the population was filtered by the thing under test. Fixed in
+  v0.3.1107, gated by `services/api/test_spec_system.py`, which measures the corpus rather than
+  quoting it.
+
+  ✅ **KEYNOTE → SPEC SECTION — landed in v0.3.1108**, and with it the entry's last named item.
+  *(lowercase "landed" deliberately, as in items 1, 2 and 3 and for the same reason.)* A keynote
+  prefixes the classification code governing the assembly it points at — `04 22 00  200mm MASONRY
+  WALL`. What made it reachable was an identity already present and being discarded:
+  `section_drawing_svg` cut with `cut_baked_classed`, which keeps the class and drops the GlobalId,
+  so the frame building keynotes had nothing to look a classification up by. `cut_baked_guided` has
+  carried `(guid, class, polyline)` since R38-PLAN-IDENTITY and the section path now uses it — which
+  also closes an accounting gap, since the guided cut logs meshes that fail to section where the
+  classed one dropped them silently. **A group cites only when every member agrees**, an unclassified
+  member counting as disagreement: the keynote partition (class + material + thickness) is not the
+  spec partition, and a citation covering only some of the elements a leader points at is a false
+  statement on a construction document. `services/api/test_keynote_spec.py`.
+
+  **Everything this entry named is now shipped**, and the one carried-over limitation with it: the
+  pre-GUID markup backfill landed in v0.3.1110 as
+  `POST /projects/{pid}/drawings/markups/rekey-storeys` — dry-run by default, idempotent, and
+  refusing to resolve a duplicated storey name rather than guessing which level a pin belonged to.
+  `services/api/test_markup_rekey.py`.
+
+  ✅ **THE LIVE DOM VERIFICATION IS DONE — v0.3.1111, and it found a broken non-negotiable.** This
+  entry flagged "not verified live" from slice 4 onward, honestly, on the grounds that
+  `createViewerApp` needs a WebGL context and a Fragments worker. A headless Chromium has both:
+  **WebGL 2.0 reports `OpenGL ES 3.0 Chromium`**, all three tabs render (`model` selected, `sheets`
+  and `specs` beside it), clicking Sheets with no project open answers *"open a project first — a
+  sheet is cut from its model"* and leaves Model selected. The unit tests were right about every one
+  of those, which is the boring half.
+
+  The interesting half is what unit tests could not see. The same run failed at
+  `Failed to fetch dynamically imported module .../viewer/app.ts`, because
+  `three/examples/jsm/loaders/TTFLoader.js` **statically imports opentype.js from jsdelivr** and
+  Rolldown emitted the URL verbatim as line 1 of the `three-*.js` chunk — reached through
+  `@thatopen/components-front`, for a font loader this app never constructs. Offline, that chunk
+  never evaluates and **the viewer does not mount at all, with nothing on screen to say why**:
+  against *the viewer must run fully offline*, the fourth non-negotiable. `apps/web/src/shims/TTFLoader.ts`
+  is the local stand-in, and `apps/web/scripts/check-offline.mjs` greps the built bundle in CI so an
+  alias that stops matching after a dependency bump fails loudly instead of building clean.
+
+  **The lesson is about the shape of the gap, not about fonts.** Everything this entry built was
+  covered by tests that passed, and the thing that made all of it unreachable was in no test's
+  population — it entered through a transitive dependency, survived the bundler, and only exists in
+  the artefact that gets deployed. *A suite over the source cannot see a defect that is created by
+  the build.* That is why the new check reads `dist/` and refuses to pass on a directory too small
+  to be one.
+  *(The sentence that stood here — "one residual limitation … a markup created before v0.3.1106 is
+  still name-keyed and still orphans on rename … it is a backfill, not a code change" — was true
+  when written and false three lines below a paragraph saying the backfill shipped. **The fourth time
+  this entry's prose contradicted its own status**, and the third caught by review rather than by me.
+  A status sentence is not a footnote: it has to be re-read whenever the thing it describes moves.)*
+  **Print paper picker (v0.3.993):**
+  Issue / Sheet PDF / Place and the paper-space editor share `drawings.py` `PAGES` — ARCH-C/D/B/A and
+  ISO A0–A4. Default is **ARCH-C (24×18 in)**; that is not an ISO A size. ARCH-D is full-size US
+  CDs (36×24), ARCH-B is half of D, ARCH-A is the next ARCH step (often called quarter of D).
+  Unknown `page` is 422, never a silent A1/A3. Omitting `page` on `compose()` is still A3 so old
+  links do not change paper. 11×17 is omitted on purpose (not half of 24×36). Live PDF still
+  needs a source IFC — the demo's "no model" cannot exercise the box.

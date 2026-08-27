@@ -1,4 +1,5 @@
 import { brotliCompressSync, gzipSync } from "node:zlib";
+import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { defineConfig, searchForWorkspaceRoot, type Plugin } from "vite";
@@ -122,7 +123,18 @@ return {
     dedupe: ["three"],
     // The vendored massingifc kernel imports its siblings by package name; `vendorAlias` is the one
     // definition of what those names mean (see vendorAlias.ts).
-    alias: { ...vendorAlias },
+    //
+    // TTFLoader is aliased to a local stub because three's own copy STATICALLY imports
+    // `https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/+esm`. Rolldown cannot bundle a URL specifier,
+    // so it was emitted verbatim at the top of the `three-*.js` chunk — and with no route to
+    // jsdelivr that chunk never evaluates and the viewer never mounts. `npm run offline` greps the
+    // built output for exactly this, because a config that is believed rather than checked is how
+    // the vendor split above silently stopped splitting. See apps/web/src/shims/TTFLoader.ts.
+    alias: {
+      ...vendorAlias,
+      "three/examples/jsm/loaders/TTFLoader.js": fileURLToPath(
+        new URL("./src/shims/TTFLoader.ts", import.meta.url)),
+    },
   },
   // web-ifc and the fragments worker ship their own WASM/worker assets; don't let
   // esbuild's dep pre-bundler rewrite them. `three` is excluded too: the @thatopen/*

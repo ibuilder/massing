@@ -924,8 +924,8 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   container.appendChild(specPane.el);
 
   // R36-VIEWER-SUBAPP ④ — the canvas is one surface at a time, not 3D with a strip attached.
-  // `specs` is deliberately NOT registered: the spec book is a modal, so a Specs tab would highlight
-  // and show nothing. `canvasMode.test.ts` fails if it is registered without a surface.
+  // All three modes are registered because all three have a surface. `canvasMode.test.ts` fails if one
+  // is registered without one — for `specs` it demands `new SpecPane(` AND the append, not a mention.
   const canvasTabs = document.createElement("div");
   canvasTabs.className = "canvas-tabs";
   canvasTabs.setAttribute("role", "tablist");
