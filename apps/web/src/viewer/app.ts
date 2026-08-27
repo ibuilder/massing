@@ -19,6 +19,7 @@ import { parseDynConstraint } from "./dynInput";
 import { mountCadBar } from "./cadBar";
 import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
+import { buildAnnotationSection } from "./tools/annotationSection";
 import { DeltaStore, deltaCommitter, deltaIndicator } from "./deltaCommit";
 import { buildDrawingsSection } from "./tools/drawingsSection";
 import { buildFabricationSection } from "./tools/fabricationSection";
@@ -1598,8 +1599,6 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   // PERF-4: the UX-2 guide-line cursor tracker lives at this (persistent) scope, so its single
   // container `pointermove` listener is installed ONCE — buildToolsPanel re-runs on every persona
   // switch, which previously stacked a new listener (and leaked its closure) on each rebuild.
-  let annotGuide: { grp: THREE.Group; line: THREE.Line } | null = null;
-  let guideWired = false;
 
   async function buildToolsPanel() {
     const panel = $("panel-tools");
@@ -2178,123 +2177,16 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
         + "for authoring the recipes can't express. Disabled unless the server sets AEC_ALLOW_IFC_CODE=1.";
 
 
-      // UX-2 — interactive annotation: place a 2D text note/tag/callout as an IfcAnnotation at the last point
-      const annotBtn = toolBtn2("🏷 Add note / annotation", async () => {
-        if (!lastPoint) { notify("click a point in the model first, then add the note", "error"); return; }
-        const text = await askText("Annotation", { label: "Note text:", value: "" });
-        if (!text || !text.trim()) return;
-        const kind = await askText("Annotation", { label: "Kind: note · tag · callout", value: "note" });
-        const k = (["note", "tag", "callout"].includes((kind || "").trim().toLowerCase()) ? kind!.trim().toLowerCase() : "note") as "note" | "tag" | "callout";
-        await withLoading(container, "placing annotation + republishing", async () => {
-          try {
-            await api.addAnnotation(projectId!, [lastPoint!.x, -lastPoint!.z], text.trim(), { kind: k, z: lastPoint!.y }, true);
-            const state = await waitForPublish(projectId!);
-            if (state === "done") { await loadProjectModel(); notify("annotation placed", "success"); }
-            else notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
-            await reloadModelPins();
-          } catch (e) { notify(`annotate failed: ${(e as Error).message}`, "error"); }
-        });
+      // R39-DECOMP-VIEWER ⑭ — interactive annotation moved to `tools/annotationSection.ts`.
+      // `lastPoint` and `selectedGuid` cross as ACCESSORS: both are `let` here and change with
+      // every click in the 3D view, so a value copy would freeze them at panel-build time and all
+      // four tools would refuse forever behind a polite message. `annotGuide` / `guideWired` went
+      // WITH the cluster — every use of both was already inside it; only the declarations were out.
+      const { annotBtn, dimBtn, cloudBtn, tagBtn } = buildAnnotationSection({
+        toolBtn2, api, projectId, container, notify, viewer, screenToGround,
+        reloadModelPins, loadProjectModel: () => loadProjectModel(), waitForPublish,
+        lastPoint: () => lastPoint, selectedGuid: () => selectedGuid,
       });
-      annotBtn.title = "Place a 2D text note / tag / callout as an IfcAnnotation at the last-clicked point — "
-        + "round-trips as real IFC and feeds the drawing generator.";
-
-      // UX-2 — live guide line: a dashed rubber line + anchor dot from a pending first point to the
-      // cursor while a two-click annotation flow (dimension / revision cloud) waits for its second
-      // click — the drafter sees exactly what's being measured before committing.
-      const setGuideAnchor = (from: THREE.Vector3 | null) => {
-        if (annotGuide) {
-          viewer.world.scene.three.remove(annotGuide.grp);
-          annotGuide.grp.traverse((o) => {
-            const m = o as THREE.Mesh;
-            if (m.geometry) m.geometry.dispose();
-            if (m.material) (m.material as THREE.Material).dispose();
-          });
-          annotGuide = null;
-        }
-        if (!from) return;
-        const grp = new THREE.Group(); grp.name = "annot-guide";
-        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 10),
-          new THREE.MeshBasicMaterial({ color: 0xffd479, depthTest: false }));
-        dot.position.copy(from);
-        const geo = new THREE.BufferGeometry().setFromPoints([from.clone(), from.clone()]);
-        const line = new THREE.Line(geo, new THREE.LineDashedMaterial({
-          color: 0xffd479, dashSize: 0.4, gapSize: 0.25, depthTest: false }));
-        line.computeLineDistances();
-        grp.add(dot, line);
-        viewer.world.scene.three.add(grp);
-        annotGuide = { grp, line };
-      };
-      if (!guideWired) {                    // install the cursor tracker exactly once (see PERF-4 note)
-        guideWired = true;
-        container.addEventListener("pointermove", (e) => {
-          if (!annotGuide) return;
-          const p = screenToGround(e);
-          if (!p) return;
-          const pos = annotGuide.line.geometry.attributes.position as THREE.BufferAttribute;
-          pos.setXYZ(1, p.x, p.y, p.z); pos.needsUpdate = true;
-          annotGuide.line.computeLineDistances();
-        });
-      }
-
-      // UX-2 — dimension: two-click flow (pick first point, then second → measured dimension annotation)
-      let dimFrom: THREE.Vector3 | null = null;
-      const dimBtn = toolBtn2("📐 Dimension (2 points)", async () => {
-        if (!lastPoint) { notify("click a point in the model first", "error"); return; }
-        if (!dimFrom) { dimFrom = lastPoint.clone(); setGuideAnchor(dimFrom); notify("first point set — click the second point, then press Dimension again", "info"); return; }
-        const a: [number, number] = [dimFrom.x, -dimFrom.z], b: [number, number] = [lastPoint.x, -lastPoint.z];
-        dimFrom = null; setGuideAnchor(null);
-        await withLoading(container, "placing dimension + republishing", async () => {
-          try {
-            const r = await api.addDimension(projectId!, a, b, { z: lastPoint!.y }, true);
-            const state = await waitForPublish(projectId!);
-            if (state === "done") { await loadProjectModel(); notify(`dimension ${(r as { distance_m?: number }).distance_m ?? ""} m placed`, "success"); }
-            else notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
-            await reloadModelPins();
-          } catch (e) { notify(`dimension failed: ${(e as Error).message}`, "error"); }
-        });
-      });
-      dimBtn.title = "Measure + annotate a dimension between two clicked points — a dimension line + the "
-        + "distance label as an IfcAnnotation. Press once to set the first point, again for the second.";
-
-      // UX-2 — revision cloud: two-corner flow (pick one corner, then the opposite → scalloped cloud + rev tag)
-      let cloudFrom: THREE.Vector3 | null = null;
-      const cloudBtn = toolBtn2("☁ Revision cloud (2 corners)", async () => {
-        if (!lastPoint) { notify("click a corner of the region in the model first", "error"); return; }
-        if (!cloudFrom) { cloudFrom = lastPoint.clone(); setGuideAnchor(cloudFrom); notify("first corner set — click the opposite corner, then press Revision cloud again", "info"); return; }
-        const a: [number, number] = [cloudFrom.x, -cloudFrom.z], b: [number, number] = [lastPoint.x, -lastPoint.z];
-        cloudFrom = null; setGuideAnchor(null);
-        const tag = (prompt("Revision tag (e.g. a delta number) — leave blank for none:", "") || "").trim();
-        await withLoading(container, "placing revision cloud + republishing", async () => {
-          try {
-            await api.addRevisionCloud(projectId!, [a, b], { tag: tag || undefined, z: lastPoint!.y }, true);
-            const state = await waitForPublish(projectId!);
-            if (state === "done") { await loadProjectModel(); notify("revision cloud placed", "success"); }
-            else notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
-            await reloadModelPins();
-          } catch (e) { notify(`revision cloud failed: ${(e as Error).message}`, "error"); }
-        });
-      });
-      cloudBtn.title = "Draw a revision cloud around a region as an IfcAnnotation (a scalloped outline + an "
-        + "optional revision tag). Press once for the first corner, again for the opposite corner. Renders on the plan.";
-
-      // UX-2 — element-aware tag: label auto-read from the SELECTED element (its Name / mark / type)
-      const tagBtn = toolBtn2("🏷 Tag selected element", async () => {
-        const host = selectedGuid;
-        if (!host) { notify("select an element first, then tag it", "error"); return; }
-        const override = (prompt("Tag label — leave blank to auto-read the element's name/mark/type:", "") || "").trim();
-        await withLoading(container, "placing tag + republishing", async () => {
-          try {
-            const r = await api.addTag(projectId!, host, override ? { text: override } : {}, true);
-            const state = await waitForPublish(projectId!);
-            if (state === "done") { await loadProjectModel(); notify(`tagged "${(r as { label?: string }).label ?? ""}"`, "success"); }
-            else notify(`placed — publish ${state}`, state === "error" ? "error" : "info");
-            await reloadModelPins();
-          } catch (e) { notify(`tag failed: ${(e as Error).message}`, "error"); }
-        });
-      });
-      tagBtn.title = "Tag the selected element with an IfcAnnotation whose label is auto-read from the element "
-        + "(its Name, Pset mark, or type) and assigned to it — so the tag tracks the element. Renders on the plan.";
-
       // CONTENT-1 — site content library: place logistics / furniture / landscaping, each classified into
       // the right IFC class + phase (logistics = temporary, time-phases on the 4D slider).
       // UX-3: one unified, searchable Library palette — content parts (CONTENT-1) + family types (W10-1)
