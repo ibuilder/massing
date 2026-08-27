@@ -197,6 +197,79 @@ try:
 finally:
     db.close()
 
+# ---------------------------------------------------------------------------------------------
+# THE SECOND SEEDED ROW, which the User fix did not cover.
+#
+# The massing.cloud callback calls `get_or_create_sso_user` for its `User` and then, FOUR LINES
+# LATER, seeded a `CloudIdentity` with the same unguarded read-decide-insert. `CloudIdentity`s
+# `username` is also a PRIMARY KEY, so two concurrent FIRST cloud sign-ins both read None, both
+# INSERT, and the loser still got a 500 on a legitimate login - one row after the row that had just
+# been made safe. One request, one function, the rule applied to one of its two seeded rows.
+#
+# This asserts the generic helper on a SECOND model, which is the whole point of extracting it: the
+# protection is a property of the idiom now, not of the `User` table.
+from aec_api.models import CloudIdentity  # noqa: E402
+
+CLOUD_USER = "cloud-link-race@example.com"
+db = SessionLocal()
+try:
+    # The account must exist first: `cloud_identities.username` is an FK into `users`.
+    db.add(User(username=CLOUD_USER, password_hash="cloud!massing", role="user", email=CLOUD_USER))
+    db.commit()
+
+    # A competitor links the identity on its own connection, and commits.
+    other = SessionLocal()
+    try:
+        other.add(CloudIdentity(username=CLOUD_USER, cloud_sub="winner-sub"))
+        other.commit()
+    finally:
+        other.close()
+
+    # ...and this session's first lookup still answers None, exactly as it would have before the
+    # competitor committed. Only that one answer is faked; the INSERT after it is real.
+    _real = db.get
+    seen = {"n": 0}
+
+    def _racing_get(entity, ident, *a, _r=_real, _s=seen, **kw):
+        if entity is CloudIdentity and ident == CLOUD_USER:
+            _s["n"] += 1
+            if _s["n"] == 1:
+                return None
+        return _r(entity, ident, *a, **kw)
+
+    db.get = _racing_get  # type: ignore[method-assign]
+    raised_link = None
+    link = None
+    made = None
+    try:
+        link, made = auth.get_or_create_by_pk(
+            db, CloudIdentity, CLOUD_USER,
+            lambda: CloudIdentity(username=CLOUD_USER, cloud_sub="loser-sub"))
+    except Exception as e:  # noqa: BLE001 - nothing may escape
+        raised_link = e
+    finally:
+        db.get = _real  # type: ignore[method-assign]
+
+    check("[cloud-link] losing the CloudIdentity seeding race does not raise", raised_link is None,
+          "" if raised_link is None else f"{type(raised_link).__name__}: {raised_link}")
+    check("[cloud-link] the caller is handed the WINNER's link, not its own",
+          link is not None and link.cloud_sub == "winner-sub",
+          f"cloud_sub={getattr(link, 'cloud_sub', None)!r}")
+    check("[cloud-link] ...and reports created=False", made is False, f"created={made}")
+    check("[cloud-link] the faked lookup was used exactly once - the collision after it is real",
+          seen["n"] >= 2, f"Session.get called {seen['n']}x")
+
+    commit_err = None
+    try:
+        db.commit()
+    except Exception as e:  # noqa: BLE001
+        commit_err = e
+    check("[cloud-link] the session survives, so the sign-in audit row still commits",
+          commit_err is None,
+          "" if commit_err is None else f"{type(commit_err).__name__}: {commit_err}")
+finally:
+    db.close()
+
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)

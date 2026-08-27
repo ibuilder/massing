@@ -216,7 +216,9 @@ with TestClient(app) as c:
     # to the second sign-in; and `disconnect` demoted them on the way out. `/auth/cloud/refresh`
     # had it too. All four are asserted below, in BOTH directions — asserting only "never demotes"
     # would pass on a build with role sync switched off entirely, which is the refusal-test trap.
-    from aec_api.db import SessionLocal             # noqa: E402
+    from sqlalchemy.orm import Session as _Session  # noqa: E402
+
+    from aec_api.db import SessionLocal  # noqa: E402
     from aec_api.models import CloudIdentity, User  # noqa: E402
 
     def role_of(name):
@@ -307,6 +309,64 @@ with TestClient(app) as c:
         assert role_of("someone@acme.com") == "user"
     finally:
         os.environ.pop("AEC_OAUTH_ALLOWED_DOMAINS", None)
+
+    # ── the CloudIdentity seeding race: the SECOND row this callback creates ─────────────────
+    # The callback calls `get_or_create_sso_user` for its `User` and then seeded a `CloudIdentity`
+    # four lines later with a bare read-decide-insert. `cloud_identities.username` is a PRIMARY KEY,
+    # so two concurrent FIRST cloud sign-ins both read None, both INSERT, and the loser gets a 500
+    # on a legitimate login — one row after the row that had just been made safe.
+    #
+    # This is a ROUTE-level test on purpose. An earlier version asserted the helper directly and
+    # PASSED against a reverted `cloud.py`: it proved the helper works, not that the callback calls
+    # it. A gate that reads the declaration rather than the use is not a gate.
+    RACER = "racer@example.com"
+    with SessionLocal() as s:
+        s.add(User(username=RACER, password_hash="cloud!massing", role="user", active=True))
+        s.commit()
+        # A competitor already linked this account under a DIFFERENT broker subject, so the
+        # callback's lookup-BY-SUB finds nothing and it takes the seeding branch — the same state
+        # two racing first sign-ins reach.
+        s.add(CloudIdentity(username=RACER, cloud_sub="other-sub"))
+        s.commit()
+
+    cloud.fetch_userinfo = lambda token: {
+        "sub": "9500", "name": "Racer", "email": RACER,
+        "tier": "commercial", "providers": [], "roles": []}
+
+    _real_get, _seen = _Session.get, {"n": 0}
+
+    def _racing_get(self, entity, ident, *a, _r=_real_get, **kw):
+        """Only the callback's FIRST CloudIdentity lookup is faked; the INSERT after it is real."""
+        if entity is CloudIdentity and ident == RACER:
+            _seen["n"] += 1
+            if _seen["n"] == 1:
+                return None
+        return _r(self, entity, ident, *a, **kw)
+
+    c.cookies.clear()
+    lg = c.get("/auth/cloud/login", follow_redirects=False)
+    st_r = urllib.parse.parse_qs(urllib.parse.urlparse(lg.headers["location"]).query)["state"][0]
+    _Session.get = _racing_get
+    rr, race_exc = None, None
+    try:
+        # TestClient re-raises server exceptions, so against the UNFIXED callback this throws
+        # IntegrityError rather than returning 500. Catching it keeps the mutation run legible.
+        rr = c.get("/auth/cloud/callback", params={"code": "race1", "state": st_r},
+                   follow_redirects=False)
+    except Exception as e:   # noqa: BLE001 - nothing may escape the callback
+        race_exc = e
+    finally:
+        _Session.get = _real_get
+
+    assert race_exc is None, (
+        "losing the CloudIdentity seeding race must not escape the callback - "
+        f"{type(race_exc).__name__}: {str(race_exc)[:160]}")
+    assert rr is not None and rr.status_code == 303, (
+        f"a legitimate login that lost the link race must still sign in - got {rr.status_code}")
+    assert _seen["n"] >= 2, f"the faked lookup was not exercised ({_seen['n']}x) - test is vacuous"
+    with SessionLocal() as s:
+        won = s.get(CloudIdentity, RACER)
+        assert won is not None, "the link row must survive the race"
 
     # ── the feature is off by default: no flag ⇒ the routes are not there at all ─────────────
     settings_store._cache["MASSING_CLOUD_SSO_ENABLED"] = "0"

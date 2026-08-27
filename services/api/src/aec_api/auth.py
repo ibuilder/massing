@@ -351,24 +351,45 @@ def get_or_create_sso_user(db, username: str, make_user):
     the password-hash sentinel is per-provider, SAML sets `provisioned=True`, and the cloud door
     computes `role` and `tier` from the broker's claims.
     """
-    from sqlalchemy.exc import IntegrityError
-
     from .models import User
 
-    u = db.get(User, username)
-    if u is not None:
-        return u, False
+    return get_or_create_by_pk(db, User, username, make_user)
+
+
+def get_or_create_by_pk(db, model, pk, make_row):
+    """Find-or-create `model` by primary key, surviving a lost seeding race. Returns ``(row, created)``.
+
+    **The idiom, in one place, because this codebase keeps finding it applied to SOME of the sites.**
+    `get_or_create_sso_user` was written to stop three sign-in doors re-deriving it — and then the
+    massing.cloud callback, having called that helper for its `User`, seeded a `CloudIdentity` four
+    lines later with the same unguarded read-decide-insert. Same function, same request, same race,
+    one row apart. Extracting it is the only version of the fix that a fifth caller cannot get wrong.
+
+    **Seeding is the one moment no row-level mechanism can protect, because there is no row yet.**
+    INSERT inside a SAVEPOINT so the refusal stays local, then re-read and use the winner's row. The
+    caller's other staged rows - the audit entry every sign-in door writes - survive, which they do
+    not if the IntegrityError reaches the outer transaction and poisons the session.
+
+    `make_row` is a callable rather than a field dict because callers genuinely differ: the
+    password-hash sentinel is per-provider, SAML sets `provisioned=True`, and the cloud door
+    computes `role` and `tier` from the broker's claims.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    row = db.get(model, pk)
+    if row is not None:
+        return row, False
     try:
         with db.begin_nested():
-            u = make_user()
-            db.add(u)
+            row = make_row()
+            db.add(row)
             db.flush()
-        return u, True
+        return row, True
     except IntegrityError:
         # Another writer created it between our read and our insert. The refusal is the database
         # working; the bug was ever treating it as a crash. The savepoint kept it local, so the
         # session is still usable and the caller's other staged rows (the audit entry) survive.
-        u = db.get(User, username)
-        if u is None:                       # pragma: no cover - not a seeding collision after all
+        row = db.get(model, pk)
+        if row is None:                     # pragma: no cover - not a seeding collision after all
             raise
-        return u, False
+        return row, False
