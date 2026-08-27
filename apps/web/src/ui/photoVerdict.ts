@@ -8,6 +8,9 @@
  *   - **change**  — a screening signal only. `near_identical` is a strong claim; a high
  *                   `change_score` is not, because a camera move scores higher than most real change.
  *   - **detected** — object counts, present only where a model is configured.
+ *   - **duplicate** — this shot is already filed against another element. A fact, not a verdict: two
+ *                   elements can legitimately share a frame, and only the person can tell that from a
+ *                   checklist cleared with one photo.
  *
  * The server is careful to state its own confidence; this is where that care survives into the UI or
  * gets thrown away. The rule followed here: **never render a number without the qualifier the server
@@ -42,6 +45,14 @@ export interface PhotoUploadResult {
     reasons?: string[];
     summary?: { people?: number; vehicles?: number; total?: number };
   } | null;
+  /** R37-TESTED-UNWIRED. `guid` is the element already holding this shot, or null for none found.
+   *  `compared_against` is how many of the project's photos were actually fingerprinted — see the
+   *  note in `photoVerdict` on why a null `guid` produces no line at all. */
+  duplicate?: {
+    guid?: string | null;
+    compared_against?: number;
+    note?: string;
+  } | null;
 }
 
 export type VerdictTone = "ok" | "warn" | "info";
@@ -75,6 +86,24 @@ export function photoVerdict(r: PhotoUploadResult): VerdictLine[] {
     out.push({ tone: "warn", actionable: true, text: `Retake if you can — ${why || "photo is unusable"}` });
   } else if (q && q.usable === true) {
     out.push({ tone: "ok", text: "Photo looks usable" });
+  }
+
+  // Second, because it is the other line worth showing while the person is still standing in front of
+  // the thing they photographed: if the wrong photo went to the wrong element, now is when it is
+  // cheap to fix. It outranks `detected` and `change`, which are both interesting-but-idle.
+  //
+  // **Worded as a fact, not an accusation.** The server's own note says two elements can legitimately
+  // share a frame; the app cannot tell that from a checklist cleared with one shot, and a line that
+  // presumed the second would be wrong often and resented always.
+  //
+  // **Nothing is rendered when no duplicate is found**, deliberately, and that is this file's own
+  // qualifier rule rather than an omission. A clean result is only as good as `compared_against` —
+  // photos predating the fingerprint column are not in the set — so "no duplicate" is a claim this
+  // response often cannot support. Saying nothing makes no claim; saying "no duplicates" would.
+  const dup = r.duplicate;
+  if (dup?.guid) {
+    out.push({ tone: "warn", actionable: true,
+               text: `Already filed against ${dup.guid} — check this is the right element` });
   }
 
   const d = r.detected;

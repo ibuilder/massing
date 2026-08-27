@@ -139,6 +139,31 @@ def _worker_count() -> int:
         return 1
 
 
+def _writer_processes() -> tuple[int, str]:
+    """How many processes write this deployment's sidecar indexes, and in words why.
+
+    Two independent routes to more than one, which is the whole point of computing it in one place:
+    `UVICORN_WORKERS`, and `AEC_JOB_WORKER=off` moving the job worker into its own container. The
+    boot guard asked only about the first for a release and a half after JOB-WORKER-SPLIT invented
+    the second, so a deployment with one uvicorn worker and a dedicated worker sailed through it.
+
+    Extracted so `_production_guard` (which refuses) and `/metrics` (which reports) count writers the
+    same way. They answer different questions about the same condition and must not drift: the guard
+    is only consulted at boot and only on a production deployment, so the deployments it deliberately
+    lets past are precisely the ones with nothing but the gauge to say so.
+
+    Both inputs are read at boot and cannot change under a running process, so this is a constant for
+    the lifetime of the process — reported per scrape anyway, because the alternative is an operator
+    inferring it from a restart they may not have performed.
+    """
+    from . import jobs
+    n = _worker_count()
+    if jobs.worker_enabled():
+        return n, f"{n} uvicorn worker(s)"
+    return n + 1, (f"{n} uvicorn worker(s) plus a dedicated job-worker process "
+                   f"({jobs.WORKER_ENV}=off)")
+
+
 def _rate_limit_is_per_worker() -> bool:
     """True when a rate limit is configured but each of several workers counts it separately.
 
@@ -239,11 +264,32 @@ def _production_guard() -> None:
         # first writer's entry. That is a real deployment constraint, so it fails at boot rather than
         # living in a docstring — the same reasoning as the per-worker rate limit above.
         #
-        # The dialect comes from DATABASE_URL, not `pid_lock.cross_process_status()`: at boot they
-        # name the same database (db.py builds the engine from this exact var), but the status call
-        # opens a live session, so a transient connection blip would return "" and refuse to boot a
-        # perfectly configured Postgres deployment. The env var cannot blip. The live-truth surface
-        # stays `cross_process_status()` on /health, where a blip reads as degraded, not fatal.
+        # **The dialect comes from DATABASE_URL, and the reason this comment used to give for that
+        # was false.** It said the status call "opens a live session, so a transient connection blip
+        # would return '' and refuse to boot a perfectly configured Postgres deployment", and that
+        # the live-truth surface "stays `cross_process_status()` on /health". Both halves were wrong.
+        # It does not connect — `SessionLocal()` is lazy, `db.get_bind()` returns the engine, and the
+        # dialect is parsed from the URL string, so it answers "postgresql" for a DSN pointing at an
+        # unroutable address (pinned in `test_pid_lock_surface.py`). And nothing was ever added to
+        # /health, which is dependency-free on purpose and was never going to be the home.
+        #
+        # **The true reason is testability, and it was written down in the OTHER file.** The engine is
+        # built once, at import, from whatever DATABASE_URL said then — under the test runner that is
+        # SQLite whatever a fixture's env claims. `test_perf_rate.py` records that an earlier
+        # engine-probing version of this branch "shipped a guard no fixture could ever satisfy", and
+        # switching this to the status call broke `test_a_correctly_configured_production_still_starts`
+        # inside one run. At boot the two name the same database, so nothing is lost by reading the
+        # env var — what had been lost was the *record* of why.
+        #
+        # They are also not quite the same question, which is why both now exist: this asks whether
+        # the database this deployment is CONFIGURED for can serialise; `cross_process_status()` asks
+        # whether the engine this process is actually USING can. `/metrics` exports the second as
+        # `aec_pid_lock_cross_process` beside `aec_pid_lock_writers` — the runtime answer, for the
+        # deployments this guard never sees (SQLite without AEC_ENV, or anything under
+        # AEC_ALLOW_OPEN=1).
+        #
+        # *A stated reason that is false is worse than no comment at all*: the real constraint was
+        # standing behind it unrecorded, and it cost a broken test to find.
         #
         # **The population, not just the count.** This asked `_worker_count() > 1` — one route to
         # having two writer processes. JOB-WORKER-SPLIT (v0.3.869) added a second, independent one:
@@ -256,11 +302,7 @@ def _production_guard() -> None:
         # the thing it forbids. That is the failure mode to watch for in any check that enumerates
         # causes rather than measuring the condition: it cannot know about a cause invented later.
         from . import jobs
-        writers, why = _worker_count(), f"{_worker_count()} uvicorn workers"
-        if not jobs.worker_enabled():
-            writers += 1
-            why = (f"{_worker_count()} uvicorn worker(s) plus a dedicated job-worker process "
-                   f"({jobs.WORKER_ENV}=off)")
+        writers, why = _writer_processes()
         if writers > 1:
             dialect = db_url.split("://", 1)[0].split("+", 1)[0] if "://" in db_url else "sqlite"
             if dialect != "postgresql":
@@ -839,7 +881,7 @@ def prometheus_metrics(_: None = Depends(_guard_metrics)) -> Response:
     perfectly fine. On failure the queue block reports `aec_jobs_stats_ok 0` and omits the rest —
     that is why the ok-gauge exists, so "could not measure" never renders as "nothing queued".
     """
-    from . import jobs
+    from . import jobs, pid_lock
     body = metrics.render()
     stats = None
     try:
@@ -848,6 +890,12 @@ def prometheus_metrics(_: None = Depends(_guard_metrics)) -> Response:
     except Exception:                                  # noqa: BLE001 — never fail a scrape on this
         logging.getLogger("aec").warning("metrics: could not read the job queue", exc_info=True)
     body += "\n".join(metrics.render_queue(stats, jobs.worker_enabled())) + "\n"
+    # R37-TESTED-UNWIRED — the sidecar write lock's real serialisation. Unwrapped, unlike the queue
+    # read above, because `cross_process_status()` never connects: it reads the dialect off the
+    # engine, which parses it from DATABASE_URL. It also swallows its own exceptions and degrades to
+    # dialect "unknown". Wrapping it here would suggest a failure mode it does not have.
+    body += "\n".join(metrics.render_pid_lock(pid_lock.cross_process_status(),
+                                              _writer_processes()[0])) + "\n"
     return Response(body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 

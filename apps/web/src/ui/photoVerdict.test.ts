@@ -97,6 +97,47 @@ describe("photo upload verdict", () => {
     expect(photoVerdictSummary({})).toBe("");
   });
 
+  it("names the element a duplicate shot is already filed against", () => {
+    const lines = photoVerdict({
+      quality: { analysed: true, usable: true },
+      duplicate: { guid: "1Ab$cDeFgHiJkLmNoPqRsT", compared_against: 12 },
+    });
+    const dup = lines.find((l) => /Already filed/.test(l.text));
+    expect(dup?.text).toContain("1Ab$cDeFgHiJkLmNoPqRsT");
+    expect(dup?.actionable).toBe(true);
+    expect(dup?.tone).toBe("warn");
+  });
+
+  it("says NOTHING when no duplicate was found, however many photos were compared", () => {
+    // The whole point. `compared_against` counts only photos fingerprinted since v0.3.1115 — the
+    // column is not backfilled — so "no duplicate" is a claim this response frequently cannot
+    // support. Saying nothing makes no claim; a reassuring "no duplicates" line would make one that
+    // is false on every project with older photos.
+    for (const compared_against of [0, 300]) {
+      const lines = photoVerdict({
+        quality: { analysed: true, usable: true },
+        duplicate: { guid: null, compared_against },
+      });
+      expect(lines.some((l) => /duplicate|Already filed/i.test(l.text))).toBe(false);
+    }
+  });
+
+  it("a duplicate outranks the idle statistics but not a retake prompt", () => {
+    // Order is this file's design: what the person can still act on, while they can still act on it.
+    // A retake is the one thing that stops being possible the moment they walk away.
+    const lines = photoVerdict({
+      quality: { analysed: true, usable: false, reasons: ["out of focus"] },
+      duplicate: { guid: "2Bc$dEfGhIjKlMnOpQrStU", compared_against: 4 },
+      change: { change_score: 0.6 },
+      detected: { available: true, ran: true, summary: { people: 2, vehicles: 0, total: 2 } },
+    });
+    const at = (re: RegExp) => lines.findIndex((l) => re.test(l.text));
+    expect(at(/Retake/)).toBe(0);
+    expect(at(/Already filed/)).toBe(1);
+    expect(at(/Already filed/)).toBeLessThan(at(/In frame/));
+    expect(at(/Already filed/)).toBeLessThan(at(/Differs from/));
+  });
+
   it("the summary line is the most actionable one, not merely the first field present", () => {
     const s = photoVerdictSummary({
       quality: { analysed: true, usable: false, reasons: ["blown out — shot into a light source"] },

@@ -685,6 +685,13 @@ class ElementVerification(Base):
     status: Mapped[str] = mapped_column(String, default="installed", index=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     photo_key: Mapped[str | None] = mapped_column(String, nullable=True)  # storage key for a field photo
+    #: 64-bit dHash of `photo_key`'s image, as 16 hex chars — R37-TESTED-UNWIRED, so
+    #: `photo_cv.duplicate_of` can see one photo submitted against many elements without re-reading
+    #: every stored photo on every upload. Hex, not an integer column: the hash is UNSIGNED 64-bit
+    #: and would overflow a signed BIGINT on Postgres for half its range. NULL means "not hashed" —
+    #: a row written before this column, or a photo no codec here could decode (iPhone HEIC) — and
+    #: is deliberately distinct from "hashed and unlike anything else".
+    photo_phash: Mapped[str | None] = mapped_column(String, nullable=True)
     verified_by: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     modified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

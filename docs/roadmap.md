@@ -2276,23 +2276,100 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   **ALL 20 READ, 2026-08-27.** The population re-derived first (still 20), then each one opened
   along with what its own router actually calls. The split is not the one the list shape suggests:
 
-  **▶ WIRE — a real capability nothing can reach (5).** These are `beside` again.
-  * `pid_lock.cross_process_status` — **the sharpest.** `main.py`'s boot guard explains at length why
-    it reads the dialect from `DATABASE_URL` instead of this function, and ends *"the live-truth
-    surface stays `cross_process_status()` on /health"*. `/health` returns `{"status": "ok"}` with no
-    dependencies, deliberately. **The comment asserts a surface that was never built**, and the fact
-    it exists to publish — *this deployment cannot serialise sidecar writes across workers* — is
-    readable by nobody. (Where it goes is a small call: `/health` is dependency-free on purpose, so
-    `/ready`, which already touches the DB, may be the honest home.)
-  * `photo_cv.duplicate_of` — `routers/verification.py` runs `photo_quality` and `compare_photos` on
-    upload and not this. The abuse its docstring names — *one photo uploaded against thirty elements
-    to clear a checklist* — is unguarded on the only path where it can happen.
+  **▶ WIRE — a real capability nothing can reach (4; 2 shipped — the fifth was a misclassification, below).** These are `beside` again.
+  * ✅ `pid_lock.cross_process_status` — **the sharpest, and shipped v0.3.1115.** `main.py`'s boot
+    guard explained at length why it read the dialect from `DATABASE_URL` instead of this function,
+    and ended *"the live-truth surface stays `cross_process_status()` on /health"*. `/health` returns
+    `{"status": "ok"}` with no dependencies, deliberately. **The comment asserted a surface that was
+    never built**, and the fact it exists to publish — *this deployment cannot serialise sidecar
+    writes across workers* — was readable by nobody.
+
+    **The guard's stated reason was also false — and acting on that broke a test, which is the part
+    worth keeping.** It said the status call "opens a live session, so a transient connection blip
+    would return `''`". It does not connect: `SessionLocal()` is lazy and `db.get_bind()` returns the
+    engine, whose dialect is parsed from the URL string; it answers `postgresql` for a DSN pointing at
+    an unroutable address, now pinned by `services/api/test_pid_lock_surface.py`. So the duplicate
+    derivation looked like dead weight and the guard was switched to call the status.
+
+    **The next full run failed `services/api/test_perf_rate.py`**, whose own comment carried the real
+    reason: the engine is built once, at import, so under any test runner it is SQLite whatever a
+    fixture's env claims — and an earlier engine-probing version of that branch had "shipped a guard
+    no fixture could ever satisfy". The guard reads the env var again; the comment above it now says
+    *why* instead of saying something false; and both directions are pinned, because the next reader
+    to notice the duplication will have exactly the same idea.
+
+    They are not the same question, which is what makes two sources tolerable: the guard asks whether
+    the database this deployment is **configured** for can serialise, the status asks whether the
+    engine this process is **using** can. At boot they agree. *A stated reason that is false is worse
+    than no comment at all* — not because it misleads, but because the true constraint stands behind
+    it unrecorded, and the only thing that finds it is breaking what it was protecting.
+
+    **Not `/ready`, which this entry proposed.** A readiness probe answers 200/503, and "in-process
+    only" is a supported deployment shape, not a failed probe — and `/ready` runs under a hard
+    wall-clock timeout that a second lookup would sit outside. It went to `/metrics` as
+    `aec_pid_lock_cross_process`, beside a new `aec_pid_lock_writers`, because **the dangerous
+    condition is a conjunction** and neither number is the alarm alone. That also answers *which*
+    deployments needed telling: the guard refuses on exactly this conjunction, but it runs only when
+    the DB is non-SQLite or `AEC_ENV` says production, and is skipped outright under
+    `AEC_ALLOW_OPEN=1`. A self-hosted SQLite deployment with two uvicorn workers boots clean and is
+    exposed. The writer count comes from one extracted `_writer_processes()`, so a refusal at boot and
+    a scrape at runtime cannot disagree about how many writers there are.
+  * ✅ `photo_cv.duplicate_of` — **shipped v0.3.1115.** `routers/verification.py` ran `photo_quality`
+    and `compare_photos` on upload and not this, so the abuse its docstring names — *one photo
+    uploaded against thirty elements to clear a checklist* — was unguarded on the only path where it
+    can happen. The upload now compares against `element_verifications.photo_phash`, a new nullable
+    column (migration `f7a3c82e19d4`), rather than re-reading every stored photo out of object
+    storage per upload.
+
+    **Flagged, never refused** — the same judgement the route already makes about a blurred frame.
+    Two elements can legitimately share a frame; the server cannot tell that from checklist-clearing
+    and a reviewer can, and a refusal would teach whoever wanted to defeat it to take one step left,
+    leaving no record at all. `photoVerdict` renders it second, behind only the retake prompt: both
+    are things that stop being cheap the moment the person walks away.
+
+    **`compared_against` ships with every answer and is the load-bearing field.** Photos predating
+    the column are not backfilled, so a clean result over nothing must not read as a clean result over
+    everything — `aec_jobs_stats_ok`'s reasoning, one ring over. The UI renders **no line at all** when
+    no duplicate is found, for the same reason: saying nothing makes no claim, and a reassuring "no
+    duplicates" would make one that is false on every project with older photos.
+
+    *One fixture lesson, from `services/api/test_photo_duplicate.py` failing its first run.* The
+    retake case was written against an element whose shot a second element also held — so the
+    duplicate it reported was correct, and the self-exclusion it was meant to test was invisible
+    underneath a legitimate match. **An exclusion can only be tested on an item that is otherwise
+    unique**; anywhere else the assertion is about the other match, and a broken exclusion looks
+    identical.
   * `takeoff_scope.scope_annotations` — R27-LAYOUT ③'s own named deliverable; `analysis.py` calls
     `scope` and `check_calibration` only.
   * `mep.block_cooling_load` — **not** a duplicate of the routed `size_cooling`: that converts a
     KNOWN load to tons, this estimates the load from GFA. The earlier question, and the unasked one.
-  * `test_fit.depth_range` — `test_fit_optimize` passes the caller's `body.depths` straight through
-    and defaults to `None`, so the client has to invent the sweep this function exists to generate.
+  * ⛔ `test_fit.depth_range` — **NOT a gap. This entry was wrong, and the way it was wrong is the
+    item's own lesson arriving one turn later.** It said *"`test_fit_optimize` passes the caller's
+    `body.depths` straight through and defaults to `None`, so the client has to invent the sweep this
+    function exists to generate."* The first clause is true and the conclusion does not follow:
+    `optimize` itself calls `depth_range` when `targets.sweep_depth` is set
+    (`services/api/src/aec_api/test_fit.py`), `apps/web/src/proforma/testfitTab.ts` sets that flag
+    from a checkbox, and `routers/generate.py` routes it. **It is reachable end to end from the
+    product UI**, which makes the WIRE list four, not five.
+
+    **Why the measurement flagged it: `src/aec_api/test_fit.py` is a PRODUCTION module.** A *test
+    fit* is the architectural exercise of fitting a program onto a plate; the file is imported twice
+    by `routers/generate.py`. The R37 population rule sorted files into "test tree" by the `test_*.py`
+    filename convention, so a production module got counted as a test, and the production call inside
+    it read as a test-tree reference. `depth_range`'s only other reference is a genuine test, so it
+    came back "test-only" — correctly, by a rule that had misclassified the file.
+
+    This is the *third* recording of one lesson in this entry, and the first where the rule was mine:
+    R37-TRIAGE's twelve, the exemption-vs-test mistake below, and now this. *A population rule that
+    looks reasonable is wrong until you read what it selected* — and reading is not enough either,
+    because the first read of this one produced a confident sentence about `body.depths` that was
+    about the route and never checked the engine. **Derive the population AND verify each member
+    against the thing itself**, which here was one grep for the function's own name.
+
+    Note the gate `services/api/test_dead_code_population.py` was never fooled: it counts same-file
+    callers on purpose, and has since the correction recorded in its own docstring. The R37
+    measurement was a separate, ad-hoc population that reintroduced a distinction that gate had
+    already learned to do without.
 
   **▶ CONSOLIDATE, not delete (3).** The caller reimplements the accessor — `cde.scorecard_inputs`'s
   shape, which R37-TRIAGE deleted for. Here the better move is the other direction:

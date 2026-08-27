@@ -37,6 +37,21 @@ The interface is unchanged — `with mutating(pid):` — because ten call sites 
    reports what is actually in force, and `main._production_guard` refuses to boot a multi-worker
    deployment that cannot serialise across workers. A constraint the product genuinely has should
    fail at boot, not be a sentence in a docstring nobody reads.
+
+   **And for a release and a half, that is what it was.** R37-TESTED-UNWIRED measured which public
+   functions nothing outside the test tree calls, and `cross_process_status()` came back with no
+   caller at all: the guard derived the dialect itself with `db_url.split("://")`, and the "health
+   surface" its own docstring pointed at had never been built. `/metrics` now exports it as
+   `aec_pid_lock_cross_process` beside `aec_pid_lock_writers` — because the guard runs only on a
+   production deployment and is skipped under `AEC_ALLOW_OPEN=1`, so the deployments actually exposed
+   to this are the ones it never sees. Not `/health`: that is dependency-free on purpose, and
+   "in-process only" is a supported shape, not a failed probe.
+
+   **The guard is still not a caller, and that is now a decision rather than an accident.** Making it
+   one broke `test_perf_rate.py` immediately: this function reports on the ENGINE, which is built once
+   at import, while the guard must answer about the DATABASE_URL a deployment (or a fixture) just set.
+   At boot they name the same database. `services/api/test_pid_lock_surface.py` pins both directions
+   so the next reader who spots the duplication finds the reason instead of the false one.
 """
 from __future__ import annotations
 
