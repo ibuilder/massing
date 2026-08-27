@@ -82,7 +82,14 @@ _CLOUD_CALLBACK_WHY = (
     "one-time code plus the PKCE state, not our cookie. A forged link carries neither and is "
     "refused before any write. It creates a user and writes the CloudIdentity link, entirely inside "
     "`_link_account()` — which is exactly why it was INVISIBLE here until the scan learned to "
-    "follow same-module helpers on 2026-08-25."
+    "follow same-module helpers on 2026-08-25. "
+    "ITS SIGNATURE DROPPED `add` ON 2026-08-27, AND THE WRITE DID NOT GO AWAY — it moved into "
+    "`auth.get_or_create_by_pk`, which is CROSS-MODULE and therefore inside this scanner's stated "
+    "blind spot. That is the second time an extraction has done this: the OAuth callback above is "
+    "`(commit,)` for the identical reason, from the identical helper. The route still creates a "
+    "User and still writes a CloudIdentity; what changed is that both INSERTs now sit in a "
+    "SAVEPOINT, because two concurrent first sign-ins raced and the loser 500'd on a legitimate "
+    "login. Read this entry as `add`-in-a-helper, not as a route that stopped writing."
 )
 _CLOUD_LIBRARY_WHY = (
     "Read-only to the application's own state. The single write is `_fresh_access_token()` rotating "
@@ -101,7 +108,10 @@ BASELINE: dict[str, dict[str, tuple[tuple[str, ...], str]]] = {
         "/auth/oauth/{provider}/callback": (("commit",), _OAUTH_WHY),
     },
     "aec_api/routers/cloud.py": {
-        "/auth/cloud/callback": (("add", "commit"), _CLOUD_CALLBACK_WHY),
+        # ("commit",) not ("add", "commit"): the CloudIdentity INSERT moved into
+        # auth.get_or_create_by_pk (cross-module = invisible here), exactly as the OAuth callback's
+        # did. See _CLOUD_CALLBACK_WHY — the write still happens, this scanner just cannot see it.
+        "/auth/cloud/callback": (("commit",), _CLOUD_CALLBACK_WHY),
         "/cloud/library/projects": (("commit",), _CLOUD_LIBRARY_WHY),
         "/cloud/library/projects/{project_id}": (("commit",), _CLOUD_LIBRARY_WHY),
         "/cloud/library/models/{model_id}": (("commit",), _CLOUD_LIBRARY_WHY),
