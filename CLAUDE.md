@@ -32,15 +32,21 @@ Phase 0 smoke tests → 1 conversion → 2 large-model → 3 viewer/tools → 4 
 - Set-origin/georeferencing: preserve real coordinates for export, render near scene origin.
 
 ## Local environment notes (this machine)
-- **`node` on the default PATH is v18.8.0, and v18 BREAKS the web build.** The good Node is not first
-  on PATH, so every web command must start with:
-  `export PATH="/c/Program Files/nodejs:$PATH"` → **v24.18.0** (verified 2026-07-29).
+- **Bare `node` now resolves to v24.18.0 — the PATH workaround this line demanded is obsolete**
+  (re-measured 2026-08-27). `which node` → `/c/Program Files/nodejs/node` → **v24.18.0**, npm
+  **11.16.0**. v18.8.0 is still installed, at `/c/laragon/bin/nodejs/node-v18/node`, but it sits
+  *later* on PATH and you no longer get it by default.
+  `export PATH="/c/Program Files/nodejs:$PATH"` is therefore **belt-and-braces, not a requirement** —
+  harmless to keep, and worth keeping in scripts, because the thing that changed is PATH *order*,
+  which can change back the moment laragon updates.
   Both manifests declare `"engines": {"node": ">=24"}` and CI pins `node-version: 24`, so 24 is the
-  supported baseline — this note said **v20.3.1** until 2026-07-29, which was a *third* wrong value
-  in the same three lines. It has now been wrong in two different ways: first naming the Node you get
-  *after* fixing the PATH rather than the one you get, then naming a major nobody has run for weeks.
-  **A config file that is subtly wrong is worse than one that is silent** — and a line that has
-  drifted twice will drift again, so check it against `node -v` rather than reading it.
+  supported baseline. **This is the fourth wrong value in these three lines**, and the first to be
+  wrong in the *safe* direction: v20.3.1, then a version naming the Node you get *after* fixing PATH,
+  then a major nobody had run in weeks — and now a workaround that outlived its cause. A stale
+  instruction to *do something unnecessary* costs less than a stale one to skip something, but it
+  still teaches the reader that this file is not to be trusted, which is the expensive part.
+  **A config file that is subtly wrong is worse than one that is silent** — four drifts in, the only
+  safe move is `which node && node -v`, never reading this line.
 - **Python ≥ 3.12 is now a HARD FLOOR, not a preference** (corrected 2026-08-25; this line said
   "guide targets ≥ 3.11" and "prefer a 3.11+ interpreter … if available"). `requirements.lock` pins
   `numpy==2.5.2`, and numpy dropped <3.12 at 2.5.0 — so on 3.11 the install does not degrade, it
@@ -51,6 +57,26 @@ Phase 0 smoke tests → 1 conversion → 2 large-model → 3 viewer/tools → 4 
   phrased as advice.* "Prefer if available" is what a version note says when nobody has tried the
   alternative — and the alternative had stopped working. **Check a floor by creating the venv, not
   by reading this line.**
+- **AND THE VENV ON THIS MACHINE DOES NOT MEET THAT FLOOR — measured 2026-08-27.** The line above
+  says to check by creating the venv. Doing that here fails: **there is no 3.12 on this machine.**
+  `python`→3.10.6, `python3`→3.11.9, `py`→3.11.3, and the py-launcher lists only 3.11. The existing
+  `services/api/.venv` is **Python 3.10.6**, so it cannot install `requirements.lock` and never did:
+
+  | package | `requirements.lock` (CI + prod) | what the local venv actually has |
+  |---|---|---|
+  | numpy | 2.5.2 | **2.2.6** |
+  | fastapi | 0.141.1 | **0.137.0** |
+  | pydantic | 2.13.4 | 2.13.4 ✓ |
+  | ifcopenshell | 0.8.5 | 0.8.5 ✓ |
+
+  **So every local backend green — including one reported minutes ago — is measured against
+  different code than ships.** Not "an older environment": a *different* FastAPI minor and a numpy
+  three minors back. A defect that appears only on the locked versions passes locally, every time,
+  and CI is the only thing that can see it. This is the **env** dimension of "what exactly did it run
+  on?", and it had no entry here at all until now.
+  **CI remains the authority for the backend suite.** A local run is a smoke test of your edit, not
+  evidence about the release. Installing 3.12 is a machine change and therefore the user's call —
+  until then, do not report a local backend pass as if it settled anything about `requirements.lock`.
 - Repo root: C:\Server\modelmaker (Windows / PowerShell).
 - Backend suite runs **from `services/api`**, never the repo root — the root exits 127 and reports
   "0 failures", which reads exactly like a pass.
