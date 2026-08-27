@@ -55,6 +55,35 @@ deliverable: several of the 20 are legitimately test-only surface — `sbom`, `p
 is the warning: reading its 12 candidates found **eight live**, and the two deleted without reading
 had to be put back.
 
+### Review round on the above, and the sharpest finding was already a test
+
+**`test_route_authz.py` failed on the new route, and it was right about something a correct hand-check
+would still have got wrong.** The first version authorised with
+`if pid not in (member_project_ids(db, user) or {pid})`. `member_project_ids` returns **None** for "no
+restriction" and an **empty set** for "a member of nothing" — and `or {pid}` collapses the second into
+the first, so a signed-in user belonging to no project was authorised for any project id they typed.
+
+The route now uses `Depends(require_role("viewer"))`, like every other `/projects/{pid}` route in that
+file. The gate walks those routes and requires the *tagged* dependency, so a bespoke membership check
+is invisible to it **whether or not the check is correct** — it is not looking for authorization, it
+is looking for the one authorization anybody audits. Running it before pushing would have taken four
+seconds; the full backend suite takes twenty-two minutes, and skipping the suite meant skipping this.
+
+Three more, all real:
+
+* **`hard_cost` accepted NaN and Infinity.** `not x` is False for NaN and every comparison with NaN is
+  False, so both halves of `not hard_cost or hard_cost <= 0` let it through; it then divided into the
+  response and left as `null` under orjson — *a comparison with a missing number in it, which reads as
+  "no history" rather than as bad input.* Now `math.isfinite`, with all five cases pinned.
+* **The $/SF strip was painted once by `renderBudget()`**, so editing "Hard cost $" left a comparison
+  for the PREVIOUS hard cost beside the new number. It rides the same debounce as the solve now, and
+  a late reply for a superseded cost is dropped rather than allowed to win by arriving last. Three
+  regression tests, one of which fails on the `cost_lines[1]` shortcut the sum replaced.
+* **The test inherited `DATABASE_URL`.** `setdefault` keeps `run_tests.py` in control of the per-test
+  database, which is right — but it also inherits whatever a developer exported, and this file calls
+  `create_all` and commits fixtures. It now refuses to start against anything that is not a local
+  sqlite path, rather than quietly creating test schema in a real database.
+
 ## v0.3.1112 (2026-08-27) — the firm's own closed projects, beside the number being underwritten
 
 **R35-DEAL-MEMORY's engine shipped with the item and the function it exists for had no caller
@@ -67,7 +96,7 @@ shape one ring over.
 
 `GET /projects/{pid}/deal-memory/beside` is the route, and the proforma's cost budget is the screen:
 
-```
+```text
 🏛 Your own history: this deal's hard cost is $250/SF ($500,000 ÷ 2,000 SF) — inside the range
    your 6 closed project(s) landed in ($225–$275, median $250). A comparison, not a verdict.
 ```
@@ -121,7 +150,7 @@ the Model tab selected.** The unit tests were right about every one of those.
 
 They could not have caught what the same run found in the first second:
 
-```
+```text
 pageerror: Failed to fetch dynamically imported module: .../viewer/app.ts
 REQFAIL https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/+esm :: ERR_CERT_AUTHORITY_INVALID
 ```

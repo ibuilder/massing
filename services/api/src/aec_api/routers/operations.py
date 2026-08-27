@@ -2,6 +2,8 @@
 reserve study / capital plan, and CAM reconciliation."""
 from __future__ import annotations
 
+import math
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
@@ -129,7 +131,7 @@ def portfolio_deal_memory(db: Session = Depends(get_db), user: str = Depends(cur
 
 @router.get("/projects/{pid}/deal-memory/beside")
 def project_deal_memory_beside(pid: str, hard_cost: float, db: Session = Depends(get_db),
-                               user: str = Depends(current_user)):
+                               user: str = Depends(require_role("viewer"))):
     """R35-DEAL-MEMORY: this firm's own realised $/SF, beside the hard cost being underwritten.
 
     `deal_memory.comps` has been routed since the engine shipped and `beside()` — the function whose
@@ -153,11 +155,23 @@ def project_deal_memory_beside(pid: str, hard_cost: float, db: Session = Depends
     would put a second one in the tree. It needs a loaded properties index, so `no_gfa` is a real and
     common answer and is reported as itself rather than as "no history".
     """
+    # `require_role("viewer")` above, NOT a membership test written here. The first version of this
+    # route hand-rolled one — `if pid not in (member_project_ids(db, user) or {pid})` — and it was
+    # wrong in the way a hand-rolled gate usually is: `member_project_ids` returns **None** for "no
+    # restriction" and an **empty set** for "a member of nothing", and `or {pid}` collapsed the second
+    # into the first, authorising any project id for a user with no memberships.
+    #
+    # `services/api/test_route_authz.py` caught it before review did, and by the right mechanism: it
+    # walks every `/projects/{pid}` route and requires the tagged `require_role` dependency, so a
+    # bespoke check is invisible to it *whether or not the check is correct*. **The gate is not
+    # looking for authorization, it is looking for the one authorization anybody audits** — which is
+    # why matching the pattern matters more here than the logic being locally right.
     _project(db, pid)
-    if pid not in (member_project_ids(db, user) or {pid}):
-        raise HTTPException(403, "not a member of this project")
-    if not hard_cost or hard_cost <= 0:
-        raise HTTPException(422, "hard_cost must be a positive number of dollars")
+    # `isfinite`, not just `> 0`: NaN passes both `not x` and `x <= 0`, then divides into the
+    # response and reaches the client as `null` under orjson — a comparison with a missing number in
+    # it, which reads as "no history" rather than as bad input.
+    if not hard_cost or not math.isfinite(hard_cost) or hard_cost <= 0:
+        raise HTTPException(422, "hard_cost must be a positive, finite number of dollars")
     gfa = energy.project_gfa_sf(db, pid)
     if not gfa:
         # NOT folded into the `beside()` refusals: "we have no history" and "we cannot express your

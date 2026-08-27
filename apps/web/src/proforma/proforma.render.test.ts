@@ -228,3 +228,64 @@ describe("reserve study — an unverified suggestion says so", () => {
     expect(host.textContent).toContain("unreliable");
   });
 });
+
+/**
+ * R35-DEAL-MEMORY — the $/SF strip must describe the hard cost that is on screen NOW.
+ *
+ * Review finding, 2026-08-27: the strip was painted once by `renderBudget()`, so editing
+ * "Hard cost $" left a comparison for the PREVIOUS hard cost sitting beside the new number. That is
+ * the defect class this whole release is about — a report that misdescribes what it reports on —
+ * and it is worse on an underwriting screen than most places, because the two numbers are adjacent
+ * and the stale one looks like it was computed from the fresh one.
+ *
+ * Driven through `refreshDealMemory`, the seam the fix created, rather than through a keystroke:
+ * the debounce is `window.setTimeout` and pinning a timer would test the scheduler, not the sum.
+ */
+describe("the deal-memory strip follows the hard cost", () => {
+  function mountBudget(pid: string | null = "P1") {
+    const api = {
+      dealMemoryBeside: vi.fn().mockResolvedValue({
+        metric: "cost_per_sf", status: "insufficient_history", entered: null,
+      }),
+    };
+    const root = document.createElement("div");
+    document.body.replaceChildren(root);
+    const ui = new ProformaUI(root, api as unknown as ApiClient, vi.fn(), () => pid);
+    const priv = ui as unknown as {
+      a: { cost_lines: { category: string; amount: number }[] };
+      memoryEl?: HTMLElement;
+      refreshDealMemory(): void;
+    };
+    // mount a connected element for the strip — `refreshDealMemory` refuses to paint a detached one
+    const el = document.createElement("div"); root.appendChild(el); priv.memoryEl = el;
+    return { api, priv };
+  }
+
+  it("sends the CURRENT hard-cost total, not the one from first render", () => {
+    const { api, priv } = mountBudget();
+    priv.refreshDealMemory();
+    expect(api.dealMemoryBeside).toHaveBeenLastCalledWith("P1", 20_000_000);
+
+    // the edit the reviewer described: change the hard line, refresh, expect the NEW total
+    const hard = priv.a.cost_lines.find((c) => c.category === "hard")!;
+    hard.amount = 26_500_000;
+    priv.refreshDealMemory();
+    expect(api.dealMemoryBeside).toHaveBeenLastCalledWith("P1", 26_500_000);
+  });
+
+  it("sums every hard line rather than reading cost_lines[1]", () => {
+    // The default deal happens to put hard cost second. A budget synced from the GC's does not, and
+    // an index would have compared the wrong line against the firm's own history — silently, since
+    // any number looks plausible in a $/SF strip.
+    const { api, priv } = mountBudget();
+    priv.a.cost_lines.push({ category: "hard", amount: 1_000_000 } as never);
+    priv.refreshDealMemory();
+    expect(api.dealMemoryBeside).toHaveBeenLastCalledWith("P1", 21_000_000);
+  });
+
+  it("asks nothing when there is no project", () => {
+    const { api, priv } = mountBudget(null);
+    priv.refreshDealMemory();
+    expect(api.dealMemoryBeside).not.toHaveBeenCalled();
+  });
+});

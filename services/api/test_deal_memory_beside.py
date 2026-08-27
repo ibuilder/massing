@@ -39,6 +39,17 @@ import sys
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///./_dm_beside.db")
 os.environ.setdefault("STORAGE_DIR", "./_storage_dm_beside")
+
+# `setdefault`, so `run_tests.py` keeps control of the per-test database it already assigns -- but
+# then CHECKED, because setdefault also inherits whatever a developer happens to have exported. This
+# file calls `Base.metadata.create_all` and commits fixture projects; against an inherited Postgres
+# that is test schema and test rows in a real database, and the cleanup below only unlinks a local
+# `.db` file. Refuse rather than proceed: a destructive test that silently retargets is worse than
+# one that will not start.
+_DB = os.environ["DATABASE_URL"]
+if not _DB.startswith("sqlite:///"):
+    raise SystemExit(f"refusing to run: DATABASE_URL is {_DB!r}, not a local sqlite file. This test "
+                     "creates tables and commits fixtures; point it at a scratch sqlite path.")
 os.environ.pop("AEC_RBAC", None)
 for _f in ("./_dm_beside.db",):
     if os.path.exists(_f):
@@ -146,7 +157,10 @@ try:
     cost_engine.summary = lambda db, pid: BUILT.get(pid, {})        # noqa: E731
 
     # ---- refusals -----------------------------------------------------------------------------------
-    for bad in (0.0, -5.0):
+    # NaN and inf pass BOTH halves of a `not x or x <= 0` guard -- `not nan` is False and every
+    # comparison with nan is False -- so they reached the division and left as `null` under orjson: a
+    # comparison with a missing number in it, which reads as "no history" rather than as bad input.
+    for bad in (0.0, -5.0, float("nan"), float("inf"), float("-inf")):
         try:
             call(LIVE, bad)
             check(f"a hard cost of {bad} is refused", False, "no HTTPException raised")
