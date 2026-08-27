@@ -4,10 +4,11 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.1115 (2026-08-27) — the first two of R37's five, and both comments were describing surfaces nobody built
+## v0.3.1115 (2026-08-27) — two of R37's four real gaps, and both comments were describing surfaces nobody built
 
-R37-TESTED-UNWIRED classified 20 test-only functions last release; five were real gaps. Two are now
-wired, and in both cases the code that *explained* why they were unreachable was itself the defect.
+R37-TESTED-UNWIRED classified 20 test-only functions last release and called five of them real gaps.
+**Four are** — one of the five is corrected below. Two of the four are now wired, and in both cases
+the code that *explained* why they were unreachable was itself the defect.
 
 **`pid_lock.cross_process_status` — a boot guard arguing against a function, for a false reason.**
 It reports what serialisation is actually in force for the sidecar write lock: a Postgres session

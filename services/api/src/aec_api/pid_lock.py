@@ -118,8 +118,18 @@ def _dialect() -> str:
 def cross_process_status() -> dict[str, Any]:
     """What serialisation is ACTUALLY in force, as opposed to what the docstring hopes.
 
-    Callable from a health surface and from the production guard, so "this deployment cannot
-    serialise sidecar writes across workers" is a fact somebody can read rather than infer."""
+    Read by `/metrics`, which exports it as `aec_pid_lock_cross_process` beside
+    `aec_pid_lock_writers`, so "this deployment cannot serialise sidecar writes across workers" is a
+    fact somebody can read rather than infer.
+
+    **This docstring used to say "callable from a health surface and from the production guard", and
+    neither was true** — that fiction is what R37-TESTED-UNWIRED found, and note 4 in the module
+    docstring records it. The health surface was never built; the guard reads DATABASE_URL, for the
+    reason stated at its call site and pinned in `services/api/test_pid_lock_surface.py`. Naming a
+    caller here that does not exist is precisely the defect, so this line names the one that does.
+
+    Note it reports on the ENGINE, which is built once at import. That is the right answer for a
+    scrape and the wrong one for a boot check, which must see the DATABASE_URL just set."""
     dialect = _dialect()
     ok = dialect == "postgresql"
     backend = BACKEND_ADVISORY if ok else BACKEND_IN_PROCESS

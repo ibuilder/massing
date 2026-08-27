@@ -234,6 +234,12 @@ async def upload_photo(pid: str, guid: str, file: UploadFile = File(...), db: Se
     #
     # Compared against the stored hashes, not the stored photos. Re-reading every verification photo
     # out of object storage per upload would be O(photos) network reads on a field device's request.
+    #
+    # **Two simultaneous uploads of the same shot can both miss it**, since each queries before either
+    # commits. Detective, not preventive, and deliberately left so: a project-wide `pid_lock.mutating`
+    # around every photo upload would serialise the whole field team to make an advisory flag exact.
+    # The window is self-healing — whichever lands second is on file, so the next upload of that shot
+    # flags it — and `compared_against` already says this answer is a floor, not a census.
     duplicate = None
     try:
         phash = photo_cv.perceptual_hash(data)
