@@ -61,7 +61,16 @@ def level_quotes(quotes: list[dict]) -> dict:
         rows.append({"item": labels[key], "low_supplier": low_s, "low_price": low,
                      "prices": {s: per.get(s, {}).get("unit_price") for s in suppliers},
                      "spread_pct": round((high - low) / low * 100, 1) if low else 0.0})
-        # savings = buying each line from its low supplier vs the single cheapest all-in supplier
+        # THE COMMENT HERE USED TO SAY "vs the single cheapest all-in supplier", AND THE CODE HAS
+        # NEVER DONE THAT. It sums (high - low) * qty per line: what you save by taking the LOW
+        # quote on each line instead of the HIGH one. On two suppliers quoting 500 studs at
+        # 4.25/4.10 and 200 sheets at 12.90/13.40 this returns 175.00, while splitting the award
+        # (4630) against the cheapest all-in supplier (Acme, 4705) saves 75.00. Both are real
+        # numbers; only one is what the comment claimed, and the field is named for THIS one.
+        #
+        # Corrected rather than reimplemented: nothing consumed this until the panel that now does,
+        # so there was no wrong number in anyone's hands - but a caption written from the old
+        # comment would have put one there, which is how it was found.
         if low_s:
             savings += (high - low) * (priced[low_s]["qty"])
     supplier_totals = {s: round(v, 2) for s, v in supplier_totals.items()}

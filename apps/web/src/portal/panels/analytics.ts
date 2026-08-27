@@ -125,6 +125,73 @@ export async function renderMarket(ctx: PanelContext) {
   }
 
   // --- Risk & Cost: prequal, COI, lien exposure, carbon, pricing, accounting export -------------
+/**
+ * A unit price, to the cent.
+ *
+ * NEITHER SHARED MONEY HELPER CAN EXPRESS ONE: `money` is compact (4.25 -> "$4") and `usd` rounds to
+ * whole dollars (4.25 -> "$4"). A supplier comparison built on either renders 4.25 and 4.10
+ * IDENTICALLY — a price grid whose prices cannot be compared, with the low-price highlight left as
+ * the only thing telling them apart. Found by opening the panel and reading it; every unit test
+ * passed on the broken output, because none asserted a rendered number.
+ *
+ * The price LEDGER card had the same defect and nobody had ever seen it: it was unreachable until
+ * quote leveling started writing observations, so it had only ever rendered its empty state.
+ *
+ * Local to this file rather than a new shared export — cents are load-bearing in a procurement
+ * comparison specifically, and promoting a formatter app-wide on the strength of one screen is how
+ * the eighteen near-duplicate money helpers documented in `ui/charts.ts` got started.
+ */
+const cents = (n: number): string =>
+  (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined,
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** One supplier's quote, in exactly the shape `POST /procurement/level-quotes` expects. */
+export interface ParsedQuote {
+  supplier: string;
+  lines: { item: string; qty: number; unit: string; unit_price: number }[];
+}
+
+/**
+ * Pasted text -> the leveling engine's input shape.
+ *
+ * Exported and tested directly rather than through the rendered panel, for the reason
+ * `budget.test.ts` sets out: asserting on HTML proves two strings are spelled differently, not that
+ * the right one is produced for a given input. The mapping is the part that can be wrong — the
+ * column order a buyer pastes is `item, qty, unit, unit price`, and `procurement.level_quotes`
+ * reads `{item, qty, unit, unit_price}`, so a silent transposition here would price the job off the
+ * wrong column and still render a confident grid.
+ *
+ * A line with fewer than four comma-separated cells starts a new supplier; anything else is a
+ * priced line belonging to the supplier above it.
+ */
+export function parseQuoteText(text: string): ParsedQuote[] {
+  const quotes: ParsedQuote[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const cells = line.split(",").map((c) => c.trim());
+    if (cells.length < 4) { quotes.push({ supplier: line, lines: [] }); continue; }
+    if (!quotes.length) quotes.push({ supplier: "Supplier 1", lines: [] });
+    // `noUncheckedIndexedAccess` is on, so every cell is `string | undefined` even after the length
+    // check — defaulted rather than asserted, because a `!` here would be a claim about text a user
+    // pasted.
+    // THE COMMA IS BOTH THE DELIMITER AND A THOUSANDS SEPARATOR, so a pasted `$1,250.00` arrives
+    // as TWO cells and a naive `cells[3]` reads it as $1. That is not a parse error anyone would
+    // see — it renders a confident, well-formatted grid off a price 1000x wrong, which is the exact
+    // failure shape this file's neighbours keep documenting. So the price is everything from the
+    // fourth cell onward, rejoined; only `item` is assumed comma-free.
+    const [item = "", qty = "", unit = ""] = cells;
+    const price = cells.slice(3).join(",");
+    const target = quotes[quotes.length - 1];
+    if (!target || !item) continue;
+    target.lines.push({
+      item, unit, qty: Number(qty) || 0, unit_price: Number(price.replace(/[$,]/g, "")) || 0,
+    });
+  }
+  // A supplier header with no priced lines under it is not a quote.
+  return quotes.filter((q) => q.lines.length);
+}
+
 export async function renderRiskCost(ctx: PanelContext) {
     const root = ctx.root; root.innerHTML = "";
     const pid = ctx.host.projectId();
@@ -187,6 +254,9 @@ export async function renderRiskCost(ctx: PanelContext) {
     root.appendChild(ceWrap);
     section("Materials 3-way match (PO ↔ delivery ↔ invoice)");
     const matchSlot = slot();
+    section("Level material quotes (competing suppliers)");
+    const quoteLevelWrap = el("div");
+    root.appendChild(quoteLevelWrap);
     section("Price ledger (observed material prices)");
     const priceLedgerSlot = slot();
     section("Material requests from the model (QTO)");
@@ -394,6 +464,88 @@ export async function renderRiskCost(ctx: PanelContext) {
       }
     }).catch((e) => { matchSlot.textContent = `failed: ${(e as Error).message}`; });
 
+    // PROC-LOOP: quote leveling — the tool the ledger's own caption already promised.
+    //
+    // `procurement.level_quotes` and POST /procurement/level-quotes have existed and been tested for
+    // months with NO caller, while the price-ledger card below rendered the sentence "quote leveling
+    // with 'record' feeds this ledger" — advertising a feature there was no way to invoke. Wiring it
+    // here rather than onto the bid screens is deliberate: `bidLevelingDetail` already levels
+    // SUBCONTRACT bids (base totals, scope inclusion/exclusion, non-responsive bidders). This levels
+    // MATERIAL quotes line by line and answers a different question — who is cheapest per item, and
+    // what does splitting the award save. Same-shaped data, different decision.
+    {
+      const hint = el("div", "meta");
+      hint.textContent = "Paste competing supplier quotes. A line with no commas starts a supplier; "
+        + "lines below it are  item, qty, unit, unit price.";
+      const ta = el("textarea", "portal-filter") as HTMLTextAreaElement;
+      ta.style.cssText = "width:100%;min-height:96px;margin:6px 0;font-family:var(--mono);font-size:11px";
+      ta.placeholder = `Acme Supply
+2x4 stud, 500, EA, 4.25
+1/2" drywall, 200, SHT, 12.90
+
+Builders Depot
+2x4 stud, 500, EA, 4.10
+1/2" drywall, 200, SHT, 13.40`;
+      const ctl = el("div"); ctl.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap";
+      const runBtn = el("button", "file-btn") as HTMLButtonElement; runBtn.textContent = "Level quotes";
+      const recLbl = el("label", "meta"); recLbl.style.cssText = "display:flex;align-items:center;gap:4px";
+      const recCb = el("input") as HTMLInputElement; recCb.type = "checkbox";
+      recLbl.append(recCb, document.createTextNode("record to the price ledger (editor)"));
+      const out = el("div"); out.style.marginTop = "8px";
+      ctl.append(runBtn, recLbl);
+      quoteLevelWrap.append(hint, ta, ctl, out);
+
+
+      runBtn.onclick = async () => {
+        const quotes = parseQuoteText(ta.value);
+        // Three outcomes, kept distinct on purpose — "nothing pasted", "pasted but unparseable" and
+        // "levelled to nothing" are different problems, and one shared empty state would report the
+        // second as the first and send the reader looking in the wrong place.
+        if (!ta.value.trim()) { out.innerHTML = `<div class="meta">Paste at least one supplier's quote above.</div>`; return; }
+        if (!quotes.length) {
+          out.innerHTML = `<div class="meta">Nothing parsed — every priced line needs four comma-separated cells: `
+            + `item, qty, unit, unit price.</div>`;
+          return;
+        }
+        out.textContent = "leveling…";
+        try {
+          const r = await api.procurementLevelQuotes(pid, quotes, recCb.checked);
+          if (!r.items.length) {
+            out.innerHTML = `<div class="meta">${esc(r.message || "No comparable line items across these suppliers.")}</div>`;
+            return;
+          }
+          const sup = r.suppliers;
+          const t = el("table", "portal-table") as HTMLTableElement;
+          t.style.cssText = "width:100%;font-size:11px;margin-top:6px";
+          t.innerHTML = `<thead><tr><th scope="col" style="text-align:left">Item</th>`
+            + sup.map((x) => `<th scope="col" style="text-align:right">${esc(x)}</th>`).join("")
+            + `<th scope="col" style="text-align:right">Spread</th></tr></thead><tbody>`
+            + r.items.map((it) => `<tr><td style="text-align:left">${esc(it.item)}</td>`
+              + sup.map((x) => {
+                const v = it.prices[x];
+                if (v == null) return `<td style="text-align:right;opacity:.45">—</td>`;
+                const low = x === it.low_supplier;
+                return `<td style="text-align:right;font-variant-numeric:tabular-nums`
+                  + `${low ? ";font-weight:700;color:var(--status-good)" : ""}">${cents(v)}</td>`;
+              }).join("")
+              + `<td style="text-align:right">${it.spread_pct}%</td></tr>`).join("")
+            + `<tr><td style="text-align:left"><b>Total</b></td>`
+            + sup.map((x) => `<td style="text-align:right"><b>${cents(r.supplier_totals[x] ?? 0)}</b></td>`).join("")
+            + `<td></td></tr></tbody>`;
+          out.innerHTML = `<div class="meta">Best all-in supplier: <b>${esc(r.best_all_in_supplier || "—")}</b>`
+            // Worded from the ARITHMETIC, not from the engine's comment, which claimed this was the
+            // saving against the cheapest all-in supplier and never was. It is the spread captured
+            // by taking the low quote on every line instead of the high one.
+            + ` · taking the low quote on every line rather than the high one is worth`
+            + ` <b>${cents(r.line_by_line_savings)}</b>`
+            + (r.recorded_observations ? ` · <b>${r.recorded_observations}</b> observation(s) recorded` : "")
+            + `</div>`;
+          out.append(t);
+          if (recCb.checked) toast("Quote observations recorded to the price ledger");
+        } catch (e) { out.innerHTML = `<div class="meta">Leveling failed: ${esc((e as Error).message)}</div>`; }
+      };
+    }
+
     // PROC-LOOP: the price-observation ledger — per-material stats, latest price + drift vs median
     api.procurementPriceHistory(pid).then((r) => {
       if (!r.material_count) { priceLedgerSlot.innerHTML = `<div class="meta">${esc(r.message || "No price observations yet.")}</div>`; return; }
@@ -405,9 +557,9 @@ export async function renderRiskCost(ctx: PanelContext) {
           const drift = m.latest_vs_median_pct;
           const col = Math.abs(drift) >= 10 ? (drift > 0 ? "var(--status-crit)" : "var(--status-good)") : "inherit";
           return `<tr><td>${esc(m.material)}${m.unit ? ` <span class="meta">/${esc(m.unit)}</span>` : ""}</td>`
-            + `<td style="text-align:center">${m.observations}</td><td style="text-align:right">${cmoney(m.min)}</td>`
-            + `<td style="text-align:right">${cmoney(m.median)}</td><td style="text-align:right">${cmoney(m.max)}</td>`
-            + `<td style="text-align:right" title="${esc(m.latest.date)} · ${esc(m.latest.vendor || "")}">${cmoney(m.latest.unit_price)}</td>`
+            + `<td style="text-align:center">${m.observations}</td><td style="text-align:right">${cents(m.min)}</td>`
+            + `<td style="text-align:right">${cents(m.median)}</td><td style="text-align:right">${cents(m.max)}</td>`
+            + `<td style="text-align:right" title="${esc(m.latest.date)} · ${esc(m.latest.vendor || "")}">${cents(m.latest.unit_price)}</td>`
             + `<td style="text-align:right;color:${col}">${drift > 0 ? "+" : ""}${drift}%</td></tr>`;
         }).join("") + `</tbody>`;
       priceLedgerSlot.innerHTML = `<div class="meta">${r.material_count} material(s) tracked — quote leveling with "record" feeds this ledger</div>`;

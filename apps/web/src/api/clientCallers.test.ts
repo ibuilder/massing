@@ -308,7 +308,7 @@ const UNCALLED: readonly string[] = [
   "mep", "modelAdjacency", "moduleCalc", "myWork",
   "netEffectiveRent", "normalizeT12", "parcelAnalyze", "parcelsDataStatus",
   "pdfInfo", "permitsTimeline", "preconSnapshot", "procurementLevel",
-  "procurementLevelQuotes", "proformaIncomeBasis", "proformaRenovation", "proformaRollover", "progressActuals",
+  "proformaIncomeBasis", "proformaRenovation", "proformaRollover", "progressActuals",
   "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
   "rentRollScrub", "residualLand", "reviewPost",
   "reviewScenario", "reviseDrawing", "runClash", "runMacro", "saveClausePlaybook",
