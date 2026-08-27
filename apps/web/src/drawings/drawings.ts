@@ -448,19 +448,36 @@ export class DrawingsUI {
       okLabel: "Move them", cancelLabel: "Cancel",
     });
     if (!ok) return;
+
+    // THE MUTATION, alone in its own try. Wrapping the refresh in with it meant a failing
+    // `loadPins()` reported "the rekey failed — nothing was changed" about a rekey that had already
+    // succeeded: a false statement about server state, which is worse than no message because the
+    // obvious next action is to run it again.
+    let done: Awaited<ReturnType<typeof api.rekeyStoreyMarkups>>;
+    try { done = await api.rekeyStoreyMarkups(pid, false); }
+    catch { this.host_.setStatus("the rekey failed — nothing was changed"); return; }
+
+    // Past this line the server HAS changed. Everything below is display.
+    //
+    // The stale grid goes first, before anything that can throw. It fetched its rows before the move,
+    // so every key it shows is one the server has just contradicted — and leaving it up because a
+    // later refresh failed is how "the rekey did nothing" gets read off a list that is merely old.
+    // `document`, not `this.root`: the overlay is appended to the body so it can cover the viewport.
+    document.querySelectorAll(".dwg-markup-grid").forEach((el) => el.remove());
+
+    // Says what was NOT moved, too. "12 moved" alone reads as "the repair is done" while ambiguous
+    // and vanished storeys sit exactly where they were — the operator would have no reason to look.
+    const left = done.ambiguous_names.length + done.unmatched_names.length;
+    this.host_.setStatus(`${done.moved} markup(s) moved onto storey GlobalIds`
+      + (left ? `; ${left} storey key(s) left in place — see the Markups list` : ""));
+
     try {
-      const done = await api.rekeyStoreyMarkups(pid, false);
-      this.host_.setStatus(`${done.moved} markup(s) moved onto storey GlobalIds`);
       await this.loadPins();
-      // The grid that launched this fetched its rows BEFORE the move, so every key it shows is now
-      // the old one. `loadPins` refreshes the current sheet's pin layer and nothing else, so without
-      // this the operator is looking at a list the server has just contradicted — and the obvious
-      // reading of that list is that the rekey did nothing.
-      // document.body, not `this.root` — the overlay is appended to the body so it can cover the
-      // whole viewport, and a selector rooted at the room finds nothing.
-      document.querySelectorAll(".dwg-markup-grid").forEach((el) => el.remove());
       await this.showMarkupGrid();
-    } catch { this.host_.setStatus("the rekey failed — nothing was changed"); }
+    } catch {
+      // The move stands; only the redraw failed. Say which, so nobody re-runs a completed backfill.
+      this.host_.setStatus(`${done.moved} markup(s) moved — reopen ☰ Markups to see them`);
+    }
   }
 
   private async showMarkupGrid() {
