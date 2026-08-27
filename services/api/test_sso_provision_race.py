@@ -197,6 +197,135 @@ try:
 finally:
     db.close()
 
+# ---------------------------------------------------------------------------------------------
+# THE SECOND SEEDED ROW, which the User fix did not cover.
+#
+# The massing.cloud callback calls `get_or_create_sso_user` for its `User` and then, FOUR LINES
+# LATER, seeded a `CloudIdentity` with the same unguarded read-decide-insert. `CloudIdentity`s
+# `username` is also a PRIMARY KEY, so two concurrent FIRST cloud sign-ins both read None, both
+# INSERT, and the loser still got a 500 on a legitimate login - one row after the row that had just
+# been made safe. One request, one function, the rule applied to one of its two seeded rows.
+#
+# This asserts the generic helper on a SECOND model, which is the whole point of extracting it: the
+# protection is a property of the idiom now, not of the `User` table.
+from aec_api.models import CloudIdentity  # noqa: E402
+
+CLOUD_USER = "cloud-link-race@example.com"
+db = SessionLocal()
+try:
+    # The account must exist first: `cloud_identities.username` is an FK into `users`.
+    db.add(User(username=CLOUD_USER, password_hash="cloud!massing", role="user", email=CLOUD_USER))
+    db.commit()
+
+    # A competitor links the identity on its own connection, and commits.
+    other = SessionLocal()
+    try:
+        other.add(CloudIdentity(username=CLOUD_USER, cloud_sub="winner-sub"))
+        other.commit()
+    finally:
+        other.close()
+
+    # ...and this session's first lookup still answers None, exactly as it would have before the
+    # competitor committed. Only that one answer is faked; the INSERT after it is real.
+    _real = db.get
+    seen = {"n": 0}
+
+    def _racing_get(entity, ident, *a, _r=_real, _s=seen, **kw):
+        if entity is CloudIdentity and ident == CLOUD_USER:
+            _s["n"] += 1
+            if _s["n"] == 1:
+                return None
+        return _r(entity, ident, *a, **kw)
+
+    db.get = _racing_get  # type: ignore[method-assign]
+    raised_link = None
+    link = None
+    made = None
+    try:
+        link, made = auth.get_or_create_by_pk(
+            db, CloudIdentity, CLOUD_USER,
+            lambda: CloudIdentity(username=CLOUD_USER, cloud_sub="loser-sub"))
+    except Exception as e:  # noqa: BLE001 - nothing may escape
+        raised_link = e
+    finally:
+        db.get = _real  # type: ignore[method-assign]
+
+    check("[cloud-link] losing the CloudIdentity seeding race does not raise", raised_link is None,
+          "" if raised_link is None else f"{type(raised_link).__name__}: {raised_link}")
+    check("[cloud-link] the caller is handed the WINNER's link, not its own",
+          link is not None and link.cloud_sub == "winner-sub",
+          f"cloud_sub={getattr(link, 'cloud_sub', None)!r}")
+    check("[cloud-link] ...and reports created=False", made is False, f"created={made}")
+    check("[cloud-link] the faked lookup was used exactly once - the collision after it is real",
+          seen["n"] >= 2, f"Session.get called {seen['n']}x")
+
+    commit_err = None
+    try:
+        db.commit()
+    except Exception as e:  # noqa: BLE001
+        commit_err = e
+    check("[cloud-link] the session survives, so the sign-in audit row still commits",
+          commit_err is None,
+          "" if commit_err is None else f"{type(commit_err).__name__}: {commit_err}")
+finally:
+    db.close()
+
+# ---------------------------------------------------------------------------------------------
+# A THIRD MODEL, to keep the helper honest as a GENERIC guarantee rather than a User-shaped one.
+#
+# `settings_store.set_value` had the same read-decide-insert against `app_settings.key`, which is
+# also a PRIMARY KEY. It is lower severity than the sign-in doors and that is worth stating: it
+# needs two admins (or a double-clicked Save) on ONE key, and the retry succeeds. It was converted
+# anyway, because the helper existed and "one rule applied at some of the sites" is the shape this
+# repository keeps re-finding.
+#
+# `set_value` does NOT commit - the caller does - so before the fix the IntegrityError surfaced one
+# frame away from the code that caused it, which is what makes this kind hard to attribute in a log.
+from aec_api import settings_store  # noqa: E402
+from aec_api.models import AppSetting  # noqa: E402
+
+SKEY = "SEEDING_RACE_PROBE"
+db = SessionLocal()
+try:
+    other = SessionLocal()
+    try:
+        other.add(AppSetting(key=SKEY, value="winner"))
+        other.commit()
+    finally:
+        other.close()
+
+    _real = db.get
+    seen_s = {"n": 0}
+
+    def _racing_settings_get(entity, ident, *a, _r=_real, _s=seen_s, **kw):
+        if entity is AppSetting and ident == SKEY:
+            _s["n"] += 1
+            if _s["n"] == 1:
+                return None
+        return _r(entity, ident, *a, **kw)
+
+    db.get = _racing_settings_get  # type: ignore[method-assign]
+    set_exc = None
+    try:
+        settings_store.set_value(db, SKEY, "loser")
+        db.commit()          # the CALLER commits - this is where it used to blow up
+    except Exception as e:   # noqa: BLE001
+        set_exc = e
+    finally:
+        db.get = _real  # type: ignore[method-assign]
+
+    check("[settings] losing the app_settings seeding race does not raise at the CALLER's commit",
+          set_exc is None,
+          "" if set_exc is None else f"{type(set_exc).__name__}: {str(set_exc)[:90]}")
+    check("[settings] the faked lookup was exercised - the collision after it is real",
+          seen_s["n"] >= 2, f"Session.get called {seen_s['n']}x")
+    check("[settings] exactly one row exists for the key",
+          len([r for r in db.query(AppSetting).all() if r.key == SKEY]) == 1)
+finally:
+    db.get = _real  # type: ignore[method-assign]
+    db.close()
+    settings_store._cache.pop(SKEY, None)
+
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)

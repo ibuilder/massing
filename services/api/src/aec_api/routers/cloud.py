@@ -218,8 +218,14 @@ def _link_account(db: Session, info: dict, tok: dict, access: str) -> str:
         raise HTTPException(403, "account is deactivated")
 
     if link is None:
-        link = db.get(CloudIdentity, username) or CloudIdentity(username=username, cloud_sub=sub)
-        db.add(link)
+        # THE SAME SEEDING RACE AS THE `User` ROW FOUR LINES UP, on the row created immediately
+        # after it. `get_or_create_sso_user` was called above precisely because two concurrent first
+        # sign-ins both read None and both INSERT — and then this line did exactly that again, for
+        # `CloudIdentity`, whose `username` is also a PRIMARY KEY. One request, one function, the
+        # rule applied to one of its two seeded rows: the loser still got a 500 on a legitimate
+        # login, just one row later. Both now go through the same helper.
+        link, _seeded = auth.get_or_create_by_pk(
+            db, CloudIdentity, username, lambda: CloudIdentity(username=username, cloud_sub=sub))
     link.cloud_sub = sub
     link.cloud_email = email
     link.display_name = str(info.get("name") or "") or None

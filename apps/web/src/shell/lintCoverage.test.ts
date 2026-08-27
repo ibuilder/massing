@@ -110,5 +110,11 @@ describe("ESLint coverage", () => {
     const uncovered = results.filter(([, n]) => n === 0).map(([f]) => f);
     expect(uncovered, "these tracked JavaScript files are linted by no ESLint config — add them to "
       + "eslint.config.mjs at the repo root, or to apps/web's config").toEqual([]);
-  }, 60_000);
+  // 180s, raised from 60s. This lints EVERY tracked JavaScript file, so its cost is O(tree size)
+  // and grows with the repo: 19.9 s alone, 70,989 ms inside the full run at v0.3.1090 and 95,835 ms
+  // at v0.3.1113 — 33 commits later, +35% — against a 60 s budget it had already breached. Raising
+  // it is not papering over a regression: the same run alone finishes in a fifth of the budget.
+  // What is real is the TREND — if this needs raising again, hoist the ESLint pass out of the unit
+  // suite rather than buying another interval.
+  }, 180_000);
 });
