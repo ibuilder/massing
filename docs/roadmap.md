@@ -671,7 +671,7 @@ exact failure `roadmapLanes.test.ts` documents in its `MARKS` note. The gates ca
   is the specific error row 2 made.
 * **Not the next SCALE-SEAM slice.** ㉘ is genuinely next in a series that has shipped twenty-six
   increments, but the series is now cutting into `client.ts` at 2,837 lines from a 3,600-odd start. The marginal slice
-  is worth less than it was, and ㉘ additionally needs `MARKS` widened in
+  is worth less than it was. *(㉘ also needed `MARKS` widened; that shipped in v0.3.1112.)* The vocabulary lives in
   `apps/web/src/shell/roadmapLanes.test.ts` — a vocabulary change to a population check, which that
   file's own docstring calls a real change and not housekeeping.
 * **Not R22-ENTITLEMENT.** It led the last cut and two of its three parts shipped. What is left is the part
@@ -2493,7 +2493,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   it "licences" while the code, the type and the route all say `licenses`, so the comment shared no
   word with its method. Fixed by matching the code rather than by widening the exemption set, which is
   frozen and may only shrink.*
-  **㉘ needs `MARKS` widened again** in `apps/web/src/shell/roadmapLanes.test.ts`.
+  **㉘ required `MARKS` widened, and that landed in v0.3.1112** — measured as that file demands (29 item codes before, 29 after), and with a new assertion so the NEXT slice fails a test rather than relying on this sentence. *Which it had to, because this sentence still read "㉘ needs `MARKS` widened again" in the very release that widened it — the fifth stale status line in this ring, caught by review. A note asking a future reader to remember something is the thing a gate replaces, and leaving it up after building the gate is the same defect one level out.*
 
   **㉖ took the code-compliance group out** (8 methods; `client.ts` 2,961 → 2,883) as
   `apps/web/src/api/codecheck.ts`. **It is the first slice grouped by what the methods ANSWER rather
