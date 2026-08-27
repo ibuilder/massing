@@ -21,6 +21,9 @@ apps/web/src-tauri/binaries/
 __pycache__/
 *.py[cod]
 .venv/
+# `.venv*/` not `.venv/`: a venv REBUILD wants the old one kept alongside until the new one is
+# proven, and a bare `.venv/` leaves that backup showing as untracked in every lane's `git status`.
+.venv*/
 venv/
 *.egg-info/
 .pytest_cache/

@@ -57,26 +57,44 @@ Phase 0 smoke tests → 1 conversion → 2 large-model → 3 viewer/tools → 4 
   phrased as advice.* "Prefer if available" is what a version note says when nobody has tried the
   alternative — and the alternative had stopped working. **Check a floor by creating the venv, not
   by reading this line.**
-- **AND THE VENV ON THIS MACHINE DOES NOT MEET THAT FLOOR — measured 2026-08-27.** The line above
-  says to check by creating the venv. Doing that here fails: **there is no 3.12 on this machine.**
-  `python`→3.10.6, `python3`→3.11.9, `py`→3.11.3, and the py-launcher lists only 3.11. The existing
-  `services/api/.venv` is **Python 3.10.6**, so it cannot install `requirements.lock` and never did:
+- **RESOLVED 2026-08-27: 3.12.10 installed, and `services/api/.venv` now MEETS the floor.** This
+  entry previously said the venv could not meet it and that CI was therefore the only authority for
+  the backend. Both halves are now out of date, and the *reason* it had drifted was not the one
+  recorded here.
 
-  | package | `requirements.lock` (CI + prod) | what the local venv actually has |
-  |---|---|---|
-  | numpy | 2.5.2 | **2.2.6** |
-  | fastapi | 0.141.1 | **0.137.0** |
-  | pydantic | 2.13.4 | 2.13.4 ✓ |
-  | ifcopenshell | 0.8.5 | 0.8.5 ✓ |
+  | package | `requirements.lock` | venv now | venv before |
+  |---|---|---|---|
+  | numpy | 2.5.2 | **2.5.2** ✓ | 2.2.6 |
+  | fastapi | 0.141.1 | **0.141.1** ✓ | 0.137.0 |
+  | cryptography | 50.0.0 | **50.0.0** ✓ | **49.0.0 — under the CVE-2026-69247 floor** |
+  | pyhanko | 0.35.2 | **0.35.2** ✓ | 0.35.1 |
 
-  **So every local backend green — including one reported minutes ago — is measured against
-  different code than ships.** Not "an older environment": a *different* FastAPI minor and a numpy
-  three minors back. A defect that appears only on the locked versions passes locally, every time,
-  and CI is the only thing that can see it. This is the **env** dimension of "what exactly did it run
-  on?", and it had no entry here at all until now.
-  **CI remains the authority for the backend suite.** A local run is a smoke test of your edit, not
-  evidence about the release. Installing 3.12 is a machine change and therefore the user's call —
-  until then, do not report a local backend pass as if it settled anything about `requirements.lock`.
+  **109 lock pins, 0 version mismatches.** Verified by comparing every pin against `pip list`, not by
+  reading the installer's "Successfully installed". Full suite: **640/641 on 3.12**, the one failure
+  being an unrelated lane's uncommitted work-in-progress, which fails identically on the old venv.
+
+  **WHY IT HAD DRIFTED — not "nobody installed 3.12".** `requirements.lock` **cannot be installed on
+  Windows at all**, on any Python version, and this is structural rather than an oversight:
+
+  - `requirements.in` asks for `uvicorn[standard]`, whose `uvloop` dependency **does not support
+    Windows**. `pip-compile` resolved in `python:3.12-slim` and emitted an *unconditional* pin, so the
+    `sys_platform != "win32"` marker `uvicorn` itself declares is lost.
+  - In the other direction, `click` needs **`colorama` on Windows**, which a Linux-compiled lock has
+    no entry or hash for — so `--require-hashes` refuses on a dependency it never knew existed.
+
+  So the local install is `pip install -r <lock, minus uvloop>` **without `--require-hashes`**: exact
+  versions, hashes unenforced. That trade is deliberate and worth naming — version fidelity is what a
+  test result depends on; hash pinning is a supply-chain control, and **CI still enforces it on every
+  push**, which is where it protects the artifact. It was never running locally, because the install
+  never succeeded.
+
+  **The old 3.10.6 venv is kept as `.venv-py310-superseded`** (and `.gitignore` now matches `.venv*/`
+  so a rebuild's backup does not show up in every lane's `git status`). Delete it once you are
+  satisfied; there is no reason to go back to it — it sits under a HIGH-severity CVE floor.
+
+  **What is still true:** a local pass proves less than CI, because CI runs Linux with `uvloop` and
+  hash-verified wheels. But it is no longer measuring *different code* — the gap is now one package
+  that cannot run on this OS, rather than a FastAPI minor and three numpy minors.
 - Repo root: C:\Server\modelmaker (Windows / PowerShell).
 - Backend suite runs **from `services/api`**, never the repo root — the root exits 127 and reports
   "0 failures", which reads exactly like a pass.
