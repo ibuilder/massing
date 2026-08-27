@@ -126,4 +126,30 @@ describe("a mode cannot exist without a surface", () => {
     }
     expect(MODE_ORDER).toContain("specs");
   });
+
+  it("no comment in app.ts denies registering a mode that IS registered", () => {
+    /**
+     * The comment introducing the switch said `specs` is deliberately NOT registered — three lines
+     * above the registration of `specs`. True when written in v0.3.918, false from v0.3.920, and it
+     * stood for 190 versions because nothing reads a comment.
+     *
+     * The cost is not tidiness. A reader looking for the Specs tab finds a note saying it does not
+     * exist and stops looking; the test above proves the tab is real and could not say the prose
+     * denies it. **A gate on the code cannot see a claim about the code.**
+     *
+     * The trigger is the phrase, not the wording around it: any line saying a named mode is not
+     * registered is checked against whether it actually is. Rewriting the sentence keeps the guard;
+     * only dropping the claim drops it, which is the right way round.
+     */
+    const app = readFileSync(resolve(REPO, "apps/web/src/viewer/app.ts"), "utf8");
+    const denials = app.split("\n")
+      .filter((ln) => /^\s*(\/\/|\*)/.test(ln) && /not\s+registered/i.test(ln));
+    for (const ln of denials) {
+      for (const m of MODE_ORDER) {
+        if (!ln.includes(m)) continue;
+        expect(new RegExp(`key:\\s*"${m}"`).test(app),
+          `a comment says \`${m}\` is not registered, but it is: ${ln.trim()}`).toBe(false);
+      }
+    }
+  });
 });

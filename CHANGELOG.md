@@ -4,6 +4,55 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1111 (2026-08-27) — the viewer could not run offline, and nothing on screen said so
+
+**A non-negotiable was being broken by a transitive import, and it was found by opening the app in a
+browser rather than by reading code.** R36-VIEWER-SUBAPP has carried "not verified live" since slice
+4 — `createViewerApp` needs a WebGL context and a Fragments worker, so the tab strip, the spec pane
+and the keynote column had never been seen rendered. A headless Chromium settles it: **WebGL 2.0 is
+available, all three tabs render, and refusing Sheets with no project open both says why and leaves
+the Model tab selected.** The unit tests were right about every one of those.
+
+They could not have caught what the same run found in the first second:
+
+```
+pageerror: Failed to fetch dynamically imported module: .../viewer/app.ts
+REQFAIL https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/+esm :: ERR_CERT_AUTHORITY_INVALID
+```
+
+`three/examples/jsm/loaders/TTFLoader.js` opens with a **static import of a CDN URL**. Rolldown
+cannot bundle a URL specifier, so it emitted it verbatim — as **line 1 of `three-*.js`**, the chunk
+every 3D module depends on, reached because `@thatopen/components-front` imports `TTFLoader` for a
+`DrawingEditor` font loader this app never constructs. A static import is loaded whether or not it is
+used.
+
+The consequence is not a missing font. With no route to jsdelivr the chunk never evaluates, the
+viewer's dynamic import rejects, and **nothing renders and nothing reports it** — which is precisely
+the failure mode an air-gapped deployment has, and the fourth non-negotiable in `CLAUDE.md` says the
+viewer must run fully offline.
+
+`apps/web/src/shims/TTFLoader.ts` is a local stand-in keeping the module's shape and refusing at the
+point of use, aliased in `vite.config.ts`. A stub rather than a vendored font parser because
+`LengthMeasurement`, `AreaMeasurement` and `AngleMeasurement` are the only things this app imports
+from `components-front` and none of them loads a font — so vendoring opentype.js would add a
+dependency to make a path work that nothing enters.
+
+**`apps/web/scripts/check-offline.mjs` is the gate, and it greps the OUTPUT.** `vite.config.ts`
+already carries the reason in as many words for the vendor split next to it: a config that stops
+taking effect still builds, still emits the right filenames, and is wrong. An alias is the same
+shape — bump the dependency, rename the upstream file, and it quietly matches nothing. Measured both
+ways: with the alias, 85 bundled JS files and zero network imports; with it removed, the jsdelivr
+line is back and the check fails on it. It runs in CI after the build, and refuses to pass on a
+directory holding fewer than ten JS files, because "0 remote imports" reads identically whether the
+bundle is clean or absent.
+
+Also fixed, and the same defect class as the rest of this week: the comment introducing the canvas
+mode switch said `specs` **is deliberately NOT registered** — three lines above the registration of
+`specs`. True when written in v0.3.918, false from v0.3.920, and it stood for 190 versions because
+nothing reads a comment. The test beside it proves the tab is real and could not see the prose
+denying it; `canvasMode.test.ts` now fails on a comment that says a registered mode is not
+registered.
+
 ## v0.3.1110 (2026-08-26) — the pre-GUID markups can be moved, and nothing has to guess a level
 
 The residual limitation recorded in v0.3.1106 is now resolved. Storey markups saved before that release
