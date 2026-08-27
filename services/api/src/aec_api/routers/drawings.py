@@ -699,6 +699,102 @@ def _plan_pins(db: Session, pid: str, elevation: float, cut_height: float, model
     return out
 
 
+#: How many rekey rows the dry-run preview returns inline. Over this the response says it capped
+#: (`changes_truncated`) rather than handing back a short list that reads as the whole set.
+CHANGE_PREVIEW = 200
+
+
+@router.post("/projects/{pid}/drawings/markups/rekey-storeys")
+def rekey_storey_markups(pid: str, dry_run: bool = True, db: Session = Depends(get_db),
+                         actor: str = Depends(require_role("editor"))):
+    """Move pre-v0.3.1106 storey markups from `plan:<storeyName>` onto `plan:<storeyGuid>`.
+
+    Storey plan markups were keyed on the storey NAME until v0.3.1106, so renaming a level orphaned
+    every pin on it. New markups are GUID-keyed and the old key is still READ, so nothing disappeared
+    — but a markup left under the old key still orphans on rename. Rekeying needs a name → GlobalId
+    map, which only the source IFC holds; that is why it is this route and not a migration.
+
+    **`dry_run` defaults to TRUE.** This rewrites rows, and the mapping depends on a model that may
+    have been re-uploaded since the markups were made. The caller sees exactly what would move, and
+    what would not, before anything does.
+
+    Two things are refused rather than guessed, and both are reported by name:
+
+    * **an unmatched name** — the markup's storey no longer exists in the model (renamed already, or
+      a different model). There is nothing to map it to;
+    * **an AMBIGUOUS name** — two storeys share it, so the name does not identify one GlobalId. This
+      is the case the whole change exists to prevent, and picking either would be the same guess in
+      the other direction.
+
+    Idempotent: markups already on a GUID key match no storey name and are left alone, so running it
+    twice moves nothing the second time.
+    """
+    from aec_data import drawings as dw  # type: ignore
+    from aec_data.ifc_loader import open_model  # type: ignore
+
+    from ..models import DrawingMarkup
+
+    storeys = dw.storey_elevations(open_model(_source_ifc(db, pid)))
+    by_name: dict[str, list[str]] = {}
+    for st in storeys:
+        name = (st.get("name") or "").strip()
+        if name and st.get("guid"):
+            by_name.setdefault(name, []).append(str(st["guid"]))
+
+    rows = db.query(DrawingMarkup).filter(DrawingMarkup.project_id == pid,
+                                          DrawingMarkup.sheet_id.like("plan:%")).all()
+    # Every storey's GlobalId, INCLUDING storeys with a blank name. `by_name` deliberately skips
+    # those (a nameless storey cannot be matched by name), so deriving this from it reported a markup
+    # already correctly keyed on such a storey as "unmatched" — i.e. as a problem, when it is the
+    # desired end state. The two sets answer different questions.
+    known_guids = {str(st["guid"]) for st in storeys if st.get("guid")}
+    moved: list[dict] = []
+    ambiguous: list[str] = []
+    unmatched: list[str] = []
+    already: list[str] = []
+    for r in rows:
+        key = r.sheet_id or ""
+        base, suffix = (key[:-4], "#pdf") if key.endswith("#pdf") else (key, "")
+        name = base[len("plan:"):]
+        guids = by_name.get(name)
+        if not guids:
+            # A key that is ALREADY a storey GlobalId is the desired end state, not a problem, and
+            # reporting it beside genuinely unmappable names would make a clean second run read like
+            # a partial failure. Distinguished rather than lumped together.
+            bucket = already if name in known_guids else unmatched
+            if name not in bucket:
+                bucket.append(name)
+            continue
+        if len(guids) > 1:
+            if name not in ambiguous:
+                ambiguous.append(name)
+            continue
+        new_key = f"plan:{guids[0]}{suffix}"
+        moved.append({"markup_id": r.id, "from": key, "to": new_key})
+        if not dry_run:
+            r.sheet_id = new_key
+    if not dry_run and moved:
+        # RECORD, THEN COMMIT — in that order, and it is not cosmetic. `audit.record` only `db.add`s
+        # the row; committing first meant the rekey landed and the AuditLog row was discarded when
+        # the request session closed, so a destructive operation ran with no trail. Every other call
+        # site in this repository records before it commits.
+        audit.record(db, action="drawings.markups.rekey_storeys", actor=actor,
+                     detail={"project_id": pid, "moved": len(moved),
+                             "ambiguous_names": ambiguous, "unmatched_names": unmatched})
+        db.commit()
+    # The preview is capped, and SAYS when it capped. The route's contract is "the caller sees exactly
+    # what would move"; a silently short list on a large project reads as the whole answer, which is
+    # the same shape as an aggregate that truncates without a flag.
+    return {"dry_run": dry_run, "moved": len(moved), "changes": moved[:CHANGE_PREVIEW],
+            "changes_truncated": len(moved) > CHANGE_PREVIEW,
+            "changes_shown": min(len(moved), CHANGE_PREVIEW),
+            "ambiguous_names": ambiguous, "unmatched_names": unmatched,
+            "already_keyed_by_guid": already,
+            "note": ("nothing was written — call again with dry_run=false to apply" if dry_run
+                     else "applied"),
+            "storeys_in_model": len(storeys)}
+
+
 @router.get("/projects/{pid}/drawings/section.svg")
 def section(pid: str, axis: str = "x", offset: float | None = None, title: str = "SECTION",
             lod: str = "coarse", annotate: bool = True, hatch: bool = True,

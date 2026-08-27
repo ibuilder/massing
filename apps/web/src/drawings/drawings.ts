@@ -1,7 +1,7 @@
 import type { ApiClient, DrawingMarkupItem } from "../api/client";
 import type { Measure } from "./pdfTakeoff";
 import { noProjectHtml } from "../ui/empty";
-import { askText } from "../ui/prompt";
+import { askConfirm, askText } from "../ui/prompt";
 import { sanitizeSvg } from "../ui/sanitizeSvg";
 import { escapeHtml } from "../ui/feedback";
 import { addHitTargets, guidFromEvent, postSheetPin, selectInViewer, syncPlanHighlight } from "../ui/sheetGuid";
@@ -406,6 +406,95 @@ export class DrawingsUI {
   /** MARKUP-2b: the cross-sheet markups grid — every markup in the project in one sortable list with
    *  Σ totals per kind, revision/carried status, and RFI links. DOM built with textContent throughout
    *  (XSS-safe by construction — markup notes/authors are user text). */
+  /**
+   * R36 backfill — dry-run, show what would move, then apply only on confirm.
+   *
+   * Two calls on purpose. The route defaults to `dry_run=true` and this mirrors it: the name → GUID
+   * mapping comes from the project's CURRENT source IFC, which may have been re-uploaded since the
+   * markups were made, so what would move is worth reading before it moves. The refusals are shown
+   * too — a duplicated storey name is not resolved, and saying so is the difference between a
+   * backfill you can trust and one that quietly guessed.
+   */
+  private async rekeyLegacyMarkups() {
+    const pid = this.host_.projectId();
+    if (!pid) return;
+    const api = this.host_.api;
+    let plan: Awaited<ReturnType<typeof api.rekeyStoreyMarkups>>;
+    try { plan = await api.rekeyStoreyMarkups(pid, true); }
+    catch { this.host_.setStatus("couldn't check legacy markup keys"); return; }
+
+    // Nothing to move has TWO causes that must not share a message. Either every key is already a
+    // GlobalId — the finished state — or some are legacy keys the route REFUSED to resolve. Saying
+    // "already keyed on a GlobalId" in the second case is a false all-clear about the exact entries
+    // that still orphan on rename, and the operator has no reason to look again.
+    if (!plan.moved) {
+      const refusals = [
+        plan.ambiguous_names.length
+          ? `Two storeys share the name, so it names no single level: ${plan.ambiguous_names.join(", ")}`
+          : "",
+        plan.unmatched_names.length
+          ? `No such storey in the current model: ${plan.unmatched_names.join(", ")}`
+          : "",
+      ].filter(Boolean).join("\n");
+      const stuck = plan.ambiguous_names.length + plan.unmatched_names.length;
+      await askConfirm(refusals ? `No markups can be moved — ${stuck} storey key(s) left in place`
+                                : "Nothing to move", {
+        body: refusals
+          ? `${refusals}\n\nThese are still keyed on a storey NAME and will orphan if it is renamed. `
+            + "Rename the duplicated levels apart, or re-upload the model they were drawn against, "
+            + "then run this again."
+          : "Every storey markup is already keyed on a GlobalId.",
+        okLabel: "OK", cancelLabel: "",
+      });
+      return;
+    }
+    const lines = plan.changes.slice(0, 8).map((c) => `  ${c.from}  →  ${c.to}`).join("\n");
+    const more = plan.changes_truncated ? `\n  …and ${plan.moved - plan.changes_shown} more` : "";
+    const refused = [
+      plan.ambiguous_names.length
+        ? `Skipped — two storeys share the name, so it names no single level: ${plan.ambiguous_names.join(", ")}`
+        : "",
+      plan.unmatched_names.length
+        ? `Skipped — no such storey in the current model: ${plan.unmatched_names.join(", ")}`
+        : "",
+    ].filter(Boolean).join("\n");
+    const ok = await askConfirm(`Move ${plan.moved} markup(s) onto storey GlobalIds?`, {
+      body: `${lines}${more}${refused ? `\n\n${refused}` : ""}`,
+      okLabel: "Move them", cancelLabel: "Cancel",
+    });
+    if (!ok) return;
+
+    // THE MUTATION, alone in its own try. Wrapping the refresh in with it meant a failing
+    // `loadPins()` reported "the rekey failed — nothing was changed" about a rekey that had already
+    // succeeded: a false statement about server state, which is worse than no message because the
+    // obvious next action is to run it again.
+    let done: Awaited<ReturnType<typeof api.rekeyStoreyMarkups>>;
+    try { done = await api.rekeyStoreyMarkups(pid, false); }
+    catch { this.host_.setStatus("the rekey failed — nothing was changed"); return; }
+
+    // Past this line the server HAS changed. Everything below is display.
+    //
+    // The stale grid goes first, before anything that can throw. It fetched its rows before the move,
+    // so every key it shows is one the server has just contradicted — and leaving it up because a
+    // later refresh failed is how "the rekey did nothing" gets read off a list that is merely old.
+    // `document`, not `this.root`: the overlay is appended to the body so it can cover the viewport.
+    document.querySelectorAll(".dwg-markup-grid").forEach((el) => el.remove());
+
+    // Says what was NOT moved, too. "12 moved" alone reads as "the repair is done" while ambiguous
+    // and vanished storeys sit exactly where they were — the operator would have no reason to look.
+    const left = done.ambiguous_names.length + done.unmatched_names.length;
+    this.host_.setStatus(`${done.moved} markup(s) moved onto storey GlobalIds`
+      + (left ? `; ${left} storey key(s) left in place — see the Markups list` : ""));
+
+    try {
+      await this.loadPins();
+      await this.showMarkupGrid();
+    } catch {
+      // The move stands; only the redraw failed. Say which, so nobody re-runs a completed backfill.
+      this.host_.setStatus(`${done.moved} markup(s) moved — reopen ☰ Markups to see them`);
+    }
+  }
+
   private async showMarkupGrid() {
     const pid = this.host_.projectId();
     if (!pid) return;
@@ -413,6 +502,7 @@ export class DrawingsUI {
     try { rows = await this.host_.api.drawingMarkup(pid); }
     catch { this.host_.setStatus("couldn't load markups"); return; }
     const ov = document.createElement("div");
+    ov.className = "dwg-markup-grid";       // so a rekey can replace the list it just invalidated
     ov.style.cssText = "position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center";
     const box = document.createElement("div");
     box.style.cssText = "background:var(--panel,#23262d);color:var(--fg,#eee);border:1px solid var(--line,#3a3f47);"
@@ -432,7 +522,16 @@ export class DrawingsUI {
     title.textContent = `☰ Markups — ${rows.length} across ${new Set(rows.map((m) => m.sheet_id.split("#")[0])).size} sheet(s)`;
     const x = document.createElement("button"); x.className = "tool-btn"; x.textContent = "✕";
     x.onclick = () => ov.remove();
-    head.append(title, x);
+    // Maintenance: move pre-v0.3.1106 storey markups onto their storey's GlobalId. It lives here
+    // rather than in the toolbar because it acts on markups ACROSS sheets, which is what this grid
+    // shows — and because a backfill that the product cannot trigger is a feature nobody can use.
+    const fix = document.createElement("button");
+    fix.className = "tool-btn";
+    fix.textContent = "⟲ Fix legacy keys";
+    fix.title = "Move markups still keyed on a storey NAME onto that storey's GlobalId, so a level "
+      + "rename stops orphaning them. Shows what would move before it moves anything.";
+    fix.onclick = () => void this.rekeyLegacyMarkups();
+    head.append(title, fix, x);
     const sub = document.createElement("div"); sub.className = "meta"; sub.textContent = sumTxt || "no markups yet";
     const scroll = document.createElement("div"); scroll.style.cssText = "overflow:auto;flex:1";
     const tbl = document.createElement("table"); tbl.style.cssText = "width:100%;border-collapse:collapse;font-size:12px";

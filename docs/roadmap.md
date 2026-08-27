@@ -2532,11 +2532,35 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   v0.3.1107, gated by `services/api/test_spec_system.py`, which measures the corpus rather than
   quoting it.
 
-  Remaining: the **keynote → spec section** link (keynotes do not yet carry their section code —
-  `keynote_text` builds them from class, material and thickness and never consults the element's
-  classification). Its prerequisite is now met. **One residual limitation, stated rather than buried:** a markup created
-  before v0.3.1106 is still name-keyed and still orphans on rename — rekeying it needs a
-  name→GlobalId map only the source IFC holds, so it is a backfill, not a code change. **Print paper picker (v0.3.993):**
+  ✅ **KEYNOTE → SPEC SECTION — landed in v0.3.1108**, and with it the entry's last named item.
+  *(lowercase "landed" deliberately, as in items 1, 2 and 3 and for the same reason.)* A keynote
+  prefixes the classification code governing the assembly it points at — `04 22 00  200mm MASONRY
+  WALL`. What made it reachable was an identity already present and being discarded:
+  `section_drawing_svg` cut with `cut_baked_classed`, which keeps the class and drops the GlobalId,
+  so the frame building keynotes had nothing to look a classification up by. `cut_baked_guided` has
+  carried `(guid, class, polyline)` since R38-PLAN-IDENTITY and the section path now uses it — which
+  also closes an accounting gap, since the guided cut logs meshes that fail to section where the
+  classed one dropped them silently. **A group cites only when every member agrees**, an unclassified
+  member counting as disagreement: the keynote partition (class + material + thickness) is not the
+  spec partition, and a citation covering only some of the elements a leader points at is a false
+  statement on a construction document. `services/api/test_keynote_spec.py`.
+
+  **Everything this entry named is now shipped**, and the one carried-over limitation with it: the
+  pre-GUID markup backfill landed in v0.3.1110 as
+  `POST /projects/{pid}/drawings/markups/rekey-storeys` — dry-run by default, idempotent, and
+  refusing to resolve a duplicated storey name rather than guessing which level a pin belonged to.
+  `services/api/test_markup_rekey.py`.
+
+  What remains is **the live DOM verification this entry has flagged as unverified since slice 4** —
+  `createViewerApp` needs a WebGL context and a Fragments worker, so the tab strip, the spec pane and
+  the keynote column have never been seen in a browser. Unit tests cover the behaviour and `tsc`
+  covers the wiring; that is not the same claim and the entry has never pretended otherwise.
+  *(The sentence that stood here — "one residual limitation … a markup created before v0.3.1106 is
+  still name-keyed and still orphans on rename … it is a backfill, not a code change" — was true
+  when written and false three lines below a paragraph saying the backfill shipped. **The fourth time
+  this entry's prose contradicted its own status**, and the third caught by review rather than by me.
+  A status sentence is not a footnote: it has to be re-read whenever the thing it describes moves.)*
+  **Print paper picker (v0.3.993):**
   Issue / Sheet PDF / Place and the paper-space editor share `drawings.py` `PAGES` — ARCH-C/D/B/A and
   ISO A0–A4. Default is **ARCH-C (24×18 in)**; that is not an ISO A size. ARCH-D is full-size US
   CDs (36×24), ARCH-B is half of D, ARCH-A is the next ARCH step (often called quarter of D).

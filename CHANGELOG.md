@@ -4,6 +4,110 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1110 (2026-08-26) — the pre-GUID markups can be moved, and nothing has to guess a level
+
+The residual limitation recorded in v0.3.1106 is now resolved. Storey markups saved before that release
+are keyed `plan:<storeyName>`; the new key is read alongside the old one so nothing disappeared, but
+a markup still sitting under a name **still orphans when its level is renamed**.
+
+`POST /projects/{pid}/drawings/markups/rekey-storeys` moves them. It is a route rather than an
+alembic migration for a reason that is not preference: rekeying needs a `name → GlobalId` map and
+only the project's source IFC holds one. A migration has the database and not the model.
+
+Three things it refuses to guess, each reported by name:
+
+* **`dry_run` defaults to TRUE.** The mapping depends on a model that may have been re-uploaded since
+  the markups were made, so the caller sees exactly what would move before anything does.
+* **A duplicated storey name is skipped**, not resolved. Two levels called "Level 1" mean the name
+  does not identify a GlobalId — and picking either is the same guess, in the other direction, that
+  this whole line of work exists to stop making.
+* **A vanished storey is skipped.** Nothing to map it to.
+
+A key that is *already* a GlobalId is reported under `already_keyed_by_guid` rather than lumped in
+with the unmappable, because a clean second run that reads as a partial failure is a report
+misdescribing itself. That also makes the operation idempotent, which is asserted rather than
+assumed: `test_markup_rekey.py` runs it twice and checks nothing moves the second time.
+
+**It shipped unreachable, and `test_route_reachability.py` caught it.** The route had no client
+caller, which that gate states plainly: *"a route the product cannot call is a feature nobody can
+use."* The gate offers an allowlist entry as the alternative, and taking it would have been the wrong
+answer here — a one-time backfill that only an operator with `curl` can run is exactly the shape the
+gate exists to stop. So it has a real caller: **⟲ Fix legacy keys** in the ☰ Markups grid, which is
+where markups across sheets are already listed. It dry-runs, shows what would move and what it
+refused to guess, and applies only on confirm — the two-call shape the route was designed for.
+
+*This is the mirror of the defect that motivated the reachability gates in the first place: seven of
+eleven things built across v0.3.701–710 shipped with no route at all. Here the route existed and
+nothing could reach it.*
+
+## v0.3.1109 (2026-08-26) — a shared saved view now alerts every reader, each from their own visit
+
+R22-REPORT-BUILDER item 4 shipped `SavedView.scope` and stopped deliberately short of alerting anyone
+but the author. Its note said why, and was right: `saved_views.last_seen_at` was ONE column on ONE
+row, so a shared view in a second person's 🔔 feed would have computed *their* "new since" from **the
+author's** last visit — the confidently-wrong-number shape item 3 had just removed one layer down.
+It also meant the one person the feed showed a view to was the only person allowed to mark it seen.
+
+`SavedViewSeen` is the per-viewer timestamp that item named: one row per (view, viewer), unique on
+the pair, because two rows would make "when did I last look at this" ambiguous and the feed would
+answer with whichever the query returned first.
+
+**The migration moves the data and then drops the old column.** Every non-null `last_seen_at` becomes
+a row for that view's owner, so nobody's feed resets — an author who last looked on Tuesday still
+counts from Tuesday. The column is then removed rather than left in place unread: a populated,
+authoritative-looking column that nothing reads is how a later change "fixes" something by reading it
+again. The downgrade restores owners exactly; other viewers' visits have nowhere to go in the old
+shape, which is precisely the limitation being removed.
+
+The load-bearing assertions are not "a shared view appears in Bob's feed" — a scope filter alone
+satisfies that. They are that **Bob's count is Bob's**: Alice marking the view seen leaves Bob's alert
+untouched, and vice versa. Mutation-checked — ignoring *whose* visit it was fails both.
+
+`test_view_sharing.py` had pinned the old behaviour on purpose, so the gap stayed visible. That pin is
+released **and the release is recorded** rather than the assertion quietly flipped: a pin removed
+without a note reads, later, as a leak somebody stopped checking for. What it still asserts is what is
+still true — sharing reaches the reader, and does not reach their edit rights or another project.
+
+## v0.3.1108 (2026-08-26) — a section keynote now names the spec section that governs it
+
+R36-VIEWER-SUBAPP's last remaining item, unblocked by v0.3.1107. A keynote said what an assembly
+**is** — `200mm MASONRY WALL`, composed from the element's class, material and measured thickness.
+The spec section says what **governs** it. Nothing joined the two, so a reader holding a section had
+to know the mapping by heart.
+
+    before:   200mm MASONRY WALL
+    after:    04 22 00  200mm MASONRY WALL
+
+**What made it reachable was an identity that was already there and being discarded.**
+`section_drawing_svg` cut with `cut_baked_classed`, which keeps the IFC class and throws the GlobalId
+away — so the frame that builds keynotes had nothing to look a classification up by.
+`cut_baked_guided` has carried `(guid, class, polyline)` since R38-PLAN-IDENTITY; the section path now
+uses it. That also fixes an accounting gap in passing: the guided cut **logs** meshes that fail to
+section, where the classed variant dropped them silently — *"a plan missing a wall renders perfectly;
+nothing about it says a wall is missing."*
+
+**The interesting half is when a keynote may NOT cite.** The group is formed by
+`(class, material, rounded thickness)`, deliberately, so a wall cut at eight storeys is one keynote
+rather than eight. **That partition is not the spec partition**: an interior partition and a
+fire-rated shaft wall of the same build-up are identical to the grouping key and specified apart. So
+a group cites a section only when **every** member agrees, and an unclassified member counts as a
+disagreement — *"I do not know about this one"* cannot license a claim about it. A keynote printing a
+section that governs only some of the elements its leader points at is a false statement on a
+construction document, and worse than no citation, because a drawing is read as authored.
+
+`element_codes(model, system=None)` is the guid → code map, keyed by GlobalId like every other
+identity in this project. It resolves types too: a classification on an `IfcWallType` covers its
+occurrences, and a direct classification on an occurrence wins as the more specific statement. The
+system-resolution walk is factored into `_rel_system` so `classification_systems`, `project_manual`
+and `element_codes` cannot drift into three answers to "which system is this in".
+
+`test_keynote_spec.py` covers both halves, and its **fixture was the thing that had to be fixed
+twice**. The first draft used two walls meeting at a corner: they look equivalent to two parallel
+ones and are not — a plane of constant y crosses only one, so every group had a single member and the
+disagreement case asserted nothing while reporting a pass. The guard now counts the ELEMENTS the cut
+caught rather than the labels it drew. Mutation-checked: replacing unanimity with the largest
+member's code prints `04 22 00` on a group where only one of the two walls carries it.
+
 ## v0.3.1107 (2026-08-26) — the spec manual answered nothing, for every model this project ships
 
 R36-VIEWER-SUBAPP's last remaining item is the **keynote → spec section** link. The premise-check

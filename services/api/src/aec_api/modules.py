@@ -11,6 +11,7 @@ Implements the patent-described system (provisional 514712205), modernised on Fa
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy import (
@@ -320,11 +321,32 @@ def ensure_fts_indexes(engine) -> None:
 
 
 def view_alerts(db: Session, project_id: str, user: str) -> list[dict]:
-    """Saved-search alerts: for each of the user's saved views, the total matches + how many are NEW
-    since they last opened it (a never-opened view counts all matches as new). Powers the 🔔 feed."""
-    from .models import SavedView
-    views = db.query(SavedView).filter(SavedView.project_id == project_id,
-                                       SavedView.user == user).order_by(SavedView.created_at).all()
+    """Saved-search alerts: for each view this user can read, the total matches + how many are NEW
+    since **they** last opened it (a never-opened view counts all matches as new). Powers the 🔔 feed.
+
+    Covers the user's own views AND every `project`-scoped view in the project, each counted from the
+    viewer's own last visit via `SavedViewSeen`. Until v0.3.1109 this filtered on `SavedView.user`
+    alone, so a shared view alerted nobody but its author — sharing shipped for reading and stopped at
+    the feed. The reason it stopped is recorded on the model: `saved_views.last_seen_at` was one
+    column on one row, so a second person's "new since" would have been computed from the AUTHOR's
+    last visit, which is the same confidently-wrong number the filter miscount produced one layer
+    down. The per-viewer table is what makes this safe rather than merely possible.
+
+    `mine` distinguishes a user's own views from views shared with them, because a feed that mixes
+    them silently makes "why am I being told about this?" unanswerable.
+    """
+    from .models import SavedView, SavedViewSeen
+    views = db.query(SavedView).filter(
+        SavedView.project_id == project_id,
+        or_(SavedView.user == user, SavedView.scope == "project"),
+    ).order_by(SavedView.created_at).all()
+    # One query for every seen-row this user has on these views, rather than one per view.
+    seen: dict[str, datetime] = {}
+    if views:
+        for row in db.query(SavedViewSeen).filter(
+                SavedViewSeen.user == user,
+                SavedViewSeen.view_id.in_([v.id for v in views])).all():
+            seen[row.view_id] = row.last_seen_at
     out = []
     for v in views:
         cfg = v.config or {}
@@ -361,13 +383,19 @@ def view_alerts(db: Session, project_id: str, user: str) -> list[dict]:
             # instead of showing a number that describes different rows than the view does.
             out.append({"id": v.id, "name": v.name, "module": v.module,
                         "total": None, "new": None, "config": cfg,
+                        "scope": v.scope, "owner": v.user, "mine": v.user == user,
                         "error": "saved before view configs were validated; re-save to enable alerts"})
             continue
         total = count_records(db, v.module, project_id, state=state, q=q, filters=filters)
-        new = count_records(db, v.module, project_id, state=state, q=q, since=v.last_seen_at,
-                            filters=filters) if v.last_seen_at else total
+        # THIS viewer's last visit, not the view's. A view nobody has opened counts everything as new,
+        # which is right for each reader independently: a shared view is new to me the first time I
+        # see it however long its author has had it.
+        mine_seen = seen.get(v.id)
+        new = count_records(db, v.module, project_id, state=state, q=q, since=mine_seen,
+                            filters=filters) if mine_seen else total
         out.append({"id": v.id, "name": v.name, "module": v.module, "total": total, "new": new,
-                    "config": cfg})
+                    "config": cfg, "scope": v.scope, "owner": v.user, "mine": v.user == user,
+                    "last_seen_at": mine_seen.isoformat() if mine_seen else None})
     return out
 
 

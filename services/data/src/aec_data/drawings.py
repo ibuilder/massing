@@ -1702,17 +1702,47 @@ MAX_COMPONENT_DIMS = 6        # thickest assemblies win; the remainder is COUNTE
                               # dropped silently — a truncated list that says nothing reads as complete
 
 
-def keynote_text(cls: str, material: str, thickness_m: float | None = None) -> str:
+def _group_code(members: list[tuple], spec_codes: dict[str, str] | None) -> str | None:
+    """The spec code for a keynote group — only when EVERY member of it agrees.
+
+    R36-VIEWER-SUBAPP. A keynote annotates one *assembly*, and the group is formed by class, material
+    and thickness — which is not the same partition as the spec section. Two walls can be identical
+    in all three and still be specified apart (an interior partition and a fire-rated shaft wall of
+    the same build-up), and they group together here.
+
+    So the rule is unanimity, not a majority and not the largest member's code: **a keynote printing
+    a section that governs only some of the elements it points at is a false statement on a
+    construction document**, and it is worse than no citation because a drawing is read as authored.
+    An unclassified member is a disagreement too — "I do not know about this one" cannot license a
+    claim about it.
+    """
+    if not spec_codes:
+        return None
+    codes = {spec_codes.get(str(g)) for *_rest, g in members}
+    if len(codes) != 1:
+        return None
+    only = codes.pop()
+    return only or None
+
+
+def keynote_text(cls: str, material: str, thickness_m: float | None = None,
+                 spec_code: str | None = None) -> str:
     """The keynote for one cut assembly, built from what the MODEL knows: its material, its class and
     its measured thickness. Nothing is invented — an unrecognised class falls back to the class name
-    with the IFC prefix stripped, which is still true, rather than to a guess that reads as authored."""
+    with the IFC prefix stripped, which is still true, rather than to a guess that reads as authored.
+
+    `spec_code` is the classification code of the elements this keynote points at, prefixed so the
+    annotation names the section that governs it — `03 30 00  200mm CONCRETE WALL`. Omitted rather
+    than guessed: see `_group_code` for when a group is allowed to claim one.
+    """
     kind = _KEYNOTE_KIND.get((cls or "").lower())
     if not kind:
         kind = (cls or "ELEMENT").upper().removeprefix("IFC") or "ELEMENT"
     t = ""
     if thickness_m and thickness_m > 0.001:
         t = f"{round(thickness_m * 1000):d}mm "
-    return _KEYNOTE_NAME.get(material, "{t}{kind}").format(t=t, kind=kind).strip()
+    body = _KEYNOTE_NAME.get(material, "{t}{kind}").format(t=t, kind=kind).strip()
+    return f"{spec_code}  {body}" if spec_code else body
 
 
 def _keynote_leaders(entries, col_x: float, top: float, bottom: float,
@@ -1747,7 +1777,8 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
                         grid: dict | None = None, lod: str = "coarse", width: int = 1300,
                         hatch: bool = True, materials: dict[str, str] | None = None,
                         keynotes: bool = True, tags: list[dict] | None = None,
-                        components: list[dict] | None = None) -> str:
+                        components: list[dict] | None = None,
+                        spec_codes: dict[str, str] | None = None) -> str:
     """An **annotated** section: poché, level datums, grid bubbles and a floor-to-floor dimension
     chain — the things that make a cut issuable rather than merely correct.
 
@@ -1760,10 +1791,14 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
         # wrong weight, and nothing downstream would show that the request was misspelled
         raise ValueError(f"lod must be one of {sorted(SECTION_LODS)}, got {lod!r}")
     view = "section-x" if axis == "x" else "section-y"
-    classed = cut_baked_classed(meshes, view, offset)
-    if not classed:
+    # The GUID-carrying cut, not the class-only one. R36-VIEWER-SUBAPP needs the identity to look a
+    # keynote's spec section up, and `cut_baked_guided` also ACCOUNTS for meshes that fail to
+    # section — `cut_baked_classed` drops them silently, which is a plan missing a wall that says
+    # nothing about the wall being missing.
+    guided = cut_baked_guided(meshes, view, offset)
+    if not guided:
         return to_svg([], title=title, subtitle=f"{axis.upper()} = {offset:.2f} m — no geometry on this cut")
-    polys = [p for _, p in classed]
+    polys = [p for _, _, p in guided]
     allp = np.vstack(polys)
     mn, mx = allp.min(axis=0), allp.max(axis=0)
     span = np.maximum(mx - mn, 1e-6)
@@ -1792,7 +1827,7 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
     opacity = _POCHE_OPACITY.get(lod, 1.0)
     used_hatch: set[str] = set()
     poly_svg: list[str] = []
-    for cls, poly in classed:
+    for _guid, cls, poly in guided:
         pts = " ".join(f"{T(p[0], p[1])[0]:.1f},{T(p[0], p[1])[1]:.1f}" for p in poly)
         fill = _poche_fill(cls, lod)
         # R21-HATCH: hatch the cut when we can READ it. A hatch tile is a fixed size on the sheet, so
@@ -1857,19 +1892,20 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
     # a dot on a sliver is a dot the reader cannot associate with anything.
     if keynotes and lod != "line":
         groups: dict[tuple, list] = {}
-        for cls, poly in classed:
+        for guid, cls, poly in guided:
             p = np.asarray(poly, dtype=float)
             w, h = p[:, 0].max() - p[:, 0].min(), p[:, 1].max() - p[:, 1].min()
             thick = min(w, h)
             mat = hatch_material(cls, materials)
             # round the thickness so 199 mm and 201 mm of the same wall are ONE assembly, not two
             key = (cls, mat, round(thick, 2))
-            groups.setdefault(key, []).append((w * h, p))
+            groups.setdefault(key, []).append((w * h, p, guid))
         picked = []
         for (cls, mat, thick), members in groups.items():
-            area, p = max(members, key=lambda m: m[0])
+            area, p, _g = max(members, key=lambda m: m[0])
             cx, cy = T(float(p[:, 0].mean()), float(p[:, 1].mean()))
-            picked.append((area, cx, cy, keynote_text(cls, mat, thick)))
+            picked.append((area, cx, cy, keynote_text(cls, mat, thick,
+                                                     _group_code(members, spec_codes))))
         picked.sort(key=lambda e: -e[0])
         entries = [(cx, cy, txt) for _, cx, cy, txt in picked[:MAX_KEYNOTES]]
         out.append(_keynote_leaders(entries, ox - 118, top, oy + draw_h, anchor_right=True))
@@ -1935,7 +1971,7 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
                        f'fill="#555">+{len(components)-MAX_COMPONENT_DIMS} more assemblies</text>')
 
     ty = height - 24
-    note = f'{axis.upper()} = {offset:.2f} m  ·  {len(classed)} cut elements  ·  poché {lod}'
+    note = f'{axis.upper()} = {offset:.2f} m  ·  {len(guided)} cut elements  ·  poché {lod}'
     out.append(f'<line x1="{pad}" y1="{ty-12}" x2="{width-pad}" y2="{ty-12}" stroke="#111" stroke-width="1"/>'
                f'<text x="{pad}" y="{ty+8}" font-family="sans-serif" font-size="16" '
                f'font-weight="700">{_xesc(title)}</text>'
@@ -1943,6 +1979,24 @@ def section_drawing_svg(meshes, axis: str, offset: float, levels: list[dict], ti
                f'font-size="12" fill="#555">{note}</text>')
     out.append("</svg>")
     return "".join(out)
+
+
+def _spec_codes(model) -> dict[str, str] | None:
+    """`{GlobalId: classification code}` for the keynote → spec link, or None when there is nothing.
+
+    Deferred import: `specmanual` is a document-assembly module and this one is geometry, so the
+    dependency exists only when a section is actually annotated.
+
+    **A failure here returns None rather than propagating.** The drawing is what the caller came for;
+    losing a whole section because its spec citations could not be resolved trades something readable
+    for nothing. The same call the markup layer makes for the same reason.
+    """
+    try:
+        from . import specmanual
+        return specmanual.element_codes(model) or None
+    except Exception:  # noqa: BLE001 — an unciteable model still gets its drawing
+        log.debug("drawings._spec_codes: classification lookup failed", exc_info=True)
+        return None
 
 
 def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None,
@@ -1975,6 +2029,11 @@ def section_svg(model: ifcopenshell.file, axis: str, offset: float | None = None
                                # R21-DIM-COMPONENT — the layer build-ups of the assemblies this cut
                                # passes through. Empty list when the model carries no layer sets, which
                                # claims the column's width back rather than reserving it for nothing.
+                               # R36-VIEWER-SUBAPP — the keynote → spec section link. Read here
+                               # because this is the last frame that still has the MODEL:
+                               # `section_drawing_svg` takes baked meshes, and a classification lives
+                               # on the element, not on its geometry.
+                               spec_codes=_spec_codes(model) if keynotes else None,
                                components=(component_dims_section(model, axis, offset) or None)
                                if components else None,
                                materials=material_by_class(model) if (hatch or keynotes) else None)

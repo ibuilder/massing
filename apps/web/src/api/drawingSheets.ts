@@ -31,6 +31,24 @@ export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<{ doors: Table; windows: Table; rooms: Table }>(
       `/projects/${pid}/drawings/schedules/calc`, { method: "POST", body: JSON.stringify(calcs) });
   }
+  /**
+   * Move pre-v0.3.1106 storey markups from `plan:<storeyName>` onto `plan:<storeyGuid>`.
+   *
+   * `dryRun` defaults to TRUE, matching the route: the mapping depends on a model that may have been
+   * re-uploaded since the markups were made, so a caller sees exactly what would move before anything
+   * does. `ambiguous_names` and `unmatched_names` are what it REFUSED to guess — a duplicated storey
+   * name does not identify one GlobalId, and picking either would be the same guess, in the other
+   * direction, that GUID-keying exists to stop. `already_keyed_by_guid` is the desired end state, so
+   * it is reported apart from the unmappable rather than lumped in with them.
+   */
+  rekeyStoreyMarkups(pid: string, dryRun = true) {
+    return this.json<{
+      dry_run: boolean; moved: number; changes_truncated: boolean; changes_shown: number;
+      changes: { markup_id: string; from: string; to: string }[];
+      ambiguous_names: string[]; unmatched_names: string[]; already_keyed_by_guid: string[];
+      note: string; storeys_in_model: number;
+    }>(`/projects/${pid}/drawings/markups/rekey-storeys?dry_run=${dryRun}`, { method: "POST" });
+  }
   drawingStoreys(pid: string) {
     return this.json<{ name: string | null; elevation: number; guid: string }[]>(`/projects/${pid}/drawings/storeys`);
   }
