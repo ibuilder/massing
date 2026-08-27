@@ -372,11 +372,17 @@ check(
 #: can read beats a mask nobody can see**, and the two look identical from the outside: both are a
 #: green run over a function nothing calls.
 DELIBERATELY_UNCALLED: dict[str, str] = {
-    "sync_property": (
-        "a refusal stub. It raises NotImplementedError and names ITSELF as the place to implement "
-        "the credentialed ENERGY STAR exchange. Deleting it would remove the documented extension "
-        "point from a module whose whole contract is 'never fabricate a score' — the docstring is "
-        "the deliverable, not the body."),
+    # EMPTY, and that is the point. `sync_property` sat here from 2026-08-27 until later the same day,
+    # when R37-TESTED-UNWIRED read all 20 test-only functions and found the exemption was the wrong
+    # instrument: its two siblings in the same refusal-stub family -- `parcels_bridge.fetch_parcels`
+    # and `payments_bridge.send_payment` -- each already had a test exercising the refusal, and it had
+    # none. **An exemption is what you write when there is nothing to assert.** There was something:
+    # that the stub refuses, in both postures, and names what to wire. `test_energy_star_bridge.py`
+    # asserts it, and the entry stopped being needed.
+    #
+    # Worth keeping the mechanism even at zero: an exemption entry freezes a missing test as a
+    # decision somebody made on purpose, and reads that way to everyone afterwards. The next entry
+    # should have to argue past that.
 }
 
 surprises = sorted(set(unreferenced) - set(DELIBERATELY_UNCALLED))

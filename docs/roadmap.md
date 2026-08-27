@@ -2273,8 +2273,88 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   live**, and the two it deleted without reading had to be put back. *A population rule that looks
   reasonable is wrong until you read what it selected* — and this one has not been read.
 
-  Output: each of the 20 marked wire / keep-as-test-surface / delete with the evidence, then a
-  ratchet at whatever survives.
+  **ALL 20 READ, 2026-08-27.** The population re-derived first (still 20), then each one opened
+  along with what its own router actually calls. The split is not the one the list shape suggests:
+
+  **▶ WIRE — a real capability nothing can reach (5).** These are `beside` again.
+  * `pid_lock.cross_process_status` — **the sharpest.** `main.py`'s boot guard explains at length why
+    it reads the dialect from `DATABASE_URL` instead of this function, and ends *"the live-truth
+    surface stays `cross_process_status()` on /health"*. `/health` returns `{"status": "ok"}` with no
+    dependencies, deliberately. **The comment asserts a surface that was never built**, and the fact
+    it exists to publish — *this deployment cannot serialise sidecar writes across workers* — is
+    readable by nobody. (Where it goes is a small call: `/health` is dependency-free on purpose, so
+    `/ready`, which already touches the DB, may be the honest home.)
+  * `photo_cv.duplicate_of` — `routers/verification.py` runs `photo_quality` and `compare_photos` on
+    upload and not this. The abuse its docstring names — *one photo uploaded against thirty elements
+    to clear a checklist* — is unguarded on the only path where it can happen.
+  * `takeoff_scope.scope_annotations` — R27-LAYOUT ③'s own named deliverable; `analysis.py` calls
+    `scope` and `check_calibration` only.
+  * `mep.block_cooling_load` — **not** a duplicate of the routed `size_cooling`: that converts a
+    KNOWN load to tons, this estimates the load from GFA. The earlier question, and the unasked one.
+  * `test_fit.depth_range` — `test_fit_optimize` passes the caller's `body.depths` straight through
+    and defaults to `None`, so the client has to invent the sweep this function exists to generate.
+
+  **▶ CONSOLIDATE, not delete (3).** The caller reimplements the accessor — `cde.scorecard_inputs`'s
+  shape, which R37-TRIAGE deleted for. Here the better move is the other direction:
+  `routers/ids.py::_specs_from` duplicates `build_from_use_case`'s body **and reaches for the private
+  `ia._specs_for`** to do it; `eir_for_use_case` is the same pair, and `agent_packs.catalog` inlines
+  `list(p["tools"])` rather than calling `tools_for`. Calling the public wrappers removes a
+  private reach-through *and* the orphan, which deleting them would not.
+
+  **▶ KEEP — genuinely test-and-gate surface (5).** `supply_chain` has no reference anywhere outside
+  its own file: it **is** a gate module, and the licence/SBOM gates are tests by design — `sbom`,
+  `pdf_sanity`, `is_dual_licensed` are correctly test-only. `rooms.unmapped_sections` says *"a
+  non-empty result must fail a build"* and `services/api/test_module_rooms.py` is that build gate.
+  `module_schema.validate_dir` says *"usable from a test or a CLI"* and is called by
+  `services/api/test_module_config.py` — the one wrongly deleted in v0.3.980 and put back.
+  *One correction inside the keep: `pdf_sanity` calls itself "a fast pre-ingest gate", a runtime role
+  it does not have. Nothing ingests through it.*
+
+  **▶ KEEP — refusal stubs, deliberately uncalled (3).** `energy_star_bridge.sync_property`,
+  `parcels_bridge.fetch_parcels` and `payments_bridge.send_payment`. One family, one reason: each
+  raises, names exactly what a deployment must wire, and never fabricates a score, a parcel or a
+  transfer.
+
+  **But they are NOT in the same position, and the first draft of this paragraph said they were.**
+  It proposed exempting all three together in `services/api/test_dead_code_population.py`, on the
+  reasoning that the other two are invisible for the same reason `sync_property` is. Checked:
+  `fetch_parcels` has `services/api/test_parcels.py` and `send_payment` has
+  `services/api/test_payapp.py` — **real tests that exercise the refusal** — while `sync_property`'s
+  only reference in the whole tree is the exemption entry naming it.
+
+  So the correct move is the opposite of the one proposed: **give `sync_property` the refusal test its
+  two siblings already have**, and the exemption stops being needed. An exemption is what you write
+  when there is nothing to assert; here there is — that the stub refuses, and says what to wire.
+  *Written down because the wrong version was one sentence away from being shipped, and it would have
+  frozen a missing test as a deliberate decision.*
+
+  **▶ TWO CONTRACT FINDINGS, worth more than the functions (2+2).**
+  * `licensing.tier_at_least` has **no caller anywhere**, and a grep for any tier gate finds only
+    `current_tier()` — read by the dashboard for display and by `license_cloud`. **Entitlement tiers
+    are computed and shown and enforced nowhere.** That is a product statement, not a dead function.
+  * `cited_answer.cite_record` is one of four citation kinds; only `cite_ifc` is ever produced, while
+    `routers/proforma_schemas.py` documents all four as the value type. The citation contract
+    advertises a record kind nothing emits.
+  * `folder_template.owner_of` and `soft_clash.rule_for` are per-item accessors whose bulk siblings
+    (`tree`, which already carries `owner_role`, and `matrix`) are what the routers use. Low value
+    either way; listed so a later sweep does not re-propose them as discoveries.
+
+  **The number was 20 and the answer is not "20 dead".** Eight are correct as they are, three want
+  their callers fixed rather than themselves deleted, five are real gaps, and the two most valuable
+  outputs are not functions at all. *A population rule that looks reasonable is wrong until you read
+  what it selected* — held for the third time.
+
+  ✅ **The stub-family half landed the same day**, as `services/api/test_energy_star_bridge.py`:
+  `sync_property` now has the refusal test its siblings had, asserted in BOTH postures — unconfigured
+  *and* flagged-on-but-unwired, the second being the dangerous one, because a deployment that has set
+  the env vars is exactly the one that would believe a number it got back. The load-bearing assertion
+  is not "it raises" but that **no posture returns a score**: an invented 1–100 would be read as
+  EPA's, quoted in a report, and never questioned. `DELIBERATELY_UNCALLED` is back to empty, and the
+  gate is held by a test rather than an exemption.
+
+  Remaining: **wire the five**, **consolidate the three** (by fixing their callers, not deleting
+  them), and act on the two contract findings — tier enforcement, and the citation kind nothing
+  emits. Then ratchet at what survives.
 
 - ◧ **R37-TRIAGE** *(M — Lane C; do FIRST, before any deletion or split)*
 

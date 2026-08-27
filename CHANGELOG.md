@@ -4,6 +4,57 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1114 (2026-08-27) — all 20 test-only functions read, and the answer is not "20 dead"
+
+R37-TESTED-UNWIRED said 20 public `aec_api` functions are referenced only by the test tree. All 20 are
+now read, each against what its own router actually calls. **Eight are correct as they are, three want
+their callers fixed rather than themselves deleted, five are real gaps, and the two most valuable
+outputs are not functions at all.**
+
+**Five that nothing can reach — `beside` again.** The sharpest is `pid_lock.cross_process_status`:
+`main.py`'s boot guard explains at length why it reads the dialect from `DATABASE_URL` instead of this
+function, and ends *"the live-truth surface stays `cross_process_status()` on /health"*. `/health`
+returns `{"status": "ok"}` with no dependencies, deliberately. **The comment asserts a surface that was
+never built**, and the fact it exists to publish — *this deployment cannot serialise sidecar writes
+across workers* — is readable by nobody. Also `photo_cv.duplicate_of` (the one-photo-for-thirty-elements
+abuse its docstring names is unguarded on the only path where it can happen),
+`takeoff_scope.scope_annotations` (R27-LAYOUT ③'s own deliverable), `mep.block_cooling_load` (not a
+duplicate of the routed `size_cooling` — that converts a known load, this estimates it from GFA), and
+`test_fit.depth_range`.
+
+**Three to consolidate rather than delete.** `routers/ids.py::_specs_from` duplicates
+`build_from_use_case`'s body **and reaches for the private `ia._specs_for`** to do it; `catalog()`
+inlines `list(p["tools"])` rather than calling `tools_for`. Calling the public wrapper removes a
+private reach-through *and* the orphan; deleting would remove only the orphan.
+
+**Two contract findings worth more than the functions.** `licensing.tier_at_least` has no caller and a
+grep for any tier gate finds only `current_tier()`, read for display — **entitlement tiers are computed
+and shown and enforced nowhere.** And `cited_answer.cite_record` is one of four citation kinds of which
+only `cite_ifc` is ever produced, while `routers/proforma_schemas.py` documents all four as the value
+type.
+
+### What shipped: the exemption was the wrong instrument
+
+`services/api/test_energy_star_bridge.py`. Yesterday's release exempted `sync_property` in the
+dead-code gate as a refusal stub. Reading its family showed the exemption was wrong:
+`parcels_bridge.fetch_parcels` and `payments_bridge.send_payment` are the same design and **each
+already had a test exercising the refusal** — `sync_property`'s only reference in the whole tree was
+the exemption entry naming it.
+
+**An exemption is what you write when there is nothing to assert.** There was something. The stub now
+has the test its siblings had, in both postures — unconfigured, and flagged-on-but-unwired, which is
+the dangerous one because a deployment that has set the env vars is exactly the one that would believe
+a number it got back. The load-bearing assertion is not "it raises" but that **no posture returns a
+score**: a fabricated 1–100 would be read as EPA's and never questioned.
+
+`DELIBERATELY_UNCALLED` is empty again, and the gate is held by a test rather than an exemption —
+mutation-checked by removing the new file and watching `sync_property` come back.
+
+*The first draft of the roadmap entry proposed exempting all three stubs together, on the reasoning
+that the other two were invisible for the same reason. They were not; checking took one grep. It is
+recorded because the wrong version was one sentence from shipping, and it would have frozen a missing
+test as a deliberate decision — which is exactly how an exemption reads to everyone afterwards.*
+
 ## v0.3.1113 (2026-08-27) — a dead-code gate that counted prose, and the gap it still cannot see
 
 **Two changes and one correction, and the correction is the useful part.**
