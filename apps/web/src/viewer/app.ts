@@ -21,6 +21,7 @@ import { ModelLoader } from "./loader";
 import { loadProjectModel as loadProjectModelImpl } from "./loadProjectModel";
 import { buildAnnotationSection } from "./tools/annotationSection";
 import { buildContentLibrarySection } from "./tools/contentLibrarySection";
+import { buildDetailingSection } from "./tools/detailingSection";
 import { DeltaStore, deltaCommitter, deltaIndicator } from "./deltaCommit";
 import { buildDrawingsSection } from "./tools/drawingsSection";
 import { buildFabricationSection } from "./tools/fabricationSection";
@@ -2035,73 +2036,13 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       asBuiltBtn.title = "Mark elements field-verified as-built and see LOD-500 readiness — the data/reliability "
         + "attribute BIMForum actually defines as LOD 500 (no geometric requirement).";
 
-      // W11 Track D: attach code/spec/detail carriers to the selected element (classification codes +
-      // detail/instruction documents) — what keynotes, schedules and the spec/drawing generators read.
-      const openDetailingPanel = async () => {
-        if (!selectedGuid) { notify("select an element to detail", "error"); return; }
-        const guid = selectedGuid;
-        let det;
-        try { det = await api.elementDetailing(pid, guid); }
-        catch (e) { notify(`detailing failed: ${(e as Error).message}`, "error"); return; }
-        showResult(`Detailing — ${det.name}`, (body) => {
-          body.appendChild(kvTable(det.classifications.length
-            ? det.classifications.map((c) => ({ k: c.system || "code", v: `${c.code ?? ""}${c.title ? " · " + c.title : ""}` }))
-            : [{ k: "Classifications", v: "none" }]));
-          body.appendChild(resultNote(det.documents.length
-            ? "<b>Documents</b>: " + det.documents.map((d) => `${d.identification ?? ""} ${d.name ?? ""}`.trim()).join(" · ")
-            : "No details/instructions attached.", ""));
-          const reopen = () => openDetailingPanel();
-          const CLS = [["MasterFormat", "spec section, e.g. 08 51 00"], ["UniFormat", "element/keynote, e.g. B2020"],
-            ["OmniClass", "product, e.g. 23-17 11 11"], ["Uniclass", "e.g. SS_25_10"]] as const;
-          for (const [sys, hint] of CLS) {
-            body.appendChild(toolBtn2(`＋ ${sys} code`, async () => {
-              const code = await askText(`${sys} code`, { label: hint, value: "" }); if (!code) return;
-              const title = await askText(`${sys} code`, { label: "Title (optional)", value: "" });
-              await authorAndReload("classify", { guids: [guid], system: sys, code: code.trim(), name: title?.trim() || undefined }, `${sys} ${code.trim()}`);
-              await reopen();
-            }));
-          }
-          body.appendChild(toolBtn2("📎 Attach detail / instruction", async () => {
-            const name = await askText("Attach document", { label: "Document name", value: "Flashing detail" }); if (!name) return;
-            const ident = await askText("Attach document", { label: "Detail no. / key (e.g. A-541/3)", value: "" });
-            const loc = await askText("Attach document", { label: "Location (URI — SVG/PDF)", value: "" });
-            await authorAndReload("attach_document",
-              { guids: [guid], name: name.trim(), identification: ident?.trim() || undefined, location: loc?.trim() || undefined },
-              `document ${name.trim()}`);
-            await reopen();
-          }));
-        });
-      };
-      const detailBtn = toolBtn2("🏷 Detailing (codes & documents)", openDetailingPanel);
-      detailBtn.title = "Attach keynote/spec codes (UniFormat/MasterFormat/OmniClass) and detail/instruction "
-        + "documents to the selected element — IFC-native carriers that feed keynotes, schedules & the spec/drawing set";
-
-      // W11 D3: auto-detail the whole model from the rule library + an IDS-style missing-keynote pre-flight.
-      const openAutoDetail = async () => {
-        let val;
-        try { val = await api.validateDetailing(pid); }
-        catch (e) { notify(`validate failed: ${(e as Error).message}`, "error"); return; }
-        showResult("Auto-detail (code / spec / detail rules)", (body) => {
-          body.appendChild(resultNote(val.gaps
-            ? `<b>${val.gaps}</b> element(s) match a rule but are <b>missing</b> their keynote/spec — e.g. an `
-              + `exterior window with no flashing detail. Run auto-detail to attach them.`
-            : "Every rule-covered element already carries its code & detail. ✓", val.gaps ? "bad" : "ok"));
-          if (val.gaps) {
-            body.appendChild(kvTable(val.elements.slice(0, 12).map((g) => ({ k: g.name, v: g.missing }))));
-          }
-          const run = toolBtn2("✨ Auto-detail model (apply rules)", async () => {
-            await authorAndReload("apply_detailing_rules", {}, "auto-detail");
-            await openAutoDetail();
-          });
-          run.title = "Attach the code/spec/detail bundle to every element a rule matches — e.g. exterior "
-            + "window → IBC §1404.4 / ASTM E2112 flashing detail + install instruction + spec 08 51 00. GUID-stable.";
-          body.appendChild(run);
-        });
-      };
-      const autoDetailBtn = toolBtn2("✨ Auto-detail (rules)", openAutoDetail);
-      autoDetailBtn.title = "Run the condition→content rule library over the model — exterior windows/doors get "
-        + "IBC/ASTM flashing details + specs, rated walls get assembly keynotes. Same rules validate as IDS QA.";
-
+      // R39-DECOMP-VIEWER ⑯ — detailing moved to `tools/detailingSection.ts`. Checked for ⑭'s
+      // shape first: no outward assignment, no listener, so nothing cross-rebuild to strand.
+      // `selectedGuid` crosses as an ACCESSOR — both tools are selection-gated, so a collapsed
+      // one would leave them politely inert rather than failing loudly.
+      const { detailBtn, autoDetailBtn } = buildDetailingSection({
+        toolBtn2, api, pid, notify, authorAndReload, selectedGuid: () => selectedGuid,
+      });
       // R39-DECOMP-VIEWER ⑧ — the drawing set moved to `tools/drawingsSection.ts` (142 lines).
       // `activeStorey` / `activeStoreyZ` cross as ACCESSORS because both are `let` here and change
       // with the level selector: a value copy would compile clean and freeze the level at
