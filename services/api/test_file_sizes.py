@@ -112,7 +112,7 @@ PER_FILE = {
     #: two lines of WIRING for a new button, and wiring is what this file is for. The alternative was
     #: to push DOM construction into `sheetSpecs.ts`, whose freedom from the DOM is exactly why its
     #: eleven tests need no browser — that would be trading a real property for a number.
-    "apps/web/src/viewer/app.ts": 2_757,   # interactive annotation -> tools/annotationSection.ts (2_865 -> 2_757). The file was AT this pin with zero headroom, which is why the roadmap row calling it "97%, ~136 lines" was corrected in the same pass.   # CAD command line -> cadBar.ts, which also gained the R29 prompt loop (2_885 -> 2_865). The 39-line inline block became a 10-line mount call; the ratchet is why the interactive mode went into a new module instead of on top of app.ts.   # clash rail -> tools/clashPanel.ts (2_944 -> 2_885)
+    "apps/web/src/viewer/app.ts": 2_630,   # content + family library -> tools/contentLibrarySection.ts (2_757 -> 2_630).   # interactive annotation -> tools/annotationSection.ts (2_865 -> 2_757). The file was AT this pin with zero headroom, which is why the roadmap row calling it "97%, ~136 lines" was corrected in the same pass.   # CAD command line -> cadBar.ts, which also gained the R29 prompt loop (2_885 -> 2_865). The 39-line inline block became a 10-line mount call; the ratchet is why the interactive mode went into a new module instead of on top of app.ts.   # clash rail -> tools/clashPanel.ts (2_944 -> 2_885)
     # Pinned at its EXACT measured size, not above it. qaSection.ts became the file every reach fix
     # lands in and reached 1,373 lines while unpinned - the same accumulation app.ts and client.ts
     # already have entries for. Pinned before it needs splitting rather than after: a ratchet added
