@@ -4,6 +4,57 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1113 (2026-08-27) — a dead-code gate that counted prose, and the gap it still cannot see
+
+**Two changes and one correction, and the correction is the useful part.**
+
+`test_dead_code_population.py` counted every non-docstring string literal as a reference, deliberately:
+registries dispatch on strings, and that rule is why `register_recipe` survived a sweep. But it makes
+no distinction between a dispatch key and an English sentence, so any function whose name is a common
+word is reached by prose. The gate had already recorded this once — `evm.quadrant`, *"a limitation,
+stated rather than hidden"* — and left it needing a human.
+
+It needed a rule: **a key is a token, a sentence has spaces.** A string literal now counts only when
+the whole literal is identifier-shaped — `add_wall`, `cost_per_sf`, `drawings.markups.rekey_storeys`
+match; a payload note reading *"…is shown beside it rather than folded into it"* does not.
+
+Measured before and after, because this file's own history is four corrections to a population rule:
+**0 unreferenced → 1**, and the one is `sync_property`, which R37-TRIAGE already documents as
+genuinely uncalled and masked by its own `NotImplementedError` string. It moves from invisible to
+**explicitly exempted, with the reason and a rot-check in both directions**. An exemption anybody can
+read beats a mask nobody can see; from the outside they are identical — a green run over a function
+nothing calls.
+
+**Writing that exemption list immediately broke the gate, which is the sharpest part.** Adding
+`"sync_property"` as a dict key made `sync_property` referenced — the key is identifier-shaped by
+construction, so it survives the very filter it was added because of. The ratchet went back to zero
+and the entry documenting it read as stale. **An exemption list that satisfies the check it exempts
+from is the gate measuring itself**, the same shape as the `specPane` string that made
+`canvasMode.test.ts` too weak in v0.3.1111. The gate no longer reads its own file: it names symbols to
+talk about them, and it is not a caller.
+
+### The correction: this is NOT why `beside` was missed
+
+Yesterday's find — `deal_memory.beside()`, built and wired to nothing — scored **60 references** here,
+and it would be neat to say the prose rule is why. It is not, and checking rather than asserting is
+the whole discipline: **under the tightened rule `beside` still has two references, one of them
+`test_deal_memory.py`, which has imported it since the engine shipped in PR #180.**
+
+The test tree counts as callers **by design** — that is the 35 → 13 correction in this gate's own
+header, and it is right for the question the gate asks. But it means *"tested, and wired to nothing"*
+is invisible to it by construction, and no string rule reaches that.
+
+So the gap was measured instead of narrated: **20 public functions in `aec_api` are referenced only by
+the test tree**, `beside` having been the 21st. That is the third instance of one shape after
+`read_p6xml_all` and the spec manual's MasterFormat default, and all three were found by hand. Three
+hand-finds is a population, not a coincidence.
+
+It is recorded as **R37-TESTED-UNWIRED** rather than ratcheted, because the number is not the
+deliverable: several of the 20 are legitimately test-only surface — `sbom`, `pdf_sanity` and
+`is_dual_licensed` exist for the supply-chain *gates*, which are tests by design. R37-TRIAGE's record
+is the warning: reading its 12 candidates found **eight live**, and the two deleted without reading
+had to be put back.
+
 ## v0.3.1112 (2026-08-27) — the firm's own closed projects, beside the number being underwritten
 
 **R35-DEAL-MEMORY's engine shipped with the item and the function it exists for had no caller

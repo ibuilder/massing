@@ -128,6 +128,38 @@ _STRIP_TS = [
 _STRIP_HASH = re.compile(r"^\s*#.*$", re.M)   # yaml / toml / cfg
 
 
+#: A string literal counts as a reference only when it is shaped like a **dispatch key** -- one
+#: identifier, or a dotted/colon/slash/dash path of them. `"add_wall"`, `"cost_per_sf"` and
+#: `"drawings.markups.rekey_storeys"` match; an English sentence does not.
+#:
+#: **ADDED 2026-08-27, after finding by hand a function this gate scored SIXTY references for.**
+#: `deal_memory.beside()` -- the function R35-DEAL-MEMORY exists to put on a screen -- had no route,
+#: no client method and no screen, and most of those sixty were the English word *beside* in prose,
+#: including plain string literals held as payload text (`deal_funnel.py` returns a note reading
+#: "…is shown beside it rather than folded into it").
+#:
+#: **That is `quadrant` a second time, and the fix belongs here — but it is NOT why `beside` was
+#: missed, and saying so would be this gate making the same kind of claim it exists to catch.**
+#: Measured: under the tightened rule `beside` still has two references, and one of them is
+#: `test_deal_memory.py`, which has imported it since the engine shipped in PR #180. **The test tree
+#: counts as callers by design** — that is the 35 → 13 correction this file's header describes — so
+#: "tested but wired to nothing" is invisible to this gate on purpose, and no string rule reaches it.
+#: The gap is real and measured: **20 public functions in `aec_api` are referenced only by tests**
+#: (2026-08-27), `beside` having been the 21st. Recorded as its own roadmap item rather than
+#: smuggled in here, because each of the 20 needs reading — several are legitimately test-only
+#: surface, and R37-TRIAGE's whole lesson is that the reading is the value, not the number.
+#:
+#: What this rule DOES fix is the prose mask, and it is worth fixing on its own: counting every
+#: string literal was right about registries and wrong about prose, and the two are distinguishable
+#: by shape. A key is a token; a sentence has spaces.
+#:
+#: Measured before and after, because this file's own history is four corrections to a population
+#: rule: **0 unreferenced → 1**, and the one is `sync_property`, which the roadmap already documents
+#: as genuinely uncalled and masked by its own `NotImplementedError` string. It moves from invisible
+#: to explicitly exempted below, which is the direction that matters.
+_KEY_SHAPED = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:[.:/-][A-Za-z0-9_]+)*$")
+
+
 def _py_names(text: str) -> str:
     """Every identifier a Python file actually *uses*, via the parser rather than a regex.
 
@@ -160,8 +192,8 @@ def _py_names(text: str) -> str:
         elif isinstance(node, ast.keyword) and node.arg:
             out.append(node.arg)
         elif isinstance(node, ast.Constant) and isinstance(node.value, str) \
-                and id(node) not in docstrings:
-            out.append(node.value)          # string dispatch is a real reference
+                and id(node) not in docstrings and _KEY_SHAPED.match(node.value.strip()):
+            out.append(node.value)          # string dispatch is a real reference -- a SENTENCE is not
     return " ".join(out)
 
 
@@ -189,6 +221,19 @@ def _sources() -> list[tuple[str, str]]:
                 if not fn.endswith(SEARCH_EXTS):
                     continue
                 p = os.path.join(dirpath, fn)
+                # THIS FILE IS NOT A CALLER. It names symbols to talk about them -- the blind-spot
+                # table, the deleted-for-cause list, and (since 2026-08-27) the deliberately-uncalled
+                # exemptions, whose keys are identifier-shaped by construction and therefore survive
+                # the key-shape filter that every other prose mention now fails.
+                #
+                # Found the moment the exemption list was written: adding `"sync_property"` as a dict
+                # key made `sync_property` referenced, the ratchet went back to zero, and the entry
+                # documenting it read as stale. **An exemption list that satisfies the check it is
+                # exempting from is the gate measuring itself** -- the same shape as the `specPane`
+                # string that made `canvasMode.test.ts` too weak, and as an allowlist entry that
+                # vouches for its own route.
+                if os.path.abspath(p) == os.path.abspath(__file__):
+                    continue
                 try:
                     ext = os.path.splitext(fn)[1]
                     out.append((p, _code_only(open(p, encoding="utf-8", errors="replace").read(), ext)))
@@ -316,11 +361,43 @@ check(
 #                          by calling the two functions it wraps
 #   classification.discipline_names -- an option list nothing offered
 # Each was deleted for saying something false about itself, not merely for being uncalled.
+#: Uncalled ON PURPOSE, each with the reason. **Not a convenience list** -- an entry here is a claim
+#: that deleting the function would remove something the codebase needs, and it is checked in both
+#: directions below, so it cannot rot into a fiction.
+#:
+#: `sync_property` arrived here on 2026-08-27 and was NOT newly dead. It has been uncalled the whole
+#: time; the roadmap entry for R37-TRIAGE says so in as many words, and adds the part that matters:
+#: *"the gate counts it as referenced because that error string names it -- a limitation, stated
+#: rather than hidden"*. Tightening the string rule above removed the mask. **An exemption anybody
+#: can read beats a mask nobody can see**, and the two look identical from the outside: both are a
+#: green run over a function nothing calls.
+DELIBERATELY_UNCALLED: dict[str, str] = {
+    "sync_property": (
+        "a refusal stub. It raises NotImplementedError and names ITSELF as the place to implement "
+        "the credentialed ENERGY STAR exchange. Deleting it would remove the documented extension "
+        "point from a module whose whole contract is 'never fabricate a score' — the docstring is "
+        "the deliverable, not the body."),
+}
+
+surprises = sorted(set(unreferenced) - set(DELIBERATELY_UNCALLED))
 check(
     "no public function in aec_api is unreachable under the corrected rule",
-    not unreferenced,
-    ", ".join(unreferenced) if unreferenced
-    else "0 unreferenced — add one and this fails at the commit that adds it, which is the point",
+    not surprises,
+    ", ".join(surprises) if surprises
+    else f"0 unreferenced beyond the {len(DELIBERATELY_UNCALLED)} kept on purpose — add one and this "
+         "fails at the commit that adds it, which is the point",
+)
+
+# The other direction, because an exemption list that only ever grows is the failure this file was
+# written about one level up: `test_route_reachability` learned the same thing, and its comment
+# ("an allowlist entry that outlives its reason reads as a deliberate exemption forever") is the
+# reason this is a check rather than a note.
+stale = sorted(n for n in DELIBERATELY_UNCALLED if n not in unreferenced)
+check(
+    "every deliberately-uncalled entry is still uncalled — the list cannot rot",
+    not stale,
+    f"{stale} — now referenced, or renamed/deleted. Either way remove the entry: a kept name that "
+    "no longer means anything pre-authorises whatever reuses it.",
 )
 
 # The three blind spots, asserted individually. Without these the ratchet above could pass because

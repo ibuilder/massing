@@ -717,7 +717,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R37-TRIAGE · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R37-TRIAGE · R37-TESTED-UNWIRED · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -2240,6 +2240,41 @@ claim must be premise-checked against TODAY's tree before acting; several are al
 * Its hotspot list (§3) is corroborated independently: `main.ts`, `portal.ts`, `client.ts` are the
   repo's own known god-files, and SCALE-SEAM already split `client.ts` by domain after this index
   was taken. Credit what shipped; keep the rest.
+
+- ◧ **R37-TESTED-UNWIRED** *(M — Lane C; measured 2026-08-27, NOT yet read)*
+  — **20 public functions in `aec_api` are referenced only by the test tree.**
+
+  Found by looking for the general case of a specific defect: `deal_memory.beside()` was built,
+  tested and reachable by nothing in production, and `test_dead_code_population.py` scored it **60
+  references** — its own test among them. That gate counts the test tree as callers **on purpose**;
+  it is the 35 → 13 correction its header describes, and it is right for the question it asks. But it
+  means *"tested, and wired to nothing"* is invisible to it by construction, and no refinement of the
+  string rule reaches that — tightening it was tried the same day and `beside` still came back
+  referenced, by its own test.
+
+  This is the third instance of one shape, and the first two were each found by hand: `read_p6xml_all`
+  (R46 — *"a module can be reachable and its whole reason for existing still be unreachable"*),
+  `project_manual`'s MasterFormat default (a test whose fixture supplied the very system under test),
+  and now `beside`. **Three hand-finds is a population, not a coincidence.**
+
+  The 20, by defining module: `mep.block_cooling_load` · `ids_authoring.build_from_use_case` ·
+  `cited_answer.cite_record` · `pid_lock.cross_process_status` · `test_fit.depth_range` ·
+  `photo_cv.duplicate_of` · `ids_authoring.eir_for_use_case` · `parcels_bridge.fetch_parcels` ·
+  `supply_chain.is_dual_licensed` · `folder_template.owner_of` · `supply_chain.pdf_sanity` ·
+  `soft_clash.rule_for` · `supply_chain.sbom` · `takeoff_scope.scope_annotations` ·
+  `payments_bridge.send_payment` · `energy_star_bridge.sync_property` · `licensing.tier_at_least` ·
+  `agent_packs.tools_for` · `rooms.unmapped_sections` · `module_schema.validate_dir`.
+
+  **The number is not the deliverable and must not be ratcheted before it is read.** Several are
+  plainly legitimate test-only surface — `sbom`, `pdf_sanity` and `is_dual_licensed` exist for the
+  supply-chain *gates*, which are tests by design, and `sync_property` is the documented refusal stub
+  already exempted in `services/api/test_dead_code_population.py`. Others may be the same defect
+  `beside` was. R37-TRIAGE's own record is the warning: reading its 12 candidates found **eight
+  live**, and the two it deleted without reading had to be put back. *A population rule that looks
+  reasonable is wrong until you read what it selected* — and this one has not been read.
+
+  Output: each of the 20 marked wire / keep-as-test-surface / delete with the evidence, then a
+  ratchet at whatever survives.
 
 - ◧ **R37-TRIAGE** *(M — Lane C; do FIRST, before any deletion or split)*
 
