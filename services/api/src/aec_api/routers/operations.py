@@ -127,6 +127,56 @@ def portfolio_deal_memory(db: Session = Depends(get_db), user: str = Depends(cur
     return deal_memory.comps(db, project_ids=member_project_ids(db, user))
 
 
+@router.get("/projects/{pid}/deal-memory/beside")
+def project_deal_memory_beside(pid: str, hard_cost: float, db: Session = Depends(get_db),
+                               user: str = Depends(current_user)):
+    """R35-DEAL-MEMORY: this firm's own realised $/SF, beside the hard cost being underwritten.
+
+    `deal_memory.comps` has been routed since the engine shipped and `beside()` — the function whose
+    docstring says it is *"the shape the underwriting screen wants"* — had **no caller anywhere**,
+    server or client. A module can be reachable and its whole reason for existing still be
+    unreachable; `read_p6xml_all` was the same shape one ring over.
+
+    **Only `cost_per_sf` is offered, and that is a refusal about the other two rather than an
+    oversight.** Of the three metrics `comps` reports:
+
+    * `cost_per_sf` — the proforma enters a hard cost and this project has a GFA, so the entered
+      value can be put in the metric's own units. Offered.
+    * `cost_variance_pct` — a realised over/under against a budget. The nearest thing a proforma
+      enters is a contingency, and "your contingency should cover our historical overrun" is a claim
+      about what the product asserts in an underwriting, not a unit conversion. **Not offered here;
+      it needs the same domain call `/schedule/eot` is waiting on.**
+    * `schedule_variance_days` — a variance, not a duration. Comparing it to an entered
+      `construction_months` is a category error wearing matching units.
+
+    GFA comes from `energy.project_gfa_sf`, the one definition, because deriving $/SF client-side
+    would put a second one in the tree. It needs a loaded properties index, so `no_gfa` is a real and
+    common answer and is reported as itself rather than as "no history".
+    """
+    _project(db, pid)
+    if pid not in (member_project_ids(db, user) or {pid}):
+        raise HTTPException(403, "not a member of this project")
+    if not hard_cost or hard_cost <= 0:
+        raise HTTPException(422, "hard_cost must be a positive number of dollars")
+    gfa = energy.project_gfa_sf(db, pid)
+    if not gfa:
+        # NOT folded into the `beside()` refusals: "we have no history" and "we cannot express your
+        # number in the metric's units" are different problems with different remedies, and reporting
+        # the second as the first would send someone looking for closed projects they already have.
+        return {"metric": "cost_per_sf", "status": "no_gfa", "entered": None, "comparison": None,
+                "note": ("this project has no gross floor area — load the model's properties index, "
+                         "or the entered hard cost cannot be expressed per square foot")}
+    memory = deal_memory.comps(db, project_ids=member_project_ids(db, user))
+    out = deal_memory.beside("cost_per_sf", round(hard_cost / gfa, 2), memory)
+    # The project being underwritten is in its own comp set by construction — `comps` scopes to the
+    # caller's projects and does not know which one is on screen. It is excluded anyway, because a
+    # project with no ACTUAL spend is excluded rather than counted as zero variance, and a deal being
+    # underwritten has none. Said out loud because relying on it silently is how it stops being true.
+    out["gfa_sf"] = gfa
+    out["hard_cost"] = hard_cost
+    return out
+
+
 @router.get("/pipeline/funnel")
 def pipeline_funnel(db: Session = Depends(get_db), user: str = Depends(current_user)):
     """R22-PIPELINE: the acquisition funnel across the caller's projects — stage counts and value,

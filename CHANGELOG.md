@@ -4,6 +4,61 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1112 (2026-08-27) — the firm's own closed projects, beside the number being underwritten
+
+**R35-DEAL-MEMORY's engine shipped with the item and the function it exists for had no caller
+anywhere.** `deal_memory.comps` has been routed since the start. `deal_memory.beside()` — the last
+function in that module, whose own docstring calls it *"the shape the underwriting screen wants"* —
+was never routed, never in the client, on no screen. Nothing failed, because `test_reachable` asks
+whether a MODULE is reachable and `deal_memory` is: the portfolio route imports it. *A module can be
+reachable and its whole reason for existing still be unreachable* — `read_p6xml_all` was the same
+shape one ring over.
+
+`GET /projects/{pid}/deal-memory/beside` is the route, and the proforma's cost budget is the screen:
+
+```
+🏛 Your own history: this deal's hard cost is $250/SF ($500,000 ÷ 2,000 SF) — inside the range
+   your 6 closed project(s) landed in ($225–$275, median $250). A comparison, not a verdict.
+```
+
+**It offers one of the engine's three metrics, and the other two are decisions rather than an
+unfinished job.** `cost_per_sf` is a unit conversion: a hard cost and a GFA turn into it.
+`cost_variance_pct` is not — the nearest thing a proforma enters is a contingency, and *"your
+contingency should cover this firm's historical overrun"* is a claim the product would be making in
+an underwriting, which is the same call `/schedule/eot` is still waiting on. `schedule_variance_days`
+beside an entered `construction_months` would be a category error in matching units, which is the
+dangerous kind: both are numbers of time and the screen would look right.
+
+`no_gfa` is its own status rather than folded into `insufficient_history` — load a model versus close
+more projects are different remedies, and answering the first with the second sends somebody hunting
+for history they already have. `services/api/test_deal_memory_beside.py` holds all of it, including
+the anti-vacuity check that the deal on screen is excluded from its own comp set.
+
+**The "by vintage" half was nearly left out, and two gates arguing is what caught it.**
+`clientCallers.test.ts` rejected `portfolioDealMemory` — no screen, so a typed method would exist
+only to satisfy a gate. Then `test_route_reachability` failed the other way: the new route put the
+substring `deal-memory` into the web source, and that rule matches a leaf against the whole blob, so
+its frozen entry for `/portfolio/deal-memory` read as *"quietly became called"* while nothing called
+it. **A substring test cannot tell which route a string belongs to.**
+
+Neither gate was wrong and neither could be satisfied by wording. Re-reading the item settled it — it
+asks for realised outcomes *"(… cost/SF by vintage)"*, and `comps` returns `vintage` per project. The
+comp list was in the item all along; wiring only the summary was the half-build. A "which projects?"
+disclosure now shows them, newest first, with the excluded count beside them so a partial comp set
+cannot read as a whole history. Sharpening the needle instead was measured and rejected: a
+two-segment needle is already rejected in that file with numbers, and **328 of 941 routes share a
+leaf**, so "a shared leaf decides nothing" would take a third of the surface out of the gate's reach.
+
+Also in this release, and the same shape one level up: **the roadmap and its own gate were blind in
+the same place, so they agreed.** The SCALE-SEAM bullet was headed `㉗` while its own next words said
+㉗ shipped in v0.3.1086, and the Lane I cell called ㉗ "the only open slice". `MARKS` in
+`apps/web/src/shell/roadmapLanes.test.ts` stopped at ㉗, and marks are an optional group on both
+sides of that check — so a numeral it cannot spell does not fail to parse, it drops, and item and
+lane row degrade to the same bare code. Measured both ways: a mismatch *inside* the vocabulary fails
+correctly; one *outside* it passed 13 of 13. `MARKS` now spells ㉘ (29 item codes before, 29 after —
+nothing moved, which is the point), and forgetting to widen it next time fails a test instead of
+quietly narrowing what is enforced.
+
 ## v0.3.1111 (2026-08-27) — the viewer could not run offline, and nothing on screen said so
 
 **A non-negotiable was being broken by a transitive import, and it was found by opening the app in a

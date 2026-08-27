@@ -1050,6 +1050,79 @@ export class ProformaUI {
     };
     refreshRecon();
 
+    // R35-DEAL-MEMORY — the firm's OWN realised $/SF, beside the hard cost being entered.
+    //
+    // The engine and `/portfolio/deal-memory` shipped with the item; `deal_memory.beside()` — the
+    // function whose docstring says it is "the shape the underwriting screen wants" — had no caller
+    // anywhere. This is that caller.
+    //
+    // Only $/SF is asked for, and the omissions are decisions rather than a partial job. A realised
+    // cost VARIANCE has no counterpart among these fields (the nearest is contingency, and "your
+    // contingency should cover our historical overrun" is a claim this product would be making, not
+    // a unit conversion); a realised schedule VARIANCE is not a duration, so putting it beside
+    // `construction_months` would be a category error in matching units.
+    const memory = document.createElement("div"); memory.className = "meta";
+    memory.style.cssText = "margin:0 0 8px;font-size:11px";
+    host.insertBefore(memory, body);
+    const hardCost = (this.a.cost_lines as { category: string; amount: number }[])
+      // Summed by CATEGORY, not read from `cost_lines[1]`. The default deal happens to put hard cost
+      // second; a budget synced from the GC's does not, and an index would have quietly compared the
+      // wrong line against the firm's history.
+      .filter((c) => c.category === "hard").reduce((t, c) => t + (Number(c.amount) || 0), 0);
+    if (!hardCost) { memory.style.display = "none"; } else {
+      memory.textContent = "checking your own closed projects…";
+      void this.api.dealMemoryBeside(pid, hardCost).then((m) => {
+        // Every non-ok status is SHOWN, not hidden. They are different answers with different
+        // remedies — load a model, close more projects, capture a disposition — and a blank strip
+        // reads as "we checked and there is nothing to say", which is true of none of them.
+        if (m.status === "ok") {
+          const at = m.position === "within_iqr" ? "inside" : m.position === "below_p25" ? "below" : "above";
+          const col = m.position === "within_iqr" ? "var(--status-good)" : "var(--status-warn)";
+          memory.innerHTML = `🏛 Your own history: this deal's hard cost is <b>$${m.entered}/SF</b> `
+            + `(${money(m.hard_cost ?? 0)} ÷ ${Math.round(m.gfa_sf ?? 0).toLocaleString()} SF) — `
+            + `<span style="color:${col}">${at}</span> the range your <b>${m.count}</b> closed `
+            + `project(s) landed in ($${m.p25}–$${m.p75}, median $${m.median}). `
+            + `A comparison, not a verdict. <button class="tool-btn" id="pf-dm-more" `
+            + `style="font-size:10px;padding:1px 6px">which projects?</button>`;
+          // "cost/SF BY VINTAGE" is in the roadmap item's own words, and a range with no projects
+          // behind it cannot be argued with — the reader cannot tell whether it is six comparable
+          // buildings or six unrelated ones. On demand rather than always, because the range is the
+          // answer and the list is the evidence for it.
+          const more = memory.querySelector<HTMLButtonElement>("#pf-dm-more");
+          if (more) more.onclick = () => {
+            more.disabled = true; more.textContent = "loading…";
+            void this.api.portfolioDealMemory().then((mem) => {
+              const withSf = mem.projects.filter((p) => p.cost_per_sf != null)
+                .sort((a, b) => (b.vintage ?? 0) - (a.vintage ?? 0));
+              const rows = withSf.map((p) =>
+                `<tr><td>${escapeHtml(p.name)}</td><td class="num">${p.vintage ?? "—"}</td>`
+                + `<td class="num">$${p.cost_per_sf}</td></tr>`).join("");
+              const box = document.createElement("div"); box.style.marginTop = "4px";
+              // The excluded count travels with the list. Showing six projects out of eight without
+              // saying so makes a partial comp set read as the whole history — the same shape as a
+              // report that misdescribes itself, one screen over.
+              box.innerHTML = `<table class="fin-table"><tr><th>Project</th><th class="num">Vintage`
+                + `</th><th class="num">$/SF</th></tr>${rows}</table>`
+                + (mem.excluded_count
+                  ? `<div class="meta" style="font-size:10px">${mem.excluded_count} project(s) `
+                    + `excluded — no actual spend recorded, so counting them as zero variance would `
+                    + `drag the range toward "we were exactly right".</div>`
+                  : "");
+              more.replaceWith(box);
+            }).catch(() => { more.disabled = false; more.textContent = "which projects?"; });
+          };
+        } else if (m.status === "no_gfa") {
+          memory.textContent = "🏛 Your own history: load this project's model to compare its hard "
+            + "cost per square foot against your closed projects.";
+        } else if (m.status === "insufficient_history") {
+          memory.textContent = "🏛 Your own history: not enough closed projects yet to show a $/SF "
+            + "range — it fills in as they close, and a range from too few is noise wearing a dollar sign.";
+        } else {
+          memory.textContent = `🏛 Your own history: ${m.note ?? m.status}`;
+        }
+      }).catch(() => { memory.style.display = "none"; });   // endpoint absent → hide, say nothing false
+    }
+
     // construction draw schedule — sourced from the GC's cost-loaded schedule (relational tie)
     const draws = document.createElement("div"); draws.className = "meta"; draws.style.cssText = "margin:0 0 8px;font-size:11px";
     host.insertBefore(draws, body);

@@ -717,7 +717,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R35-DEAL-MEMORY · R37-TRIAGE · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R37-TRIAGE · QTO-TRADE *(blocks the four procurement methods; a trade classification for QTO lines, not UI)* · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -2182,13 +2182,36 @@ Shipped 2026-08-01:
 
 Shipped 2026-08-21:
 
-- ◧ **R35-DEAL-MEMORY** *(M — `deal_memory.py` shipped)* — the platform's own closed deals as a comp database: when underwriting
+- ✅ **R35-DEAL-MEMORY** *(M — SHIPPED v0.3.1112)* — the platform's own closed deals as a comp database: when underwriting
   a new deal, surface this portfolio's realised outcomes (exit cap achieved vs assumed, actual
   lease-up months, cost/SF by vintage) beside the assumption being entered. External research
   (2026-08) puts this "institutional knowledge" layer as the least-commoditised part of the
   AI-underwriting stack — and it is the one layer that cannot be bought, because it is made of the
   operator's own history. Builds on `benchmarking.py`'s cross-project aggregation and the
   provenance spine; no new dependency.
+
+  **PREMISE-CHECK 2026-08-27, and the entry was half-right in the way that reads as done.**
+  `deal_memory.py` had shipped, was tested, and was routed — `GET /portfolio/deal-memory`. But
+  `beside()`, the last function in it and the only one that answers the sentence above, **had no
+  caller anywhere**: not a route, not the client, not a screen. `test_reachable` passes because the
+  MODULE is imported, by the portfolio route. *A module can be reachable and its whole reason for
+  existing still be unreachable* — the same finding R46 recorded about `read_p6xml_all`, and the
+  second time this shape has been found by opening the file rather than by a gate.
+
+  Shipped as `GET /projects/{pid}/deal-memory/beside`, on the proforma's cost budget, held by
+  `services/api/test_deal_memory_beside.py`. **One of the engine's three metrics is offered and the
+  other two are refused on the record**: `cost_per_sf` is a unit conversion from an entered hard cost
+  and a GFA; `cost_variance_pct` beside a contingency would be the product asserting *"your
+  contingency should cover our historical overrun"*, the same domain call `/schedule/eot` is waiting
+  on; and a schedule VARIANCE beside an entered DURATION is a category error in matching units.
+
+  **The "by vintage" half was nearly left out, and two gates disagreeing is what caught it.**
+  `clientCallers.test.ts` refused a `portfolioDealMemory` with no screen; `test_route_reachability`
+  then read its own frozen entry as called, because the new route put the substring `deal-memory`
+  into the web source and that rule matches a leaf against the whole blob. Neither was wrong.
+  Re-reading this entry settled it — it asks for cost/SF **by vintage**, `comps` returns `vintage`
+  per project, and only the summary had been wired. **A gate collision is worth reading as evidence
+  about the work, not as an obstacle to it.**
 
 Also settled, no code change: **the Fragments converter stays Node, by constraint** — the Fragments
 serializer exists only in the JS kernel libraries, so `services/converter/` is the one deliberate
