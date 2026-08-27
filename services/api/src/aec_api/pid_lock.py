@@ -33,10 +33,16 @@ The interface is unchanged — `with mutating(pid):` — because ten call sites 
    raised**. Every real error inside `with mutating(pid):` was masked on the SQLite path, which is
    the default for dev and for the test suite. Acquisition now completes before any yield.
 
-4. **On SQLite there is no advisory lock at all.** Rather than pretend, `cross_process_status()`
-   reports what is actually in force, and `main._production_guard` refuses to boot a multi-worker
-   deployment that cannot serialise across workers. A constraint the product genuinely has should
-   fail at boot, not be a sentence in a docstring nobody reads.
+4. **On SQLite there is no advisory lock at all.** Rather than pretend, two separate mechanisms say
+   so, and they read two different sources on purpose: `main._production_guard` refuses to boot a
+   multi-worker deployment that cannot serialise, reading `DATABASE_URL`; `cross_process_status()`
+   reports what is in force at runtime, reading the engine, and `/metrics` exports it. A constraint
+   the product genuinely has should fail at boot, not be a sentence in a docstring nobody reads.
+
+   *This sentence used to coordinate the two into one clause — "`cross_process_status()` reports …
+   and `main._production_guard` refuses …" — which reads as the guard calling the function.* It does
+   not, for the reason four paragraphs down. Each half was true alone and the pair implied something
+   false, which is the same defect as the two below it and the hardest of the three to see.
 
    **And for a release and a half, that is what it was.** R37-TESTED-UNWIRED measured which public
    functions nothing outside the test tree calls, and `cross_process_status()` came back with no
