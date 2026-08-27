@@ -75,6 +75,16 @@ def import_custom_vintage(db: Session, rows: list[dict[str, Any]], vintage: int,
     Missing MasterFormat codes are filled from the classification spine off the IFC class."""
     if not rows:
         raise ValueError("no priced rows to import (need at least one {ifc_class, rate})")
+    # SEEDING-RACE NOTE (swept 2026-08-27, deliberately NOT converted). This is the same
+    # read-decide-insert the SSO doors, SCIM and the cloud callback were fixed for, and
+    # `ix_cost_dataset_vintage` is UNIQUE, so a duplicate INSERT really would raise. It is left as
+    # it is because the reach is different in kind: both cost imports are reachable ONLY from admin
+    # routes (`/cost/import/*`), never from startup, so losing the race needs two admins importing
+    # the SAME vintage at the same moment - and the retry then succeeds, because the winner's row
+    # exists. No user is locked out and no machine retries into it.
+    # WHAT WOULD CHANGE THE ANSWER: any caller that runs at boot. Several workers seeding the same
+    # baseline concurrently is a real race, and then this wants `auth.get_or_create_by_pk`'s idiom
+    # with a query instead of a primary key.
     ds = db.scalar(select(CostDataset).where(
         CostDataset.vintage_year == vintage, CostDataset.quarter == quarter,
         CostDataset.source_set == SOURCE_CUSTOM, CostDataset.origin == ORIGIN_CUSTOM))
@@ -128,6 +138,8 @@ def list_available_public() -> list[dict[str, Any]]:
 def import_public_vintage(db: Session, vintage: int, quarter: int | None = None) -> CostDataset:
     """Build (or return, idempotently) a public-local cost vintage for `vintage` year. Sets it as the latest
     installed vintage. Offline — no network, no subscription."""
+    # Same seeding-race note as `import_custom_vintage` above: unique index, admin-route-only reach,
+    # retry succeeds. Reconsider the moment anything calls this at startup.
     existing = db.scalar(select(CostDataset).where(
         CostDataset.vintage_year == vintage, CostDataset.quarter == quarter,
         CostDataset.source_set == SOURCE_SET, CostDataset.origin == ORIGIN_LOCAL))

@@ -270,6 +270,62 @@ try:
 finally:
     db.close()
 
+# ---------------------------------------------------------------------------------------------
+# A THIRD MODEL, to keep the helper honest as a GENERIC guarantee rather than a User-shaped one.
+#
+# `settings_store.set_value` had the same read-decide-insert against `app_settings.key`, which is
+# also a PRIMARY KEY. It is lower severity than the sign-in doors and that is worth stating: it
+# needs two admins (or a double-clicked Save) on ONE key, and the retry succeeds. It was converted
+# anyway, because the helper existed and "one rule applied at some of the sites" is the shape this
+# repository keeps re-finding.
+#
+# `set_value` does NOT commit - the caller does - so before the fix the IntegrityError surfaced one
+# frame away from the code that caused it, which is what makes this kind hard to attribute in a log.
+from aec_api import settings_store  # noqa: E402
+from aec_api.models import AppSetting  # noqa: E402
+
+SKEY = "SEEDING_RACE_PROBE"
+db = SessionLocal()
+try:
+    other = SessionLocal()
+    try:
+        other.add(AppSetting(key=SKEY, value="winner"))
+        other.commit()
+    finally:
+        other.close()
+
+    _real = db.get
+    seen_s = {"n": 0}
+
+    def _racing_settings_get(entity, ident, *a, _r=_real, _s=seen_s, **kw):
+        if entity is AppSetting and ident == SKEY:
+            _s["n"] += 1
+            if _s["n"] == 1:
+                return None
+        return _r(entity, ident, *a, **kw)
+
+    db.get = _racing_settings_get  # type: ignore[method-assign]
+    set_exc = None
+    try:
+        settings_store.set_value(db, SKEY, "loser")
+        db.commit()          # the CALLER commits - this is where it used to blow up
+    except Exception as e:   # noqa: BLE001
+        set_exc = e
+    finally:
+        db.get = _real  # type: ignore[method-assign]
+
+    check("[settings] losing the app_settings seeding race does not raise at the CALLER's commit",
+          set_exc is None,
+          "" if set_exc is None else f"{type(set_exc).__name__}: {str(set_exc)[:90]}")
+    check("[settings] the faked lookup was exercised - the collision after it is real",
+          seen_s["n"] >= 2, f"Session.get called {seen_s['n']}x")
+    check("[settings] exactly one row exists for the key",
+          len([r for r in db.query(AppSetting).all() if r.key == SKEY]) == 1)
+finally:
+    db.get = _real  # type: ignore[method-assign]
+    db.close()
+    settings_store._cache.pop(SKEY, None)
+
 if FAILED:
     print("FAILED:", ", ".join(FAILED))
     sys.exit(1)

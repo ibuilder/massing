@@ -117,6 +117,7 @@ def is_set(key: str) -> bool:
 
 def set_value(db, key: str, value: str | None) -> None:
     """Upsert (or clear, if value is empty) a setting and refresh the cache."""
+    from . import auth
     from .models import AppSetting
     value = (value or "").strip() or None
     row = db.get(AppSetting, key)
@@ -126,10 +127,19 @@ def set_value(db, key: str, value: str | None) -> None:
         with _lock:
             _cache.pop(key, None)
     else:
-        if row:
-            row.value = value
-        else:
-            db.add(AppSetting(key=key, value=value))
+        if row is None:
+            # Seeding race, same class as the SSO doors and SCIM. `app_settings.key` is the PRIMARY
+            # KEY, so two writers saving the SAME setting both read None, both INSERT, and the
+            # loser's commit raises IntegrityError. This function does not commit — the CALLER does
+            # — so the 500 surfaces there, one frame away from the code that caused it.
+            #
+            # Lower severity than the sign-in doors on purpose of record: it needs two admins (or a
+            # double-clicked Save) on one key, and a retry succeeds because the winner's row now
+            # exists. Converted anyway because the helper exists and "one rule at some of the
+            # sites" is the shape this repository keeps re-finding.
+            row, _seeded = auth.get_or_create_by_pk(
+                db, AppSetting, key, lambda: AppSetting(key=key, value=value))
+        row.value = value
         with _lock:
             _cache[key] = value
 
