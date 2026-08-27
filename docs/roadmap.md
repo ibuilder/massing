@@ -723,7 +723,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉗ *(the only open slice; ②–㉖ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉘ *(the only open slice; ②–㉗ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -2422,7 +2422,7 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉗ — `client.ts` is no longer a god-file, but the split is not finished.** *(㉗ PDF tools SHIPPED v0.3.1086; ②–㉖ already shipped)*
+- ◧ ⭐ **SCALE-SEAM ㉘ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㉗ have shipped, ㉗ PDF tools in v0.3.1086. **This heading read `㉗` until 2026-08-27** — naming a slice its own next words called shipped, because `MARKS` in `apps/web/src/shell/roadmapLanes.test.ts` stopped at ㉗ and nothing could spell the open one)*
   **㉗ took the PDF tools and A/E/C seals out** (9 methods, one contiguous run; `client.ts` 2,883 →
   2,837) as `apps/web/src/api/pdfTools.ts`. Grouped by what they DO, following ㉖: the run spans
   `/pdf/*`, `/stamps/library` and `/licenses/mine`, and a prefix split would separate `stampLibrary`

@@ -56,7 +56,16 @@ const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
  * ㉕ is not a considered limit either, just a further-off one. **A vocabulary this check defines is
  * part of its population, so widening it is a real change and not housekeeping.**
  */
-const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗";
+//
+// Widened to ㉘ on 2026-08-27, and MEASURED because this file says an unmeasured widening is a new
+// number with no idea what moved: **29 item codes before, 29 after — nothing gained, nothing lost.**
+// That is the expected result and it is the point. Widening the vocabulary changes nothing on its
+// own; it only makes ㉘ *writable*. What the narrow vocabulary had been doing was worse than hiding
+// an item — the SCALE-SEAM bullet was HEADED `㉗` while its own next words said ㉗ shipped in
+// v0.3.1086, and the Lane I cell called ㉗ "the only open slice". Both wrong, and this gate agreed
+// with both, because a code it cannot spell is a code it cannot contradict. *A check and the text it
+// checks, blind in the same place, agree — and the agreement reads as verification.*
+const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘";
 
 /**
  * One source for the marker vocabulary, because there were **two** and they had already drifted.
@@ -419,6 +428,53 @@ describe("the roadmap lane table", () => {
     const orphans = [...CODES].filter((c) => !assigned.has(c) && !parked.has(base(c)));
     expect(orphans, `unassigned roadmap items — add each to a lane row or to Parked: ${orphans.join(", ")}`)
       .toEqual([]);
+  });
+
+  it("spells every slice numeral actually in use — an unspellable mark is an unenforceable one", () => {
+    /**
+     * ADDED 2026-08-27, after a mutation showed the gate above could not catch the drift it exists
+     * for. Marks were handled as an OPTIONAL group on both sides — the item regex and the lane-cell
+     * regex — so a numeral outside `MARKS` does not fail to parse: it silently drops, and BOTH sides
+     * degrade to the bare code. They then agree.
+     *
+     * Measured, both directions, rather than argued:
+     *
+     *   lane cell ㉕ vs item ㉘, both in MARKS   → FAILS, naming `SCALE-SEAM ㉘`   ✅
+     *   MARKS ends at ㉗, item and cell say ㉘  → 13 passed                        ❌
+     *
+     * That second line is the whole finding. **A check and the text it checks, blind in the same
+     * place, agree — and the agreement reads as verification.** It is not hypothetical: the
+     * SCALE-SEAM bullet was headed `㉗` while its own next words said ㉗ shipped in v0.3.1086, and
+     * the Lane I cell called ㉗ "the only open slice". Two contradictions, in the two places this
+     * file checks, and it reported green over both.
+     *
+     * The docstring on `MARKS` says widening the vocabulary is a real change and not housekeeping.
+     * It is right, and that is the reason this exists rather than a reason to leave it to memory:
+     * FIVE consecutive slices recorded "㉖/㉗/㉘ needs MARKS widened" in the roadmap entry as a note
+     * to a future reader, which is a reminder rather than a check. Now the widening is still a
+     * deliberate act — but forgetting it fails here instead of quietly narrowing what is enforced.
+     *
+     * Scanned across the whole file, not just the open half: a numeral in the gated section is just
+     * as unspellable, and the ⛔ exclusion is applied AFTER parsing.
+     */
+    const ENCLOSED = /[\u2460-\u2473\u3251-\u325F\u32B1-\u32BF]/gu;
+    const unspellable = new Map<string, string>();
+    // Indexed, not `for…of` with `indexOf`: `LANE_ROW_LINES` holds line NUMBERS, and `indexOf`
+    // answers with the FIRST line equal to this text. Two identical lines — a repeated separator,
+    // say — would have made this ask about the wrong one. Written the slow way first, here.
+    for (const [i, ln] of LINES.entries()) {
+      // Only lines this file actually parses: an item bullet or a lane-table row. A numeral in prose
+      // — and this file's own docstrings are full of them — is not a code and must not fail here.
+      const isItem = /^\s*[-*] (?:(?:✅|◧|🟡|⭐|⛔)️? )*\*\*[A-Z][A-Z0-9]{1,5}-/.test(ln);
+      if (!isItem && !LANE_ROW_LINES.has(i)) continue;
+      for (const m of ln.matchAll(ENCLOSED)) {
+        if (!MARKS.includes(m[0])) unspellable.set(m[0], ln.trim().slice(0, 90));
+      }
+    }
+    expect([...unspellable.keys()],
+      "these slice numerals appear on an item bullet or a lane row but are NOT in MARKS, so both "
+      + "the item regex and the lane-cell regex drop them and agree on the bare code — widen MARKS:\n"
+      + [...unspellable].map(([k, ln]) => `  ${k}  ${ln}`).join("\n")).toEqual([]);
   });
 
   it("gives each item code exactly one bullet", () => {
