@@ -149,6 +149,64 @@ try:
     check("both readers see the same TOTAL for one shared view",
           a["Open RFIs"]["total"] == b["Open RFIs"]["total"] == total,
           f"alice={a['Open RFIs']['total']} bob={b['Open RFIs']['total']}")
+    # ---- a visit never moves BACKWARD ----------------------------------------------------------------
+    # Review finding, 2026-08-27. Read-then-write let a slow request rewind a newer one: A captures
+    # t1, B captures a later t2 and commits, then A commits t1 -- and every record created between
+    # them counts as new again. That is an alert REAPPEARING after you cleared it, which trains people
+    # to stop trusting the badge. The route now advances in one UPDATE with a CASE, so the comparison
+    # and the write cannot be separated.
+    from sqlalchemy import case as _case  # noqa: PLC0415
+
+    def advance(view_id: str, who: str, when: datetime) -> None:
+        db.query(SavedViewSeen).filter(
+            SavedViewSeen.view_id == view_id, SavedViewSeen.user == who,
+        ).update({SavedViewSeen.last_seen_at: _case(
+            (SavedViewSeen.last_seen_at < when, when), else_=SavedViewSeen.last_seen_at)},
+            synchronize_session=False)
+        db.commit()
+        # Mirrors the route. Without it every read below comes from the identity map, which still
+        # holds the pre-update value — so the assertions would pass no matter what the UPDATE did.
+        # That is precisely how the first draft of this block survived its own mutation check.
+        db.expire_all()
+
+    newer = datetime.now(timezone.utc)
+    older = newer - timedelta(hours=1)
+    advance(shared.id, BOB, newer)
+    seen_now = db.query(SavedViewSeen).filter(SavedViewSeen.view_id == shared.id,
+                                              SavedViewSeen.user == BOB).one().last_seen_at
+    check("the fixture's timestamp really is the newer one, so the next case is not vacuous",
+          seen_now.replace(tzinfo=timezone.utc) >= newer.replace(microsecond=0),
+          f"{seen_now}")
+    advance(shared.id, BOB, older)          # the slow request, arriving late with a stale capture
+    after = db.query(SavedViewSeen).filter(SavedViewSeen.view_id == shared.id,
+                                           SavedViewSeen.user == BOB).one().last_seen_at
+    check("a late request with an OLDER timestamp does not rewind the newer one",
+          after.replace(tzinfo=timezone.utc) > older.replace(tzinfo=timezone.utc),
+          f"stored {after}, the stale write tried {older}")
+    check("...so the alert stays cleared rather than reappearing",
+          alerts(db, BOB)["Open RFIs"]["new"] == 0, f"new={alerts(db, BOB)['Open RFIs']['new']}")
+
+    # ---- deleting a view takes its viewers' reading times with it -------------------------------------
+    # Review finding: `view_id` had no foreign key, so a deleted view left every viewer's identity and
+    # reading time behind. The model now declares ondelete=CASCADE AND `delete_view` removes them
+    # explicitly, because SQLite ignores foreign keys unless PRAGMA foreign_keys=ON and this app never
+    # issues it — the constraint alone would be true in Postgres and false in the desktop build.
+    doomed = SavedView(project_id=PID, module=KEY, user=ALICE, name="Doomed", scope="project",
+                       config={})
+    db.add(doomed)
+    db.commit()
+    mark_seen(db, doomed.id, BOB, datetime.now(timezone.utc))
+    check("the view has a viewer row to lose, so the next check is not vacuous",
+          db.query(SavedViewSeen).filter(SavedViewSeen.view_id == doomed.id).count() == 1)
+    # What `delete_view` does, in the order it does it.
+    db.query(SavedViewSeen).filter(SavedViewSeen.view_id == doomed.id).delete()
+    db.delete(doomed)
+    db.commit()
+    check("deleting the view removes its per-viewer rows",
+          db.query(SavedViewSeen).filter(SavedViewSeen.view_id == doomed.id).count() == 0)
+    check("...and leaves other views' rows alone",
+          db.query(SavedViewSeen).filter(SavedViewSeen.view_id == shared.id).count() >= 1)
+
     # ---- you must be able to CLEAR what you can SEE -------------------------------------------------
     # Review finding, 2026-08-26. `/views/alerts` is gated at `viewer` and `/views/{vid}/seen` was at
     # `reviewer`. That mismatch was unreachable while a viewer's feed only ever held their own views;

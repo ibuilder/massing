@@ -328,11 +328,19 @@ class SavedViewSeen(Base):
     The owner is not special here: their own visits are rows in this table like anybody else's, seeded
     from the column this replaces. A design where the author's timestamp lived somewhere different
     would be two sources of truth for one question.
+
+    **Deleting the view deletes these rows**, and it takes BOTH mechanisms below because neither is
+    sufficient alone. The `ondelete="CASCADE"` is the correct schema and Postgres enforces it; SQLite
+    does not, because this app never issues `PRAGMA foreign_keys=ON` — so on the desktop build the
+    constraint would be a rule that is true in production and quietly false in the shipped app.
+    `delete_view` therefore removes them explicitly as well. Without either, a deleted view left its
+    viewers' identities and reading times behind forever, which is data nobody asked to keep.
     """
     __tablename__ = "saved_view_seen"
     __table_args__ = (UniqueConstraint("view_id", "user", name="uq_saved_view_seen_view_user"),)
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    view_id: Mapped[str] = mapped_column(String, index=True)
+    view_id: Mapped[str] = mapped_column(
+        String, ForeignKey("saved_views.id", ondelete="CASCADE"), index=True)
     user: Mapped[str] = mapped_column(String, index=True)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

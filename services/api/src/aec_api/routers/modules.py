@@ -488,6 +488,7 @@ def mark_view_seen(pid: str, key: str, vid: str, db: Session = Depends(get_db),
     """
     from datetime import datetime, timezone
 
+    from sqlalchemy import case
     from sqlalchemy.exc import IntegrityError
 
     from ..models import SavedView, SavedViewSeen
@@ -498,6 +499,28 @@ def mark_view_seen(pid: str, key: str, vid: str, db: Session = Depends(get_db),
     if not v or v.project_id != pid or v.module != key or (v.user != user and v.scope != "project"):
         raise HTTPException(404, "view not found")
     now = datetime.now(timezone.utc)
+
+    def advance() -> None:
+        """Move this viewer's timestamp FORWARD only, in one statement.
+
+        Read-then-write let a slow request rewind a newer one: A captures `t1`, B captures a later
+        `t2` and commits, then A commits `t1` — and every record created between the two is counted
+        as new all over again, which is an alert reappearing after you cleared it. The `CASE` keeps
+        the comparison and the write in a single UPDATE, so there is no window between them.
+        """
+        db.query(SavedViewSeen).filter(
+            SavedViewSeen.view_id == vid, SavedViewSeen.user == user,
+        ).update({SavedViewSeen.last_seen_at: case(
+            (SavedViewSeen.last_seen_at < now, now), else_=SavedViewSeen.last_seen_at)},
+            synchronize_session=False)
+        db.commit()
+        # `synchronize_session=False` leaves the identity map holding the PRE-update value, and the
+        # row is already in it because the existence check above loaded it. Without this, the read
+        # back below returns the session's cache rather than the database — so a request that did not
+        # move the timestamp would still report `now`, which is the same confident-wrong-number this
+        # whole change is about. Caught by mutating the CASE away and watching the test still pass.
+        db.expire_all()
+
     row = db.query(SavedViewSeen).filter(SavedViewSeen.view_id == vid,
                                          SavedViewSeen.user == user).one_or_none()
     if row is None:
@@ -508,16 +531,16 @@ def mark_view_seen(pid: str, key: str, vid: str, db: Session = Depends(get_db),
             # Check-then-insert races the unique constraint on (view_id, user): two tabs, or a
             # double-click, and the second insert loses. The constraint is doing its job — a 500 here
             # would report failure for an operation that in fact succeeded — so the loser rolls back
-            # and updates the row the winner wrote. Same outcome either way: one row, later timestamp.
+            # and advances the row the winner wrote.
             db.rollback()
-            row = db.query(SavedViewSeen).filter(SavedViewSeen.view_id == vid,
-                                                 SavedViewSeen.user == user).one()
-            row.last_seen_at = now
-            db.commit()
+            advance()
     else:
-        row.last_seen_at = now
-        db.commit()
-    return {"ok": True, "last_seen_at": now.isoformat()}
+        advance()
+    # The PERSISTED value, re-read rather than assumed: when a later visit already won, this request
+    # legitimately did not move it, and saying `now` would report a write that did not happen.
+    saved = db.query(SavedViewSeen).filter(SavedViewSeen.view_id == vid,
+                                           SavedViewSeen.user == user).one().last_seen_at
+    return {"ok": True, "last_seen_at": saved.isoformat()}
 
 
 @router.delete("/projects/{pid}/modules/{key}/views/{vid}")
@@ -544,10 +567,16 @@ def delete_view(pid: str, key: str, vid: str, db: Session = Depends(get_db),
     a second security one. What it costs is smaller and duller: the module segment of the URL meant
     nothing, so any id typo that happened to name a real view of yours resolved instead of 404ing.
     """
-    from ..models import SavedView
+    from ..models import SavedView, SavedViewSeen
     v = db.get(SavedView, vid)
     deleted = bool(v and v.user == user and v.project_id == pid and v.module == key)
     if deleted:
+        # Take the per-viewer reading times with it. `SavedViewSeen.view_id` declares
+        # `ondelete="CASCADE"` and Postgres honours it, but SQLite ignores foreign keys unless
+        # `PRAGMA foreign_keys=ON` and this app never issues it — so relying on the constraint alone
+        # would delete these rows in production and leave them behind in the desktop build. They hold
+        # who read the view and when, which is not data to keep after the view is gone.
+        db.query(SavedViewSeen).filter(SavedViewSeen.view_id == vid).delete()
         db.delete(v)
         db.commit()
     return {"deleted": deleted}

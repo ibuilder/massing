@@ -30,7 +30,12 @@ def upgrade() -> None:
     op.create_table(
         "saved_view_seen",
         sa.Column("id", sa.String(), primary_key=True),
-        sa.Column("view_id", sa.String(), nullable=False),
+        # CASCADE so a deleted view takes its viewers' reading times with it. Postgres enforces this;
+        # SQLite does not without `PRAGMA foreign_keys=ON`, which this app never issues — so
+        # `delete_view` also removes them explicitly. Both, because either alone is true on only one
+        # of the two databases this project runs.
+        sa.Column("view_id", sa.String(),
+                  sa.ForeignKey("saved_views.id", ondelete="CASCADE"), nullable=False),
         sa.Column("user", sa.String(), nullable=False),
         sa.Column("last_seen_at", sa.DateTime(timezone=True), nullable=False),
         # One row per (view, viewer). Two would make "when did I last look at this" ambiguous and the

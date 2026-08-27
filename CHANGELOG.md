@@ -6,7 +6,7 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 
 ## v0.3.1110 (2026-08-26) — the pre-GUID markups can be moved, and nothing has to guess a level
 
-The residual limitation recorded with v0.3.1106, cleared. Storey markups saved before that release
+The residual limitation recorded in v0.3.1106 is now resolved. Storey markups saved before that release
 are keyed `plan:<storeyName>`; the new key is read alongside the old one so nothing disappeared, but
 a markup still sitting under a name **still orphans when its level is renamed**.
 

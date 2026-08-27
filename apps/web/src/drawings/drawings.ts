@@ -452,6 +452,14 @@ export class DrawingsUI {
       const done = await api.rekeyStoreyMarkups(pid, false);
       this.host_.setStatus(`${done.moved} markup(s) moved onto storey GlobalIds`);
       await this.loadPins();
+      // The grid that launched this fetched its rows BEFORE the move, so every key it shows is now
+      // the old one. `loadPins` refreshes the current sheet's pin layer and nothing else, so without
+      // this the operator is looking at a list the server has just contradicted — and the obvious
+      // reading of that list is that the rekey did nothing.
+      // document.body, not `this.root` — the overlay is appended to the body so it can cover the
+      // whole viewport, and a selector rooted at the room finds nothing.
+      document.querySelectorAll(".dwg-markup-grid").forEach((el) => el.remove());
+      await this.showMarkupGrid();
     } catch { this.host_.setStatus("the rekey failed — nothing was changed"); }
   }
 
@@ -462,6 +470,7 @@ export class DrawingsUI {
     try { rows = await this.host_.api.drawingMarkup(pid); }
     catch { this.host_.setStatus("couldn't load markups"); return; }
     const ov = document.createElement("div");
+    ov.className = "dwg-markup-grid";       // so a rekey can replace the list it just invalidated
     ov.style.cssText = "position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center";
     const box = document.createElement("div");
     box.style.cssText = "background:var(--panel,#23262d);color:var(--fg,#eee);border:1px solid var(--line,#3a3f47);"
