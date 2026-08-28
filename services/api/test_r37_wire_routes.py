@@ -249,6 +249,7 @@ BAD_ROWS = {
     "points that are not pairs":         [{"id": "B2", "points": [[1]]}],
     "points that are not a list":        [{"id": "B3", "points": "xy"}],
     "an entry that is not an object":    [5],
+    "a null entry":                      [None],
 }
 for label, rows in BAD_ROWS.items():
     try:
@@ -276,11 +277,21 @@ check("a good annotation beside a bad one is still scoped",
 
 # A wrong TYPE for the whole field IS refused — a caller who cannot be answered at all, as opposed
 # to one bad note among good ones.
-try:
-    takeoff(layout=LAYOUT, px_per_point=PPP, annotations="not a list")
-    check("a non-list annotations field is refused", False, "no HTTPException")
-except HTTPException as e:
-    check("a non-list annotations field is refused", e.status_code == 422, str(e.status_code))
+# FALSEY non-list values are refused too, and that is why the type guard runs BEFORE the truthiness
+# test rather than inside it: `if annotations:` alone would wave "" and 0 and {} straight past, and
+# the caller would get a silent no-op instead of being told their field is the wrong shape.
+for bad in ("not a list", "", 0, {}):
+    try:
+        takeoff(layout=LAYOUT, px_per_point=PPP, annotations=bad)
+        check(f"a non-list annotations field ({bad!r}) is refused", False, "no HTTPException")
+    except HTTPException as e:
+        check(f"a non-list annotations field ({bad!r}) is refused", e.status_code == 422,
+              str(e.status_code))
+
+# An EMPTY list is not malformed — it means "no annotations", and must pass through to the untouched
+# response rather than being refused alongside the wrong-type values above.
+check("an empty annotations list is not refused, and adds no key",
+      "annotation_scope" not in takeoff(layout=LAYOUT, px_per_point=PPP, annotations=[]))
 
 engine.dispose()
 for _f in ("./test_r37_wire_routes.db",):
