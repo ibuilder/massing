@@ -715,6 +715,11 @@ def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(ge
     # drawing — a quantity measured over a legend is not a quantity) or ambiguous (crossing two
     # scales, where no single number is correct).
     layout = body.get("layout")
+    # Same distinction as `annotations` below: a wrong TYPE for the whole field is a caller who
+    # cannot be answered, while one unreadable viewport inside a well-formed layout is reported
+    # (`unreadable_viewports`) rather than fatal.
+    if layout is not None and not isinstance(layout, dict):
+        raise HTTPException(422, "layout must be a sheet_regions object with a `regions` list")
     if layout:
         from .. import takeoff_scope
         out["scope"] = takeoff_scope.scope(regions, layout,
@@ -745,7 +750,14 @@ def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(ge
                 annotations, layout, px_per_point=body.get("px_per_point"))
         # The calibration is checkable against a sheet WE drew: the scale is not something to
         # measure but something already known. Disagreement is REPORTED, never substituted.
-        vps = [r for r in (layout.get("regions") or []) if r.get("kind") == "viewport"]
+        #
+        # `takeoff_scope.viewports`, not a second copy of its filter. This line WAS that copy —
+        # `[r for r in (layout.get("regions") or []) if r.get("kind") == "viewport"]`, the helper's
+        # own body inlined — and it is how the last malformed-layout crash survived hardening the
+        # engine: a `layout["regions"]` that is a string iterated its characters here and raised out
+        # of `.get`. Two derivations of "which regions are viewports" meant one of them stayed
+        # unhardened, which is the failure this session keeps meeting in different clothes.
+        vps, _unreadable = takeoff_scope.viewports(layout)
         out["calibration_check"] = [
             {"viewport": v.get("index"), "label": v.get("label"),
              **takeoff_scope.check_calibration(float(scale), v.get("scale_denom"),

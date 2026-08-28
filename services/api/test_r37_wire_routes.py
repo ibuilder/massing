@@ -168,6 +168,7 @@ LAYOUT = {
     ],
 }
 PPP = 2.0                                    # screen pixels per page point
+VP0 = LAYOUT["regions"][1]                   # the plan viewport, reused by the malformed-layout cases
 TRACE = {"category": "generic_area",         # inside viewport 0, in SCREEN PIXELS
          "points": [[200, 500], [600, 500], [600, 900], [200, 900]]}
 
@@ -292,6 +293,76 @@ for bad in ("not a list", "", 0, {}):
 # response rather than being refused alongside the wrong-type values above.
 check("an empty annotations list is not refused, and adds no key",
       "annotation_scope" not in takeoff(layout=LAYOUT, px_per_point=PPP, annotations=[]))
+
+# ---- the LAYOUT is caller-supplied too, and was the other half of the same gap -------------------
+# Hardening the traces and annotations and leaving the viewport rectangles was the same mistake in
+# miniature: `float()` over a `rect` that is a string, short, missing or null-bearing raised out of
+# the hit loop and left the route as a 500. Seven paths, all reachable by a caller.
+BAD_LAYOUTS = {
+    "a rect that is a string":  {"page": (1, 1), "regions": [{**VP0, "rect": "abc"}]},
+    "a rect that is too short": {"page": (1, 1), "regions": [{**VP0, "rect": (1, 2)}]},
+    "a rect that is missing":   {"page": (1, 1),
+                                 "regions": [{k: v for k, v in VP0.items() if k != "rect"}]},
+    "a rect containing null":   {"page": (1, 1), "regions": [{**VP0, "rect": (1, 2, None, 4)}]},
+    "regions that is a string": {"page": (1, 1), "regions": "nope"},
+    "regions containing null":  {"page": (1, 1), "regions": [None, VP0]},
+}
+for label, lay in BAD_LAYOUTS.items():
+    try:
+        with SessionLocal() as db:
+            r = takeoff_2d(PID, body={"scale_units_per_px": 0.05, "regions": [TRACE],
+                                      "layout": lay, "px_per_point": PPP}, db=db, _sec="tester")
+        check(f"{label} is answered, not raised", "scope" in r, str(sorted(r))[:70])
+    except Exception as e:                                      # noqa: BLE001 — the point of the test
+        check(f"{label} is answered, not raised", False, f"{type(e).__name__}: {e}")
+
+# **The count is the load-bearing part.** Skipping a bad viewport SILENTLY would be worse than the
+# crash: a trace over a drawing whose rectangle could not be read would report `unscoped` — "not on
+# any drawing" — when the truth is "we could not read the drawing". That is a wrong answer in the
+# confident direction, which is the failure this whole module exists to avoid.
+with SessionLocal() as db:
+    unread = takeoff_2d(PID, body={"scale_units_per_px": 0.05, "regions": [TRACE],
+                                   "layout": {"page": (1, 1), "regions": [{**VP0, "rect": "abc"}]},
+                                   "px_per_point": PPP}, db=db, _sec="tester")["scope"]
+check("an unreadable viewport is COUNTED, so `unscoped` cannot be misread as 'not on a drawing'",
+      unread["unreadable_viewports"] == 1, str(unread["unreadable_viewports"]))
+check("...and the note says what that means for the traces",
+      "could not see" in unread["note"], unread["note"][-80:])
+check("a well-formed layout reports ZERO unreadable — the twin, without which the count is free",
+      scoped["scope"]["unreadable_viewports"] == 0, str(scoped["scope"]["unreadable_viewports"]))
+
+# A good viewport beside a bad one still scopes: one unreadable rectangle costs that viewport only.
+with SessionLocal() as db:
+    mixed_vp = takeoff_2d(PID, body={
+        "scale_units_per_px": 0.05, "regions": [TRACE], "px_per_point": PPP,
+        "layout": {"page": (1, 1), "regions": [VP0, {**VP0, "index": 9, "rect": "abc"}]},
+    }, db=db, _sec="tester")["scope"]
+check("a readable viewport beside an unreadable one still scopes its traces",
+      mixed_vp["regions"][0]["scope"] == "scoped" and mixed_vp["unreadable_viewports"] == 1,
+      str(mixed_vp["regions"][0]["scope"]))
+
+# A wrong TYPE for the whole layout is refused, exactly as for `annotations`.
+for bad in ("nope", [1, 2, 3], 5):
+    try:
+        with SessionLocal() as db:
+            takeoff_2d(PID, body={"scale_units_per_px": 0.05, "regions": [TRACE], "layout": bad,
+                                  "px_per_point": PPP}, db=db, _sec="tester")
+        check(f"a non-dict layout ({bad!r}) is refused", False, "no HTTPException")
+    except HTTPException as e:
+        check(f"a non-dict layout ({bad!r}) is refused", e.status_code == 422, str(e.status_code))
+
+# ---- and the route no longer keeps its own copy of the viewport filter ---------------------------
+# The last crash survived hardening the engine because `takeoff_2d` had `_viewports`' body inlined
+# for its calibration block. Two derivations of one question, one of them unhardened. Asserted by
+# behaviour: the calibration check must see exactly the viewports `scope` did.
+with SessionLocal() as db:
+    cal = takeoff_2d(PID, body={
+        "scale_units_per_px": 0.05, "regions": [TRACE], "px_per_point": PPP,
+        "layout": {"page": (1, 1), "regions": [VP0, {**VP0, "index": 9, "rect": "abc"}]},
+    }, db=db, _sec="tester")
+check("calibration_check covers the READABLE viewports only, from the shared helper",
+      len(cal["calibration_check"]) == 1 and cal["calibration_check"][0]["viewport"] == 0,
+      str(cal["calibration_check"]))
 
 engine.dispose()
 for _f in ("./test_r37_wire_routes.db",):

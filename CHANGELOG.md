@@ -53,6 +53,26 @@ costs that trace rather than the other thirty-nine. A wrong *type* for the whole
 is still a 422: that is a caller who cannot be answered at all, as opposed to one bad note in a sheet
 full of good ones.
 
+**Then the same mistake in miniature: the LAYOUT was the other half of that gap.** Hardening the
+traces and annotations and leaving the viewport rectangles left **seven** more 500 paths, all
+caller-reachable — a `rect` that is a string, too short, missing, or containing null; a `regions`
+that is a string or holds a null; a `layout` that is not an object at all. Same function, same class,
+one door further in. The type-level cases are now 422 and the row-level ones are handled.
+
+**A skipped viewport is COUNTED, and that is the load-bearing part.** Skipping one silently would be
+worse than the crash: a trace over a drawing whose rectangle could not be read would report
+`unscoped` — *"not on any drawing"* — when the truth is *"we could not read the drawing"*. That is a
+wrong answer in the confident direction, which is the failure this module exists to prevent, so
+`scope` returns `unreadable_viewports` and says in its note what it means for the traces.
+
+**And the last crash survived because the route kept its own copy of the filter.**
+`takeoff_2d`'s calibration block had `_viewports`' body inlined —
+`[r for r in (layout.get("regions") or []) if r.get("kind") == "viewport"]` — so hardening the engine
+did not reach it, and a string `regions` still iterated its characters there. The helper is now
+public (`takeoff_scope.viewports`) and the route calls it. *Two derivations of one question meant one
+of them stayed unhardened* — the same shape as the boot guard's hand-parsed dialect two releases ago,
+in different clothes.
+
 **And a separate gap, found while wiring these.** `/projects/{pid}/mep/size` has no caller in
 `apps/web` at all — it appears only in the generated `schema.d.ts` — and `client.ts::takeoff2d` never
 sends `layout`, so R27-LAYOUT ② and ③ are unreachable from the product however well they are routed.

@@ -46,8 +46,37 @@ def _rect_contains(rect: tuple[float, float, float, float], x: float, y: float) 
     return rx <= x <= rx + rw and ry <= y <= ry + rh
 
 
-def _viewports(layout: dict[str, Any]) -> list[dict[str, Any]]:
-    return [r for r in (layout.get("regions") or []) if r.get("kind") == "viewport"]
+def viewports(layout: Any) -> tuple[list[dict[str, Any]], int]:
+    """The usable viewports in `layout`, and how many were there but UNREADABLE.
+
+    Both halves matter. `layout` is caller-supplied — the same as the traces and annotations — and a
+    viewport whose `rect` is missing, short, or non-numeric used to raise `float()` straight out of
+    `scope`'s hit loop and leave the route as a 500.
+
+    **Skipping a bad viewport silently would be worse than the crash**, which is why the count comes
+    back with it. A trace that lands on a drawing whose rectangle could not be read would otherwise
+    report `unscoped` — "your trace is not on any drawing" — when the truth is "we could not read the
+    drawing". That is a wrong answer in the confident direction, and this module exists to avoid
+    exactly those. `scope` puts the count in its summary so a caller can tell the two apart.
+    """
+    if not isinstance(layout, dict):
+        return [], 0
+    good: list[dict[str, Any]] = []
+    unreadable = 0
+    src = layout.get("regions")
+    for r in (src if isinstance(src, list) else []):
+        if not isinstance(r, dict) or r.get("kind") != "viewport":
+            continue
+        try:
+            rect = [float(c) for c in r["rect"]]
+        except (TypeError, ValueError, KeyError):
+            unreadable += 1
+            continue
+        if len(rect) != 4:
+            unreadable += 1
+            continue
+        good.append(r)
+    return good, unreadable
 
 
 def scope(regions: list[dict[str, Any]], layout: dict[str, Any], *,
@@ -59,7 +88,7 @@ def scope(regions: list[dict[str, Any]], layout: dict[str, Any], *,
     page point occupied when the sheet was rasterised — without it, the two coordinate spaces cannot
     be related and every trace is `unknown`.
     """
-    vps = _viewports(layout)
+    vps, unreadable_vps = viewports(layout)
     out: list[dict[str, Any]] = []
 
     if not px_per_point or px_per_point <= 0:
@@ -69,7 +98,7 @@ def scope(regions: list[dict[str, Any]], layout: dict[str, Any], *,
                                   "viewports in page points, so nothing can be placed. Assuming 1:1 "
                                   "would put every trace in the page corner and report it "
                                   "confidently."})
-        return _summarise(out, len(vps), scoped_possible=False)
+        return _summarise(out, len(vps), scoped_possible=False, unreadable=unreadable_vps)
 
     for i, reg in enumerate(regions or []):
         pts = (reg.get("points") if isinstance(reg, dict) else None) or []
@@ -123,15 +152,21 @@ def scope(regions: list[dict[str, Any]], layout: dict[str, Any], *,
             out.append({"index": i, "scope": "unscoped", "viewport": None, "scale_denom": None,
                         "detail": "the trace is not on any drawing — titleblock, legend or margin. "
                                   "A quantity measured off a legend is not a quantity."})
-    return _summarise(out, len(vps), scoped_possible=True)
+    return _summarise(out, len(vps), scoped_possible=True, unreadable=unreadable_vps)
 
 
-def _summarise(rows: list[dict[str, Any]], viewport_count: int, *, scoped_possible: bool) -> dict:
+def _summarise(rows: list[dict[str, Any]], viewport_count: int, *, scoped_possible: bool,
+               unreadable: int = 0) -> dict:
     kinds = {k: [r["index"] for r in rows if r["scope"] == k]
              for k in ("scoped", "unscoped", "ambiguous", "unknown")}
     return {
         "regions": rows,
         "viewport_count": viewport_count,
+        #: Viewports present in the layout whose rectangle could not be read. NOT zero-by-omission:
+        #: an `unscoped` trace means something different depending on this number, and a caller that
+        #: cannot see it would read "not on any drawing" when the truth is "we could not read the
+        #: drawing".
+        "unreadable_viewports": unreadable,
         "scoped": kinds["scoped"], "unscoped": kinds["unscoped"],
         "ambiguous": kinds["ambiguous"], "unknown": kinds["unknown"],
         # Only traces that land on exactly one drawing may be priced. Stated as a count so a caller
@@ -142,7 +177,11 @@ def _summarise(rows: list[dict[str, Any]], viewport_count: int, *, scoped_possib
                  "at all; `ambiguous` means it crosses viewports with different scales, so no single "
                  "quantity is correct; `unknown` means the check could not run — none of the three is "
                  "a pass." + ("" if scoped_possible else
-                              " This run supplied no px_per_point, so NOTHING was checked.")),
+                              " This run supplied no px_per_point, so NOTHING was checked.")
+                 + ("" if not unreadable else
+                    f" {unreadable} viewport(s) in this layout have an unreadable rectangle and were "
+                    "skipped, so an `unscoped` trace here may be on a drawing this run could not "
+                    "see.")),
     }
 
 
