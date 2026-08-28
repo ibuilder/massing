@@ -31,7 +31,7 @@
 
 - **Node 24 from Program Files locally** (`export PATH="/c/Program Files/nodejs:$PATH"` — the PATH
   Node 18 breaks the build); CI runs Node 24. Both manifests declare `"engines": {"node": ">=24"}`.
-- Gate per release: `npm run typecheck` + `npm run lint` (eslint 10.8.1 — the 9.x pin was lifted once
+- Gate per release: `npm run typecheck` + `npm run lint` (eslint 10.9.1 — the 9.x pin was lifted once
   the local Node reached 24; `@eslint/js` is a *different* package and still on 9.x) + `npx vitest
   run` + `npm run build`. `lint:fast` (oxlint) is an additive pre-lint in CI.
   <!-- The versions in these two bullets are asserted against the manifests by

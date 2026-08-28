@@ -15,14 +15,14 @@
     "node": ">=24"
   },
   "overrides": {
-    "eslint": "10.8.1",
+    "eslint": "10.9.1",
     "fast-uri": "^3.1.5",
     "js-yaml": "^4.3.1",
     "postcss": "^8.5.18"
   },
   "devDependencies": {
-    "eslint": "10.8.1",
-    "happy-dom": "^20.11.2",
-    "vite": "8.2.1"
+    "eslint": "10.9.1",
+    "happy-dom": "^20.11.6",
+    "vite": "8.2.2"
   }
 }

@@ -12,7 +12,7 @@ Pinned as an installed, typechecked, build-passing set. The #1 risk in this proj
 than the corrected numbers. The table was last touched at v0.3.1048, in a commit about colouring
 plans by discipline — so it was *edited* while stale rather than left alone. Its `vite` row read
 `6.4.3 (dev) — pinned to v6 — v7/v8 need node ≥20.19; this machine has 20.3.1`, which is a version,
-a policy and a justification, and all three were false: the repo ships **vite 8.2.1**, requires
+a policy and a justification, and all three were false: the repo ships **vite 8.2.2**, requires
 **node ≥24**, and CI pins 24. **A stale row that carries its own reasoning is worse than a stale
 number**, because the reasoning is what stops the next reader from checking.
 
@@ -29,7 +29,7 @@ reads them from, and it is the only copy that cannot disagree with what installs
 | @types/three | 0.185.4 | |
 | camera-controls | 3.1.2 | declares engine node ≥22 (warning only; runs in browser) |
 | web-ifc | 0.0.77 | |
-| vite | 8.2.1 (dev) | v8 — Rolldown + Oxc underneath; needs node ≥22.12, and the repo requires ≥24 |
+| vite | 8.2.2 (dev) | v8 — Rolldown + Oxc underneath; needs node ≥22.12, and the repo requires ≥24 |
 | typescript | 5.9.3 (dev) | |
 
 **Node ≥24** is the supported baseline: both manifests declare `"engines": {"node": ">=24"}` and
