@@ -84,19 +84,28 @@ def allows_export(fmt: str, tier: str | None = None) -> bool:
     return fmt.lower() in features(tier).get("exports", [])
 
 
-def tier_at_least(minimum: str, tier: str | None = None) -> bool:
-    if tier is None and not enforcement_enabled():
-        return True
-    cur = tier or current_tier()
-    try:
-        return TIER_ORDER.index(cur) >= TIER_ORDER.index(minimum)
-    except ValueError:
-        return False
+def min_tier_for(feature: str) -> str | None:
+    """Label of the cheapest tier whose entitlements include `feature`, or None if no tier grants it.
+
+    Derived from TIER_FEATURES rather than hand-listed. The two dicts this replaces were a second copy
+    of the matrix and were INCOMPLETE, which reached users: `_EXPORT_MIN_TIER` named only the openBIM
+    formats, so every Home-tier export fell through to a `"a higher"` default and the 402 read
+    *"PNG export requires the Massing a higher plan (or higher)"* — for png/pdf/dxf/obj/gltf/glb, the
+    most common refusal a Free-tier workspace would ever see. A duplicated derivation is where the
+    unmaintained half hides; there is now one source for what a tier unlocks."""
+    for t in TIER_ORDER:
+        if TIER_FEATURES[t].get(feature):
+            return TIER_LABEL[t]
+    return None
 
 
-# minimum tier that grants each capability (for upgrade messaging)
-_MIN_TIER = {"api_access": "Commercial", "sso": "Enterprise", "navisworks": "Enterprise"}
-_EXPORT_MIN_TIER = {"ifc": "Commercial", "ifcx": "Commercial", "rvt": "Commercial", "nwd": "Enterprise"}
+def min_tier_for_export(fmt: str) -> str | None:
+    """Label of the cheapest tier that can export `fmt`, or None if no tier can."""
+    f = (fmt or "").lower()
+    for t in TIER_ORDER:
+        if f in TIER_FEATURES[t].get("exports", []):
+            return TIER_LABEL[t]
+    return None
 
 
 def require(feature, label=None):
@@ -105,8 +114,11 @@ def require(feature, label=None):
     if allows(feature):
         return
     from fastapi import HTTPException
-    need = _MIN_TIER.get(feature, "a higher")
-    raise HTTPException(402, f"{label or feature} requires the Massing {need} plan (or higher). Add a licence "
+    what = label or feature
+    need = min_tier_for(feature)
+    if need is None:                 # no tier grants it — say that, rather than implying an upgrade helps
+        raise HTTPException(402, f"{what} is not included on any Massing plan.")
+    raise HTTPException(402, f"{what} requires the Massing {need} plan (or higher). Add a licence "
                              "in Settings, or see massing.cloud.")
 
 
@@ -115,8 +127,11 @@ def require_export(fmt, label=None):
     if allows_export(fmt):
         return
     from fastapi import HTTPException
-    need = _EXPORT_MIN_TIER.get(fmt.lower(), "a higher")
-    raise HTTPException(402, f"{label or fmt.upper()} export requires the Massing {need} plan (or higher). Add a "
+    what = label or fmt.upper()
+    need = min_tier_for_export(fmt)
+    if need is None:
+        raise HTTPException(402, f"{what} export is not included on any Massing plan.")
+    raise HTTPException(402, f"{what} export requires the Massing {need} plan (or higher). Add a "
                             "licence in Settings, or see massing.cloud.")
 
 

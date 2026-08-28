@@ -2478,13 +2478,34 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   *Written down because the wrong version was one sentence away from being shipped, and it would have
   frozen a missing test as a deliberate decision.*
 
-  **▶ TWO CONTRACT FINDINGS, worth more than the functions (2+2).**
-  * `licensing.tier_at_least` has **no caller anywhere**, and a grep for any tier gate finds only
-    `current_tier()` — read by the dashboard for display and by `license_cloud`. **Entitlement tiers
-    are computed and shown and enforced nowhere.** That is a product statement, not a dead function.
-  * `cited_answer.cite_record` is one of four citation kinds; only `cite_ifc` is ever produced, while
-    `routers/proforma_schemas.py` documents all four as the value type. The citation contract
-    advertises a record kind nothing emits.
+  **▶ TWO CONTRACT FINDINGS, worth more than the functions (2+2). ✅ BOTH SHIPPED v0.3.1118 —
+  and reading them corrected BOTH premises.** They were one defect wearing two costumes: a contract
+  documented in prose and enforced nowhere, so the thing meant to be evidence was free to anyone.
+  * ✅ `licensing.tier_at_least` has no caller — but **"enforced nowhere" was wrong.** `licensing` is
+    enforced at *seven* call sites via `require` / `require_export`; the finding above greps for the
+    ordinal helper and concludes the whole system is decorative. What was genuinely unenforced is
+    narrower and worse: **`sso` is Enterprise-only in `TIER_FEATURES`, the Settings panel renders
+    that table, and nothing consulted it** — any tier that configured a SAML IdP got SSO.
+    `saml.is_available()` is now configuration *and* entitlement, gating all three routes through one
+    guard **and** `/auth/providers`, because gating only the routes leaves the sign-in page rendering
+    a button that 402s on click — the symmetric-path defect, hit a fifth time.
+    Found alongside: upgrade messaging was a **second, hand-kept copy of the tier matrix** naming only
+    the openBIM formats, so every Home-tier refusal read *"PNG export requires the Massing a higher
+    plan (or higher)"*. `min_tier_for` / `min_tier_for_export` derive it; `tier_at_least` is deleted
+    because these are the derivations that needed to exist.
+  * ✅ `cited_answer.cite_record` has no producer — but **"only `cite_ifc` is ever produced" was
+    wrong**: `rfi_qa.to_cited` emits `cite_rule` and `cite_doc` too. Three of four, not one. And the
+    reason the fourth had no producer was not a missing feature. `Assumptions.sources` is typed
+    `dict[str, list[dict]]` and only a *comment* said those dicts must be citations, so **an empty
+    dict scored 100% provenance coverage at 0.6 confidence**, and `{"source_type": "ifc"}` with no
+    GUID scored **0.733 — higher than a complete `cite_record`**, because rank came off a
+    self-declared string. Nothing ever had to build a record citation because anything counted as one.
+    `cited_answer.is_citation` is now the contract's own rule (known kind **and** its identifying
+    field); malformed entries are named in `malformed_citation_paths` beside `orphaned_sources`
+    rather than credited. Pinned by `services/api/test_r37_contract.py`, mutation-tested 3/3.
+    *One assertion was cut for being a tautology* — looping the export list to check each entry
+    resolves to a tier cannot fail, because the derivation reads that list. The real population is the
+    **rendered 402 string**, and only that catches the original defect.
   * `folder_template.owner_of` and `soft_clash.rule_for` are per-item accessors whose bulk siblings
     (`tree`, which already carries `owner_role`, and `matrix`) are what the routers use. Low value
     either way; listed so a later sweep does not re-propose them as discoveries.
@@ -2502,9 +2523,23 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   EPA's, quoted in a report, and never questioned. `DELIBERATELY_UNCALLED` is back to empty, and the
   gate is held by a test rather than an exemption.
 
-  Remaining: **wire the five**, **consolidate the three** (by fixing their callers, not deleting
-  them), and act on the two contract findings — tier enforcement, and the citation kind nothing
-  emits. Then ratchet at what survives.
+  ✅ **R37-TESTED-UNWIRED IS COMPLETE** (v0.3.1115 → v0.3.1118): four wired, three consolidated, both
+  contract findings shipped, the stub-family half held by a test. **The audit's own numbers were
+  wrong in four places and every correction came from reading, never from re-running the query** —
+  five WIRE became four (`test_fit.depth_range` is a production module the population rule sorted by
+  filename), "enforced nowhere" was seven call sites, "only `cite_ifc` is produced" was three of
+  four, and the two findings called product statements were both ordinary bugs underneath. Ratchet at
+  what survives.
+
+  **Still open, and genuinely product decisions rather than code fixes:**
+  * `nwd` export and the `navisworks` entitlement are advertised in the tier table the Settings panel
+    renders to customers, and **nothing implements either** — grep finds no NWD path outside
+    `licensing.py`. Either build it or stop selling it; not a call to make unilaterally.
+  * `/projects/{pid}/mep/size` has no `apps/web` caller and `client.ts::takeoff2d` never sends
+    `layout`, so R27-LAYOUT ② and ③ are **product-unreachable server capabilities** awaiting a UI
+    decision.
+  * `supply_chain.pdf_sanity`'s docstring calls it *"a fast pre-ingest gate"* — a runtime role it
+    does not have.
 
 - ◧ **R37-TRIAGE** *(M — Lane C; do FIRST, before any deletion or split)*
 

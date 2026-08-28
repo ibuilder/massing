@@ -4,6 +4,64 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1118 (2026-08-28) — R37 CONTRACT: an empty dict scored 100% provenance coverage
+
+The last two R37 findings, and they turned out to be one defect in two places: **a contract
+documented in prose and enforced nowhere**, so the thing meant to serve as evidence could be
+supplied by anyone for free.
+
+**① `{}` was full provenance.** `cited_answer` documents four citation kinds, and the proforma's
+`Assumptions.sources` block is typed `dict[str, list[dict]]` with a comment saying those dicts are
+`cite_doc` / `cite_record` / `cite_rule` / `cite_ifc`. Nothing checked that they were. Measured
+against the real functions before the fix:
+
+| recorded "source" | coverage | status | confidence |
+|---|---|---|---|
+| `{}` | **100%** | cited | **0.6** |
+| `{"foo": "bar"}` | **100%** | cited | 0.6 |
+| `{"source_type": "ifc"}` — no GUID | **100%** | cited | **0.733** |
+| `cite_record("rfi", 12)` — complete | 100% | cited | 0.667 |
+
+An empty dict was full provenance coverage. Worse, **asserting the strongest source type while
+naming no source out-scored a complete weaker citation**, because rank was read off a self-declared
+string that nothing validated — so the highest trust signal in the system was free to anyone who
+claimed a kind and supplied nothing. On a module whose stated thesis is *"an uncited assumption is
+uncited, never assumed sound."*
+
+`cited_answer.is_citation` is now the contract's own rule — a known `source_type` **and** the field
+that kind uses to identify its source (`guid` / `record_ref` / `rule_id` / `document_id`). Callers
+that build through the `cite_*` constructors pass by construction, so this is invisible to every
+real producer and bites only dicts that were never citations. `provenance_confidence` and `build`
+count recognised citations only; `assumption_provenance` reports malformed entries in
+`malformed_citation_paths` rather than crediting them, on the same principle that already named
+`orphaned_sources` — a caller who records a citation this contract cannot read has exactly the
+problem that field exists to surface. This also removed a crash: `source_types` indexed
+`cit["source_type"]` directly, so one dict without the key took down the whole answer.
+
+*This is why `cite_record` had no producer.* It was never a missing feature — the field that is
+documented to take record citations accepted anything, so nothing ever had to build one.
+
+**② The `sso` entitlement gated nothing, and the upgrade message named no plan.**
+`TIER_FEATURES` has marked `sso` Enterprise-only since the tiers were written and the Settings panel
+renders that table, but no code consulted it: any workspace that configured a SAML IdP got SSO.
+`saml.is_available()` is now configuration **and** entitlement, and it gates all three SAML routes
+through one guard *and* `/auth/providers` — because gating only the routes would have left the
+sign-in page rendering an SSO button that 402s on click. That is the symmetric-path defect this
+phase has now hit five times: fixing one side of a path teaches the caller the other side is safe.
+
+Upgrade messaging was a second, hand-kept copy of the tier matrix listing only the openBIM formats,
+so every Home-tier export refusal rendered **"PNG export requires the Massing a higher plan (or
+higher)"** — the most common refusal a Free workspace would ever see. `min_tier_for` /
+`min_tier_for_export` derive it from `TIER_FEATURES`; a capability no tier grants now says so
+instead of implying an upgrade would help. `tier_at_least`, which had no caller, is gone: these are
+the derivations that needed to exist.
+
+`test_r37_contract.py` pins all of it (101 checks), and was itself mutation-tested — three
+deliberate regressions, three failures. One assertion was dropped for being a tautology: looping the
+export list to check each entry resolves to a tier cannot fail, because the derivation reads that
+same list. The population that matters is the **rendered 402 string** for every declared format, and
+that is what catches the original defect.
+
 ## v0.3.1117 (2026-08-28) — R37 CONSOLIDATE: the callers had reimplemented the accessors
 
 Three functions came back referenced only by the test tree, and the roadmap's reading was that
