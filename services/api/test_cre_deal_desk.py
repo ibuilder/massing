@@ -209,6 +209,45 @@ with TestClient(app) as c2:
     assert sc["lease_count"] == 2 and sc["clean"] is False
     assert any(f["check"] == "scheduled_vs_gpr" for f in sc["findings"])
 
+# --- AN EXCLUDED COMPARABLE IS EXCLUDED --------------------------------------------------------
+#
+# The `comparable` workflow's transition INTO `excluded` is the action `exclude`, with `reinstate`
+# to undo it — the state IS the appraiser's decision about that comp, not metadata. `from_project`
+# read every record regardless, so a comp struck out at $900/sf still moved the price_psf median
+# from 305 to 310 and the sample from n=2 to n=3. A valuation computed over comps somebody removed.
+import aec_api.modules as _me  # noqa: E402
+
+_saved_tables, _saved_list = getattr(_me, "TABLES", None), _me.list_records
+_me.TABLES = {"comparable": object()}
+_BASE = [{"id": "c1", "workflow_state": "verified", "data": {"price_psf": 300, "cap_rate": 0.055}},
+         {"id": "c2", "workflow_state": "verified", "data": {"price_psf": 310, "cap_rate": 0.056}}]
+_OUT = {"id": "c3", "workflow_state": "excluded", "data": {"price_psf": 900, "cap_rate": 0.02}}
+_REC = {"id": "c4", "workflow_state": "recorded", "data": {"price_psf": 320, "cap_rate": 0.057}}
+
+
+def _stats(comps):
+    _me.list_records = lambda db, m, pid, _c=comps, **kw: _c
+    return comp_tier.from_project(object(), "p")
+
+
+_base = _stats(_BASE)["statistics"]["price_psf"]
+_with_excluded = _stats(_BASE + [_OUT])
+assert _with_excluded["statistics"]["price_psf"]["n"] == _base["n"],     f"an excluded comparable entered the sample: {_with_excluded['statistics']['price_psf']}"
+assert _with_excluded["statistics"]["price_psf"]["median"] == _base["median"],     "an excluded comparable moved the median"
+
+# NAMED, not silently dropped — a sample that shrank without saying so reads as a thinner market
+# rather than as a decision somebody made.
+assert len(_with_excluded.get("excluded_comparables") or []) == 1,     f"the excluded comp must be reported: {_with_excluded.get('excluded_comparables')}"
+
+# THE TWIN: `recorded` is the INITIAL state and an unverified comp is still a comp. Without this the
+# assertions above pass on an engine that has thrown away everything but `verified`.
+_with_recorded = _stats(_BASE + [_REC])["statistics"]["price_psf"]
+assert _with_recorded["n"] == _base["n"] + 1,     f"a recorded (merely unverified) comp was dropped: {_with_recorded}"
+
+_me.list_records = _saved_list
+if _saved_tables is not None:
+    _me.TABLES = _saved_tables
+
 print("CRE-DESK OK - COMP-TIER ranks sources (a county deed outranks the OM for the same address, "
       "the overruled $250/sf stays visible beside the kept $210, and an unrecognized source lands "
       "in the WEAKEST tier) while every band names the weakest tier it rests on ('listing' here, "

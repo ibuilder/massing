@@ -163,9 +163,24 @@ def statistic(comps: list[dict], field: str = "price_psf") -> dict[str, Any]:
 
 def from_project(db, pid: str, field: str = "price_psf") -> dict[str, Any]:
     from . import modules as me
-    comps = me.list_records(db, "comparable", pid, limit=100_000) if "comparable" in me.TABLES else []
+    # AN EXCLUDED COMPARABLE HAS BEEN EXCLUDED. The `comparable` workflow's transition INTO this
+    # state is the action `exclude`, with `reinstate` to undo it — so the state is not metadata, it
+    # is the appraiser's stated decision about this comp. Reading every record ignored it: a comp
+    # marked excluded at $900/sf still moved the price_psf median from 305 to 310 and the sample
+    # from n=2 to n=3.
+    #
+    # `recorded` is NOT filtered. It is the initial state and an unverified comp is still a comp;
+    # only `excluded` is an explicit removal. Same rule as the `margin` sub-invoice fix — exclude
+    # what the workflow says was rejected, leave the genuinely ambiguous state alone.
+    all_comps = me.list_records(db, "comparable", pid, limit=100_000) if "comparable" in me.TABLES else []
+    comps = [c for c in all_comps if c.get("workflow_state") != "excluded"]
+    excluded = [{"id": c.get("id"), "ref": c.get("ref"), "reason": "excluded by the appraiser"}
+                for c in all_comps if c.get("workflow_state") == "excluded"]
     resolved = resolve_conflicts(comps)
     return {**resolved,
             "statistics": {f: statistic(comps, f)
                            for f in ("price_psf", "cap_rate", "rent_psf")},
-            "requested": statistic(comps, field)}
+            "requested": statistic(comps, field),
+            # NAMED, not silently dropped: a sample that shrank without saying so reads as a
+            # thinner market rather than as a decision somebody made.
+            "excluded_comparables": excluded}

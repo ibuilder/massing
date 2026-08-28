@@ -122,7 +122,10 @@ def solve_for_project(pid: str, a: Assumptions, db: Session = Depends(get_db),
     band checks when the project has no `comparable` records with cap rates."""
     from .. import underwrite
     result = solve(a.model_dump())
-    comps = me.list_records(db, "comparable", pid, limit=100000) if "comparable" in me.TABLES else []
+    # Excluded comparables are excluded here too — underwriting guardrails check a deal against the
+    # market, and a comp the appraiser struck out is not the market. Same filter as `comp_tier`.
+    comps = [c for c in me.list_records(db, "comparable", pid, limit=100000)
+             if c.get("workflow_state") != "excluded"] if "comparable" in me.TABLES else []
     return {**result, "guardrails": underwrite.guardrails(result, comps=comps)}
 
 
