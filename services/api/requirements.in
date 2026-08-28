@@ -64,7 +64,7 @@ diskcache>=5.6            # Apache-2.0, pure-Python, no C extension
 
 # --- optional (lazy-imported, only when the matching env var is set) ---
 redis>=8.1.0             # shared rate-limit + login-lockout counters (AEC_REDIS_URL)
-anthropic>=0.120.0        # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY
+anthropic>=1.0.0        # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY
 sentry-sdk[fastapi]>=2.68.1  # external error alerting (sentry.py); no-op unless AEC_SENTRY_DSN is set
 
 # --- OpenTelemetry distributed tracing (otel.py); no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set ---
