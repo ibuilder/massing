@@ -63,11 +63,25 @@ def schedule(qto_lines: list[dict], activities: list[dict], lead_times: dict | N
         if tr:
             by_trade[tr] = min(by_trade.get(tr, start), start)
 
+    # SPEAK ONE DIALECT, the way `buyout_packages` already does. `procurement.normalize_qto_line`
+    # exists because model-derived QTO lines carry `{ifc_class, discipline, quantity, rate}` and the
+    # procurement engines read `{item, trade}` — and it was wired into `buyout_packages` and NOT
+    # here, so this engine has been reading the raw dialect ever since.
+    #
+    # Measured against the live API before the fix, on three real by-floor QTO lines: 3 entries,
+    # ALL `unscheduled`, every `material` an empty string, every `order_by` null. That is not an
+    # error anyone sees — it is a full, well-formed schedule saying nothing needs ordering, which is
+    # the exact confident-empty QTO-TRADE documents for the sibling engine ("a screen over today's
+    # inputs would render 'Buyout — 0 packages', which reads as *this model has nothing to buy out*
+    # rather than *this input is incompatible*").
+    from .procurement import normalize_qto_line
+
     entries = []
     unscheduled = 0
-    for ln in qto_lines or []:
-        if not isinstance(ln, dict):
+    for raw in qto_lines or []:
+        if not isinstance(raw, dict):
             continue
+        ln = normalize_qto_line(raw)
         material = ln.get("material") or ln.get("item") or ln.get("description") or ""
         cc, tr = _norm(ln.get("cost_code")), _norm(ln.get("trade"))
         aid = str(ln.get("activity_id") or "")

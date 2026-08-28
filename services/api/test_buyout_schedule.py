@@ -51,6 +51,43 @@ with TestClient(app) as c:
     j = rr.json()
     assert j["overdue"] == 1 and j["entries"][0]["material"] == "W12x26 steel", j
 
+# --- MODEL-DERIVED QTO LINES: the dialect this engine could not read ---------------------------------
+#
+# `buyout_packages` normalises its QTO lines through `procurement.normalize_qto_line`; this engine did
+# not, and nothing noticed because the failure is silent. A model-derived line carries
+# `{ifc_class, discipline, quantity, rate}` and NO `item`/`trade`, so every line fell through the
+# activity join and came back `unscheduled` with an empty material name.
+#
+# Measured against the live API before the fix, on three real by-floor lines: 3 entries, 3
+# unscheduled, every material "", every last_responsible_order null. A full, well-formed schedule
+# saying nothing needs ordering — the same confident-empty QTO-TRADE documents for the sibling
+# engine, and the reason a screen over it would have read as "this model has nothing to buy".
+model_lines = [
+    {"ifc_class": "IfcSlab", "discipline": "Structural", "quantity": 45.0, "unit": "m3",
+     "rate": 550.0, "amount": 24750.0, "count": 3},
+    {"ifc_class": "IfcWall", "discipline": "Architectural", "quantity": 120.0, "unit": "m2",
+     "rate": 90.0, "amount": 10800.0, "count": 8},
+]
+model_acts = [{"id": "S1", "trade": "Structural", "start": "2026-10-01"},
+              {"id": "A1", "trade": "Architectural", "start": "2026-11-01"}]
+rm = bs.schedule(model_lines, model_acts, None, "2026-08-27", 30)
+
+assert rm["unscheduled"] == 0, f"model-derived lines still fall through the join: {rm['unscheduled']} unscheduled"
+assert all(e["material"] for e in rm["entries"]),     f"a line with no name reaches the schedule blank: {[e['material'] for e in rm['entries']]}"
+assert all(e["last_responsible_order"] for e in rm["entries"]),     "a joined line must carry an order-by date, else the schedule has nothing to act on"
+
+# The identity comes from WHAT THE ELEMENT IS — the IFC class's trade title, not a blank.
+mats = {e["material"] for e in rm["entries"]}
+assert "Cast-in-Place Concrete" in mats, mats
+
+# THE TWIN: normalising must not invent a join. A line whose discipline matches no activity is still
+# `unscheduled` — without this, the assertion above passes on an engine that defaults everything to
+# the first activity it finds.
+orphan = bs.schedule(
+    [{"ifc_class": "IfcPipeSegment", "discipline": "Plumbing", "quantity": 10.0, "rate": 5.0}],
+    model_acts, None, "2026-08-27", 30)
+assert orphan["unscheduled"] == 1,     f"a line with no matching activity must stay unscheduled, got {orphan['unscheduled']}"
+
 print("BUYOUT-SCHED OK - QTO lines join to their installing activity (by id/cost-code/trade) -> the "
       "last-responsible-order date (install start - lead time): a steel line with a 60-day lead installing "
       "2026-08-15 must be ordered by 2026-06-16 (overdue as of 2026-07-01, buffer -15d), rebar with a 21-day "
