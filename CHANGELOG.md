@@ -4,6 +4,52 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1117 (2026-08-28) — R37 CONSOLIDATE: the callers had reimplemented the accessors
+
+Three functions came back referenced only by the test tree, and the roadmap's reading was that
+deleting them was the wrong move because **the caller had reimplemented each one**. Fixing the caller
+removes the duplication *and* the orphan; deleting the function keeps the duplication and loses the
+better implementation.
+
+`routers/ids.py::_specs_from` looked a use case up itself and called the **private**
+`ia._specs_for` — which is both halves of what `build_from_use_case` and `eir_for_use_case` do, and
+why neither had a caller. `/ids/build` and `/ids/eir` now call them. `agent_packs.catalog` inlined
+`list(p["tools"])` where `tools_for` exists, so it calls that instead: one definition of what a pack
+runs.
+
+**Reading the code changed the plan twice.**
+
+**The private reach-through had a second caller.** `codecheck.py` also called `ids_authoring._specs_for`
+and passes a *group list* rather than a use case, so it cannot go through `specs_for_use_case`. *A
+private helper with two external callers is not private, it is undeclared* — so it is now
+`specs_for_groups`. Routing around it would have left the second caller reaching in.
+
+**And routing `/ids/eir` through `eir_for_use_case` would have shipped two regressions**, both
+because the twins had drifted while one of them had nothing calling it: it raised a bare `KeyError`
+where `build_from_use_case` raises `ValueError`, so the route's existing **422 would have become a
+500**; and it had no `title` parameter, so a caller-supplied title would have been **silently
+discarded**. Both were fixed before the route was pointed at it, and both are pinned. *A
+consolidation that adopts the surviving implementation inherits its defects too, and they are
+invisible precisely because nothing calls it.*
+
+**And review found the pair still disagreed about malformed input.** `/ids/build` has always wrapped
+its build in `except Exception -> 422`; `/ids/eir` had **no catch at all**, so a malformed explicit
+spec — a requirement missing `pset`, a spec that is not an object, a `requirements` that is a string —
+came back **500** from one route and 422 from the other, on the identical body. Narrowing the new
+`try` there to `ValueError`, which is all the use-case branch needs, would have hardened one half of
+a symmetric pair and left the other reporting a server error for the caller's own bad input. Measured
+on all three cases, both routes, before and after; the well-formed twin still answers 200 on both.
+
+*Two lessons from the test rather than the code.* Its first draft asserted the reach-through was gone
+with `"_specs_for" not in inspect.getsource(router)` — and **failed on the router's own new comment**,
+which explains the fix by naming the private helper in prose. A substring test over a file counts
+comments as code, which is the defect this R37 line keeps finding in other gates; it does not get to
+live in the test that closes it. `services/api/test_r37_consolidate.py` walks the AST and asserts on
+attribute accesses instead. And its catalog checks guarded every claim with
+`if isinstance(cat, dict) and "packs" in cat else True`, so an unexpected shape would have passed
+silently — *a defensive fallback that turns a check into a no-op is the same defect as writing
+`True`*, and it is asserted against the real shape now.
+
 ## v0.3.1116 (2026-08-27) — R37's last two WIRE items, and what "wired" turned out to mean
 
 `mep.block_cooling_load` and `takeoff_scope.scope_annotations` were the last two of R37-TESTED-UNWIRED's

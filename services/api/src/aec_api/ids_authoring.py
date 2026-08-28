@@ -62,10 +62,17 @@ def templates() -> dict:
 def specs_for_use_case(use_case: str) -> list[dict]:
     """IDS specs (name / ifc_class / requirements) for a named use case — for model scoring."""
     uc = USE_CASES.get(use_case)
-    return _specs_for(uc["groups"]) if uc else []
+    return specs_for_groups(uc["groups"]) if uc else []
 
 
-def _specs_for(groups: list[str]) -> list[dict]:
+def specs_for_groups(groups: list[str]) -> list[dict]:
+    """IDS specs for a list of template groups — the group-level mapper behind every other accessor.
+
+    **Public because it has a legitimate caller outside this module.** `codecheck.py` composes its own
+    group list and cannot go through `specs_for_use_case`, so it reached for `_specs_for` privately;
+    so did `routers/ids.py`. A private helper with two external callers is not private, it is
+    undeclared — and the reach-through is what R37-TESTED-UNWIRED's CONSOLIDATE group was pointing at.
+    """
     out = []
     for g in groups:
         t = TEMPLATES.get(g)
@@ -103,7 +110,7 @@ def build_from_use_case(use_case: str, title: str = "", **kw) -> str:
     uc = USE_CASES.get(use_case)
     if not uc:
         raise ValueError(f"unknown use case {use_case!r}")
-    return build_ids(title or uc["label"], _specs_for(uc["groups"]), **kw)
+    return build_ids(title or uc["label"], specs_for_groups(uc["groups"]), **kw)
 
 
 def eir_markdown(title: str, specs: list[dict], *, project: str = "", author: str = "") -> str:
@@ -126,6 +133,20 @@ def eir_markdown(title: str, specs: list[dict], *, project: str = "", author: st
     return "\n".join(lines)
 
 
-def eir_for_use_case(use_case: str, **kw) -> str:
-    uc = USE_CASES[use_case]
-    return eir_markdown(uc["label"], _specs_for(uc["groups"]), **kw)
+def eir_for_use_case(use_case: str, title: str = "", **kw) -> str:
+    """The EIR document for a named use case — `build_from_use_case`'s twin, and now shaped like it.
+
+    Two differences from its sibling were defects rather than decisions, and both showed up the moment
+    `routers/ids.py` was pointed at this function instead of reimplementing it:
+
+    * **`USE_CASES[use_case]` raised `KeyError`**, where `build_from_use_case` raises `ValueError` for
+      the same mistake. The router turns a `ValueError` into a 422; a bare `KeyError` would have left
+      it a **500**, so routing through this function without fixing it would have traded a working
+      error path for a broken one.
+    * **No `title`.** The route has always honoured a caller-supplied title, so calling this as it
+      stood would have silently discarded it — a regression hidden inside a refactor.
+    """
+    uc = USE_CASES.get(use_case)
+    if not uc:
+        raise ValueError(f"unknown use case {use_case!r}")
+    return eir_markdown(title or uc["label"], specs_for_groups(uc["groups"]), **kw)

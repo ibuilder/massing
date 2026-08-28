@@ -120,7 +120,7 @@ def code_ids(description: str, edition: str | None = None, title: str = "") -> d
               + ["walls", "windows"]):                                          # IECC envelope U-value
         if g not in groups:
             groups.append(g)
-    specs = ids_authoring._specs_for(groups)
+    specs = ids_authoring.specs_for_groups(groups)
     ttl = title or ("Code data requirements" + (f" — {edition}" if edition else ""))
     xml = ids_authoring.build_ids(ttl, specs, purpose="Code-compliance data requirements (facts of law).")
     return {"edition": edition, "detected": feat, "topics": rc["topics"], "groups": groups,
