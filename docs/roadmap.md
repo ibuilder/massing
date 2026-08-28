@@ -541,8 +541,24 @@ The engine work is done either way; only the naming is open.
   differently from *lines went in and nothing came out* (a grouping problem). One empty table for
   both is what would have said "this project has no scope" about a fully-priced model.
 
-  Remaining: `procurementLevel`, `procurementLevelQuotes`, `buyoutSchedule` still have no caller.
-  They need returned quotes to level, which is a different input than the model.
+  **ALL THREE ARE NOW WIRED — 2026-08-27, and this cell's reason for their being unwireable was only
+  half right.** `procurementLevelQuotes` (per-line material price comparison, feeding the price
+  ledger), `procurementLevel` (scored against a package's stored `scope_json` — price + coverage +
+  lead time, naming each supplier's scope gaps) and `buyoutSchedule` (last-responsible-order date per
+  material) all have callers and were driven live against the dev API.
+
+  It was true that leveling needs returned quotes, and a paste-and-level control supplies them. But
+  `buyoutSchedule` was not blocked on input the user had to provide **at all** — it was blocked on a
+  BACKEND DEFECT this entry had already declared closed. `buyout_packages` normalises QTO lines
+  through `procurement.normalize_qto_line`; `buyout_schedule.schedule()` never got that call, so on
+  three real by-floor lines it returned *3 entries, 3 unscheduled, every material `""`, every order
+  date null* — a complete, well-formed schedule saying nothing needs ordering. **The same
+  confident-empty this entry documents for the sibling engine, still live in the sibling's sibling
+  after "BACKEND CLOSED, verified" was written.** Fixed and mutation-tested.
+
+  The lesson generalises past this item: **a capability that looks like a UI gap is worth one direct
+  call to its engine before that is believed.** The reason this one had no screen was never the
+  screen.
 
   **Two agents reached this independently, from different directions, on 2026-08-07** — one from the
   input shape, one from the bid-submission side — and both refused to guess. That convergence is
@@ -559,7 +575,8 @@ The engine work is done either way; only the naming is open.
   **The generalisation matters more than the fix:** the reach sweep proved 110 of 110 parseable
   client methods have live server routes, and reachability was allowed to follow from that. It does
   not. **Route existence and input adequacy are different questions**, and the sweep only ever
-  measured the first. The blocking work is a trade classification for QTO lines — backend, not UI.
+  measured the first. The blocking work was backend, not UI — and it was still backend when this was
+  re-checked on 2026-08-27, in a second engine nobody had looked at.
 
 
 - ◧ **R43-VIEWER-CONFORMANCE** *(S — Lane E; MassingViewer issue #512; **RUN 2026-08-13**, full
