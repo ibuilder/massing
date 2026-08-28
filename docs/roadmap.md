@@ -2420,9 +2420,11 @@ claim must be premise-checked against TODAY's tree before acting; several are al
     measurement was a separate, ad-hoc population that reintroduced a distinction that gate had
     already learned to do without.
 
-  **▶ CONSOLIDATE — ALL THREE SHIPPED v0.3.1117.** The caller reimplements the accessor —
-  `cde.scorecard_inputs`'s shape, which R37-TRIAGE deleted for. Here the better move was the other
-  direction: `routers/ids.py::_specs_from` duplicated `build_from_use_case`'s body **and reached for
+  **▶ CONSOLIDATE — ALL THREE SHIPPED v0.3.1117.** All three have the same shape: **the caller
+  reimplements the accessor, so the accessor reads as dead.** `cde.scorecard_inputs` had that shape
+  too and R37-TRIAGE *deleted* it — which is the tempting move and the wrong one here, because
+  deleting the accessor keeps the caller's copy and loses the better implementation. The better move
+  is the other direction: `routers/ids.py::_specs_from` duplicated `build_from_use_case`'s body **and reached for
   the private `ia._specs_for`** to do it; `eir_for_use_case` was the same pair; and
   `agent_packs.catalog` inlined `list(p["tools"])` rather than calling `tools_for`. Calling the public
   wrappers removed a private reach-through *and* the orphans, which deleting them would not.
