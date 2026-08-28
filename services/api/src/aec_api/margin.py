@@ -54,7 +54,25 @@ def by_cost_code(db: Session, pid: str) -> dict[str, Any]:
     for r in me.list_records(db, "direct_cost", pid, limit=100_000):
         d = r.get("data") or {}
         bucket(d.get("cost_code"))["actual"] += _num(d.get("amount"))
+    # A REJECTED SUB-INVOICE IS NOT BILLED. This summed every `sub_invoice` regardless of state, so
+    # an invoice the team had refused still landed in `billed`. Measured: two invoices on one cost
+    # code, $100k approved and $250k rejected, reported `billed: 350000.0` — identical to the figure
+    # when BOTH were approved. The rejection changed nothing.
+    #
+    # THREE READERS OF THIS RECORD, THREE RULES, and that is worth stating rather than quietly
+    # picking one:
+    #   * `payapp.py`  — `("approved", "paid")`: billed means approved for payment.
+    #   * `cost.py`    — `("submitted", "approved", "paid")`: everything a sub has claimed.
+    #   * `margin.py`  — everything, rejected included. Only this one is indefensible.
+    #
+    # So this excludes `rejected` ONLY. Whether a merely SUBMITTED claim belongs in `billed` is a
+    # real disagreement between the other two — "billed to us" and "approved for payment" are
+    # different questions, and `billed` sits here beside `committed` and `actual` without saying
+    # which it means. Settling that changes a number on a live screen and wants a decision, not a
+    # drive-by; excluding a refused invoice does not.
     for r in me.list_records(db, "sub_invoice", pid, limit=100_000):
+        if r.get("workflow_state") == "rejected":
+            continue
         d = r.get("data") or {}
         bucket(d.get("cost_code"))["billed"] += _num(d.get("amount"))
 

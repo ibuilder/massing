@@ -39,6 +39,28 @@ with TestClient(app) as c:
     # CC1 — bought out under budget
     a = by["03 30 00"]
     assert a["budget"] == 100000 and a["committed"] == 85000 and a["actual"] == 40000 and a["billed"] == 35000, a
+
+    # A REJECTED SUB-INVOICE IS NOT BILLED.
+    #
+    # This summed every `sub_invoice` regardless of state, so an invoice the team had REFUSED still
+    # counted. Measured before the fix: $100k approved + $250k rejected on one code reported
+    # `billed: 350000.0` — the same figure as when both were approved, so the rejection changed
+    # nothing at all. `payapp.py` gates the same concept on ("approved", "paid") and `cost.py` on
+    # ("submitted", "approved", "paid"); the one thing all three agree on is that rejected is not
+    # billed, and this was the only reader counting it.
+    rej = mk("sub_invoice", {"cost_code": cc1, "vendor": "Refused sub", "amount": 250000})
+    tr = c.post(f"/projects/{pid}/modules/sub_invoice/{rej['id']}/transition", json={"action": "reject"})
+    assert tr.status_code == 200, f"reject: {tr.text[:160]}"
+    a2 = next(r for r in c.get(f"/projects/{pid}/margin/by-costcode").json()["rows"]
+              if r["cost_code"].startswith("03 30 00"))
+    assert a2["billed"] == 35000, f"a rejected invoice was counted as billed: {a2['billed']}"
+
+    # THE TWIN: a non-rejected invoice on the same code still counts, or the assertion above passes
+    # on an engine that has stopped counting sub-invoices altogether.
+    mk("sub_invoice", {"cost_code": cc1, "vendor": "Real sub", "amount": 12000})
+    a3 = next(r for r in c.get(f"/projects/{pid}/margin/by-costcode").json()["rows"]
+              if r["cost_code"].startswith("03 30 00"))
+    assert a3["billed"] == 47000, f"a live invoice stopped counting: {a3['billed']}"
     assert a["buyout_margin"] == 15000 and a["variance"] == 60000, a
     assert a["over_committed"] is False and a["over_budget"] is False and a["pct_committed"] == 85.0, a
     # CC2 — committed over budget → negative buyout margin + over-committed flag
