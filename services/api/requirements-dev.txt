@@ -4,7 +4,7 @@
 #   (bare `python` picks up whatever is first on PATH, NOT this venv; see run_tests.py's
 #    docstring for why that fails in a way that can still report a pass)
 httpx>=0.28.1          # required by starlette.testclient
-pytest>=8.0          # optional: collects the run_tests gate
+pytest>=9.1.1          # optional: collects the run_tests gate
 pypdf>=4.0           # NOT test-only: 7 shipped modules import it (doc_text, drawingset, pdfops,
                      # review, sheet_extract, sheet_recover, stamps). Production installs it from
                      # requirements.lock; this line only makes it available to the dev venv.
