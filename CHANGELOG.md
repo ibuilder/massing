@@ -4,6 +4,97 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1116 (2026-08-27) — R37's last two WIRE items, and what "wired" turned out to mean
+
+`mep.block_cooling_load` and `takeoff_scope.scope_annotations` were the last two of R37-TESTED-UNWIRED's
+four real gaps. Both are now routed, and the useful finding is how narrow the fix actually was.
+
+**Each was the one function in its module that its own router did not call.** `routers/design.py`'s
+`mep_size` is a five-branch dispatcher over `mep.py`: it called `size_duct`, `size_pipe`,
+`size_cooling` and `hanger_spacing`, and `block_cooling_load` was reachable by nothing. `takeoff_2d`
+called `takeoff_scope.scope` and `check_calibration`, and `scope_annotations` — R27-LAYOUT ③'s own
+named deliverable — was reachable by nothing. **One of five missing from a five-branch dispatcher is
+a gap, not a design.** Parity with the siblings is the bar and it is the whole bar.
+
+**`block_cooling` is not `cooling`.** That converts a load somebody already has into tons; this
+estimates the load from gross area, which is the earlier question and the one asked when no load
+exists yet. The area defaults to `energy.project_gfa_sf` — the one definition of gross area here, so
+deriving a second would guarantee two answers to one question — and a caller can still pass `gfa_sf`
+to size a massing that is not the loaded model.
+
+**The route refuses where the engine clamps.** `block_cooling_load` does `max(gfa, 0.0)` and
+`max(sf_per_ton, 1.0)`, and both clamps turn a missing input into a confident number: an unloaded
+project answers `tons: 0.0`, which reads into a plant schedule as an answer rather than as a missing
+input, and `sf_per_ton=0` returns **350x** the tonnage for the same building. The engine is unchanged
+— the clamps are its business and other callers may want them — so the refusal lives at the route,
+where a request can still be told what is wrong with it. `services/api/test_r37_wire_routes.py`
+asserts the clamps are still in place, so the fix cannot quietly become an engine edit.
+
+**Annotations ride on the layout the traces already use.** `scope_annotations` takes
+`takeoff_2d`'s existing `layout` and `px_per_point` rather than a route of its own, because it is not
+a second engine: its docstring is explicit that an annotation and a traced polygon pose the identical
+question — which drawing is this on — so it maps annotations onto the same region shape and calls
+`scope`. A separate route would have duplicated the coordinate contract, and two places to get
+`px_per_point` wrong is how two answers to one question drift apart. Both keys are omitted entirely
+when their input is absent, so a takeoff with no notes gets the response it always got.
+
+**A 500 on malformed input, found by review and fixed once rather than twice.** Every coordinate on
+this route is caller-supplied, and `float("abc")` raised straight out of `takeoff_scope.scope`'s
+comprehension — leaving the route as a **500**, the wrong status for bad input, and failing a whole
+forty-trace takeoff over one malformed entry. **The gap was pre-existing and symmetric:** the
+`regions` path did exactly the same thing, and routing annotations merely added a second way to reach
+it. So it is fixed in `scope`, where both paths converge; fixing only the new half would have been
+worse than leaving it, because a caller would learn that malformed input is handled and then meet a
+500 on the other key.
+
+A bad row now comes back `unknown` **with a stated reason**, which is this module's existing
+vocabulary — an empty point list has answered exactly that since it was written — and one bad trace
+costs that trace rather than the other thirty-nine. A wrong *type* for the whole `annotations` field
+is still a 422: that is a caller who cannot be answered at all, as opposed to one bad note in a sheet
+full of good ones.
+
+**Then the same mistake in miniature: the LAYOUT was the other half of that gap.** Hardening the
+traces and annotations and leaving the viewport rectangles left **seven** more 500 paths, all
+caller-reachable — a `rect` that is a string, too short, missing, or containing null; a `regions`
+that is a string or holds a null; a `layout` that is not an object at all. Same function, same class,
+one door further in. The type-level cases are now 422 and the row-level ones are handled.
+
+**A skipped viewport is COUNTED, and that is the load-bearing part.** Skipping one silently would be
+worse than the crash: a trace over a drawing whose rectangle could not be read would report
+`unscoped` — *"not on any drawing"* — when the truth is *"we could not read the drawing"*. That is a
+wrong answer in the confident direction, which is the failure this module exists to prevent, so
+`scope` returns `unreadable_viewports` and says in its note what it means for the traces.
+
+**And the last crash survived because the route kept its own copy of the filter.**
+`takeoff_2d`'s calibration block had `_viewports`' body inlined —
+`[r for r in (layout.get("regions") or []) if r.get("kind") == "viewport"]` — so hardening the engine
+did not reach it, and a string `regions` still iterated its characters there. The helper is now
+public (`takeoff_scope.viewports`) and the route calls it. *Two derivations of one question meant one
+of them stayed unhardened* — the same shape as the boot guard's hand-parsed dialect two releases ago,
+in different clothes.
+
+**Then the subtlest one, which nothing caught until review: NaN and infinity survive `float()`.**
+They raise nothing, match no finite viewport, and came back `unscoped` — *"this trace is not on any
+drawing"*. A confident wrong answer about the **drawing**, when the truth is that the coordinate is
+meaningless. Now `unknown`, like every other unreadable coordinate. The same trap sits one level out:
+a viewport `rect` of NaN converted cleanly, counted as *readable*, and would have reported every trace
+on that drawing `unscoped` with `unreadable_viewports: 0` — the count that exists to prevent exactly
+that misreading saying nothing at all. Both are `math.isfinite`-checked now.
+
+**And a guard that was right but in the wrong place.** The `annotations` type check sat *inside*
+`if layout:`, so a request with `annotations: {}` and no layout returned a normal takeoff and dropped
+the field on the floor — the silent no-op the guard exists to prevent, reintroduced by where it was
+put. *A malformed field is malformed whether or not a different field is present.* Both type guards
+now run before the layout gate.
+
+**And a separate gap, found while wiring these.** `/projects/{pid}/mep/size` has no caller in
+`apps/web` at all — it appears only in the generated `schema.d.ts` — and `client.ts::takeoff2d` never
+sends `layout`, so R27-LAYOUT ② and ③ are unreachable from the product however well they are routed.
+That is not a dead function but a **built server capability with no client**, a different shape from
+anything R37 measured, and it needs a UI decision rather than a wiring one. It is recorded in the
+roadmap rather than fixed here. `test_route_reachability` cannot see it: the route path is referenced
+by the generated schema, which satisfies a substring test over the web tree.
+
 ## v0.3.1115 (2026-08-27) — two of R37's four real gaps, and both comments were describing surfaces nobody built
 
 R37-TESTED-UNWIRED classified 20 test-only functions last release and called five of them real gaps.

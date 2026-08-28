@@ -2293,7 +2293,7 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   **ALL 20 READ, 2026-08-27.** The population re-derived first (still 20), then each one opened
   along with what its own router actually calls. The split is not the one the list shape suggests:
 
-  **▶ WIRE — a real capability nothing can reach (4; 2 shipped — the fifth was a misclassification, below).** These are `beside` again.
+  **▶ WIRE — a real capability nothing can reach (4; ALL FOUR SHIPPED — the fifth was a misclassification, below).** These are `beside` again.
   * ✅ `pid_lock.cross_process_status` — **the sharpest, and shipped v0.3.1115.** `main.py`'s boot
     guard explained at length why it read the dialect from `DATABASE_URL` instead of this function,
     and ended *"the live-truth surface stays `cross_process_status()` on /health"*. `/health` returns
@@ -2356,10 +2356,42 @@ claim must be premise-checked against TODAY's tree before acting; several are al
     underneath a legitimate match. **An exclusion can only be tested on an item that is otherwise
     unique**; anywhere else the assertion is about the other match, and a broken exclusion looks
     identical.
-  * `takeoff_scope.scope_annotations` — R27-LAYOUT ③'s own named deliverable; `analysis.py` calls
-    `scope` and `check_calibration` only.
-  * `mep.block_cooling_load` — **not** a duplicate of the routed `size_cooling`: that converts a
-    KNOWN load to tons, this estimates the load from GFA. The earlier question, and the unasked one.
+  * ✅ `takeoff_scope.scope_annotations` — **shipped v0.3.1116.** R27-LAYOUT ③'s own named
+    deliverable; `analysis.py` called `scope` and `check_calibration` only. It now rides on
+    `takeoff_2d`'s existing `layout` + `px_per_point` rather than taking a route of its own —
+    **because it is not a second engine.** Its docstring is explicit that an annotation and a traced
+    polygon pose the identical question, so it maps annotations onto the same region shape and calls
+    `scope`. A separate route would have duplicated the coordinate contract, and two places to get
+    `px_per_point` wrong is exactly how two answers to one question drift apart.
+  * ✅ `mep.block_cooling_load` — **shipped v0.3.1116.** Not a duplicate of the routed
+    `size_cooling`: that converts a KNOWN load to tons, this estimates the load from GFA — the
+    earlier question, and the unasked one. Added to `mep_size`'s dispatcher as `kind=block_cooling`,
+    defaulting the area to `energy.project_gfa_sf` so gross area keeps one definition.
+
+    **The route refuses where the engine clamps**, which is the part worth keeping.
+    `block_cooling_load` does `max(gfa, 0.0)` and `max(sf_per_ton, 1.0)`, so an unloaded project
+    answers `tons: 0.0` — a figure that reads into a plant schedule as an answer rather than as a
+    missing input — and `sf_per_ton=0` returns **350x** the tonnage for the same building. The engine
+    is unchanged, since the clamps are its business and other callers may want them; the refusal
+    lives at the route, where a request can still be told what is wrong with it, and
+    `services/api/test_r37_wire_routes.py` asserts the clamps are still there so the fix cannot
+    quietly become an engine edit.
+
+  **What "wired" means for these two, stated because it is narrower than it sounds.** Each was the
+  one function in its module that its own router did not call, while every sibling was routed —
+  `size_duct`/`size_pipe`/`size_cooling`/`hanger_spacing` on one side, `scope`/`check_calibration` on
+  the other. **Parity with those siblings is the bar, and it is the whole bar.** Neither
+  `/projects/{pid}/mep/size` nor the `layout` half of `/projects/{pid}/takeoff/2d` has a web caller;
+  that was already true of all six siblings and this change does not alter it. Recorded so nobody
+  later reads ✅ as "reachable from the UI" — which is a real and separate gap, below.
+
+  **The separate gap, found while wiring these and worth its own item.** `/projects/{pid}/mep/size`
+  has no caller in `apps/web` at all — it appears only in the generated `apps/web/src/api/schema.d.ts`
+  — and `client.ts::takeoff2d` never sends `layout`, so R27-LAYOUT ② and ③ are both unreachable from
+  the product however well they are routed. That is not a dead function, it is a **built server
+  capability with no client**, which is a different shape from anything R37 measured and would need a
+  UI decision rather than a wiring one. `test_route_reachability` cannot see it: the route path is
+  referenced by the generated schema, which is enough to satisfy a substring test over the web tree.
   * ⛔ `test_fit.depth_range` — **NOT a gap. This entry was wrong, and the way it was wrong is the
     item's own lesson arriving one turn later.** It said *"`test_fit_optimize` passes the caller's
     `body.depths` straight through and defaults to `None`, so the client has to invent the sweep this

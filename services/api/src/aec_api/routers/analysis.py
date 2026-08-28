@@ -684,7 +684,12 @@ def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(ge
     """TAKEOFF-2D: quantify + price regions traced on a 2D drawing (PDF page / scan) — the drawings-only
     case the model takeoff misses. Body: `{scale_units_per_px, unit?, regions:[{category, points, label?}],
     overrides?}` (or supply `calibration:{p1,p2,real_distance}` to derive the scale). Returns per-region +
-    per-assembly quantities and cost, feeding the same 5D estimate. **Preliminary — trace/scale dependent.**"""
+    per-assembly quantities and cost, feeding the same 5D estimate. **Preliminary — trace/scale dependent.**
+
+    With `layout` (a `sheet_regions` result) and `px_per_point`, two more answers ride along, both
+    about *which drawing on the sheet* something sits on: `scope` for the traced regions, and
+    `annotation_scope` for an optional `annotations:[{id?, kind?, x, y}]` or `{points:[[x,y],…]}`
+    (a revision cloud). Both are omitted entirely when their input is absent."""
     from .. import takeoff2d
     scale = body.get("scale_units_per_px")
     cal = body.get("calibration") or {}
@@ -710,13 +715,51 @@ def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(ge
     # drawing — a quantity measured over a legend is not a quantity) or ambiguous (crossing two
     # scales, where no single number is correct).
     layout = body.get("layout")
+    # **Both type guards run BEFORE the layout gate, and that placement is the fix for a real bug.**
+    # `annotations`' guard originally sat inside `if layout:`, so a request with `annotations: {}` and
+    # no layout returned a normal takeoff and dropped the field on the floor — the silent no-op the
+    # guard exists to prevent, reintroduced by where it was put. A malformed field is malformed
+    # whether or not a different field is present.
+    #
+    # A wrong TYPE for a whole field is a caller who cannot be answered; one unreadable viewport or
+    # one bad annotation row inside a well-formed field is reported instead (`unreadable_viewports`,
+    # or `scope: "unknown"`) rather than failing the request.
+    if layout is not None and not isinstance(layout, dict):
+        raise HTTPException(422, "layout must be a sheet_regions object with a `regions` list")
+    if (ann_field := body.get("annotations")) is not None and not isinstance(ann_field, list):
+        raise HTTPException(422, "annotations must be a list of {id?, kind?, x, y} or "
+                                 "{id?, kind?, points:[[x,y],…]} objects")
     if layout:
         from .. import takeoff_scope
         out["scope"] = takeoff_scope.scope(regions, layout,
                                            px_per_point=body.get("px_per_point"))
+        # R27-LAYOUT ③ / R37-TESTED-UNWIRED: the same question for NOTES, keynotes and revision
+        # clouds. `scope_annotations` was the item's own named deliverable and this router called
+        # `scope` and `check_calibration` and not it — the only one of the three the module exports
+        # that nothing could reach.
+        #
+        # It rides on `layout` and `px_per_point` here rather than on a route of its own because it
+        # is not a second engine: its docstring is explicit that an annotation and a traced polygon
+        # pose the identical question — which drawing is this on — so it maps annotations onto the
+        # same region shape and calls `scope`. A separate route would have duplicated the coordinate
+        # contract, and two places to get `px_per_point` wrong is how the two answers drift apart.
+        #
+        # Optional and absent when not asked for: a caller tracing quantities with no notes gets the
+        # response it always got, and `annotation_scope: null` is never emitted as an empty finding.
+        annotations = body.get("annotations")
+        if annotations:
+            out["annotation_scope"] = takeoff_scope.scope_annotations(
+                annotations, layout, px_per_point=body.get("px_per_point"))
         # The calibration is checkable against a sheet WE drew: the scale is not something to
         # measure but something already known. Disagreement is REPORTED, never substituted.
-        vps = [r for r in (layout.get("regions") or []) if r.get("kind") == "viewport"]
+        #
+        # `takeoff_scope.viewports`, not a second copy of its filter. This line WAS that copy —
+        # `[r for r in (layout.get("regions") or []) if r.get("kind") == "viewport"]`, the helper's
+        # own body inlined — and it is how the last malformed-layout crash survived hardening the
+        # engine: a `layout["regions"]` that is a string iterated its characters here and raised out
+        # of `.get`. Two derivations of "which regions are viewports" meant one of them stayed
+        # unhardened, which is the failure this session keeps meeting in different clothes.
+        vps, _unreadable = takeoff_scope.viewports(layout)
         out["calibration_check"] = [
             {"viewport": v.get("index"), "label": v.get("label"),
              **takeoff_scope.check_calibration(float(scale), v.get("scale_denom"),
