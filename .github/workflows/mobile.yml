@@ -53,7 +53,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       # Capacitor 8's Android platform targets JDK 21; 17 fails on newer AGP.
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
