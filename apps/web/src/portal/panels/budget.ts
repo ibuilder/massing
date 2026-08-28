@@ -189,6 +189,77 @@ export async function renderBudget(ctx: PanelContext) {
         + `<div class="meta" style="margin-top:4px">${esc(b.note || "")}</div>`);
     } catch (err) { fillEst(`<div class="meta">Buyout packaging failed: ${(err as Error).message}</div>`); }
   };
+  // BUYOUT-SCHED — what must be ORDERED when, which is a different question from what to package.
+  // Joins the model's priced quantities to their installing schedule activity and subtracts the
+  // lead time: the last-responsible-order date. Unwireable until today, and not for a UI reason —
+  // `buyout_schedule` read the raw QTO dialect while its sibling `buyout_packages` normalised, so
+  // every line came back `unscheduled` with a blank name. A screen over that would have rendered a
+  // full table saying nothing needs ordering.
+  const schedBtn = document.createElement("button"); schedBtn.className = "tool-btn";
+  schedBtn.textContent = "🗓 Buyout schedule";
+  schedBtn.title = "Join the model's quantities to their installing activity and subtract lead time "
+    + "— the last-responsible-order date per material, soonest first, flagged overdue/urgent";
+  schedBtn.onclick = async () => {
+    fillEst(`<div class="meta">Joining quantities to the schedule…</div>`);
+    try {
+      const [q, acts] = await Promise.all([
+        ctx.host.api.qtoByFloor(pid),
+        ctx.host.api.moduleRecords(pid, "schedule_activity"),
+      ]);
+      const lines = (q.by_discipline ?? []) as unknown as Record<string, unknown>[];
+      // FOUR outcomes, kept apart. Collapsing any two of them is the defect this whole capability
+      // has already produced once: a blank table reads as "nothing to buy" whatever caused it.
+      if (!lines.length) {
+        fillEst(`<div class="meta">The model produced no priced quantities, so there is nothing to `
+          + `order yet. Run an estimate or a takeoff first.</div>`);
+        return;
+      }
+      const activities = acts.map((r) => ({ id: r.id, ...(r.data as Record<string, unknown>) }));
+      if (!activities.length) {
+        fillEst(`<div class="meta">${lines.length} priced line(s), but no schedule activities to `
+          + `install them — an order date is install start minus lead time, so there is nothing to `
+          + `subtract from yet. Import or build a schedule first.</div>`);
+        return;
+      }
+      const r = await ctx.host.api.buyoutSchedule(pid, {
+        qto_lines: lines, activities, as_of: new Date().toISOString().slice(0, 10),
+        default_lead_days: 30,
+      });
+      if (r.unscheduled === r.line_count) {
+        fillEst(`<div class="meta">All ${r.line_count} line(s) came back unscheduled — none of them `
+          + `matched an activity by id, cost code or trade. That is a JOIN problem, not an empty `
+          + `project. ${esc(r.note || "")}</div>`);
+        return;
+      }
+      const tone = (st: string) => st === "overdue" ? "var(--status-crit)"
+        : st === "urgent" ? "var(--status-warn)"
+        : st === "unscheduled" ? "var(--muted)" : "var(--status-good)";
+      const body = r.entries.slice(0, 40).map((e) => `<tr>`
+        + `<td>${esc(e.material)}</td>`
+        + `<td class="meta">${esc(e.trade || "—")}</td>`
+        + `<td style="text-align:right">${e.qty == null ? "—" : e.qty}${e.unit ? ` ${esc(e.unit)}` : ""}</td>`
+        + `<td style="text-align:right">${e.value == null ? "—" : usd(e.value)}</td>`
+        + `<td style="text-align:right">${esc(e.install_start || "—")}</td>`
+        + `<td style="text-align:right">${e.lead_time_days}d</td>`
+        + `<td style="text-align:right"><b>${esc(e.last_responsible_order || "—")}</b></td>`
+        + `<td style="text-align:right;color:${tone(e.status)}">${esc(e.status)}`
+        + `${e.buffer_days == null ? "" : ` <span class="meta">${e.buffer_days > 0 ? "+" : ""}${e.buffer_days}d</span>`}</td>`
+        + `</tr>`);
+      fillEst(`<div style="font-weight:600;margin-bottom:4px">Buyout schedule — ${r.line_count} line(s) · `
+        + `<b style="color:${r.overdue ? "var(--status-crit)" : "inherit"}">${r.overdue} overdue</b> · `
+        + `${r.next_30_days} to order in 30 days · <b>${usd(r.total_value)}</b></div>`
+        + (r.unscheduled
+          ? `<div class="meta" style="color:var(--status-warn);margin-bottom:4px">⚠️ ${r.unscheduled} line(s) `
+            + `matched no activity and cannot be dated — they sort last.</div>`
+          : "")
+        + `<div style="overflow:auto"><table class="mini-table" style="width:100%"><thead><tr>`
+        + `<th>Material</th><th>Trade</th><th style="text-align:right">Qty</th>`
+        + `<th style="text-align:right">Value</th><th style="text-align:right">Install</th>`
+        + `<th style="text-align:right">Lead</th><th style="text-align:right">Order by</th>`
+        + `<th style="text-align:right">Status</th></tr></thead><tbody>${rows(body)}</tbody></table></div>`
+        + (r.entries.length > 40 ? `<div class="meta">Showing the 40 soonest of ${r.entries.length}.</div>` : ""));
+    } catch (err) { fillEst(`<div class="meta">Buyout schedule failed: ${(err as Error).message}</div>`); }
+  };
   const dxfLabel = document.createElement("label"); dxfLabel.className = "tool-btn"; dxfLabel.style.cursor = "pointer";
   dxfLabel.textContent = "⬒ Takeoff a DXF"; dxfLabel.title = "2D CAD quantity takeoff — linear metres, enclosed area and block counts per layer";
   const dxfInput = document.createElement("input"); dxfInput.type = "file"; dxfInput.accept = ".dxf"; dxfInput.style.display = "none"; dxfLabel.appendChild(dxfInput);
@@ -278,7 +349,7 @@ export async function renderBudget(ctx: PanelContext) {
         + `<div class="meta" style="margin-top:4px"><b>${w.installed_elements ?? 0}</b> of <b>${w.total_elements ?? 0}</b> element(s) installed. Derived from installed quantity, not from a typed percentage.</div>`);
     } catch (err) { fillEst(`<div class="meta">Model progress unavailable: ${(err as Error).message}</div>`); }
   };
-  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, buyBtn, boeBtn, wipBtn, dxfLabel);
+  estRow.append(emBtn, rbBtn, bandBtn, cbsBtn, flBtn, buyBtn, schedBtn, boeBtn, wipBtn, dxfLabel);
 
   // budget movement vs baseline (shown only if a baseline exists; 409 otherwise → ignored)
   const bvHolder = document.createElement("div"); ctx.root.appendChild(bvHolder);
