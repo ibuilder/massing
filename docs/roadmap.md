@@ -2420,12 +2420,34 @@ claim must be premise-checked against TODAY's tree before acting; several are al
     measurement was a separate, ad-hoc population that reintroduced a distinction that gate had
     already learned to do without.
 
-  **▶ CONSOLIDATE, not delete (3).** The caller reimplements the accessor — `cde.scorecard_inputs`'s
-  shape, which R37-TRIAGE deleted for. Here the better move is the other direction:
-  `routers/ids.py::_specs_from` duplicates `build_from_use_case`'s body **and reaches for the private
-  `ia._specs_for`** to do it; `eir_for_use_case` is the same pair, and `agent_packs.catalog` inlines
-  `list(p["tools"])` rather than calling `tools_for`. Calling the public wrappers removes a
-  private reach-through *and* the orphan, which deleting them would not.
+  **▶ CONSOLIDATE — ALL THREE SHIPPED v0.3.1117.** The caller reimplements the accessor —
+  `cde.scorecard_inputs`'s shape, which R37-TRIAGE deleted for. Here the better move was the other
+  direction: `routers/ids.py::_specs_from` duplicated `build_from_use_case`'s body **and reached for
+  the private `ia._specs_for`** to do it; `eir_for_use_case` was the same pair; and
+  `agent_packs.catalog` inlined `list(p["tools"])` rather than calling `tools_for`. Calling the public
+  wrappers removed a private reach-through *and* the orphans, which deleting them would not.
+
+  **Reading the code changed the plan twice, and both changes are the point.**
+
+  * **The private reach-through had a SECOND caller this entry did not name.** `codecheck.py` also
+    called `ids_authoring._specs_for`, and it passes a *group list* rather than a use case, so it
+    cannot go through `specs_for_use_case`. *A private helper with two external callers is not
+    private, it is undeclared* — so it is now `specs_for_groups`. Routing around it would have left
+    the second caller reaching in.
+  * **Routing `/ids/eir` through `eir_for_use_case` would have shipped two regressions**, both
+    because the twins had drifted while one of them had no callers: it raised a bare `KeyError` where
+    `build_from_use_case` raises `ValueError`, so **the route's 422 would have become a 500**; and it
+    had no `title` parameter, so a caller-supplied title would have been **silently discarded**. Both
+    fixed first, both pinned. *A consolidation that adopts the surviving implementation inherits its
+    defects too, and they are invisible precisely because nothing calls it* — which is the state R37
+    found it in.
+
+  *And one lesson from the test rather than the code:* its first draft checked the reach-through was
+  gone with `"_specs_for" not in inspect.getsource(router)` — which **failed on the router's own new
+  comment**, where the fix is explained by naming the private helper in prose. A substring test over a
+  file counts comments as code. That is the same defect this whole R37 line keeps finding in other
+  gates, so it does not get to live in the test that closes it: `services/api/test_r37_consolidate.py`
+  walks the AST and asserts on attribute *accesses*.
 
   **▶ KEEP — genuinely test-and-gate surface (5).** `supply_chain` has no reference anywhere outside
   its own file: it **is** a gate module, and the licence/SBOM gates are tests by design — `sbom`,

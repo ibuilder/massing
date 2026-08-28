@@ -114,8 +114,12 @@ def catalog() -> dict[str, Any]:
         raise PackError(f"agent pack catalog is invalid: {v['problems']}")
     writes = _write_tools()
     out = []
-    for key, p in PACKS.items():
-        tools = list(p["tools"])
+    for key in PACKS:
+        # `tools_for`, not `list(p["tools"])` inlined — the accessor existed and had no caller, which
+        # is what made it look dead. The keys come from PACKS here so its unknown-pack refusal cannot
+        # fire, and that is fine: the point is one definition of "what a pack runs", not a new guard.
+        tools = tools_for(key)
+        p = PACKS[key]
         w = [t for t in tools if t in writes]
         out.append({
             "key": key, "label": p["label"], "purpose": p["purpose"], "tools": tools,
