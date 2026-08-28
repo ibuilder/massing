@@ -245,8 +245,19 @@ jobs:
             exit 0
           fi
           # Kept in sync with the build matrix by test_container_pr_gate.py, which runs this very
-          # pattern against each matrix `dockerfile` path.
-          if printf '%s\n' "$files" | grep -qE '(^|/)Dockerfile$|(^|/)\.dockerignore$|^\.github/workflows/ci\.yml$'; then
+          # pattern against each matrix `dockerfile` path AND against every dependency manifest
+          # those Dockerfiles install from.
+          #
+          # The manifests are here because a Dockerfile is not the only build input it has. The API
+          # image does `COPY services/api/requirements.lock` then `pip install --require-hashes` from
+          # it, and the web image copies `package.json` / `package-lock.json` before `npm ci` — so a
+          # dependency change alters the image without touching a single line matched above. Until
+          # 2026-08-28 none of those four paths was in this pattern, which meant every pip and npm
+          # bump reported `Container build (PR, no push)  skipping` and merged without any job ever
+          # building the image whose contents it had just changed. That is the same "a skipped job is
+          # not a passed job" hole this whole item exists to close, arriving through the input the
+          # filter was not watching rather than the one it was.
+          if printf '%s\n' "$files" | grep -qE '(^|/)Dockerfile$|(^|/)\.dockerignore$|^\.github/workflows/ci\.yml$|(^|/)package(-lock)?\.json$|(^|/)requirements\.lock$'; then
             echo "touched=true" >> "$GITHUB_OUTPUT"
           else
             echo "touched=false" >> "$GITHUB_OUTPUT"
