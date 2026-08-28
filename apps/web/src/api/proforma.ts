@@ -121,10 +121,24 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
    *  Reads `nothing_renovated` / `nothing_renovated_why`: the schedule says explicitly when a chosen
    *  pace renovates NOTHING across the entire hold. That is a load-bearing negative and callers
    *  should surface it prominently rather than treating a `false` as "fine".
+   *
+   *  **This was a GET against a POST route** and returned 405 for every possible caller — verified
+   *  against the running API on 2026-08-27. Corrected to POST with the body the route requires.
+   *
+   *  It is NOT the case that nothing ever called it: PULSE-FINDINGS wired it from the home pulse,
+   *  with no body, and v0.3.991 unwired it again precisely because the route is a POST and Pulse
+   *  has no unit types to send (`clientCallers.test.ts` still asserts that). So the signature was
+   *  wrong AND the capability is genuinely waiting for a screen that owns a renovation programme.
+   *  Fixing the verb does not wire it; it stops the next caller being lied to about the contract.
    */
-  proformaRenovation(pid: string) {
+  proformaRenovation(pid: string, body: {
+    unit_types: { type: string; count: number; current_rent_monthly: number;
+                  renovated_rent_monthly: number; cost_per_unit: number }[];
+    units_per_month?: number; downtime_months?: number;
+  }) {
     return this.json<{ nothing_renovated?: boolean; nothing_renovated_why?: string;
-      [k: string]: unknown }>(`/projects/${pid}/proforma/renovation`);
+      [k: string]: unknown }>(`/projects/${pid}/proforma/renovation`,
+      { method: "POST", body: JSON.stringify(body) });
   }
 
   /** Lease ROLLOVER exposure across the hold — expiries, downtime and re-let assumptions. */
@@ -132,9 +146,25 @@ export function withProforma<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.json<Record<string, unknown>>(`/projects/${pid}/proforma/rollover`);
   }
 
-  /** INCOME BASIS — which income line each figure is derived from, so a reader can trace it. */
-  proformaIncomeBasis(pid: string) {
-    return this.json<Record<string, unknown>>(`/projects/${pid}/proforma/income-basis`);
+  /**
+   * PF-INCOME-BASIS — which income line each figure derives from, so a reader can TRACE it:
+   *
+   * `declaredAnnual` is passed through because the route accepts it and the ANSWER CHANGES: with a
+   * declared figure the endpoint reconciles it against the rent roll and says which it used; without
+   * one it can only report what it derived. The client dropped the parameter, so every call would
+   * have asked the weaker question.
+   *
+   * `basis` is `derived` | `declared` | `reconciled` | `unavailable`, and `unavailable` is the one
+   * that matters: it means income is UNKNOWN, which the endpoint is careful to say "is not the same
+   * as zero and must not be underwritten as zero".
+   */
+  proformaIncomeBasis(pid: string, declaredAnnual?: number) {
+    const q = declaredAnnual == null ? "" : `?declared_annual=${encodeURIComponent(declaredAnnual)}`;
+    return this.json<{
+      basis: string; potential_rent_annual: number | null; basis_meaning: string;
+      reason?: string; derived_unavailable_reason?: string;
+      declared_annual: number | null; derived: number | null;
+    }>(`/projects/${pid}/proforma/income-basis${q}`);
   }
   };
 }

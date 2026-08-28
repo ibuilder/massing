@@ -65,6 +65,7 @@ export class ProformaUI {
   private lastResult?: ProformaResult;   // latest solve, for the Overview command center
   private overviewEl?: HTMLElement;       // the Overview tab's container (re-rendered on each solve)
   private memoryEl?: HTMLElement;         // R35 deal-memory strip — repainted on every hard-cost edit
+  private basisEl?: HTMLElement;          // PF-INCOME-BASIS — income provenance, repainted with the rent
 
   constructor(private root: HTMLElement, private api: ApiClient,
               private setStatus: (m: string) => void,
@@ -93,7 +94,7 @@ export class ProformaUI {
         // numbers. It used to be painted once by `renderBudget()`, so editing "Hard cost $" left a
         // $/SF comparison on screen for the PREVIOUS hard cost — a number describing an input that is
         // no longer there, next to the one that replaced it.
-        this.timer = window.setTimeout(() => { void this.solve(); this.refreshDealMemory(); }, 350);
+        this.timer = window.setTimeout(() => { void this.solve(); this.refreshDealMemory(); this.refreshIncomeBasis(); }, 350);
       };
       wrap.appendChild(inp); form.appendChild(wrap);
     }
@@ -108,7 +109,7 @@ export class ProformaUI {
         const v = parseFloat(inp.value);
         set(this.a, path, inp.value.trim() === "" || isNaN(v) ? null : v / scale);
         clearTimeout(this.timer);
-        this.timer = window.setTimeout(() => { void this.solve(); this.refreshDealMemory(); }, 350);
+        this.timer = window.setTimeout(() => { void this.solve(); this.refreshDealMemory(); this.refreshIncomeBasis(); }, 350);
       };
       wrap.appendChild(inp); form.appendChild(wrap);
     };
@@ -1024,6 +1025,33 @@ export class ProformaUI {
    *  this product would be making, not a unit conversion — and a realised schedule VARIANCE is not a
    *  duration, so putting it beside `construction_months` would be a category error in matching units.
    */
+  /**
+   * Repaint the income-provenance strip. Same shape as `refreshDealMemory` and for the same reason:
+   * it describes a number the user can edit, so painting it once would leave a claim about the rent
+   * that USED to be there.
+   */
+  private refreshIncomeBasis() {
+    const el = this.basisEl;
+    const pid = this.projectId();
+    if (!el || !pid || !el.isConnected) return;
+    const declared = Number((this.a.operations as { potential_rent_annual?: number }).potential_rent_annual) || undefined;
+    const asked = declared;
+    void this.api.proformaIncomeBasis(pid, declared).then((r) => {
+      // A late reply for a rent the user has already changed must not overwrite the current one —
+      // the same two-in-flight race `refreshDealMemory` documents one strip up.
+      const now = Number((this.a.operations as { potential_rent_annual?: number }).potential_rent_annual) || undefined;
+      if (!el.isConnected || now !== asked) return;
+      const unavailable = r.basis === "unavailable";
+      const why = r.reason || r.derived_unavailable_reason || "";
+      el.innerHTML = `Income basis: <b${unavailable ? ` style="color:var(--status-warn)"` : ""}>`
+        + `${escapeHtml(r.basis)}</b> — ${escapeHtml(r.basis_meaning)}`
+        + (why && why !== r.basis_meaning ? ` <span style="opacity:.8">(${escapeHtml(why)})</span>` : "")
+        + (r.derived != null && r.declared_annual != null && r.derived !== r.declared_annual
+          ? ` · rent roll derives <b>${money(r.derived)}</b> against a declared <b>${money(r.declared_annual)}</b>`
+          : "");
+    }).catch(() => { el.style.display = "none"; });
+  }
+
   private refreshDealMemory() {
     const memory = this.memoryEl;
     const pid = this.projectId();
@@ -1140,6 +1168,19 @@ export class ProformaUI {
     host.insertBefore(memory, body);
     this.memoryEl = memory;
     this.refreshDealMemory();
+
+    // PF-INCOME-BASIS — where the "Rent / yr" figure came from, beside the figure itself.
+    //
+    // `/proforma/income-basis` has been live and callerless: it reconciles a declared income against
+    // the rent roll and reports which one the proforma should use. The case worth surfacing is
+    // `unavailable`, whose own text is *"income is UNKNOWN, which is not the same as zero and must
+    // not be underwritten as zero"* — and an underwriter reading a solved proforma has no other way
+    // to tell a real rent roll from a figure somebody typed.
+    const basisEl = document.createElement("div"); basisEl.className = "meta";
+    basisEl.style.cssText = "margin:0 0 8px;font-size:11px";
+    host.insertBefore(basisEl, body);
+    this.basisEl = basisEl;
+    this.refreshIncomeBasis();
 
     // construction draw schedule — sourced from the GC's cost-loaded schedule (relational tie)
     const draws = document.createElement("div"); draws.className = "meta"; draws.style.cssText = "margin:0 0 8px;font-size:11px";

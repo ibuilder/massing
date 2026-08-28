@@ -308,7 +308,7 @@ const UNCALLED: readonly string[] = [
   "mep", "modelAdjacency", "moduleCalc", "myWork",
   "netEffectiveRent", "normalizeT12", "parcelAnalyze", "parcelsDataStatus",
   "pdfInfo", "permitsTimeline", "preconSnapshot",
-  "proformaIncomeBasis", "proformaRenovation", "proformaRollover", "progressActuals",
+  "proformaRenovation", "proformaRollover", "progressActuals",
   "progressCaptureDiff", "progressRollup", "raisePlan", "recordDistribution",
   "rentRollScrub", "residualLand", "reviewPost",
   "reviewScenario", "reviseDrawing", "runClash", "runMacro", "saveClausePlaybook",
@@ -404,8 +404,10 @@ describe("client methods the application actually calls", () => {
     // instead of counting them.
     const trio = ["proformaRenovation", "proformaRollover", "proformaIncomeBasis"];
     const stillUncalled = trio.filter((m) => uncalled.includes(m));
-    expect(stillUncalled.sort()).toEqual(
-      ["proformaIncomeBasis", "proformaRenovation", "proformaRollover"]);
+    // proformaIncomeBasis LEFT this list on 2026-08-27 — wired into the proforma panel as an
+    // income-provenance strip beside the rent figure, which is the second time this assertion has
+    // caught a member of the trio moving and forced the record to be corrected rather than rot.
+    expect(stillUncalled.sort()).toEqual(["proformaRenovation", "proformaRollover"]);
   });
 
   it("proformaRenovation is not POSTed from Pulse — a programme body is required", () => {
