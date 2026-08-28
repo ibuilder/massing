@@ -4,6 +4,48 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1116 (2026-08-27) — R37's last two WIRE items, and what "wired" turned out to mean
+
+`mep.block_cooling_load` and `takeoff_scope.scope_annotations` were the last two of R37-TESTED-UNWIRED's
+four real gaps. Both are now routed, and the useful finding is how narrow the fix actually was.
+
+**Each was the one function in its module that its own router did not call.** `routers/design.py`'s
+`mep_size` is a five-branch dispatcher over `mep.py`: it called `size_duct`, `size_pipe`,
+`size_cooling` and `hanger_spacing`, and `block_cooling_load` was reachable by nothing. `takeoff_2d`
+called `takeoff_scope.scope` and `check_calibration`, and `scope_annotations` — R27-LAYOUT ③'s own
+named deliverable — was reachable by nothing. **One of five missing from a five-branch dispatcher is
+a gap, not a design.** Parity with the siblings is the bar and it is the whole bar.
+
+**`block_cooling` is not `cooling`.** That converts a load somebody already has into tons; this
+estimates the load from gross area, which is the earlier question and the one asked when no load
+exists yet. The area defaults to `energy.project_gfa_sf` — the one definition of gross area here, so
+deriving a second would guarantee two answers to one question — and a caller can still pass `gfa_sf`
+to size a massing that is not the loaded model.
+
+**The route refuses where the engine clamps.** `block_cooling_load` does `max(gfa, 0.0)` and
+`max(sf_per_ton, 1.0)`, and both clamps turn a missing input into a confident number: an unloaded
+project answers `tons: 0.0`, which reads into a plant schedule as an answer rather than as a missing
+input, and `sf_per_ton=0` returns **350x** the tonnage for the same building. The engine is unchanged
+— the clamps are its business and other callers may want them — so the refusal lives at the route,
+where a request can still be told what is wrong with it. `services/api/test_r37_wire_routes.py`
+asserts the clamps are still in place, so the fix cannot quietly become an engine edit.
+
+**Annotations ride on the layout the traces already use.** `scope_annotations` takes
+`takeoff_2d`'s existing `layout` and `px_per_point` rather than a route of its own, because it is not
+a second engine: its docstring is explicit that an annotation and a traced polygon pose the identical
+question — which drawing is this on — so it maps annotations onto the same region shape and calls
+`scope`. A separate route would have duplicated the coordinate contract, and two places to get
+`px_per_point` wrong is how two answers to one question drift apart. Both keys are omitted entirely
+when their input is absent, so a takeoff with no notes gets the response it always got.
+
+**And a separate gap, found while wiring these.** `/projects/{pid}/mep/size` has no caller in
+`apps/web` at all — it appears only in the generated `schema.d.ts` — and `client.ts::takeoff2d` never
+sends `layout`, so R27-LAYOUT ② and ③ are unreachable from the product however well they are routed.
+That is not a dead function but a **built server capability with no client**, a different shape from
+anything R37 measured, and it needs a UI decision rather than a wiring one. It is recorded in the
+roadmap rather than fixed here. `test_route_reachability` cannot see it: the route path is referenced
+by the generated schema, which satisfies a substring test over the web tree.
+
 ## v0.3.1115 (2026-08-27) — two of R37's four real gaps, and both comments were describing surfaces nobody built
 
 R37-TESTED-UNWIRED classified 20 test-only functions last release and called five of them real gaps.

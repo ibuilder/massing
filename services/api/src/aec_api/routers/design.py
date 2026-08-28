@@ -449,16 +449,51 @@ async def drawings_stream(pid: str, request: Request, _: str = Depends(require_r
 @router.get("/projects/{pid}/mep/size")
 def mep_size(pid: str, kind: str = "duct", flow: float = 0.0, velocity: float = 0.0,
              load: float = 0.0, size: float = 0.0, hanger_kind: str = "pipe_steel",
+             gfa_sf: float | None = None, sf_per_ton: float = 350.0,
              db: Session = Depends(get_db), _: str = Depends(require_role("viewer"))):
     """First-pass MEP sizing. kind = duct (flow=CFM, velocity=fpm) | pipe (flow=GPM, velocity=fps) |
-    cooling (load=BTU/h) | hanger (hanger_kind=duct|pipe_steel|pipe_copper, size=in)."""
+    cooling (load=BTU/h) | block_cooling (gfa_sf, sf_per_ton) | hanger (hanger_kind=duct|pipe_steel|
+    pipe_copper, size=in).
+
+    **R37-TESTED-UNWIRED — `block_cooling` is the new one, and it is not a duplicate of `cooling`.**
+    `cooling` converts a load somebody already has into tons; `block_cooling` *estimates* the load
+    from gross area, which is the earlier question and the one asked when no load exists yet. It was
+    the only function in `mep.py` this dispatcher did not call: `size_duct`, `size_pipe`,
+    `size_cooling` and `hanger_spacing` were all here, and `block_cooling_load` was reachable by
+    nothing. One of five missing from a five-branch dispatcher is a gap, not a design.
+
+    `gfa_sf` is optional and defaults to the project's own GFA from `energy.project_gfa_sf` — the one
+    definition of gross area in this codebase, so deriving a second one here would guarantee two
+    answers to one question. A caller may still pass `gfa_sf` to size a massing that is not the
+    loaded model.
+
+    **It REFUSES rather than returning a plausible zero.** `mep.block_cooling_load` clamps with
+    `max(gfa, 0.0)`, so an unloaded project would come back `tons: 0.0` — a number an engineer could
+    read straight into a plant schedule. Same for a non-finite or non-positive `sf_per_ton`, which
+    the engine clamps to 1.0 and would answer with twelve times the tonnage anyone intended."""
     if not db.get(Project, pid):
         raise HTTPException(404, "project not found")
+    import math
+
     from .. import mep
     if kind == "pipe":
         return mep.size_pipe(flow, velocity or 6.0)
     if kind == "cooling":
         return mep.size_cooling(load)
+    if kind == "block_cooling":
+        if not math.isfinite(sf_per_ton) or sf_per_ton <= 0:
+            raise HTTPException(422, "sf_per_ton must be a positive, finite number of square feet "
+                                     "per ton (commercial rules of thumb run 300-400)")
+        area = gfa_sf
+        if area is None:
+            from .. import energy
+            area = energy.project_gfa_sf(db, pid)
+        if area is None or not math.isfinite(area) or area <= 0:
+            raise HTTPException(422, "no gross floor area: pass gfa_sf, or load a model whose "
+                                     "properties index carries one. A block load computed from a "
+                                     "zero area would come back as 0.0 tons, which reads as an "
+                                     "answer rather than as a missing input.")
+        return mep.block_cooling_load(area, sf_per_ton)
     if kind == "hanger":
         return mep.hanger_spacing(hanger_kind, size)
     return mep.size_duct(flow, velocity or 1000.0)

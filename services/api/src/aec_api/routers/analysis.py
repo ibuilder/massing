@@ -684,7 +684,12 @@ def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(ge
     """TAKEOFF-2D: quantify + price regions traced on a 2D drawing (PDF page / scan) — the drawings-only
     case the model takeoff misses. Body: `{scale_units_per_px, unit?, regions:[{category, points, label?}],
     overrides?}` (or supply `calibration:{p1,p2,real_distance}` to derive the scale). Returns per-region +
-    per-assembly quantities and cost, feeding the same 5D estimate. **Preliminary — trace/scale dependent.**"""
+    per-assembly quantities and cost, feeding the same 5D estimate. **Preliminary — trace/scale dependent.**
+
+    With `layout` (a `sheet_regions` result) and `px_per_point`, two more answers ride along, both
+    about *which drawing on the sheet* something sits on: `scope` for the traced regions, and
+    `annotation_scope` for an optional `annotations:[{id?, kind?, x, y}]` or `{points:[[x,y],…]}`
+    (a revision cloud). Both are omitted entirely when their input is absent."""
     from .. import takeoff2d
     scale = body.get("scale_units_per_px")
     cal = body.get("calibration") or {}
@@ -714,6 +719,23 @@ def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(ge
         from .. import takeoff_scope
         out["scope"] = takeoff_scope.scope(regions, layout,
                                            px_per_point=body.get("px_per_point"))
+        # R27-LAYOUT ③ / R37-TESTED-UNWIRED: the same question for NOTES, keynotes and revision
+        # clouds. `scope_annotations` was the item's own named deliverable and this router called
+        # `scope` and `check_calibration` and not it — the only one of the three the module exports
+        # that nothing could reach.
+        #
+        # It rides on `layout` and `px_per_point` here rather than on a route of its own because it
+        # is not a second engine: its docstring is explicit that an annotation and a traced polygon
+        # pose the identical question — which drawing is this on — so it maps annotations onto the
+        # same region shape and calls `scope`. A separate route would have duplicated the coordinate
+        # contract, and two places to get `px_per_point` wrong is how the two answers drift apart.
+        #
+        # Optional and absent when not asked for: a caller tracing quantities with no notes gets the
+        # response it always got, and `annotation_scope: null` is never emitted as an empty finding.
+        annotations = body.get("annotations")
+        if annotations:
+            out["annotation_scope"] = takeoff_scope.scope_annotations(
+                annotations, layout, px_per_point=body.get("px_per_point"))
         # The calibration is checkable against a sheet WE drew: the scale is not something to
         # measure but something already known. Disagreement is REPORTED, never substituted.
         vps = [r for r in (layout.get("regions") or []) if r.get("kind") == "viewport"]
