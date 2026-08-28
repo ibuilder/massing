@@ -23,6 +23,35 @@ from typing import Any
 # source-type rank: a rule or an IFC property is stronger provenance than free document text
 _RANK = {"rule": 3, "ifc": 3, "record": 2, "doc": 1}
 
+#: The field that actually IDENTIFIES the source, per kind. A citation that names its kind but omits
+#: this points at nothing — it is an assertion that a source exists, which is the very thing a
+#: provenance contract is supposed to stop anyone from getting credit for.
+_IDENTIFIES = {"ifc": "guid", "record": "record_ref", "rule": "rule_id", "doc": "document_id"}
+
+
+def is_citation(c: Any) -> bool:
+    """Whether `c` is a citation this contract recognises — a known ``source_type`` AND the identifying
+    field that kind requires.
+
+    Needed because the citation dicts do not all arrive from the ``cite_*`` constructors. The proforma
+    ``Assumptions.sources`` block is typed ``dict[str, list[dict]]`` and documented as taking these
+    citations, so a caller POSTs raw dicts and nothing checked them: an **empty dict scored 100%
+    provenance coverage at 0.6 confidence**, and ``{"source_type": "ifc"}`` with no GUID scored 0.733 —
+    *higher than a complete record citation*, because rank came from a self-declared string. The
+    strongest provenance signal in the system was available for free to anyone who claimed a kind and
+    supplied nothing.
+
+    Callers that build through ``cite_ifc``/``cite_record``/``cite_rule``/``cite_doc`` always pass; this
+    is invisible to them by construction and only bites dicts that were never citations.
+    """
+    if not isinstance(c, dict):
+        return False
+    field = _IDENTIFIES.get(c.get("source_type"))
+    if field is None:
+        return False                                  # unknown or missing kind — not a citation
+    v = c.get(field)
+    return isinstance(v, str) and bool(v.strip())
+
 
 def _cite(source_type: str, **kw: Any) -> dict[str, Any]:
     ref = {"source_type": source_type, "document_id": None, "revision": None, "guid": None,
@@ -59,7 +88,14 @@ def _src_key(c: dict) -> tuple:
 
 def provenance_confidence(citations: list[dict], current_revision: str | None = None) -> float:
     """A deterministic [0,1] trust signal from citation strength — NOT a model-emitted number. Rises with
-    independent-source count and best source rank; a stale cited revision applies a penalty."""
+    independent-source count and best source rank; a stale cited revision applies a penalty.
+
+    Only citations that pass `is_citation` count. Rank used to be read off a self-declared
+    ``source_type`` with no check that the citation identified anything, so a dict asserting the
+    strongest kind and naming no source scored *higher* than a complete weaker one. A citation that
+    points at nothing contributes nothing, and a list with none left is 0.0 — the same as uncited,
+    which is what it is."""
+    citations = [c for c in (citations or []) if is_citation(c)]
     if not citations:
         return 0.0
     ranks = [_RANK.get(c.get("source_type"), 1) for c in citations]
@@ -83,10 +119,18 @@ def claim(text: str, citations: list[dict] | None = None, *, target: str | None 
 
 
 def build(claims: list[dict], *, note: str = "") -> dict[str, Any]:
-    """Assemble claims into a CitedAnswer with coverage, an uncited-claim guard, and conflict surfacing."""
+    """Assemble claims into a CitedAnswer with coverage, an uncited-claim guard, and conflict surfacing.
+
+    Coverage counts a claim as cited only when at least one of its citations passes `is_citation` —
+    a claim carrying nothing but unrecognised dicts is uncited, and says so. This also removes a
+    KeyError: `source_types` indexed ``cit["source_type"]`` directly, so one dict without the key
+    took down the whole answer."""
     claims = claims or []
-    cited = [i for i, c in enumerate(claims) if c.get("citations")]
-    uncited = [i for i, c in enumerate(claims) if not c.get("citations")]
+    def _real(c):
+        """The citations on claim `c` that this contract recognises."""
+        return [x for x in (c.get("citations") or []) if is_citation(x)]
+    cited = [i for i, c in enumerate(claims) if _real(c)]
+    uncited = [i for i, c in enumerate(claims) if not _real(c)]
     coverage = round(len(cited) / len(claims), 3) if claims else 1.0
 
     # conflicts: same target, differing value → surface both provenances
@@ -107,7 +151,7 @@ def build(claims: list[dict], *, note: str = "") -> dict[str, Any]:
 
     src_counts: dict[str, int] = {}
     for c in claims:
-        for cit in c.get("citations", []):
+        for cit in _real(c):
             src_counts[cit["source_type"]] = src_counts.get(cit["source_type"], 0) + 1
 
     return {
@@ -117,7 +161,7 @@ def build(claims: list[dict], *, note: str = "") -> dict[str, Any]:
         "coverage": coverage,
         "fully_cited": not uncited,
         "uncited_claims": uncited,
-        "citation_count": sum(len(c.get("citations", [])) for c in claims),
+        "citation_count": sum(len(_real(c)) for c in claims),
         "source_types": src_counts,
         "note": note or ("Every claim traces to its source (GUID / record / rule / document + revision). "
                          "Coverage = share of claims with ≥1 citation" + (

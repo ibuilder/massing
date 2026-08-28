@@ -33,7 +33,20 @@ assert licensing.allows_export("ifcx", "commercial") and not licensing.allows_ex
 assert licensing.allows("api_access", "commercial") and not licensing.allows("api_access", "home")
 assert licensing.allows("navisworks", "enterprise") and not licensing.allows("navisworks", "commercial")
 assert licensing.allows("sso", "enterprise") and not licensing.allows("sso", "commercial")
-assert licensing.tier_at_least("home", "commercial") and not licensing.tier_at_least("commercial", "home")
+# R37-CONTRACT: upgrade messaging is DERIVED from TIER_FEATURES, not a second hand-kept dict. The dict
+# it replaced listed only the openBIM formats, so every Home-tier export said "requires the Massing
+# a higher plan (or higher)" — the most common refusal a Free workspace would ever see.
+assert licensing.min_tier_for_export("png") == "Home", licensing.min_tier_for_export("png")
+assert licensing.min_tier_for_export("ifc") == "Commercial"
+assert licensing.min_tier_for_export("nwd") == "Enterprise"
+assert licensing.min_tier_for_export("step") is None          # no tier grants it -> no upgrade to name
+assert licensing.min_tier_for("api_access") == "Commercial"
+assert licensing.min_tier_for("sso") == "Enterprise"
+assert licensing.min_tier_for("bogus") is None
+# every declared export must resolve to a tier, or its 402 cannot name one
+for _t, _f in licensing.TIER_FEATURES.items():
+    for _fmt in _f["exports"]:
+        assert licensing.min_tier_for_export(_fmt), f"{_fmt} ({_t}) has no minimum tier"
 
 with TestClient(app) as c:
     # --- default state: no key -> Free tier ----------------------------------

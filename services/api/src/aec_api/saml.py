@@ -82,7 +82,22 @@ def acs_url() -> str | None:
 
 
 def is_enabled() -> bool:
+    """Whether a SAML IdP is CONFIGURED. Configuration only — see `is_available` for entitlement."""
     return bool(idp_entity_id() and idp_sso_url() and idp_cert_pem())
+
+
+def is_available() -> bool:
+    """Whether SAML sign-in is configured *and* the licence tier entitles it.
+
+    `licensing.TIER_FEATURES` has marked `sso` Enterprise-only since the tiers were written, and the
+    Settings panel renders that table — but nothing consulted the entitlement, so a workspace on any
+    tier that configured an IdP got SSO. Availability is both halves; `is_enabled` stays configuration
+    truth because a setup flow legitimately wants to know the IdP is wired regardless of plan.
+
+    No-op in open mode: `licensing.allows` returns True whenever enforcement is off, which is default.
+    """
+    from . import licensing
+    return is_enabled() and licensing.allows("sso")
 
 
 # --- SP → IdP: AuthnRequest (HTTP-Redirect binding) -------------------------

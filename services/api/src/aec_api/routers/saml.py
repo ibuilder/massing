@@ -13,11 +13,23 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 
-from .. import audit, auth, saml
+from .. import audit, auth, licensing, saml
 from ..db import get_db
 from ..models import User
 
 router = APIRouter()
+
+
+def _require_saml() -> None:
+    """SAML must be CONFIGURED and ENTITLED. 404 when no IdP is wired (unchanged); 402 with upgrade
+    messaging when one is but the tier does not include `sso`.
+
+    One helper rather than three inline pairs, and it is the same predicate `/auth/providers`
+    advertises from: gating only these routes would have left the sign-in page rendering an SSO
+    button that 402s on click. A no-op in open mode, where `licensing.require` returns immediately."""
+    if not saml.is_enabled():
+        raise HTTPException(404, "SAML sign-in is not configured")
+    licensing.require("sso", "SAML single sign-on")
 
 
 def _safe_relay(target: str) -> bool:
@@ -76,16 +88,14 @@ def _cookie(resp: Response, token: str, request: Request) -> None:
 @router.get("/auth/saml/metadata")
 def saml_metadata(request: Request):
     """SP metadata XML to register with the IdP (entityID + ACS). Available whenever SAML is on."""
-    if not saml.is_enabled():
-        raise HTTPException(404, "SAML sign-in is not configured")
+    _require_saml()
     return Response(content=saml.sp_metadata(_acs(request)), media_type="application/xml")
 
 
 @router.get("/auth/saml/login")
 def saml_login(request: Request, relay_state: str = ""):
     """Redirect to the IdP's SSO URL with a SAMLRequest (SP-initiated, HTTP-Redirect binding)."""
-    if not saml.is_enabled():
-        raise HTTPException(404, "SAML sign-in is not configured")
+    _require_saml()
     url = saml.redirect_url(_acs(request), f"_{uuid.uuid4().hex}", saml._now(), relay_state)
     return RedirectResponse(url, status_code=307)
 
@@ -95,8 +105,7 @@ def saml_acs(request: Request, SAMLResponse: str = Form(...), RelayState: str = 
              db: Session = Depends(get_db)):
     """Assertion Consumer Service — verify the signed response, map the email to an account, mint the
     session, and return to the app. Any verification failure is a 403 (never leak crypto detail)."""
-    if not saml.is_enabled():
-        raise HTTPException(404, "SAML sign-in is not configured")
+    _require_saml()
     try:
         ident = saml.verify_response(SAMLResponse, _acs(request))
     except saml.SamlError as e:

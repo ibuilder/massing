@@ -47,8 +47,10 @@ STATUS_UNCITED = "uncited"
 
 _WHY = {
     STATUS_CITED: "at least one source is recorded for this assumption",
-    STATUS_UNCITED: ("no source is recorded — this is the ABSENCE of provenance, not a judgement "
-                     "that the value is sound"),
+    STATUS_UNCITED: ("no source this contract can read is recorded — this is the ABSENCE of "
+                     "provenance, not a judgement that the value is sound. A recorded entry that is "
+                     "not a recognisable citation counts as absent, and is named in "
+                     "`malformed_citation_paths`"),
 }
 
 
@@ -76,11 +78,40 @@ def material_paths(assumptions: dict[str, Any]) -> list[str]:
     return sorted(paths)
 
 
-def _cites_for(sources: dict[str, Any], path: str) -> list[dict]:
+def _cites_for(sources: dict[str, Any], path: str) -> tuple[list[dict], int]:
+    """The citations recorded against `path`, split into (recognised, malformed-count).
+
+    Any dict used to count. `Assumptions.sources` is typed `dict[str, list[dict]]` and only a comment
+    said what those dicts must be, so an **empty dict scored this module 100% coverage** — on a module
+    whose stated thesis is that the absence of a source is reported as an absence. Worse,
+    `{"source_type": "ifc"}` with no GUID out-scored a complete record citation, because rank was read
+    off a self-declared string. Recognition is `cited_answer.is_citation`, the contract's own rule, so
+    there is one definition of a citation rather than a second one here.
+
+    A malformed entry is COUNTED, not dropped silently: a caller who POSTs a citation this contract
+    cannot read has the same problem as `orphaned_sources` — they believe an assumption is sourced and
+    it is not — and the earlier bug in this exact field was also one the caller could not see.
+
+    **Non-dicts count too**, which the first version of this fix got wrong in the same way as the bug
+    it was fixing. It filtered `isinstance(c, dict)` while building the list, so the count was taken
+    *after* the discard: `sources = {"exit.exit_cap": ["Appraisal p.12"]}` — a plain string where a
+    citation belongs, the most natural way to get this wrong — reported **0 malformed** and rendered
+    as plainly uncited. That is once again a caller with no way to see that what they recorded was
+    thrown away. Anything recorded and unreadable is counted; only an absent or empty value is
+    silence, because nothing was claimed.
+    """
+    from .cited_answer import is_citation
     v = (sources or {}).get(path)
+    if v is None or v == [] or v == {}:
+        return [], 0                              # nothing recorded is not a malformed record
     if isinstance(v, dict):
-        return [v]
-    return [c for c in (v or []) if isinstance(c, dict)]
+        raw: list = [v]
+    elif isinstance(v, (list, tuple)):
+        raw = list(v)                             # EVERY entry, dict or not — see below
+    else:
+        raw = [v]                                 # a bare string/number: one unreadable entry
+    good = [c for c in raw if is_citation(c)]
+    return good, len(raw) - len(good)
 
 
 def provenance(assumptions: dict[str, Any], *,
@@ -95,12 +126,14 @@ def provenance(assumptions: dict[str, Any], *,
 
     rows: list[dict[str, Any]] = []
     for p in paths:
-        cites = _cites_for(sources, p)
+        cites, malformed = _cites_for(sources, p)
         status = STATUS_CITED if cites else STATUS_UNCITED
         row: dict[str, Any] = {
             "path": p, "status": status, "status_note": _WHY[status],
             "citation_count": len(cites), "citations": cites,
         }
+        if malformed:
+            row["malformed_citations"] = malformed
         if cites:
             # Reuse cited_answer's deterministic trust signal rather than inventing a second one.
             # It rewards independent sources and penalises a citation whose revision is stale.
@@ -117,6 +150,10 @@ def provenance(assumptions: dict[str, Any], *,
 
     uncited = [r["path"] for r in rows if r["status"] == STATUS_UNCITED]
     cited = [r for r in rows if r["status"] == STATUS_CITED]
+    # Paths whose recorded "source" is not a citation this contract recognises. Named for the same
+    # reason `orphaned_sources` is: the caller thinks these are sourced, and only a named list is
+    # actionable. A path can appear here AND in `uncited` — that is the point of separating them.
+    malformed = [r["path"] for r in rows if r.get("malformed_citations")]
 
     # Sources pointing at a path that is not a material assumption — a typo'd path, or a citation
     # left behind when an assumption was renamed. Reported rather than ignored: a citation nobody
@@ -132,6 +169,8 @@ def provenance(assumptions: dict[str, Any], *,
         # Named, not just counted — the count gets quoted, the list gets fixed.
         "uncited": uncited,
         "orphaned_sources": orphaned,
+        "malformed_citation_paths": malformed,
+        "malformed_citation_count": sum(r.get("malformed_citations") or 0 for r in rows),
         "stale_citation_count": sum(r.get("stale_citations") or 0 for r in rows),
         "current_revision": current_revision,
         "status_meanings": _WHY,

@@ -287,9 +287,11 @@ def mfa_disable(password: str = Body(..., embed=True), code: str = Body("", embe
 @router.get("/auth/providers")
 def auth_providers():
     """Enabled SSO providers (those with client id + secret configured) — drives the login UI.
-    `saml` is true when a SAML IdP is configured (its button posts to /auth/saml/login)."""
+    `saml` is true when a SAML IdP is configured AND the tier entitles SSO (its button posts to
+    /auth/saml/login). `is_available`, not `is_enabled`: this endpoint decides whether the button is
+    rendered, so advertising from configuration alone would offer a button that 402s on click."""
     from .. import saml
-    return {"providers": oauth.enabled_providers(), "saml": saml.is_enabled()}
+    return {"providers": oauth.enabled_providers(), "saml": saml.is_available()}
 
 
 def _cookie_secure(request: Request) -> bool:
