@@ -38,6 +38,21 @@ question — which drawing is this on — so it maps annotations onto the same r
 `px_per_point` wrong is how two answers to one question drift apart. Both keys are omitted entirely
 when their input is absent, so a takeoff with no notes gets the response it always got.
 
+**A 500 on malformed input, found by review and fixed once rather than twice.** Every coordinate on
+this route is caller-supplied, and `float("abc")` raised straight out of `takeoff_scope.scope`'s
+comprehension — leaving the route as a **500**, the wrong status for bad input, and failing a whole
+forty-trace takeoff over one malformed entry. **The gap was pre-existing and symmetric:** the
+`regions` path did exactly the same thing, and routing annotations merely added a second way to reach
+it. So it is fixed in `scope`, where both paths converge; fixing only the new half would have been
+worse than leaving it, because a caller would learn that malformed input is handled and then meet a
+500 on the other key.
+
+A bad row now comes back `unknown` **with a stated reason**, which is this module's existing
+vocabulary — an empty point list has answered exactly that since it was written — and one bad trace
+costs that trace rather than the other thirty-nine. A wrong *type* for the whole `annotations` field
+is still a 422: that is a caller who cannot be answered at all, as opposed to one bad note in a sheet
+full of good ones.
+
 **And a separate gap, found while wiring these.** `/projects/{pid}/mep/size` has no caller in
 `apps/web` at all — it appears only in the generated `schema.d.ts` — and `client.ts::takeoff2d` never
 sends `layout`, so R27-LAYOUT ② and ③ are unreachable from the product however well they are routed.

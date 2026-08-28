@@ -237,8 +237,51 @@ check("without px_per_point every annotation is UNKNOWN, not confidently misplac
 check("...the same failure mode `scope` reports, because it IS `scope` underneath",
       takeoff(layout=LAYOUT)["scope"]["regions"][0]["scope"] == "unknown")
 
+# ---- malformed input is answered, not crashed on -------------------------------------------------
+# Every coordinate here is caller-supplied, and `float("abc")` raised straight out of `scope`'s
+# comprehension and left the route as a **500**: the wrong status for bad input, and it failed a whole
+# forty-trace takeoff over one malformed entry. The gap was PRE-EXISTING and symmetric — the `regions`
+# path did the same thing — so it is fixed once, in `scope`, where both paths converge. Fixing only
+# the annotations half would have been worse than leaving it: a caller would learn that malformed
+# input is handled, then meet a 500 on the other key.
+BAD_ROWS = {
+    "a coordinate that is not a number": [{"id": "B1", "x": "abc", "y": 5}],
+    "points that are not pairs":         [{"id": "B2", "points": [[1]]}],
+    "points that are not a list":        [{"id": "B3", "points": "xy"}],
+    "an entry that is not an object":    [5],
+}
+for label, rows in BAD_ROWS.items():
+    try:
+        got = takeoff(layout=LAYOUT, px_per_point=PPP, annotations=rows)["annotation_scope"]
+        row = got["regions"][0]
+        check(f"{label} is reported UNKNOWN, not raised", row["scope"] == "unknown", str(row)[:90])
+    except Exception as e:                                      # noqa: BLE001 — the point of the test
+        check(f"{label} is reported UNKNOWN, not raised", False, f"{type(e).__name__}: {e}")
+
+# The same guard covers the pre-existing `regions` path, which is why it lives in `scope`.
+bad_trace = {"category": "generic_area", "points": [["abc", 5], [1, 2]]}
 with SessionLocal() as db:
-    pass
+    fixed = takeoff_2d(PID, body={"scale_units_per_px": 0.05, "regions": [bad_trace],
+                                  "layout": LAYOUT, "px_per_point": PPP}, db=db, _sec="tester")
+check("...and a malformed TRACE too — the gap was pre-existing and is fixed once, not twice",
+      fixed["scope"]["regions"][0]["scope"] == "unknown", str(fixed["scope"]["regions"][0])[:90])
+
+# One bad row must not take the good ones with it: that is the whole reason this is `unknown` per
+# row rather than a 422 for the request.
+mixed = takeoff(layout=LAYOUT, px_per_point=PPP,
+                annotations=[{"id": "OK", "x": 400, "y": 700}, {"id": "BAD", "x": None, "y": None}])
+by = {r["annotation_id"]: r for r in mixed["annotation_scope"]["regions"]}
+check("a good annotation beside a bad one is still scoped",
+      by["OK"]["viewport"] == 0 and by["BAD"]["scope"] == "unknown", str(by))
+
+# A wrong TYPE for the whole field IS refused — a caller who cannot be answered at all, as opposed
+# to one bad note among good ones.
+try:
+    takeoff(layout=LAYOUT, px_per_point=PPP, annotations="not a list")
+    check("a non-list annotations field is refused", False, "no HTTPException")
+except HTTPException as e:
+    check("a non-list annotations field is refused", e.status_code == 422, str(e.status_code))
+
 engine.dispose()
 for _f in ("./test_r37_wire_routes.db",):
     if os.path.exists(_f):

@@ -733,6 +733,13 @@ def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(ge
         # Optional and absent when not asked for: a caller tracing quantities with no notes gets the
         # response it always got, and `annotation_scope: null` is never emitted as an empty finding.
         annotations = body.get("annotations")
+        # A wrong TYPE for the whole field is a malformed request and is refused; a wrong-looking
+        # single row is not, and comes back `unknown` with a reason from the engine. The distinction
+        # is deliberate: the first is a caller who cannot be answered at all, the second is one bad
+        # note in a sheet full of good ones, and failing the sheet for it would be the worse trade.
+        if annotations is not None and not isinstance(annotations, list):
+            raise HTTPException(422, "annotations must be a list of {id?, kind?, x, y} or "
+                                     "{id?, kind?, points:[[x,y],…]} objects")
         if annotations:
             out["annotation_scope"] = takeoff_scope.scope_annotations(
                 annotations, layout, px_per_point=body.get("px_per_point"))

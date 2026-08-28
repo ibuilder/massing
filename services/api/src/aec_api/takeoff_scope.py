@@ -72,17 +72,34 @@ def scope(regions: list[dict[str, Any]], layout: dict[str, Any], *,
         return _summarise(out, len(vps), scoped_possible=False)
 
     for i, reg in enumerate(regions or []):
-        pts = reg.get("points") or []
+        pts = (reg.get("points") if isinstance(reg, dict) else None) or []
         if not pts:
             out.append({"index": i, "scope": "unknown", "viewport": None, "scale_denom": None,
                         "detail": "the trace has no points"})
+            continue
+        # A trace whose coordinates are not numbers is UNKNOWN, not a crash.
+        #
+        # Every coordinate here is caller-supplied — a browser's trace, or (since R37-TESTED-UNWIRED
+        # routed `scope_annotations`) a caller's annotation list. `float("abc")` raised straight out
+        # of the comprehension below and left the route as a 500: the wrong status for bad input,
+        # and it failed a whole forty-trace takeoff over one malformed entry.
+        #
+        # `unknown` with a stated reason rather than a 422 at the route, because that is this
+        # module's existing vocabulary for "this one could not be placed" — an empty point list has
+        # answered exactly that, four lines up, since the module was written. One bad trace should
+        # cost that trace, not the other thirty-nine.
+        try:
+            xy = [(float(p[0]) / px_per_point, float(p[1]) / px_per_point) for p in pts]
+        except (TypeError, ValueError, IndexError, KeyError):
+            out.append({"index": i, "scope": "unknown", "viewport": None, "scale_denom": None,
+                        "detail": "the trace has a coordinate that is not a number — every point "
+                                  "must be a numeric [x, y] in screen pixels"})
             continue
         # Count hits per viewport, converting each traced pixel back to page points.
         hits: list[tuple[int, int]] = []
         for v in vps:
             rect = tuple(float(c) for c in v["rect"])          # type: ignore[assignment]
-            n = sum(1 for p in pts
-                    if _rect_contains(rect, float(p[0]) / px_per_point, float(p[1]) / px_per_point))
+            n = sum(1 for x, y in xy if _rect_contains(rect, x, y))
             if n:
                 hits.append((v.get("index", -1), n))
         total = len(pts)
@@ -187,16 +204,22 @@ def scope_annotations(annotations: list[dict[str, Any]], layout: dict[str, Any],
     **screen pixels**. An annotation over the titleblock comes back `unscoped` — which is correct and
     common: a drawing-number stamp governs the sheet, not a view.
     """
+    # A non-dict entry becomes a point-less region and comes back `unknown`, rather than raising an
+    # AttributeError out of `.get`. Same reasoning as the coordinate guard in `scope`: these lists
+    # arrive from a caller, and one malformed row should cost that row and not the other thirty-nine.
     regions: list[dict[str, Any]] = []
     for a in (annotations or []):
+        if not isinstance(a, dict):
+            regions.append({"category": "note", "points": []})
+            continue
         pts = a.get("points")
         if not pts and a.get("x") is not None and a.get("y") is not None:
             pts = [[a["x"], a["y"]]]
         regions.append({"category": a.get("kind") or "note", "points": pts or []})
     res = scope(regions, layout, px_per_point=px_per_point)
     for row, a in zip(res["regions"], annotations or [], strict=False):
-        row["annotation_id"] = a.get("id")
-        row["kind"] = a.get("kind") or "note"
+        row["annotation_id"] = a.get("id") if isinstance(a, dict) else None
+        row["kind"] = (a.get("kind") if isinstance(a, dict) else None) or "note"
     res["note"] = ("Each annotation is attached to the view it governs, not to the sheet. `unscoped` "
                    "is a legitimate answer, not a failure: a titleblock stamp or a sheet-wide note "
                    "governs the sheet rather than any one view. " + res["note"])
