@@ -47,7 +47,7 @@ TESTS = ["test_provenance_report", "test_provenance_estimate_leg", "test_answers
          "test_schedule_optimize",
          # R23-RECIPE-ARTIFACT — the edit-recipe log + its routes:
          "test_recipe_log", "test_recipe_route",
-         "test_bundle", "test_bundle_preview", "test_desktop", "test_localmode", "test_project_budget", "test_rvt_bridge",
+         "test_bundle", "test_bundle_preview", "test_asset_rights", "test_desktop", "test_localmode", "test_project_budget", "test_rvt_bridge",
          # R23-JURISDICTION-PACKS — authority-attributed data requirements:
          "test_jurisdiction_packs", "test_jurisdiction_route", "test_jurisdiction_authz",
          "test_bcf", "test_engines", "test_edge_cases", "test_opendata", "test_financials", "test_money", "test_leasemgmt", "test_changeorders",

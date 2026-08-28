@@ -15,7 +15,7 @@ import { maybeResumeTour, maybeRolePrompt, maybeWelcome, showWelcome, valueMomen
 import { mountChecklist, reopenChecklist } from "./ui/checklist";
 import { FieldCapture } from "./field/field";
 import { modalShell, confirmModal } from "./ui/modal";
-import { askText } from "./ui/prompt";
+import { askText, askConfirm } from "./ui/prompt";
 import { buildMenu, closeMenus } from "./ui/menus";
 // R26-V-LIVE: the repeatable render audit. Lazy + dev-only — it attaches window.__liveAudit() and
 // nothing else; no app behaviour depends on it, and it stays out of the production bundle.
@@ -382,13 +382,43 @@ async function importRvtFlow() {
   inp.click();
 }
 
-/** Save the whole project (geometry + all data + blobs) as a portable `.mass` container. */
-function saveProjectBundle() {
+/** Save the whole project (geometry + all data + blobs) as a portable `.mass` container.
+ *
+ *  SEALING IS A CHOICE MADE HERE, when the file is created, because that is the only moment the
+ *  question can be answered: a release manifest attests to the bytes of one particular export, so
+ *  it cannot be added to a container after the fact without producing a different file.
+ *
+ *  The prompt only appears where the deployment can actually honour it. If the capability is off,
+ *  this behaves exactly as it always has — no question, no change. Dismissing the prompt (Escape,
+ *  or clicking away) saves UNSEALED, which is both the historical behaviour and the conservative
+ *  one: the fallback of a cancelled dialog should be the plainer artifact, never the one that mints
+ *  an identity and stamps a signature. */
+async function saveProjectBundle() {
   if (!projectId) { toast("Open a project first", "info"); return; }
+  let sealed = false;
+  try {
+    const st = await api.assetRightsStatus();
+    if (st.enabled) {
+      sealed = await askConfirm("Save project", {
+        body: st.signing
+          ? "Seal this file with a release manifest?\n\nIt records a SHA-256 of everything in the "
+            + "container and signs it, so anyone with the issuer's public key can prove the file is "
+            + "authentic and unaltered. The pre-converted geometry tile is recorded but left out of "
+            + "the release identity, because it can be regenerated.\n\n"
+            + "Sealing gives the project a permanent asset id that travels with the file."
+          : "Seal this file with a release manifest?\n\nIt records a SHA-256 of everything in the "
+            + "container, so any later change to the file is detectable.\n\nNo signing key is "
+            + "configured on this server, so the file will be tamper-evident but will NOT carry a "
+            + "signature — it cannot prove who issued it.",
+        okLabel: "Seal and save", cancelLabel: "Save without sealing",
+      });
+    }
+  } catch { /* status unreachable: fall back to the plain save rather than blocking it */ }
   const a = document.createElement("a");
-  a.href = api.bundleUrl(projectId); a.download = `${projectName || "project"}.mass`;
+  a.href = api.bundleUrl(projectId, { assetRights: sealed });
+  a.download = `${projectName || "project"}.mass`;
   document.body.appendChild(a); a.click(); a.remove();
-  toast("Saving project bundle…", "info");
+  toast(sealed ? "Saving sealed project bundle…" : "Saving project bundle…", "info");
 }
 
 /** Open a `.mass` container as a new project, then switch to it. Legacy `.mmproj` files (the

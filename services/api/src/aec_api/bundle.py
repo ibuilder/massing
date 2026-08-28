@@ -36,7 +36,7 @@ from fastapi import HTTPException
 from sqlalchemy import DateTime
 from sqlalchemy.orm import Session
 
-from . import storage
+from . import asset_rights, storage
 from .db import Base
 from .models import Project
 
@@ -66,6 +66,13 @@ encoding anywhere in this container, and you do not need Massing to read it.
                      geometry tile used for fast viewing. The IFC is the source of truth; the .frag
                      is derived and can be regenerated from it.
   blobs/             File attachments, stored under their original storage keys.
+  asset_rights.json  OPTIONAL - present only if whoever exported this asked for it (the manifest
+                     field `has_asset_rights` says which). A release manifest: SHA-256 hashes over
+                     the payload entries above, plus an Ed25519 signature when the issuer had a
+                     signing key. `content_hash` identifies the release and excludes volatile values
+                     (timestamps, ids, the signature, and the derived model.frag), so the same
+                     release hashes the same anywhere. Verify with the published public key of the
+                     issuer - the key inside the file only proves the file agrees with itself.
 
 Identity: building elements are referenced by IFC GlobalId throughout. Those ids are stable across
 exports and across tools, so a row in data/ can always be tied back to an element in the IFC.
@@ -117,21 +124,70 @@ def _attachment_keys(db: Session, pid: str) -> list[str]:
     return [k for k in keys if k]
 
 
+def _media_type(path: str) -> str:
+    if path.endswith(".json"):
+        return "application/json"
+    if path.endswith(".ifc"):
+        return "application/x-step"
+    if path.endswith(".txt"):
+        return "text/plain"
+    return "application/octet-stream"
+
+
 # --- export -------------------------------------------------------------------
-def export_bundle(db: Session, pid: str) -> bytes:
+def export_bundle(db: Session, pid: str, *, asset_rights_opt_in: bool = False) -> bytes:
+    """Write the project as a `.mass` container.
+
+    **ASSET-RIGHTS is opt-in, and the choice belongs to whoever creates the file.** Passing
+    `asset_rights_opt_in=True` adds `asset_rights.json` - a signed, deterministic release manifest
+    over this container's payload - and mints the project's stable `asset_id` if it has none. Left
+    at the default, a container is byte-for-byte what it always was: no manifest entry, no
+    `asset_id`, and no database write. That default matters twice over - the brief requires existing
+    files keep working untouched unless a user opts in, and it keeps this read path from writing.
+
+    The opt-in is also gated on `asset_rights.enabled()`, so an operator can switch the whole
+    capability off and the parameter becomes inert rather than half-working.
+    """
     p = db.get(Project, pid)
     if not p:
         raise HTTPException(404, "no such project")
+    want_rights = bool(asset_rights_opt_in) and asset_rights.enabled()
+    # Hashes are recorded AS entries are written, so the release manifest is built in one pass. The
+    # alternative - finish the archive, reopen it, hash it, write a second archive - reads the whole
+    # payload twice, and these containers carry the source IFC.
+    payload: list[dict] = []
+    derived: list[dict] = []
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("project.json", json.dumps({
+        def put(path: str, data, *, is_derived: bool = False, regenerable_from: str = "") -> None:
+            """Write one entry, recording its hash when a release manifest is being built."""
+            raw = data.encode("utf-8") if isinstance(data, str) else data
+            z.writestr(path, raw)
+            if not want_rights:
+                return
+            rec = {"logical_path": path, "media_type": _media_type(path),
+                   "sha256": asset_rights.sha256_hex(raw), "bytes": len(raw)}
+            if is_derived:
+                derived.append({**rec, "regenerable_from": regenerable_from})
+            else:
+                payload.append(rec)
+
+        # ASSET-RIGHTS: `id` below is the database row and is regenerated on import by design;
+        # `asset_id` is the design lineage and survives, so a release attested against this project
+        # still names something after the container has been moved to another machine. It is minted
+        # here, on the export that asked for it, and never behind the back of the user.
+        if want_rights and not p.asset_id:
+            p.asset_id = asset_rights.new_asset_id()
+            db.commit()
+        put("project.json", json.dumps({
             "id": p.id, "name": p.name, "origin": p.origin,
+            "asset_id": p.asset_id,
             "source_ifc": Path(p.source_ifc).name if p.source_ifc else None}))
         counts: dict[str, int] = {}
         for t in _project_tables():
             rows = [dict(r._mapping) for r in db.execute(t.select().where(t.c.project_id == pid))]
             if rows:
-                z.writestr(f"data/{t.name}.json", json.dumps(rows, default=_json_default))
+                put(f"data/{t.name}.json", json.dumps(rows, default=_json_default))
                 counts[t.name] = len(rows)
         # BCF topic children (comments/viewpoints/attachments) are scoped via topic_id
         from .models import Topic
@@ -140,11 +196,14 @@ def export_bundle(db: Session, pid: str) -> bytes:
             for t in _topic_child_tables():
                 rows = [dict(r._mapping) for r in db.execute(t.select().where(t.c.topic_id.in_(topic_ids)))]
                 if rows:
-                    z.writestr(f"data/{t.name}.json", json.dumps(rows, default=_json_default))
+                    put(f"data/{t.name}.json", json.dumps(rows, default=_json_default))
                     counts[t.name] = len(rows)
         has_frag = storage.exists(f"{pid}/model.frag")
         if has_frag:
-            z.writestr("geometry/model.frag", storage.get(f"{pid}/model.frag"))
+            # Derived and regenerable from the IFC, so it is recorded but kept OUT of release
+            # identity: a re-tessellation must not read as a new release.
+            put("geometry/model.frag", storage.get(f"{pid}/model.frag"),
+                is_derived=True, regenerable_from="geometry/<source>.ifc")
         # The element index. Without it a container holds a model you can SEE and cannot QUERY: no
         # model browser, no element list, no takeoff, no element-scoped cost or 4D — every one of
         # those reads `_INDEX`, which is a cache over this exact object.
@@ -157,20 +216,42 @@ def export_bundle(db: Session, pid: str) -> bytes:
         elements = 0
         if storage.exists(f"{pid}/props.json"):
             raw = storage.get(f"{pid}/props.json")
-            z.writestr("index/props.json", raw)
+            put("index/props.json", raw)
             try:
                 elements = len(json.loads(raw).get("elements", []))
             except (ValueError, UnicodeDecodeError, AttributeError):
                 elements = 0            # unreadable index still travels; the count is just unknown
         counts["element"] = elements
         if p.source_ifc and Path(p.source_ifc).exists():
-            z.writestr(f"geometry/{Path(p.source_ifc).name}", Path(p.source_ifc).read_bytes())
+            put(f"geometry/{Path(p.source_ifc).name}", Path(p.source_ifc).read_bytes())
         for key in _attachment_keys(db, pid):
             if storage.exists(key):
-                z.writestr(f"blobs/{key}", storage.get(key))
+                put(f"blobs/{key}", storage.get(key))
         # The container documents itself. Documentation that lives in a repository is documentation
         # the person holding the file does not have.
         z.writestr("README.txt", README)
+        # ASSET-RIGHTS, only when this export asked for it. Written BEFORE the inventory below so it
+        # appears in `entries` like any other entry.
+        #
+        # WHAT THIS ATTESTS TO, stated because the boundary is the part that gets misread: the
+        # payload written above - project.json, data/, the source IFC, index/props.json, blobs/. It
+        # does NOT cover README.txt or manifest.json, which are regenerated description rather than
+        # project data and carry an export timestamp, nor geometry/model.frag, which is recorded
+        # under `derived` and deliberately kept out of release identity.
+        #
+        # A re-import followed by a re-export produces a DIFFERENT content_hash, because the importer
+        # regenerates the project id and every row primary key by design. That is correct and is why
+        # there are two identifiers: `asset_id` says these are the same asset, `content_hash` says
+        # this is a particular published release of it.
+        if want_rights:
+            content = asset_rights.build_content(
+                model_digest_hash=None, files=payload,
+                licence=None, mass_format=FORMAT, mass_version=VERSION)
+            manifest = asset_rights.build_manifest(
+                asset_id=p.asset_id, content=content, derived=derived)
+            if asset_rights.signing_available():
+                manifest = asset_rights.sign_manifest(manifest)
+            z.writestr("asset_rights.json", json.dumps(manifest, indent=2, ensure_ascii=False))
         # A full inventory, so a reader can check what it received against what was meant to be sent
         # rather than inferring completeness from the absence of an error.
         entries = sorted(({"path": zi.filename, "bytes": zi.file_size} for zi in z.infolist()),
@@ -178,8 +259,14 @@ def export_bundle(db: Session, pid: str) -> bytes:
         z.writestr("manifest.json", json.dumps({
             "format": FORMAT, "version": VERSION, "extension": EXTENSION,
             "exported_at": _now_iso(),
-            "project": {"id": pid, "name": p.name}, "tables": counts,
+            # `asset_id` is stated here as well as in project.json so a reader inspecting only the
+            # manifest can see the lineage identity, and can tell it apart from `id` - which the
+            # importer regenerates.
+            "project": {"id": pid, "name": p.name, "asset_id": p.asset_id}, "tables": counts,
             "has_frag": has_frag,
+            # Stated so a reader can tell an unsigned container from a signed one without opening
+            # (or failing to find) asset_rights.json.
+            "has_asset_rights": bool(want_rights),
             "entries": entries,
             # STATED, not silent. These tables are machine- or account-specific and are left behind
             # deliberately; a container that drops them without saying so looks complete and is not.
@@ -345,8 +432,16 @@ def import_bundle(db: Session, data: bytes, *, new_name: str | None = None) -> s
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(z.read(f"geometry/{ifc_name}"))
         src_path = str(dest)
+    # ASSET-RIGHTS: `asset_id` is the ONE identifier carried across verbatim. Everything else about
+    # identity is regenerated here - the project id, every row primary key - precisely so a container
+    # can be cloned without collisions. That regeneration is what makes provenance impossible to hang
+    # on `id`, so the lineage id is preserved instead. A container written before this field simply
+    # has none; one is minted on its next export rather than invented here, because a value invented
+    # at import time would differ on every machine that imported the same file and would look like an
+    # identity while behaving like a nonce.
     db.add(Project(id=new_pid, name=new_name or proj.get("name") or "Imported project",
-                   origin=proj.get("origin"), source_ifc=src_path))
+                   origin=proj.get("origin"), source_ifc=src_path,
+                   asset_id=proj.get("asset_id") or None))
     db.flush()                                   # project row must exist before FK children (Postgres)
     if "geometry/model.frag" in names:
         storage.put(f"{new_pid}/model.frag", z.read("geometry/model.frag"))

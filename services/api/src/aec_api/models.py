@@ -44,6 +44,18 @@ class Project(Base):
     cost_dataset_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # CODE-1: USPS state code (e.g. "CA") — resolves the adopted code editions for every checker
     jurisdiction: Mapped[str | None] = mapped_column(String, nullable=True)
+    # ASSET-RIGHTS: a stable identity for the design *lineage*, as distinct from `id`, which
+    # identifies a database row. Import deliberately mints a fresh `id` on every `.mass` import so a
+    # container can be cloned into the same database without collisions (see bundle.import_bundle) —
+    # which means `id` cannot carry provenance: export, re-import, and the project a release was
+    # attested against no longer exists under that name.
+    #
+    # `asset_id` is therefore PRESERVED across import rather than regenerated, and is deliberately
+    # NOT unique: cloning a container into the same database yields two rows that really are the
+    # same asset, and a uniqueness constraint would force the import to lie about one of them.
+    # Nullable — projects created before this column stay NULL until something needs an identity,
+    # and `_ensure_columns` backfills the column itself on existing DBs.
+    asset_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     topics: Mapped[list[Topic]] = relationship(back_populates="project", cascade="all, delete-orphan")

@@ -23,6 +23,8 @@ project.mass                 (ZIP)
 ├── manifest.json            what this container is + a full inventory + what was excluded
 ├── README.txt               plain-English explanation, written INSIDE the file
 ├── project.json             id, name, origin, source IFC file name
+├── asset_rights.json        OPTIONAL - a signed release manifest, only if the person who
+│                            created the file asked for one (see below)
 ├── data/<table>.json        one file per table; a JSON array of row objects, keys = column names
 ├── geometry/
 │   ├── <name>.ifc           the source model — open it with any IFC tool
@@ -58,6 +60,7 @@ Without any of our code:
 | `project` | `{id, name}` at export time |
 | `tables` | row count per table actually written |
 | `has_frag` | whether a pre-converted geometry tile is present |
+| `has_asset_rights` | whether the optional "asset_rights.json" entry is present — see [Sealing](#sealing-a-container-optional) |
 | `entries` | every path in the archive with its uncompressed size |
 | `excluded` | `{tables, why}` — see below |
 | `reads` | the format versions this build accepts |
@@ -70,6 +73,36 @@ They are **account- or machine-specific**: they belong to an installation, not t
 importing them would overwrite the destination's own accounts and credentials. This is listed in
 `excluded` with the reason rather than left to be discovered, because **a container that silently
 drops them looks complete and is not**.
+
+## Sealing a container (optional)
+
+A `.mass` can be **sealed** with a release manifest, the "asset_rights.json" entry. It is **opt-in
+and chosen when the file is created**, because a manifest attests to the bytes of one particular
+export — it cannot be bolted on afterwards without producing a different file. A container saved
+without it is byte-for-byte what this format has always produced, and the manifest field
+`has_asset_rights` says which kind you are holding.
+
+What it contains:
+
+* `content_hash` — the **identity** of the release: a SHA-256 over the payload entries
+  ("project.json", `data/`, the source IFC, "index/props.json", `blobs/`), each listed with its own
+  hash and byte length. It excludes every volatile value — timestamps, ids, the signature itself —
+  so the same release computes the same hash on any machine, in any build, at any time.
+* `derived` — regenerable artifacts, recorded but **deliberately outside identity**. `model.frag` is
+  derived from the IFC, so re-converting it must not read as a new release.
+* `verification` — an **Ed25519** signature over the manifest, present only when the issuer had a
+  signing key configured. Verify it with the issuer's *published* public key: the key inside the
+  file only proves the file agrees with itself, which an attacker who rewrote it would also arrange.
+
+**What it does not cover**, stated because an unstated boundary is the defect: `manifest.json` and
+`README.txt` are regenerated description carrying an export timestamp, not project data, and are
+outside the attestation.
+
+**A re-import followed by a re-export produces a different `content_hash`**, because importing
+regenerates the project id and every row primary key by design (see Import rules below). That is why
+there are two identifiers: the project asset id says two containers are the same asset,
+`content_hash` says this is one particular published release of it. The asset id is the one value
+import carries across verbatim.
 
 ## Import rules
 
