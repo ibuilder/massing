@@ -58,6 +58,14 @@ def build_eir(body: dict = Body(...), _: str = Depends(current_user)):
     An unknown use case is a 422 here because `eir_for_use_case` now raises `ValueError` like its
     sibling. It raised a bare `KeyError` until this route started calling it — so the consolidation
     had to fix that first, or it would have swapped a working 422 for a 500."""
+    # The `except Exception` is the SAME broad catch `/ids/build` has above, and adding it is a fix,
+    # not symmetry for its own sake. This route had no catch at all, so a malformed explicit spec —
+    # a requirement missing `pset`, a spec that is not an object, a `requirements` that is a string —
+    # came back **500** while the identical body got a **422** from its sibling. Measured on all
+    # three, both routes, before and after.
+    #
+    # Narrowing this to `ValueError` (which is all the use-case branch needs) would have hardened one
+    # half of a symmetric pair and left the other reporting a server error for the caller's bad input.
     try:
         if body.get("use_case"):
             md = ia.eir_for_use_case(body["use_case"], body.get("title") or "",
@@ -68,7 +76,7 @@ def build_eir(body: dict = Body(...), _: str = Depends(current_user)):
                                  author=body.get("author", ""))
     except HTTPException:
         raise
-    except ValueError as e:
-        raise HTTPException(422, str(e))
+    except Exception as e:                               # noqa: BLE001 — malformed spec input
+        raise HTTPException(422, f"could not build the EIR: {e}")
     return Response(md, media_type="text/markdown",
                     headers={"Content-Disposition": 'attachment; filename="EIR.md"'})

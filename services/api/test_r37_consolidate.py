@@ -152,6 +152,33 @@ with TestClient(app) as c:
         check(f"{path} still refuses a body with neither use_case nor specs",
               empty.status_code == 422, str(empty.status_code))
 
+    # ---- the two routes answer malformed EXPLICIT specs the same way -----------------------------
+    # Found by review. `/ids/build` has always wrapped its build in `except Exception -> 422`;
+    # `/ids/eir` had no catch at all, so the identical malformed body got a **500** from one route
+    # and a 422 from the other. Narrowing the new `try` there to `ValueError` — all the use-case
+    # branch needs — would have hardened one half of a symmetric pair and left the other reporting a
+    # server error for the caller's own bad input.
+    MALFORMED = {
+        "a requirement with no pset": [{"name": "W", "ifc_class": "IFCWALL",
+                                        "requirements": [{"property": "X"}]}],
+        "a spec that is not an object": ["nope"],
+        "requirements that is a string": [{"name": "W", "ifc_class": "IFCWALL",
+                                           "requirements": "xy"}],
+    }
+    for label, bad_specs in MALFORMED.items():
+        codes = {p: c.post(p, json={"specs": bad_specs}, headers=HDR).status_code
+                 for p in ("/ids/build", "/ids/eir")}
+        check(f"both routes answer 422 for {label}", set(codes.values()) == {422}, str(codes))
+
+    # The twin: a well-formed explicit spec must still succeed on both, or the parity above is just
+    # two routes failing together.
+    GOOD = [{"name": "W", "ifc_class": "IFCWALL",
+             "requirements": [{"pset": "Pset_WallCommon", "property": "FireRating"}]}]
+    ok_codes = {p: c.post(p, json={"specs": GOOD}, headers=HDR).status_code
+                for p in ("/ids/build", "/ids/eir")}
+    check("...and both still answer 200 for a well-formed one", set(ok_codes.values()) == {200},
+          str(ok_codes))
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # 3. the private reach-through is gone, and the accessor it bypassed is public
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -195,16 +222,22 @@ check("specs_for_groups and specs_for_use_case agree, so making it public forked
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # 4. agent_packs.catalog uses tools_for
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
+# **Asserted against the real shape, with no `else True` fallback.** The first draft guarded every
+# claim with `if isinstance(cat, dict) and "packs" in cat else True`, so an unexpected shape would
+# have passed silently — a defensive fallback that turns a check into a no-op is the same defect as
+# writing `True`, and review caught it. If `catalog()` ever stops returning `{"packs": [...]}`, this
+# should fail loudly rather than shrug.
 cat = agent_packs.catalog()
-check("the catalog still lists every pack", {r["key"] for r in cat["packs"]} == set(agent_packs.PACKS)
-      if isinstance(cat, dict) and "packs" in cat else True, str(type(cat)))
-rows = cat["packs"] if isinstance(cat, dict) and "packs" in cat else cat
-for row in (rows if isinstance(rows, list) else []):
-    if row["tools"] != agent_packs.tools_for(row["key"]):
-        check(f"catalog tools for {row['key']} come from tools_for", False, str(row["tools"])[:60])
-        break
-else:
-    check("every catalog row's tools come from tools_for — one definition of what a pack runs", True)
+check("catalog() returns a dict with a `packs` list", isinstance(cat, dict)
+      and isinstance(cat.get("packs"), list), str(type(cat)) + " " + str(sorted(cat))[:60])
+rows = cat["packs"]
+check("...listing every pack exactly once", [r["key"] for r in rows] == sorted(agent_packs.PACKS),
+      str([r["key"] for r in rows])[:70])
+mismatched = [r["key"] for r in rows if r["tools"] != agent_packs.tools_for(r["key"])]
+check("every catalog row's tools come from tools_for — one definition of what a pack runs",
+      not mismatched, str(mismatched))
+check("...and the rows are non-empty, so the comparison above had something to compare",
+      bool(rows) and all(r["tools"] for r in rows), f"{len(rows)} rows")
 try:
     agent_packs.tools_for("no-such-pack")
     check("...and tools_for still refuses an unknown pack rather than answering []", False,
