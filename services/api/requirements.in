@@ -21,6 +21,15 @@ orjson>=3.12.0              # RT-ORJSON: Rust JSON for ORJSONResponse + hot blob
 boto3>=1.43.73            # MinIO/S3 object storage (range reads); lazy-imported
 psycopg[binary]>=3.1      # Postgres driver (prod). Locked here so `--require-hashes` covers it too.
 
+# Outbound HTTP client. Imported at MODULE SCOPE by `bsdd.py` (bSDD API v1) and `site_context.py`
+# (elevation / place lookups), so it is a direct dependency of shipped code — but until 2026-08-28 it
+# was declared nowhere and reached the lock on a single transitive edge, `# via anthropic`. The
+# anthropic 1.x SDK moved its HTTP layer from httpx to httpx2, so recompiling the lock would have
+# dropped httpx outright. The failure would not have been loud: both consumers are imported inside
+# functions, so the service still boots and only the bSDD lookup and site-context routes 500.
+# A package our own source imports is a DIRECT dependency however else it happens to arrive.
+httpx>=0.28.1
+
 # --- analysis / QA + export bridge to the data service (services/data/src) ---
 ifcopenshell>=0.8.5,<0.9
 openpyxl>=3.1
@@ -64,7 +73,12 @@ diskcache>=5.6            # Apache-2.0, pure-Python, no C extension
 
 # --- optional (lazy-imported, only when the matching env var is set) ---
 redis>=8.1.0             # shared rate-limit + login-lockout counters (AEC_REDIS_URL)
-anthropic>=0.120.0        # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY
+anthropic>=1.0.0          # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY. 1.x floor: the SDK
+                          # dropped long-deprecated surface and moved httpx -> httpx2. Every call site
+                          # here is plain `client.messages.create(...)`; inventoried against the 1.x
+                          # migration list and none of the removed surface is used — no
+                          # with_raw_response, no Text Completions, no temperature/top_p/top_k, no
+                          # output_format, no Bedrock/Vertex. The only fallout was httpx, declared above.
 sentry-sdk[fastapi]>=2.68.1  # external error alerting (sentry.py); no-op unless AEC_SENTRY_DSN is set
 
 # --- OpenTelemetry distributed tracing (otel.py); no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set ---
@@ -87,6 +101,12 @@ rdflib>=7.6.0
 # 200 MB+ against onnxruntime's ~50 MB, and the service never trains. Detection stays inert without
 # a model file (AEC_PHOTO_MODEL), so installing this does not by itself turn anything on.
 onnxruntime>=1.23
+#
+# Pillow is Tier 1's decoder — `photo_cv.py` does `from PIL import Image, ImageOps` at module scope,
+# and `photo_detect.py` calls it "a hard dep" in a comment. It was nonetheless undeclared, arriving
+# only `# via reportlab`. Same shape as the httpx line above and found by the same sweep: one
+# transitive edge away from breaking site-photo QA. Floor matches services/data/requirements.txt.
+pillow>=12.3.0
 
 # --- SCOPE-DOCX: Exhibit A as an editable Word document (scope_docx.py) ---
 # MIT, recorded in docs/ATTRIBUTIONS.md, approved by the user 2026-08-07. Pinned in the change that
