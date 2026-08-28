@@ -29,6 +29,7 @@ is no single correct number, and picking either is a coin toss presented as a me
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
 #: Fraction of a trace's points that must fall inside a viewport for it to count as belonging there.
@@ -72,7 +73,11 @@ def viewports(layout: Any) -> tuple[list[dict[str, Any]], int]:
         except (TypeError, ValueError, KeyError):
             unreadable += 1
             continue
-        if len(rect) != 4:
+        # `float("nan")` and `float("inf")` SUCCEED, so a non-finite rect would pass the conversion
+        # above, be counted as readable, and match nothing — reporting every trace on that drawing as
+        # `unscoped` with `unreadable_viewports: 0`. The count that exists to prevent exactly this
+        # misreading would itself have said nothing.
+        if len(rect) != 4 or not all(math.isfinite(c) for c in rect):
             unreadable += 1
             continue
         good.append(r)
@@ -120,9 +125,15 @@ def scope(regions: list[dict[str, Any]], layout: dict[str, Any], *,
         try:
             xy = [(float(p[0]) / px_per_point, float(p[1]) / px_per_point) for p in pts]
         except (TypeError, ValueError, IndexError, KeyError):
+            xy = None
+        # **NaN and infinity survive `float()`** — they raise nothing, match no finite viewport, and
+        # would come back `unscoped`: "this trace is not on any drawing". That is a confident wrong
+        # answer about the DRAWING when the truth is that the coordinate is meaningless, and it is the
+        # same misclassification the viewport count above exists to prevent, one level in.
+        if xy is None or not all(math.isfinite(x) and math.isfinite(y) for x, y in xy):
             out.append({"index": i, "scope": "unknown", "viewport": None, "scale_denom": None,
-                        "detail": "the trace has a coordinate that is not a number — every point "
-                                  "must be a numeric [x, y] in screen pixels"})
+                        "detail": "the trace has a coordinate that is not a finite number — every "
+                                  "point must be a numeric [x, y] in screen pixels"})
             continue
         # Count hits per viewport, converting each traced pixel back to page points.
         hits: list[tuple[int, int]] = []

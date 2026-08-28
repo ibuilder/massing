@@ -351,6 +351,53 @@ for bad in ("nope", [1, 2, 3], 5):
     except HTTPException as e:
         check(f"a non-dict layout ({bad!r}) is refused", e.status_code == 422, str(e.status_code))
 
+# ---- NaN and infinity survive float(), and would be `unscoped` -----------------------------------
+# The subtlest of the malformed-input cases and the one nothing caught until review: `float("nan")`
+# raises nothing, so a non-finite coordinate passed the exception guard, matched no finite viewport,
+# and came back `unscoped` — "this trace is not on any drawing". A confident wrong answer ABOUT THE
+# DRAWING, when the truth is that the coordinate is meaningless.
+for label, v in (("NaN", float("nan")), ("infinity", float("inf")), ("-infinity", float("-inf"))):
+    with SessionLocal() as db:
+        row = takeoff_2d(PID, body={
+            "scale_units_per_px": 0.05, "regions": [{"category": "generic_area", "points": [[v, 500]]}],
+            "layout": LAYOUT, "px_per_point": PPP}, db=db, _sec="tester")["scope"]["regions"][0]
+    check(f"a coordinate of {label} is UNKNOWN, not `unscoped`", row["scope"] == "unknown",
+          f"{row['scope']} — {row['detail'][:50]}")
+ann_nan = takeoff(layout=LAYOUT, px_per_point=PPP,
+                  annotations=[{"id": "N", "x": float("nan"), "y": 5}])["annotation_scope"]
+check("...and the same for an annotation, since it is the same code underneath",
+      ann_nan["regions"][0]["scope"] == "unknown", str(ann_nan["regions"][0])[:80])
+
+# A viewport rect of NaN is the same trap one level out: it converts cleanly, matches nothing, and
+# would report every trace on that drawing `unscoped` with `unreadable_viewports: 0` — the count that
+# exists to prevent that misreading saying nothing at all.
+with SessionLocal() as db:
+    nan_vp = takeoff_2d(PID, body={
+        "scale_units_per_px": 0.05, "regions": [TRACE], "px_per_point": PPP,
+        "layout": {"page": (1, 1), "regions": [{**VP0, "rect": (float("nan"), 200, 1000, 800)}]},
+    }, db=db, _sec="tester")["scope"]
+check("a viewport rect of NaN counts as UNREADABLE, not as a readable viewport matching nothing",
+      nan_vp["unreadable_viewports"] == 1, str(nan_vp["unreadable_viewports"]))
+
+# ---- the type guards run BEFORE the layout gate --------------------------------------------------
+# `annotations`' guard originally sat inside `if layout:`, so `annotations: {}` with no layout
+# returned a normal takeoff and dropped the field on the floor — the silent no-op the guard exists to
+# prevent, reintroduced by WHERE it was placed. A malformed field is malformed whether or not a
+# different field is present.
+for bad in ({}, "", 0, "nope"):
+    try:
+        with SessionLocal() as db:
+            takeoff_2d(PID, body={"scale_units_per_px": 0.05, "regions": [TRACE],
+                                  "annotations": bad}, db=db, _sec="tester")
+        check(f"annotations={bad!r} with NO layout is still refused", False, "no HTTPException")
+    except HTTPException as e:
+        check(f"annotations={bad!r} with NO layout is still refused", e.status_code == 422,
+              str(e.status_code))
+with SessionLocal() as db:
+    empty_ok = takeoff_2d(PID, body={"scale_units_per_px": 0.05, "regions": [TRACE],
+                                     "annotations": []}, db=db, _sec="tester")
+check("...while an empty list with no layout is still valid", "region_count" in empty_ok)
+
 # ---- and the route no longer keeps its own copy of the viewport filter ---------------------------
 # The last crash survived hardening the engine because `takeoff_2d` had `_viewports`' body inlined
 # for its calibration block. Two derivations of one question, one of them unhardened. Asserted by

@@ -73,6 +73,20 @@ public (`takeoff_scope.viewports`) and the route calls it. *Two derivations of o
 of them stayed unhardened* — the same shape as the boot guard's hand-parsed dialect two releases ago,
 in different clothes.
 
+**Then the subtlest one, which nothing caught until review: NaN and infinity survive `float()`.**
+They raise nothing, match no finite viewport, and came back `unscoped` — *"this trace is not on any
+drawing"*. A confident wrong answer about the **drawing**, when the truth is that the coordinate is
+meaningless. Now `unknown`, like every other unreadable coordinate. The same trap sits one level out:
+a viewport `rect` of NaN converted cleanly, counted as *readable*, and would have reported every trace
+on that drawing `unscoped` with `unreadable_viewports: 0` — the count that exists to prevent exactly
+that misreading saying nothing at all. Both are `math.isfinite`-checked now.
+
+**And a guard that was right but in the wrong place.** The `annotations` type check sat *inside*
+`if layout:`, so a request with `annotations: {}` and no layout returned a normal takeoff and dropped
+the field on the floor — the silent no-op the guard exists to prevent, reintroduced by where it was
+put. *A malformed field is malformed whether or not a different field is present.* Both type guards
+now run before the layout gate.
+
 **And a separate gap, found while wiring these.** `/projects/{pid}/mep/size` has no caller in
 `apps/web` at all — it appears only in the generated `schema.d.ts` — and `client.ts::takeoff2d` never
 sends `layout`, so R27-LAYOUT ② and ③ are unreachable from the product however well they are routed.

@@ -715,11 +715,20 @@ def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(ge
     # drawing — a quantity measured over a legend is not a quantity) or ambiguous (crossing two
     # scales, where no single number is correct).
     layout = body.get("layout")
-    # Same distinction as `annotations` below: a wrong TYPE for the whole field is a caller who
-    # cannot be answered, while one unreadable viewport inside a well-formed layout is reported
-    # (`unreadable_viewports`) rather than fatal.
+    # **Both type guards run BEFORE the layout gate, and that placement is the fix for a real bug.**
+    # `annotations`' guard originally sat inside `if layout:`, so a request with `annotations: {}` and
+    # no layout returned a normal takeoff and dropped the field on the floor — the silent no-op the
+    # guard exists to prevent, reintroduced by where it was put. A malformed field is malformed
+    # whether or not a different field is present.
+    #
+    # A wrong TYPE for a whole field is a caller who cannot be answered; one unreadable viewport or
+    # one bad annotation row inside a well-formed field is reported instead (`unreadable_viewports`,
+    # or `scope: "unknown"`) rather than failing the request.
     if layout is not None and not isinstance(layout, dict):
         raise HTTPException(422, "layout must be a sheet_regions object with a `regions` list")
+    if (ann_field := body.get("annotations")) is not None and not isinstance(ann_field, list):
+        raise HTTPException(422, "annotations must be a list of {id?, kind?, x, y} or "
+                                 "{id?, kind?, points:[[x,y],…]} objects")
     if layout:
         from .. import takeoff_scope
         out["scope"] = takeoff_scope.scope(regions, layout,
@@ -738,13 +747,6 @@ def takeoff_2d(pid: str, body: dict = Body(default={}), db: Session = Depends(ge
         # Optional and absent when not asked for: a caller tracing quantities with no notes gets the
         # response it always got, and `annotation_scope: null` is never emitted as an empty finding.
         annotations = body.get("annotations")
-        # A wrong TYPE for the whole field is a malformed request and is refused; a wrong-looking
-        # single row is not, and comes back `unknown` with a reason from the engine. The distinction
-        # is deliberate: the first is a caller who cannot be answered at all, the second is one bad
-        # note in a sheet full of good ones, and failing the sheet for it would be the worse trade.
-        if annotations is not None and not isinstance(annotations, list):
-            raise HTTPException(422, "annotations must be a list of {id?, kind?, x, y} or "
-                                     "{id?, kind?, points:[[x,y],…]} objects")
         if annotations:
             out["annotation_scope"] = takeoff_scope.scope_annotations(
                 annotations, layout, px_per_point=body.get("px_per_point"))
