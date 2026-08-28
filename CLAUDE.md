@@ -117,6 +117,17 @@ test — anything held only as prose will drift, **including the prose in this f
 names were wrong until 2026-07-31.** "test_no_competitors.py" never existed at all, and the size
 guard is `test_file_sizes.py`, not "check_file_sizes.py".
 
+**A fifth joined them on 2026-08-28: `services/api/test_declared_imports.py`** — does our own
+`import` list agree with what we declare? It exists because `httpx` was declared in no requirements
+file at all and reached the lock only `# via anthropic`, so bumping that SDK to 1.x — which moved to
+`httpx2` — would have deleted a package two shipped modules import. Nothing would have gone red:
+both consumers are function-local, so the service boots, `/health` passes, the suite stays green, and
+only the bSDD and site-context routes 500. `pillow` sat in the same position `# via reportlab`.
+**A package our own source imports is a DIRECT dependency however else it happens to arrive**, and
+transitive availability is a fact about somebody else's metadata that can change in a release nobody
+here reviews. (The list above still says "four" on purpose — that sentence is about which of the
+ORIGINAL four names were wrong, and rewriting it to say "five" would quietly destroy the record.)
+
 "Cite a gate only after `git ls-files` confirms it" is itself a rule held as prose, so it is now
 `services/api/test_claude_md_gates.py`: every backticked code file named here, in
 `docs/roadmap-directions.md` **and in `docs/roadmap.md`** must resolve to a tracked path — including
