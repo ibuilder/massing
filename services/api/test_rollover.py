@@ -137,6 +137,42 @@ no_mkt = price_expiry(L1, {**A, "market_rent_psf": 0.0})
 check("with no market rent stated, the commission is struck on in-place rent rather than on zero",
       no_mkt["market_rent_annual"] == 250000.0, no_mkt["market_rent_annual"])
 
+# --- 7. a lease that is not IN PLACE produces no income, so it produces no rollover ------------------
+#
+# `rentroll.summarize()` — this module's own docstring names it as the peer — counts a lease as
+# income only when `workflow_state` is active or holdover. This engine had NO state filter, so a
+# DRAFT lease (a negotiation that may never sign) contributed a full rollover cost while
+# contributing nothing to income. Measured on the live API before the fix: two draft leases returned
+# `expiries_priced: 2, total_expected_cost: 799816.67` against an income basis reporting an empty
+# rent roll. A cost with no matching income is the asymmetry that makes a model wrong.
+DRAFT = {"ref": "L-D", "workflow_state": "draft", "data": dict(L1["data"])}
+ACTIVE = {"ref": "L-A", "workflow_state": "active", "data": dict(L1["data"])}
+
+d_res = schedule([DRAFT], A, as_of=AS_OF)
+check("a draft lease is not priced — it is not in place, so there is nothing to roll over",
+      d_res["expiries_priced"] == 0 and d_res["total_expected_cost"] == 0.0, d_res["expiries_priced"])
+
+# NAMED, NOT DROPPED. Excluding a lease SHRINKS the exposure and makes the deal look better, which
+# is the direction this module already refuses to fail in silently for undateable leases.
+check("...and it is NAMED rather than silently skipped, because excluding it flatters the deal",
+      len(d_res.get("leases_not_in_place") or []) == 1
+      and (d_res["leases_not_in_place"][0].get("workflow_state") == "draft"),
+      d_res.get("leases_not_in_place"))
+
+# THE TWIN: the filter must not swallow real leases. Without this the assertion above passes on an
+# engine that prices nothing at all.
+a_res = schedule([ACTIVE], A, as_of=AS_OF)
+check("an ACTIVE lease is still priced — the filter excludes drafts, not everything",
+      a_res["expiries_priced"] == 1 and a_res["total_expected_cost"] > 0,
+      (a_res["expiries_priced"], a_res["total_expected_cost"]))
+check("...and nothing is reported as excluded when everything is in place",
+      not a_res.get("leases_not_in_place"), a_res.get("leases_not_in_place"))
+
+# A record with NO workflow_state at all (a hand-built dict, as several tests here pass) must still
+# price — the filter keys on an explicit non-active state, not on absence.
+check("a lease carrying no workflow_state is still priced, not excluded by omission",
+      schedule([L1], A, as_of=AS_OF)["expiries_priced"] == 1)
+
 print()
 if FAILED:
     print(f"rollover: {len(FAILED)} FAILED — {FAILED}")

@@ -171,7 +171,33 @@ def schedule(leases: list[dict], assumptions: dict | None = None,
     rows: list[dict] = []
     undateable: list[dict] = []
 
+    # ONE DEFINITION OF "IN PLACE", IMPORTED RATHER THAN RESTATED. `rentroll.summarize()` — which
+    # this module's own docstring names as its peer — counts a lease as income only when its
+    # `workflow_state` is active or holdover. This engine had no state filter at all, so a DRAFT
+    # lease (a negotiation that may never sign) produced no income and yet a full rollover cost.
+    #
+    # Measured: two draft leases returned `expiries_priced: 2, total_expected_cost: 799816.67`
+    # while `/proforma/income-basis` on the same project reported an empty rent roll. A cost with no
+    # matching income is the asymmetry that makes a model wrong, and this module refuses three
+    # smaller ones already.
+    #
+    # NAMED, NOT DROPPED, for the reason stated below about undateable leases: excluding a lease
+    # shrinks the exposure and makes the deal look BETTER, which is the direction an omission must
+    # never fail in silently.
+    from ..rentroll import ACTIVE_STATES
+
+    not_in_place: list[dict] = []
+    in_place = []
     for ls in leases or []:
+        st = ls.get("workflow_state")
+        if st is not None and st not in ACTIVE_STATES:
+            not_in_place.append({"ref": ls.get("ref"), "tenant": (ls.get("data") or ls).get("tenant"),
+                                 "suite": (ls.get("data") or ls).get("suite"), "workflow_state": st,
+                                 "reason": f"not in place ({st}) — no income, so no rollover to price"})
+            continue
+        in_place.append(ls)
+
+    for ls in in_place:
         d = ls.get("data") or ls
         end = _parse(d.get("end_date"))
         if end is None:
@@ -208,6 +234,7 @@ def schedule(leases: list[dict], assumptions: dict | None = None,
         "total_expected_downtime_months": round(sum(r["expected_downtime_months"] for r in rows), 2),
         "rows": rows,
         "leases_without_end_date": undateable,
+        "leases_not_in_place": not_in_place,
         "note": "expected cost = p x renewal + (1-p) x new tenant. Downtime is applied to the "
                 "new-tenant branch ONLY — a renewing tenant does not vacate, and charging the gap "
                 "to both branches is the most common way a rollover total is overstated.",
