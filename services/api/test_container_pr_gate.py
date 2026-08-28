@@ -168,6 +168,44 @@ if pat:
     check("...while NOT matching an unrelated file -- the filter can still say no",
           not wrong, ", ".join(wrong) or "none of the four decoys matched")
 
+    # ------------------------------------------------------------------------------------------ 5
+    # A Dockerfile is not the only build input a Dockerfile has.
+    #
+    # Rules 1 and 3 both reason about Dockerfile PATHS. Neither can see that the API image is built
+    # from `services/api/requirements.lock` (`COPY`, then `pip install --require-hashes` from it) and
+    # the web image from `package.json` / `package-lock.json` (`COPY`, then `npm ci`). Until
+    # 2026-08-28 the filter matched none of those four paths, so every pip and npm bump -- the five
+    # web toolchain bumps of #358-#364 and the anthropic 1.x lock recompile among them -- reported
+    # `Container build (PR, no push)  skipping` and merged without any job building the image whose
+    # dependency set it had just replaced.
+    #
+    # Same shape as the converter gap above, and worth naming as such: **a gate's population is part
+    # of its claim.** That one was a Dockerfile outside the matrix. This one is a build input that is
+    # not a Dockerfile at all -- outside the population by KIND rather than by omission, which is why
+    # rule 3's converse could not reach it either.
+    #
+    # Derived by reading each matrix Dockerfile's own COPY lines, never listed here: the day an image
+    # starts copying a new lock file, that path is covered without editing this test.
+    manifest = re.compile(r"^(package\.json|package-lock\.json|requirements[^/]*\.(lock|txt))$")
+    inputs: dict[str, str] = {}
+    for image, df in sorted(pub_images.items()):
+        for line in (ROOT / df).read_text(encoding="utf-8").splitlines():
+            m = re.match(r"\s*COPY\s+(.*)$", line)
+            if not m or "--from=" in m.group(1):
+                continue          # `--from=` copies out of an earlier STAGE, not the build context
+            srcs = [t for t in m.group(1).split() if not t.startswith("--")][:-1]   # last is dest
+            for src in srcs:
+                if manifest.match(src.rsplit("/", 1)[-1]):
+                    inputs.setdefault(src, image)
+    check("the matrix Dockerfiles declare dependency manifests to check at all",
+          bool(inputs), ", ".join(sorted(inputs)) or "none found -- rule 5 would be vacuous")
+    missed = sorted(q for q in inputs if not rx.search(q))
+    check("...and the filter matches every manifest an image is actually built from",
+          not missed,
+          ", ".join(f"{q} (builds {inputs[q]})" for q in missed) + " -- a dependency bump there "
+          "reports `skipping` and never builds the image it changed" if missed
+          else f"all {len(inputs)} matched")
+
 # The error branch, read as text: the body between a failed enumeration and its closing `fi` must
 # set touched=true. Gating the build off because an API call failed is the same silence this item
 # exists to remove.
