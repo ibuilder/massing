@@ -60,7 +60,7 @@
     "@types/three": "0.185.4",
     "eslint": "^10.8.1",
     "globals": "^17.9.0",
-    "happy-dom": "^20.11.2",
+    "happy-dom": "^20.11.6",
     "openapi-typescript": "^7.13.0",
     "oxlint": "^1.78.0",
     "typescript": "5.9.3",
