@@ -56,7 +56,15 @@ higher)"** — the most common refusal a Free workspace would ever see. `min_tie
 instead of implying an upgrade would help. `tier_at_least`, which had no caller, is gone: these are
 the derivations that needed to exist.
 
-`test_r37_contract.py` pins all of it (101 checks), and was itself mutation-tested — three
+**And the first version of the fix repeated the bug it was fixing.** `_cites_for` filtered
+`isinstance(c, dict)` while building its list and took the malformed count *after* that discard, so
+`sources = {"exit.exit_cap": ["Appraisal p.12"]}` — a plain string where a citation belongs, the most
+natural way to get this field wrong — reported **0 malformed** and rendered as plainly uncited: a
+caller once again unable to see that what they recorded had been thrown away. Anything recorded and
+unreadable now counts; only an absent or empty value is silence, because nothing was claimed. (Caught
+in review on #372.)
+
+`test_r37_contract.py` pins all of it (120 checks), and was itself mutation-tested — three
 deliberate regressions, three failures. One assertion was dropped for being a tautology: looping the
 export list to check each entry resolves to a tier cannot fail, because the derivation reads that
 same list. The population that matters is the **rendered 402 string** for every declared format, and

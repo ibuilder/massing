@@ -36,6 +36,7 @@ checks = 0
 
 
 def check(cond, msg):
+    """Assert `cond`, counting it, so the summary line reports how much was actually verified."""
     global checks
     assert cond, msg
     checks += 1
@@ -94,6 +95,7 @@ check(real["source_types"] == {"ifc": 1}, real["source_types"])
 
 # --- ① assumption_provenance: the consumer that receives caller dicts --------
 def prov(sources):
+    """Run `assumption_provenance` over one material assumption carrying `sources`."""
     return ap.provenance({"exit": {"exit_cap": 0.055}, "sources": {"exit.exit_cap": sources}})
 
 
@@ -107,6 +109,29 @@ for junk, why in [([{}], "empty dict"), ([{"foo": "bar"}], "arbitrary dict"),
     check(r["malformed_citation_count"] == 1, f"{why} must be counted: {r['malformed_citation_count']}")
     check(r["malformed_citation_paths"] == ["exit.exit_cap"], f"{why} must be named")
     check("exit.exit_cap" in r["uncited"], f"{why} must appear in the uncited list")
+
+# A NON-DICT recorded value is malformed too, not silence. The first version of the fix filtered
+# `isinstance(c, dict)` while building the list and counted after the discard, so a plain string —
+# the most natural way to get this field wrong — reported 0 malformed and read as plainly uncited.
+# Caught by CodeRabbit on #372; it is the same defect as ①, one layer down.
+for junk, why in [(["Appraisal p.12"], "a plain string in the list"),
+                  ("Appraisal p.12", "a bare string instead of a list"),
+                  ([0.055], "a number"),
+                  ([None], "a None entry")]:
+    r = prov(junk)
+    check(r["malformed_citation_count"] == 1, f"{why} must be counted: {r['malformed_citation_count']}")
+    check(r["malformed_citation_paths"] == ["exit.exit_cap"], f"{why} must be named")
+    check(r["coverage_pct"] == 0.0, f"{why} is not coverage")
+
+# ...but an ABSENT or EMPTY value is silence, not a malformed record — nothing was claimed.
+for quiet, why in [(None, "nothing recorded"), ([], "an empty list"), ({}, "an empty mapping")]:
+    r = prov(quiet)
+    check(r["malformed_citation_count"] == 0, f"{why} must not be reported as malformed")
+    check(r["malformed_citation_paths"] == [], f"{why} must name no path")
+
+# a real citation beside an unreadable one: cited, and the unreadable one still reported
+half = prov([ca.cite_ifc(GUID), "p.12"])
+check(half["coverage_pct"] == 100.0 and half["malformed_citation_count"] == 1, half)
 
 ok = prov([ca.cite_record("rfi", 12)])
 check(ok["coverage_pct"] == 100.0 and ok["malformed_citation_count"] == 0, ok)

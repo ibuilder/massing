@@ -127,6 +127,7 @@ def build(claims: list[dict], *, note: str = "") -> dict[str, Any]:
     took down the whole answer."""
     claims = claims or []
     def _real(c):
+        """The citations on claim `c` that this contract recognises."""
         return [x for x in (c.get("citations") or []) if is_citation(x)]
     cited = [i for i, c in enumerate(claims) if _real(c)]
     uncited = [i for i, c in enumerate(claims) if not _real(c)]

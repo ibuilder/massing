@@ -91,10 +91,25 @@ def _cites_for(sources: dict[str, Any], path: str) -> tuple[list[dict], int]:
     A malformed entry is COUNTED, not dropped silently: a caller who POSTs a citation this contract
     cannot read has the same problem as `orphaned_sources` — they believe an assumption is sourced and
     it is not — and the earlier bug in this exact field was also one the caller could not see.
+
+    **Non-dicts count too**, which the first version of this fix got wrong in the same way as the bug
+    it was fixing. It filtered `isinstance(c, dict)` while building the list, so the count was taken
+    *after* the discard: `sources = {"exit.exit_cap": ["Appraisal p.12"]}` — a plain string where a
+    citation belongs, the most natural way to get this wrong — reported **0 malformed** and rendered
+    as plainly uncited. That is once again a caller with no way to see that what they recorded was
+    thrown away. Anything recorded and unreadable is counted; only an absent or empty value is
+    silence, because nothing was claimed.
     """
     from .cited_answer import is_citation
     v = (sources or {}).get(path)
-    raw = [v] if isinstance(v, dict) else [c for c in (v or []) if isinstance(c, dict)]
+    if v is None or v == [] or v == {}:
+        return [], 0                              # nothing recorded is not a malformed record
+    if isinstance(v, dict):
+        raw: list = [v]
+    elif isinstance(v, (list, tuple)):
+        raw = list(v)                             # EVERY entry, dict or not — see below
+    else:
+        raw = [v]                                 # a bare string/number: one unreadable entry
     good = [c for c in raw if is_citation(c)]
     return good, len(raw) - len(good)
 
