@@ -100,10 +100,20 @@ with TestClient(app) as c:
     assert [e["year"] for e in und["events"]] == [Y + 20], und["events"]
 
     # --- CAM reconciliation: variable-only gross-up + per-tenant true-up ------------------------
-    _create(c, pid, "lease", {"tenant": "Acme Corp", "suite": "100", "rentable_sf": 10000,
-        "base_rent_annual": 300000, "lease_type": "NNN", "recovery_psf": 5})
-    _create(c, pid, "lease", {"tenant": "Beta LLC", "suite": "200", "rentable_sf": 5000,
-        "base_rent_annual": 140000, "lease_type": "NNN", "recovery_psf": 4})
+    # EXECUTED, not just created. The `lease` workflow starts at `draft` and the draft -> active
+    # transition's action is literally `execute` — a draft lease is one nobody has signed. This
+    # fixture used to leave both in draft and then assert they were billed CAM, which is what let
+    # `cam.reconciliation` bill an unsigned tenant: a 20,000 sf prospect came back with a
+    # `balance_due` of $70,000 on a reconciliation. The engine now filters to in-place leases, so
+    # the fixture has to say what it always meant.
+    for _t, _suite, _sf, _rent, _rec in (("Acme Corp", "100", 10000, 300000, 5),
+                                         ("Beta LLC", "200", 5000, 140000, 4)):
+        _ls = _create(c, pid, "lease", {"tenant": _t, "suite": _suite, "rentable_sf": _sf,
+            "base_rent_annual": _rent, "lease_type": "NNN", "recovery_psf": _rec,
+            "start_date": "2025-01-01", "end_date": "2029-12-31"})
+        _tr = c.post(f"/projects/{pid}/modules/lease/{_ls['id']}/transition",
+                     json={"action": "execute"})
+        assert _tr.status_code == 200, f"execute {_t}: {_tr.text[:160]}"
     _create(c, pid, "cam_expense", {"subject": "Janitorial contract", "category": "Cleaning / Janitorial",
         "year": Y, "budget_annual": 90000, "actual_annual": 100000, "variable": "Yes", "recoverable": "Yes"})
     _create(c, pid, "cam_expense", {"subject": "Property insurance", "category": "Insurance",
@@ -119,6 +129,33 @@ with TestClient(app) as c:
     acme = next(t for t in rec["tenants"] if t["tenant"] == "Acme Corp")
     assert acme["share_pct"] == 50.0 and acme["estimated_paid"] == 50000, acme
     assert abs(acme["balance_due"] - (rec["recoverable_pool"] * 0.5 - 50000)) < 0.02, acme
+
+    # AN UNSIGNED LEASE IS NOT BILLED — and is NAMED rather than silently dropped.
+    #
+    # `cam.reconciliation` filtered leases on `rentable_sf > 0` alone, so a DRAFT lease was billed:
+    # a 20,000 sf prospect came back with `balance_due: 70000.0`, and moved reported occupancy from
+    # 35% to 85% — the same figure the gross-up is struck against. The `lease` workflow starts at
+    # `draft` and its draft -> active action is literally `execute`, so a draft lease is one nobody
+    # has signed. `ACTIVE_STATES` is imported from `rentroll`, not restated, because that is already
+    # the definition of "counts as income" and a tenant with no income cannot owe a recovery.
+    prospect = _create(c, pid, "lease", {"tenant": "Prospect Co", "suite": "300",
+        "rentable_sf": 20000, "base_rent_annual": 480000, "lease_type": "NNN", "recovery_psf": 4,
+        "start_date": "2026-01-01", "end_date": "2031-12-31"})
+    rec2 = c.get(f"/projects/{pid}/cam/reconciliation",
+                 params={"year": date.today().year, "building_sf": 20000}).json()
+    assert all(t["tenant"] != "Prospect Co" for t in rec2["tenants"]),         f"an unexecuted lease was billed CAM: {[t['tenant'] for t in rec2['tenants']]}"
+    excluded = rec2.get("tenants_not_in_place") or []
+    assert any(t["tenant"] == "Prospect Co" and t["workflow_state"] == "draft" for t in excluded),         f"the excluded tenant must be NAMED — removing a payer shifts everyone else's share: {excluded}"
+
+    # THE TWIN: executing that same lease puts it back on the statement. Without this the assertion
+    # above passes on an engine that bills nobody.
+    ex = c.post(f"/projects/{pid}/modules/lease/{prospect['id']}/transition", json={"action": "execute"})
+    assert ex.status_code == 200, ex.text[:160]
+    rec3 = c.get(f"/projects/{pid}/cam/reconciliation",
+                 params={"year": date.today().year, "building_sf": 20000}).json()
+    assert any(t["tenant"] == "Prospect Co" for t in rec3["tenants"]),         "an EXECUTED lease must be billed — the filter excludes drafts, not everyone"
+    assert not (rec3.get("tenants_not_in_place") or []), rec3.get("tenants_not_in_place")
+
 
     # --- per-tenant statement PDF ----------------------------------------------------------------
     r = c.post(f"/projects/{pid}/cam/statement/{acme['id']}.pdf",

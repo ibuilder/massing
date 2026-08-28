@@ -32,8 +32,30 @@ def reconciliation(db, pid: str, year: int | None = None, gross_up_to_pct: float
     yr = year or date.today().year
     expenses = [e for e in me.list_records(db, "cam_expense", pid, limit=10000)
                 if int(_f(_d(e).get("year")) or yr) == yr]
-    leases = [le for le in me.list_records(db, "lease", pid, limit=10000)
-              if _f(_d(le).get("rentable_sf")) > 0]
+    # A CAM RECONCILIATION BILLS PEOPLE, so only leases that are actually IN PLACE may appear on it.
+    # This filtered on `rentable_sf > 0` alone, so a DRAFT lease — a negotiation that may never
+    # sign — was billed. Measured: one draft tenant with 20,000 sf came back with
+    # `balance_due: 70000.0` on a 2026 reconciliation, and moved reported occupancy from 35% to 85%,
+    # which is also the figure the gross-up is struck against.
+    #
+    # `ACTIVE_STATES` is imported from `rentroll` rather than restated: it is already the definition
+    # of "counts as income", and a tenant who produces no income cannot owe a recovery. A second
+    # copy is how two readers of one record start disagreeing about what a lease is — which is the
+    # defect being fixed here, and the third time this shape has appeared in this codebase.
+    #
+    # NAMED, not silently dropped: removing a payer shifts everyone else's pro-rata share, so the
+    # exclusion has to be visible on the statement rather than inferred from a total that moved.
+    from .rentroll import ACTIVE_STATES
+
+    all_leases = [le for le in me.list_records(db, "lease", pid, limit=10000)
+                  if _f(_d(le).get("rentable_sf")) > 0]
+    leases = [le for le in all_leases
+              if le.get("workflow_state") is None or le.get("workflow_state") in ACTIVE_STATES]
+    not_in_place = [{"id": le.get("id"), "ref": le.get("ref"), "tenant": _d(le).get("tenant"),
+                     "suite": _d(le).get("suite"), "rentable_sf": _f(_d(le).get("rentable_sf")),
+                     "workflow_state": le.get("workflow_state"),
+                     "reason": "not in place — a lease that is not active cannot owe a recovery"}
+                    for le in all_leases if le not in leases]
     occupied_sf = sum(_f(_d(le).get("rentable_sf")) for le in leases)
     total_sf = building_sf if building_sf and building_sf > 0 else occupied_sf
     occ_pct = round(100 * occupied_sf / total_sf, 1) if total_sf else 0.0
@@ -78,6 +100,7 @@ def reconciliation(db, pid: str, year: int | None = None, gross_up_to_pct: float
         "occupancy_pct": occ_pct, "gross_up_to_pct": target,
         "expense_lines": lines, "budget_total": round(budget_total, 2),
         "actual_total": round(actual_total, 2), "recoverable_pool": round(pool, 2),
+        "tenants_not_in_place": not_in_place,
         "tenants": sorted(tenants, key=lambda t: -t["rentable_sf"]),
         "note": "Gross-up applies to occupancy-variable recoverable expenses only, up to the stated "
                 "occupancy; fixed expenses (taxes, insurance) pass through at actual. Estimated "
