@@ -29,7 +29,7 @@ numpy>=2.5.2              # floor raised WITH services/data/requirements.txt: pi
 ifctester>=0.8
 trimesh>=5.0.0
 manifold3d>=3.5.2
-scipy>=1.18.0
+scipy>=1.18.1
 # DO NOT REMOVE — it looks unused and is not. Nothing under `services/` writes `import networkx`,
 # so a grep for import sites says "zero" and the line reads like dead weight. It is the ONLY thing
 # installing networkx: both consumers declare it as an *optional extra* (`trimesh[easy]`,
@@ -47,8 +47,8 @@ scipy>=1.18.0
 # geometry, so it goes red instead of the drawings going empty.
 networkx>=3.6.1
 shapely>=2.1.2
-reportlab>=5.0.0
-pyhanko>=0.25            # PAdES certificate-based PDF digital signatures (esign.py)
+reportlab>=5.0.1
+pyhanko>=0.36.2            # PAdES certificate-based PDF digital signatures (esign.py)
 pypdf>=6.15.0           # CVE-2026-71852/-71870 floor (was 6.14.2 for -59935/-59936); contract/spec text extraction for the review engine (review.py)
 defusedxml>=0.7.1        # XXE / billion-laughs hardening for untrusted CityGML parsing (citygml.py)
 pyarrow>=16.0          # columnar Parquet export of the model element set (model_query.to_parquet)
@@ -65,7 +65,7 @@ diskcache>=5.6            # Apache-2.0, pure-Python, no C extension
 # --- optional (lazy-imported, only when the matching env var is set) ---
 redis>=8.1.0             # shared rate-limit + login-lockout counters (AEC_REDIS_URL)
 anthropic>=0.120.0        # optional AI assists (Draft RFI) — ANTHROPIC_API_KEY
-sentry-sdk[fastapi]>=2.66.1  # external error alerting (sentry.py); no-op unless AEC_SENTRY_DSN is set
+sentry-sdk[fastapi]>=2.68.1  # external error alerting (sentry.py); no-op unless AEC_SENTRY_DSN is set
 
 # --- OpenTelemetry distributed tracing (otel.py); no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set ---
 # Explicit packages (NOT opentelemetry-distro / the auto-instrumentation CLI — too broad/noisy for
