@@ -5,7 +5,7 @@
 # both converter images together, the api one was reverted to 24 four days later for that reason,
 # and this file was not. `scripts/check-fragments-version.mjs` gates the two ARGs below across
 # both Dockerfiles and stops one line short of the base image.
-FROM node:24-slim@sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df
+FROM node:25-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370
 
 # The `libgnutls30` upgrade this file carried is GONE, and the base digest moved instead.
 #
