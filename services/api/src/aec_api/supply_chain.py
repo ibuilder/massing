@@ -371,7 +371,10 @@ def _main(argv: list[str] | None = None) -> int:
         print("  * STRONG copyleft, but declared in SHIP_EXCLUDED and removed from every artifact "
               "by `--purge` — installed, never distributed. See SHIP_EXCLUDED for the reason.")
     if "--gate" in argv:
-        print("GATE FAIL: " + ", ".join(c["name"] for c in blocking) if blocking
+        # Parenthesised deliberately: `"a" + x if c else "b"` is CORRECT here (the conditional binds
+        # looser than `+`) and reads as though it might not be, which is a line a reviewer has to
+        # stop and parse. Both branches are exercised by test_supply_chain_gate.
+        print(("GATE FAIL: " + ", ".join(c["name"] for c in blocking)) if blocking
               else "GATE OK: no strong copyleft is distributed.")
     return 1 if ("--gate" in argv and blocking) else 0
 
