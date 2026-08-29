@@ -4,6 +4,32 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1121 (2026-08-29) — a `.mass` you can prove is authentic, and the first tag in thirty releases
+
+**Sealing a container is now possible, and opt-in.** A `.mass` can carry `asset_rights.json`, a signed
+release manifest: it cites the container's existing deterministic digest rather than building a second
+one, excludes the regenerable `model.frag` from release identity, and is signed and verified with
+Ed25519. A stable `asset_id` survives an export/import round-trip, which nothing did before — import
+mints a fresh project id, so provenance had nothing to bind to.
+
+It is **chosen when the file is created**, because a manifest attests to the bytes of one particular
+export and cannot be bolted on afterwards without producing a different file. A container saved
+without it is byte-for-byte what this format has always produced: **no format-version bump**, and a
+v2 reader ignores the field. Both directions are tested. With a key the release is signed and a third
+party can verify it; without one it is hashed and tamper-evident but carries no attribution, and the
+UI says which of those two you have rather than implying the stronger one.
+
+Deliberately not done: no contract, no chain, no wallet, no new dependency. That half is a decision
+rather than work, and it is written up under "Decisions, not effort" in the roadmap.
+
+**This release also closes a thirty-version gap.** v0.3.1090 (2026-08-25) was the last tag, while main
+reached v0.3.1120 — every release step was being taken except the last one, and nothing was watching
+it. The CHANGELOG was current, both manifests were bumped, CI was green on every commit and the
+container images published; only the tag was missing. So this build additionally carries everything
+merged since 1090: the R37 reach ring (twenty functions that were built, tested and reachable by
+nothing in production — four wired, three consolidated), four money-bearing fixes in the proforma,
+CAM, margin and comparables engines, the anthropic 1.x SDK move, and the gates written along the way.
+
 ## v0.3.1120 (2026-08-29) — the roadmap's ⭐ was pointing at finished work
 
 Asked what to do next, the honest first step was not to read the roadmap's ranking but to **check it**.
