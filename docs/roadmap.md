@@ -710,7 +710,7 @@ worth checking: two of the three were mis-sized, and both in the same direction.
 | # | Sprint | Why here | Size | Outcome |
 |---|---|---|---|---|
 | 1 | **R22-ENTITLEMENT** | The only genuinely open R22 item, and the largest hole in the product's own story: the mission is acquisition → construction and **nothing spans approval**. Everything else on this list improves what already exists. | M/L | ✅ ③ shipped v0.3.978 — `review_cycle` + `approval_cycles.py`. ✅ **comment round-tripping shipped v0.3.1042** — a resubmittal now carries the review that asked for it, labelled with the revision it was written against. **Submittal *packages*: the inbound half was ALREADY SHIPPED and this row did not say so — see the note under the entry.** |
-| 2 | **R39-DECOMP-VIEWER ③** — split `apps/web/src/viewer/app.ts` | Not a preference — but **not the alarm an earlier version of this cell made it sound like, either.** Re-measured 2026-08-27: the file was 2,865 lines against a pin of 2,865, and it is **2,571 after slices ⑭⑮⑯**, with the pin lowered each time. Zero headroom is the ratchet's DESIGNED state, not a regression: it pins each file at (or one line above) its current size — `client.ts` sits at 2,836/2,837 the same way — and `test_file_sizes.py` says so itself, that the threshold is set just above the worst offender and tightening it is part of the work. So the next line added here reds the build, permanently, and **the remedy is always extraction, never waiting for room**. That is the mechanism, working. This cell said *"97%, ~136 lines of headroom"* until today, which was the third consecutive time this row's number was stale: the ratchet has come down twice since (2,944 → 2,885 → 2,865) and the prose never followed. The note in the outcome column already says a justification was *"copied forward without re-measuring"* — and then the correction itself was copied forward without re-measuring. **Re-derive it before quoting it:** `wc -l apps/web/src/viewer/app.ts` against its entry in `services/api/test_file_sizes.py`. | L | ✅ ⑦ shipped v0.3.978 (3,444 → 3,311). **The "why" was already false when written** — six slices had landed and the ceiling had moved with them. A justification copied forward without re-measuring. |
+| 2 | **R39-DECOMP-VIEWER ③** — split `apps/web/src/viewer/app.ts` | Not a preference — but **not the alarm an earlier version of this cell made it sound like, either.** Re-measured 2026-08-27: the file was 2,865 lines against a pin of 2,865, and it is **2,570 after slices ⑭⑮⑯**, with the pin lowered each time — **and then raised back to 2,865 the same afternoon by an unrelated lane's commit to the same shared file, which no gate could see. Re-measured again 2026-08-29 and restored; see the entry.** That is the fourth consecutive time this row's number was wrong, and the first time the *pin* was the thing that had moved rather than the prose. Zero headroom is the ratchet's DESIGNED state, not a regression: it pins each file at (or one line above) its current size — `client.ts` sits at 2,836/2,837 the same way — and `test_file_sizes.py` says so itself, that the threshold is set just above the worst offender and tightening it is part of the work. So the next line added here reds the build, permanently, and **the remedy is always extraction, never waiting for room**. That is the mechanism, working. This cell said *"97%, ~136 lines of headroom"* until today, which was the third consecutive time this row's number was stale: the ratchet has come down twice since (2,944 → 2,885 → 2,865) and the prose never followed. The note in the outcome column already says a justification was *"copied forward without re-measuring"* — and then the correction itself was copied forward without re-measuring. **Re-derive it before quoting it:** `wc -l apps/web/src/viewer/app.ts` against its entry in `services/api/test_file_sizes.py`. | L | ✅ ⑦ shipped v0.3.978 (3,444 → 3,311). **The "why" was already false when written** — six slices had landed and the ceiling had moved with them. A justification copied forward without re-measuring. |
 | 3 | **R37-TRIAGE tail** — the 12 remaining dead-code candidates | Bounded and evidence-backed (the population went 877 → 13 in v0.3.973), but each needs reading before deletion because string dispatch and `__all__` re-exports can still hide a caller. Lowest value of the three — the one candidate that mattered is already fixed. | S | ✅ shipped v0.3.980, and **"lowest value" was wrong**: 8 of the 12 were live, one of them holding both PyInstaller builds together. The reading was the value, not the deletions. |
 
 **What the outcomes say about the sizing.** Both misjudgements came from trusting a written number
@@ -1854,6 +1854,32 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   (88, v0.3.1043)**. `app.ts` 5,160 → **2,944**, a **43% cut**.
   Each ratcheted `services/api/test_file_sizes.py` down, never reset. `services/api/test_file_sizes.py`
   carries the per-slice history; that comment, not this list, is the record.
+
+  **"never reset" was false for two days, and the way it was found is the transferable part.** Slices
+  ⑭⑮⑯ walked the pin 2_865 → 2_757 → 2_630 → 2_571 on 2026-08-27, and a REL-4 portal commit to the
+  same shared file later that afternoon carried the pre-⑭ line back in — value *and* comment trail, so
+  it read as deliberate rather than as the lost hunk it was. Hazard 4 in the directions, exactly:
+  staging by name takes every change in that file. Nothing could go red, because the only assertion
+  was `measured > cap` and a pin that moves UP is a *wider* bound. The three slices' friction was spent
+  silently: 295 lines of headroom on a file whose whole point is having none.
+  **What found it was this row's own instruction** — the prioritised-view cell says to re-derive
+  `wc -l apps/web/src/viewer/app.ts` against the pin before quoting either, and the two numbers
+  disagreed by 295. Restored to 2_570 (the file's exact size; ⑯ set 2_571 against a file that already
+  measured 2,570), and `MAX_SLACK` in `services/api/test_file_sizes.py` now fails the build on a pin
+  more than 25 lines above its file. Mutation-checked at the boundary (25 passes, 26 fails) and
+  against the real event (2_865 fails, naming the file and the 295). **A ratchet that can be silently
+  unwound is a rearrangement one commit later**, which is the same sentence that file already carried
+  about extractions without ratchets.
+
+  **The first draft of this paragraph said that gate makes the prose rule *"only ever revised DOWN"*
+  a check. It does not, and the overclaim is the more useful half of the record.** MAX_SLACK asserts
+  *a pin must not sit far above its file* — a raise that grows the file to match passes with slack 0,
+  and so would this very incident if the stale copy had carried `app.ts` back to 2,865 lines too.
+  Down-only is a claim about **history** and cannot be decided from a working tree, which is the price
+  of a check that needs no base ref. *A gate whose scope is narrower than its claim* is a defect
+  `services/api/test_file_sizes.py` names in its own header, and writing one into the entry announcing
+  the fix is how the shape survives — the residual, and a known merge-time false positive, are both
+  stated next to the constant rather than here.
 
   **⑦ is the one that proved the accessor rule, which ①–⑥ only prepared for.** `exportsSection.ts`
   says outright that it "touches neither" mutable capture and that its deps type is *shaped so the

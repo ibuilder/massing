@@ -275,8 +275,33 @@ path**. `apps/web/src/shell/roadmapLanes.test.ts` asserts both directions and fa
 
 ### Shared files that need a heads-up
 
-`services/api/run_tests.py` · `services/api/src/aec_api/main.py` · `docs/roadmap.md` · `CHANGELOG.md` ·
+`services/api/run_tests.py` · `services/api/src/aec_api/main.py` · `services/api/test_file_sizes.py` ·
+`docs/roadmap.md` · `CHANGELOG.md` ·
 the version triple (`apps/web/package.json`, `src-tauri/tauri.conf.json`, `package-lock.json`).
+
+**`test_file_sizes.py` joined this list on 2026-08-29, and the omission had already cost something.**
+Lane J owns it by path, but its `PER_FILE` map pins files belonging to **five different lanes**, and
+the discipline is that an extraction lowers its own pin *in the commit that lands it* — so every lane
+that decomposes a god-file edits Lane J's file, by design. That is exactly the shape of
+`run_tests.py` directly above, which is also Lane J's and was listed here from the start; nobody had
+noticed the second one.
+
+The cost was real: three R39-DECOMP-VIEWER slices lowered the `app.ts` pin 2_865 → 2_571, and a
+REL-4 commit to the same file half an hour later carried the pre-slice line back in — value and
+comment trail together, so it read as intentional. **Hazard 4 above**: staging by name still takes
+every change in that file. It survived two days because the only assertion was `measured > cap`, and
+a pin that moves *up* is a wider bound that nothing was looking for. `MAX_SLACK` in that file now
+catches the half of it that a working tree can decide; announcing the edit is what catches the rest.
+
+**A lane claim does not have to grow to cover a shared file — that is what this list is for.** A
+session working `apps/web/src/viewer/` and lowering the `app.ts` pin is in Lane E and touching a
+shared file, not straddling two lanes. Say so by message; do not redraw the table for it.
+
+**Root-level `services/api/test_*.py` follow their subject, not a lane row.** No lane owns them by
+path and none should: a test belongs to whoever owns the code under test, which is how every lane has
+shipped its own tests all along. The unowned-file ratchet in `roadmapLanes.test.ts` counts
+`apps/web/src` only, so this is not a gap it is failing to see — it is a population deliberately
+outside it.
 
 ---
 
