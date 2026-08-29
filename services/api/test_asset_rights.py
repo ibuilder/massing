@@ -31,9 +31,34 @@ from aec_api import asset_rights as ar  # noqa: E402
 
 FAILED: list[str] = []
 
+#: Every secret this file mints. `check()` scrubs these from anything it prints.
+#:
+#: This is structural on purpose. `check()` takes a free-form `detail` and prints it on failure, so
+#: whether a private key reaches the log depends on which local every future call site happens to
+#: pass — and the failing path is exactly the one nobody exercises before committing. On a PUBLIC
+#: repository a CI log is public, and a workflow log outlives the run. Registering the secret once,
+#: where it is minted, makes the guarantee independent of call-site discipline.
+#:
+#: Added after CodeQL flagged the `print` below as clear-text logging of sensitive data. No call site
+#: actually passed a key, so the alert over-approximated — but the shape it objected to was real:
+#: nothing prevented it, and "no current caller does that" is a property of today's code.
+SECRETS: list[str] = []
+
+
+def _scrub(text: str) -> str:
+    """Replace any registered secret with a placeholder. Substring, not equality — a secret can be
+    embedded in a larger repr (a manifest dict, a request body) rather than passed on its own."""
+    for s in SECRETS:
+        if s:
+            text = text.replace(s, "<redacted-secret>")
+    return text
+
 
 def check(label, ok, detail=""):
-    print(f"{'PASS' if ok else 'FAIL'}  {label}{(' — ' + str(detail)) if detail and not ok else ''}")
+    line = f"{'PASS' if ok else 'FAIL'}  {label}"
+    if detail and not ok:
+        line += " — " + str(detail)
+    print(_scrub(line))
     if not ok:
         FAILED.append(label)
 
@@ -174,6 +199,7 @@ check("edited created_at is detected by manifest_hash", not ar.verify_manifest_h
 # --- signing ------------------------------------------------------------------
 seed = ar.generate_seed()
 other_seed = ar.generate_seed()
+SECRETS.extend((seed, other_seed))          # registered where minted, not where printed
 check("a generated seed is 32 bytes", len(ar._b64d(seed)) == 32)
 check("two generated seeds differ", seed != other_seed)
 
@@ -229,6 +255,16 @@ os.environ.pop(ar.ENABLED_ENV, None)
 # The signing key must never be readable from a manifest.
 blob = ar.canonical_bytes(signed).decode("utf-8")
 check("the private seed never appears in a signed manifest", seed not in blob)
+
+# The redaction above is itself a claim, so it is asserted rather than trusted. Both directions:
+# a registered secret must vanish even when embedded in a larger string, and ordinary detail must
+# survive untouched — a scrubber that ate everything would pass the first half alone.
+check("a registered secret is scrubbed from printed detail",
+      seed not in _scrub(f"manifest={{'seed': '{seed}'}}")
+      and "<redacted-secret>" in _scrub(f"seed={seed}"))
+check("scrubbing leaves ordinary detail intact",
+      _scrub("content_hash mismatch: sha256:abc != sha256:def")
+      == "content_hash mismatch: sha256:abc != sha256:def")
 
 
 # --- the option belongs to whoever creates the .mass file ---------------------
@@ -345,6 +381,7 @@ with TestClient(app) as c:
 
     # (4) With a signing key configured, the same export is signed and verifies under the issuer key.
     key = ar.generate_seed()
+    SECRETS.append(key)
     os.environ[ar.SIGNING_KEY_ENV] = key
     os.environ[ar.ISSUER_ENV] = "did:web:massing.build"
     signed_blob = c.get(f"/projects/{pid}/bundle?asset_rights=true", headers=BEARER(tok)).content
