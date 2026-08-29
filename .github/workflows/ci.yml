@@ -39,7 +39,14 @@ jobs:
     name: API test gate
     runs-on: ubuntu-latest
     steps:
+      # `fetch-tags` is load-bearing, not tidiness. The default checkout is shallow and fetches NO
+      # tags, so `git tag -l` returns empty — and `test_release_current.py` compares the shipped
+      # version against the newest tag. Without this it would see zero tags and, had it been written
+      # to shrug at that, would have been green forever while measuring nothing. It fails loudly
+      # instead, so removing this line reds the build rather than silencing the check.
       - uses: actions/checkout@v7
+        with:
+          fetch-tags: true
 
       - uses: actions/setup-python@v7
         with:
