@@ -28,6 +28,7 @@ import { withContracts } from "./contracts";
 import { withDesignOptions } from "./designOptions";
 import { withFinance } from "./finance";
 import { withLibrary } from "./library";
+import { withAssetRights } from "./assetRights";
 import { withDocQa } from "./docqa";
 import { HttpCore, type LiveStream } from "./httpCore";
 import { withModel } from "./model";
@@ -62,7 +63,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAssetRights(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -580,7 +581,9 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
         body: JSON.stringify(e), keepalive: true }).catch(() => { /* best-effort */ });
   }
 
-  /** Absolute URL for a GET endpoint, e.g. an export download. */
+  /** Every project visible to the caller — id, name, and `model_kind` (which tool a project opens
+   *  with). Was documented as "absolute URL for a GET endpoint", a neighbour's comment left behind;
+   *  the gate only caught it once `bundleUrl` moved out from under its 14-line lookahead. */
   projects() {
     return this.json<{ id: string; name: string; model_kind?: "frag" | "ifc" | null }[]>(`/projects`);
   }
@@ -588,10 +591,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   project(pid: string) {
     return this.json<{ id: string; name: string; model_kind?: string | null; has_source_ifc?: boolean }>(
       `/projects/${pid}`);
-  }
-  /** Download URL for a project's portable `.mass` container (geometry + all data + blobs). */
-  bundleUrl(pid: string) {
-    return this.url(`/projects/${pid}/bundle`);
   }
   /** Create a blank project (no IFC needed) — GC portal + proforma work immediately. */
   createProject(name: string) {

@@ -129,7 +129,18 @@ python-docx>=1.2
 # line once the parent's own floor has caught up — leaving it costs nothing but says something false
 # about why the version is what it is.
 #
-# cryptography: arrives via pyhanko / pyhanko-certvalidator / signxml. CVE-2026-69247 (HIGH,
+# cryptography: NO LONGER PURELY TRANSITIVE — `aec_api/asset_rights.py` imports it directly for
+# Ed25519 release signing (ASSET-RIGHTS). The section header above says "Nothing here is imported by
+# our code", and that sentence stopped being true the moment this was used, so it is corrected here
+# rather than left to read as a floor on a package nobody calls. It stays in this block because the
+# CVE floor below is still the reason the version is what it is; the import adds a second reason, not
+# a second package — cryptography was already in the lock and installed, so the marginal
+# supply-chain cost of using it is zero. Asymmetric signing was chosen over an HMAC on the existing
+# auth secret deliberately: a MAC proves a release only to whoever already holds the secret, which is
+# not what provenance means. (Same class as the httpx and pillow entries above — a package our own
+# source imports is a DIRECT dependency however else it happens to arrive.)
+#
+# It also arrives via pyhanko / pyhanko-certvalidator / signxml. CVE-2026-69247 (HIGH,
 # GHSA-g6cj-pr64-35w5) is a Bleichenbacher oracle in PKCS#7 EnvelopedData DECRYPTION — distinguishable
 # errors and timing. We only ever *sign* (PAdES via pyhanko, XML-DSig verification via signxml) and
 # never decrypt EnvelopedData, so the exploit path is very likely absent from our surface. Floored

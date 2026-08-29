@@ -519,14 +519,39 @@ def coordination_stale_recheck(pid: str, a: int = Body(..., embed=True), b: int 
     return coordination_fresh.recheck(db, pid, a, b, actor)
 
 
+@router.get("/asset-rights/status")
+def asset_rights_status(_user: str = Depends(current_user)) -> dict:
+    """Whether sealing a `.mass` with a release manifest is available on this deployment.
+
+    The client needs this to decide whether to *offer* the option at all — an inert checkbox that
+    silently does nothing is worse than no checkbox. `signing` distinguishes the two honest states:
+    with a key the release is signed and a third party can verify it; without one it is hashed and
+    tamper-evident but carries no attribution, and the UI must not imply otherwise.
+
+    Deliberately **not** `require_role`: that dependency resolves its `pid` from the path *or the
+    query string*, so on a route with no `{pid}` a caller supplies their own — the hazard recorded
+    on `authorize_pid`. Nothing here is project-scoped, so an authenticated user is the right gate.
+    Returns only booleans and the public issuer identifier; never the key itself."""
+    from .. import asset_rights as ar
+    return {"enabled": ar.enabled(), "signing": ar.signing_available(),
+            "issuer": os.environ.get(ar.ISSUER_ENV) or ""}
+
+
 @router.get("/projects/{pid}/bundle")
-def export_bundle(pid: str, db: Session = Depends(get_db), _sec: str = Depends(require_role("viewer"))):
+def export_bundle(pid: str, asset_rights: bool = False, db: Session = Depends(get_db),
+                  _sec: str = Depends(require_role("viewer"))):
     """Download the whole project as a portable **`.mass` container** (geometry + all data +
     blobs). It is a ZIP that documents itself: a README inside explains the layout, and the
-    manifest inventories every entry and names what was deliberately excluded."""
+    manifest inventories every entry and names what was deliberately excluded.
+
+    `asset_rights=true` additionally seals the container with a signed release manifest
+    (`asset_rights.json`). It is **off by default** and is a choice made when the file is created:
+    a container exported without it is unchanged from what this endpoint has always produced, and
+    the project gains no `asset_id`. The option is inert unless an operator has switched the
+    capability on (`AEC_ASSET_RIGHTS_ENABLED`)."""
     from .. import bundle as bundle_io
     p = _project(db, pid)
-    data = bundle_io.export_bundle(db, pid)
+    data = bundle_io.export_bundle(db, pid, asset_rights_opt_in=asset_rights)
     # latin-1-safe (HTTP headers can't carry CJK/emoji — see exports.safe_filename)
     safe = "".join(c if (c.isalnum() and ord(c) < 128) or c in "-_ " else "_" for c in p.name).strip() or "project"
     return Response(data, media_type="application/zip",
