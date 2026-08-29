@@ -200,34 +200,69 @@ export function buildMepSection(d: MepDeps): MepButtons {
       d.notify(`unknown sizing kind ${kind} — expected one of ${KINDS.join(", ")}`, "error");
       return;
     }
-    const num = async (label: string, dflt = "") => {
+    // FOUR outcomes, not two. `Number("")` is 0 and `Number("abc")` is NaN, so a two-state
+    // "cancelled or a number" helper sends a blank required field as a zero and a typo as NaN.
+    // Worse in the optional case: `block_cooling` treated an unparseable area exactly like an
+    // omitted one, so a typo silently became "derive it from the model" and returned a confident
+    // answer to a question the user had not asked. Raised in review on #374.
+    type NumIn = { k: "cancelled" } | { k: "blank" } | { k: "bad"; raw: string } | { k: "ok"; n: number };
+    const num = async (label: string, dflt = ""): Promise<NumIn> => {
       const v = await askText("First-pass MEP sizing", { label, value: dflt });
-      return v === null ? null : Number(v);
+      if (v === null) return { k: "cancelled" };
+      const t = v.trim();
+      if (!t) return { k: "blank" };
+      const n = Number(t);
+      return Number.isFinite(n) ? { k: "ok", n } : { k: "bad", raw: t };
+    };
+    /** A value that must be present and positive. Returns null once it has reported why not. */
+    const required = (r: NumIn, label: string): number | null => {
+      if (r.k === "ok" && r.n > 0) return r.n;
+      if (r.k !== "cancelled") {
+        d.notify(r.k === "bad" ? `${label}: ${r.raw} is not a number` : `${label} is required`, "error");
+      }
+      return null;                                  // cancelled reports nothing; the user chose to stop
     };
     const o: { flow?: number; velocity?: number; load?: number; size?: number;
                hangerKind?: string; gfaSf?: number; sfPerTon?: number } = {};
     if (kind === "duct" || kind === "pipe") {
-      const f = await num(kind === "duct" ? "Airflow (CFM)" : "Flow (GPM)");
-      const v = await num(kind === "duct" ? "Velocity (fpm)" : "Velocity (ft/s)");
-      if (f === null || v === null) return;
+      const fl = kind === "duct" ? "Airflow (CFM)" : "Flow (GPM)";
+      const vl = kind === "duct" ? "Velocity (fpm)" : "Velocity (ft/s)";
+      const f = required(await num(fl), fl); if (f === null) return;
+      const v = required(await num(vl), vl); if (v === null) return;
       o.flow = f; o.velocity = v;
     } else if (kind === "cooling") {
-      const l = await num("Cooling load (BTU/h)");
-      if (l === null) return;
+      const l = required(await num("Cooling load (BTU/h)"), "Cooling load"); if (l === null) return;
       o.load = l;
     } else if (kind === "block_cooling") {
-      // Both optional on purpose: leave the area blank and the server derives it from the loaded
-      // model, which is the whole point of asking this question early.
+      // Area is genuinely optional — blank means "derive it from the loaded model", which is the
+      // whole point of asking this question early. But BLANK and UNPARSEABLE are different answers.
       const a = await num("Gross floor area (sf) — blank to derive from the model", "");
+      if (a.k === "cancelled") return;
+      if (a.k === "bad" || (a.k === "ok" && a.n <= 0)) {
+        d.notify(`gross floor area: ${a.k === "bad" ? a.raw : a.n} is not a positive number`, "error");
+        return;
+      }
+      if (a.k === "ok") o.gfaSf = a.n;
       const r = await num("sf per ton", "350");
-      if (a !== null && Number.isFinite(a) && a > 0) o.gfaSf = a;
-      if (r !== null && Number.isFinite(r) && r > 0) o.sfPerTon = r;
+      if (r.k === "cancelled") return;
+      if (r.k !== "blank") {
+        const sf = required(r, "sf per ton"); if (sf === null) return;
+        o.sfPerTon = sf;
+      }
     } else if (kind === "hanger") {
+      // Same allowlist discipline as `kind` above, one level down: the prompt names three values and
+      // nothing was checking that one of them came back.
+      const HANGERS = ["duct", "pipe_steel", "pipe_copper"];
       const hk = await askText("First-pass MEP sizing", {
-        label: "Hanger kind: duct | pipe_steel | pipe_copper", value: "pipe_steel" });
-      const sz = await num("Nominal size (in)");
-      if (!hk || sz === null) return;
-      o.hangerKind = hk.trim(); o.size = sz;
+        label: `Hanger kind: ${HANGERS.join(" | ")}`, value: "pipe_steel" });
+      if (hk === null) return;
+      const hangerKind = hk.trim().toLowerCase();
+      if (!HANGERS.includes(hangerKind)) {
+        d.notify(`unknown hanger kind ${hangerKind || "(blank)"} — expected ${HANGERS.join(", ")}`, "error");
+        return;
+      }
+      const sz = required(await num("Nominal size (in)"), "Nominal size"); if (sz === null) return;
+      o.hangerKind = hangerKind; o.size = sz;
     }
     let out: Record<string, unknown>;
     try { out = await d.api.mepSize(d.pid, kind as (typeof KINDS)[number], o); }

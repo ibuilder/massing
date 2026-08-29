@@ -84,6 +84,30 @@ describe("routes the server implements are reachable from the app", () => {
     expect(CLIENT).toContain("block_cooling");
   });
 
+  it("refuses input it cannot send rather than sending a plausible wrong value", () => {
+    const sec = SRC("viewer/tools/mepSection.ts");
+    // `Number("")` is 0 and `Number("abc")` is NaN, so a two-state "cancelled or a number" helper
+    // sends a blank required field as a zero. Four outcomes, and `blank` is only acceptable where
+    // the field is genuinely optional. Raised in review on #374.
+    for (const outcome of ['k: "cancelled"', 'k: "blank"', 'k: "bad"', 'k: "ok"']) {
+      expect(sec).toContain(outcome);
+    }
+    // ...and an unparseable OPTIONAL value must not read as an omitted one: `block_cooling` treated
+    // a typo'd area as "derive it from the model" and answered a question nobody asked.
+    expect(sec).toContain("is not a positive number");
+    // The hanger allowlist, the same discipline as `kind`, one level down.
+    expect(sec).toContain("pipe_copper");
+    expect(sec).toContain("unknown hanger kind");
+  });
+
+  it("the scope control is unavailable, not merely inert, when no layout loaded", () => {
+    const ui = SRC("viewer/takeoff2d.ts");
+    // Showing a tickable box that falls back to "quantifying without scoping" offers something the
+    // control cannot do — a smaller cousin of the wrong-scale defect scoping exists to prevent.
+    expect(ui).toContain("scopeChk.disabled = true");
+    expect(ui).toContain("scopeChk.disabled = false");
+  });
+
   it("mep sizing has a UI entry point wired through to the tools panel", () => {
     const sec = SRC("viewer/tools/mepSection.ts");
     expect(sec).toContain("d.api.mepSize(");

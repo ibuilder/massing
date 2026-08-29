@@ -106,6 +106,11 @@ export function openTakeoff2d(opts: Takeoff2dOpts): void {
   const scopeWrap = document.createElement("label");
   scopeWrap.style.cssText = "font-size:11px;display:none;align-items:center;gap:4px;opacity:.85";
   const scopeChk = document.createElement("input"); scopeChk.type = "checkbox";
+  // Disabled until a layout is actually in hand. The first version showed the control immediately
+  // and only CLEARED the box on a change of sheet, so a failed fetch left a tickable box that fell
+  // back to "quantifying without scoping" — the control offering something it could not do, which
+  // is a smaller cousin of the defect this whole scoping feature exists to prevent. Review, #374.
+  scopeChk.disabled = true;
   const presetIn = document.createElement("input");
   presetIn.value = "key"; presetIn.style.cssText = "width:58px;font-size:11px;padding:1px 3px";
   presetIn.title = "Viewport preset the uploaded sheet was composed with.";
@@ -133,11 +138,15 @@ export function openTakeoff2d(opts: Takeoff2dOpts): void {
     const page = pageIn.value.trim() || "A1";
     const key = `${preset}/${page}`;
     if (key === layoutKey) return;
-    layoutKey = key; layout = null; scopeChk.checked = false;
+    layoutKey = key; layout = null; scopeChk.checked = false; scopeChk.disabled = true;
     void opts.sheetLayout(preset, page)
-      .then((l) => { if (layoutKey === key) { layout = l; scopeWrap.style.display = "flex"; } })
+      .then((l) => {
+        if (layoutKey !== key) return;             // a newer sheet was named while this was in flight
+        layout = l; scopeChk.disabled = false; scopeWrap.style.display = "flex";
+      })
       // A project with no model has no sheet layout, which is the ordinary case here, not an error.
-      .catch(() => { if (layoutKey === key) layout = null; });
+      // The box stays disabled, so the option is unavailable rather than available-and-inert.
+      .catch(() => { if (layoutKey === key) { layout = null; scopeChk.disabled = true; } });
   };
   presetIn.onchange = loadLayout; pageIn.onchange = loadLayout;
   if (opts.sheetLayout) { scopeWrap.style.display = "flex"; loadLayout(); }
