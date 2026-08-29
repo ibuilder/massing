@@ -15,7 +15,14 @@ type Pt = [number, number];
  *  a ratio-wrong scale, with a plausible number as the output. The server has accepted a per-region
  *  `scale_units_per_px` since R34-MEASURE-PROVENANCE; nothing was ever setting it. */
 type Region = { category: string; points: Pt[]; label?: string; scale_units_per_px?: number };
+type Scope = {
+  regions: { index: number; scope: "scoped" | "unscoped" | "ambiguous" | "unknown"; detail?: string }[];
+  viewport_count: number; unreadable_viewports: number;
+  scoped: number[]; unscoped: number[]; ambiguous: number[]; unknown: number[];
+  priceable: number; all_scoped: boolean; note: string;
+};
 type QuantifyResult = {
+  scope?: Scope;
   region_count: number; total_cost: number; unit: string;
   provenance?: { scales_used?: number[] };
   regions: { index: number; category: string; assembly: string; measure: string; quantity: number;
@@ -26,7 +33,12 @@ type QuantifyResult = {
 };
 
 interface Takeoff2dOpts {
-  quantify: (regions: Region[], scaleUnitsPerPx: number, unit: string) => Promise<QuantifyResult>;
+  quantify: (regions: Region[], scaleUnitsPerPx: number, unit: string,
+             scoping?: { layout?: unknown; pxPerPoint?: number }) => Promise<QuantifyResult>;
+  /** Fetch the sheet layout to scope traces against, when the project has a model. Optional: the
+   *  whole point of this tool is that it works on a drawing with no model behind it, so absence is
+   *  the normal case and must stay silent. */
+  sheetLayout?: () => Promise<unknown>;
   notify: (message: string, kind?: "error" | "info" | "success") => void;
   assemblies?: { category: string; measure: string; rate: number; label: string; unit: string | null }[];
 }
@@ -77,6 +89,29 @@ export function openTakeoff2d(opts: Takeoff2dOpts): void {
   goBtn.style.fontWeight = "700";
   const status = document.createElement("span"); status.className = "meta"; status.style.cssText = "font-size:11px;margin-left:6px";
   bar.append(fileIn, calBtn, catSel, traceBtn, fillBtn, undoBtn, clearBtn, goBtn, status);
+
+  // R27-LAYOUT ② — scope traces to the drawing they sit on. One scale over a whole sheet is right for
+  // a sheet holding ONE drawing and quietly wrong for every other: a plan at 1:100 beside a detail at
+  // 1:20 prices the detail fivefold. Off by default, because this tool's normal case is a drawing with
+  // no model behind it, and `px_per_point` is required for the check to run at all — without it the
+  // server reports that NOTHING was checked, which is not the same as everything passing.
+  let layout: unknown = null;
+  const scopeWrap = document.createElement("label");
+  scopeWrap.style.cssText = "font-size:11px;display:none;align-items:center;gap:4px;opacity:.85";
+  const scopeChk = document.createElement("input"); scopeChk.type = "checkbox";
+  const pxPt = document.createElement("input");
+  pxPt.type = "number"; pxPt.value = "1"; pxPt.min = "0"; pxPt.step = "0.1";
+  pxPt.style.cssText = "width:52px;font-size:11px;padding:1px 3px";
+  pxPt.title = "Image pixels per PDF point — how the sheet was rasterised. Required for scoping.";
+  scopeWrap.append(scopeChk, document.createTextNode("scope to sheet · px/pt"), pxPt);
+  scopeWrap.title = "Say which drawing on the sheet each trace is on, and refuse to price one that "
+    + "crosses two scales or sits on none.";
+  bar.appendChild(scopeWrap);
+  if (opts.sheetLayout) {
+    void opts.sheetLayout().then((l) => { layout = l; scopeWrap.style.display = "flex"; })
+      // A project with no model has no sheet layout, which is the ordinary case here, not an error.
+      .catch(() => { layout = null; });
+  }
   panel.appendChild(bar);
 
   // ---- body: canvas + results ----
@@ -201,9 +236,16 @@ export function openTakeoff2d(opts: Takeoff2dOpts): void {
     if (!regions.length) return opts.notify("trace at least one region", "error");
     setStatus("quantifying…");
     try {
-      const res = await opts.quantify(regions, scale, unit);
+      const px = Number(pxPt.value);
+      const scoping = scopeChk.checked && layout && Number.isFinite(px) && px > 0
+        ? { layout, pxPerPoint: px } : undefined;
+      const res = await opts.quantify(regions, scale, unit, scoping);
       renderResults(results, res);
-      setStatus(`${res.region_count} region(s) · $${Math.round(res.total_cost).toLocaleString()}`);
+      const sc = res.scope;
+      // Report the shortfall, never a bare total: `priceable` counts only traces on exactly one
+      // drawing, and the other three outcomes are each a reason a number would be wrong.
+      const warn = sc && !sc.all_scoped ? ` · ⚠ ${sc.priceable}/${res.region_count} priceable` : "";
+      setStatus(`${res.region_count} region(s) · $${Math.round(res.total_cost).toLocaleString()}${warn}`);
     } catch (e) { opts.notify((e as Error).message, "error"); setStatus("quantify failed"); }
   };
 
@@ -313,5 +355,35 @@ function renderResults(host: HTMLElement, res: QuantifyResult) {
     + `<tr style="opacity:.7"><th style="text-align:left">Assembly</th><th style="text-align:right">Qty</th><th style="text-align:right">Cost</th></tr>`
     + rows + `</table>`
     + scaleNote(res)
+    + scopeNote(res.scope)
     + `<div class="meta" style="margin-top:8px;font-size:10px;opacity:.65">Preliminary — trace/scale dependent; verify against the model takeoff where a model exists.</div>`;
+}
+
+
+/** The sheet-scope result, when the caller asked for it.
+ *
+ *  Rendered as four outcomes rather than a pass/fail: `scoped` is the only one that may be priced,
+ *  and `unscoped` (not on a drawing at all), `ambiguous` (crossing two scales, so no single quantity
+ *  is correct) and `unknown` (the check could not run) are each a different reason a number would be
+ *  wrong. `unreadable_viewports` is shown whenever it is non-zero because it changes what `unscoped`
+ *  means — "not on any drawing" versus "we could not read the drawing". */
+function scopeNote(sc: Scope | undefined): string {
+  if (!sc) return "";
+  if (sc.all_scoped) {
+    return `<div class="meta" style="margin-top:8px;font-size:10.5px;opacity:.8">`
+      + `✓ all ${sc.regions.length} trace(s) scoped to a single drawing (${sc.viewport_count} viewport(s) on the sheet).</div>`;
+  }
+  const parts: string[] = [];
+  const line = (label: string, idx: number[], why: string) =>
+    idx.length ? parts.push(`<div><b>${label}:</b> region ${idx.map((i) => i + 1).join(", ")} — ${why}</div>`) : 0;
+  line("unscoped", sc.unscoped, "not on any drawing on this sheet");
+  line("ambiguous", sc.ambiguous, "crosses drawings at different scales, so no single quantity is correct");
+  line("unknown", sc.unknown, "the check could not run on this trace");
+  if (sc.unreadable_viewports > 0) {
+    parts.push(`<div style="opacity:.85">${sc.unreadable_viewports} viewport(s) on the sheet could not `
+      + `be read — an "unscoped" above may mean the drawing was unreadable, not absent.</div>`);
+  }
+  return `<div style="margin-top:8px;font-size:10.5px;line-height:1.45;padding:6px 8px;`
+    + `border:1px solid #7a5d00;background:#2a2205;border-radius:4px">`
+    + `<b>⚠ ${sc.priceable} of ${sc.regions.length} trace(s) priceable.</b> ${parts.join("")}</div>`;
 }

@@ -82,6 +82,9 @@ export interface MepButtons {
   faBtn: HTMLButtonElement;
   commsBtn: HTMLButtonElement;
   riserBtn: HTMLButtonElement;
+  /** First-pass sizing calculator — sizes a run BEFORE one is authored, unlike the velocity
+   *  check on `mepSysBtn`, which validates runs already in the model. */
+  sizeCalcBtn: HTMLButtonElement;
   mepSysBtn: HTMLButtonElement;
 }
 
@@ -175,6 +178,62 @@ export function buildMepSection(d: MepDeps): MepButtons {
   });
   riserBtn.title = "Author a vertical MEP riser (fire standpipe / plumbing stack / vent) from a bottom to "
     + "top elevation at the last-clicked point — the vertical complement to horizontal MEP runs.";
+  // R27 / R37 — the first-pass sizing CALCULATOR. Distinct from "MEP size check" below, and the
+  // distinction is which question is being asked: the check validates runs already authored in the
+  // model, this sizes one before anything exists. `/projects/{pid}/mep/size` has been complete since
+  // v0.3.1116 and had no caller in this app at all, which is what made `block_cooling`
+  // product-unreachable — a built capability nobody could reach is indistinguishable from a missing one.
+  const sizeCalcBtn = d.toolBtn2("🧮 First-pass MEP sizing", async () => {
+    const kind = (await askText("First-pass MEP sizing", {
+      label: "duct (CFM @ fpm) · pipe (GPM @ fps) · cooling (BTU/h → tons) · "
+        + "block_cooling (area → tons) · hanger (size in inches)",
+      value: "block_cooling",
+    }))?.trim();
+    if (!kind) return;
+    const num = async (label: string, dflt = "") => {
+      const v = await askText("First-pass MEP sizing", { label, value: dflt });
+      return v === null ? null : Number(v);
+    };
+    const o: { flow?: number; velocity?: number; load?: number; size?: number;
+               hangerKind?: string; gfaSf?: number; sfPerTon?: number } = {};
+    if (kind === "duct" || kind === "pipe") {
+      const f = await num(kind === "duct" ? "Airflow (CFM)" : "Flow (GPM)");
+      const v = await num(kind === "duct" ? "Velocity (fpm)" : "Velocity (ft/s)");
+      if (f === null || v === null) return;
+      o.flow = f; o.velocity = v;
+    } else if (kind === "cooling") {
+      const l = await num("Cooling load (BTU/h)");
+      if (l === null) return;
+      o.load = l;
+    } else if (kind === "block_cooling") {
+      // Both optional on purpose: leave the area blank and the server derives it from the loaded
+      // model, which is the whole point of asking this question early.
+      const a = await num("Gross floor area (sf) — blank to derive from the model", "");
+      const r = await num("sf per ton", "350");
+      if (a !== null && Number.isFinite(a) && a > 0) o.gfaSf = a;
+      if (r !== null && Number.isFinite(r) && r > 0) o.sfPerTon = r;
+    } else if (kind === "hanger") {
+      const hk = await askText("First-pass MEP sizing", {
+        label: "Hanger kind: duct | pipe_steel | pipe_copper", value: "pipe_steel" });
+      const sz = await num("Nominal size (in)");
+      if (!hk || sz === null) return;
+      o.hangerKind = hk.trim(); o.size = sz;
+    }
+    let out: Record<string, unknown>;
+    try { out = await d.api.mepSize(d.pid, kind as "duct", o); }
+    catch (e) { d.notify((e as Error).message, "error"); return; }
+    showResult(`First-pass sizing — ${kind}`, (body) => {
+      body.appendChild(kvTable(Object.entries(out).map(([k, v]) => ({
+        k: k.replace(/_/g, " "),
+        v: typeof v === "number" ? String(Math.round(v * 1000) / 1000) : String(v),
+      }))));
+      body.appendChild(resultNote("First-pass sizing only — not a stamped design. Confirm against the "
+        + "authored model with the velocity size check.", ""));
+    });
+  });
+  sizeCalcBtn.title = "Size a duct, pipe, cooling load, block cooling load or hanger before anything "
+    + "is authored — the question asked at concept, when no run exists to check.";
+
   let mepConnectFrom: string | null = null;   // W10-4: first element of a port-to-port connect
   const mepSysBtn = d.toolBtn2("🔀 MEP systems", async () => {
     let s, c;
@@ -273,5 +332,5 @@ export function buildMepSection(d: MepDeps): MepButtons {
   });
   mepSysBtn.title = "Browse IfcDistributionSystems — per-system segment/fitting/terminal counts, a "
     + "connectivity signal (elements with unconnected ports), and anything not yet assigned to a system.";
-  return { mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn };
+  return { mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, sizeCalcBtn };
 }

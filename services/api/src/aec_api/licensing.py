@@ -18,7 +18,24 @@ TIER_ORDER = ["free", "home", "commercial", "enterprise"]
 TIER_LABEL = {"free": "Free", "home": "Home", "commercial": "Commercial", "enterprise": "Enterprise"}
 
 # feature entitlements per tier (cumulative). Export formats + capability flags per the docs.
-_BASE_EXPORTS = ["png", "gltf", "glb", "pdf", "obj", "dxf"]   # Home and up (glb = binary glTF)
+#
+# **This list is what the Settings panel sells.** `state()` returns every tier's features and the panel
+# renders them as a plan-comparison table, so a format named here is a promise to a paying customer.
+# Two were promises nothing kept, found 2026-08-29 by checking each declared format for a delivery path:
+#
+#   * `nwd` (Enterprise) — Navisworks' document format is a closed Autodesk binary. `routers/convert.py`
+#     already states the position for its siblings: *".rvt/.dwg/.nwc are closed Autodesk formats with NO
+#     open-source reader"*. Writing one offline is not a gap to close, it is not possible without the
+#     paid APS/ODA SDK — and this file's own top note says such bridges are optional and flagged, not
+#     bare tier features. Delisted rather than left as an Enterprise differentiator that cannot ship.
+#   * `obj` (Home) — `viewer/referenceLoader.ts` READS `.obj`; nothing writes it. Import is not export,
+#     and the tier table does not say "import".
+#
+# `png` stays: it is genuinely delivered, client-side, by the viewer's canvas capture rather than by a
+# route — which is why `EXPORT_DELIVERY` below records *where* each format is served, not merely that
+# someone believed it was. A format nobody can obtain is the export equivalent of a citation that
+# identifies no source: the entry exists, and there is nothing behind it.
+_BASE_EXPORTS = ["png", "gltf", "glb", "pdf", "dxf"]          # Home and up (glb = binary glTF)
 # openBIM data-out formats (IFC + the IFC5/ifcJSON write path) — the interchange the paid tiers unlock
 _OPENBIM_EXPORTS = ["ifc", "ifcx", "rvt"]
 TIER_FEATURES: dict[str, dict[str, Any]] = {
@@ -26,8 +43,25 @@ TIER_FEATURES: dict[str, dict[str, Any]] = {
     "home": {"exports": list(_BASE_EXPORTS), "api_access": False, "sso": False, "navisworks": False},
     "commercial": {"exports": _BASE_EXPORTS + _OPENBIM_EXPORTS, "api_access": True, "sso": False,
                    "navisworks": False},
-    "enterprise": {"exports": _BASE_EXPORTS + _OPENBIM_EXPORTS + ["nwd"], "api_access": True,
+    "enterprise": {"exports": _BASE_EXPORTS + _OPENBIM_EXPORTS, "api_access": True,
                    "sso": True, "navisworks": True},
+}
+
+#: Where each declared export is actually delivered — an API route path, or CLIENT_DELIVERED when the
+#: browser produces it. `services/api/test_export_promises.py` asserts every format in TIER_FEATURES has
+#: an entry here AND that every route named resolves in the live FastAPI app, so a format cannot be sold
+#: without something serving it. Checked against the app's own route table rather than against this
+#: dict, which is the only way the check can fail.
+CLIENT_DELIVERED = "client"
+EXPORT_DELIVERY: dict[str, str] = {
+    "png": CLIENT_DELIVERED,                              # viewer canvas capture (apps/web viewer)
+    "pdf": "/projects/{pid}/drawings/sheet.pdf",
+    "dxf": "/projects/{pid}/drawings/sheet.dxf",
+    "gltf": "/projects/{pid}/model/export.gltf",
+    "glb": "/projects/{pid}/model/export.glb",
+    "ifc": "/projects/{pid}/model/export.ifc",
+    "ifcx": "/projects/{pid}/model/export.ifcx",
+    "rvt": "/convert",                                    # via the APS bridge, feature-flagged
 }
 
 

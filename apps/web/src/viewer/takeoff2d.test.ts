@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -25,7 +25,18 @@ import { describe, expect, it } from "vitest";
 // `file:` scheme, so `fileURLToPath` throws there while working fine under a node-environment run.
 const WEB = process.cwd();
 const SRC = readFileSync(resolve(WEB, "src/viewer/takeoff2d.ts"), "utf8");
-const CLIENT = readFileSync(resolve(WEB, "src/api/client.ts"), "utf8");
+/** The whole `src/api` surface, not `client.ts` alone.
+ *
+ *  SCALE-SEAM keeps moving methods out of `client.ts` into domain mixins — `takeoff2d` went to
+ *  `api/estimate.ts` and its wire types to `api/types.ts` in v0.3.1119 — and a test pinned to one
+ *  filename goes red on the extraction rather than on the behaviour it guards. The property here is
+ *  "the client declares this", which is a fact about the API surface, not about which file holds it. */
+function apiSurface(): string {
+  const dir = resolve(__dirname, "..", "api");
+  return readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+    .map((f) => readFileSync(resolve(dir, f), "utf8")).join("\n");
+}
+const CLIENT = apiSurface();
 
 describe("R34-SHEET-SCALE — scale is stamped at trace time", () => {
   it("has exactly one site that appends to `regions`, so no path can skip the stamp", () => {

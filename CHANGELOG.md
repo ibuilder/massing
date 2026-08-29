@@ -4,6 +4,72 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1119 (2026-08-29) — the three that were left: a sold format nothing could produce
+
+The three items v0.3.1118 deliberately left for a product decision. All three turned out to have a
+defensible answer in the code, and **checking each premise changed two of them again.**
+
+### ① `nwd` was not the only thing sold and unbuilt — `obj` was too
+
+The finding said the `navisworks` entitlement and `nwd` export were advertised and unimplemented. It
+was right about `nwd` and **wrong about `navisworks`**, and it missed a second format. Checking every
+declared export for a delivery path rather than trusting the single grep that produced the finding:
+
+| format | tier | delivered by |
+|---|---|---|
+| `nwd` | Enterprise | **nothing — and nothing can.** Delisted. |
+| `obj` | Home | **nothing.** `viewer/referenceLoader.ts` *reads* `.obj`; import is not export. Delisted. |
+| `png` | Home | the viewer's canvas capture — client-side, which is why it stays |
+
+`nwd` is not a gap to close. `routers/convert.py` already states the position for its siblings:
+*".rvt/.dwg/.nwc are closed Autodesk formats with NO open-source reader"*. Writing one offline is not
+possible without the paid APS/ODA SDK, and this project's own rule is that such bridges are optional
+and flagged, never bare tier features. Selling it as an Enterprise differentiator was the error.
+
+**`navisworks`, by contrast, is real and was simply never enforced** — native Navisworks clash-report
+XML import (`smart:` namespace), tabular clash reports, BCF round-trip. Exactly the `sso` defect from
+one release earlier: an entitlement the Settings panel renders and no code consults. Now gated on the
+native XML route. The tabular sibling stays open deliberately: it reads Solibri and any spreadsheet,
+so it is not the Navisworks capability the table sells, and gating it would refuse Solibri users a
+plan they do not need.
+
+`services/api/test_export_promises.py` resolves every sold format against the **live FastAPI path
+list**, not against the registry that declares it — the tautology cut from `test_r37_contract.py` a
+release earlier, avoided this time by construction. Mutation-tested 3/3.
+
+*The delisting also went red on two assertions written one release earlier* — `test_licensing.py` and
+`test_r37_contract.py` both pinned `nwd` to Enterprise, because when they were written that was true.
+They now assert the delisting instead, in that direction rather than deleted, so re-adding the format
+has to confront the line. The vacuity floor in the 402-message loop moved 9 → 8 for the same reason:
+it guards against an empty population, and the population legitimately shrank.
+
+### ② `pdf_sanity` is a pre-ingest gate because it now runs at ingest
+
+Its docstring called it *"a fast pre-ingest gate"* with no runtime caller anywhere — a role asserted
+in prose and held by nothing, the same shape as `pid_lock.cross_process_status` in v0.3.1115. Wired
+into `routers/drawings._read_pdf`, the single chokepoint `info`/`merge`/`split`/`extract`/`rotate` all
+read through, which was hand-rolling `data[:4] != b"%PDF"` — a weaker second copy of a check that
+already existed properly, the duplicated-derivation shape behind most of this phase's findings.
+
+Two things follow that were not the point but matter more than it: these routes read whole uploads
+into memory and hand them to pypdf with **no size cap at all** (now 50 MB), and embedded active
+content — JavaScript, Launch, OpenAction, EmbeddedFile — is now reported, since pypdf carries it into
+whatever the route hands back. Reported, **not refused**: plenty of legitimate CAD-exported drawings
+carry an OpenAction, and refusing those would break real workflows to no security benefit.
+
+### ③ A capability nobody can reach is indistinguishable from one that was never built
+
+`/projects/{pid}/mep/size` had no caller in `apps/web` at all, and `client.ts::takeoff2d` never sent
+`layout`. So wiring `block_cooling` into the route in v0.3.1116 made it *callable* and not
+*reachable* — the product gap survived the fix meant to close it.
+
+Now: `sheetRegions` (the producer for the `layout` the takeoff consumes — the same one-way asymmetry,
+found again), `mepSize`, an opt-in "scope to sheet" control in the 2D takeoff, and a first-pass MEP
+sizing calculator in the MEP tools. The takeoff reports its shortfall rather than a bare total —
+`unscoped` / `ambiguous` / `unknown` are three different reasons a number would be wrong, and only
+`scoped` traces may be priced. `apps/web/src/api/unreachableRoutes.test.ts` asserts the whole chain
+from UI entry point to request, because a client method nothing calls is the same defect one layer up.
+
 ## v0.3.1118 (2026-08-28) — R37 CONTRACT: an empty dict scored 100% provenance coverage
 
 The last two R37 findings, and they turned out to be one defect in two places: **a contract
