@@ -3,8 +3,15 @@
 Several lanes ship to main at once and nothing stopped one of them re-adding a method that another
 lane had just extracted. `test_file_sizes.py` covers half of this already, and nobody had labelled it
 as such: its `PER_FILE` ceilings mean a decomposed file cannot grow *back* past its pin. That is a
-real delete ratchet and it is live — `client.ts` is pinned at 3,780 after the design-options
-extraction, mutation-checked.
+real delete ratchet and it is live — `client.ts` carries one, mutation-checked.
+
+**No number here on purpose.** This line said "pinned at 3,780 after the design-options extraction"
+until 2026-08-29, by which point the pin was 2,837 — 943 lines stale, because SCALE-SEAM moved it
+twenty-odd times and nothing required a sentence in a neighbouring file to follow. That is the same
+drift the `MAX_SLACK` note in `services/api/test_file_sizes.py` was added to catch one class of, and
+a citation that copies a value can only ever be right on the day it is written. Read the live pin
+from `PER_FILE` in that file; what matters here is that the mechanism exists, not what it currently
+reads.
 
 **A size ceiling cannot see the failure that actually happens here.** Re-adding one method to
 `client.ts` while the mixin still defines it costs a handful of lines, passes the pin comfortably, and

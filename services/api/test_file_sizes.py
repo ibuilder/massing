@@ -39,8 +39,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 #: Hand-written source we own. A file over this is a file nobody can review in one sitting.
 CEILING = 5_200
 
-#: Per-file ceilings for the files SCALE-SEAM is actively splitting. **Only ever revised DOWN** —
-#: and since 2026-08-29 that sentence is a check rather than a promise; see MAX_SLACK below.
+#: Per-file ceilings for the files SCALE-SEAM is actively splitting. **Only ever revised DOWN.**
+#: That remains a rule for a reader, not an assertion — down-only is a claim about history and this
+#: file measures a working tree. MAX_SLACK below covers the half that CAN be measured, and its own
+#: comment is explicit about which half that is.
 #:
 #: WHY THIS EXISTS, and it is a correction to how the ratchet was understood. `CEILING` above is a
 #: single GLOBAL number, so it is pinned by whichever file is worst — today `viewer/app.ts` at 5,106
@@ -222,6 +224,31 @@ check(
 #: is here to catch: tight enough to fail on the real event, loose enough that nobody has to re-pin
 #: for a one-line deletion. Deleting more than that from a ratcheted file and lowering its pin in
 #: the same commit is not an obstacle — it is the discipline this whole map exists to impose.
+#:
+#: **WHAT THIS DOES NOT DO, stated because the first draft of this comment claimed otherwise.** It
+#: does *not* enforce "only ever revised DOWN" — it enforces "a pin must not sit far above its
+#: file", and those are different assertions. A commit that raises a pin AND grows the file to match
+#: passes both checks with slack 0; so would the very incident above, if the same stale copy had
+#: carried `app.ts` back to 2,865 lines alongside the pin. Down-only is a claim about HISTORY and
+#: cannot be decided from the working tree, which is the price of needing no base ref. What is left
+#: uncovered is the case the docstring above already routes to review — "raising an entry is a
+#: deliberate act that should be argued for in the commit message" — and a deliberate raise is
+#: exactly what a reader can see in a diff. The silent case, a pin moving up under a file that did
+#: not, is the one a reader cannot see, and it is the one now covered. *A gate whose scope is
+#: narrower than its claim* is a defect this file names one screen up; the fix is the honest label,
+#: not a wider promise.
+#:
+#: **KNOWN FALSE POSITIVE: two concurrent extractions from the same pinned file, merged.** Each
+#: branch measures a tree containing only its own cut, so each pin is correct on its branch and
+#: neither describes the union — the merged file sits below the surviving pin by the other branch's
+#: delta, and this check reds `main` on a merge where no individual change was wrong. That is the
+#: mirror image of the case the `client.ts` entry already records, where the five-way seam merge
+#: (#316-#320) had to go UP by one post-merge for the same reason, and it is the accepted
+#: `strict: false` race in `docs/roadmap-directions.md` wearing a different hat. Left as a failure
+#: rather than tuned away: the bound cannot separate it from a single reverted slice (both are
+#: 59-127 lines here), the merged pin genuinely IS wrong until someone fixes it, and the message
+#: below names the exact number to write. Lower the pin to the merged measurement; do not raise
+#: MAX_SLACK, which would spend the whole gate to avoid a one-line correction.
 MAX_SLACK = 25
 slack = [(rel, measured[rel], cap) for rel, cap in PER_FILE.items()
          if rel in measured and cap - measured[rel] > MAX_SLACK]

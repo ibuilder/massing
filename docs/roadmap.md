@@ -1865,11 +1865,21 @@ refusal (`services/api/src/aec_api/main.py`), and full-history checkout for the 
   **What found it was this row's own instruction** — the prioritised-view cell says to re-derive
   `wc -l apps/web/src/viewer/app.ts` against the pin before quoting either, and the two numbers
   disagreed by 295. Restored to 2_570 (the file's exact size; ⑯ set 2_571 against a file that already
-  measured 2,570), and the prose rule *"only ever revised DOWN"* is now `MAX_SLACK` in
-  `services/api/test_file_sizes.py` — a pin more than 25 lines above its file fails the build.
-  Mutation-checked at the boundary (25 passes, 26 fails) and against the real event (2_865 fails,
-  naming the file and the 295). **A ratchet that can be silently unwound is a rearrangement one commit
-  later**, which is the same sentence that file already carried about extractions without ratchets.
+  measured 2,570), and `MAX_SLACK` in `services/api/test_file_sizes.py` now fails the build on a pin
+  more than 25 lines above its file. Mutation-checked at the boundary (25 passes, 26 fails) and
+  against the real event (2_865 fails, naming the file and the 295). **A ratchet that can be silently
+  unwound is a rearrangement one commit later**, which is the same sentence that file already carried
+  about extractions without ratchets.
+
+  **The first draft of this paragraph said that gate makes the prose rule *"only ever revised DOWN"*
+  a check. It does not, and the overclaim is the more useful half of the record.** MAX_SLACK asserts
+  *a pin must not sit far above its file* — a raise that grows the file to match passes with slack 0,
+  and so would this very incident if the stale copy had carried `app.ts` back to 2,865 lines too.
+  Down-only is a claim about **history** and cannot be decided from a working tree, which is the price
+  of a check that needs no base ref. *A gate whose scope is narrower than its claim* is a defect
+  `services/api/test_file_sizes.py` names in its own header, and writing one into the entry announcing
+  the fix is how the shape survives — the residual, and a known merge-time false positive, are both
+  stated next to the constant rather than here.
 
   **⑦ is the one that proved the accessor rule, which ①–⑥ only prepared for.** `exportsSection.ts`
   says outright that it "touches neither" mutable capture and that its deps type is *shaped so the
