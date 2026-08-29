@@ -22,6 +22,29 @@ with TestClient(app) as c:
            json={"data": {"description": "Rebar delivery", "amount": 25000, "cost_code": "03-2000",
                           "vendor": "Steel Co", "date": "2024-01-20"}})
 
+    # --- a REJECTED invoice is not a payable, and must reach neither export -------------------
+    # `journal()` is the single choke point for the journal route, journal-entries, trial-balance,
+    # gl.csv and bills.iif. It read every sub_invoice and put the state in `status` for display
+    # while posting the line regardless — so a rejected invoice was booked debit 5000 / credit 2000
+    # and came out inside BOTH downloadable exports. Rejecting an invoice is the act of refusing to
+    # owe it; carrying it into the ledger reverses that where a bookkeeper will not re-read it.
+    _rej = c.post(f"/projects/{pid}/modules/sub_invoice",
+                  json={"data": {"vendor": "Disputed Sub", "amount": 250000, "cost_code": "03-3000",
+                                 "invoice_date": "2024-01-18", "period": "Jan"}}).json()["id"]
+    _t = c.post(f"/projects/{pid}/modules/sub_invoice/{_rej}/transition", json={"action": "reject"})
+    assert _t.status_code == 200, _t.text[:160]
+    _j = c.get(f"/projects/{pid}/accounting/journal").json()
+    assert _j["count"] == 2 and _j["total"] == 125000, ("a rejected invoice was posted", _j)
+    assert "250000" not in c.get(f"/projects/{pid}/accounting/gl.csv").text, "rejected invoice in GL CSV"
+    assert "250000" not in c.get(f"/projects/{pid}/accounting/bills.iif").text, "rejected invoice in IIF"
+    # ...and the still-live stages ARE posted: only the explicit refusal is refused
+    _sub = c.post(f"/projects/{pid}/modules/sub_invoice",
+                  json={"data": {"vendor": "Pending Sub", "amount": 7000, "cost_code": "03-3000",
+                                 "invoice_date": "2024-01-19", "period": "Jan"}}).json()["id"]
+    assert c.get(f"/projects/{pid}/accounting/journal").json()["total"] == 132000, "submitted must post"
+    c.post(f"/projects/{pid}/modules/sub_invoice/{_sub}/transition", json={"action": "reject"})
+    assert c.get(f"/projects/{pid}/accounting/journal").json()["total"] == 125000, "reject must un-post"
+
     j = c.get(f"/projects/{pid}/accounting/journal").json()
     assert j["count"] == 2 and j["total"] == 125000, j
 

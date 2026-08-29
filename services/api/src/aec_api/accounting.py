@@ -56,6 +56,21 @@ def journal(db: Session, project_id: str) -> list[dict]:
     """Flatten AP bills (sub_invoice) + posted costs (direct_cost) into GL lines."""
     entries: list[dict] = []
     for r in (me.list_records(db, "sub_invoice", project_id, limit=100_000) if "sub_invoice" in me.TABLES else []):
+        # A REJECTED INVOICE IS NOT A PAYABLE. This function is the single choke point for five
+        # consumers — the journal route, `journal_entries`, `trial_balance`, `gl.csv` and
+        # **`bills.iif`**, the QuickBooks import format — and it read every sub_invoice, putting the
+        # state in `status` for display while posting the line regardless.
+        #
+        # Measured before the fix: a rejected $250,000 invoice appeared as a `bill` in the journal,
+        # was posted debit 5000 / credit 2000 (cost and accounts payable), and came out inside BOTH
+        # downloadable exports. Rejecting an invoice is the act of refusing to owe it; carrying it
+        # into the ledger reverses that decision in the one place a bookkeeper will not re-read it.
+        #
+        # `submitted` and `approved` are NOT filtered: both are live stages of a real payable, and
+        # `paid` is history that belongs in the ledger. Only the explicit refusal is refused — the
+        # same line `margin` draws for this record type and `comp_tier` draws for comparables.
+        if r.get("workflow_state") == "rejected":
+            continue
         d = r.get("data", {})
         amt = _num(d.get("amount"))
         if amt == 0:
