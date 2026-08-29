@@ -256,6 +256,16 @@ describe("the public Pages site does not send visitors after things that were de
  *
  * Derived from `module.json` on disk, never written down here, for the reason in the header comment:
  * an expectation stated twice agrees with itself while both halves drift.
+ *
+ * **Widened 2026-08-29 to the hyphenated and singular forms, because the README was wrong in
+ * exactly the shape this could not see.** It read "a **near-100-module** GC portal" against a real
+ * 139 -- an understatement of forty, sitting eleven lines above a correct "139 modules / 37
+ * sections" in the same file. The old pattern required a SPACE and the PLURAL, so `100-module`
+ * matched nothing and drifted freely while the number one screen down was gated.
+ *
+ * That is this block's own docstring arriving about this block: *a gate's scope is part of its
+ * claim.* It was written after four docs drifted for four releases, and the fix it shipped left a
+ * spelling of the same fact outside the population -- two counts of one thing, one of them checked.
  */
 describe("the docs describe the module engine that exists", () => {
   const MODULES = globSync("services/api/modules/*/module.json", { cwd: REPO })
@@ -277,7 +287,7 @@ describe("the docs describe the module engine that exists", () => {
 
   it("no doc states a module or register count that is not the real one", () => {
     for (const [name, text] of COUNTED) {
-      for (const m of text.matchAll(/\b(\d{2,4}) (modules|registers)\b/g)) {
+      for (const m of text.matchAll(/\b(\d{2,4})[- ](modules?|registers?)\b/g)) {
         expect(Number(m[1]), `${name} says "${m[0]}" — there are ${MODULES.length}`)
           .toBe(MODULES.length);
       }
@@ -286,7 +296,7 @@ describe("the docs describe the module engine that exists", () => {
 
   it("no doc states a section count that is not the real one", () => {
     for (const [name, text] of COUNTED) {
-      for (const m of text.matchAll(/\b(\d{1,3}) sections\b/g)) {
+      for (const m of text.matchAll(/\b(\d{1,3})[- ](sections?)\b/g)) {
         expect(Number(m[1]), `${name} says "${m[0]}" — there are ${SECTIONS.size}`)
           .toBe(SECTIONS.size);
       }

@@ -15,7 +15,7 @@
 > MEP, **generate a permit-ready construction-document set** (plans, sections, elevations, schedules →
 > SVG/PDF/DXF, issuable ARCH-D sheets, a 3-part MasterFormat spec manual), **pre-check code** (IBC
 > occupancy/egress, jurisdiction-adopted editions, an approvability pre-flight), and **hand over
-> field-verified as-built data** (LOD-500 + manufacturer/serial, COBie-ready). Plus a **near-100-module GC
+> field-verified as-built data** (LOD-500 + manufacturer/serial, COBie-ready). Plus a **139-module GC
 > portal** (RFIs, pay apps, CPM schedule, TRIR) and a **development proforma** — **one model, from land
 > acquisition through operations.** Generate a building from a zoning envelope, or model it by hand; then
 > coordinate, schedule, underwrite & operate it. Built on **That Open + IfcOpenShell**. **$0 to run.**
