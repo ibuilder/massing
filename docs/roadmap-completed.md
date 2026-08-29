@@ -8079,3 +8079,38 @@ Header still read *"◧ … measured 2026-08-27, NOT yet read"*. The body's own 
     and a first-pass sizing calculator. `apps/web/src/api/unreachableRoutes.test.ts` asserts the chain
     from UI entry point to request, since a client method nothing calls is the same defect one layer up.
 
+---
+
+## ✅ ASSET-RIGHTS — a `.mass` you can prove is authentic, without a chain *(2026-08-29, #377)*
+
+Steps 1–3 of the sequencing in `docs/internal/asset-rights-nft-design.md`, which ordered the work
+**chain-independent value first, so nothing is wasted if the chain question is answered "no"** — and
+then stopped at 3 deliberately rather than carrying on into the part that needs decisions.
+
+* **Stable asset identity across a round-trip.** Import mints a fresh project id, so provenance had
+  nothing to bind to; an `asset_id` now survives export/import (Alembic revision
+  `f4b8c2d51e93`).
+* **An opt-in release manifest**, `asset_rights.json`, that **cites the container's existing
+  deterministic digest instead of building a second one** — the study's mismatch ②, and the reason a
+  `massCoreHash` was not written. It excludes `model.frag` (mismatch ④): derived, regenerable
+  geometry has no business in a release identity.
+* **Ed25519 sign + verify** (`services/api/src/aec_api/asset_rights.py`), with
+  `services/api/test_asset_rights.py` covering it.
+* **Opt-in at creation, not bolted on**, because a manifest attests to the bytes of one particular
+  export. A container saved without it is byte-for-byte what the format has always produced, there is
+  **no format-version bump**, and a v2 reader ignores the field — both directions tested.
+
+**Two gate findings came out of the merge and are worth keeping**, because both were the gates being
+right rather than the feature being wrong. `/asset-rights` was a new top-level prefix in neither
+`_PROTECTED_PREFIXES` nor the frozen sets — classified read-only, and deliberately **not**
+`require_role`, because that dependency resolves its pid from the path *or the query string*, so on a
+`{pid}`-less route the caller supplies their own. And `test_route_reachability` reported a frozen
+route had "become called" when the branch added the UI phrase *"the issuer's public key"*: the route's
+leaf is `public`, so ordinary English vouched for it. Fixed in the copy, **not** by deleting the
+frozen entry — deleting would un-freeze a genuinely uncalled route. Sharpening the matcher was
+measured (81 -> 124 frozen, 43 newly unreachable) and rejected, for the second time in this file's
+history.
+
+**Explicitly not done:** no contract deployed, no funds spent, no mainnet configuration, no new
+dependency. Steps 4 and 5 are open and gated on the user — see "Decisions, not effort" in
+[roadmap.md](roadmap.md).

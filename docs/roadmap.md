@@ -860,6 +860,26 @@ that rotted were all sentences no test read. Note for whoever extends it — the
 
 ### Decisions, not effort — these want your call
 
+- **Asset-rights stopped at signing, on purpose, and going further is your call — not effort.**
+  Shipped 2026-08-29: a stable asset identity that survives a `.mass` round-trip, an opt-in release
+  manifest citing the container's existing digest rather than re-implementing it, and Ed25519 sign +
+  verify. That is authenticity, provenance and tamper-evidence with **no chain, no wallet, no new
+  dependency and no legal gate** — steps 1–3 of the sequencing in
+  [`docs/internal/asset-rights-nft-design.md`](internal/asset-rights-nft-design.md), which says
+  *"Stopped here, as planned."*
+
+  Steps 4 (provider abstraction + mock, still no chain) and 5 (contract, testnet, wallet proof) are
+  **Not built**, and they are blocked on five questions that study explicitly refuses to pre-empt.
+  Three matter most: whether this repo's prior *"token-last, integrate-don't-build"* decision governs
+  provenance at all; whether the goal is **transferability** specifically, given `ShareToken` already
+  delivers revocable scoped entitlement and the shipped signature already proves a release is
+  authentic and unaltered; and whether **Solidity belongs in this repository** — there is no
+  contract toolchain here and CI runs none, so Hardhat/Foundry plus contract tests is a separate
+  infrastructure commitment, not a feature increment.
+
+  Recorded here because the shipped half reads as a finished feature, and a reader would have no
+  reason to look in an internal design note for the half that is waiting on them.
+
 - ~~**CC0-1.0 on the permitted licence list.**~~ — **settled 2026-08-19 (v0.3.987): add it.** The
   Python classifier already accepted CC0-1.0 from 2026-08-10 (gated by `test_licence_allowlist.py`);
   the *written* non-negotiable and this open-decision bullet had not followed. Operator confirmed.
