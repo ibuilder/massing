@@ -115,6 +115,33 @@ with TestClient(app) as c:
                                     ("files", ("b.txt", b"not a pdf", "application/pdf"))])
     check(r.status_code == 422, f"/pdf/merge must refuse a non-PDF member: {r.status_code}")
 
+    # --- a merge is bounded by the SET, not only by each member --------------------------------
+    # `_read_pdf`'s per-file cap is one a merge multiplies: N files each just under it are N
+    # acceptances, and every byte is held at once for pypdf. `MaxBodySizeMiddleware` bounds the whole
+    # request, but its own docstring records the half it does not close — "it does not stop a handler
+    # materialising the body it did receive". Raised in review on #374.
+    one = minimal_pdf()
+    too_many = [("files", (f"{i}.pdf", one, "application/pdf")) for i in range(60)]
+    r = c.post("/pdf/merge", files=too_many)
+    check(r.status_code == 422, f"a 60-file merge must be refused by count: {r.status_code}")
+    check("at most" in r.text, r.text)
+    # ...and two files that each pass individually can still exceed the set's budget.
+    fat = one + b"%" + b"\0" * (150 * 1024 * 1024 // 1)
+    check(len(fat) < 50 * 1024 * 1024 * 4, "fixture sanity")
+    r = c.post("/pdf/merge", files=[("files", ("a.pdf", fat[:40 * 1024 * 1024], "application/pdf")),
+                                    ("files", ("b.pdf", fat[:40 * 1024 * 1024], "application/pdf")),
+                                    ("files", ("c.pdf", fat[:40 * 1024 * 1024], "application/pdf")),
+                                    ("files", ("d.pdf", fat[:40 * 1024 * 1024], "application/pdf")),
+                                    ("files", ("e.pdf", fat[:40 * 1024 * 1024], "application/pdf")),
+                                    ("files", ("f.pdf", fat[:40 * 1024 * 1024], "application/pdf"))])
+    check(r.status_code == 413, f"a merge over the total budget must be refused: {r.status_code}")
+    check("in total" in r.text, r.text)
+    del fat
+    # A normal two-file merge still works.
+    r = c.post("/pdf/merge", files=[("files", ("a.pdf", one, "application/pdf")),
+                                    ("files", ("b.pdf", one, "application/pdf"))])
+    check(r.status_code == 200, f"an ordinary merge must still succeed: {r.status_code}")
+
     # --- a missing %%EOF trailer is NOT a refusal, and that is measured, not assumed -------------
     # `pdf_sanity` looks for `%%EOF` in the last 1024 bytes, so appended data — incremental updates,
     # an embedded signature, scanner padding — trips the flag on a valid file. Review asked for a 422

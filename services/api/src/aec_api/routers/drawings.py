@@ -367,6 +367,12 @@ def generate_drawing_set(pid: str, body: dict = Body(default={}),
 #: cap at all before `supply_chain.pdf_sanity` was wired in here.
 _PDF_MAX_MB = 50
 
+#: A merge holds every input in memory at once, so it needs a bound on the SET, not just on each
+#: member. Both are deliberately well under the global body cap: reaching either means the request
+#: was going to be refused anyway, and refusing it here stops the remaining files being read at all.
+_PDF_MERGE_MAX_FILES = 50
+_PDF_MERGE_MAX_MB = 200
+
 
 async def _read_pdf(f: UploadFile) -> bytes:
     """Read an uploaded PDF, refusing one that fails the pre-ingest sanity check.
@@ -432,11 +438,30 @@ async def pdf_info(file: UploadFile = File(...), _: str = Depends(require_identi
 
 @router.post("/pdf/merge")
 async def pdf_merge(files: list[UploadFile] = File(...), _: str = Depends(require_identified)):
-    """Concatenate several uploaded PDFs into one (order = upload order)."""
+    """Concatenate several uploaded PDFs into one (order = upload order).
+
+    Bounded by COUNT and by RUNNING TOTAL, not only per file. `_read_pdf` caps each upload at
+    `_PDF_MAX_MB`, and on its own that is a per-file cap a merge multiplies: twenty files each just
+    under the limit are twenty acceptances. `bodycap.MaxBodySizeMiddleware` already bounds the whole
+    request (measured, not declared, so a chunked upload cannot skip it), which is why this is a
+    smaller hole than it looks — but its own docstring records the half it does not close: *"it does
+    not stop a handler materialising the body it did receive"*. Every byte here is held at once and
+    handed to pypdf, so the merge is where that back half bites hardest. Raised in review on #374.
+    """
     from starlette.concurrency import run_in_threadpool
     if len(files) < 2:
         raise HTTPException(422, "merge needs at least 2 PDFs")
-    datas = [await _read_pdf(f) for f in files]
+    if len(files) > _PDF_MERGE_MAX_FILES:
+        raise HTTPException(422, f"merge takes at most {_PDF_MERGE_MAX_FILES} PDFs at once")
+    datas: list[bytes] = []
+    total = 0
+    for f in files:
+        data = await _read_pdf(f)
+        total += len(data)
+        if total > _PDF_MERGE_MAX_MB * 1024 * 1024:
+            # Refused as soon as the running total passes, so the rest of the set is never read.
+            raise HTTPException(413, f"the PDFs to merge exceed {_PDF_MERGE_MAX_MB} MB in total")
+        datas.append(data)
     out = await run_in_threadpool(pdfops.merge, datas)
     return Response(out, media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="merged.pdf"'})

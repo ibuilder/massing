@@ -69,6 +69,16 @@ content — JavaScript, Launch, OpenAction, EmbeddedFile — is now reported, si
 whatever the route hands back. Reported, **not refused**: plenty of legitimate CAD-exported drawings
 carry an OpenAction, and refusing those would break real workflows to no security benefit.
 
+**A merge is bounded by the SET, not only by each member** — raised in review, and it is the
+multiplication a per-file cap invites: twenty files each just under 50 MB are twenty acceptances, all
+held at once for pypdf. `/pdf/merge` now takes at most 50 files and 200 MB in total, refused as soon
+as the running total passes so the rest are never read. (The review also said merges had *no*
+aggregate limit; that part is wrong — `bodycap.MaxBodySizeMiddleware` bounds the whole request body,
+counting bytes as they arrive rather than trusting `Content-Length`. What is genuinely open is the
+half that middleware's own docstring names: *"it does not stop a handler materialising the body it
+did receive"* — pre-existing across 36+ `await file.read()` sites and tracked as the back half of
+R39-UPLOAD-CAP-APP, not this release's to close route by route.)
+
 The `no %%EOF trailer` flag is deliberately not a refusal either, and now says so in the code —
 review asked for a 422 there, and measurement declined it: `pdf_sanity` looks for `%%EOF` in the last
 1024 bytes, so a PDF with 2 KB appended (an incremental update, an embedded signature) trips the flag
