@@ -156,12 +156,29 @@ def compute_appraisal(db: Session, pid: str, overrides: dict | None = None) -> d
     Sales comps come from the project's `comparable` module records."""
     from . import modules as me
     inp = appraisal_inputs(db, pid, overrides)
-    comps = [r.get("data") or {} for r in (me.list_records(db, "comparable", pid, limit=1000)
-                                           if "comparable" in me.TABLES else [])]
+    # AN EXCLUDED COMPARABLE HAS BEEN EXCLUDED — the same rule `comp_tier` and the underwriting
+    # guardrails in `routers/proforma` already apply, and this was the third reader that did not.
+    # The `comparable` workflow's transition into `excluded` is the action `exclude` (with
+    # `reinstate` to undo), so the state is the appraiser's stated decision, not metadata.
+    #
+    # It reached the appraised value. Measured: two comps at 300 and 310 plus one marked EXCLUDED at
+    # 900 left the median at 310 and the reconciled value at $3,100,000, unchanged by the exclusion;
+    # the answer is 305 and $3,050,000. The old line took `r["data"]` and dropped `workflow_state`
+    # before anything downstream could see it, so no later filter was possible.
+    #
+    # `recorded` is NOT filtered: it is the initial state and an unverified comp is still a comp.
+    # Only `excluded` is an explicit removal.
+    _all = me.list_records(db, "comparable", pid, limit=1000) if "comparable" in me.TABLES else []
+    comps = [r.get("data") or {} for r in _all if r.get("workflow_state") != "excluded"]
+    _excluded = [{"id": r.get("id"), "ref": r.get("ref"), "reason": "excluded by the appraiser"}
+                 for r in _all if r.get("workflow_state") == "excluded"]
     cost = appraisal.cost_approach(inp["replacement_cost_new"], inp["land_value"], inp["depreciation_pct"])
     income = appraisal.income_approach(inp["stabilized_noi"], inp["cap_rate"])
     sales = appraisal.sales_comparison(inp["subject_sqft"], comps, inp.get("subject_units"))
     weights = (overrides or {}).get("weights")
     rec = appraisal.reconcile({"cost": cost, "income": income, "sales_comparison": sales}, weights)
     return {"inputs": inp, "cost": cost, "income": income, "sales_comparison": sales,
-            "reconciliation": rec, "comp_count": len(comps)}
+            "reconciliation": rec, "comp_count": len(comps),
+            # NAMED, not silently dropped: a valuation whose sample shrank without saying so reads
+            # as a thinner market rather than as a decision somebody made.
+            "excluded_comparables": _excluded}

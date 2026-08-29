@@ -10,8 +10,9 @@ for _f in ("./test_marketing.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from fastapi.testclient import TestClient   # noqa: E402
-from aec_api.main import app                # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 ASSUMPTIONS = {
     "timing": {"construction_months": 18, "leaseup_months": 6, "hold_years": 7, "start_date": "2026-01-01"},
@@ -72,6 +73,31 @@ with TestClient(app) as c:
     # sales comparison used 2 comps at ~$300/SF × 60k SF
     assert ap["sales_comparison"]["comp_count"] == 2, ap["sales_comparison"]
     assert ap["reconciliation"]["value"] > 0 and len(ap["reconciliation"]["contributions"]) == 3, ap["reconciliation"]
+
+    # --- an EXCLUDED comparable must not value the property ----------------------
+    # Third reader of a rule `comp_tier` and the underwriting guardrails already applied. The
+    # appraisal read every `comparable` record and took `r["data"]`, dropping `workflow_state`
+    # before anything downstream could filter on it — so a comp the appraiser had thrown out still
+    # set the median, and therefore the reconciled value of the property.
+    _out = c.post(f"/projects/{pid}/modules/comparable",
+                  json={"data": {"address": "Outlier Ave", "asset_type": "Multifamily",
+                                 "price_psf": 900, "cap_rate": 3.0, "price": 900 * 60_000}}).json()["id"]
+    _with = c.get(f"/projects/{pid}/appraisal").json()
+    c.post(f"/projects/{pid}/modules/comparable/{_out}/transition", json={"action": "exclude"})
+    _after = c.get(f"/projects/{pid}/appraisal").json()
+    assert (_with["comp_count"], _after["comp_count"]) == (3, 2), (_with["comp_count"], _after["comp_count"])
+    assert _after["sales_comparison"]["median_price_psf"] < _with["sales_comparison"]["median_price_psf"], (
+        _with["sales_comparison"], _after["sales_comparison"])
+    assert _after["reconciliation"]["value"] < _with["reconciliation"]["value"], (
+        _with["reconciliation"]["value"], _after["reconciliation"]["value"])
+    # NAMED, not silently dropped — a sample that shrank without saying so reads as a thinner market
+    assert [e["id"] for e in _after["excluded_comparables"]] == [_out], _after["excluded_comparables"]
+    assert _with["excluded_comparables"] == [], _with["excluded_comparables"]
+    # `reinstate` puts it back, so the filter reads the state rather than the record being gone
+    c.post(f"/projects/{pid}/modules/comparable/{_out}/transition", json={"action": "reinstate"})
+    assert c.get(f"/projects/{pid}/appraisal").json()["comp_count"] == 3
+    # ...and leave the fixture as the rest of this file expects it
+    c.post(f"/projects/{pid}/modules/comparable/{_out}/transition", json={"action": "exclude"})
 
     # --- save overrides (heavier income weight) persists + changes the result --
     base_val = ap["reconciliation"]["value"]
