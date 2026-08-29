@@ -315,12 +315,30 @@ check("the generated type files are on disk, so this comparison is measuring som
       len(_gen_present) == len(_GENERATED),
       f"missing: {[p for p in _GENERATED if not os.path.exists(p)]}")
 
-_gen_blob = "\n".join(open(p, encoding="utf-8", errors="replace").read() for p in _gen_present)
-check("  generated types are EXCLUDED from the web source the rule reads",
-      _gen_blob and _gen_blob[:2000] not in BLOB,
-      "a generated file is inside the blob — the exclusion in _web_source() is not taking effect")
+#: PER FILE, not over the concatenation. The first version of this check tested `_gen_blob[:2000]`
+#: — the prefix of the two files joined — which is the prefix of `schema.d.ts` alone. If
+#: `openapiTypes.ts` stopped being excluded while `schema.d.ts` stayed out, the assertion still
+#: passed, because the file that regressed was never inside the window being tested. Caught in
+#: review; recorded because it is the same defect this whole block exists to fix, one level down: a
+#: check whose SCOPE is narrower than its CLAIM.
+_gen_contents = {p: open(p, encoding="utf-8", errors="replace").read() for p in _gen_present}
+_leaked = [os.path.basename(p) for p, text in _gen_contents.items() if text[:2000] in BLOB]
+check("  generated types are EXCLUDED from the web source the rule reads — each file checked alone",
+      _gen_contents and not _leaked,
+      f"inside the blob: {_leaked} — the exclusion in _web_source() is not taking effect for these")
 
-_with_generated = uncalled_routes(PATHS, BLOB + "\n" + _gen_blob)
+#: THE TWO FILES ARE NOT IN THE SAME POSITION, and the differential below only speaks for one of
+#: them. Measured 2026-08-29, and the numbers decide the shape of this assertion:
+#:
+#:     schema.d.ts      961,864 chars   would hide 28 routes
+#:     openapiTypes.ts    1,777 chars   would hide  0 routes
+#:
+#: So the exclusion's whole value today is `schema.d.ts`; `openapiTypes.ts` names no route at all and
+#: excluding it is PRECAUTIONARY. That is why this is an aggregate check and not a per-file one — a
+#: per-file load-bearing assertion would be **false** for `openapiTypes.ts` and would fail on a
+#: correct tree, which is how a gate gets switched off. The per-file assertion that IS true (absence
+#: from the blob) is the one above, and it is what covers the smaller file.
+_with_generated = uncalled_routes(PATHS, BLOB + "\n" + "\n".join(_gen_contents.values()))
 check("  and the exclusion is LOAD-BEARING: including them would vouch for routes nothing calls",
       len(_with_generated) < len(FOUND),
       f"uncalled {len(FOUND)} excluded vs {len(_with_generated)} included — no difference means the "
