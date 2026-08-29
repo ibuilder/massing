@@ -230,6 +230,44 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
+- ◧ **ASSET-VERIFY — a release you can sign and cannot check** *(S — Lane C; measured 2026-08-29,
+  the day the feature merged)*
+
+  `asset_rights.py` ships both halves of a signed release manifest. **Only the sealing half is
+  reachable.** Counted against `services/api/src`, `services/data/src` and `apps/web/src`, excluding
+  the module itself:
+
+  | function | production callers | tests |
+  |---|---|---|
+  | `verify_release` | **0** | 13 |
+  | `verify_signature` | **0** | 6 |
+  | `verify_content_hash` · `verify_manifest_hash` | **0** | 4 |
+  | `public_key_b64` | **0** | 8 |
+  | `generate_seed` | **0** | 4 |
+  | `sign_manifest` · `build_manifest` · `new_asset_id` | 1 each | — |
+
+  **The unreachable half is the half the feature exists for.** A manifest's purpose is that *someone
+  else* can confirm a release is authentic and unaltered; sealing alone gives a file nobody can check.
+  Three things are missing and none is a big build: nothing verifies a manifest, nothing publishes the
+  **public** key a verifier needs — `/asset-rights/status` returns `enabled`, `signing` and `issuer`,
+  and not the key — and nothing exposes `generate_seed`, so an operator has no supported way to mint a
+  signing key at all. The last one means the *signed* path is unreachable from a clean deployment
+  except by generating a key out of band.
+
+  **No gate can see this, and that is the point rather than an aside.**
+  `test_dead_code_population` reports **0 unreferenced** on this exact tree, because it counts the
+  test tree as callers deliberately — the 877 → 13 correction its header describes. So a function with
+  thirteen tests and no product caller is invisible to it *by construction*, which is the whole reason
+  R37-TESTED-UNWIRED existed. **That item closed on 2026-08-28 and this landed on 2026-08-29**: the
+  class does not stay closed, it recurs whenever code lands, and the twenty it found were a snapshot
+  rather than a population. The standing lesson is the one that entry already carried — a module can
+  be reachable and its whole reason for existing still be unreachable.
+
+  Sequencing note: exposing the public key is the cheap, obviously-correct half (it is public by
+  definition — `public_key_b64`'s own docstring says "safe to publish; this is what verifiers need").
+  What a verify endpoint should *take* — an uploaded `.mass`, or a manifest document — is a real API
+  shape question and worth deciding rather than guessing.
+
 #### ✅ R46 — THE SECOND SYNC, ONE DAY LATER *(measured 2026-08-15; **COMPLETE v0.3.967**, re-verified against the gate 2026-08-29)*
 
 > **This heading carried Band 2's ⭐ — "the highest-value item in a band" — while its own
@@ -685,7 +723,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · ASSET-VERIFY *(the verification half of asset-rights has no product caller; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
