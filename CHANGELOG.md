@@ -4,6 +4,63 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1120 (2026-08-29) — the roadmap's ⭐ was pointing at finished work
+
+Asked what to do next, the honest first step was not to read the roadmap's ranking but to **check it**.
+Four of the open markers were stale, including the one the file itself flags as most valuable.
+
+### The sweep
+
+| item | marked | actually |
+|---|---|---|
+| **R46** — Band 2's ⭐, *"the highest-value item in a band"* | open | **done.** `test_vendor_reachable`: 29/29 reachable, 0 unreached, allowlist empty. Its own closing line already read *"R46 IS COMPLETE"* |
+| **R37-TRIAGE** *(M — "do FIRST")* | open | **done.** `test_dead_code_population`: 0 unreferenced, `DELIBERATELY_UNCALLED` empty. The "12 remaining candidates" are gone |
+| **R37-TESTED-UNWIRED** | *"NOT yet read"* | **complete v0.3.1115–1119** — its own body says so, four lines below the header saying it isn't |
+| **QTO-TRADE** | open | **done** — its body: *"ALL THREE ARE NOW WIRED — 2026-08-27"* |
+
+Plus the sprint-proposal row naming R37-TRIAGE's twelve candidates, which is a status line too and had
+gone stale the same way.
+
+**Three of the four had one half of a single entry contradicting the other**, and R46's ⭐ meant the
+file's own priority ranking sent a reader at work that was finished. This roadmap has recorded this
+defect at least six times — *"two whole bands read as open and were entirely finished"*, the five
+stale status lines counted in the SCALE-SEAM ring, *"a pull request is the one staleness clock in this
+file with a real timestamp on it, and nothing consulted it."*
+
+### So it is a gate now, for the items that can have one
+
+`services/api/test_roadmap_status.py` pairs an item code with a predicate that reports whether the
+work is done, and fails when the roadmap still marks it open. The predicates **run the real gates** —
+the same ones a human would consult — so the check cannot drift from what they report.
+
+`roadmapLanes.test.ts` already checked that every open item is in a lane; that is bookkeeping *between
+two lists*, and neither list measures anything. This one measures. Deliberately small: two items
+qualify today, because inventing a predicate for a prose item about a product decision would produce a
+check that is vacuous or wrong — the failure it exists to catch. It carries a **negative control** (a
+genuinely open item whose measurement must still say "open"), so a bug making every predicate return
+False cannot leave it green. Mutation-tested both ways.
+
+### And then the actual work: SCALE-SEAM ㉘
+
+`client.ts` 2,816 → **2,752**, as `apps/web/src/api/accounting.ts` — ten methods, the double-entry
+books and WIP.
+
+**The strongest case yet for grouping by what methods ANSWER**: the group sat in **two non-contiguous
+clusters ~700 lines apart**, with prequal, carbon and land screening between them. No prefix split
+would have found them together, and a route split would separate `journalBatchExportUrl` from the
+batch `createJournalBatch` creates. What they answer together is one question — *what do the books
+say?* `costTraceability` sits immediately above the second cluster and did **not** come: it answers a
+takeoff question that happens to be adjacent. *Adjacency in a file is not a relationship*, met for the
+third time (㉕, ㉗, ㉘).
+
+Two things done in the shipping release rather than the next one, both corrections to how this ring
+has failed before:
+* **`MARKS` widened to ㉙ on the way OUT of ㉘.** The ㉘ note records the vocabulary stopping one short
+  while the bullet was headed with a slice its own next words called shipped — *"a code it cannot
+  spell is a code it cannot contradict."* Widening late is how that happened.
+* **The per-file pin lowered 2,837 → 2,752**, zero headroom. It had been carrying slack nobody
+  recorded: v0.3.1119 took the file to 2,816 *under duress from that very check* and never lowered it.
+
 ## v0.3.1119 (2026-08-29) — the three that were left: a sold format nothing could produce
 
 The three items v0.3.1118 deliberately left for a product decision. All three turned out to have a

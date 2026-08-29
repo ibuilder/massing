@@ -8,6 +8,7 @@ import { withDrawingSheets } from "./drawingSheets";
 import { withElements } from "./elements";
 import { withModels } from "./models";
 import { withDocuments } from "./documents";
+import { withAccounting } from "./accounting";
 import { withMep } from "./mep";
 import { withTopics } from "./topics";
 import { withAi } from "./ai";
@@ -61,7 +62,7 @@ import type {
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
 // domain methods below. Every `api.method()` call site is unchanged by the split.
-export class ApiClient extends withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore))))))))))))))))))))))))))))))))))) {
+export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCodeCheck(withSpecialty(withIds(withEvm(withRisk(withEntitlements(withPrecon(withAi(withTopics(withMep(withDocuments(withModels(withElements(withDrawingSheets(withDrawingSet(withMarkup(withSync(withConnections(withDocQa(withFinance(withContracts(withAuth(withProforma(withDesignOptions(withRoutines(withCost(withProcurement(withEstimate(withModules(withModel(withSchedule(withLibrary(withAuthoring(HttpCore)))))))))))))))))))))))))))))))))))) {
   /** Admin: integration settings (AI / email / SSO). Secret values are never returned. */
   integrations() {
     return this.json<{ groups: IntegrationGroup[] }>("/settings/integrations");
@@ -1801,17 +1802,6 @@ export class ApiClient extends withDealMemory(withPdfTools(withCodeCheck(withSpe
       total_lien_exposure: number; vendors_at_risk: string[]; message?: string | null }>(
       `/projects/${pid}/payapp/lien-exposure`);
   }
-  accountingGlCsvUrl(pid: string) { return this.url(`/projects/${pid}/accounting/gl.csv`); }
-  accountingIifUrl(pid: string) { return this.url(`/projects/${pid}/accounting/bills.iif`); }
-  /** Freeze the current books into an approval-gated journal batch (draft → submit → approve → export). */
-  createJournalBatch(pid: string, period: string, memo = "") {
-    return this.json<{ id: string; ref: string; workflow_state: string; data: Record<string, unknown> }>(
-      `/projects/${pid}/accounting/journal-batch`, { method: "POST", body: JSON.stringify({ period, memo }) });
-  }
-  /** Download URL for an APPROVED batch's frozen GL — fmt "gl" (CSV) or "iif" (QuickBooks). */
-  journalBatchExportUrl(pid: string, batchId: string, fmt: "gl" | "iif" = "gl") {
-    return this.url(`/projects/${pid}/accounting/journal-batch/${batchId}/export?fmt=${fmt}`);
-  }
   projectCarbon(pid: string) {
     return this.json<{ total_kgco2e: number; total_tco2e: number; line_count: number; unmatched: number;
       by_material: Record<string, number>; by_cost_code: Record<string, number>; message?: string | null }>(
@@ -2486,60 +2476,6 @@ export class ApiClient extends withDealMemory(withPdfTools(withCodeCheck(withSpe
       by_cost_code: { cost_code: string; total: number; traceable: number; coverage_pct: number;
         element_count: number; guids: string[] }[];
       note: string }>(`/projects/${pid}/cost/traceability`);
-  }
-  /** Balanced double-entry journal from job cost + billing + the WIP POC adjustment. */
-  journalEntries(pid: string) {
-    return this.json<{ entries: { date: string; ref: string; memo: string; debit_total: number;
-      credit_total: number; lines: { account: string; code: string; debit: number; credit: number }[] }[];
-      debit_total: number; credit_total: number; balanced: boolean; note: string }>(
-      `/projects/${pid}/accounting/journal-entries`);
-  }
-  /** Trial balance — debits and credits per account (must tie). */
-  trialBalance(pid: string) {
-    return this.json<{ accounts: { code: string; account: string; type: string; debit: number;
-      credit: number; balance: number; balance_side: "debit" | "credit" }[];
-      debit_total: number; credit_total: number; balanced: boolean; note: string }>(
-      `/projects/${pid}/accounting/trial-balance`);
-  }
-  /** Contractor statements: POC income statement + contract-position (asset/liability, retainage, AP). */
-  contractorStatements(pid: string) {
-    return this.json<{ contract_value: number; percent_complete: number; backlog: number; note: string;
-      income_statement: { revenue_earned: number; cost_of_revenue: number; gross_profit: number;
-        gross_margin_pct: number; basis: string };
-      contract_position: { contract_asset_underbillings: number; contract_liability_overbillings: number;
-        retainage_receivable: number; accounts_payable: number; net_contract_working_capital: number } }>(
-      `/projects/${pid}/contractor-statements`);
-  }
-  /** WIP schedule: POC → earned vs billed → over/under-billing, retainage, gross profit, backlog.
-   *  `method`: "cost-to-cost" (default) or "units-installed" (physical model progress by GlobalId). */
-  wip(pid: string, method: "cost-to-cost" | "units-installed" = "cost-to-cost") {
-    return this.json<{ contract_value: number; estimated_cost: number; cost_to_date: number;
-      cost_to_complete: number; percent_complete: number; pct_method: string; earned_revenue: number;
-      billed_to_date: number; over_billing: number; under_billing: number;
-      billing_status: "over-billed" | "under-billed" | "even";
-      retainage: number; gross_profit: number; gross_margin_pct: number; profit_to_date: number;
-      backlog: number; note: string;
-      model?: { model_percent_complete: number; cost_percent_complete: number; divergence_pct: number;
-        installed_elements: number; total_elements: number;
-        flag: "cost-ahead" | "physical-ahead" | "aligned"; note: string };
-    }>(`/projects/${pid}/wip?method=${encodeURIComponent(method)}`);
-  }
-  /** Physical % complete from the model: installed elements ÷ total by IFC GlobalId, optionally
-   *  quantity-weighted. The independent "units-installed" signal that cross-checks cost-to-cost POC. */
-  wipModelProgress(pid: string, quantity?: string) {
-    const q = quantity ? `?quantity=${encodeURIComponent(quantity)}` : "";
-    return this.json<{ available: boolean; method?: string; total_elements?: number;
-      installed_elements?: number; percent_complete_count?: number; percent_complete?: number;
-      quantity?: string; elements_with_quantity?: number; total_quantity?: number;
-      installed_quantity?: number; percent_complete_quantity?: number; note: string
-    }>(`/projects/${pid}/wip/model-progress${q}`);
-  }
-  /** Portfolio WIP: one row per project, worst cash position (largest under-billing) first. */
-  wipPortfolio() {
-    return this.json<{ projects: { id: string; name: string; contract_value: number; earned_revenue: number;
-      billed_to_date: number; over_billing: number; under_billing: number; billing_status: string;
-      percent_complete: number; gross_profit: number }[];
-      totals: Record<string, number>; project_count: number; note: string }>(`/wip/portfolio`);
   }
   /** Full GC project budget (GMP): direct + GC/GR + overhead/fee/contingency, each budget vs
    *  committed vs actual vs variance; reconciled to the prime contract + developer proforma. */

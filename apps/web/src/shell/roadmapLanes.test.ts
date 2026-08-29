@@ -65,7 +65,13 @@ const OPEN = LINES.slice(0, GATED_AT === -1 ? LINES.length : GATED_AT);
 // v0.3.1086, and the Lane I cell called ㉗ "the only open slice". Both wrong, and this gate agreed
 // with both, because a code it cannot spell is a code it cannot contradict. *A check and the text it
 // checks, blind in the same place, agree — and the agreement reads as verification.*
-const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘";
+// Widened to ㉙ on 2026-08-29, in the release that SHIPS ㉘ — measured the same way the ㉘
+// widening was, and for the same reason. Widening on the way out of a slice rather than on the
+// way into the next one is the whole correction: the ㉘ note below records the vocabulary
+// stopping one short and this gate agreeing with a bullet that was wrong, because a code it
+// cannot spell is a code it cannot contradict. Doing it late is how that happened; doing it in
+// the shipping release is how it stops happening.
+const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙";
 
 /**
  * One source for the marker vocabulary, because there were **two** and they had already drifted.
