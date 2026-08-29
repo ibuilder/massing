@@ -65,10 +65,6 @@ ENTRY_POINTS = {
 # entry had to be removed or `test_the_known_gap_list_cannot_rot` fails. That is the mechanism doing
 # its job — the list describes the present, not the past.
 KNOWN_UNREACHABLE = {
-    "supply_chain": (
-        "2026-07-27 — SEC-SUPPLY hardening (R16 Tier-3), tested and imported by nothing. Whatever it "
-        "checks is not being checked in the running system."
-    ),
 }
 
 
@@ -264,7 +260,10 @@ print(
     "anyone looked. It found two more on its first run: `money`, decimal-precise currency helpers "
     "with their own suite and zero importers - so the float-drift they exist to prevent is still "
     "present everywhere money is computed - and `supply_chain`, security hardening that nothing "
-    "invokes. Both directions fail: a NEW orphan is the regression this stops, and a declared gap "
+    "invoked. **`supply_chain` was fixed on 2026-08-29 and its entry deleted**, which is this "
+    "check working in the second direction: `pdf_sanity` called itself a pre-ingest gate for a "
+    "month while nothing called it, and wiring it into the PDF upload chokepoint made the module "
+    "reachable and this assertion fail until the stale entry went. Both directions fail: a NEW orphan is the regression this stops, and a declared gap "
     "that becomes reachable ALSO fails, so the list cannot rot into a place where things are "
     "parked and forgotten."
 )

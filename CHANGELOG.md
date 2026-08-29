@@ -4,6 +4,115 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1119 (2026-08-29) — the three that were left: a sold format nothing could produce
+
+The three items v0.3.1118 deliberately left for a product decision. All three turned out to have a
+defensible answer in the code, and **checking each premise changed two of them again.**
+
+### ① `nwd` was not the only thing sold and unbuilt — `obj` was too
+
+The finding said the `navisworks` entitlement and `nwd` export were advertised and unimplemented. It
+was right about `nwd` and **wrong about `navisworks`**, and it missed a second format. Checking every
+declared export for a delivery path rather than trusting the single grep that produced the finding:
+
+| format | tier | delivered by |
+|---|---|---|
+| `nwd` | Enterprise | **nothing — and nothing can.** Delisted. |
+| `obj` | Home | **nothing.** `viewer/referenceLoader.ts` *reads* `.obj`; import is not export. Delisted. |
+| `rvt` | Commercial | **nothing.** Every RVT path is an *import*. Delisted — see below. |
+| `png` | Home | the viewer's canvas capture — client-side, which is why it stays |
+
+**`rvt` is the one I got wrong while fixing the other two, and review caught it.** `POST /convert`
+converts RVT→IFC→`.frag` and its own 503 reads *"Revit (.rvt) **import** needs the Autodesk APS
+bridge"*; `/bridge/rvt/status` reports on that bridge and `/projects/{pid}/import/rvt` is named for
+what it does. Nothing writes an RVT. My `EXPORT_DELIVERY` mapped `rvt` to `/convert` and the gate
+passed — because **the gate asked whether the path EXISTS, not whether it EXPORTS**, and `/convert`
+exists. A delivery path must now end in `.{format}`, which is what an export route looks like here
+(`export.gltf`, `sheet.pdf`, `sheet.dxf`); mutation-tested by restoring the exact `rvt → /convert`
+mapping, which the gate now rejects. *A check whose property is weaker than its claim passes for the
+same reason the bug shipped* — the third instance of that shape in this phase, and the first in a
+gate I wrote to catch it.
+
+`nwd` is not a gap to close. `routers/convert.py` already states the position for its siblings:
+*".rvt/.dwg/.nwc are closed Autodesk formats with NO open-source reader"*. Writing one offline is not
+possible without the paid APS/ODA SDK, and this project's own rule is that such bridges are optional
+and flagged, never bare-tier features. Selling it as an Enterprise differentiator was the error.
+
+**`navisworks`, by contrast, is real and was simply never enforced** — native Navisworks clash-report
+XML import (`smart:` namespace), tabular clash reports, BCF round-trip. Exactly the `sso` defect from
+one release earlier: an entitlement the Settings panel renders and no code consults. Now gated on the
+native XML route. The tabular sibling stays open deliberately: it reads Solibri and any spreadsheet,
+so it is not the Navisworks capability the table sells, and gating it would refuse Solibri users a
+plan they do not need.
+
+`services/api/test_export_promises.py` resolves every sold format against the **live FastAPI path
+list**, not against the registry that declares it — the tautology cut from `test_r37_contract.py` a
+release earlier, avoided this time by construction. Mutation-tested 3/3.
+
+*The delisting also went red on two assertions written one release earlier* — `test_licensing.py` and
+`test_r37_contract.py` both pinned `nwd` to Enterprise, because when they were written that was true.
+They now assert the delisting instead, in that direction rather than deleted, so re-adding the format
+has to confront the line. The vacuity floor in the 402-message loop moved 9 → 8 for the same reason:
+it guards against an empty population, and the population legitimately shrank.
+
+### ② `pdf_sanity` is a pre-ingest gate because it now runs at ingest
+
+Its docstring called it *"a fast pre-ingest gate"* with no runtime caller anywhere — a role asserted
+in prose and held by nothing, the same shape as `pid_lock.cross_process_status` in v0.3.1115. Wired
+into `routers/drawings._read_pdf`, the single chokepoint `info`/`merge`/`split`/`extract`/`rotate` all
+read through, which was hand-rolling `data[:4] != b"%PDF"` — a weaker second copy of a check that
+already existed properly, the duplicated-derivation shape behind most of this phase's findings.
+
+Two things follow that were not the point but matter more than it: these routes read whole uploads
+into memory and hand them to pypdf with **no size cap at all** (now 50 MB), and embedded active
+content — JavaScript, Launch, OpenAction, EmbeddedFile — is now reported, since pypdf carries it into
+whatever the route hands back. Reported, **not refused**: plenty of legitimate CAD-exported drawings
+carry an OpenAction, and refusing those would break real workflows to no security benefit.
+
+**A merge is bounded by the SET, not only by each member** — raised in review, and it is the
+multiplication a per-file cap invites: twenty files each just under 50 MB are twenty acceptances, all
+held at once for pypdf. `/pdf/merge` now takes at most 50 files and 200 MB in total, refused as soon
+as the running total passes so the rest are never read. (The review also said merges had *no*
+aggregate limit; that part is wrong — `bodycap.MaxBodySizeMiddleware` bounds the whole request body,
+counting bytes as they arrive rather than trusting `Content-Length`. What is genuinely open is the
+half that middleware's own docstring names: *"it does not stop a handler materialising the body it
+did receive"* — pre-existing across 36+ `await file.read()` sites and tracked as the back half of
+R39-UPLOAD-CAP-APP, not this release's to close route by route.)
+
+The `no %%EOF trailer` flag is deliberately not a refusal either, and now says so in the code —
+review asked for a 422 there, and measurement declined it: `pdf_sanity` looks for `%%EOF` in the last
+1024 bytes, so a PDF with 2 KB appended (an incremental update, an embedded signature) trips the flag
+while **pypdf reads it and reports its pages without complaint**. Pinned as a test, so the exemption
+is evidence rather than an omission.
+
+### ③ A capability nobody can reach is indistinguishable from one that was never built
+
+`/projects/{pid}/mep/size` had no caller in `apps/web` at all, and `client.ts::takeoff2d` never sent
+`layout`. So wiring `block_cooling` into the route in v0.3.1116 made it *callable* and not
+*reachable* — the product gap survived the fix meant to close it.
+
+Now: `sheetRegions` (the producer for the `layout` the takeoff consumes — the same one-way asymmetry,
+found again), `mepSize`, an opt-in "scope to sheet" control in the 2D takeoff, and a first-pass MEP
+sizing calculator in the MEP tools. The takeoff reports its shortfall rather than a bare total —
+`unscoped` / `ambiguous` / `unknown` are three different reasons a number would be wrong, and only
+`scoped` traces may be priced. `apps/web/src/api/unreachableRoutes.test.ts` asserts the whole chain
+from UI entry point to request, because a client method nothing calls is the same defect one layer up.
+
+### Two existing gates went red, and both were right
+
+Neither was a regression — both fire when something *becomes reachable*, and refuse to let a stale
+entry sit in a list describing the past.
+
+* `test_reachable.py` had carried **`supply_chain` in `KNOWN_UNREACHABLE` since 2026-07-27**, worded
+  *"tested and imported by nothing. Whatever it checks is not being checked in the running system."*
+  That is the `pdf_sanity` finding, recorded a month earlier in a different file, by a gate that had
+  been saying so the whole time. Wiring it made the module reachable and the entry stale; deleted.
+* `test_route_reachability.py` had `/projects/{pid}/drawings/sheet-regions` frozen as caller-less.
+  It has a caller now, so its entry is gone too.
+
+*Two independent checks noticing the same fix is the strongest evidence available that the wiring is
+real rather than merely present* — neither knows about the other, and neither was edited to agree.
+
 ## v0.3.1118 (2026-08-28) — R37 CONTRACT: an empty dict scored 100% provenance coverage
 
 The last two R37 findings, and they turned out to be one defect in two places: **a contract

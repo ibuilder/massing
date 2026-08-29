@@ -2531,15 +2531,30 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   four, and the two findings called product statements were both ordinary bugs underneath. Ratchet at
   what survives.
 
-  **Still open, and genuinely product decisions rather than code fixes:**
-  * `nwd` export and the `navisworks` entitlement are advertised in the tier table the Settings panel
-    renders to customers, and **nothing implements either** — grep finds no NWD path outside
-    `licensing.py`. Either build it or stop selling it; not a call to make unilaterally.
-  * `/projects/{pid}/mep/size` has no `apps/web` caller and `client.ts::takeoff2d` never sends
-    `layout`, so R27-LAYOUT ② and ③ are **product-unreachable server capabilities** awaiting a UI
-    decision.
-  * `supply_chain.pdf_sanity`'s docstring calls it *"a fast pre-ingest gate"* — a runtime role it
-    does not have.
+  ✅ **The three that were left as product decisions all shipped in v0.3.1119**, and checking each
+  premise changed two of them again — the fifth and sixth corrections in this line of work.
+  * ✅ *"`nwd` and the `navisworks` entitlement are advertised and nothing implements either"* — right
+    about `nwd`, **wrong about `navisworks`**, and it missed a second format. `navisworks` is real
+    (native `smart:`-namespace clash XML, tabular reports, BCF round-trip) and was simply never
+    enforced — the `sso` defect again — so it is now gated on the native XML route, while the tabular
+    sibling stays open because it reads Solibri and any spreadsheet. `nwd` is **not a gap to close**:
+    `routers/convert.py` already records that closed Autodesk formats have no open-source reader, so
+    it was delisted rather than left as an Enterprise differentiator that cannot ship. **`obj` was
+    delisted too** — `viewer/referenceLoader.ts` *reads* `.obj` and nothing writes it; import is not
+    export, and only a per-format check found it. **`rvt` went the same way, caught in review**: every
+    RVT path here is an import, and the first gate passed it because it asked whether the mapped route
+    *exists* rather than whether it *exports* — a check weaker than its own claim. `services/api/test_export_promises.py` now resolves
+    every sold format against the **live FastAPI path list**, not the registry declaring it.
+  * ✅ `supply_chain.pdf_sanity` runs at ingest now, at `routers/drawings._read_pdf` — the one
+    chokepoint every PDF tool reads through, and which was hand-rolling a weaker `data[:4] != b"%PDF"`.
+    Incidentally closed a real hole: those routes read whole uploads into memory for pypdf and had
+    **no size cap at all** — now 50 MB. Active content, and a `%%EOF` trailer past the 1024-byte
+    window, are both reported and deliberately not refused; the second is measured (pypdf reads such
+    files) rather than assumed.
+  * ✅ R27-LAYOUT ② and ③ are reachable: `sheetRegions` (the missing *producer* for the `layout` the
+    takeoff consumes — the one-way asymmetry, found yet again), `mepSize`, a "scope to sheet" control
+    and a first-pass sizing calculator. `apps/web/src/api/unreachableRoutes.test.ts` asserts the chain
+    from UI entry point to request, since a client method nothing calls is the same defect one layer up.
 
 - ◧ **R37-TRIAGE** *(M — Lane C; do FIRST, before any deletion or split)*
 

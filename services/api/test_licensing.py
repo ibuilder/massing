@@ -38,7 +38,11 @@ assert licensing.allows("sso", "enterprise") and not licensing.allows("sso", "co
 # a higher plan (or higher)" — the most common refusal a Free workspace would ever see.
 assert licensing.min_tier_for_export("png") == "Home", licensing.min_tier_for_export("png")
 assert licensing.min_tier_for_export("ifc") == "Commercial"
-assert licensing.min_tier_for_export("nwd") == "Enterprise"
+# v0.3.1119: `nwd` was DELISTED — Navisworks' document format is a closed Autodesk binary and
+# nothing here can write it, so it names no plan at all now. Asserted in that direction rather
+# than deleted, so re-adding it has to confront this line.
+assert licensing.min_tier_for_export("nwd") is None
+assert licensing.min_tier_for_export("obj") is None      # import-only; nothing exports it
 assert licensing.min_tier_for_export("step") is None          # no tier grants it -> no upgrade to name
 assert licensing.min_tier_for("api_access") == "Commercial"
 assert licensing.min_tier_for("sso") == "Enterprise"
@@ -76,7 +80,7 @@ with TestClient(app) as c:
 
     # --- enforcement is OPTIONAL — OFF by default = everything open ------------
     assert licensing.enforcement_enabled() is False, "enforcement must default OFF (no forced registration)"
-    assert licensing.allows("api_access") and licensing.allows_export("nwd"), "open mode grants everything"
+    assert licensing.allows("api_access") and licensing.allows_export("ifc"), "open mode grants everything"
     assert c.get("/license").json()["enforced"] is False
     pid = c.post("/projects", json={"name": "Lic"}).json()["id"]
     # IFC download not licence-gated in open mode (no project IFC -> 409, never 402)

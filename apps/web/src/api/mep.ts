@@ -16,6 +16,33 @@ type Ctor<T> = new (...args: any[]) => T;
 
 export function withMep<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Mep extends Base {
+  /** First-pass MEP sizing. `kind`:
+   *   - `duct` (flow = CFM, velocity = fpm) · `pipe` (flow = GPM, velocity = fps)
+   *   - `cooling` — converts a load you already have (BTU/h) into tons
+   *   - `block_cooling` — *estimates* the load from gross floor area, the earlier question, asked
+   *     when no load exists yet. Omit `gfaSf` to have the server derive it from the loaded model.
+   *   - `hanger` (hangerKind = duct | pipe_steel | pipe_copper, size = in)
+   *
+   *  The route has been complete since v0.3.1116 and had no caller in this app, which is what made
+   *  `block_cooling` product-unreachable rather than merely unused. Lives here rather than in
+   *  `client.ts` because the extraction ratchet in `services/api/test_file_sizes.py` asks the
+   *  question a new endpoint should be asked — "should this be in a domain module?" — and for a
+   *  `/projects/{pid}/mep` route the answer is yes.
+   */
+  mepSize(pid: string, kind: "duct" | "pipe" | "cooling" | "block_cooling" | "hanger",
+          opts: { flow?: number; velocity?: number; load?: number; size?: number;
+                  hangerKind?: string; gfaSf?: number; sfPerTon?: number } = {}) {
+    const q = new URLSearchParams({ kind });
+    if (opts.flow !== undefined) q.set("flow", String(opts.flow));
+    if (opts.velocity !== undefined) q.set("velocity", String(opts.velocity));
+    if (opts.load !== undefined) q.set("load", String(opts.load));
+    if (opts.size !== undefined) q.set("size", String(opts.size));
+    if (opts.hangerKind !== undefined) q.set("hanger_kind", opts.hangerKind);
+    if (opts.gfaSf !== undefined) q.set("gfa_sf", String(opts.gfaSf));
+    if (opts.sfPerTon !== undefined) q.set("sf_per_ton", String(opts.sfPerTon));
+    return this.json<Record<string, unknown>>(`/projects/${pid}/mep/size?${q.toString()}`);
+  }
+
   /** W11 B6 + MEP-FP: MEP system browser — systems (with discipline: hvac/plumbing/electrical/fire/comms)
    * with segment/fitting/terminal counts + connectivity signal, and a by-discipline rollup. */
   mepSummary(pid: string) {

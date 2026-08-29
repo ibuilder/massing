@@ -363,10 +363,56 @@ def generate_drawing_set(pid: str, body: dict = Body(default={}),
 
 
 # --- PDF manipulation (pypdf; no PyMuPDF/AGPL) — merge/split/rotate/extract uploaded PDFs ---------
+#: Cap for the PDF tools, which read the whole upload into memory and hand it to pypdf. There was no
+#: cap at all before `supply_chain.pdf_sanity` was wired in here.
+_PDF_MAX_MB = 50
+
+#: A merge holds every input in memory at once, so it needs a bound on the SET, not just on each
+#: member. Both are deliberately well under the global body cap: reaching either means the request
+#: was going to be refused anyway, and refusing it here stops the remaining files being read at all.
+_PDF_MERGE_MAX_FILES = 50
+_PDF_MERGE_MAX_MB = 200
+
+
 async def _read_pdf(f: UploadFile) -> bytes:
+    """Read an uploaded PDF, refusing one that fails the pre-ingest sanity check.
+
+    `supply_chain.pdf_sanity` describes itself as *"a fast pre-ingest gate"* and, until this was
+    written, had no runtime caller at all — the role was a claim in a docstring. This is the ingest
+    it names: every PDF tool below (`info`/`merge`/`split`/`extract`/`rotate`) funnels through here,
+    so one call covers all of them.
+
+    It also replaces a hand-rolled `data[:4] != b"%PDF"` — the same weaker second copy of a check that
+    already existed properly elsewhere, which is the shape that has produced most of this phase's
+    findings. `pdf_sanity` additionally enforces a size cap (these routes had none) and reports
+    embedded active content.
+
+    **The `no %%EOF trailer` flag is deliberately NOT a refusal**, and this is stated because a silent
+    omission looks like an oversight (review asked for it on #374). `pdf_sanity` looks for `%%EOF` in
+    the last 1024 bytes, so anything appended past that — incremental updates, an embedded digital
+    signature, some scanners' padding — trips the flag on a perfectly valid file. Measured against
+    the real functions: a reportlab PDF with 2 KB appended is flagged, and **pypdf reads it and
+    reports its pages without complaint**. Refusing on that flag would reject readable drawings to
+    prevent nothing; a genuinely truncated PDF fails in pypdf, where the error names the real problem.
+
+    **Active content is reported, not refused.** JavaScript / Launch / OpenAction / EmbeddedFile in a
+    PDF is worth knowing about — pypdf carries it into the merged or rotated file this route hands
+    back — but plenty of legitimate CAD-exported drawings carry an OpenAction, and refusing those
+    would break real drawing workflows to no security benefit. It is logged, and `/pdf/info` returns
+    it, so a caller that wants to act on it can.
+    """
+    from .. import supply_chain
     data = await f.read()
-    if data[:4] != b"%PDF":
-        raise HTTPException(422, f"{f.filename or 'file'} is not a PDF")
+    name = f.filename or "file"
+    rep = supply_chain.pdf_sanity(data, max_mb=_PDF_MAX_MB)
+    if not rep["header_ok"]:
+        raise HTTPException(422, f"{name} is not a PDF")
+    if rep["size"] == 0:
+        raise HTTPException(422, f"{name} is empty")
+    if rep["size"] > _PDF_MAX_MB * 1024 * 1024:
+        raise HTTPException(413, f"{name} is over the {_PDF_MAX_MB} MB limit for the PDF tools")
+    if rep["active_content"]:
+        log.warning("pdf ingest: %s carries active content: %s", name, ", ".join(rep["active_content"]))
     return data
 
 
@@ -374,19 +420,48 @@ async def _read_pdf(f: UploadFile) -> bytes:
 # the process). Mirrors pdf_stamp/pdf_seal below, which already thread-pool.
 @router.post("/pdf/info")
 async def pdf_info(file: UploadFile = File(...), _: str = Depends(require_identified)):
-    """Page count + flags for an uploaded PDF."""
+    """Page count + flags for an uploaded PDF, including its pre-ingest sanity report.
+
+    `sanity` is where the active content `_read_pdf` declines to refuse becomes visible: this is the
+    route whose whole job is to describe a PDF, so it is the one that should say the file carries
+    JavaScript or an embedded file. Returned in the JSON body rather than a response header — the
+    client would then have to be added to `expose_headers`, and `test_cors_expose_headers.py` exists
+    because that coupling is invisible until it bites cross-origin in a browser.
+    """
     from starlette.concurrency import run_in_threadpool
+
+    from .. import supply_chain
     data = await _read_pdf(file)
-    return await run_in_threadpool(pdfops.info, data)
+    out = await run_in_threadpool(pdfops.info, data)
+    return {**out, "sanity": supply_chain.pdf_sanity(data, max_mb=_PDF_MAX_MB)}
 
 
 @router.post("/pdf/merge")
 async def pdf_merge(files: list[UploadFile] = File(...), _: str = Depends(require_identified)):
-    """Concatenate several uploaded PDFs into one (order = upload order)."""
+    """Concatenate several uploaded PDFs into one (order = upload order).
+
+    Bounded by COUNT and by RUNNING TOTAL, not only per file. `_read_pdf` caps each upload at
+    `_PDF_MAX_MB`, and on its own that is a per-file cap a merge multiplies: twenty files each just
+    under the limit are twenty acceptances. `bodycap.MaxBodySizeMiddleware` already bounds the whole
+    request (measured, not declared, so a chunked upload cannot skip it), which is why this is a
+    smaller hole than it looks — but its own docstring records the half it does not close: *"it does
+    not stop a handler materialising the body it did receive"*. Every byte here is held at once and
+    handed to pypdf, so the merge is where that back half bites hardest. Raised in review on #374.
+    """
     from starlette.concurrency import run_in_threadpool
     if len(files) < 2:
         raise HTTPException(422, "merge needs at least 2 PDFs")
-    datas = [await _read_pdf(f) for f in files]
+    if len(files) > _PDF_MERGE_MAX_FILES:
+        raise HTTPException(422, f"merge takes at most {_PDF_MERGE_MAX_FILES} PDFs at once")
+    datas: list[bytes] = []
+    total = 0
+    for f in files:
+        data = await _read_pdf(f)
+        total += len(data)
+        if total > _PDF_MERGE_MAX_MB * 1024 * 1024:
+            # Refused as soon as the running total passes, so the rest of the set is never read.
+            raise HTTPException(413, f"the PDFs to merge exceed {_PDF_MERGE_MAX_MB} MB in total")
+        datas.append(data)
     out = await run_in_threadpool(pdfops.merge, datas)
     return Response(out, media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="merged.pdf"'})

@@ -82,6 +82,9 @@ export interface MepButtons {
   faBtn: HTMLButtonElement;
   commsBtn: HTMLButtonElement;
   riserBtn: HTMLButtonElement;
+  /** First-pass sizing calculator — sizes a run BEFORE one is authored, unlike the velocity
+   *  check on `mepSysBtn`, which validates runs already in the model. */
+  sizeCalcBtn: HTMLButtonElement;
   mepSysBtn: HTMLButtonElement;
 }
 
@@ -175,6 +178,107 @@ export function buildMepSection(d: MepDeps): MepButtons {
   });
   riserBtn.title = "Author a vertical MEP riser (fire standpipe / plumbing stack / vent) from a bottom to "
     + "top elevation at the last-clicked point — the vertical complement to horizontal MEP runs.";
+  // R27 / R37 — the first-pass sizing CALCULATOR. Distinct from "MEP size check" below, and the
+  // distinction is which question is being asked: the check validates runs already authored in the
+  // model, this sizes one before anything exists. `/projects/{pid}/mep/size` has been complete since
+  // v0.3.1116 and had no caller in this app at all, which is what made `block_cooling`
+  // product-unreachable — a built capability nobody could reach is indistinguishable from a missing one.
+  const sizeCalcBtn = d.toolBtn2("🧮 First-pass MEP sizing", async () => {
+    // The route's dispatcher falls through to `size_duct` for any kind it does not recognise, so a
+    // typo would return duct dimensions labelled as whatever was typed — a confident wrong answer,
+    // not an error. Refusing here is the honest outcome, and it also keeps free text out of the
+    // result title. (`showResult` no longer renders its title as markup either; both halves, because
+    // one guard on a shared sink and one on this caller protect different things.)
+    const KINDS = ["duct", "pipe", "cooling", "block_cooling", "hanger"] as const;
+    const kind = (await askText("First-pass MEP sizing", {
+      label: `${KINDS.join(" · ")} — duct is CFM @ fpm, pipe GPM @ fps, cooling BTU/h → tons, `
+        + "block_cooling area → tons, hanger size in inches",
+      value: "block_cooling",
+    }))?.trim();
+    if (!kind) return;
+    if (!(KINDS as readonly string[]).includes(kind)) {
+      d.notify(`unknown sizing kind ${kind} — expected one of ${KINDS.join(", ")}`, "error");
+      return;
+    }
+    // FOUR outcomes, not two. `Number("")` is 0 and `Number("abc")` is NaN, so a two-state
+    // "cancelled or a number" helper sends a blank required field as a zero and a typo as NaN.
+    // Worse in the optional case: `block_cooling` treated an unparseable area exactly like an
+    // omitted one, so a typo silently became "derive it from the model" and returned a confident
+    // answer to a question the user had not asked. Raised in review on #374.
+    type NumIn = { k: "cancelled" } | { k: "blank" } | { k: "bad"; raw: string } | { k: "ok"; n: number };
+    const num = async (label: string, dflt = ""): Promise<NumIn> => {
+      const v = await askText("First-pass MEP sizing", { label, value: dflt });
+      if (v === null) return { k: "cancelled" };
+      const t = v.trim();
+      if (!t) return { k: "blank" };
+      const n = Number(t);
+      return Number.isFinite(n) ? { k: "ok", n } : { k: "bad", raw: t };
+    };
+    /** A value that must be present and positive. Returns null once it has reported why not. */
+    const required = (r: NumIn, label: string): number | null => {
+      if (r.k === "ok" && r.n > 0) return r.n;
+      if (r.k !== "cancelled") {
+        d.notify(r.k === "bad" ? `${label}: ${r.raw} is not a number` : `${label} is required`, "error");
+      }
+      return null;                                  // cancelled reports nothing; the user chose to stop
+    };
+    const o: { flow?: number; velocity?: number; load?: number; size?: number;
+               hangerKind?: string; gfaSf?: number; sfPerTon?: number } = {};
+    if (kind === "duct" || kind === "pipe") {
+      const fl = kind === "duct" ? "Airflow (CFM)" : "Flow (GPM)";
+      const vl = kind === "duct" ? "Velocity (fpm)" : "Velocity (ft/s)";
+      const f = required(await num(fl), fl); if (f === null) return;
+      const v = required(await num(vl), vl); if (v === null) return;
+      o.flow = f; o.velocity = v;
+    } else if (kind === "cooling") {
+      const l = required(await num("Cooling load (BTU/h)"), "Cooling load"); if (l === null) return;
+      o.load = l;
+    } else if (kind === "block_cooling") {
+      // Area is genuinely optional — blank means "derive it from the loaded model", which is the
+      // whole point of asking this question early. But BLANK and UNPARSEABLE are different answers.
+      const a = await num("Gross floor area (sf) — blank to derive from the model", "");
+      if (a.k === "cancelled") return;
+      if (a.k === "bad" || (a.k === "ok" && a.n <= 0)) {
+        d.notify(`gross floor area: ${a.k === "bad" ? a.raw : a.n} is not a positive number`, "error");
+        return;
+      }
+      if (a.k === "ok") o.gfaSf = a.n;
+      const r = await num("sf per ton", "350");
+      if (r.k === "cancelled") return;
+      if (r.k !== "blank") {
+        const sf = required(r, "sf per ton"); if (sf === null) return;
+        o.sfPerTon = sf;
+      }
+    } else if (kind === "hanger") {
+      // Same allowlist discipline as `kind` above, one level down: the prompt names three values and
+      // nothing was checking that one of them came back.
+      const HANGERS = ["duct", "pipe_steel", "pipe_copper"];
+      const hk = await askText("First-pass MEP sizing", {
+        label: `Hanger kind: ${HANGERS.join(" | ")}`, value: "pipe_steel" });
+      if (hk === null) return;
+      const hangerKind = hk.trim().toLowerCase();
+      if (!HANGERS.includes(hangerKind)) {
+        d.notify(`unknown hanger kind ${hangerKind || "(blank)"} — expected ${HANGERS.join(", ")}`, "error");
+        return;
+      }
+      const sz = required(await num("Nominal size (in)"), "Nominal size"); if (sz === null) return;
+      o.hangerKind = hangerKind; o.size = sz;
+    }
+    let out: Record<string, unknown>;
+    try { out = await d.api.mepSize(d.pid, kind as (typeof KINDS)[number], o); }
+    catch (e) { d.notify((e as Error).message, "error"); return; }
+    showResult(`First-pass sizing — ${kind}`, (body) => {
+      body.appendChild(kvTable(Object.entries(out).map(([k, v]) => ({
+        k: k.replace(/_/g, " "),
+        v: typeof v === "number" ? String(Math.round(v * 1000) / 1000) : String(v),
+      }))));
+      body.appendChild(resultNote("First-pass sizing only — not a stamped design. Confirm against the "
+        + "authored model with the velocity size check.", ""));
+    });
+  });
+  sizeCalcBtn.title = "Size a duct, pipe, cooling load, block cooling load or hanger before anything "
+    + "is authored — the question asked at concept, when no run exists to check.";
+
   let mepConnectFrom: string | null = null;   // W10-4: first element of a port-to-port connect
   const mepSysBtn = d.toolBtn2("🔀 MEP systems", async () => {
     let s, c;
@@ -273,5 +377,5 @@ export function buildMepSection(d: MepDeps): MepButtons {
   });
   mepSysBtn.title = "Browse IfcDistributionSystems — per-system segment/fitting/terminal counts, a "
     + "connectivity signal (elements with unconnected ports), and anything not yet assigned to a system.";
-  return { mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn };
+  return { mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, sizeCalcBtn };
 }

@@ -1027,8 +1027,15 @@ async def coordination_import_xml(pid: str, file: UploadFile = File(...), db: Se
                                   actor: str = Depends(require_role("editor"))):
     """CLASH-TRIAGE: import a **native Navisworks clash-report XML** export → one coordination_issue per
     clash (name → subject, its clash test → discipline, type/distance/status → description; GUIDs anchor
-    it on the model and each round-trips to BCF). Untrusted XML parsed with defusedxml."""
-    from .. import clash_import
+    it on the model and each round-trips to BCF). Untrusted XML parsed with defusedxml.
+
+    Enterprise-entitled when enforcement is on, no-op in open mode. `TIER_FEATURES` has marked
+    `navisworks` Enterprise-only since the tiers were written and the Settings panel renders that
+    table, but nothing consulted the entitlement — the same defect as `sso` in v0.3.1118. The sibling
+    `/coordination/import-xlsx` is deliberately NOT gated: it reads Solibri and any tabular clash
+    report, so it is not the Navisworks capability the table is selling."""
+    from .. import clash_import, licensing
+    licensing.require("navisworks", "Native Navisworks clash-report (XML) import")
     data = await file.read()
     res = await run_in_threadpool(clash_import.import_clash_xml, db, pid, data, actor)   # XML parse off-loop
     audit.record(db, action="coordination.import_xml", method="POST",

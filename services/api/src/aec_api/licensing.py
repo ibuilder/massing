@@ -18,16 +18,59 @@ TIER_ORDER = ["free", "home", "commercial", "enterprise"]
 TIER_LABEL = {"free": "Free", "home": "Home", "commercial": "Commercial", "enterprise": "Enterprise"}
 
 # feature entitlements per tier (cumulative). Export formats + capability flags per the docs.
-_BASE_EXPORTS = ["png", "gltf", "glb", "pdf", "obj", "dxf"]   # Home and up (glb = binary glTF)
+#
+# **This list is what the Settings panel sells.** `state()` returns every tier's features and the panel
+# renders them as a plan-comparison table, so a format named here is a promise to a paying customer.
+# Two were promises nothing kept, found 2026-08-29 by checking each declared format for a delivery path:
+#
+#   * `nwd` (Enterprise) — Navisworks' document format is a closed Autodesk binary. `routers/convert.py`
+#     already states the position for its siblings: *".rvt/.dwg/.nwc are closed Autodesk formats with NO
+#     open-source reader"*. Writing one offline is not a gap to close, it is not possible without the
+#     paid APS/ODA SDK — and this file's own top note says such bridges are optional and flagged, not
+#     bare tier features. Delisted rather than left as an Enterprise differentiator that cannot ship.
+#   * `obj` (Home) — `viewer/referenceLoader.ts` READS `.obj`; nothing writes it. Import is not export,
+#     and the tier table does not say "import".
+#   * `rvt` (Commercial) — **the same mistake, made while fixing the first two, and caught in review.**
+#     Every RVT path in this service is an IMPORT: `POST /convert` converts RVT→IFC→.frag and its own
+#     503 reads *"Revit (.rvt) import needs the Autodesk APS bridge"*, `/bridge/rvt/status` reports on
+#     that bridge, and `/projects/{pid}/import/rvt` is named for what it does. Nothing writes an RVT.
+#     The first version of `EXPORT_DELIVERY` below mapped `rvt` to `/convert` and the gate passed,
+#     because the gate asked whether the path EXISTS — see the rule it now applies instead.
+#
+# `png` stays: it is genuinely delivered, client-side, by the viewer's canvas capture rather than by a
+# route — which is why `EXPORT_DELIVERY` below records *where* each format is served, not merely that
+# someone believed it was. A format nobody can obtain is the export equivalent of a citation that
+# identifies no source: the entry exists, and there is nothing behind it.
+_BASE_EXPORTS = ["png", "gltf", "glb", "pdf", "dxf"]          # Home and up (glb = binary glTF)
 # openBIM data-out formats (IFC + the IFC5/ifcJSON write path) — the interchange the paid tiers unlock
-_OPENBIM_EXPORTS = ["ifc", "ifcx", "rvt"]
+_OPENBIM_EXPORTS = ["ifc", "ifcx"]
 TIER_FEATURES: dict[str, dict[str, Any]] = {
     "free": {"exports": [], "api_access": False, "sso": False, "navisworks": False},
     "home": {"exports": list(_BASE_EXPORTS), "api_access": False, "sso": False, "navisworks": False},
     "commercial": {"exports": _BASE_EXPORTS + _OPENBIM_EXPORTS, "api_access": True, "sso": False,
                    "navisworks": False},
-    "enterprise": {"exports": _BASE_EXPORTS + _OPENBIM_EXPORTS + ["nwd"], "api_access": True,
+    "enterprise": {"exports": _BASE_EXPORTS + _OPENBIM_EXPORTS, "api_access": True,
                    "sso": True, "navisworks": True},
+}
+
+#: Where each declared export is actually delivered — an API route path, or CLIENT_DELIVERED when the
+#: browser produces it.
+#:
+#: **A path must END IN `.{format}`, and that rule is the correction.** The first version required only
+#: that the path resolve in the live app, which let `rvt` map to `POST /convert` — a route that exists,
+#: and *imports* RVT. A check that a route EXISTS is not a check that it EXPORTS, and the whole point of
+#: this file is that a sold format has something producing it. Ending in the extension is what an export
+#: route looks like here (`export.gltf`, `sheet.pdf`, `sheet.dxf`), so it is evidence about the route's
+#: job rather than its mere presence. `services/api/test_export_promises.py` enforces both halves.
+CLIENT_DELIVERED = "client"
+EXPORT_DELIVERY: dict[str, str] = {
+    "png": CLIENT_DELIVERED,                              # viewer canvas capture (apps/web viewer)
+    "pdf": "/projects/{pid}/drawings/sheet.pdf",
+    "dxf": "/projects/{pid}/drawings/sheet.dxf",
+    "gltf": "/projects/{pid}/model/export.gltf",
+    "glb": "/projects/{pid}/model/export.glb",
+    "ifc": "/projects/{pid}/model/export.ifc",
+    "ifcx": "/projects/{pid}/model/export.ifcx",
 }
 
 

@@ -2067,7 +2067,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
       // Threads `lastPoint`, the second and last mutable capture the plan names, and the most
       // volatile state on any of these seams: it is rewritten on EVERY click in the 3D view, and
       // five of these six tools place geometry at it.
-      const { mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn } = buildMepSection({
+      const { mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, sizeCalcBtn } = buildMepSection({
         toolBtn2, api, pid, projectId, notify, container,
         layerMgr, loadProjectModel, reloadModelPins, waitForPublish, authorAndReload,
         lastPoint: () => lastPoint, selectedGuid: () => selectedGuid,
@@ -2141,7 +2141,7 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
 
       const advWrap = document.createElement("div");
       advWrap.style.cssText = "display:flex;flex-direction:column;gap:inherit";
-      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, cageChkBtn, bbsBtn, mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, curtainBtn, slopeBtn, meshBtn, ifcCodeBtn);
+      advWrap.append(detailBtn, autoDetailBtn, basePlateBtn, shearTabBtn, rebarBtn, cageChkBtn, bbsBtn, mepFittingBtn, fireBtn, faBtn, commsBtn, riserBtn, mepSysBtn, sizeCalcBtn, curtainBtn, slopeBtn, meshBtn, ifcCodeBtn);
 
       // UX-1b: surface the interactive annotation tools + the content library as their own labelled groups
       // (the Annotate + Library ribbon groups), instead of burying them in the Advanced-fabrication fold.

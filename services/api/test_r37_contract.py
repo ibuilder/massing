@@ -149,7 +149,10 @@ check(not hasattr(licensing, "_MIN_TIER") and not hasattr(licensing, "_EXPORT_MI
 check(not hasattr(licensing, "tier_at_least"),
       "tier_at_least had no caller and was replaced by the derivations that do")
 check(licensing.min_tier_for_export("png") == "Home", licensing.min_tier_for_export("png"))
-check(licensing.min_tier_for_export("nwd") == "Enterprise", "nwd is Enterprise-only")
+check(licensing.min_tier_for_export("ifcx") == "Commercial", "ifcx is openBIM data-out")
+# `nwd` was delisted in v0.3.1119 (a closed Autodesk binary nothing here can write), so it is now
+# an example of the OTHER branch: a format that names no upgrade because no plan grants it.
+check(licensing.min_tier_for_export("nwd") is None, "nwd was delisted and names no plan")
 check(licensing.min_tier_for_export("step") is None and licensing.min_tier_for("bogus") is None,
       "an ungranted capability names no upgrade")
 
@@ -159,7 +162,7 @@ licensing.enforcement_enabled, licensing.current_tier = (lambda: True), (lambda:
 try:
     from fastapi import HTTPException
     for fmt, want in [("png", "Massing Home plan"), ("ifc", "Massing Commercial plan"),
-                      ("nwd", "Massing Enterprise plan")]:
+                      ("ifcx", "Massing Commercial plan")]:
         try:
             licensing.require_export(fmt)
             raise AssertionError(f"{fmt} must be refused on free with enforcement on")
@@ -171,7 +174,13 @@ try:
     # fail to do. Asserting the message is what catches the original defect: the old dict listed only
     # the openBIM formats and the other six rendered "the Massing a higher plan (or higher)".
     every_fmt = {f for feats in licensing.TIER_FEATURES.values() for f in feats["exports"]}
-    check(len(every_fmt) >= 9, f"expected the full export matrix, got {sorted(every_fmt)}")
+    # Anti-vacuity: the loop below proves nothing over an empty set. **Not a fixed floor** — that is
+    # what this was, and it moved twice in two releases (9 → 8 → 7) as `nwd`, `obj` and `rvt` were
+    # each delisted for cause. A number that has to be edited every time the thing it measures changes
+    # legitimately is measuring the wrong thing: the property is "there is a population", not "the
+    # population is this big". The delistings themselves are pinned by name in
+    # `services/api/test_export_promises.py`, which is where that belongs.
+    check(every_fmt, "the tier table must sell some exports, or the loop below asserts nothing")
     for fmt in sorted(every_fmt):
         try:
             licensing.require_export(fmt)

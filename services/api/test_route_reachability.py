@@ -180,7 +180,11 @@ KNOWN_UNCALLED: set[str] = {
     "/projects/{pid}/schedule/eot/sourced",
     "/projects/{pid}/drawing-set/compiled.pdf", "/projects/{pid}/drawing-set/file-drawing-set",
     "/projects/{pid}/drawings/received-regions", "/projects/{pid}/drawings/schedule.csv",
-    "/projects/{pid}/drawings/sheet-regions", "/projects/{pid}/drawings/sheet.dxf",
+    # `/drawings/sheet-regions` was frozen here and is now WIRED (v0.3.1119): it is the producer for
+    # the `layout` that `POST /takeoff/2d` consumes, called via `api.sheetRegions` from the 2D takeoff
+    # tool. Its entry is deleted rather than kept, which is this list's own contract working — the
+    # freeze recorded "this was looked at", and a frozen route that gains a caller must leave.
+    "/projects/{pid}/drawings/sheet.dxf",
     "/projects/{pid}/energy/export.gbxml", "/projects/{pid}/energy/export.idf",
     "/projects/{pid}/entitlements/condition-checks", "/projects/{pid}/ffe-bom",
     "/projects/{pid}/golden-thread", "/projects/{pid}/k1-pack",

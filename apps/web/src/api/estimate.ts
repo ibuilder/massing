@@ -8,11 +8,44 @@
  *  (`>= 696`) is what proves that: moving a method is invisible to it, losing one fails it by number.
  */
 import { HttpCore } from "./httpCore";
+import type { Takeoff2dScopeOpts, TakeoffScope } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
 export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class Estimate extends Base {
+  /** R34-SHEET-SCALE: `scale_units_per_px` on a **region** overrides the call-wide `scaleUnitsPerPx`, so
+   *  one takeoff can span sheets at different scales. Declared rather than merely tolerated — structural
+   *  typing carries an undeclared extra property onto the wire today, so this works either way, but the
+   *  next normalisation pass over `regions` would drop it with no type error and no visible symptom. */
+  takeoff2d(pid: string, regions: { category: string; points: [number, number][]; label?: string;
+                                    scale_units_per_px?: number }[],
+            scaleUnitsPerPx: number, unit = "m", opts: Takeoff2dScopeOpts = {}) {
+    return this.json<{
+      region_count: number; total_cost: number; unit: string;
+      provenance?: { scales_used?: number[] };
+      regions: { index: number; category: string; assembly: string; measure: string; quantity: number;
+                 unit: string; rate: number; cost: number;
+                 scale_applied?: number; scale_source?: "region" | "call" }[];
+      by_assembly: { category: string; assembly: string; unit: string; quantity: number; cost: number; count: number }[];
+      assemblies: { category: string; measure: string; rate: number; label: string; unit: string | null }[];
+      scope?: TakeoffScope;
+      annotation_scope?: TakeoffScope;
+      disclaimer: string;
+    }>(`/projects/${pid}/takeoff/2d`, {
+      method: "POST",
+      body: JSON.stringify({
+        scale_units_per_px: scaleUnitsPerPx, unit, regions,
+        // R27-LAYOUT ②/③ — omitted entirely when absent, which is what the route expects. The
+        // route distinguishes "absent" from "present and malformed" (a 422), so spreading a
+        // conditional object rather than passing `layout: undefined` is not cosmetic.
+        ...(opts.layout ? { layout: opts.layout } : {}),
+        ...(opts.pxPerPoint !== undefined ? { px_per_point: opts.pxPerPoint } : {}),
+        ...(opts.annotations ? { annotations: opts.annotations } : {}),
+      }),
+    });
+  }
+
   /** EST-1: rough cost + duration estimate from the model's quantities (productivity rates). With
    * `full`, adds material + equipment cost lines (labour + material + equipment total). */
   laborEstimate(pid: string, loading = "commercial", rate = 25, full = false) {

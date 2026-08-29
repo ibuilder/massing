@@ -958,3 +958,38 @@ export interface RiskDigest {
     top_alerts: { severity?: string; message?: string; text?: string }[];
   };
 }
+
+/** One `takeoff_scope` summary — the answer to *which drawing on the sheet is this on?*
+ *
+ *  Note there is no boolean "ok": `scoped` / `unscoped` / `ambiguous` / `unknown` are four outcomes
+ *  and only the first may be priced. `unreadable_viewports` is carried deliberately — an `unscoped`
+ *  trace means something different when a viewport rectangle could not be read, and a client that
+ *  cannot see it would report "not on any drawing" when the truth is "we could not read the drawing".
+ *
+ *  Here rather than in `client.ts` because two mixins need it (`estimate` consumes the scope,
+ *  `drawingSheets` produces the layout), and a type declared in `client.ts` would make the domain
+ *  modules import back from the file they were extracted out of. */
+export type TakeoffScope = {
+  regions: { index: number; scope: "scoped" | "unscoped" | "ambiguous" | "unknown";
+             viewport?: number | null; scale?: number | null; detail?: string }[];
+  viewport_count: number;
+  unreadable_viewports: number;
+  scoped: number[]; unscoped: number[]; ambiguous: number[]; unknown: number[];
+  priceable: number;
+  all_scoped: boolean;
+  note: string;
+};
+
+/** The `sheet_regions` payload `GET /drawings/sheet-regions` produces and `POST /takeoff/2d` consumes.
+ *  Passed straight back through — no client reads inside it, so it is deliberately opaque. */
+export type SheetLayout = { regions: unknown[]; [k: string]: unknown };
+
+/** Optional sheet-scoping inputs for `takeoff2d`.
+ *
+ *  `pxPerPoint` is required for any scoping to happen at all: without it the server reports that
+ *  NOTHING was checked, which is not the same as everything having passed. */
+export type Takeoff2dScopeOpts = {
+  layout?: SheetLayout;
+  pxPerPoint?: number;
+  annotations?: { id?: string; kind?: string; x?: number; y?: number; points?: [number, number][] }[];
+};

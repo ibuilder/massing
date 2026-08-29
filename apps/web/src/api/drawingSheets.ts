@@ -10,11 +10,21 @@
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore, type LiveStream } from "./httpCore";
+import type { SheetLayout } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
 export function withDrawingSheets<TBase extends Ctor<HttpCore>>(Base: TBase) {
   return class DrawingSheets extends Base {
+  /** The sheet layout `takeoff2d` scopes against — viewport rectangles plus the page↔world affine
+   *  each was drawn with. This is the producer half of R27-LAYOUT: the route existed and had no
+   *  client, so the `layout` the takeoff accepts was something no caller could obtain. */
+  sheetRegions(pid: string, preset = "key", page = "A1") {
+    return this.json<SheetLayout & { preset: string; page: string }>(
+      `/projects/${pid}/drawings/sheet-regions?preset=${encodeURIComponent(preset)}`
+      + `&page=${encodeURIComponent(page)}`);
+  }
+
   /** Record a revision (delta) on a sheet, optionally citing the driving instrument (ASI/CCD/Addendum). */
   reviseDrawing(pid: string, drawingId: string, body: { rev: string; description?: string; date?: string; instrument_type?: string; instrument_ref?: string }) {
     return this.json<{ drawing_id: string; revision: string; delta_count: number }>(

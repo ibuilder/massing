@@ -107,7 +107,12 @@ export function buildExportsSection(d: ExportsDeps): void {
   const to2d = toolBtn2("📐 2D takeoff (from a drawing)", () => {
     if (!projectId) { notify("connect a project first", "error"); return; }
     openTakeoff2d({
-      quantify: (regions, sc, unit) => api.takeoff2d(projectId, regions, sc, unit),
+      quantify: (regions, sc, unit, scoping) =>
+        api.takeoff2d(projectId, regions, sc, unit, scoping),
+      // R27-LAYOUT — the producer for the `layout` the takeoff scopes against. Passing the fetcher
+      // rather than the layout means the request only happens when the tool is opened, and a project
+      // with no model simply never shows the control.
+      sheetLayout: (preset, page) => api.sheetRegions(projectId, preset, page),
       notify,
     });
   });
