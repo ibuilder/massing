@@ -7,6 +7,11 @@
  *  app's CSS variables; no dependencies.
  */
 
+// Type-only, so this module stays runtime-dependency-free as its header describes. The scope
+// shapes were duplicated here in the first version; one definition means the wire contract and
+// what this overlay renders cannot drift apart, and it removes the cast in `exportsSection.ts`.
+import type { SheetLayout, Takeoff2dScopeOpts, TakeoffScope } from "../api/types";
+
 type Pt = [number, number];
 /** R34-SHEET-SCALE: a region carries **the scale it was traced under**, not the scale that happens to be
  *  current when Quantify is pressed. A takeoff spans sheets at different scales (plans at 1/8"=1', details
@@ -15,14 +20,8 @@ type Pt = [number, number];
  *  a ratio-wrong scale, with a plausible number as the output. The server has accepted a per-region
  *  `scale_units_per_px` since R34-MEASURE-PROVENANCE; nothing was ever setting it. */
 type Region = { category: string; points: Pt[]; label?: string; scale_units_per_px?: number };
-type Scope = {
-  regions: { index: number; scope: "scoped" | "unscoped" | "ambiguous" | "unknown"; detail?: string }[];
-  viewport_count: number; unreadable_viewports: number;
-  scoped: number[]; unscoped: number[]; ambiguous: number[]; unknown: number[];
-  priceable: number; all_scoped: boolean; note: string;
-};
 type QuantifyResult = {
-  scope?: Scope;
+  scope?: TakeoffScope;
   region_count: number; total_cost: number; unit: string;
   provenance?: { scales_used?: number[] };
   regions: { index: number; category: string; assembly: string; measure: string; quantity: number;
@@ -34,11 +33,19 @@ type QuantifyResult = {
 
 interface Takeoff2dOpts {
   quantify: (regions: Region[], scaleUnitsPerPx: number, unit: string,
-             scoping?: { layout?: unknown; pxPerPoint?: number }) => Promise<QuantifyResult>;
-  /** Fetch the sheet layout to scope traces against, when the project has a model. Optional: the
-   *  whole point of this tool is that it works on a drawing with no model behind it, so absence is
-   *  the normal case and must stay silent. */
-  sheetLayout?: () => Promise<unknown>;
+             scoping?: Takeoff2dScopeOpts) => Promise<QuantifyResult>;
+  /** Fetch the sheet layout to scope traces against, for a NAMED preset and page.
+   *
+   *  The arguments are the fix for a real defect in the first version, caught in review: this took no
+   *  arguments and the caller used `sheetRegions(projectId)`, whose defaults are preset `key` and page
+   *  `A1`. But the tool accepts any uploaded image. Tracing a different sheet and enabling scoping
+   *  compared those traces against **A1's viewport rectangles**, so a trace could be classified
+   *  `scoped` and priced at another drawing's scale — a confident wrong number, which is the failure
+   *  this scoping exists to prevent, reintroduced by the defaulting.
+   *
+   *  Optional: the whole point of this tool is that it works on a drawing with no model behind it, so
+   *  absence is the normal case and must stay silent. */
+  sheetLayout?: (preset: string, page: string) => Promise<SheetLayout>;
   notify: (message: string, kind?: "error" | "info" | "success") => void;
   assemblies?: { category: string; measure: string; rate: number; label: string; unit: string | null }[];
 }
@@ -95,23 +102,45 @@ export function openTakeoff2d(opts: Takeoff2dOpts): void {
   // 1:20 prices the detail fivefold. Off by default, because this tool's normal case is a drawing with
   // no model behind it, and `px_per_point` is required for the check to run at all — without it the
   // server reports that NOTHING was checked, which is not the same as everything passing.
-  let layout: unknown = null;
+  let layout: SheetLayout | null = null;
   const scopeWrap = document.createElement("label");
   scopeWrap.style.cssText = "font-size:11px;display:none;align-items:center;gap:4px;opacity:.85";
   const scopeChk = document.createElement("input"); scopeChk.type = "checkbox";
+  const presetIn = document.createElement("input");
+  presetIn.value = "key"; presetIn.style.cssText = "width:58px;font-size:11px;padding:1px 3px";
+  presetIn.title = "Viewport preset the uploaded sheet was composed with.";
+  const pageIn = document.createElement("input");
+  pageIn.value = "A1"; pageIn.style.cssText = "width:44px;font-size:11px;padding:1px 3px";
+  pageIn.title = "Page size of the uploaded sheet.";
   const pxPt = document.createElement("input");
   pxPt.type = "number"; pxPt.value = "1"; pxPt.min = "0"; pxPt.step = "0.1";
   pxPt.style.cssText = "width:52px;font-size:11px;padding:1px 3px";
   pxPt.title = "Image pixels per PDF point — how the sheet was rasterised. Required for scoping.";
-  scopeWrap.append(scopeChk, document.createTextNode("scope to sheet · px/pt"), pxPt);
+  scopeWrap.append(scopeChk, document.createTextNode("scope to sheet"), presetIn, pageIn,
+                   document.createTextNode("px/pt"), pxPt);
   scopeWrap.title = "Say which drawing on the sheet each trace is on, and refuse to price one that "
-    + "crosses two scales or sits on none.";
+    + "crosses two scales or sits on none. The preset and page must MATCH the uploaded sheet — "
+    + "scoping against a different sheet's viewports would price traces at the wrong scale.";
   bar.appendChild(scopeWrap);
-  if (opts.sheetLayout) {
-    void opts.sheetLayout().then((l) => { layout = l; scopeWrap.style.display = "flex"; })
+
+  // Re-fetched whenever the sheet identity changes, and the checkbox is cleared while it is in
+  // flight: a stale layout from the previously named page is exactly the wrong-sheet comparison
+  // this control exists to make impossible.
+  let layoutKey = "";
+  const loadLayout = () => {
+    if (!opts.sheetLayout) return;
+    const preset = presetIn.value.trim() || "key";
+    const page = pageIn.value.trim() || "A1";
+    const key = `${preset}/${page}`;
+    if (key === layoutKey) return;
+    layoutKey = key; layout = null; scopeChk.checked = false;
+    void opts.sheetLayout(preset, page)
+      .then((l) => { if (layoutKey === key) { layout = l; scopeWrap.style.display = "flex"; } })
       // A project with no model has no sheet layout, which is the ordinary case here, not an error.
-      .catch(() => { layout = null; });
-  }
+      .catch(() => { if (layoutKey === key) layout = null; });
+  };
+  presetIn.onchange = loadLayout; pageIn.onchange = loadLayout;
+  if (opts.sheetLayout) { scopeWrap.style.display = "flex"; loadLayout(); }
   panel.appendChild(bar);
 
   // ---- body: canvas + results ----
@@ -237,8 +266,14 @@ export function openTakeoff2d(opts: Takeoff2dOpts): void {
     setStatus("quantifying…");
     try {
       const px = Number(pxPt.value);
+      // `layout` must be non-null: the checkbox is cleared whenever the named sheet changes, so a
+      // ticked box with no layout means the fetch is still in flight or failed, and scoping against
+      // nothing is not the same as not scoping.
       const scoping = scopeChk.checked && layout && Number.isFinite(px) && px > 0
         ? { layout, pxPerPoint: px } : undefined;
+      if (scopeChk.checked && !scoping) {
+        opts.notify("sheet layout not loaded for that preset/page — quantifying without scoping", "info");
+      }
       const res = await opts.quantify(regions, scale, unit, scoping);
       renderResults(results, res);
       const sc = res.scope;
@@ -367,7 +402,7 @@ function renderResults(host: HTMLElement, res: QuantifyResult) {
  *  is correct) and `unknown` (the check could not run) are each a different reason a number would be
  *  wrong. `unreadable_viewports` is shown whenever it is non-zero because it changes what `unscoped`
  *  means — "not on any drawing" versus "we could not read the drawing". */
-function scopeNote(sc: Scope | undefined): string {
+function scopeNote(sc: TakeoffScope | undefined): string {
   if (!sc) return "";
   if (sc.all_scoped) {
     return `<div class="meta" style="margin-top:8px;font-size:10.5px;opacity:.8">`

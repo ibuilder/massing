@@ -65,6 +65,14 @@ for fmt in sorted(declared):
     if where == licensing.CLIENT_DELIVERED:
         continue                       # produced in the browser; no route to resolve
     check(where in ROUTES, f"{fmt!r} is sold as {where!r}, which is not a route in this app")
+    # **Existence is not the property.** The first version of this file checked only the line above,
+    # and `rvt` passed while mapped to `POST /convert` — a route that exists and *imports* RVT
+    # (its own 503 says "Revit (.rvt) import needs the Autodesk APS bridge"). Caught in review, not
+    # here, because "a route serves this" and "a route mentions this" are different claims and only
+    # the second was being made. An export route in this service is named for what it emits.
+    check(where.endswith("." + fmt),
+          f"{fmt!r} is sold as {where!r}, which does not look like a route that EXPORTS {fmt} — "
+          "a path that merely exists is not a delivery path")
 
 # The registry must not carry entries for formats nobody sells — that is the other direction of the
 # same drift, and it is how a delisted format leaves a plausible-looking trace behind.
@@ -74,6 +82,9 @@ for fmt in licensing.EXPORT_DELIVERY:
 # The two delistings, pinned by name so a later edit re-adding them has to confront the reason.
 check("nwd" not in declared, "nwd cannot be written without the paid Autodesk SDK — do not re-list it")
 check("obj" not in declared, "obj is import-only (viewer/referenceLoader.ts); nothing exports it")
+check("rvt" not in declared,
+      "every rvt path in this service is an IMPORT (/convert, /bridge/rvt/status, /import/rvt); "
+      "nothing writes an RVT")
 check("png" in declared and licensing.EXPORT_DELIVERY["png"] == licensing.CLIENT_DELIVERED,
       "png is a real export, delivered client-side — the reason this file checks delivery, not routes")
 
@@ -96,8 +107,9 @@ check(licensing.TIER_FEATURES["enterprise"]["navisworks"] is True
       and licensing.TIER_FEATURES["commercial"]["navisworks"] is False,
       "navisworks stays an Enterprise differentiator — it is real, it just was not enforced")
 
-print(f"EXPORT-PROMISES OK — {checks} checks. Every format the tier table sells resolves to a real "
-      "delivery path, verified against the live route table rather than against the registry that "
-      "declares it. nwd (closed Autodesk binary) and obj (import-only) are delisted; png is kept "
-      "because it ships client-side. The navisworks entitlement now gates native Navisworks XML "
-      "import, and does not gate the generic tabular importer.")
+print(f"EXPORT-PROMISES OK — {checks} checks. Every format the tier table sells resolves to a route "
+      "that EXPORTS it — resolved against the live path list, not the registry declaring it, and "
+      "required to be named for what it emits (existence alone let `rvt` through while mapped to an "
+      "IMPORT route). Delisted: nwd (closed Autodesk binary), obj and rvt (import-only); png is kept "
+      "because it ships client-side. The navisworks entitlement gates native Navisworks XML import "
+      "and deliberately not the generic tabular importer.")

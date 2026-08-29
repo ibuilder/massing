@@ -115,6 +115,18 @@ with TestClient(app) as c:
                                     ("files", ("b.txt", b"not a pdf", "application/pdf"))])
     check(r.status_code == 422, f"/pdf/merge must refuse a non-PDF member: {r.status_code}")
 
+    # --- a missing %%EOF trailer is NOT a refusal, and that is measured, not assumed -------------
+    # `pdf_sanity` looks for `%%EOF` in the last 1024 bytes, so appended data — incremental updates,
+    # an embedded signature, scanner padding — trips the flag on a valid file. Review asked for a 422
+    # here (#374); this asserts the opposite, because the file below is one pypdf reads happily and
+    # refusing it would reject real drawings to prevent nothing.
+    padded = minimal_pdf() + b"%" + b"A" * 2000 + b"\n"
+    check("no %%EOF trailer" in supply_chain.pdf_sanity(padded)["flags"],
+          "the fixture must actually trip the flag, or this proves nothing")
+    r = c.post("/pdf/info", files={"file": ("padded.pdf", padded, "application/pdf")})
+    check(r.status_code == 200, f"a readable PDF past the EOF window must be accepted: {r.status_code}")
+    check(r.json()["pages"] >= 1, "...and pypdf reads its pages, which is why refusing it would be wrong")
+
 # --- the engine itself still behaves as its own tests expect -----------------------------------
 check(supply_chain.pdf_sanity(b"")["ok"] is False, "empty is not ok")
 check(supply_chain.pdf_sanity(minimal_pdf())["ok"] is True, supply_chain.pdf_sanity(minimal_pdf()))

@@ -51,8 +51,19 @@ describe("routes the server implements are reachable from the app", () => {
     expect(ui).toContain("pxPerPoint");
     // Off by default: this tool's normal case is a drawing with no model behind it.
     expect(ui).toContain("scopeChk.checked");
+    // The sheet identity must be PASSED, never defaulted. `sheetRegions(projectId)` defaults to
+    // preset `key` / page `A1`, and this tool accepts any uploaded image — so scoping a trace from
+    // another sheet compared it against A1's viewports and could price it at the wrong drawing's
+    // scale. That is the confident-wrong-number the scoping exists to prevent, reintroduced by the
+    // defaulting. Found in review on #374; asserted here so it cannot come back.
     const caller = SRC("viewer/tools/exportsSection.ts");
-    expect(caller).toContain("api.sheetRegions(projectId)");
+    expect(caller).toMatch(/api\.sheetRegions\(projectId,\s*preset,\s*page\)/);
+    expect(caller).not.toMatch(/api\.sheetRegions\(projectId\)/);
+    expect(ui).toContain("presetIn");
+    expect(ui).toContain("pageIn");
+    // ...and a change of sheet must invalidate the loaded layout, or the previous sheet's viewports
+    // are still what a tick of the box scopes against.
+    expect(ui).toContain("layoutKey");
   });
 
   it("an unscoped or ambiguous trace is reported, never folded into the total", () => {

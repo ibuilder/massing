@@ -381,6 +381,14 @@ async def _read_pdf(f: UploadFile) -> bytes:
     findings. `pdf_sanity` additionally enforces a size cap (these routes had none) and reports
     embedded active content.
 
+    **The `no %%EOF trailer` flag is deliberately NOT a refusal**, and this is stated because a silent
+    omission looks like an oversight (review asked for it on #374). `pdf_sanity` looks for `%%EOF` in
+    the last 1024 bytes, so anything appended past that — incremental updates, an embedded digital
+    signature, some scanners' padding — trips the flag on a perfectly valid file. Measured against
+    the real functions: a reportlab PDF with 2 KB appended is flagged, and **pypdf reads it and
+    reports its pages without complaint**. Refusing on that flag would reject readable drawings to
+    prevent nothing; a genuinely truncated PDF fails in pypdf, where the error names the real problem.
+
     **Active content is reported, not refused.** JavaScript / Launch / OpenAction / EmbeddedFile in a
     PDF is worth knowing about — pypdf carries it into the merged or rotated file this route hands
     back — but plenty of legitimate CAD-exported drawings carry an OpenAction, and refusing those

@@ -184,12 +184,22 @@ export function buildMepSection(d: MepDeps): MepButtons {
   // v0.3.1116 and had no caller in this app at all, which is what made `block_cooling`
   // product-unreachable — a built capability nobody could reach is indistinguishable from a missing one.
   const sizeCalcBtn = d.toolBtn2("🧮 First-pass MEP sizing", async () => {
+    // The route's dispatcher falls through to `size_duct` for any kind it does not recognise, so a
+    // typo would return duct dimensions labelled as whatever was typed — a confident wrong answer,
+    // not an error. Refusing here is the honest outcome, and it also keeps free text out of the
+    // result title. (`showResult` no longer renders its title as markup either; both halves, because
+    // one guard on a shared sink and one on this caller protect different things.)
+    const KINDS = ["duct", "pipe", "cooling", "block_cooling", "hanger"] as const;
     const kind = (await askText("First-pass MEP sizing", {
-      label: "duct (CFM @ fpm) · pipe (GPM @ fps) · cooling (BTU/h → tons) · "
-        + "block_cooling (area → tons) · hanger (size in inches)",
+      label: `${KINDS.join(" · ")} — duct is CFM @ fpm, pipe GPM @ fps, cooling BTU/h → tons, `
+        + "block_cooling area → tons, hanger size in inches",
       value: "block_cooling",
     }))?.trim();
     if (!kind) return;
+    if (!(KINDS as readonly string[]).includes(kind)) {
+      d.notify(`unknown sizing kind ${kind} — expected one of ${KINDS.join(", ")}`, "error");
+      return;
+    }
     const num = async (label: string, dflt = "") => {
       const v = await askText("First-pass MEP sizing", { label, value: dflt });
       return v === null ? null : Number(v);
@@ -220,7 +230,7 @@ export function buildMepSection(d: MepDeps): MepButtons {
       o.hangerKind = hk.trim(); o.size = sz;
     }
     let out: Record<string, unknown>;
-    try { out = await d.api.mepSize(d.pid, kind as "duct", o); }
+    try { out = await d.api.mepSize(d.pid, kind as (typeof KINDS)[number], o); }
     catch (e) { d.notify((e as Error).message, "error"); return; }
     showResult(`First-pass sizing — ${kind}`, (body) => {
       body.appendChild(kvTable(Object.entries(out).map(([k, v]) => ({

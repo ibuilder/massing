@@ -19,12 +19,24 @@ declared export for a delivery path rather than trusting the single grep that pr
 |---|---|---|
 | `nwd` | Enterprise | **nothing — and nothing can.** Delisted. |
 | `obj` | Home | **nothing.** `viewer/referenceLoader.ts` *reads* `.obj`; import is not export. Delisted. |
+| `rvt` | Commercial | **nothing.** Every RVT path is an *import*. Delisted — see below. |
 | `png` | Home | the viewer's canvas capture — client-side, which is why it stays |
+
+**`rvt` is the one I got wrong while fixing the other two, and review caught it.** `POST /convert`
+converts RVT→IFC→`.frag` and its own 503 reads *"Revit (.rvt) **import** needs the Autodesk APS
+bridge"*; `/bridge/rvt/status` reports on that bridge and `/projects/{pid}/import/rvt` is named for
+what it does. Nothing writes an RVT. My `EXPORT_DELIVERY` mapped `rvt` to `/convert` and the gate
+passed — because **the gate asked whether the path EXISTS, not whether it EXPORTS**, and `/convert`
+exists. A delivery path must now end in `.{format}`, which is what an export route looks like here
+(`export.gltf`, `sheet.pdf`, `sheet.dxf`); mutation-tested by restoring the exact `rvt → /convert`
+mapping, which the gate now rejects. *A check whose property is weaker than its claim passes for the
+same reason the bug shipped* — the third instance of that shape in this phase, and the first in a
+gate I wrote to catch it.
 
 `nwd` is not a gap to close. `routers/convert.py` already states the position for its siblings:
 *".rvt/.dwg/.nwc are closed Autodesk formats with NO open-source reader"*. Writing one offline is not
 possible without the paid APS/ODA SDK, and this project's own rule is that such bridges are optional
-and flagged, never bare tier features. Selling it as an Enterprise differentiator was the error.
+and flagged, never bare-tier features. Selling it as an Enterprise differentiator was the error.
 
 **`navisworks`, by contrast, is real and was simply never enforced** — native Navisworks clash-report
 XML import (`smart:` namespace), tabular clash reports, BCF round-trip. Exactly the `sso` defect from
@@ -56,6 +68,12 @@ into memory and hand them to pypdf with **no size cap at all** (now 50 MB), and 
 content — JavaScript, Launch, OpenAction, EmbeddedFile — is now reported, since pypdf carries it into
 whatever the route hands back. Reported, **not refused**: plenty of legitimate CAD-exported drawings
 carry an OpenAction, and refusing those would break real workflows to no security benefit.
+
+The `no %%EOF trailer` flag is deliberately not a refusal either, and now says so in the code —
+review asked for a 422 there, and measurement declined it: `pdf_sanity` looks for `%%EOF` in the last
+1024 bytes, so a PDF with 2 KB appended (an incremental update, an embedded signature) trips the flag
+while **pypdf reads it and reports its pages without complaint**. Pinned as a test, so the exemption
+is evidence rather than an omission.
 
 ### ③ A capability nobody can reach is indistinguishable from one that was never built
 

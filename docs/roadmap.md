@@ -2541,12 +2541,16 @@ claim must be premise-checked against TODAY's tree before acting; several are al
     `routers/convert.py` already records that closed Autodesk formats have no open-source reader, so
     it was delisted rather than left as an Enterprise differentiator that cannot ship. **`obj` was
     delisted too** — `viewer/referenceLoader.ts` *reads* `.obj` and nothing writes it; import is not
-    export, and only a per-format check found it. `services/api/test_export_promises.py` now resolves
+    export, and only a per-format check found it. **`rvt` went the same way, caught in review**: every
+    RVT path here is an import, and the first gate passed it because it asked whether the mapped route
+    *exists* rather than whether it *exports* — a check weaker than its own claim. `services/api/test_export_promises.py` now resolves
     every sold format against the **live FastAPI path list**, not the registry declaring it.
   * ✅ `supply_chain.pdf_sanity` runs at ingest now, at `routers/drawings._read_pdf` — the one
     chokepoint every PDF tool reads through, and which was hand-rolling a weaker `data[:4] != b"%PDF"`.
-    Incidentally closed a real hole: those routes read whole uploads into memory for pypdf with **no
-    size cap at all**. Active content is reported, deliberately not refused.
+    Incidentally closed a real hole: those routes read whole uploads into memory for pypdf and had
+    **no size cap at all** — now 50 MB. Active content, and a `%%EOF` trailer past the 1024-byte
+    window, are both reported and deliberately not refused; the second is measured (pypdf reads such
+    files) rather than assumed.
   * ✅ R27-LAYOUT ② and ③ are reachable: `sheetRegions` (the missing *producer* for the `layout` the
     takeoff consumes — the one-way asymmetry, found yet again), `mepSize`, a "scope to sheet" control
     and a first-pass sizing calculator. `apps/web/src/api/unreachableRoutes.test.ts` asserts the chain

@@ -51,7 +51,13 @@ export function showResult(title: string, render: (body: HTMLElement) => void,
   card.setAttribute("aria-label", title);
   const head = document.createElement("div");
   head.className = "result-head";
-  head.innerHTML = `<strong>${title}</strong>`;
+  // `textContent`, not `innerHTML`. The title is interpolated by ~50 call sites and some of them
+  // build it from user input — `mepSection`'s sizing panel puts a free-text `kind` straight into it —
+  // so markup here executes in the app's own origin. The `<strong>` carried no meaning a stylesheet
+  // cannot supply, which made this a sink with no upside. Flagged by review on #374.
+  const heading = document.createElement("strong");
+  heading.textContent = title;
+  head.appendChild(heading);
   const x = document.createElement("button");
   x.className = "result-close"; x.textContent = "✕"; x.title = "Close (Esc)";
   x.setAttribute("aria-label", "Close"); x.onclick = close;

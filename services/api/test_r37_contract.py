@@ -174,10 +174,13 @@ try:
     # fail to do. Asserting the message is what catches the original defect: the old dict listed only
     # the openBIM formats and the other six rendered "the Massing a higher plan (or higher)".
     every_fmt = {f for feats in licensing.TIER_FEATURES.values() for f in feats["exports"]}
-    # A floor against vacuity, not a ratchet: the loop below proves nothing over an empty set. It was
-    # 9 when written and is 8 since v0.3.1119 delisted `nwd` and `obj` — a deliberate shrink that
-    # `test_export_promises.py` pins by name, so this number follows it rather than resisting it.
-    check(len(every_fmt) >= 8, f"expected the full export matrix, got {sorted(every_fmt)}")
+    # Anti-vacuity: the loop below proves nothing over an empty set. **Not a fixed floor** — that is
+    # what this was, and it moved twice in two releases (9 → 8 → 7) as `nwd`, `obj` and `rvt` were
+    # each delisted for cause. A number that has to be edited every time the thing it measures changes
+    # legitimately is measuring the wrong thing: the property is "there is a population", not "the
+    # population is this big". The delistings themselves are pinned by name in
+    # `services/api/test_export_promises.py`, which is where that belongs.
+    check(every_fmt, "the tier table must sell some exports, or the loop below asserts nothing")
     for fmt in sorted(every_fmt):
         try:
             licensing.require_export(fmt)
