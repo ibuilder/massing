@@ -956,6 +956,36 @@ that rotted were all sentences no test read. Note for whoever extends it — the
 
 ### Decisions, not effort — these want your call
 
+- **A prospect investor dilutes every real one, and the obvious fix empties the cap table.**
+  *(measured 2026-08-29; money-bearing, and NOT a filter fix — read the second half before touching it)*
+
+  `capital.cap_table` sums `commitment` across **every** investor regardless of state. It even reads
+  `workflow_state` — to display as `status` — and never filters on it. Measured against the real
+  function: two funded LPs at $6M and $4M, plus one `prospect` carrying a $10M interest and $0
+  contributed, and the prospect takes **50% of the cap table**, halves Anchor LP from **60% to 30%**,
+  and sorts to the top as the largest apparent owner.
+
+  It does not stop at display. `distwaterfall` allocates
+  `share = lp_total * (commitment / lp_commit)` off these rows, so the prospect draws a real
+  distribution share; and `lp_contrib = sum(contributed) or lp_commit` falls back to commitment when
+  nothing was contributed, which is exactly a prospect's position. Seven call sites consume
+  `cap_table`, including the `/cap-table` route, two finance report builders and the securities bridge.
+
+  **The obvious fix is wrong, and this is the part worth recording.** Excluding `prospect` looks
+  correct and is not: `investor`'s workflow declares `initial: prospect`, and `modules.py` stamps the
+  initial state on every record at creation. So *every investor entered through the product is a
+  prospect* until somebody runs the `commit` transition. I implemented the filter, and
+  `test_distwaterfall` — which creates three investors through the real API and expects a $2,000,000
+  distribution — returned **0.0**. Not a stale fixture: that is the product's own default path. A
+  filter would empty the cap table of every project whose investors were never transitioned.
+
+  So the question is which signal means "this commitment is real", and it is a domain decision rather
+  than a code change: (a) make `committed` the initial state, or require the transition before a
+  record counts — a data migration for existing projects; (b) key the math on `contributed > 0`
+  instead of state, which changes what a *commitment* means in an uncalled fund; or (c) keep the rows
+  and exclude them from the denominator, showing prospects at 0% with the pipeline named separately.
+  Each is defensible and they produce different ownership numbers, which is why this is yours.
+
 - **Asset-rights stopped at signing, on purpose, and going further is your call — not effort.**
   Shipped 2026-08-29: a stable asset identity that survives a `.mass` round-trip, an opt-in release
   manifest citing the container's existing digest rather than re-implementing it, and Ed25519 sign +
