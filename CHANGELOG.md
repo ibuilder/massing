@@ -70,6 +70,21 @@ sizing calculator in the MEP tools. The takeoff reports its shortfall rather tha
 `scoped` traces may be priced. `apps/web/src/api/unreachableRoutes.test.ts` asserts the whole chain
 from UI entry point to request, because a client method nothing calls is the same defect one layer up.
 
+### Two existing gates went red, and both were right
+
+Neither was a regression — both fire when something *becomes reachable*, and refuse to let a stale
+entry sit in a list describing the past.
+
+* `test_reachable.py` had carried **`supply_chain` in `KNOWN_UNREACHABLE` since 2026-07-27**, worded
+  *"tested and imported by nothing. Whatever it checks is not being checked in the running system."*
+  That is the `pdf_sanity` finding, recorded a month earlier in a different file, by a gate that had
+  been saying so the whole time. Wiring it made the module reachable and the entry stale; deleted.
+* `test_route_reachability.py` had `/projects/{pid}/drawings/sheet-regions` frozen as caller-less.
+  It has a caller now, so its entry is gone too.
+
+*Two independent checks noticing the same fix is the strongest evidence available that the wiring is
+real rather than merely present* — neither knows about the other, and neither was edited to agree.
+
 ## v0.3.1118 (2026-08-28) — R37 CONTRACT: an empty dict scored 100% provenance coverage
 
 The last two R37 findings, and they turned out to be one defect in two places: **a contract
