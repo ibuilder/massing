@@ -230,6 +230,45 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
+- ◧ **SOFT-CLASH-RULES — six of seven sourced clearances are never checked** *(S — Lane C;
+  measured 2026-08-29)*
+
+  `soft_clash.CLEARANCE_RULES` is a curated table of seven classes, each carrying a **`basis`** — NEC
+  110.26(A)(1) electrical working space, manufacturer coil-withdrawal and seal-service clearances,
+  hand-wheel reach. `rule_for` is its accessor, and its docstring states the design: *"Returning None
+  rather than a default distance is deliberate. A made-up clearance produces confident findings
+  nobody can defend, and the whole point of the `basis` field is that every number here can be traced
+  to something."*
+
+  **`rule_for` has zero callers.** Nothing consults the table. The clearance check the product
+  actually runs is `geometric_rules.check_clearance`, driven by `_GEO_DEFAULTS` in
+  `routers/standards.py` — which the viewer gets because `qaSection.ts` calls `rulesGeometryRun(pid)`
+  with no `checks` argument. That default set contains **one** clearance entry:
+
+      {"kind": "clearance", "name": "Door approach clearance", "scope": "IfcDoor",
+       "distance_m": 0.9, "severity": "high"}
+
+  and `routers/standards.py` references `soft_clash` **zero** times.
+
+  **No wrong number ships, and that is why nothing has caught it.** `ifcdoor` is 0.9 in the table and
+  0.9 in the default, so the one rule that runs happens to agree. The other six — including the NEC
+  working space, which is a *code* requirement rather than a preference — are defined, sourced, and
+  never evaluated against any model. A user running "Geometry check (clearance/egress)" gets doors
+  checked and every piece of MEP equipment silently unchecked.
+
+  Two smaller things fall out of the same measurement. `geometric_rules` falls back to
+  `float(c.get("distance_m") or 0.9)` when a check omits the distance — a default with no basis, in an
+  engine whose sibling table exists to prevent exactly that. And
+  `/projects/{pid}/clash/clearance-rules`, which publishes the table, is in
+  `test_route_reachability.py`'s frozen uncalled list: the rules are exposed to nobody and applied by
+  nothing.
+
+  **The fix is a behaviour change, not a wiring task, which is why this is filed rather than done.**
+  Deriving the default set from `CLEARANCE_RULES` would start raising `severity: high` findings on
+  MEP equipment across every existing project — correct, and not something to switch on inside an
+  unrelated commit. The sequencing question is whether the six arrive as `high` beside doors or enter
+  at a lower severity first.
+
 - ◧ **ASSET-VERIFY — a release you can sign and cannot check** *(S — Lane C; measured 2026-08-29,
   the day the feature merged)*
 
@@ -723,7 +762,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · ASSET-VERIFY *(the verification half of asset-rights has no product caller; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · ASSET-VERIFY *(the verification half of asset-rights has no product caller; see Band 2)* · SOFT-CLASH-RULES *(six of seven sourced clearances never evaluated; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
