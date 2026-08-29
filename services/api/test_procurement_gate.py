@@ -9,10 +9,11 @@ for _f in ("./test_procgate.db",):
     if os.path.exists(_f):
         os.remove(_f)
 
-from datetime import date, timedelta                    # noqa: E402
+from datetime import date, timedelta  # noqa: E402
 
-from fastapi.testclient import TestClient               # noqa: E402
-from aec_api.main import app                            # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from aec_api.main import app  # noqa: E402
 
 
 def _create(c, pid, key, data):
@@ -79,5 +80,35 @@ with TestClient(app) as c:
     bedrock = next(v for v in feed["vendors"] if v["vendor"] == "Bedrock LLC")
     assert any("expired" in i for i in bedrock["issues"]) and any("prequal" in i for i in bedrock["issues"]), bedrock
 
+    # --- a vendor REJECTED once, then remediated and APPROVED, is not blocked by the old record ----
+    # `list_records` orders by `created_at` ASCENDING, and the gate used to take the FIRST match per
+    # vendor — so it judged a sub on their OLDEST prequalification. Delivered as `can_bid: False`
+    # with "no approved prequalification" while an approved, unexpired one was on file: a false
+    # blocker whose message sends someone to redo work already done.
+    #
+    # The direction matters. Every other filter defect found on this repo let something through;
+    # this one refused a qualified vendor, which is why no money check would ever have surfaced it.
+    dq = _create(c, pid, "prequalification", {"company": "Redeemed Steel", "expires": future})
+    _act(c, pid, "prequalification", dq["id"], "submit")
+    _act(c, pid, "prequalification", dq["id"], "reject")
+    aq = _create(c, pid, "prequalification", {"company": "Redeemed Steel", "expires": future})
+    _act(c, pid, "prequalification", aq["id"], "submit")
+    _act(c, pid, "prequalification", aq["id"], "approve")
+    rc = _create(c, pid, "coi", {"vendor": "Redeemed Steel", "expires": future,
+                                 "gl_each_occurrence": 1_000_000})
+    _act(c, pid, "coi", rc["id"], "approve")
+    g = c.get(f"/projects/{pid}/procurement/gate", params={"vendor": "Redeemed Steel"}).json()
+    assert g["can_bid"] is True, g
+    assert "no approved prequalification" not in g["bid_blockers"], g["bid_blockers"]
+    assert g["prequal"]["status"] == "approved", g["prequal"]
+
+    # ...and the converse still holds: rejected-only is still blocked, so the fix did not
+    # turn the check into one that passes whenever ANY record exists.
+    oq = _create(c, pid, "prequalification", {"company": "Never Qualified", "expires": future})
+    _act(c, pid, "prequalification", oq["id"], "submit")
+    _act(c, pid, "prequalification", oq["id"], "reject")
+    g2 = c.get(f"/projects/{pid}/procurement/gate", params={"vendor": "Never Qualified"}).json()
+    assert g2["can_bid"] is False and "no approved prequalification" in g2["bid_blockers"], g2
+
 print("PROCUREMENT GATE OK - Acme fully compliant (can bid + bill, waiver on file); Bedrock blocked "
-      "(expired COI + unapproved prequal); Crane COI expiring; feed nudges Bedrock+Crane, not Acme")
+      "(expired COI + unapproved prequal); Crane COI expiring; feed nudges Bedrock+Crane, not Acme; a rejected-then-approved vendor can bid and a rejected-only vendor still cannot")

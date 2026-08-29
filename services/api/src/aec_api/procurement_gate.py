@@ -59,10 +59,31 @@ def gate(db, pid: str, vendor: str) -> dict[str, Any]:
     waivers = me.list_records(db, "lien_waiver", pid, limit=10000)
 
     coi = _coi_status(cois, vendor, today)
-    pq = next((p for p in prequals if _vendor(p, "company") == vendor), None)
-    pq_ok = bool(pq and pq.get("workflow_state") == "approved"
-                 and (not _date(_d(pq).get("expires")) or _date(_d(pq).get("expires")) >= today))
-    sub = next((s for s in subs if _vendor(s, "vendor", "vendor_company") == vendor), None)
+    # ONE VENDOR CAN HAVE SEVERAL RECORDS, and the question is existential — this module's own
+    # docstring says a sub may not bid "without AN approved prequalification". `next()` over the
+    # unfiltered list answered a different question: `list_records` orders by `created_at` ascending,
+    # so it judged the vendor on their OLDEST record. A sub who was rejected, remediated and approved
+    # was reported `can_bid: False` with "no approved prequalification" while holding exactly that —
+    # a false blocker whose message sends someone to redo work they have already done.
+    #
+    # A later rejection cannot revoke an earlier approval here, and that is the workflow's design
+    # rather than an assumption: `prequalification` declares only `invited -> submitted`,
+    # `submitted -> approved` and `submitted -> rejected`. There is NO transition out of `approved`,
+    # so a rejection is a fact about one submission, and an approval lapses only by its `expires`
+    # date — which is why the date check below is the thing that ends it.
+    #
+    # The fallback is the NEWEST record (the list is oldest-first) rather than the first, so when
+    # nothing qualifies, `prequal.status` reports where the vendor actually stands today.
+    def _pq_live(p: dict) -> bool:
+        exp = _date(_d(p).get("expires"))
+        return p.get("workflow_state") == "approved" and (not exp or exp >= today)
+
+    v_pqs = [p for p in prequals if _vendor(p, "company") == vendor]
+    pq = next((p for p in v_pqs if _pq_live(p)), v_pqs[-1] if v_pqs else None)
+    pq_ok = bool(pq and _pq_live(pq))
+    v_subs = [x for x in subs if _vendor(x, "vendor", "vendor_company") == vendor]
+    sub = next((x for x in v_subs if x.get("workflow_state") == "executed"),
+               v_subs[-1] if v_subs else None)
     sub_executed = bool(sub and sub.get("workflow_state") == "executed")
     waiver = next((w for w in waivers if _vendor(w, "vendor") == vendor
                    and w.get("workflow_state") in ("received", "closed")), None)
