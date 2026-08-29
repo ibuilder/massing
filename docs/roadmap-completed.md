@@ -7700,3 +7700,382 @@ something — a gate, a browser, a corpus count — and none by re-reading the p
   Unknown `page` is 422, never a silent A1/A3. Omitting `page` on `compose()` is still A3 so old
   links do not change paper. 11×17 is omitted on purpose (not half of 24×36). Live PDF still
   needs a source IFC — the demo's "no model" cannot exercise the box.
+
+---
+
+## Reconciliation 2026-08-29 (v0.3.1119) — two entries that had declared themselves finished in their own bodies
+
+Both were still listed as open in the Lane C cell, and **both contradicted their own headers** — the
+same defect the 2026-08-25 reconciliation above records, arriving again three days later. Neither was
+found by a gate: `roadmapLanes.test.ts` checks that every code in the table exists and that no two
+lanes share a path, and `roadmapStale.test.ts` checks assignability. **Neither asks whether an item
+that says COMPLETE in its body is still sitting in the open table** — a header and a body can
+disagree indefinitely and every check stays green.
+
+Archived verbatim, headers included, because the stale header is the part worth keeping.
+
+### QTO-TRADE — CLOSED (backend v0.3.939 · the three methods wired 2026-08-27)
+
+Header still read *"◧ … the remaining work is the other three methods' screens — Lane B, not C"* while
+the body recorded all three wired and driven live, and the lane table still listed it under **C** —
+which its own header had said was wrong.
+
+- ◧ **QTO-TRADE — the four procurement methods cannot be wired at all, and this is why.**
+  *(**backend half DONE**; the remaining work is the other three methods' screens — Lane B, not C)*
+
+  **BACKEND CLOSED, verified 2026-08-13.** `procurement.normalize_qto_line` accepts either dialect
+  and is called by `buyout_packages`; the trade comes from `classification.py`, not from a second
+  mapping table beside it — which is what the entry below asked for and the right call, since a
+  second table is how two sources of truth start disagreeing about what a wall is.
+
+  **`buyoutPackages` now has a screen (v0.3.939)**: *Buyout packages* on the budget panel feeds
+  `qtoByFloor`'s `by_discipline` lines — the exact `{ifc_class, count, unit, quantity, rate, amount}`
+  shape that used to produce zero packages — straight into the engine.
+
+  Two empty states are rendered **separately and deliberately**, because collapsing them is the
+  specific failure this entry warned about: *no priced quantities* (nothing to package yet) reads
+  differently from *lines went in and nothing came out* (a grouping problem). One empty table for
+  both is what would have said "this project has no scope" about a fully-priced model.
+
+  **ALL THREE ARE NOW WIRED — 2026-08-27, and this cell's reason for their being unwireable was only
+  half right.** `procurementLevelQuotes` (per-line material price comparison, feeding the price
+  ledger), `procurementLevel` (scored against a package's stored `scope_json` — price + coverage +
+  lead time, naming each supplier's scope gaps) and `buyoutSchedule` (last-responsible-order date per
+  material) all have callers and were driven live against the dev API.
+
+  It was true that leveling needs returned quotes, and a paste-and-level control supplies them. But
+  `buyoutSchedule` was not blocked on input the user had to provide **at all** — it was blocked on a
+  BACKEND DEFECT this entry had already declared closed. `buyout_packages` normalises QTO lines
+  through `procurement.normalize_qto_line`; `buyout_schedule.schedule()` never got that call, so on
+  three real by-floor lines it returned *3 entries, 3 unscheduled, every material `""`, every order
+  date null* — a complete, well-formed schedule saying nothing needs ordering. **The same
+  confident-empty this entry documents for the sibling engine, still live in the sibling's sibling
+  after "BACKEND CLOSED, verified" was written.** Fixed and mutation-tested.
+
+  The lesson generalises past this item: **a capability that looks like a UI gap is worth one direct
+  call to its engine before that is believed.** The reason this one had no screen was never the
+  screen.
+
+  **Two agents reached this independently, from different directions, on 2026-08-07** — one from the
+  input shape, one from the bid-submission side — and both refused to guess. That convergence is
+  what promotes it from a wiring backlog item to a backend finding.
+
+  `services/api/src/aec_api/procurement.py` resolves a line's identity as
+  item-or-description-or-material and **skips any line where all three are absent**. Both
+  model-derived QTO sources return ifc_class / count / unit / quantity / rate / amount — none of
+  those three, and no grouping key. Feeding the engine the exact shape the by-floor QTO produces
+  returns zero packages and zero cost. A screen over today's inputs would render
+  **"Buyout — 0 packages"**, which reads as *this model has nothing to buy out* rather than
+  *this input is incompatible*.
+
+  **The generalisation matters more than the fix:** the reach sweep proved 110 of 110 parseable
+  client methods have live server routes, and reachability was allowed to follow from that. It does
+  not. **Route existence and input adequacy are different questions**, and the sweep only ever
+  measured the first. The blocking work was backend, not UI — and it was still backend when this was
+  re-checked on 2026-08-27, in a second engine nobody had looked at.
+
+
+
+### R37-TESTED-UNWIRED — COMPLETE (v0.3.1115 → v0.3.1118)
+
+Header still read *"◧ … measured 2026-08-27, NOT yet read"*. The body's own last line reads
+**"✅ R37-TESTED-UNWIRED IS COMPLETE"** — 265 lines below it.
+
+- ◧ **R37-TESTED-UNWIRED** *(M — Lane C; measured 2026-08-27, NOT yet read)*
+  — **20 public functions in `aec_api` are referenced only by the test tree.**
+
+  Found by looking for the general case of a specific defect: `deal_memory.beside()` was built,
+  tested and reachable by nothing in production, and `test_dead_code_population.py` scored it **60
+  references** — its own test among them. That gate counts the test tree as callers **on purpose**;
+  it is the 35 → 13 correction its header describes, and it is right for the question it asks. But it
+  means *"tested, and wired to nothing"* is invisible to it by construction, and no refinement of the
+  string rule reaches that — tightening it was tried the same day and `beside` still came back
+  referenced, by its own test.
+
+  This is the third instance of one shape, and the first two were each found by hand: `read_p6xml_all`
+  (R46 — *"a module can be reachable and its whole reason for existing still be unreachable"*),
+  `project_manual`'s MasterFormat default (a test whose fixture supplied the very system under test),
+  and now `beside`. **Three hand-finds is a population, not a coincidence.**
+
+  The 20, by defining module: `mep.block_cooling_load` · `ids_authoring.build_from_use_case` ·
+  `cited_answer.cite_record` · `pid_lock.cross_process_status` · `test_fit.depth_range` ·
+  `photo_cv.duplicate_of` · `ids_authoring.eir_for_use_case` · `parcels_bridge.fetch_parcels` ·
+  `supply_chain.is_dual_licensed` · `folder_template.owner_of` · `supply_chain.pdf_sanity` ·
+  `soft_clash.rule_for` · `supply_chain.sbom` · `takeoff_scope.scope_annotations` ·
+  `payments_bridge.send_payment` · `energy_star_bridge.sync_property` · `licensing.tier_at_least` ·
+  `agent_packs.tools_for` · `rooms.unmapped_sections` · `module_schema.validate_dir`.
+
+  **The number is not the deliverable and must not be ratcheted before it is read.** Several are
+  plainly legitimate test-only surface — `sbom`, `pdf_sanity` and `is_dual_licensed` exist for the
+  supply-chain *gates*, which are tests by design, and `sync_property` is the documented refusal stub
+  already exempted in `services/api/test_dead_code_population.py`. Others may be the same defect
+  `beside` was. R37-TRIAGE's own record is the warning: reading its 12 candidates found **eight
+  live**, and the two it deleted without reading had to be put back. *A population rule that looks
+  reasonable is wrong until you read what it selected* — and this one has not been read.
+
+  **ALL 20 READ, 2026-08-27.** The population re-derived first (still 20), then each one opened
+  along with what its own router actually calls. The split is not the one the list shape suggests:
+
+  **▶ WIRE — a real capability nothing can reach (4; ALL FOUR SHIPPED — the fifth was a misclassification, below).** These are `beside` again.
+  * ✅ `pid_lock.cross_process_status` — **the sharpest, and shipped v0.3.1115.** `main.py`'s boot
+    guard explained at length why it read the dialect from `DATABASE_URL` instead of this function,
+    and ended *"the live-truth surface stays `cross_process_status()` on /health"*. `/health` returns
+    `{"status": "ok"}` with no dependencies, deliberately. **The comment asserted a surface that was
+    never built**, and the fact it exists to publish — *this deployment cannot serialise sidecar
+    writes across workers* — was readable by nobody.
+
+    **The guard's stated reason was also false — and acting on that broke a test, which is the part
+    worth keeping.** It said the status call "opens a live session, so a transient connection blip
+    would return `''`". It does not connect: `SessionLocal()` is lazy and `db.get_bind()` returns the
+    engine, whose dialect is parsed from the URL string; it answers `postgresql` for a DSN pointing at
+    an unroutable address, now pinned by `services/api/test_pid_lock_surface.py`. So the duplicate
+    derivation looked like dead weight and the guard was switched to call the status.
+
+    **The next full run failed `services/api/test_perf_rate.py`**, whose own comment carried the real
+    reason: the engine is built once, at import, so under any test runner it is SQLite whatever a
+    fixture's env claims — and an earlier engine-probing version of that branch had "shipped a guard
+    no fixture could ever satisfy". The guard reads the env var again; the comment above it now says
+    *why* instead of saying something false; and both directions are pinned, because the next reader
+    to notice the duplication will have exactly the same idea.
+
+    They are not the same question, which is what makes two sources tolerable: the guard asks whether
+    the database this deployment is **configured** for can serialise, the status asks whether the
+    engine this process is **using** can. At boot they agree. *A stated reason that is false is worse
+    than no comment at all* — not because it misleads, but because the true constraint stands behind
+    it unrecorded, and the only thing that finds it is breaking what it was protecting.
+
+    **Not `/ready`, which this entry proposed.** A readiness probe answers 200/503, and "in-process
+    only" is a supported deployment shape, not a failed probe — and `/ready` runs under a hard
+    wall-clock timeout that a second lookup would sit outside. It went to `/metrics` as
+    `aec_pid_lock_cross_process`, beside a new `aec_pid_lock_writers`, because **the dangerous
+    condition is a conjunction** and neither number is the alarm alone. That also answers *which*
+    deployments needed telling: the guard refuses on exactly this conjunction, but it runs only when
+    the DB is non-SQLite or `AEC_ENV` says production, and is skipped outright under
+    `AEC_ALLOW_OPEN=1`. A self-hosted SQLite deployment with two uvicorn workers boots clean and is
+    exposed. The writer count comes from one extracted `_writer_processes()`, so a refusal at boot and
+    a scrape at runtime cannot disagree about how many writers there are.
+  * ✅ `photo_cv.duplicate_of` — **shipped v0.3.1115.** `routers/verification.py` ran `photo_quality`
+    and `compare_photos` on upload and not this, so the abuse its docstring names — *one photo
+    uploaded against thirty elements to clear a checklist* — was unguarded on the only path where it
+    can happen. The upload now compares against `element_verifications.photo_phash`, a new nullable
+    column (migration `f7a3c82e19d4`), rather than re-reading every stored photo out of object
+    storage per upload.
+
+    **Flagged, never refused** — the same judgement the route already makes about a blurred frame.
+    Two elements can legitimately share a frame; the server cannot tell that from checklist-clearing
+    and a reviewer can, and a refusal would teach whoever wanted to defeat it to take one step left,
+    leaving no record at all. `photoVerdict` renders it second, behind only the retake prompt: both
+    are things that stop being cheap the moment the person walks away.
+
+    **`compared_against` ships with every answer and is the load-bearing field.** Photos predating
+    the column are not backfilled, so a clean result over nothing must not read as a clean result over
+    everything — `aec_jobs_stats_ok`'s reasoning, one ring over. The UI renders **no line at all** when
+    no duplicate is found, for the same reason: saying nothing makes no claim, and a reassuring "no
+    duplicates" would make one that is false on every project with older photos.
+
+    *One fixture lesson, from `services/api/test_photo_duplicate.py` failing its first run.* The
+    retake case was written against an element whose shot a second element also held — so the
+    duplicate it reported was correct, and the self-exclusion it was meant to test was invisible
+    underneath a legitimate match. **An exclusion can only be tested on an item that is otherwise
+    unique**; anywhere else the assertion is about the other match, and a broken exclusion looks
+    identical.
+  * ✅ `takeoff_scope.scope_annotations` — **shipped v0.3.1116.** R27-LAYOUT ③'s own named
+    deliverable; `analysis.py` called `scope` and `check_calibration` only. It now rides on
+    `takeoff_2d`'s existing `layout` + `px_per_point` rather than taking a route of its own —
+    **because it is not a second engine.** Its docstring is explicit that an annotation and a traced
+    polygon pose the identical question, so it maps annotations onto the same region shape and calls
+    `scope`. A separate route would have duplicated the coordinate contract, and two places to get
+    `px_per_point` wrong is exactly how two answers to one question drift apart.
+  * ✅ `mep.block_cooling_load` — **shipped v0.3.1116.** Not a duplicate of the routed
+    `size_cooling`: that converts a KNOWN load to tons, this estimates the load from GFA — the
+    earlier question, and the unasked one. Added to `mep_size`'s dispatcher as `kind=block_cooling`,
+    defaulting the area to `energy.project_gfa_sf` so gross area keeps one definition.
+
+    **The route refuses where the engine clamps**, which is the part worth keeping.
+    `block_cooling_load` does `max(gfa, 0.0)` and `max(sf_per_ton, 1.0)`, so an unloaded project
+    answers `tons: 0.0` — a figure that reads into a plant schedule as an answer rather than as a
+    missing input — and `sf_per_ton=0` returns **350x** the tonnage for the same building. The engine
+    is unchanged, since the clamps are its business and other callers may want them; the refusal
+    lives at the route, where a request can still be told what is wrong with it, and
+    `services/api/test_r37_wire_routes.py` asserts the clamps are still there so the fix cannot
+    quietly become an engine edit.
+
+  **What "wired" means for these two, stated because it is narrower than it sounds.** Each was the
+  one function in its module that its own router did not call, while every sibling was routed —
+  `size_duct`/`size_pipe`/`size_cooling`/`hanger_spacing` on one side, `scope`/`check_calibration` on
+  the other. **Parity with those siblings is the bar, and it is the whole bar.** Neither
+  `/projects/{pid}/mep/size` nor the `layout` half of `/projects/{pid}/takeoff/2d` has a web caller;
+  that was already true of all six siblings and this change does not alter it. Recorded so nobody
+  later reads ✅ as "reachable from the UI" — which is a real and separate gap, below.
+
+  **The separate gap, found while wiring these and worth its own item.** `/projects/{pid}/mep/size`
+  has no caller in `apps/web` at all — it appears only in the generated `apps/web/src/api/schema.d.ts`
+  — and `client.ts::takeoff2d` never sends `layout`, so R27-LAYOUT ② and ③ are both unreachable from
+  the product however well they are routed. That is not a dead function, it is a **built server
+  capability with no client**, which is a different shape from anything R37 measured and would need a
+  UI decision rather than a wiring one. `test_route_reachability` cannot see it: the route path is
+  referenced by the generated schema, which is enough to satisfy a substring test over the web tree.
+  * ⛔ `test_fit.depth_range` — **NOT a gap. This entry was wrong, and the way it was wrong is the
+    item's own lesson arriving one turn later.** It said *"`test_fit_optimize` passes the caller's
+    `body.depths` straight through and defaults to `None`, so the client has to invent the sweep this
+    function exists to generate."* The first clause is true and the conclusion does not follow:
+    `optimize` itself calls `depth_range` when `targets.sweep_depth` is set
+    (`services/api/src/aec_api/test_fit.py`), `apps/web/src/proforma/testfitTab.ts` sets that flag
+    from a checkbox, and `routers/generate.py` routes it. **It is reachable end to end from the
+    product UI**, which makes the WIRE list four, not five.
+
+    **Why the measurement flagged it: `src/aec_api/test_fit.py` is a PRODUCTION module.** A *test
+    fit* is the architectural exercise of fitting a program onto a plate; the file is imported twice
+    by `routers/generate.py`. The R37 population rule sorted files into "test tree" by the `test_*.py`
+    filename convention, so a production module got counted as a test, and the production call inside
+    it read as a test-tree reference. `depth_range`'s only other reference is a genuine test, so it
+    came back "test-only" — correctly, by a rule that had misclassified the file.
+
+    This is the *third* recording of one lesson in this entry, and the first where the rule was mine:
+    R37-TRIAGE's twelve, the exemption-vs-test mistake below, and now this. *A population rule that
+    looks reasonable is wrong until you read what it selected* — and reading is not enough either,
+    because the first read of this one produced a confident sentence about `body.depths` that was
+    about the route and never checked the engine. **Derive the population AND verify each member
+    against the thing itself**, which here was one grep for the function's own name.
+
+    Note the gate `services/api/test_dead_code_population.py` was never fooled: it counts same-file
+    callers on purpose, and has since the correction recorded in its own docstring. The R37
+    measurement was a separate, ad-hoc population that reintroduced a distinction that gate had
+    already learned to do without.
+
+  **▶ CONSOLIDATE — ALL THREE SHIPPED v0.3.1117.** All three have the same shape: **the caller
+  reimplements the accessor, so the accessor reads as dead.** `cde.scorecard_inputs` had that shape
+  too and R37-TRIAGE *deleted* it — which is the tempting move and the wrong one here, because
+  deleting the accessor keeps the caller's copy and loses the better implementation. The better move
+  is the other direction: `routers/ids.py::_specs_from` duplicated `build_from_use_case`'s body **and reached for
+  the private `ia._specs_for`** to do it; `eir_for_use_case` was the same pair; and
+  `agent_packs.catalog` inlined `list(p["tools"])` rather than calling `tools_for`. Calling the public
+  wrappers removed a private reach-through *and* the orphans, which deleting them would not.
+
+  **Reading the code changed the plan twice, and both changes are the point.**
+
+  * **The private reach-through had a SECOND caller this entry did not name.** `codecheck.py` also
+    called `ids_authoring._specs_for`, and it passes a *group list* rather than a use case, so it
+    cannot go through `specs_for_use_case`. *A private helper with two external callers is not
+    private, it is undeclared* — so it is now `specs_for_groups`. Routing around it would have left
+    the second caller reaching in.
+  * **Routing `/ids/eir` through `eir_for_use_case` would have shipped two regressions**, both
+    because the twins had drifted while one of them had no callers: it raised a bare `KeyError` where
+    `build_from_use_case` raises `ValueError`, so **the route's 422 would have become a 500**; and it
+    had no `title` parameter, so a caller-supplied title would have been **silently discarded**. Both
+    fixed first, both pinned. *A consolidation that adopts the surviving implementation inherits its
+    defects too, and they are invisible precisely because nothing calls it* — which is the state R37
+    found it in.
+
+  *And one lesson from the test rather than the code:* its first draft checked the reach-through was
+  gone with `"_specs_for" not in inspect.getsource(router)` — which **failed on the router's own new
+  comment**, where the fix is explained by naming the private helper in prose. A substring test over a
+  file counts comments as code. That is the same defect this whole R37 line keeps finding in other
+  gates, so it does not get to live in the test that closes it: `services/api/test_r37_consolidate.py`
+  walks the AST and asserts on attribute *accesses*.
+
+  **▶ KEEP — genuinely test-and-gate surface (5).** `supply_chain` has no reference anywhere outside
+  its own file: it **is** a gate module, and the licence/SBOM gates are tests by design — `sbom`,
+  `pdf_sanity`, `is_dual_licensed` are correctly test-only. `rooms.unmapped_sections` says *"a
+  non-empty result must fail a build"* and `services/api/test_module_rooms.py` is that build gate.
+  `module_schema.validate_dir` says *"usable from a test or a CLI"* and is called by
+  `services/api/test_module_config.py` — the one wrongly deleted in v0.3.980 and put back.
+  *One correction inside the keep: `pdf_sanity` calls itself "a fast pre-ingest gate", a runtime role
+  it does not have. Nothing ingests through it.*
+
+  **▶ KEEP — refusal stubs, deliberately uncalled (3).** `energy_star_bridge.sync_property`,
+  `parcels_bridge.fetch_parcels` and `payments_bridge.send_payment`. One family, one reason: each
+  raises, names exactly what a deployment must wire, and never fabricates a score, a parcel or a
+  transfer.
+
+  **But they are NOT in the same position, and the first draft of this paragraph said they were.**
+  It proposed exempting all three together in `services/api/test_dead_code_population.py`, on the
+  reasoning that the other two are invisible for the same reason `sync_property` is. Checked:
+  `fetch_parcels` has `services/api/test_parcels.py` and `send_payment` has
+  `services/api/test_payapp.py` — **real tests that exercise the refusal** — while `sync_property`'s
+  only reference in the whole tree is the exemption entry naming it.
+
+  So the correct move is the opposite of the one proposed: **give `sync_property` the refusal test its
+  two siblings already have**, and the exemption stops being needed. An exemption is what you write
+  when there is nothing to assert; here there is — that the stub refuses, and says what to wire.
+  *Written down because the wrong version was one sentence away from being shipped, and it would have
+  frozen a missing test as a deliberate decision.*
+
+  **▶ TWO CONTRACT FINDINGS, worth more than the functions (2+2). ✅ BOTH SHIPPED v0.3.1118 —
+  and reading them corrected BOTH premises.** They were one defect wearing two costumes: a contract
+  documented in prose and enforced nowhere, so the thing meant to be evidence was free to anyone.
+  * ✅ `licensing.tier_at_least` has no caller — but **"enforced nowhere" was wrong.** `licensing` is
+    enforced at *seven* call sites via `require` / `require_export`; the finding above greps for the
+    ordinal helper and concludes the whole system is decorative. What was genuinely unenforced is
+    narrower and worse: **`sso` is Enterprise-only in `TIER_FEATURES`, the Settings panel renders
+    that table, and nothing consulted it** — any tier that configured a SAML IdP got SSO.
+    `saml.is_available()` is now configuration *and* entitlement, gating all three routes through one
+    guard **and** `/auth/providers`, because gating only the routes leaves the sign-in page rendering
+    a button that 402s on click — the symmetric-path defect, hit a fifth time.
+    Found alongside: upgrade messaging was a **second, hand-kept copy of the tier matrix** naming only
+    the openBIM formats, so every Home-tier refusal read *"PNG export requires the Massing a higher
+    plan (or higher)"*. `min_tier_for` / `min_tier_for_export` derive it; `tier_at_least` is deleted
+    because these are the derivations that needed to exist.
+  * ✅ `cited_answer.cite_record` has no producer — but **"only `cite_ifc` is ever produced" was
+    wrong**: `rfi_qa.to_cited` emits `cite_rule` and `cite_doc` too. Three of four, not one. And the
+    reason the fourth had no producer was not a missing feature. `Assumptions.sources` is typed
+    `dict[str, list[dict]]` and only a *comment* said those dicts must be citations, so **an empty
+    dict scored 100% provenance coverage at 0.6 confidence**, and `{"source_type": "ifc"}` with no
+    GUID scored **0.733 — higher than a complete `cite_record`**, because rank came off a
+    self-declared string. Nothing ever had to build a record citation because anything counted as one.
+    `cited_answer.is_citation` is now the contract's own rule (known kind **and** its identifying
+    field); malformed entries are named in `malformed_citation_paths` beside `orphaned_sources`
+    rather than credited. Pinned by `services/api/test_r37_contract.py`, mutation-tested 3/3.
+    *One assertion was cut for being a tautology* — looping the export list to check each entry
+    resolves to a tier cannot fail, because the derivation reads that list. The real population is the
+    **rendered 402 string**, and only that catches the original defect.
+  * `folder_template.owner_of` and `soft_clash.rule_for` are per-item accessors whose bulk siblings
+    (`tree`, which already carries `owner_role`, and `matrix`) are what the routers use. Low value
+    either way; listed so a later sweep does not re-propose them as discoveries.
+
+  **The number was 20 and the answer is not "20 dead".** Eight are correct as they are, three want
+  their callers fixed rather than themselves deleted, five are real gaps, and the two most valuable
+  outputs are not functions at all. *A population rule that looks reasonable is wrong until you read
+  what it selected* — held for the third time.
+
+  ✅ **The stub-family half landed the same day**, as `services/api/test_energy_star_bridge.py`:
+  `sync_property` now has the refusal test its siblings had, asserted in BOTH postures — unconfigured
+  *and* flagged-on-but-unwired, the second being the dangerous one, because a deployment that has set
+  the env vars is exactly the one that would believe a number it got back. The load-bearing assertion
+  is not "it raises" but that **no posture returns a score**: an invented 1–100 would be read as
+  EPA's, quoted in a report, and never questioned. `DELIBERATELY_UNCALLED` is back to empty, and the
+  gate is held by a test rather than an exemption.
+
+  ✅ **R37-TESTED-UNWIRED IS COMPLETE** (v0.3.1115 → v0.3.1118): four wired, three consolidated, both
+  contract findings shipped, the stub-family half held by a test. **The audit's own numbers were
+  wrong in four places and every correction came from reading, never from re-running the query** —
+  five WIRE became four (`test_fit.depth_range` is a production module the population rule sorted by
+  filename), "enforced nowhere" was seven call sites, "only `cite_ifc` is produced" was three of
+  four, and the two findings called product statements were both ordinary bugs underneath. Ratchet at
+  what survives.
+
+  ✅ **The three that were left as product decisions all shipped in v0.3.1119**, and checking each
+  premise changed two of them again — the fifth and sixth corrections in this line of work.
+  * ✅ *"`nwd` and the `navisworks` entitlement are advertised and nothing implements either"* — right
+    about `nwd`, **wrong about `navisworks`**, and it missed a second format. `navisworks` is real
+    (native `smart:`-namespace clash XML, tabular reports, BCF round-trip) and was simply never
+    enforced — the `sso` defect again — so it is now gated on the native XML route, while the tabular
+    sibling stays open because it reads Solibri and any spreadsheet. `nwd` is **not a gap to close**:
+    `routers/convert.py` already records that closed Autodesk formats have no open-source reader, so
+    it was delisted rather than left as an Enterprise differentiator that cannot ship. **`obj` was
+    delisted too** — `viewer/referenceLoader.ts` *reads* `.obj` and nothing writes it; import is not
+    export, and only a per-format check found it. **`rvt` went the same way, caught in review**: every
+    RVT path here is an import, and the first gate passed it because it asked whether the mapped route
+    *exists* rather than whether it *exports* — a check weaker than its own claim. `services/api/test_export_promises.py` now resolves
+    every sold format against the **live FastAPI path list**, not the registry declaring it.
+  * ✅ `supply_chain.pdf_sanity` runs at ingest now, at `routers/drawings._read_pdf` — the one
+    chokepoint every PDF tool reads through, and which was hand-rolling a weaker `data[:4] != b"%PDF"`.
+    Incidentally closed a real hole: those routes read whole uploads into memory for pypdf and had
+    **no size cap at all** — now 50 MB. Active content, and a `%%EOF` trailer past the 1024-byte
+    window, are both reported and deliberately not refused; the second is measured (pypdf reads such
+    files) rather than assumed.
+  * ✅ R27-LAYOUT ② and ③ are reachable: `sheetRegions` (the missing *producer* for the `layout` the
+    takeoff consumes — the one-way asymmetry, found yet again), `mepSize`, a "scope to sheet" control
+    and a first-pass sizing calculator. `apps/web/src/api/unreachableRoutes.test.ts` asserts the chain
+    from UI entry point to request, since a client method nothing calls is the same defect one layer up.
+

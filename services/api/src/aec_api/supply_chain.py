@@ -7,7 +7,18 @@ Three cherry-picked, offline pieces (this does *not* replace CodeQL or the esc()
   BSL-1.0 — the project's standing constraint) · **copyleft** (GPL / AGPL / LGPL / MPL / EPL / CDDL /
   EUPL — disallowed) · unknown.
   Mechanically enforces the no-AGPL rule instead of relying on review. ``python -m aec_api.supply_chain``
-  prints the audit and exits non-zero if any copyleft component is found — usable as a CI/skill gate.
+  prints the audit; with ``--gate`` it exits non-zero on **strong** copyleft (GPL/AGPL) that is not
+  declared in :data:`SHIP_EXCLUDED` — usable as a CI/skill gate.
+
+  **This sentence used to say "exits non-zero if any copyleft component is found", and both halves
+  were wrong** — weak copyleft never failed it, and strong copyleft failed it even when purged from
+  every artifact. The second error was the expensive one: `bcf-client` (GPLv3, an unconditional
+  requirement of the LGPL `ifctester` we do need) has been in `SHIP_EXCLUDED` and purged by the
+  container since it was found, so `--gate` exited 1 on a correct, policy-compliant tree — every
+  time, for anyone following the hardening runbook that says to run it before a release. `--gate`
+  and `test_license_gate.py` are two enforcement paths for ONE policy and they disagreed, with the
+  test right and the CLI wrong. **A permanently red gate gets switched off** — this module's own
+  audit note says so about weak copyleft, and then the strong path acquired the same defect.
 - **SBOM** — a minimal CycloneDX 1.5 JSON component list (name · version · license) for the same set.
 - **PDF sanity check** — a lightweight validator for uploaded/ingested PDFs (header + EOF + size cap +
   active-content flags: JavaScript / Launch / EmbeddedFile / OpenAction), no AGPL parser.
@@ -314,8 +325,9 @@ def mcp_tool_audit() -> dict[str, Any]:
 
 
 def _main(argv: list[str] | None = None) -> int:
-    """Print the audit. With --gate, exit non-zero only on STRONG copyleft (GPL/AGPL) so a CI/skill gate
-    fails on the hard line but not on the accepted LGPL/MPL core deps. Default is informational (exit 0).
+    """Print the audit. With --gate, exit non-zero only on STRONG copyleft (GPL/AGPL) that is NOT in
+    SHIP_EXCLUDED — so the gate fails on the hard line, but not on the accepted LGPL/MPL core deps and
+    not on a package that `--purge` removes from every artifact. Default is informational (exit 0).
     With `mcp-audit`, run the MCP tool-poisoning self-audit instead (always exit 0 — non-gating; add
     --gate to fail on any high-severity finding)."""
     argv = argv if argv is not None else sys.argv[1:]
@@ -340,10 +352,31 @@ def _main(argv: list[str] | None = None) -> int:
     print(f"SEC-SUPPLY license audit: {a['total']} components · {a['permitted']} permitted · "
           f"{a['copyleft_count']} copyleft ({a['strong_copyleft_count']} strong GPL/AGPL) · "
           f"{a['unknown_count']} unknown")
+    # A strong-copyleft package that is DECLARED IN `SHIP_EXCLUDED` is purged from every artifact by
+    # `--purge` (the container does this after `pip install`), so it is installed here and shipped
+    # nowhere. Saying so on the line itself is the point: the previous output tagged it `STRONG` with
+    # no further comment, which reads as an unaddressed violation of the project's hardest licence
+    # rule and sent at least one reader hunting for a breach that had been handled a release earlier.
+    excluded = {k.lower() for k in SHIP_EXCLUDED}
     for c in a["copyleft"]:
-        tag = "STRONG   " if c["strong_copyleft"] else "weak     "
+        if not c["strong_copyleft"]:
+            tag = "weak     "
+        elif c["name"].lower() in excluded:
+            tag = "STRONG*  "
+        else:
+            tag = "STRONG   "
         print(f"  {tag} {c['name']} {c['version']}  [{c['license'][:60]}]")
-    return 1 if ("--gate" in argv and a["strong_copyleft"]) else 0
+    blocking = [c for c in a["strong_copyleft"] if c["name"].lower() not in excluded]
+    if any(c["strong_copyleft"] and c["name"].lower() in excluded for c in a["copyleft"]):
+        print("  * STRONG copyleft, but declared in SHIP_EXCLUDED and removed from every artifact "
+              "by `--purge` — installed, never distributed. See SHIP_EXCLUDED for the reason.")
+    if "--gate" in argv:
+        # Parenthesised deliberately: `"a" + x if c else "b"` is CORRECT here (the conditional binds
+        # looser than `+`) and reads as though it might not be, which is a line a reviewer has to
+        # stop and parse. Both branches are exercised by test_supply_chain_gate.
+        print(("GATE FAIL: " + ", ".join(c["name"] for c in blocking)) if blocking
+              else "GATE OK: no strong copyleft is distributed.")
+    return 1 if ("--gate" in argv and blocking) else 0
 
 
 if __name__ == "__main__":

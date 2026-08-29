@@ -40,6 +40,9 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CEILING = 5_200
 
 #: Per-file ceilings for the files SCALE-SEAM is actively splitting. **Only ever revised DOWN.**
+#: That remains a rule for a reader, not an assertion — down-only is a claim about history and this
+#: file measures a working tree. MAX_SLACK below covers the half that CAN be measured, and its own
+#: comment is explicit about which half that is.
 #:
 #: WHY THIS EXISTS, and it is a correction to how the ratchet was understood. `CEILING` above is a
 #: single GLOBAL number, so it is pinned by whichever file is worst — today `viewer/app.ts` at 5,106
@@ -112,7 +115,15 @@ PER_FILE = {
     #: two lines of WIRING for a new button, and wiring is what this file is for. The alternative was
     #: to push DOM construction into `sheetSpecs.ts`, whose freedom from the DOM is exactly why its
     #: eleven tests need no browser — that would be trading a real property for a number.
-    "apps/web/src/viewer/app.ts": 2_865,   # CAD command line -> cadBar.ts, which also gained the R29 prompt loop (2_885 -> 2_865). The 39-line inline block became a 10-line mount call; the ratchet is why the interactive mode went into a new module instead of on top of app.ts.   # clash rail -> tools/clashPanel.ts (2_944 -> 2_885)
+    #: RESTORED 2026-08-29 from 2_865, and the restoration is the reason MAX_SLACK below exists.
+    #: Slices ⑭⑮⑯ walked this pin 2_865 -> 2_757 -> 2_630 -> 2_571 on 2026-08-27, and the REL-4
+    #: portal commit later the same afternoon put 2_865 back — along with the pre-⑭ comment trail,
+    #: which is what makes it read as intentional rather than as the lost hunk it was. Nothing could
+    #: go red: the only assertion here is `measured > cap`, so a pin that moves UP is invisible by
+    #: construction, and the three slices' friction was spent silently. Pinned at 2_570, the file's
+    #: EXACT measured size — ⑯ set 2_571 against a file that already measured 2,570, which is the
+    #: off-by-one MAX_SLACK is deliberately loose enough to tolerate.
+    "apps/web/src/viewer/app.ts": 2_570,   # detailing -> tools/detailingSection.ts (2_630 -> 2_571).   # content + family library -> tools/contentLibrarySection.ts (2_757 -> 2_630).   # interactive annotation -> tools/annotationSection.ts (2_865 -> 2_757). The file was AT this pin with zero headroom, which is why the roadmap row calling it "97%, ~136 lines" was corrected in the same pass.   # CAD command line -> cadBar.ts, which also gained the R29 prompt loop (2_885 -> 2_865). The 39-line inline block became a 10-line mount call; the ratchet is why the interactive mode went into a new module instead of on top of app.ts.   # clash rail -> tools/clashPanel.ts (2_944 -> 2_885)
     # Pinned at its EXACT measured size, not above it. qaSection.ts became the file every reach fix
     # lands in and reached 1,373 lines while unpinned - the same accumulation app.ts and client.ts
     # already have entries for. Pinned before it needs splitting rather than after: a ratchet added
@@ -192,6 +203,61 @@ check(
     not grew,
     "; ".join(f"{rel}={n} > {cap}" for rel, n, cap in grew)
     or "; ".join(f"{rel}={measured[rel]}/{cap}" for rel, cap in PER_FILE.items() if rel in measured),
+)
+
+#: The check above is one-directional — it asks whether a FILE grew past its pin, and is silent about
+#: a PIN that moves up past its file. `PER_FILE`'s own docstring says the numbers are "**Only ever
+#: revised DOWN**", and until 2026-08-29 that was prose with nothing behind it. It failed exactly the
+#: way prose fails: three shipped extractions (R39-DECOMP-VIEWER ⑭⑮⑯, 2_865 -> 2_571) were undone
+#: when an unrelated lane's commit to this shared file carried the pre-⑭ line back in, comment trail
+#: and all. Every gate stayed green, because a raised pin is a WIDER bound and no assertion here was
+#: looking up. **An extraction without a ratchet is a rearrangement** — the sentence already in this
+#: file — and a ratchet that can be silently unwound is the same thing one commit later.
+#:
+#: Enforced as SLACK rather than as history, so it needs no base ref and works in a fresh clone: a
+#: pin that sits far above its file is either a revert or an extraction nobody ratcheted, and both
+#: are the defect. The bound is loose on purpose. Measured across the whole map the day this landed,
+#: legitimate slack was 0, 0, 0 and 0 lines — every pin sat EXACTLY on its file, which is what the
+#: qaSection note ("13 lines of slack is 13 lines the next addition spends without anyone deciding
+#: to") asks for. The one non-zero case was ⑯'s own off-by-one. So 25 is roughly an order of
+#: magnitude above any observed honest value and an order of magnitude below the 295-line revert it
+#: is here to catch: tight enough to fail on the real event, loose enough that nobody has to re-pin
+#: for a one-line deletion. Deleting more than that from a ratcheted file and lowering its pin in
+#: the same commit is not an obstacle — it is the discipline this whole map exists to impose.
+#:
+#: **WHAT THIS DOES NOT DO, stated because the first draft of this comment claimed otherwise.** It
+#: does *not* enforce "only ever revised DOWN" — it enforces "a pin must not sit far above its
+#: file", and those are different assertions. A commit that raises a pin AND grows the file to match
+#: passes both checks with slack 0; so would the very incident above, if the same stale copy had
+#: carried `app.ts` back to 2,865 lines alongside the pin. Down-only is a claim about HISTORY and
+#: cannot be decided from the working tree, which is the price of needing no base ref. What is left
+#: uncovered is the case the docstring above already routes to review — "raising an entry is a
+#: deliberate act that should be argued for in the commit message" — and a deliberate raise is
+#: exactly what a reader can see in a diff. The silent case, a pin moving up under a file that did
+#: not, is the one a reader cannot see, and it is the one now covered. *A gate whose scope is
+#: narrower than its claim* is a defect this file names one screen up; the fix is the honest label,
+#: not a wider promise.
+#:
+#: **KNOWN FALSE POSITIVE: two concurrent extractions from the same pinned file, merged.** Each
+#: branch measures a tree containing only its own cut, so each pin is correct on its branch and
+#: neither describes the union — the merged file sits below the surviving pin by the other branch's
+#: delta, and this check reds `main` on a merge where no individual change was wrong. That is the
+#: mirror image of the case the `client.ts` entry already records, where the five-way seam merge
+#: (#316-#320) had to go UP by one post-merge for the same reason, and it is the accepted
+#: `strict: false` race in `docs/roadmap-directions.md` wearing a different hat. Left as a failure
+#: rather than tuned away: the bound cannot separate it from a single reverted slice (both are
+#: 59-127 lines here), the merged pin genuinely IS wrong until someone fixes it, and the message
+#: below names the exact number to write. Lower the pin to the merged measurement; do not raise
+#: MAX_SLACK, which would spend the whole gate to avoid a one-line correction.
+MAX_SLACK = 25
+slack = [(rel, measured[rel], cap) for rel, cap in PER_FILE.items()
+         if rel in measured and cap - measured[rel] > MAX_SLACK]
+check(
+    f"no extraction ratchet sits more than {MAX_SLACK} lines above its file",
+    not slack,
+    "; ".join(f"{rel}: pin {cap} vs {n} lines — {cap - n} slack, lower the pin to {n}"
+              for rel, n, cap in slack)
+    or "; ".join(f"{rel}=+{cap - measured[rel]}" for rel, cap in PER_FILE.items() if rel in measured),
 )
 
 # The ratchet only ratchets if somebody can see the headroom. Print the top of the list every run so

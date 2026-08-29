@@ -144,9 +144,33 @@
 
   <section>
     <p class="h2">Recently shipped</p>
-    <h2>The work becomes a Run, the register becomes a report, and the plugin leaves the process</h2>
-    <p class="lead">This wave is about the platform being answerable for itself. Long analyses stop being blocking calls and become tracked Runs; a register can finally be grouped, which is what makes it a report; third-party plugin code stops executing inside the API process; and an upload that fails halfway can be resumed by the same request that started it.</p>
+    <h2>The checks became the thing being checked</h2>
+    <p class="lead">This wave went looking for the gap between what the platform reports and what it does &mdash; and found most of it in the instruments. A coverage score that rated an empty document 100%. A dead-code gate counting its own prose as a caller. Twenty functions that were built, tested, and reachable by nothing in production. Each is now held by a check that was made to fail against the real defect before it was trusted.</p>
     <div class="cards">
+      <div class="card" style="--accent:var(--violet)">
+        <div class="k">Reach</div>
+        <h3>Built, tested, and wired to nothing</h3>
+        <p>Twenty public functions were referenced only by their own tests &mdash; passing, and unreachable from the product. Four were real capabilities nobody could get to, three had been reimplemented by their callers rather than called, and the rest were misclassifications worth naming. A test suite counts as a caller, which is why no coverage number could ever have shown this.</p>
+        <span class="tag b">v0.3.1114 &middot; v0.3.1118</span>
+      </div>
+      <div class="card" style="--accent:var(--violet)">
+        <div class="k">Provenance</div>
+        <h3>An empty document scored 100%</h3>
+        <p>Coverage was computed as answered-over-asked. Ask nothing and you score perfectly &mdash; so the least complete assumption set in the system reported the most confidence. The metric now refuses to report a percentage it cannot ground, because a number a reader trusts is worse than no number when it is backwards.</p>
+        <span class="tag b">v0.3.1118</span>
+      </div>
+      <div class="card" style="--accent:var(--cyan)">
+        <div class="k">Specs</div>
+        <h3>The spec manual answered nothing</h3>
+        <p>For every model this project ships, the 3-part MasterFormat manual came back empty &mdash; and a section keynote on a drawing now names the spec section that governs it, so the sheet and the manual point at each other instead of being assembled separately and hoped about.</p>
+        <span class="tag">v0.3.1107 &middot; v0.3.1108</span>
+      </div>
+      <div class="card" style="--accent:var(--cyan)">
+        <div class="k">Offline</div>
+        <h3>It could not run offline, and nothing said so</h3>
+        <p>The viewer is required to work fully offline &mdash; local WASM, self-hosted tiles. It was reaching a CDN, and the failure was silent rather than loud, which is the version of this bug that survives. Now it is held by a check rather than by intent.</p>
+        <span class="tag">v0.3.1111</span>
+      </div>
       <div class="card" style="--accent:var(--cyan)">
         <div class="k">Runs</div>
         <h3>Analyses go through the queue</h3>
