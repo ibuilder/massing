@@ -230,6 +230,25 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
+- ◧ **CITE-RECORD — three of four citation builders are wired, the record one is not** *(XS —
+  Lane C; measured 2026-08-29)*
+
+  `cited_answer` exposes four builders. `cite_ifc`, `cite_rule` and `cite_doc` each have production
+  callers; **`cite_record` has none.** So the platform can cite an IFC element, a rule and a document,
+  and can never cite a *data-platform record* — `module/{key}/{rid}`, which is the bulk of what this
+  product stores.
+
+  R37's contract fix already named the cause without closing it: *"Nothing ever had to build a record
+  citation because anything counted as one"* — `Assumptions.sources` was typed loosely enough that an
+  empty dict scored 100% provenance. That fix made `is_citation` strict; it did not give the record
+  citation a producer. One of four missing from a set of four is a gap, not a design.
+
+  Bundled here because the same sweep found it, and it is genuinely extra-small: `owner_of` in
+  `folder_template.py` has no callers either, but only because `docmanager.py` **reimplements its
+  one-line body inline at three sites** (122, 192, 220) rather than calling it. Nothing is missing —
+  the owner role does reach the client — but three copies of an accessor will not follow the accessor
+  if its semantics ever change. R37-CONSOLIDATE shipped exactly this fix three times on 2026-08-28.
+
 - ◧ **SOFT-CLASH-RULES — six of seven sourced clearances are never checked** *(S — Lane C;
   measured 2026-08-29)*
 
@@ -762,7 +781,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · ASSET-VERIFY *(the verification half of asset-rights has no product caller; see Band 2)* · SOFT-CLASH-RULES *(six of seven sourced clearances never evaluated; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · ASSET-VERIFY *(the verification half of asset-rights has no product caller; see Band 2)* · SOFT-CLASH-RULES *(six of seven sourced clearances never evaluated; see Band 2)* · CITE-RECORD *(XS — the record citation builder has no producer; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
