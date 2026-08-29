@@ -46,11 +46,16 @@ SECRETS: list[str] = []
 
 
 def _scrub(text: str) -> str:
-    """Replace any registered secret with a placeholder. Substring, not equality — a secret can be
-    embedded in a larger repr (a manifest dict, a request body) rather than passed on its own."""
-    for s in SECRETS:
-        if s:
-            text = text.replace(s, "<redacted-secret>")
+    """Withhold the whole detail if it contains any registered secret.
+
+    All-or-nothing rather than masking in place, and that is the point: a masking version built the
+    output with `text.replace(secret, ...)`, which passes the secret *into* the expression that gets
+    printed. Taint analysis reads that as the secret reaching the sink — correctly, in the sense that
+    one wrong argument order would print it. Here the secret is only ever an operand of `in`, so it
+    reaches a boolean and never the returned string, which is either the untouched input or a
+    constant. Dropping a whole failure detail is a small cost paid on a path that should not happen."""
+    if any(s and s in text for s in SECRETS):
+        return "<detail withheld: contained registered secret material>"
     return text
 
 
@@ -226,13 +231,13 @@ check("a forged manifest fails against the TRUSTED key",
 
 rep_untrusted = ar.verify_release(signed)
 check("verify_release reports trusted_key False without an explicit key",
-      rep_untrusted["signature_ok"] and not rep_untrusted["trusted_key"], rep_untrusted)
+      rep_untrusted["signature_ok"] and not rep_untrusted["trusted_key"])
 rep_trusted = ar.verify_release(signed, public_key=ar.public_key_b64(seed))
 check("verify_release reports trusted_key True with the right key",
-      rep_trusted["trusted_key"] and rep_trusted["ok"], rep_trusted)
+      rep_trusted["trusted_key"] and rep_trusted["ok"])
 rep_forged = ar.verify_release(forged, public_key=ar.public_key_b64(seed))
 check("verify_release rejects the forgery against the trusted key",
-      not rep_forged["signature_ok"] and not rep_forged["ok"], rep_forged)
+      not rep_forged["signature_ok"] and not rep_forged["ok"])
 
 # Tampering after signing must break the signature, not merely the hash.
 after = dict(signed)
@@ -259,9 +264,9 @@ check("the private seed never appears in a signed manifest", seed not in blob)
 # The redaction above is itself a claim, so it is asserted rather than trusted. Both directions:
 # a registered secret must vanish even when embedded in a larger string, and ordinary detail must
 # survive untouched — a scrubber that ate everything would pass the first half alone.
-check("a registered secret is scrubbed from printed detail",
+check("a registered secret is withheld from printed detail",
       seed not in _scrub(f"manifest={{'seed': '{seed}'}}")
-      and "<redacted-secret>" in _scrub(f"seed={seed}"))
+      and "withheld" in _scrub(f"seed={seed}"))
 check("scrubbing leaves ordinary detail intact",
       _scrub("content_hash mismatch: sha256:abc != sha256:def")
       == "content_hash mismatch: sha256:abc != sha256:def")
@@ -342,7 +347,7 @@ with TestClient(app) as c:
     check("the manifest carries the asset as a URN",
           rel["asset_id"] == ar.asset_urn(asset), rel["asset_id"])
     check("an unsigned sealed container still self-verifies",
-          ar.verify_release(rel)["ok"], ar.verify_release(rel))
+          ar.verify_release(rel)["ok"])
     check("unsigned means unsigned, not silently signed", ar.verify_release(rel)["signed"] is False)
 
     # THE END-TO-END CLAIM: every hash in the manifest matches the bytes actually in the archive.
@@ -390,7 +395,7 @@ with TestClient(app) as c:
     rep = ar.verify_release(rel2, public_key=ar.public_key_b64(key))
     check("a configured key produces a signed container",
           rel2.get("verification", {}).get("algorithm") == "ed25519")
-    check("the signed container verifies under the issuer key", rep["ok"] and rep["trusted_key"], rep)
+    check("the signed container verifies under the issuer key", rep["ok"] and rep["trusted_key"])
     check("it does NOT verify under a stranger key",
           not ar.verify_release(rel2, public_key=ar.public_key_b64(ar.generate_seed()))["signature_ok"])
     check("the signing seed never reaches the container", key not in signed_blob.decode("latin-1"))
