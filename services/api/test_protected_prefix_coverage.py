@@ -75,6 +75,14 @@ KNOWN_UNCOVERED_MUTATING = {
 #: Uncovered read-only prefixes. Lower risk (a GET cannot change state) but still outside the net,
 #: so a read-only prefix growing a mutating route has to surface — see failure mode 2.
 KNOWN_UNCOVERED_READONLY = {
+    # `/asset-rights/status` reports whether this DEPLOYMENT can seal a `.mass` and whether a signing
+    # key is configured — three values about server configuration, no project or tenant state, and
+    # never the key itself. It is gated by `Depends(current_user)` rather than `require_role`,
+    # because that dependency resolves its `pid` from the path OR the query string and so lets a
+    # caller supply their own on a route that has no `{pid}` (the hazard recorded on `authorize_pid`).
+    # Classified read-only here rather than added to _PROTECTED_PREFIXES: nothing under it is
+    # project-scoped, and rule 2 below will fail the moment it grows its first mutating route.
+    "/asset-rights",
     "/attachments", "/benchmarks", "/bridge", "/bsdd", "/capabilities", "/classifications", "/codes",
     "/content", "/contractor-statements", "/energy", "/families", "/fca", "/health", "/licenses",
     "/lifecycle", "/market", "/mcp", "/module-attachments", "/modules", "/openbim",

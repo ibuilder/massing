@@ -402,9 +402,9 @@ async function saveProjectBundle() {
       sealed = await askConfirm("Save project", {
         body: st.signing
           ? "Seal this file with a release manifest?\n\nIt records a SHA-256 of everything in the "
-            + "container and signs it, so anyone with the issuer's public key can prove the file is "
-            + "authentic and unaltered. The pre-converted geometry tile is recorded but left out of "
-            + "the release identity, because it can be regenerated.\n\n"
+            + "container and signs it, so anyone holding the issuer's published verification key "
+            + "can confirm the file is authentic and unaltered. The pre-converted geometry tile is "
+            + "recorded but left out of the release identity, because it can be regenerated.\n\n"
             + "Sealing gives the project a permanent asset id that travels with the file."
           : "Seal this file with a release manifest?\n\nIt records a SHA-256 of everything in the "
             + "container, so any later change to the file is detectable.\n\nNo signing key is "
