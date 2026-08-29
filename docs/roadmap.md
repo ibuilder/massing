@@ -2223,6 +2223,44 @@ Shipped 2026-08-01:
   only the `AEC_REQUIRE_SECRET` branch and called the fallback unguarded — **an audit that misses
   an existing control still tells you the control is hard to find.**
 
+Shipped 2026-08-29 — **a hardening pass whose two findings were both in the SECURITY TOOLING, not in
+the product.** That is worth stating plainly, because it is the second time on this repo that the
+thing enforcing a rule was the thing that had quietly stopped enforcing it (`supply_chain` itself was
+the first, with a classifier and an audit that nothing invoked).
+
+* ✅ **`supply_chain --gate` exited 1 on a correct tree — permanently, and for over a fortnight.**
+  It failed on *any* strong copyleft in the installed set, with no awareness of `SHIP_EXCLUDED`.
+  `bcf-client` (GPLv3, an unconditional requirement of the LGPL `ifctester` we do need) has been
+  declared there and purged from every artifact by the container's `--purge` since it was found — so
+  the CLI and `services/api/test_license_gate.py` were **two enforcement paths for one policy giving
+  opposite answers**, with the test right. The hardening runbook tells an operator to run the CLI
+  before every release, where a permanent red is exactly the "gate somebody switches off" that this
+  module's own audit note warns about for weak copyleft; the strong path had acquired the same
+  defect. `--gate` now excludes `SHIP_EXCLUDED`, prints `GATE OK` / `GATE FAIL: <names>`, and tags
+  an excluded package `STRONG*` with a footnote instead of a bare `STRONG` that reads as an
+  unaddressed breach. Verified both ways: exit 0 on the real tree, exit 1 with the package named
+  when the exclusion is removed.
+  **The bug was found by an error, which is the transferable part** — the first read of the exit
+  code was `$? ` after a pipe, so it reported the *pipe's* status. Re-reading it directly is what
+  surfaced the mismatch. That trap is already written down in `docs/roadmap-directions.md` §2.
+* ✅ **XML entity expansion: the posture was good and held by nothing** —
+  `services/api/test_xml_parse_hardening.py`. Three first-party paths already parse untrusted
+  schedule XML safely (`mspdi` and `p6xml` via `xmlsafe.parse`; `aec_data.schedule` via
+  `defusedxml`) and no assertion required a fourth to. Now ratcheted, with the reader self-tested
+  against a planted offender and both directions mutation-checked.
+  The rule's *justification* is re-measured on every run rather than recalled: on CPython 3.12.3
+  bare `ElementTree.fromstring` refuses external entities but expands internal ones —
+  **100,000 characters from 249 bytes in 2 ms** — so if a future CPython hardens the default parser
+  that check goes red and tells us the reason changed.
+  **The one unguarded parse in the tree is vendored and was deliberately NOT patched.**
+  `massingcapture/probe/e57.py` reads the E57 XML index bare, and is unreachable: nothing in
+  `aec_api` or `aec_data` imports `massingcapture`, and the routed `aec_api/e57.py` is a different
+  module that parses no XML. `VENDOR.md` pins the subset with *"Local deviations: NONE"* and
+  `test_massingcapture_vendor.py` asserts it is **stdlib-only per file**, so neither `defusedxml`
+  nor `xmlsafe` can be imported there — the fix belongs upstream. **Unreachability is therefore the
+  control, so the unreachability is what is asserted**, and wiring the capture probes fails the gate
+  and puts the XML question in front of that commit rather than a later audit.
+
 Shipped 2026-08-21:
 
 - ✅ **R35-DEAL-MEMORY** *(M — SHIPPED v0.3.1112)* — the platform's own closed deals as a comp database: when underwriting
