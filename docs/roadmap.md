@@ -230,7 +230,12 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
-#### ⭐ R46 — THE SECOND SYNC, ONE DAY LATER *(measured 2026-08-15 at the `a740241c` re-sync)*
+#### ✅ R46 — THE SECOND SYNC, ONE DAY LATER *(measured 2026-08-15; **COMPLETE v0.3.967**, re-verified against the gate 2026-08-29)*
+
+> **This heading carried Band 2's ⭐ — "the highest-value item in a band" — while its own
+> closing line read "R46 IS COMPLETE … 29 of 29 reachable, allowlist empty." So the file's
+> priority ranking pointed a reader at finished work, and the two halves of one entry
+> disagreed. `test_vendor_reachable.py` settles it in a second: 29/29, 0 unreached.**
 
 R45 finished on 2026-08-14 with **all 21 vendored modules reachable** and `UNREACHED` empty for the
 first time. Upstream shipped again the next day. `a740241c` brings **eight new modules and 2,986
@@ -658,8 +663,7 @@ worth checking: two of the three were mis-sized, and both in the same direction.
 |---|---|---|---|---|
 | 1 | **R22-ENTITLEMENT** | The only genuinely open R22 item, and the largest hole in the product's own story: the mission is acquisition → construction and **nothing spans approval**. Everything else on this list improves what already exists. | M/L | ✅ ③ shipped v0.3.978 — `review_cycle` + `approval_cycles.py`. ✅ **comment round-tripping shipped v0.3.1042** — a resubmittal now carries the review that asked for it, labelled with the revision it was written against. **Submittal *packages*: the inbound half was ALREADY SHIPPED and this row did not say so — see the note under the entry.** |
 | 2 | **R39-DECOMP-VIEWER ③** — split `apps/web/src/viewer/app.ts` | Not a preference — but **not the alarm an earlier version of this cell made it sound like, either.** Re-measured 2026-08-27: the file was 2,865 lines against a pin of 2,865, and it is **2,570 after slices ⑭⑮⑯**, with the pin lowered each time — **and then raised back to 2,865 the same afternoon by an unrelated lane's commit to the same shared file, which no gate could see. Re-measured again 2026-08-29 and restored; see the entry.** That is the fourth consecutive time this row's number was wrong, and the first time the *pin* was the thing that had moved rather than the prose. Zero headroom is the ratchet's DESIGNED state, not a regression: it pins each file at (or one line above) its current size — `client.ts` sits at 2,836/2,837 the same way — and `test_file_sizes.py` says so itself, that the threshold is set just above the worst offender and tightening it is part of the work. So the next line added here reds the build, permanently, and **the remedy is always extraction, never waiting for room**. That is the mechanism, working. This cell said *"97%, ~136 lines of headroom"* until today, which was the third consecutive time this row's number was stale: the ratchet has come down twice since (2,944 → 2,885 → 2,865) and the prose never followed. The note in the outcome column already says a justification was *"copied forward without re-measuring"* — and then the correction itself was copied forward without re-measuring. **Re-derive it before quoting it:** `wc -l apps/web/src/viewer/app.ts` against its entry in `services/api/test_file_sizes.py`. | L | ✅ ⑦ shipped v0.3.978 (3,444 → 3,311). **The "why" was already false when written** — six slices had landed and the ceiling had moved with them. A justification copied forward without re-measuring. |
-| 3 | **R37-TRIAGE tail** — the 12 remaining dead-code candidates | Bounded and evidence-backed (the population went 877 → 13 in v0.3.973), but each needs reading before deletion because string dispatch and `__all__` re-exports can still hide a caller. Lowest value of the three — the one candidate that mattered is already fixed. | S | ✅ shipped v0.3.980, and **"lowest value" was wrong**: 8 of the 12 were live, one of them holding both PyInstaller builds together. The reading was the value, not the deletions. |
-
+| 3 | ~~**R37-TRIAGE tail**~~ — **CLOSED 2026-08-29, before this sprint was taken.** `services/api/test_dead_code_population.py` reports 0 unreferenced and an empty `DELIBERATELY_UNCALLED`; the 12 candidates this row proposes reading are gone. *A proposed sprint is a status line too, and this one had gone stale in the same way the item it names had.* | — | ✅ shipped v0.3.980, and **"lowest value" was wrong**: 8 of the 12 were live, one of them holding both PyInstaller builds together. The reading was the value, not the deletions. *(That sentence is restored here: the first draft of the strikethrough above deleted it, and a status correction that takes a recorded finding with it costs more than the stale status did.)* |
 **What the outcomes say about the sizing.** Both misjudgements came from trusting a written number
 instead of re-deriving it — a stale ceiling in row 2, a stale population in row 3. The sprint that
 *was* correctly sized is the one whose entry demanded a premise-check before starting.
@@ -681,13 +685,13 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R37-TRIAGE · R43-MASSINGBILL-CORE |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉘ *(the only open slice; ②–㉗ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉙ *(the only open slice; ②–㉘ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -862,6 +866,29 @@ that rotted were all sentences no test read. Note for whoever extends it — the
   Directions, the npm title table, and this row now match the classifier. CC0 is a public-domain
   dedication, strictly more permissive than MIT; 59 files under
   `services/data/families/external/` already declared it.
+- **The EOT surface is dark, and deliberately so — but the decision has been pending since 2026-08-20.**
+  `POST /schedule/eot` and `POST /schedule/eot/sourced` both exist and **no client code references
+  either**. R46 reserves this as a domain decision rather than a wiring task, and it is the right call:
+  `sourced` is the auditable one — its own docstring says a caller-typed baseline *"is unauditable… two
+  people can produce different EOTs from one project by typing different dates"* — but **an
+  extension-of-time figure ends up in arbitration**, so which one a screen shows is a statement about
+  what the product asserts, not a UI choice. Surfaced here by the 2026-08-29 sweep because it was
+  recorded inside a ring entry that now reads ✅, where a reader looking for open decisions would not
+  find it.
+- **`eot.py` names four AACE methods and performs none of them.** All four return an identical number
+  on the same input; three of the four *are* network operations. `schedule_windows` and
+  `schedule_modelled` now perform three for real. **Whether `/schedule/eot` should delegate to them or
+  keep its own number and cite theirs is the same arbitration question**, and both still ship today.
+- **The three renames and the `/edit` body shape in R43-VIEWER-CONFORMANCE.** *(Again not opening
+  with the code — `roadmapStale.test.ts` reads an unmarked bullet headed by an item id as a second,
+  contradicting copy of that item, which is exactly what this would have been.)* Every one is *which side
+  moves*, ours or MassingViewer's. Its entry says so explicitly and stays ◧ for that reason, "not
+  because work is left undone here."
+- **The requisition half of R43-MASSINGBILL-CORE.** *(Worded so it does not OPEN with the item code:
+  a bullet that starts with one is parsed as an item, which is how that same code was counted twice
+  until 2026-08-25. Caught here by `roadmapSelfConsistent.test.ts` within a minute of writing it.)*
+  The money half closed in v0.3.969; this half "still
+  needs the per-site decision" the entry describes.
 - **`massingviser` vs modelmaker — which is *the* platform?** Its own description is a federated AEC
   platform in pure Python with a plugin kernel. MassingViewer raised this because both are about to
   grow a federation manager, and two federation managers is the expensive version of this question.
@@ -2269,8 +2296,12 @@ claim must be premise-checked against TODAY's tree before acting; several are al
   repo's own known god-files, and SCALE-SEAM already split `client.ts` by domain after this index
   was taken. Credit what shipped; keep the rest.
 
-- ◧ **R37-TRIAGE** *(M — Lane C; do FIRST, before any deletion or split)*
-
+- ✅ **R37-TRIAGE** *(M — Lane C; **CLOSED — verified against the gate, not the prose, 2026-08-29**:
+  `services/api/test_dead_code_population.py` reports **0 unreferenced beyond the 0 kept on purpose**
+  and `DELIBERATELY_UNCALLED` empty. The "12 remaining candidates" this entry and the sprint row
+  above it both describe are gone. *Closed in the same merge that archived R37-TESTED-UNWIRED from
+  a concurrent sweep — two sessions reached the same class of finding independently, and this one
+  is the item that sweep left because it had no gate reading to go on.*)*
   **STEP 3 RE-DERIVED v0.3.973, and the derivation is the finding.** The entry said the dead-code
   list "should be re-derived, not triaged". Done, and the useful output is not the list but *how far
   a wrong population misses by*:
@@ -2473,7 +2504,21 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉘ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㉗ have shipped, ㉗ PDF tools in v0.3.1086. **This heading read `㉗` until 2026-08-27** — naming a slice its own next words called shipped, because `MARKS` in `apps/web/src/shell/roadmapLanes.test.ts` stopped at ㉗ and nothing could spell the open one)*
+- ◧ ⭐ **SCALE-SEAM ㉙ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㉘ have shipped, **㉘ construction accounting in v0.3.1120**)*
+  **㉘ took the double-entry books and WIP out** (ten methods; `client.ts` 2,816 → 2,752) as
+  `apps/web/src/api/accounting.ts`. **The strongest case yet for grouping by what the methods
+  ANSWER**, because the group was in TWO non-contiguous clusters ~700 lines apart, with prequal,
+  carbon and land screening in between — no prefix split would have found them together, and a
+  route split would separate `journalBatchExportUrl` from the batch `createJournalBatch` creates.
+  What they answer together is one question: *what do the books say?*
+  **`costTraceability` did NOT come**, though it sits immediately above the second cluster — it
+  answers which cost codes trace to model elements, a takeoff question that happens to be
+  adjacent. *Adjacency in a file is not a relationship*, met for the third time (㉕, ㉗, ㉘).
+  **`MARKS` was widened to ㉙ in this release rather than the next one**, which is the correction
+  the ㉘ note asks for: widening on the way OUT of a slice, not on the way into the one after,
+  is what stops the vocabulary from being one short of the open item again.
+  **The per-file pin moved 2,837 → 2,752** — and it had been carrying slack it was never told
+  about: v0.3.1119 took the file to 2,816 under duress from that very check and did not lower it.
   **㉗ took the PDF tools and A/E/C seals out** (9 methods, one contiguous run; `client.ts` 2,883 →
   2,837) as `apps/web/src/api/pdfTools.ts`. Grouped by what they DO, following ㉖: the run spans
   `/pdf/*`, `/stamps/library` and `/licenses/mine`, and a prefix split would separate `stampLibrary`
