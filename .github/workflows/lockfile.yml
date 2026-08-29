@@ -39,8 +39,23 @@ jobs:
             build-essential python3-dev libgl1 libglib2.0-0 git
           rm -rf /var/lib/apt/lists/*
 
+      # PINNED, because this is the compiler that decides the lock's exact bytes, and the job's own
+      # gate fails on any byte difference between a fresh compile and the committed file.
+      #
+      # It was floating, and the drift is already visible in the committed lock: its header records
+      # `pip-compile --allow-unsafe --generate-hashes --no-index ...` while the Compile step below
+      # passes no `--no-index` at all. A newer pip-tools started writing that flag into the header
+      # itself. Harmless in isolation — a recorded command string — but it means a pip-tools release
+      # can change the lock's bytes with no dependency change at all, and the failure surfaces as
+      # "requirements.lock is stale" on whatever unrelated PR happens to run next. That sends the
+      # reader to the dependency they just edited, which is not where the change came from.
+      #
+      # NOTHING WILL BUMP THIS FOR YOU. Dependabot's github-actions ecosystem watches `uses:`, not a
+      # `pip install` inside a `run:` block, so this pin does not appear in any update lane. Raise it
+      # deliberately, and expect the lock's header (or more) to move in the same commit — that is the
+      # change being made visible rather than arriving anonymously.
       - name: Install pip-tools
-        run: pip install --no-cache-dir pip-tools
+        run: pip install --no-cache-dir pip-tools==7.6.1
 
       - name: Compile lock
         run: |
