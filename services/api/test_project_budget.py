@@ -187,6 +187,20 @@ with TestClient(app) as c:
     assert draws1["actual_billed"] == round(inv2["amount"], 2) and draws1["pct_billed"] > 0, draws1
     assert draws1["invoice_count"] == 2, draws1                                 # the $0 App-1 + the billed App-2
 
+    # A REFUSED application must leave BOTH numbers alone, together. `actual_billed` comes from
+    # `billed_to_date` (which excludes rejected) and `invoice_count` from `count_records` (which
+    # did not), so excluding the amount without excluding the count produced one payload reporting
+    # money from N invoices beside a count of N+1 — reconcilable by nobody. Asserted as a pair on
+    # purpose: either half alone passes while the response contradicts itself.
+    _rej = c.post(f"/projects/{pid}/modules/owner_invoice",
+                  json={"data": {"number": "APP-REJ", "amount": 900_000, "period": "2026-09"}}).json()["id"]
+    c.post(f"/projects/{pid}/modules/owner_invoice/{_rej}/transition", json={"action": "submit"})
+    c.post(f"/projects/{pid}/modules/owner_invoice/{_rej}/transition", json={"action": "reject"})
+    draws2 = c.get(f"/projects/{pid}/construction-draws").json()
+    assert draws2["actual_billed"] == draws1["actual_billed"], ("a refused application was billed", draws2)
+    assert draws2["invoice_count"] == draws1["invoice_count"], ("the count included a refused application "
+                                                                "the amount excluded", draws2)
+
     # construction-loan draws: owner invoices funded equity-first then debt vs the sized capital stack
     ld = c.get(f"/projects/{pid}/loan-draws").json()
     assert ld["loan_amount"] > 0 and ld["equity"] > 0, ld

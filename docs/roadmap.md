@@ -286,6 +286,17 @@ instances:
   - `specs.submittal_log` and `spine.traceability` — a VOID spec section still demands submittals and
     still reads as a traceability gap.
 
+  **A tenth, adjacent and NOT a refusal-reader — `client_portal._payment_schedule` displays
+  `data.status`, not `workflow_state`.** Raised in review of v0.3.1122 and deliberately left out of
+  it: that release fixed which invoices the schedule *counts*, and this is which status it *shows*.
+  The row renders `str(d.get("status") or "draft")` from the free-text data blob, so a certified
+  application whose blob was never written reads as a draft to the owner — and `paid` is totalled
+  from that same string, so the client-facing paid/outstanding split can be wrong independently of
+  any refusal. Pre-existing, client-facing, and it changes a contract the portal tests encode
+  (`test_portal_txn.py` seeds `status` in the blob), so it needs its own slice rather than a rider
+  on a fix for a different defect. Shape: prefer `workflow_state`, fall back to the blob only when
+  the state is absent, and drive the real transitions in the test.
+
   **The five that are CORRECT as-is are the point of the entry, not a footnote.** A pattern-matching
   gate would have "fixed" all five and broken two of them:
 

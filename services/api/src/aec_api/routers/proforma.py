@@ -658,7 +658,12 @@ def construction_draws(pid: str, db: Session = Depends(get_db), _sec: str = Depe
         raise HTTPException(404, "project not found")
     cf = pb.cashflow(db, pid)
     billed = pb.billed_to_date(db, pid)                # shared SQL SUM — no full-table load
-    invoice_count = _me.count_records(db, "owner_invoice", pid) if "owner_invoice" in _me.TABLES else 0
+    # ...and the COUNT must exclude on the same rule as the AMOUNT. `billed_to_date` drops refused
+    # applications; this line did not, so one payload reported money from N invoices beside a count
+    # of N+1 and could not be reconciled by the reader.
+    invoice_count = (_me.count_records(db, "owner_invoice", pid,
+                                       exclude_states=list(pb.OWNER_INVOICE_NOT_BILLED))
+                     if "owner_invoice" in _me.TABLES else 0)
 
     # per-cost-code draw composition — what the construction draw is *for*, from the SOV's
     # completed-to-date grouped by cost code (the draw rides the same budget-seeded SOV lines)

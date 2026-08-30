@@ -72,6 +72,33 @@ rule is wide enough for the longest code the roadmap actually contains, so the l
 against the file instead of being a number someone must remember to raise. Mutation-checked: one
 copy reverted fails the gate and names the file.
 
+**A second review round found the fix had made one payload disagree with itself.**
+`/projects/{pid}/construction-draws` returns `actual_billed` from `billed_to_date` — which this
+release taught to exclude refused applications — beside an `invoice_count` from `count_records`,
+which was not taught anything. So the endpoint reported money from N invoices next to a count of
+N+1: measured, `actual_billed` $1,000,000 with `invoice_count` 3. **Excluding an amount without
+excluding its count is not half a fix, it is a new defect**, and `count_records` had the principle
+in its own docstring — *"a count that ignores a filter the list applied reports a total the page
+cannot account for, and a total is exactly the number a user trusts without checking"* — while
+lacking the parameter to honour it. It now takes `exclude_states`, matching `sum_field`. Pinned as
+a PAIRED assertion, because either half alone passes while the response contradicts itself.
+
+**And the widening was described wrong in three places.** `[A-Z][A-Z0-9]{1,11}-` admits a head of
+**twelve** characters, not eleven — the leading `[A-Z]` sits outside the quantifier. The regex is
+fine; the prose was off by one, and so was the new gate's own second assertion, which compared the
+quantifier bound against a full code length and would therefore have **rejected a 12-character code
+its own regex accepts**. That is the same claim-wider-than-the-property mistake this release is
+about, pointing the other way. The assertion now converts bound to admissible length explicitly;
+the rule stays at twelve rather than narrowing to make the sentence true, because narrowing a limit
+is what created this whole section.
+
+**Not fixed here, and recorded instead:** the same portal reader shows `data.status` from the
+free-text blob rather than `workflow_state`, so a certified application can read as a draft to the
+owner and the paid/outstanding split can be wrong independently of any refusal. That is which
+status the page *shows*, not which invoices it *counts* — pre-existing, client-facing, and it
+changes a contract the portal tests encode, so it is its own slice under `REFUSAL-READERS` rather
+than a rider on this one.
+
 **The population in the roadmap entry was also derived wrong, and that correction is the more
 useful one.** The table said 17 unfiltered sites while the classification below it summed to 19.
 The reason: the derivation matched `list_records(db, "<type>"` and nothing else, but

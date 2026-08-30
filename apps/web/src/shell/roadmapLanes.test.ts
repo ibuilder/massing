@@ -127,7 +127,8 @@ const CLOSED = "⛔";
 // fix. A regex change to a population check is a population change, and an unmeasured one is a
 // new number with no idea what moved.
 //
-// THIRD widening 2026-08-30, `{1,5}` -> `{1,11}` on the code HEAD (the part before the dash), and
+// THIRD widening 2026-08-30, `{1,5}` -> `{1,11}` on the code HEAD (the part before the dash — so
+// heads of up to TWELVE characters, since the leading `[A-Z]` is outside the quantifier), and
 // it was found the way the docstring above predicts rather than by reading this line: a new item
 // `REFUSAL-READERS` was added, this suite passed, and the pass was VACUOUS — `REFUSAL` is seven
 // characters and the head could match at most six, so the bullet was never in the population at
@@ -139,6 +140,10 @@ const CLOSED = "⛔";
 // gate for its whole life and was therefore never required to be in a lane. That second one is the
 // argument for widening rather than renaming the new item to fit: a limit that quietly drops
 // anything over six characters had already dropped something.
+//
+// ("Widened to eleven" is how this was first written up, in three places. The quantifier is 11; the
+// admissible head is 12. Kept as 12 rather than narrowed to make the prose true, because narrowing
+// a limit is the move that created this whole section.)
 //
 // ONE definition, used by both readers. Widening the item regex above did NOT fix the gate, because
 // the lane-CELL parser in `laneRows()` carried its own hand-kept copy of the same `{1,5}` head and
@@ -760,6 +765,14 @@ describe("the roadmap readers agree on what an item code looks like", () => {
     // The population check that the rule above is FOR. A head limit below the longest real code
     // is the defect this whole section exists for, so it is measured against the file rather
     // than asserted as a number someone has to remember to raise.
+    //
+    // The `+ 1` is not a fudge and was not here first. `[A-Z][A-Z0-9]{1,11}-` admits a head of
+    // TWELVE characters, because the leading `[A-Z]` sits OUTSIDE the quantifier — so the bound in
+    // the source and the length of a code are two different measurements, and comparing them
+    // directly made this assertion fail one character early. Review caught it; a 12-character code
+    // would have been rejected by a gate whose own regex accepts it, which is the same
+    // claim-wider-than-the-property mistake the section above is about, pointing the other way.
+    const effectiveMax = (bound: number) => bound + 1;     // the leading [A-Z], outside {n,m}
     const longest = [...LINES.join("\n").matchAll(/\*\*([A-Z][A-Z0-9-]{2,})[\s—*]/g)]
       .map((m) => m[1])
       .filter((c): c is string => Boolean(c) && c!.includes("-"))
@@ -767,7 +780,8 @@ describe("the roadmap readers agree on what an item code looks like", () => {
       .reduce((a, b) => Math.max(a, b), 0);
     const rule = /\[A-Z\]\[A-Z0-9\]\{\d+,(\d+)\}-/.exec(
       readFileSync(resolve(REPO, "apps/web/src/shell/roadmapLanes.test.ts"), "utf8"));
-    expect(Number(rule?.[1]), `the longest code head in the roadmap is ${longest} characters`)
+    expect(effectiveMax(Number(rule?.[1])),
+      `the longest code head in the roadmap is ${longest} characters`)
       .toBeGreaterThanOrEqual(longest);
   });
 });
