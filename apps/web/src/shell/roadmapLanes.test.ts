@@ -126,8 +126,29 @@ const CLOSED = "⛔";
 // Both widenings were MEASURED first — one bullet gained by the marker fix, four by the length
 // fix. A regex change to a population check is a population change, and an unmeasured one is a
 // new number with no idea what moved.
+//
+// THIRD widening 2026-08-30, `{1,5}` -> `{1,11}` on the code HEAD (the part before the dash), and
+// it was found the way the docstring above predicts rather than by reading this line: a new item
+// `REFUSAL-READERS` was added, this suite passed, and the pass was VACUOUS — `REFUSAL` is seven
+// characters and the head could match at most six, so the bullet was never in the population at
+// all. A population check that silently omits the thing you just added reports success for the
+// same reason the omission happened.
+//
+// Measured, as the note above requires: 31 codes before, 33 after, none lost. The two gained are
+// `REFUSAL-READERS` and — independently — `QUALITY-ROOM`, an entry that had been invisible to this
+// gate for its whole life and was therefore never required to be in a lane. That second one is the
+// argument for widening rather than renaming the new item to fit: a limit that quietly drops
+// anything over six characters had already dropped something.
+//
+// ONE definition, used by both readers. Widening the item regex above did NOT fix the gate, because
+// the lane-CELL parser in `laneRows()` carried its own hand-kept copy of the same `{1,5}` head and
+// still could not see the code — so the item was in the population, absent from every lane, and the
+// suite failed with the new code named as an orphan while the lane row plainly listed it. Two copies
+// of one rule inside the check that exists to catch two copies of one rule.
+const CODE_HEAD = String.raw`[A-Z][A-Z0-9]{1,11}-`;
+
 const ITEM = new RegExp(
-  String.raw`^\s*[-*] (?:(?:✅|◧|🟡|⭐|${CLOSED})️? )*\*\*([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{1,}?)(?:\s*([${MARKS}]))?(?:\s|\*\*|—)`,
+  String.raw`^\s*[-*] (?:(?:✅|◧|🟡|⭐|${CLOSED})️? )*\*\*(${CODE_HEAD}[A-Z0-9-]{1,}?)(?:\s*([${MARKS}]))?(?:\s|\*\*|—)`,
 );
 
 function itemCodes(lines: string[]): Set<string> {
@@ -194,7 +215,7 @@ function laneRows(): Lane[] {
       // Only things shaped like a code; prose cells ("no standalone items…") contribute none.
       .map((text) => ({
         text,
-        code: new RegExp(String.raw`^([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]+(?: [${MARKS}])?)`).exec(text)?.[1],
+        code: new RegExp(String.raw`^(${CODE_HEAD}[A-Z0-9-]+(?: [${MARKS}])?)`).exec(text)?.[1],
       }))
       .filter((e): e is LaneItem => Boolean(e.code));
     const items = entries.map((e) => e.code);

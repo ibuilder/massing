@@ -43,6 +43,58 @@ with TestClient(app) as c:
                                  "invoice_date": "2024-01-19", "period": "Jan"}}).json()["id"]
     assert c.get(f"/projects/{pid}/accounting/journal").json()["total"] == 132000, "submitted must post"
     c.post(f"/projects/{pid}/modules/sub_invoice/{_sub}/transition", json={"action": "reject"})
+
+    # --- the AR SIDE of the same defect: a REJECTED OWNER invoice ------------------------------
+    # The loop above was fixed for `sub_invoice`; `journal_entries` reads `owner_invoice` twenty
+    # lines below it, in a different function, and was left posting debit 1200 / credit 4000 —
+    # Accounts Receivable and Contract Revenue. Adjacency in a file is not a relationship, and here
+    # it hid the mirror image of a bug that had just been fixed in the same file.
+    #
+    # `owner_invoice` has FIVE readers and the refusal reached all of them, so this asserts through
+    # every one rather than through the ledger alone: the state means the OWNER refused to pay.
+    oipid = c.post("/projects", json={"name": "AR"}).json()["id"]   # own project: the
+    # assertions further down measure a ledger with no owner invoices in it, and an added
+    # test that moves an existing one's subject has not passed, it has replaced it.
+
+    def _oi(num, amt):
+        return c.post(f"/projects/{oipid}/modules/owner_invoice",
+                      json={"data": {"number": num, "amount": amt, "period": "2024-02-01"}}).json()["id"]
+
+    _ok = _oi("APP-001", 100000)
+    c.post(f"/projects/{oipid}/modules/owner_invoice/{_ok}/transition", json={"action": "submit"})
+    c.post(f"/projects/{oipid}/modules/owner_invoice/{_ok}/transition", json={"action": "certify"})
+    _bad = _oi("APP-002", 250000)
+    c.post(f"/projects/{oipid}/modules/owner_invoice/{_bad}/transition", json={"action": "submit"})
+    assert c.post(f"/projects/{oipid}/modules/owner_invoice/{_bad}/transition",
+                  json={"action": "reject"}).json()["workflow_state"] == "rejected"
+
+    def _ar():
+        """Accounts Receivable per the trial balance — the number a rejected application inflated."""
+        _tb = c.get(f"/projects/{oipid}/accounting/trial-balance").json()
+        return next(r["balance"] for r in (_tb.get("rows") or _tb.get("accounts")) if r["code"] == "1200")
+
+    # measured before the fix: AR 350000 against 100000 actually owed
+    assert _ar() == 100000, ("a rejected owner invoice was posted to Accounts Receivable", _ar())
+    _memos = [e["memo"] for e in c.get(f"/projects/{oipid}/accounting/journal-entries").json()["entries"]]
+    assert not any("APP-002" in m for m in _memos), ("rejected application in the ledger", _memos)
+
+    from aec_api import project_budget as _pbt                    # noqa: E402
+    from aec_api.db import SessionLocal as _SL                    # noqa: E402
+    with _SL() as _db:
+        assert _pbt.billed_to_date(_db, oipid) == 100000, "billed_to_date counted a rejected application"
+    _ld = c.get(f"/projects/{oipid}/loan-draws").json()
+    assert _ld["drawn_to_date"] == 100000, ("a refused draw accrued interest", _ld["drawn_to_date"])
+
+    # ...and the converse, in BOTH directions, so this cannot degrade into "only certified counts":
+    # a SUBMITTED application still bills, and `revise` (rejected -> draft) puts the refused one back.
+    _pending = _oi("APP-003", 5000)
+    c.post(f"/projects/{oipid}/modules/owner_invoice/{_pending}/transition", json={"action": "submit"})
+    assert _ar() == 105000, "a submitted application must still bill"
+    assert c.post(f"/projects/{oipid}/modules/owner_invoice/{_bad}/transition",
+                  json={"action": "revise"}).json()["workflow_state"] == "draft"
+    assert _ar() == 355000, "revise must restore a previously-rejected application"
+    c.post(f"/projects/{oipid}/modules/owner_invoice/{_bad}/transition", json={"action": "submit"})
+    c.post(f"/projects/{oipid}/modules/owner_invoice/{_bad}/transition", json={"action": "reject"})
     assert c.get(f"/projects/{pid}/accounting/journal").json()["total"] == 125000, "reject must un-post"
 
     j = c.get(f"/projects/{pid}/accounting/journal").json()
@@ -119,4 +171,7 @@ print("ACCOUNTING OK - journal flattens sub invoices + direct costs; GL CSV is b
       "(debit Construction Costs / credit AP); trial balance balances (debits==credits==125000) and the "
       "GL columns balance; QuickBooks IIF emits BILL/SPL/ENDTRNS for AP bills only. "
       "Approval-gated batch: freeze snapshot (draft) -> export 409 until submit+approve -> then GL CSV/IIF "
-      "export the FROZEN figures (still balance 125000); missing period=422, unknown batch=404")
+      "export the FROZEN figures (still balance 125000); missing period=422, unknown batch=404. "
+      "A rejected OWNER invoice reaches none of its five readers -- ledger, trial balance (AR 100000 "
+      "not 350000), billed_to_date, loan-draws and the client payment schedule -- while a submitted "
+      "one still bills and `revise` restores a refused one")

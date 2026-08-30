@@ -39,6 +39,14 @@ with TestClient(app) as c:
     assert w["contract_value"] == 1000000, w["contract_value"]
     assert w["earned_revenue"] == 500000, w["earned_revenue"]          # 50% × 1M
     assert w["billed_to_date"] == 300000, w["billed_to_date"]
+    # a REJECTED application is not billed — and WIP is where it does the most damage, because
+    # `billed` drives over/under-billing and `accounting.journal_entries` posts that back as the
+    # WIP-ADJ revenue line, so one refused invoice would move the ledger by two separate routes.
+    _rj = _mk(c, pid, "owner_invoice", {"number": "INV-X", "amount": 900000, "period": "2026-06"})
+    c.post(f"/projects/{pid}/modules/owner_invoice/{_rj}/transition", json={"action": "submit"})
+    c.post(f"/projects/{pid}/modules/owner_invoice/{_rj}/transition", json={"action": "reject"})
+    _wr = c.get(f"/projects/{pid}/wip").json()
+    assert _wr["billed_to_date"] == 300000, ("a rejected application reached WIP", _wr["billed_to_date"])
     assert w["under_billing"] == 200000 and w["over_billing"] == 0, w  # earned − billed (asset)
     assert w["billing_status"] == "under-billed", w["billing_status"]
     assert w["gross_profit"] == 200000 and w["gross_margin_pct"] == 20.0, w  # 1M − 800k

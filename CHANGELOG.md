@@ -4,6 +4,59 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1122 (2026-08-30) — the owner rejected the invoice; five money numbers went on counting it
+
+**A rejected owner invoice was booked as revenue.** `accounting.journal_entries` posted every
+`owner_invoice` as debit 1200 / credit 4000 — Accounts Receivable and Contract Revenue — with no
+regard for its workflow state. Measured through the routes with a rejected $250,000 application
+beside a certified $100,000 one, the trial balance reported **accounts receivable of $350,000
+against $100,000 actually owed**.
+
+Rejecting an owner invoice is the *owner* refusing to pay it — `reject` is their transition, and
+`revise` (rejected -> draft) is the GC's way back. Every consumer of the record ignored that:
+
+| reader | what it got wrong |
+|---|---|
+| `accounting.journal_entries` | posted AR + Contract Revenue for a refused application |
+| `/accounting/trial-balance` | AR $350,000 instead of $100,000 |
+| `project_budget.billed_to_date` | "THE single 'billed' number" the loan-draws, draw-composition and investment memo all quote |
+| `wip.schedule` | `billed` drives over/under-billing, which posts BACK as the WIP-ADJ revenue line — one refused invoice moving the ledger by two routes |
+| `client_portal` payment schedule | billed the owner for the invoice **they** rejected — and displayed `data.status` (default "draft") rather than the workflow state, so it showed as a draft that nonetheless counted |
+| `/loan-draws` | drew $350,000 and accrued interest on the balance it invented ($2,085.62 -> $595.89) |
+
+**This is the AP fix from v0.3.1121 met in a mirror.** That release fixed `journal()` for
+`sub_invoice`; this defect sat twenty lines below it, in a different function, reading a different
+record type, and was untouched. *Adjacency in a file is not a relationship* — the fix and the bug
+were as close as two pieces of code can be.
+
+The rule is a **named constant**, `project_budget.OWNER_INVOICE_NOT_BILLED`, not five inline checks:
+a record type with five readers is a rule with four places to rot. `sum_field` has carried an
+`exclude_states` parameter — and named *"billed-to-date"* as its example — since it was written; the
+call site simply never passed it.
+
+`submitted`, `approved` and `paid` stay: the first two are live receivables, the third is history
+that belongs in the books. `draft` also stays, deliberately — whether an unsent draft counts as
+billed is a separate question from whether a *refused* one does, and only the second has an answer
+the workflow states. Only the explicit refusal is refused.
+
+Pinned in `test_accounting.py`, `test_portal_txn.py` and `test_wip.py`, each asserting the converse
+too — a submitted application still bills, and `revise` restores a refused one, so the fix cannot
+degrade into "only certified counts". All five engine changes mutation-checked independently.
+
+**The roadmap lane gate was measuring 31 of 33 items, and it took adding an item to notice.** The
+new roadmap entry for this class is called `REFUSAL-READERS`; `roadmapLanes.test.ts` passed with it
+in place, and the pass was vacuous — the item regex capped a code head at six characters and
+`REFUSAL-` is seven, so the bullet was never in the population. Widened to eleven and measured as
+that file requires: **31 codes before, 33 after, none lost.** The second code gained is
+`QUALITY-ROOM`, an entry that had been invisible to the gate for its whole life and so was never
+required to be in a lane; it is a question answered and declined in place ("the register stays with
+its discipline"), now marked ⛔ to say so.
+
+Widening the item regex did not fix it. `laneRows()` held a **second hand-kept copy** of the same
+six-character rule, so the code was in the population, absent from every lane, and the suite failed
+naming it an orphan while the lane row plainly listed it — two copies of one rule inside the check
+that exists to catch two copies of one rule. Both now read a single `CODE_HEAD`.
+
 ## v0.3.1121 (2026-08-29) — a `.mass` you can prove is authentic, and the first tag in thirty releases
 
 **Sealing a container is now possible, and opt-in.** A `.mass` can carry `asset_rights.json`, a signed

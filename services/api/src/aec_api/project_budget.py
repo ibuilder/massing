@@ -48,11 +48,36 @@ def _records(db: Session, key: str, pid: str) -> list[dict]:
     return me.list_records(db, key, pid, limit=1_000_000)
 
 
+#: Owner-invoice workflow states that are NOT a receivable.
+#:
+#: Rejecting an owner invoice is the OWNER refusing to owe it — the `reject` transition is theirs,
+#: and `revise` (rejected -> draft) is the GC's way back. Carrying a refused application into a
+#: money number reverses that decision somewhere nobody re-reads it.
+#:
+#: This is a CONSTANT rather than five inline checks because `owner_invoice` has five readers —
+#: the ledger, this billed total, WIP, the client-facing payment schedule and the loan-draw view —
+#: and the sub_invoice fix one file over shows the failure mode: that fix landed on one read and
+#: the sibling read TWENTY LINES BELOW IT IN THE SAME FUNCTION kept posting. A rule copied to five
+#: call sites is a rule with four places to rot.
+#:
+#: `submitted`, `approved` and `paid` are deliberately NOT excluded: the first two are live stages of
+#: a real receivable and the third is history that belongs in the books. `draft` is also kept, which
+#: preserves existing behaviour — whether an unsent draft should count as billed is a separate
+#: question from whether a REFUSED one should, and only the second has an answer the workflow states.
+#: Only the explicit refusal is refused, the same line `accounting.journal` draws for `sub_invoice`
+#: and `comp_tier` draws for comparables.
+OWNER_INVOICE_NOT_BILLED = ("rejected",)
+
+
 def billed_to_date(db: Session, pid: str) -> float:
     """Owner-invoice total billed to date — THE single 'billed' number the proforma loan-draws, the
     draw-composition view, and the investment memo all quote (was three hand-rolled copies drifting
-    apart). SQL SUM, no full-table load."""
-    return round(me.sum_field(db, "owner_invoice", pid, "amount"), 2)
+    apart). SQL SUM, no full-table load.
+
+    Excludes rejected applications. `sum_field` has carried `exclude_states` — and named
+    "billed-to-date" as its example use — since it was written; this call simply never passed it."""
+    return round(me.sum_field(db, "owner_invoice", pid, "amount",
+                              exclude_states=list(OWNER_INVOICE_NOT_BILLED)), 2)
 
 
 def staffing_cost(data: dict) -> float:

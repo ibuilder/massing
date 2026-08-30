@@ -569,7 +569,13 @@ def loan_draws(pid: str, ltc: float = 0.65, rate: float = 0.075, construction_mo
                                   if "interest" in str(u.get("label", "")).lower()), 2)
     # (this endpoint walks every invoice for per-tranche interest anyway, so the full load is needed;
     # the sum matches _pb.billed_to_date — the shared definition of 'billed')
-    invs = _me.list_records(db, "owner_invoice", pid, limit=1_000_000) if "owner_invoice" in _me.TABLES else []
+    # A refused application draws no money, so it accrues no interest. Measured before this fix:
+    # a rejected $250,000 invoice took drawn_to_date to $350,000 and accrued interest on the loan
+    # balance it invented. The comment above claims this sum "matches _pb.billed_to_date" — it did,
+    # because NEITHER filtered; they now match with both filtering, which is the claim it meant.
+    invs = [r for r in (_me.list_records(db, "owner_invoice", pid, limit=1_000_000)
+                        if "owner_invoice" in _me.TABLES else [])
+            if r.get("workflow_state") not in _pb.OWNER_INVOICE_NOT_BILLED]
     drawn = round(sum(float((r.get("data") or {}).get("amount") or 0) for r in invs), 2)
     equity_drawn = round(min(drawn, equity), 2)        # equity-first funding
     loan_drawn = round(max(0.0, drawn - equity), 2)
