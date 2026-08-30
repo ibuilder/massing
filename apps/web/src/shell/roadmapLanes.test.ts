@@ -238,7 +238,7 @@ function parkedCodes(): Set<string> {
   // `{1,}` for the same reason as the item regex above: `REL-7` was listed here as parked and this
   // pattern could not see it, so the item check reported it unassigned while the Parked paragraph
   // said otherwise. Two regexes over one vocabulary, and both were wrong the same way.
-  return new Set([...text.matchAll(/\b([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{1,})\b/g)]
+  return new Set([...text.matchAll(/\b([A-Z][A-Z0-9]{1,11}-[A-Z0-9-]{1,})\b/g)]
     .map((m) => m[1]).filter((c): c is string => Boolean(c)));
 }
 
@@ -492,7 +492,7 @@ describe("the roadmap lane table", () => {
     for (const [i, ln] of LINES.entries()) {
       // Only lines this file actually parses: an item bullet or a lane-table row. A numeral in prose
       // — and this file's own docstrings are full of them — is not a code and must not fail here.
-      const isItem = /^\s*[-*] (?:(?:✅|◧|🟡|⭐|⛔)️? )*\*\*[A-Z][A-Z0-9]{1,5}-/.test(ln);
+      const isItem = /^\s*[-*] (?:(?:✅|◧|🟡|⭐|⛔)️? )*\*\*[A-Z][A-Z0-9]{1,11}-/.test(ln);
       if (!isItem && !LANE_ROW_LINES.has(i)) continue;
       for (const m of ln.matchAll(ENCLOSED)) {
         if (!MARKS.includes(m[0])) unspellable.set(m[0], ln.trim().slice(0, 90));
@@ -715,5 +715,59 @@ describe("the lane table covers the tree it governs", () => {
     expect(unowned.some((f) => f.startsWith("apps/web/src/proforma/")),
       "proforma/ is unclaimed today — if this fails, either a row was added (update this test) " +
       "or the matcher stopped working").toBe(true);
+  });
+});
+
+/**
+ * Every roadmap reader must agree on how long an item CODE can be.
+ *
+ * `CODE_HEAD` above was introduced because two copies of that rule lived in THIS file and the
+ * widened one did not fix the gate. A review then found the copies do not stop at this file:
+ * there were NINE across three suites, and `REFUSAL-READERS` was invisible to
+ * `roadmapStale` and `roadmapSelfConsistent` — both of which reported a pass on an item they
+ * could not see. Widening two of nine and writing "both now read a single CODE_HEAD" was itself
+ * a claim narrower than it sounded.
+ *
+ * These files are deliberately self-contained (node + vitest only), so a shared module would be
+ * the first import between them. The duplication is gated instead of removed: this asserts every
+ * head rule across the roadmap suites is character-for-character the same, so a tenth copy, or a
+ * widening that lands in one file and not its siblings, fails here rather than going quiet.
+ *
+ * It reads the file TEXT, not the compiled regex, because the failure being prevented is a copy
+ * that was never wired to anything — exactly what a runtime check over imported values misses.
+ */
+describe("the roadmap readers agree on what an item code looks like", () => {
+  const SUITES = ["roadmapLanes.test.ts", "roadmapSelfConsistent.test.ts", "roadmapStale.test.ts"];
+  const HEAD = /\[A-Z\]\[A-Z0-9\]\{(\d+),(\d+)\}-/g;
+
+  it("uses ONE code-head rule across every roadmap suite", () => {
+    const found = new Map<string, string[]>();
+    for (const f of SUITES) {
+      const text = readFileSync(resolve(REPO, "apps/web/src/shell", f), "utf8");
+      for (const m of text.matchAll(HEAD)) {
+        const rule = `{${m[1]},${m[2]}}`;
+        found.set(rule, [...(found.get(rule) ?? []), f]);
+      }
+    }
+    expect(found.size, `roadmap suites disagree on the code-head rule: ` +
+      [...found].map(([r, fs]) => `${r} in ${[...new Set(fs)].join(", ")}`).join("  |  ") +
+      ". Widen every copy together or an item longer than the narrowest rule is silently " +
+      "dropped from that reader's population, and it passes because it cannot see the item.")
+      .toBe(1);
+  });
+
+  it("that rule is wide enough for every code the roadmap actually uses", () => {
+    // The population check that the rule above is FOR. A head limit below the longest real code
+    // is the defect this whole section exists for, so it is measured against the file rather
+    // than asserted as a number someone has to remember to raise.
+    const longest = [...LINES.join("\n").matchAll(/\*\*([A-Z][A-Z0-9-]{2,})[\s—*]/g)]
+      .map((m) => m[1])
+      .filter((c): c is string => Boolean(c) && c!.includes("-"))
+      .map((c) => c.split("-")[0]?.length ?? 0)
+      .reduce((a, b) => Math.max(a, b), 0);
+    const rule = /\[A-Z\]\[A-Z0-9\]\{\d+,(\d+)\}-/.exec(
+      readFileSync(resolve(REPO, "apps/web/src/shell/roadmapLanes.test.ts"), "utf8"));
+    expect(Number(rule?.[1]), `the longest code head in the roadmap is ${longest} characters`)
+      .toBeGreaterThanOrEqual(longest);
   });
 });

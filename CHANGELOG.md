@@ -55,7 +55,31 @@ its discipline"), now marked ⛔ to say so.
 Widening the item regex did not fix it. `laneRows()` held a **second hand-kept copy** of the same
 six-character rule, so the code was in the population, absent from every lane, and the suite failed
 naming it an orphan while the lane row plainly listed it — two copies of one rule inside the check
-that exists to catch two copies of one rule. Both now read a single `CODE_HEAD`.
+that exists to catch two copies of one rule.
+
+**And "both now read a single `CODE_HEAD`" was itself a claim narrower than it sounded.** Review
+found the copies do not stop at that file: there were **nine across three suites**, so
+`REFUSAL-READERS` stayed invisible to `roadmapStale` and `roadmapSelfConsistent`, both of which
+reported a pass on an item they could not see. All nine now carry the same rule (measured per
+regex shape: 31 → 33 codes and 27 → 29, nothing lost either way).
+
+The duplication is **gated rather than removed**: these suites are deliberately self-contained
+(node + vitest only), so a shared module would be the first import between them. A new check asserts
+every code-head rule across the three files is character-for-character identical, reading the file
+*text* rather than the compiled regex — because the failure being prevented is a copy that was never
+wired to anything, which a runtime check over imported values cannot see. A second check asserts the
+rule is wide enough for the longest code the roadmap actually contains, so the limit is measured
+against the file instead of being a number someone must remember to raise. Mutation-checked: one
+copy reverted fails the gate and names the file.
+
+**The population in the roadmap entry was also derived wrong, and that correction is the more
+useful one.** The table said 17 unfiltered sites while the classification below it summed to 19.
+The reason: the derivation matched `list_records(db, "<type>"` and nothing else, but
+`billed_to_date` and `wip.schedule` read the same records through `sum_field`, a SQL aggregate.
+Counting the other accessors gives `sum_field` 3 and `count_records` 2 — 49 reads, not 44. So **two
+of the five defects this release fixes were never in the population at all**; they were found by
+reading the module, not by the sweep meant to be exhaustive. A derived population is only as
+complete as its list of accessors.
 
 ## v0.3.1121 (2026-08-29) — a `.mass` you can prove is authentic, and the first tag in thirty releases
 

@@ -246,11 +246,27 @@ instances:
   | | |
   |---|---|
   | record types carrying a refusal state | **27** of 139 modules |
-  | read sites against those types | **44** |
-  | sites with no state reference in scope | **17** |
-  | of those: real, **fixed in v0.3.1122** | **5** (all `owner_invoice`) |
-  | of those: **correct as-is**, reasoned | **5** |
-  | of those: **real and still open** | **9** |
+  | `list_records` sites against those types | **44** |
+  | of those, with no state reference in scope | **17** |
+  | ├ real, **fixed in v0.3.1122** | **3** (`owner_invoice`) |
+  | ├ **correct as-is**, reasoned | **5** |
+  | └ **real and still open** | **9** |
+  | *plus* aggregate reads the derivation never counted | **5** (`sum_field` 3 · `count_records` 2) |
+  | of those, real and **fixed in v0.3.1122** | **2** (`billed_to_date`, `wip.schedule`) |
+
+  **THE POPULATION WAS DERIVED WRONG THE FIRST TIME, and the error is the most useful thing here.**
+  The 17 unfiltered sites break down as 3 + 5 + 9, but v0.3.1122 fixed **five** `owner_invoice`
+  readers. The two extra are `project_budget.billed_to_date` and `wip.schedule`, and they were
+  **never in the population at all**: the derivation matched `list_records(db, "<type>"` and nothing
+  else, while those two read the same records through `sum_field` — a SQL aggregate. Counting the
+  other accessors afterwards: `sum_field` 3, `count_records` 2, so 49 reads rather than 44.
+
+  So **two of the five defects that release fixed lived in the 5 sites the derivation could not
+  see** — they were found by reading the module, not by the sweep that was supposed to be
+  exhaustive. A derived population is only as complete as its list of accessors, and a completeness
+  claim computed over one accessor is confident and wrong in exactly the way this entry warns about
+  everywhere else. *(Found by review, not by us: the counts did not add up, and the reason they did
+  not add up was the finding.)*
 
   **The nine open ones**, each verified to have no state filter anywhere in its path (the reader *and*
   its downstream helper were both read):
