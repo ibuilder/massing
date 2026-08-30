@@ -4,6 +4,110 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1122 (2026-08-30) — the owner rejected the invoice; five money numbers went on counting it
+
+**A rejected owner invoice was booked as revenue.** `accounting.journal_entries` posted every
+`owner_invoice` as debit 1200 / credit 4000 — Accounts Receivable and Contract Revenue — with no
+regard for its workflow state. Measured through the routes with a rejected $250,000 application
+beside a certified $100,000 one, the trial balance reported **accounts receivable of $350,000
+against $100,000 actually owed**.
+
+Rejecting an owner invoice is the *owner* refusing to pay it — `reject` is their transition, and
+`revise` (rejected -> draft) is the GC's way back. Every consumer of the record ignored that:
+
+| reader | what it got wrong |
+|---|---|
+| `accounting.journal_entries` | posted AR + Contract Revenue for a refused application |
+| `/accounting/trial-balance` | AR $350,000 instead of $100,000 |
+| `project_budget.billed_to_date` | "THE single 'billed' number" the loan-draws, draw-composition and investment memo all quote |
+| `wip.schedule` | `billed` drives over/under-billing, which posts BACK as the WIP-ADJ revenue line — one refused invoice moving the ledger by two routes |
+| `client_portal` payment schedule | billed the owner for the invoice **they** rejected — and displayed `data.status` (default "draft") rather than the workflow state, so it showed as a draft that nonetheless counted |
+| `/loan-draws` | drew $350,000 and accrued interest on the balance it invented ($2,085.62 -> $595.89) |
+
+**This is the AP fix from v0.3.1121 met in a mirror.** That release fixed `journal()` for
+`sub_invoice`; this defect sat twenty lines below it, in a different function, reading a different
+record type, and was untouched. *Adjacency in a file is not a relationship* — the fix and the bug
+were as close as two pieces of code can be.
+
+The rule is a **named constant**, `project_budget.OWNER_INVOICE_NOT_BILLED`, not five inline checks:
+a record type with five readers is a rule with four places to rot. `sum_field` has carried an
+`exclude_states` parameter — and named *"billed-to-date"* as its example — since it was written; the
+call site simply never passed it.
+
+`submitted`, `approved` and `paid` stay: the first two are live receivables, the third is history
+that belongs in the books. `draft` also stays, deliberately — whether an unsent draft counts as
+billed is a separate question from whether a *refused* one does, and only the second has an answer
+the workflow states. Only the explicit refusal is refused.
+
+Pinned in `test_accounting.py`, `test_portal_txn.py` and `test_wip.py`, each asserting the converse
+too — a submitted application still bills, and `revise` restores a refused one, so the fix cannot
+degrade into "only certified counts". All five engine changes mutation-checked independently.
+
+**The roadmap lane gate was measuring 31 of 33 items, and it took adding an item to notice.** The
+new roadmap entry for this class is called `REFUSAL-READERS`; `roadmapLanes.test.ts` passed with it
+in place, and the pass was vacuous — the item regex capped a code head at six characters and
+`REFUSAL-` is seven, so the bullet was never in the population. Widened to eleven and measured as
+that file requires: **31 codes before, 33 after, none lost.** The second code gained is
+`QUALITY-ROOM`, an entry that had been invisible to the gate for its whole life and so was never
+required to be in a lane; it is a question answered and declined in place ("the register stays with
+its discipline"), now marked ⛔ to say so.
+
+Widening the item regex did not fix it. `laneRows()` held a **second hand-kept copy** of the same
+six-character rule, so the code was in the population, absent from every lane, and the suite failed
+naming it an orphan while the lane row plainly listed it — two copies of one rule inside the check
+that exists to catch two copies of one rule.
+
+**And "both now read a single `CODE_HEAD`" was itself a claim narrower than it sounded.** Review
+found the copies do not stop at that file: there were **nine across three suites**, so
+`REFUSAL-READERS` stayed invisible to `roadmapStale` and `roadmapSelfConsistent`, both of which
+reported a pass on an item they could not see. All nine now carry the same rule (measured per
+regex shape: 31 → 33 codes and 27 → 29, nothing lost either way).
+
+The duplication is **gated rather than removed**: these suites are deliberately self-contained
+(node + vitest only), so a shared module would be the first import between them. A new check asserts
+every code-head rule across the three files is character-for-character identical, reading the file
+*text* rather than the compiled regex — because the failure being prevented is a copy that was never
+wired to anything, which a runtime check over imported values cannot see. A second check asserts the
+rule is wide enough for the longest code the roadmap actually contains, so the limit is measured
+against the file instead of being a number someone must remember to raise. Mutation-checked: one
+copy reverted fails the gate and names the file.
+
+**A second review round found the fix had made one payload disagree with itself.**
+`/projects/{pid}/construction-draws` returns `actual_billed` from `billed_to_date` — which this
+release taught to exclude refused applications — beside an `invoice_count` from `count_records`,
+which was not taught anything. So the endpoint reported money from N invoices next to a count of
+N+1: measured, `actual_billed` $1,000,000 with `invoice_count` 3. **Excluding an amount without
+excluding its count is not half a fix, it is a new defect**, and `count_records` had the principle
+in its own docstring — *"a count that ignores a filter the list applied reports a total the page
+cannot account for, and a total is exactly the number a user trusts without checking"* — while
+lacking the parameter to honour it. It now takes `exclude_states`, matching `sum_field`. Pinned as
+a PAIRED assertion, because either half alone passes while the response contradicts itself.
+
+**And the widening was described wrong in three places.** `[A-Z][A-Z0-9]{1,11}-` admits a head of
+**twelve** characters, not eleven — the leading `[A-Z]` sits outside the quantifier. The regex is
+fine; the prose was off by one, and so was the new gate's own second assertion, which compared the
+quantifier bound against a full code length and would therefore have **rejected a 12-character code
+its own regex accepts**. That is the same claim-wider-than-the-property mistake this release is
+about, pointing the other way. The assertion now converts bound to admissible length explicitly;
+the rule stays at twelve rather than narrowing to make the sentence true, because narrowing a limit
+is what created this whole section.
+
+**Not fixed here, and recorded instead:** the same portal reader shows `data.status` from the
+free-text blob rather than `workflow_state`, so a certified application can read as a draft to the
+owner and the paid/outstanding split can be wrong independently of any refusal. That is which
+status the page *shows*, not which invoices it *counts* — pre-existing, client-facing, and it
+changes a contract the portal tests encode, so it is its own slice under `REFUSAL-READERS` rather
+than a rider on this one.
+
+**The population in the roadmap entry was also derived wrong, and that correction is the more
+useful one.** The table said 17 unfiltered sites while the classification below it summed to 19.
+The reason: the derivation matched `list_records(db, "<type>"` and nothing else, but
+`billed_to_date` and `wip.schedule` read the same records through `sum_field`, a SQL aggregate.
+Counting the other accessors gives `sum_field` 3 and `count_records` 2 — 49 reads, not 44. So **two
+of the five defects this release fixes were never in the population at all**; they were found by
+reading the module, not by the sweep meant to be exhaustive. A derived population is only as
+complete as its list of accessors.
+
 ## v0.3.1121 (2026-08-29) — a `.mass` you can prove is authentic, and the first tag in thirty releases
 
 **Sealing a container is now possible, and opt-in.** A `.mass` can carry `asset_rights.json`, a signed

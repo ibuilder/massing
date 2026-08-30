@@ -46,7 +46,7 @@ const REPO = resolve(__dirname, "../../../..");
 
 /** Bullet form the roadmap uses for an item, with its optional status marker. */
 const ITEM =
-  /^\s*[-*] (?:(✅|◧|🟡|⭐) )?\*\*([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,}?)(?:\s*([①②③④⑤⑥]))?(?:\s|\*\*|—)/;
+  /^\s*[-*] (?:(✅|◧|🟡|⭐) )?\*\*([A-Z][A-Z0-9]{1,11}-[A-Z0-9-]{2,}?)(?:\s*([①②③④⑤⑥]))?(?:\s|\*\*|—)/;
 
 /** Markers that mean "something exists" — ⭐ is a PRIORITY flag, not a status, and does not count. */
 const DONE_MARKERS = new Set(["✅", "◧", "🟡"]);
@@ -156,7 +156,7 @@ function scanDeclaringModules(): Declared {
       const t = head.trimStart();
       if (!t.startsWith('"""') && !t.startsWith("'''")) continue;   // no module docstring
       const first = t.split("\n")[0] ?? "";
-      for (const m of first.matchAll(/\b([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,})\b/g)) {
+      for (const m of first.matchAll(/\b([A-Z][A-Z0-9]{1,11}-[A-Z0-9-]{2,})\b/g)) {
         const id = m[1]!;
         ids.set(id, [...(ids.get(id) ?? []), f.slice(REPO.length + 1).replace(/\\/g, "/")]);
       }
@@ -377,7 +377,7 @@ function webModulesDeclaring(): { ids: Map<string, string[]>; scanned: number; w
     const first = firstDocLine(readFileSync(f, "utf8").slice(0, 800));
     if (first === null) continue;
     withDoc++;
-    for (const m of first.matchAll(/\b([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,})\b/g)) {
+    for (const m of first.matchAll(/\b([A-Z][A-Z0-9]{1,11}-[A-Z0-9-]{2,})\b/g)) {
       const id = m[1]!;
       ids.set(id, [...(ids.get(id) ?? []), f.slice(REPO.length + 1).split(sep).join("/")]);
     }

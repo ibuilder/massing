@@ -51,7 +51,13 @@ def _payment_schedule(db: Session, pid: str) -> dict[str, Any] | None:
 
     if "owner_invoice" not in me.TABLES:
         return None
-    rows = me.list_records(db, "owner_invoice", pid, limit=500)
+    from .project_budget import OWNER_INVOICE_NOT_BILLED
+    # The OWNER is the one reading this page, and the one who pressed reject. Showing a refused
+    # application inside their billed total contradicts their own decision back at them — and this
+    # reader made it worse by displaying `data.status` (default "draft") rather than the workflow
+    # state, so the rejected invoice appeared as a DRAFT that nonetheless counted as billed.
+    rows = [r for r in me.list_records(db, "owner_invoice", pid, limit=500)
+            if r.get("workflow_state") not in OWNER_INVOICE_NOT_BILLED]
     items = []
     billed = paid = 0.0
     for r in rows:

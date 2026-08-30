@@ -332,12 +332,20 @@ def aggregate(db: Session, key: str, project_id: str, group_by: str, agg: str = 
 
 def count_records(db: Session, key: str, project_id: str, state: str | None = None,
                   q: str | None = None, since: datetime | None = None,
-                  filters: list[tuple[str, str, str]] | None = None) -> int:
+                  filters: list[tuple[str, str, str]] | None = None,
+                  exclude_states: list[str] | None = None) -> int:
     """Count matches for a module filter (state / search / created-since) — for saved-view alerts.
 
     Takes `filters` for the same reason `list_records` does: a count that ignores a filter the list
     applied reports a total the page cannot account for, and a total is exactly the number a user
-    trusts without checking."""
+    trusts without checking.
+
+    `exclude_states` drops those workflow states (NULL states are kept, matching a Python `not in`
+    check), exactly as `sum_field` does. It was added when the sentence above came true literally:
+    `/dev-budget/draw-forecast` returns `actual_billed` from `billed_to_date`, which excludes
+    refused owner invoices, beside an `invoice_count` from this function, which did not — one
+    payload disagreeing with itself about how many invoices the money came from. The amount and the
+    count must exclude on the same rule or the page cannot be reconciled."""
     if key not in TABLES:
         return 0
     t = TABLES[key]
@@ -350,6 +358,9 @@ def count_records(db: Session, key: str, project_id: str, state: str | None = No
         stmt = stmt.where(t.c.created_at > since)
     if filters:
         stmt = _apply_filters(db, stmt, t, REGISTRY.get(key) or {}, filters)
+    if exclude_states:
+        stmt = stmt.where(or_(t.c.workflow_state.is_(None),
+                              t.c.workflow_state.notin_(exclude_states)))
     return int(db.execute(stmt).scalar() or 0)
 
 def state_counts(db: Session, key: str, project_id: str) -> dict[str, int]:

@@ -230,6 +230,95 @@ Seven of eleven engines once shipped with no route. The R32 filing-spine entries
 band are all closed and recorded in [`roadmap-completed.md`](roadmap-completed.md). The current
 instances:
 
+- ◧ ⭐ **REFUSAL-READERS — a record in a refused state still counts** *(M — Lane C; population
+  DERIVED 2026-08-30, five readers fixed in v0.3.1122, **nine still open**)*
+
+  **This is a defect CLASS, not a bug.** Between 2026-08-29 and 2026-08-30 five separate fixes landed
+  that are all the same mistake: an engine reads records of a type whose workflow carries a refusal
+  state and computes as though the refusal never happened — a rejected sub invoice posted to the
+  ledger and exported to QuickBooks, a rejected invoice holding a PO in permanent review, an excluded
+  comparable still valuing a property, a compliance gate reading the oldest prequalification, and (in
+  v0.3.1122) a rejected OWNER invoice booked as Accounts Receivable and Contract Revenue.
+
+  Each was found one at a time, by a proxy the procurement fix itself described as unreliable. So the
+  population was derived instead:
+
+  | | |
+  |---|---|
+  | record types carrying a refusal state | **27** of 139 modules |
+  | `list_records` sites against those types | **44** |
+  | of those, with no state reference in scope | **17** |
+  | ├ real, **fixed in v0.3.1122** | **3** (`owner_invoice`) |
+  | ├ **correct as-is**, reasoned | **5** |
+  | └ **real and still open** | **9** |
+  | *plus* aggregate reads the derivation never counted | **5** (`sum_field` 3 · `count_records` 2) |
+  | of those, real and **fixed in v0.3.1122** | **2** (`billed_to_date`, `wip.schedule`) |
+
+  **THE POPULATION WAS DERIVED WRONG THE FIRST TIME, and the error is the most useful thing here.**
+  The 17 unfiltered sites break down as 3 + 5 + 9, but v0.3.1122 fixed **five** `owner_invoice`
+  readers. The two extra are `project_budget.billed_to_date` and `wip.schedule`, and they were
+  **never in the population at all**: the derivation matched `list_records(db, "<type>"` and nothing
+  else, while those two read the same records through `sum_field` — a SQL aggregate. Counting the
+  other accessors afterwards: `sum_field` 3, `count_records` 2, so 49 reads rather than 44.
+
+  So **two of the five defects that release fixed lived in the 5 sites the derivation could not
+  see** — they were found by reading the module, not by the sweep that was supposed to be
+  exhaustive. A derived population is only as complete as its list of accessors, and a completeness
+  claim computed over one accessor is confident and wrong in exactly the way this entry warns about
+  everywhere else. *(Found by review, not by us: the counts did not add up, and the reason they did
+  not add up was the finding.)*
+
+  **The nine open ones**, each verified to have no state filter anywhere in its path (the reader *and*
+  its downstream helper were both read):
+
+  - `design_options.compare`, `option_carbon.compare_carbon`, `option_economics.compare_economics` —
+    a design option the team REJECTED still competes in the ranking and can win it, so the
+    recommended scheme can be one that was refused. Fix shape is the appraisal one: drop it from the
+    ranking, name it alongside rather than silently.
+  - `feasibility.compare_scenarios` — ranks every `zoning` scheme including SUPERSEDED ones, and the
+    top scheme sets the deltas. **Its own sibling `study`, thirty lines below, does read the state** —
+    one function in the file filters and the other does not, which is the exact shape of the
+    accounting and procurement bugs.
+  - `rfi.rfi_register` — a VOID RFI still counts in the open and overdue totals and in ball-in-court.
+    RFI ageing is a contractual metric. `sync.py` filters; this does not.
+  - `prequalification.score_project` — a rejected sub still carries a score and inflates `high_risk`.
+  - `approval_conditions.for_project` — tracks outstanding conditions on a DENIED entitlement.
+  - `specs.submittal_log` and `spine.traceability` — a VOID spec section still demands submittals and
+    still reads as a traceability gap.
+
+  **A tenth, adjacent and NOT a refusal-reader — `client_portal._payment_schedule` displays
+  `data.status`, not `workflow_state`.** Raised in review of v0.3.1122 and deliberately left out of
+  it: that release fixed which invoices the schedule *counts*, and this is which status it *shows*.
+  The row renders `str(d.get("status") or "draft")` from the free-text data blob, so a certified
+  application whose blob was never written reads as a draft to the owner — and `paid` is totalled
+  from that same string, so the client-facing paid/outstanding split can be wrong independently of
+  any refusal. Pre-existing, client-facing, and it changes a contract the portal tests encode
+  (`test_portal_txn.py` seeds `status` in the blob), so it needs its own slice rather than a rider
+  on a fix for a different defect. Shape: prefer `workflow_state`, fall back to the blob only when
+  the state is absent, and drive the real transitions in the test.
+
+  **The five that are CORRECT as-is are the point of the entry, not a footnote.** A pattern-matching
+  gate would have "fixed" all five and broken two of them:
+
+  - `rentroll.rent_roll`, `leasemgmt.lease_management`, `proforma` rollover — all three load leases
+    unfiltered and filter in the *summarizer* (`rentroll.ACTIVE_STATES`), one call away and outside
+    any window a grep would use. `renewal_pipeline` includes expired leases **on purpose** — they are
+    its subject.
+  - `opendata.py` — one reader builds the DEDUPLICATION set for permit import, so it must see expired
+    permits or it re-imports them; the other is a historical permit-timeline benchmark, where expired
+    permits are the data.
+
+  *A count is not a population.* The procurement fix said so in its own message — "the population
+  needs reading, not just counting" — and this sweep proves the cost both ways: 9 real defects a count
+  would have missed the reasons for, and 5 correct readers a count would have broken.
+
+  **Not gated yet, and the obvious gate is the wrong one.** A check that every reader of a
+  refusal-bearing type mentions the state produces false positives on all five correct readers, and a
+  gate that cries wolf trains people to append to its allowlist without thinking — worse than none.
+  The honest gate is BEHAVIOURAL: per record type, drive the real route, move the record into its
+  refusal state, and assert the consuming number does not move. That is a property rather than a
+  pattern, and it cannot be satisfied by a filter in the wrong place. Scoped as the next slice.
+
 - ◧ **CITE-RECORD — three of four citation builders are wired, the record one is not** *(XS —
   Lane C; measured 2026-08-29)*
 
@@ -781,7 +870,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · ASSET-VERIFY *(the verification half of asset-rights has no product caller; see Band 2)* · SOFT-CLASH-RULES *(six of seven sourced clearances never evaluated; see Band 2)* · CITE-RECORD *(XS — the record citation builder has no producer; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | REFUSAL-READERS · R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · ASSET-VERIFY *(the verification half of asset-rights has no product caller; see Band 2)* · SOFT-CLASH-RULES *(six of seven sourced clearances never evaluated; see Band 2)* · CITE-RECORD *(XS — the record citation builder has no producer; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
@@ -1053,7 +1142,7 @@ that rotted were all sentences no test read. Note for whoever extends it — the
   two-shell period bought is kept: `parity.test` still asserts the room rail reaches every
   destination the lifecycle-stage catalog lists, so *nothing became unreachable* outlives the shell
   that motivated it.
-- **QUALITY-ROOM** — inspections/ITP sit in Design because an inspection checks the built thing
+- ⛔ **QUALITY-ROOM** — inspections/ITP sit in Design because an inspection checks the built thing
   against the design. Answered 2026-07-28: the *task* already reaches Work via the queue
   (`INS-001`, `DEF-001`, `NCR-001` are in it now), so the *register* stays with its discipline.
   Revisit only if that stops feeling right in use.

@@ -128,7 +128,14 @@ def journal_entries(db: Session, project_id: str) -> dict:
 
     for e in journal(db, project_id):                         # costs + sub bills → cost / AP
         je(e["date"], e["ref"] or "", e["memo"], [("5000", e["amount"], 0), ("2000", 0, e["amount"])])
+    from .project_budget import OWNER_INVOICE_NOT_BILLED
     for r in (me.list_records(db, "owner_invoice", project_id, limit=100_000) if "owner_invoice" in me.TABLES else []):
+        # The AR side of the same defect the AP loop above was fixed for — and it survived that fix
+        # because it sits in a DIFFERENT function twenty lines below, reading a different record type.
+        # Measured before this: a rejected $250,000 application posted debit 1200 / credit 4000 and
+        # the trial balance reported ACCOUNTS RECEIVABLE OF $350,000 against $100,000 actually owed.
+        if r.get("workflow_state") in OWNER_INVOICE_NOT_BILLED:
+            continue
         d = r.get("data", {})
         amt = _num(d.get("amount"))
         if amt:

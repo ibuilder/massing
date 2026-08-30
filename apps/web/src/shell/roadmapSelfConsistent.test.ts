@@ -84,7 +84,7 @@ const MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑�
 const GLYPHS = "(?:✅ |◧ |🟡 |⭐ |⛔️ |⛔ )?";
 
 const ITEM = new RegExp(
-  String.raw`^\s*[-*] ${GLYPHS}\*\*([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,}?)(?:\s*([${MARKS}]))?(?:\s|\*\*|—)`,
+  String.raw`^\s*[-*] ${GLYPHS}\*\*([A-Z][A-Z0-9]{1,11}-[A-Z0-9-]{2,}?)(?:\s*([${MARKS}]))?(?:\s|\*\*|—)`,
 );
 
 interface Bullet { line: number; done: boolean; partial: boolean; bodyShipped: boolean }
@@ -130,7 +130,7 @@ function bullets(): Map<string, Bullet> {
 function laneClaims(lines: readonly string[] = OPEN): Map<string, string> {
   const out = new Map<string, string>();
   const CLAIM = new RegExp(
-    String.raw`^([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]+(?: [${MARKS}])?)\s*\*\(([^)]*)\)\*`,
+    String.raw`^([A-Z][A-Z0-9]{1,11}-[A-Z0-9-]+(?: [${MARKS}])?)\s*\*\(([^)]*)\)\*`,
   );
   for (const l of lines) {
     if (!/^\|\s*\*\*[A-Z] · /.test(l)) continue;
@@ -189,7 +189,7 @@ describe("the roadmap is self-consistent about what has shipped", () => {
     // be missed by both readers identically, so the comparison could not see the one drift most
     // likely to actually happen. A second reader that inherits the first one's blind spot is not a
     // second reader.
-    const LOOSE = /^\s*[-*] (?:[^*\s]{1,3} )?\*\*([A-Z][A-Z0-9]{1,5}-[A-Z0-9-]{2,})/;
+    const LOOSE = /^\s*[-*] (?:[^*\s]{1,3} )?\*\*([A-Z][A-Z0-9]{1,11}-[A-Z0-9-]{2,})/;
     const missed: string[] = [];
     for (let i = 0; i < OPEN.length; i++) {
       const l = OPEN[i] ?? "";

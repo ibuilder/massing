@@ -87,6 +87,17 @@ with TestClient(app) as c:
         "the opt-in HTML page renders the schedule"
     assert "Payment schedule" not in c.get(f"/shared/{plain_tok['token']}").text
 
+    # A REJECTED application must not appear on the OWNER's own page. This reader had two faults at
+    # once: it added every invoice to `billed`, and it displayed `data.status` rather than the
+    # workflow state — so a bill the owner had refused showed up as a "draft" that still counted.
+    _rej = c.post(f"/projects/{pid}/modules/owner_invoice",
+                  json={"data": {"number": "INV-003", "amount": 900000, "period": "2026-07"}}).json()["id"]
+    c.post(f"/projects/{pid}/modules/owner_invoice/{_rej}/transition", json={"action": "submit"})
+    c.post(f"/projects/{pid}/modules/owner_invoice/{_rej}/transition", json={"action": "reject"})
+    ps2 = c.get(f"/shared/{pay_tok['token']}/digest").json()["payment_schedule"]
+    assert ps2["billed"] == 550000, ("a rejected application was billed to the client", ps2["billed"])
+    assert "INV-003" not in {i["number"] for i in ps2["items"]}, ps2["items"]
+
     # --- PORTAL-TXN phase 3: the scoped client comment thread (backed by a real BCF topic) --------
     ct = c.post(f"/shared/{pay_tok['token']}/comment",
                 json={"text": "When does tile install start?", "client_name": "Pat Owner"})

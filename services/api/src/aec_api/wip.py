@@ -117,7 +117,12 @@ def schedule(db: Session, pid: str, method: str = "cost-to-cost", with_model: bo
     contract_value = round((pc_val + co) if pc_val else cs["budget"], 2)
     # billed to date: owner invoices — SQL SUM, not a 100k-row load into Python (this runs per project
     # in the portfolio roll-up, so the full-table materialization was the worst scale hazard).
-    billed = round(me.sum_field(db, "owner_invoice", pid, "amount")
+    # A REJECTED application is not billed. WIP is the worst place for it to leak: `billed` drives
+    # over/under-billing, which `accounting.journal_entries` then posts back as the WIP-ADJ revenue-
+    # recognition line, so one refused invoice moves the ledger twice by two different routes.
+    from .project_budget import OWNER_INVOICE_NOT_BILLED
+    billed = round(me.sum_field(db, "owner_invoice", pid, "amount",
+                                exclude_states=list(OWNER_INVOICE_NOT_BILLED))
                    if "owner_invoice" in me.TABLES else 0.0, 2)
     retainage = round(cost.g703(db, pid)["totals"].get("retainage", 0.0)
                       or (cost.DEFAULT_RETAINAGE / 100 * billed), 2)
