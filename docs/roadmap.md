@@ -250,7 +250,7 @@ instances:
   | of those, with no state reference in scope | **17** |
   | ├ real, **fixed in v0.3.1122** | **3** (`owner_invoice`) |
   | ├ **correct as-is**, reasoned | **5** |
-  | └ **real and still open** | **9** |
+  | └ **real and still open** | **9** → **5** *(4 closed v0.3.1123)* |
   | *plus* aggregate reads the derivation never counted | **5** (`sum_field` 3 · `count_records` 2) |
   | of those, real and **fixed in v0.3.1122** | **2** (`billed_to_date`, `wip.schedule`) |
 
@@ -271,14 +271,17 @@ instances:
   **The nine open ones**, each verified to have no state filter anywhere in its path (the reader *and*
   its downstream helper were both read):
 
-  - `design_options.compare`, `option_carbon.compare_carbon`, `option_economics.compare_economics` —
-    a design option the team REJECTED still competes in the ranking and can win it, so the
-    recommended scheme can be one that was refused. Fix shape is the appraisal one: drop it from the
-    ranking, name it alongside rather than silently.
-  - `feasibility.compare_scenarios` — ranks every `zoning` scheme including SUPERSEDED ones, and the
-    top scheme sets the deltas. **Its own sibling `study`, thirty lines below, does read the state** —
-    one function in the file filters and the other does not, which is the exact shape of the
-    accounting and procurement bugs.
+  - ✅ **`design_options.compare`, `option_carbon.compare_carbon`, `option_economics.compare_economics`
+    — CLOSED v0.3.1123.** A REJECTED option was named best-in-class on all four populated metrics,
+    was `lowest_total` for carbon, and was `best_irr` at 30% against a live 12% — while the same
+    `compare` response reported `rejected: 1` in `by_state`. One rule,
+    `design_options.DESIGN_OPTION_NOT_IN_CONTENTION`, now shared by all three; each still LISTS the
+    option and names it in `not_in_contention`.
+  - ✅ **`feasibility.compare` — CLOSED v0.3.1123.** A SUPERSEDED scheme ranked #1 at 240,000 GFA
+    against a live 80,000, and the top scheme is the BASELINE every delta is measured against, so a
+    live scheme read as a 160,000 SF shortfall against an envelope nobody can build. It also dropped
+    `workflow_state` before returning, so no caller could filter even in principle; rows now carry
+    it, and `superseded_excluded` names what left. Drafts are still ranked on purpose.
   - `rfi.rfi_register` — a VOID RFI still counts in the open and overdue totals and in ball-in-court.
     RFI ageing is a contractual metric. `sync.py` filters; this does not.
   - `prequalification.score_project` — a rejected sub still carries a score and inflates `high_risk`.
@@ -311,6 +314,15 @@ instances:
   *A count is not a population.* The procurement fix said so in its own message — "the population
   needs reading, not just counting" — and this sweep proves the cost both ways: 9 real defects a count
   would have missed the reasons for, and 5 correct readers a count would have broken.
+
+  **A vacuity found by mutation-testing, worth more than the four fixes.** The first `option_carbon`
+  mutation did not fire: reverting the fix broke nothing, because the rejected option carried no
+  carbon figure and could never have won that ranking. Adding one exposed a SECOND vacuity — with the
+  rejected option excluded, nothing was measured at all, so `lowest_total` went `None` and the
+  assertion passed for a new wrong reason. Two vacuous checks stacked in one assertion, neither
+  visible from a green run. Every exclusion assertion here now carries a **positive control** (the
+  subject leads while live), so none can pass merely because its subject was uncompetitive. *Apply
+  the same to the remaining five: an exclusion test whose subject could not have won proves nothing.*
 
   **Not gated yet, and the obvious gate is the wrong one.** A check that every reader of a
   refusal-bearing type mentions the state produces false positives on all five correct readers, and a

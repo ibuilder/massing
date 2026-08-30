@@ -171,7 +171,13 @@ def compare_economics(db: Session, pid: str) -> dict[str, Any]:
         sc = by_id.get(ref) or by_name.get(ref.lower()) if ref else None
         opts.append(option_economics(r, sc, candidates))
 
-    priced = [o for o in opts if o["irr_pct"] is not None]
+    # Same separation this module already makes between listed and ranked, for a second reason:
+    # `best_irr` must not name a scheme the team rejected. `derived` / `disagree` deliberately keep
+    # reading EVERY option, rejected included — "your declared IRR disagrees with your proforma" is
+    # a data-quality finding about a record, and it stays true whether or not the scheme is in play.
+    from .design_options import DESIGN_OPTION_NOT_IN_CONTENTION
+    contenders = [o for o in opts if o["state"] not in DESIGN_OPTION_NOT_IN_CONTENTION]
+    priced = [o for o in contenders if o["irr_pct"] is not None]
     ranked = sorted(priced, key=lambda o: -o["irr_pct"])
     derived = [o for o in opts if o["basis"] == BASIS_DERIVED]
     disagree = [o for o in derived if o["agrees_with_declared"] is False]
@@ -188,9 +194,12 @@ def compare_economics(db: Session, pid: str) -> dict[str, Any]:
              "derived_irr_pct": o["irr_pct"],
              "delta_pct": o["declared_vs_derived_irr_pct"]} for o in disagree],
         "basis_meanings": _WHY,
-        "note": ("An option is ranked only on a figure that exists. A `declared` figure is shown and "
-                 "labelled, never promoted to `derived`; an `unlinked` option is never priced from "
-                 "another scheme's deal."),
+        "not_in_contention": [o["name"] for o in opts
+                              if o["state"] in DESIGN_OPTION_NOT_IN_CONTENTION],
+        "note": ("An option is ranked only on a figure that exists, and only if it is still in "
+                 "contention — a REJECTED option is listed but never named `best_irr`. A `declared` "
+                 "figure is shown and labelled, never promoted to `derived`; an `unlinked` option is "
+                 "never priced from another scheme's deal."),
         "message": (None if priced else
                     "No option can be priced yet. Link a proforma scenario to an option (set its "
                     "`scenario` field), or record hard_cost / irr_pct directly."),

@@ -49,6 +49,53 @@ with TestClient(app) as c:
     assert cmp["leaders"]["irr_pct"]["option"].startswith("Scheme B"), cmp["leaders"]
     assert a["delta_vs_selected"]["irr_pct"] == 0, a         # A is the selected -> zero delta vs itself
 
+    # --- a REJECTED option is LISTED but never named best-in-class --------------------------------
+    # Measured before this: a rejected scheme with the best figure on every metric was named leader
+    # on ALL FOUR populated metrics, while the SAME response reported `rejected: 1` in `by_state`.
+    # The state was one field away, counted, and ignored. It is not hidden now — it stays in
+    # `options` and in `by_state`, and `not_in_contention` names it, the way the appraisal fix names
+    # its excluded comparables.
+    # `embodied_kgco2e` is deliberately present and LOWEST. Without it this scheme is
+    # carbon-`unavailable`, never enters `measured`, and the carbon assertion below passes whatever
+    # the engine does — a check that cannot fail. Caught by mutation-testing this exact block: the
+    # carbon revert broke nothing until the option actually had a figure that could win.
+    _rej = _mk(c, pid, "design_option", {"name": "Scheme C — refused", "gross_area_sf": 99000,
+                                         "unit_count": 400, "efficiency_pct": 99,
+                                         "hard_cost": 100, "energy_eui": 1, "irr_pct": 99,
+                                         "embodied_kgco2e": 1000, "building_type": "Residential"})
+    # A LIVE option carrying carbon too, so that after the exclusion something is still measured.
+    # Without it `measured_count` falls to 0, `lowest_total` becomes None, and "not Scheme C" passes
+    # for a second wrong reason — the guard below fired on exactly that.
+    _mk(c, pid, "design_option", {"name": "Scheme D — live", "gross_area_sf": 11000,
+                                  "unit_count": 40, "efficiency_pct": 78, "hard_cost": 2_500_000,
+                                  "energy_eui": 50, "irr_pct": 9,
+                                  "embodied_kgco2e": 5000, "building_type": "Residential"})
+    _cmp_open = c.get(f"/projects/{pid}/design/options/compare").json()
+    assert _cmp_open["leaders"]["irr_pct"]["option"].startswith("Scheme C"), \
+        ("a proposed option SHOULD be able to lead — otherwise this test proves nothing",
+         _cmp_open["leaders"])
+    assert c.get(f"/projects/{pid}/design/options/carbon").json()["lowest_total"] \
+        .startswith("Scheme C"), "and it should lead on carbon while live, for the same reason"
+    _act(c, pid, "design_option", _rej["id"], "reject")
+    cmp2 = c.get(f"/projects/{pid}/design/options/compare").json()
+    for _k in ("irr_pct", "gross_area_sf", "efficiency_pct", "cost_per_sf", "energy_eui"):
+        assert not (cmp2["leaders"][_k]["option"] or "").startswith("Scheme C"), \
+            (f"a rejected option was named best-in-class on {_k}", cmp2["leaders"])
+    assert cmp2["count"] == 4 and cmp2["by_state"]["rejected"] == 1, cmp2   # listed, not hidden
+    assert cmp2["not_in_contention"] == ["Scheme C — refused"], cmp2["not_in_contention"]
+
+    # the two sibling rankings draw the same line, and `options` still lists everything
+    _car = c.get(f"/projects/{pid}/design/options/carbon").json()
+    assert _car["measured_count"] >= 1, ("nothing is measured, so the carbon assertion below would "
+                                         "pass vacuously", _car)
+    assert _car["lowest_total"] == "Scheme D — live", _car["lowest_total"]
+    assert not (_car["lowest_total"] or "").startswith("Scheme C"), _car["lowest_total"]
+    assert _car["not_in_contention"] == ["Scheme C — refused"], _car
+    _eco = c.get(f"/projects/{pid}/design/options/economics").json()
+    assert not (_eco["best_irr"] or "").startswith("Scheme C"), _eco["best_irr"]
+    assert _eco["not_in_contention"] == ["Scheme C — refused"], _eco
+    assert len(_eco["options"]) == 4, "a rejected option is dropped from the RANKING, not the list"
+
     # --- B3: design standards ruleset + model check ----------------------------------------------
     _mk(c, pid, "design_standard", {"name": "PVC potable pipe (banned)", "category": "Material",
                                     "status": "prohibited", "match_keyword": "pvc"})
