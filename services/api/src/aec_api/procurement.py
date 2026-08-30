@@ -367,7 +367,20 @@ def three_way_match(db: Session, project_id: str) -> dict:
     """Reconcile each PO (`commitment`) against its deliveries and invoices, flagging discrepancies."""
     pos = me.list_records(db, "commitment", project_id, limit=100_000) if "commitment" in me.TABLES else []
     deliveries = me.list_records(db, "delivery", project_id, limit=100_000) if "delivery" in me.TABLES else []
-    invoices = me.list_records(db, "sub_invoice", project_id, limit=100_000) if "sub_invoice" in me.TABLES else []
+    # A REJECTED INVOICE IS NOT AN INVOICE AGAINST THE PO, and leaving it in corrupted this control
+    # in BOTH directions. It inflated `invoiced`, so a rejected bill raised "invoiced exceeds PO" and
+    # "pay-before-receipt" exceptions that no action could clear — the PO sat in `review` forever
+    # because the record it was reacting to had already been refused. And it made `po_invoices`
+    # non-empty, which SUPPRESSED "delivered but not yet invoiced", hiding a real gap behind a bill
+    # nobody owes. Measured: a rejected $150,000 invoice against a $100,000 PO kept both flags after
+    # the rejection, unchanged.
+    #
+    # The deliveries two lines below already filter on status ("received"/"closed"); this read did
+    # not. Same rule as `accounting.journal` and `margin`: only the explicit refusal is excluded —
+    # `submitted`, `approved` and `paid` are all real invoices against the PO.
+    invoices = [r for r in (me.list_records(db, "sub_invoice", project_id, limit=100_000)
+                            if "sub_invoice" in me.TABLES else [])
+                if r.get("workflow_state") != "rejected"]
 
     def _po_key(rec):
         return rec.get("id"), rec.get("ref")

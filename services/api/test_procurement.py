@@ -57,6 +57,35 @@ with TestClient(app) as c:
     assert row["variance"] == 10000 and row["status"] == "review", row
     assert any("exceeds PO" in f for f in row["flags"]), row["flags"]
     assert m["flagged"] == [row["po"]], m
+
+    # --- a REJECTED invoice is not an invoice against the PO -------------------------------------
+    # It corrupted this control in both directions: it inflated `invoiced`, so a refused bill raised
+    # "exceeds PO" and "pay-before-receipt" exceptions that NO action could clear — the PO sat in
+    # `review` forever reacting to a record already rejected — and it made `po_invoices` non-empty,
+    # suppressing "delivered but not yet invoiced" and hiding a real gap behind a bill nobody owes.
+    # The deliveries read beside it already filtered on status; this one did not.
+    _po2 = c.post(f"/projects/{pid}/modules/commitment",
+                  json={"data": {"description": "Block PO", "vendor": "Disputed Masonry",
+                                 "amount": 20000, "cost_code": "04-2000"}}).json()
+    _d2 = c.post(f"/projects/{pid}/modules/delivery",
+                 json={"data": {"description": "Block load", "date": "2024-03-01",
+                                "supplier": "Disputed Masonry", "commitment": _po2["id"],
+                                "status": "received"}})
+    assert _d2.status_code == 201, _d2.text[:160]
+    _bad = c.post(f"/projects/{pid}/modules/sub_invoice",
+                  json={"data": {"vendor": "Disputed Masonry", "amount": 90000,
+                                 "cost_code": "04-2000"}}).json()["id"]
+    _r = next(r for r in c.get(f"/projects/{pid}/procurement/three-way-match").json()["pos"]
+              if r["vendor"] == "Disputed Masonry")
+    assert _r["invoiced"] == 90000 and _r["status"] == "review", _r      # while it is live
+    c.post(f"/projects/{pid}/modules/sub_invoice/{_bad}/transition", json={"action": "reject"})
+    _r2 = next(r for r in c.get(f"/projects/{pid}/procurement/three-way-match").json()["pos"]
+               if r["vendor"] == "Disputed Masonry")
+    assert _r2["invoiced"] == 0, ("a rejected invoice still counted against the PO", _r2)
+    assert not any("exceeds PO" in f for f in _r2["flags"]), _r2["flags"]
+    # ...and the OTHER direction: with the rejected bill gone, the genuine gap surfaces again
+    assert any("not yet invoiced" in f for f in _r2["flags"]), (
+        "delivered-but-uninvoiced was suppressed by a rejected bill", _r2["flags"])
     assert c.get("/procurement/rfq-status").json()["enabled"] is False
 
     # --- PROC-LOOP price-observation ledger: level with record=true → durable observations ---------
