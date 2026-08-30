@@ -315,8 +315,8 @@ instances:
   needs reading, not just counting" — and this sweep proves the cost both ways: 9 real defects a count
   would have missed the reasons for, and 5 correct readers a count would have broken.
 
-  **A COROLLARY the class keeps producing, now seen three times: when you filter a computation,
-  every count derived from that set moves with it.** v0.3.1122 excluded refused invoices from
+  **When you filter a computation, every count derived from that set must move with it.** This class
+  has now produced that corollary three times. v0.3.1122 excluded refused invoices from
   `billed_to_date` and left `invoice_count` unfiltered, so one payload reported money from N
   invoices beside a count of N+1. v0.3.1123 excluded refused options from `priced` and left
   `unpriced_count` derived from all options, so an option WITH an IRR was reported as unpriced; and
