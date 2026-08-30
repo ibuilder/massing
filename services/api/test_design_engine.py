@@ -96,6 +96,20 @@ with TestClient(app) as c:
     assert _eco["not_in_contention"] == ["Scheme C — refused"], _eco
     assert len(_eco["options"]) == 4, "a rejected option is dropped from the RANKING, not the list"
 
+    # Every count must describe the population it names, and the response must RECONCILE.
+    # `unpriced_count` was derived from all options while `priced` came from contenders only, so a
+    # rejected option that HAS an IRR was reported as unpriced — measured: unpriced_count 1 against
+    # zero options actually lacking a figure. This is the third appearance of one shape (v0.3.1122's
+    # billed-vs-invoice_count, then this, then carbon's parts not summing): filter a computation,
+    # leave a count over the unfiltered set.
+    _no_irr = sum(1 for o in _eco["options"] if o["irr_pct"] is None)
+    assert _eco["unpriced_count"] == _no_irr, \
+        ("unpriced_count disagrees with how many options lack an IRR",
+         _eco["unpriced_count"], _no_irr)
+    assert _eco["in_contention_count"] + len(_eco["not_in_contention"]) == _eco["count"], _eco
+    assert _car["measured_count"] + _car["unavailable_count"] == _car["in_contention_count"], _car
+    assert _car["in_contention_count"] + len(_car["not_in_contention"]) == _car["count"], _car
+
     # --- B3: design standards ruleset + model check ----------------------------------------------
     _mk(c, pid, "design_standard", {"name": "PVC potable pipe (banned)", "category": "Material",
                                     "status": "prohibited", "match_keyword": "pvc"})

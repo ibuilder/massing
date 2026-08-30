@@ -150,7 +150,12 @@ def compare_carbon(db: Session, pid: str) -> dict[str, Any]:
                 o["embodied_kgco2e"] - selected["embodied_kgco2e"], 1)
 
     return {
+        # `measured` and `unavailable` describe the RANKED population, so they sum to
+        # `in_contention_count`, not to `count`. Returning that explicitly is the difference between
+        # a reader who can account for every option and one who sees 1 + 0 against a count of 2 and
+        # has to guess. See the note in `option_economics` — same shape, found the same way.
         "count": len(opts),
+        "in_contention_count": len(contenders),
         "measured_count": len(measured),
         "unavailable_count": len(unavailable),
         "options": opts,

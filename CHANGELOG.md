@@ -38,6 +38,17 @@ an unapproved scheme is a real thing to test, which is what a comparison is *for
 These three modules already separated LISTED from RANKED — for unmeasured carbon and unpriced
 economics, as their own notes say. Refusal simply was not one of the reasons.
 
+**And the same defect, a third time, caught by review.** Excluding a refused option from the
+*ranking* left the counts describing the *unfiltered* set: `option_economics` reported
+`unpriced_count: 1` while **zero** options lacked an IRR — the rejected one has 30% and was simply
+missing from `priced` — and `option_carbon`'s `measured` + `unavailable` no longer summed to
+`count`. This is the third appearance of one shape: v0.3.1122's `billed_to_date` excluded refused
+invoices while `invoice_count` did not; then this; then carbon's parts not summing. **Filter a
+computation, leave a count over the unfiltered set.** Both now take their counts against the ranked
+population and return `in_contention_count`, so `count` reconciles rather than leaving a reader to
+infer the difference. Asserted, not just fixed: the test pins `unpriced_count` to the number of
+options that actually lack a figure, and pins both responses to add up.
+
 **A vacuous test, caught by mutation-checking rather than by review.** The first `option_carbon`
 mutation **did not fire**: reverting the fix broke nothing, because the rejected option carried no
 carbon figure and so could never have won that ranking. Adding one exposed a *second* vacuity — with

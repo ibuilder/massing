@@ -315,6 +315,16 @@ instances:
   needs reading, not just counting" — and this sweep proves the cost both ways: 9 real defects a count
   would have missed the reasons for, and 5 correct readers a count would have broken.
 
+  **A COROLLARY the class keeps producing, now seen three times: when you filter a computation,
+  every count derived from that set moves with it.** v0.3.1122 excluded refused invoices from
+  `billed_to_date` and left `invoice_count` unfiltered, so one payload reported money from N
+  invoices beside a count of N+1. v0.3.1123 excluded refused options from `priced` and left
+  `unpriced_count` derived from all options, so an option WITH an IRR was reported as unpriced; and
+  carbon's `measured` + `unavailable` stopped summing to `count`. Both fixed by taking the counts
+  against the ranked population and returning `in_contention_count` so the response reconciles.
+  *Check this explicitly on each of the remaining five — it is the second-order defect this whole
+  class generates, and it has now escaped local verification twice.*
+
   **A vacuity found by mutation-testing, worth more than the four fixes.** The first `option_carbon`
   mutation did not fire: reverting the fix broke nothing, because the rejected option carried no
   carbon figure and could never have won that ranking. Adding one exposed a SECOND vacuity — with the

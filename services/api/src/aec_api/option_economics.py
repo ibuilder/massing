@@ -183,8 +183,20 @@ def compare_economics(db: Session, pid: str) -> dict[str, Any]:
     disagree = [o for o in derived if o["agrees_with_declared"] is False]
 
     return {
-        "count": len(opts), "priced_count": len(priced), "derived_count": len(derived),
-        "unpriced_count": len(opts) - len(priced),
+        # `count` is everything LISTED; the pricing counts describe the RANKED population, so they
+        # are taken against `contenders`. Deriving `unpriced_count` from `opts` instead reported a
+        # rejected option that HAS an IRR as unpriced — measured: unpriced_count 1 while zero
+        # options lacked a figure. The exclusion and the count that describes it must run over the
+        # same population, or the response contradicts itself; `in_contention_count` is returned so
+        # a reader can reconcile `count` rather than having to infer the difference.
+        #
+        # THIRD TIME THIS SHAPE HAS APPEARED (v0.3.1122 `billed_to_date` vs `invoice_count`, then
+        # `priced` vs `unpriced_count`, then carbon's `measured`+`unavailable` not summing): filter a
+        # computation, leave a count over the unfiltered set. Whenever a filter is added here, every
+        # count derived from that set moves with it.
+        "count": len(opts), "in_contention_count": len(contenders),
+        "priced_count": len(priced), "derived_count": len(derived),
+        "unpriced_count": len(contenders) - len(priced),
         "options": opts,
         "best_irr": ranked[0]["name"] if ranked else None,
         "scenarios": [{"id": i, "name": n} for i, n in candidates],
