@@ -102,11 +102,31 @@ with TestClient(app) as c:
     # zero options actually lacking a figure. This is the third appearance of one shape (v0.3.1122's
     # billed-vs-invoice_count, then this, then carbon's parts not summing): filter a computation,
     # leave a count over the unfiltered set.
-    _no_irr = sum(1 for o in _eco["options"] if o["irr_pct"] is None)
-    assert _eco["unpriced_count"] == _no_irr, \
-        ("unpriced_count disagrees with how many options lack an IRR",
-         _eco["unpriced_count"], _no_irr)
+    # `unpriced_count` counts among CONTENDERS so the response reconciles:
+    # priced + unpriced == in_contention. Counting missing IRRs across ALL options instead answers a
+    # different question and reconciles with nothing — a refused option with no figure is not a gap
+    # in the ranking, because it was never going to be ranked.
+    #
+    # A REFUSED option with NO IRR is added below precisely because it is the only case where those
+    # two readings differ. Without it both give the same number and this assertion passes while
+    # discriminating between nothing — the same vacuity as the carbon check above, one level up.
+    _mute = c.post(f"/projects/{pid}/modules/design_option",
+                   json={"data": {"name": "Scheme E — refused, unpriced",
+                                  "gross_area_sf": 8000}}).json()
+    _act(c, pid, "design_option", _mute["id"], "reject")
+    _eco = c.get(f"/projects/{pid}/design/options/economics").json()
+    _contender_no_irr = sum(1 for o in _eco["options"]
+                            if o["irr_pct"] is None and o["name"] not in _eco["not_in_contention"])
+    _all_no_irr = sum(1 for o in _eco["options"] if o["irr_pct"] is None)
+    assert _all_no_irr != _contender_no_irr, \
+        ("the two readings must DIFFER here or this assertion discriminates nothing",
+         _all_no_irr, _contender_no_irr)
+    assert _eco["unpriced_count"] == _contender_no_irr, \
+        ("unpriced_count must count among contenders, not across every option",
+         _eco["unpriced_count"], _contender_no_irr, _all_no_irr)
     assert _eco["in_contention_count"] + len(_eco["not_in_contention"]) == _eco["count"], _eco
+    assert _eco["priced_count"] + _eco["unpriced_count"] == _eco["in_contention_count"], _eco
+    _car = c.get(f"/projects/{pid}/design/options/carbon").json()
     assert _car["measured_count"] + _car["unavailable_count"] == _car["in_contention_count"], _car
     assert _car["in_contention_count"] + len(_car["not_in_contention"]) == _car["count"], _car
 

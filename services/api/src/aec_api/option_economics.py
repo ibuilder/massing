@@ -194,6 +194,15 @@ def compare_economics(db: Session, pid: str) -> dict[str, Any]:
         # `priced` vs `unpriced_count`, then carbon's `measured`+`unavailable` not summing): filter a
         # computation, leave a count over the unfiltered set. Whenever a filter is added here, every
         # count derived from that set moves with it.
+        # `unpriced_count` counts among CONTENDERS, not among all options, so that
+        # `priced_count + unpriced_count == in_contention_count` and the response reconciles. The
+        # alternative — counting missing IRRs across every option — answers a different question and
+        # reconciles with nothing; a rejected option with no figure is not a gap in the ranking,
+        # because it was never going to be ranked.
+        #
+        # The distinction is invisible unless a REFUSED option also lacks a figure, which is exactly
+        # the case the test now covers: with both semantics agreeing on the original data, the
+        # assertion was passing without discriminating between them.
         "count": len(opts), "in_contention_count": len(contenders),
         "priced_count": len(priced), "derived_count": len(derived),
         "unpriced_count": len(contenders) - len(priced),
@@ -212,7 +221,11 @@ def compare_economics(db: Session, pid: str) -> dict[str, Any]:
                  "contention — a REJECTED option is listed but never named `best_irr`. A `declared` "
                  "figure is shown and labelled, never promoted to `derived`; an `unlinked` option is "
                  "never priced from another scheme's deal."),
+        # "in contention" because `priced` is now contenders-only: a project whose ONLY priced
+        # option was rejected would otherwise be told no option can be priced, which is not what
+        # happened — one was, and then refused.
         "message": (None if priced else
-                    "No option can be priced yet. Link a proforma scenario to an option (set its "
+                    "No option in contention can be priced yet. Link a proforma scenario to an "
+                    "option (set its "
                     "`scenario` field), or record hard_cost / irr_pct directly."),
     }
