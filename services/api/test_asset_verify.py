@@ -199,6 +199,22 @@ check(client.post("/asset-rights/no-such-route", json={}).status_code == 404,
       "positive control: a route that does NOT exist really does 404, so the two checks above "
       "are not passing on a server that answers everything")
 
+# --- 7. the verify route AUTHORISES, it does not merely identify ------------------------------------
+# SEC-GLOBAL-AUTHZ caught this: the route shipped with `Depends(current_user)`, which IDENTIFIES and
+# returns the literal string "anonymous" with RBAC on and no credential — so a platform-global POST
+# was reachable unauthenticated. Three /jurisdiction/packs routes shipped exactly that way once.
+# Asserted here too, not only in that gate, because the dependency is a property of THIS route and a
+# future edit to it should fail the test that owns it.
+import inspect as _inspect  # noqa: E402
+
+from aec_api.routers import bim as _bim  # noqa: E402
+
+_verify_src = _inspect.getsource(_bim.asset_rights_verify)
+check("Depends(require_identified)" in _verify_src,
+      "POST /asset-rights/verify carries an AUTHORISING dependency")
+check("Depends(current_user)" not in _verify_src,
+      "...and not current_user, which only identifies")
+
 print()
 if _fail:
     raise SystemExit(f"asset_verify: {_fail} check(s) failed")

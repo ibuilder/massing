@@ -60,6 +60,22 @@ instead of failing downstream where the cause is invisible. The CLI distinguishe
 but unusable*, because telling an operator their key is missing when they can see it in the
 environment sends them to re-set the same typo.
 
+**The full suite caught a security defect the targeted runs did not: the new route was reachable
+unauthenticated.** It shipped with `Depends(current_user)`, which **identifies** and does not
+**authorise** — with RBAC on and no credential that dependency returns the literal string
+`"anonymous"`. `SEC-GLOBAL-AUTHZ` exists because three `/jurisdiction/packs` routes shipped exactly
+that way once, measured at 200/201/200 with no credentials. Now `require_identified`, asserted both
+by that gate and by a check in this feature's own test, so a future edit fails the test that owns the
+route.
+
+A second gate fired in the same run: `/asset-rights` was frozen as **read-only**, and a prefix
+gaining its first mutating route is the silent opt-out `test_protected_prefix_coverage` guards. It is
+now recorded in `KNOWN_UNCOVERED_MUTATING` **deliberately**, on the grounds its own `/metrics` note
+gives — the middleware net is for routes with no gate of their own, and this one has one. It is kept
+out of `_PROTECTED_PREFIXES` on purpose: that would make `GET /asset-rights/status` refuse anonymous
+callers, and the public key it serves is the one thing a third party needs to check a release we
+issued. *Two gates, two different questions, and neither was answerable from the route in isolation.*
+
 **And a limit of `trusted_key` that cannot be fixed, so it is documented and pinned instead.** The
 same manifest and the same cryptographic evidence report `trusted_key: false` honestly, and `true` if
 the caller echoes the document's own `verification.public_key` back. Comparing the supplied key

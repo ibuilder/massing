@@ -66,8 +66,20 @@ MUTATING = {"post", "put", "patch", "delete"}
 #: break the monitoring, to gate a route that already carries its own authoriser
 #: (`rbac.require_identified`, asserted by `test_global_authz` and `test_perf_budget`). A safety net
 #: is for routes with no gate of their own; this one has one.
+#: `/asset-rights` moved here from READ-ONLY in v0.3.1130, which is rule 2 below doing its job: the
+#: prefix grew its first mutating route (`POST /asset-rights/verify`) and the transition failed the
+#: build rather than passing on set membership. Recorded deliberately, for the reason the `/metrics`
+#: note above gives — the safety net is for routes with no gate of their own, and this one carries
+#: `require_identified` (asserted by `test_global_authz`). It is NOT in `_PROTECTED_PREFIXES` on
+#: purpose: that would make `GET /asset-rights/status` refuse anonymous callers, and the public key
+#: it serves is the one thing a third party needs in order to check a release we issued — the whole
+#: point of the endpoint. Nothing under this prefix touches project or tenant state.
+#:
+#: (The old READ-ONLY note said the status route returns "never the key itself". That was true when
+#: written and is not any more: it now serves the **public** key deliberately. The private seed still
+#: never leaves the server, and `test_asset_verify` asserts the seed is absent from the response.)
 KNOWN_UNCOVERED_MUTATING = {
-    "/admin", "/bcf", "/client-errors", "/compute", "/cost", "/esign", "/estimate", "/firm",
+    "/admin", "/asset-rights", "/bcf", "/client-errors", "/compute", "/cost", "/esign", "/estimate", "/firm",
     "/generate", "/ids", "/jurisdiction", "/license", "/massing", "/metrics", "/parcels", "/pdf",
     "/plugins", "/samples", "/schedule", "/scim", "/shared", "/structure", "/templates", "/test-fit",
 }
@@ -75,14 +87,6 @@ KNOWN_UNCOVERED_MUTATING = {
 #: Uncovered read-only prefixes. Lower risk (a GET cannot change state) but still outside the net,
 #: so a read-only prefix growing a mutating route has to surface — see failure mode 2.
 KNOWN_UNCOVERED_READONLY = {
-    # `/asset-rights/status` reports whether this DEPLOYMENT can seal a `.mass` and whether a signing
-    # key is configured — three values about server configuration, no project or tenant state, and
-    # never the key itself. It is gated by `Depends(current_user)` rather than `require_role`,
-    # because that dependency resolves its `pid` from the path OR the query string and so lets a
-    # caller supply their own on a route that has no `{pid}` (the hazard recorded on `authorize_pid`).
-    # Classified read-only here rather than added to _PROTECTED_PREFIXES: nothing under it is
-    # project-scoped, and rule 2 below will fail the moment it grows its first mutating route.
-    "/asset-rights",
     "/attachments", "/benchmarks", "/bridge", "/bsdd", "/capabilities", "/classifications", "/codes",
     "/content", "/contractor-statements", "/energy", "/families", "/fca", "/health", "/licenses",
     "/lifecycle", "/market", "/mcp", "/module-attachments", "/modules", "/openbim",

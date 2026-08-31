@@ -548,7 +548,7 @@ def asset_rights_status(_user: str = Depends(current_user)) -> dict:
 @router.post("/asset-rights/verify")
 def asset_rights_verify(manifest: dict = Body(..., embed=True),
                         public_key: str | None = Body(default=None, embed=True),
-                        _user: str = Depends(current_user)) -> dict:
+                        _user: str = Depends(require_identified)) -> dict:
     """Check a release manifest — the `asset_rights.json` from inside a `.mass` container.
 
     **The half the feature exists for.** Sealing a release was reachable and checking one was not,
@@ -574,7 +574,10 @@ def asset_rights_verify(manifest: dict = Body(..., embed=True),
 
     Not project-scoped and not `require_role`, for the same reason as the status route above: the
     manifest is the input, and the caller may be verifying a release from another deployment
-    entirely."""
+    entirely. It is **`require_identified` and not `current_user`**, though — `current_user`
+    *identifies* and does not *authorise*, returning the literal string `"anonymous"` with RBAC on
+    and no credential, which would leave this POST reachable unauthenticated. `SEC-GLOBAL-AUTHZ`
+    caught that here; three `/jurisdiction/packs` routes shipped that way once."""
     from .. import asset_rights as ar
     if not isinstance(manifest, dict):
         raise HTTPException(422, "manifest must be an object")
