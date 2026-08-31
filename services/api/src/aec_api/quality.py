@@ -78,7 +78,11 @@ def ncr_rollup(ncrs: list[dict], as_of: date | None = None) -> dict[str, Any]:
         if is_overdue:
             overdue += 1
         created = _parse(n.get("created_at"))
-        closed_at = _parse(n.get("updated_at")) if st in NCR_CLOSED else None
+        # A module row's timestamp column is `modified_at`; this read `updated_at`, which no module
+        # row carries, so `avg_days_to_close` was permanently None. Same typo as rfi.register's
+        # turnaround, found with it. (`ncr` declares no refusal state — open/dispositioned/closed —
+        # so unlike the RFI register there is nothing here to exclude.)
+        closed_at = _parse(n.get("modified_at")) if st in NCR_CLOSED else None
         ttc = (closed_at - created).days if created and closed_at else None
         if ttc is not None and ttc >= 0:
             days_to_close.append(ttc)

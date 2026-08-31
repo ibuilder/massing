@@ -9,6 +9,11 @@ from typing import Any
 # states where the ball is with the consultant/designer (awaiting an answer)
 AWAITING_RESPONSE = ("draft", "open")
 CLOSED_STATES = ("closed", "void")
+#: RFI states that are a WITHDRAWN question, not an answered one. A voided RFI was retracted: it
+#: carries no cost or schedule exposure and it never received a response. `open_count`,
+#: `overdue_count` and `ball_in_court` already honoured this (void is in CLOSED_STATES and has its
+#: own court); the exposure counts and the turnaround average did not.
+RFI_WITHDRAWN = ("void",)
 # workflow_state -> whose court the ball is in
 COURT = {"draft": "GC (submit)", "open": "Consultant", "answered": "GC (accept)",
          "closed": "Closed", "void": "Void"}
@@ -28,10 +33,18 @@ def _d(r: dict) -> dict:
 
 
 def register(rfis: list[dict], as_of: date | None = None) -> dict[str, Any]:
+    """Aggregate a list of RFI records into the register: ball-in-court, overdue, turnaround, and
+    cost/schedule-impact exposure.
+
+    Pure over `rfis` — no database access — so the same aggregation serves the route, the PDF report
+    builder and the project-health rollup. VOID RFIs stay in `rows` and in `by_state`, but carry
+    none of the exposure and are not turnaround samples; see `RFI_WITHDRAWN`.
+    """
     today = as_of or date.today()
     by_state, by_discipline, by_priority, ball_in_court = {}, {}, {}, {}
-    overdue = cost_impacted = schedule_impacted = 0
+    overdue = cost_impacted = schedule_impacted = voided = 0
     response_days: list[int] = []
+    withdrawn_refs: list[str | None] = []
     rows = []
     for r in rfis:
         d = _d(r)
@@ -47,13 +60,26 @@ def register(rfis: list[dict], as_of: date | None = None) -> dict[str, Any]:
         is_overdue = bool(due and due < today and st in AWAITING_RESPONSE)
         if is_overdue:
             overdue += 1
-        if (d.get("cost_impact") or "None") in ("Yes", "Possible"):
+        # Measured before the fix on a register holding one live RFI with no impact and one VOIDED
+        # RFI marked cost_impact/schedule_impact "Yes": both exposure counts read 1, sourced
+        # entirely from the withdrawn question. A retracted RFI is not exposure the job is carrying.
+        withdrawn = st in RFI_WITHDRAWN
+        if withdrawn:
+            voided += 1
+            withdrawn_refs.append(r.get("ref"))
+        if not withdrawn and (d.get("cost_impact") or "None") in ("Yes", "Possible"):
             cost_impacted += 1
-        if (d.get("schedule_impact") or "None") in ("Yes", "Possible"):
+        if not withdrawn and (d.get("schedule_impact") or "None") in ("Yes", "Possible"):
             schedule_impacted += 1
         created = _parse(r.get("created_at"))
-        # answered/closed RFIs have a response; approximate turnaround created -> last update
-        resolved = _parse(r.get("updated_at")) if st not in AWAITING_RESPONSE else None
+        # Answered/closed RFIs have a response; approximate turnaround created -> last update.
+        # A module row's timestamp column is `modified_at`; this read `updated_at`, which no module
+        # row carries, so every turnaround was None and `avg_response_days` could never compute —
+        # a DEAD metric rather than a slow one, and the refusal filter below would have been
+        # vacuous without fixing it first. A withdrawn RFI never got a response, so it is not a
+        # turnaround sample either.
+        resolved = (_parse(r.get("modified_at"))
+                    if st not in AWAITING_RESPONSE and not withdrawn else None)
         days = (resolved - created).days if created and resolved else None
         if days is not None and days >= 0:
             response_days.append(days)
@@ -72,6 +98,12 @@ def register(rfis: list[dict], as_of: date | None = None) -> dict[str, Any]:
         "closed_count": len(rows) - open_count, "overdue_count": overdue,
         "cost_impacted_count": cost_impacted, "schedule_impacted_count": schedule_impacted,
         "avg_response_days": avg_response,
+        # `voided_count` is a SUBSET of `closed_count`, not a third bucket beside it — stated so the
+        # response reconciles: open_count + closed_count == rfi_count, and voided_count <=
+        # closed_count. The exposure counts and the turnaround average are taken over the
+        # rfi_count - voided_count RFIs that were not withdrawn.
+        "voided_count": voided,
+        "withdrawn_excluded": [x for x in withdrawn_refs if x],
         "ball_in_court": ball_in_court, "by_state": by_state,
         "by_discipline": dict(sorted(by_discipline.items())),
         "by_priority": dict(sorted(by_priority.items())),
@@ -80,6 +112,8 @@ def register(rfis: list[dict], as_of: date | None = None) -> dict[str, Any]:
 
 
 def rfi_register(db, pid: str) -> dict[str, Any]:
+    """Load a project's RFIs and aggregate them with `register`. Returns the empty register when the
+    rfi module is not installed in this deployment."""
     from . import modules as me
     rfis = me.list_records(db, "rfi", pid, limit=100000) if "rfi" in me.TABLES else []
     return register(rfis)

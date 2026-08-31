@@ -69,9 +69,27 @@ def _d(r: dict) -> dict:
     return r.get("data") or r
 
 
+#: Spec-section states where the section is WITHDRAWN from the manual. A void section specifies
+#: nothing: it requires no submittals, and it is not a hole in the spec-to-budget chain.
+#:
+#: This is a CONSTANT rather than an inline check because `spec_section` has two independent readers
+#: — `specs.submittal_log` here and `spine.traceability`, which imports it — and a rule with two
+#: places to rot is a rule that will disagree with itself. `under_revision` is deliberately NOT
+#: here: a section being revised is still the section in force.
+SPEC_SECTION_WITHDRAWN = ("void",)
+
+
 def submittal_log(db, pid: str) -> dict[str, Any]:
     """The spec-driven submittal log: required submittals derived per spec section vs the submittals
-    actually logged (matched by section number), with missing-submittal gaps."""
+    actually logged (matched by section number), with missing-submittal gaps.
+
+    A VOID section still appears as a row — deleting it from the log would read as a section nobody
+    wrote rather than as one somebody withdrew — but it requires nothing and can be missing nothing.
+    Measured before the fix on a manual holding one live section requiring 2 submittals and one
+    VOID section requiring 3: `required_total: 5`, `missing_total: 5`, and `by_division` advertised
+    "09 - Finishes": 3 for a section that had been deleted. Three of those five missing-submittal
+    gaps were work orders against a section nobody has to build.
+    """
     from . import modules as me
     specs = me.list_records(db, "spec_section", pid, limit=100000) if "spec_section" in me.TABLES else []
     subs = me.list_records(db, "submittal", pid, limit=100000) if "submittal" in me.TABLES else []
@@ -86,27 +104,68 @@ def submittal_log(db, pid: str) -> dict[str, Any]:
     rows, by_division = [], {}
     required_total = missing_total = 0
     by_type: dict[str, int] = {}
+    withdrawn_refs = []
+    enforced = 0
+    # Section keys claimed by withdrawn vs enforced rows. Kept separately because `logged_total` is
+    # summed over `logged_by_section` (submittal-side), not over the rows, so it needs its own
+    # exclusion — see the note at the return.
+    withdrawn_keys: set[str] = set()
+    enforced_keys: set[str] = set()
     for sp in specs:
         d = _d(sp)
+        st = sp.get("workflow_state")
         sec = (d.get("section_number") or "").strip()
         div = (d.get("division") or (sec.split()[0] + " - Division" if sec else "(unassigned)")).strip()
         req = parse_required_submittals(d.get("submittals_required") or "")
-        for item in req:
-            by_type[item["type"]] = by_type.get(item["type"], 0) + 1
-        required_total += len(req)
-        by_division[div] = by_division.get(div, 0) + len(req)
+        withdrawn = st in SPEC_SECTION_WITHDRAWN
         logged = logged_by_section.get(parse_section_number(sec) or sec, 0)
-        missing = max(0, len(req) - logged)
-        missing_total += missing
+        key = parse_section_number(sec) or sec
+        if withdrawn:
+            # Listed, with what it USED to ask for visible in `required`, but contributing to no
+            # total: a withdrawn section demands nothing and can therefore be missing nothing.
+            withdrawn_refs.append({"ref": sp.get("ref"), "section_number": sec,
+                                   "title": d.get("title"), "would_require": len(req)})
+            withdrawn_keys.add(key)
+            missing = 0
+        else:
+            enforced += 1
+            enforced_keys.add(key)
+            for item in req:
+                by_type[item["type"]] = by_type.get(item["type"], 0) + 1
+            required_total += len(req)
+            by_division[div] = by_division.get(div, 0) + len(req)
+            missing = max(0, len(req) - logged)
+            missing_total += missing
         rows.append({
             "ref": sp.get("ref"), "section_number": sec, "title": d.get("title"), "division": div,
-            "required_count": len(req), "logged_count": logged, "missing_count": missing,
+            "state": st, "withdrawn": withdrawn,
+            "required_count": 0 if withdrawn else len(req), "logged_count": logged,
+            "missing_count": missing,
             "responsible": d.get("responsible"),
             "required": req,
         })
     return {
-        "spec_count": len(specs), "required_total": required_total,
-        "logged_total": sum(logged_by_section.values()), "missing_total": missing_total,
+        # `enforced_spec_count + len(withdrawn_excluded) == spec_count`; every total below is taken
+        # over the enforced sections only, so the response reconciles with its own row list.
+        "spec_count": len(specs), "enforced_spec_count": enforced,
+        "withdrawn_excluded": withdrawn_refs,
+        "required_total": required_total,
+        # `logged_total` is summed submittal-side, so filtering the ROWS did not move it: a
+        # submittal logged against a WITHDRAWN section still counted as logged while that section's
+        # `required` did not — the fourth time in this class that a count derived from a filtered
+        # set failed to move with it, and the second found by review rather than by us.
+        #
+        # Excluded by section KEY, and only for keys no enforced row also claims: two rows can carry
+        # the same section number (one withdrawn, one reissued), and dropping the key outright would
+        # silently discard the live row's logged submittals too.
+        #
+        # ORPHANS ARE DELIBERATELY KEPT. Accumulating `logged` per enforced row instead — the
+        # smaller patch — would also drop submittals logged against a section number that matches no
+        # spec row at all. Those are still submittals somebody logged; they belong in `logged_total`
+        # even though they appear in no row. That is why this sums the dict rather than the rows.
+        "logged_total": sum(v for k, v in logged_by_section.items()
+                            if k not in (withdrawn_keys - enforced_keys)),
+        "missing_total": missing_total,
         "coverage_pct": round(100 * (required_total - missing_total) / required_total, 1) if required_total else None,
         "by_type": by_type,
         "by_division": dict(sorted(by_division.items())),

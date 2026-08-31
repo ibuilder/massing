@@ -462,7 +462,11 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   tool("§ Spec submittal log (from specs)", () => showResult("Spec-driven submittal log", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
     try { const s = await api.specSubmittalLog(pid);
-      body.innerHTML = `<div class="meta">${s.spec_count} spec sections · ${s.required_total} required submittals · ${s.logged_total} logged · <b>${s.missing_total} missing</b> · coverage ${s.coverage_pct ?? "—"}%</div>`;
+      // The withdrawn count is shown only when non-zero, so the section total and the submittal
+      // total can be reconciled: a VOID section requires nothing and can be missing nothing.
+      const withdrawn = s.withdrawn_excluded?.length
+        ? ` · ${s.withdrawn_excluded.length} withdrawn (excluded)` : "";
+      body.innerHTML = `<div class="meta">${s.spec_count} spec sections${withdrawn} · ${s.required_total} required submittals · ${s.logged_total} logged · <b>${s.missing_total} missing</b> · coverage ${s.coverage_pct ?? "—"}%</div>`;
       table(body, ["Section", "Title", "Required", "Logged", "Missing", "Responsible"], s.rows.map((r: any) => [r.section_number ?? "", r.title ?? "", r.required_count, r.logged_count, r.missing_count ? "⚠ " + r.missing_count : "0", r.responsible ?? ""])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));
@@ -552,7 +556,10 @@ export async function openReportCenter(api: ApiClient, projectId: string | null,
   }));
   tool("❓ RFI register", () => showResult("RFI register", async (body) => {
     body.innerHTML = `<div class="meta">Loading…</div>`;
-    try { const s = await api.rfiRegister(pid); body.innerHTML = `<div class="meta">${s.rfi_count} RFIs · ${s.open_count} open · ${s.overdue_count} overdue · avg response ${s.avg_response_days ?? "—"} d · ${s.cost_impacted_count} cost-impacting · ${s.schedule_impacted_count} schedule-impacting</div>`;
+    try { const s = await api.rfiRegister(pid);
+      // Same reason: the exposure counts below exclude voided RFIs, which are still in the register.
+      const voided = s.voided_count ? ` · ${s.voided_count} voided (excluded)` : "";
+      body.innerHTML = `<div class="meta">${s.rfi_count} RFIs · ${s.open_count} open · ${s.overdue_count} overdue · avg response ${s.avg_response_days ?? "—"} d · ${s.cost_impacted_count} cost-impacting · ${s.schedule_impacted_count} schedule-impacting${voided}</div>`;
       table(body, ["Ref", "Subject", "Discipline", "Ball in court", "Due"], s.rows.map((r: any) => [r.ref ?? "", r.subject ?? "", r.discipline ?? "", r.ball_in_court ?? "", (r.overdue ? "OVERDUE " : "") + (r.due_date ?? "")])); }
     catch (e) { body.innerHTML = `<div class="meta">${escapeHtml((e as Error).message)}</div>`; }
   }));

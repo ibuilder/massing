@@ -40,7 +40,20 @@ def _drawing_discipline(x: dict) -> str | None:
 
 
 def traceability(db, pid: str) -> dict[str, Any]:
-    specs = me.list_records(db, "spec_section", pid, limit=100000)
+    """Discipline → sheets → specs → bid packages → cost codes → budget.
+
+    VOID spec sections are excluded from every coverage figure and from the gap lists, using
+    `specs.SPEC_SECTION_WITHDRAWN` — the same constant `specs.submittal_log` uses, because one rule
+    read two ways is one rule that will disagree with itself. Measured before the fix on a manual
+    holding one live section (packaged) and one VOID section (unpackaged): `specs_packaged_pct:
+    50.0` and `specs_without_bid_package` naming the void section as a broken link for somebody to
+    go fix. A withdrawn section is not a hole in the chain; it is not in the chain.
+    """
+    from .specs import SPEC_SECTION_WITHDRAWN
+    all_specs = me.list_records(db, "spec_section", pid, limit=100000)
+    withdrawn_specs = [s for s in all_specs
+                       if s.get("workflow_state") in SPEC_SECTION_WITHDRAWN]
+    specs = [s for s in all_specs if s.get("workflow_state") not in SPEC_SECTION_WITHDRAWN]
     packages = me.list_records(db, "bid_package", pid, limit=100000)
     codes = me.list_records(db, "cost_code", pid, limit=100000)
     drawings = me.list_records(db, "drawing", pid, limit=100000)
@@ -100,6 +113,12 @@ def traceability(db, pid: str) -> dict[str, Any]:
     fully_linked = sum(1 for c in chain if c["linked"])
 
     return {
+        # `spec_count` is every section on the job; `coverage.specs` is the ENFORCED population every
+        # percentage below is taken over. Both are reported so the two numbers cannot look like a
+        # contradiction: spec_count == coverage.specs + len(withdrawn_excluded).
+        "spec_count": len(all_specs),
+        "withdrawn_excluded": [{"ref": s.get("ref"), "section": _d(s).get("section_number"),
+                                "title": _d(s).get("title")} for s in withdrawn_specs],
         "disciplines": [d for d in disc.values()
                         if d["sheets"] or d["specs"] or d["packages"] or d["cost_codes"]],
         "coverage": {
@@ -118,5 +137,7 @@ def traceability(db, pid: str) -> dict[str, Any]:
         "chain": chain[:300],
         "note": "Traces discipline → sheets → specs → bid packages → cost codes → budget. A spec is "
                 "fully traceable when it reaches a bid package and a cost code; the gaps list the broken "
-                "links so scope can't fall between the model, the documents and the money.",
+                "links so scope can't fall between the model, the documents and the money. VOID spec "
+                "sections are named in `withdrawn_excluded` and counted in none of it — a withdrawn "
+                "section is not an unpackaged one.",
     }

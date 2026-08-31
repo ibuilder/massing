@@ -139,13 +139,41 @@ def score_record(rec: dict, project_size: float | None = None, today: date | Non
         "flags": flags}
 
 
+#: Prequalification states where the sub is NOT in the bidding pool. A rejected prequalification is
+#: a decision the team already made; its risk is not risk the project is carrying.
+#:
+#: `score_record` has always noticed rejection — but through `data["status"]`, a free-text field a
+#: person types, while ignoring `workflow_state`, the field the reject TRANSITION actually sets. It
+#: raised a "marked rejected" flag and then scored and counted the record anyway. The state was not
+#: missing; it was read from the wrong field and acted on in no way that changed a number.
+PREQUAL_NOT_IN_POOL = ("rejected",)
+
+
 def score_project(db: Session, project_id: str, project_size: float | None = None) -> dict:
-    """Score every prequalification record in a project, worst risk first."""
+    """Score every prequalification record in a project, worst risk first.
+
+    Rejected subs stay LISTED — a scorecard that silently shrinks reads as a thinner bidder pool
+    rather than as a decision somebody recorded — but they are out of the `high_risk` headline.
+    Measured before the fix on a project holding one approved sub (score 84, low) and one rejected
+    sub (score 20, high): `high_risk: 1`, when no sub in the pool was high risk at all.
+
+    `invited` and `submitted` stay in the pool deliberately: an application still under review is a
+    real bidder to weigh. Only the explicit refusal is refused.
+    """
     recs = me.list_records(db, "prequalification", project_id, limit=100_000) if "prequalification" in me.TABLES else []
     scored = [score_record(r, project_size) for r in recs]
+    for s, r in zip(scored, recs):
+        s["workflow_state"] = r.get("workflow_state")
+        s["in_pool"] = r.get("workflow_state") not in PREQUAL_NOT_IN_POOL
     scored.sort(key=lambda s: s["score"])
-    return {"subs": scored, "count": len(scored),
-            "high_risk": sum(1 for s in scored if s["risk_band"] == "high")}
+    pool = [s for s in scored if s["in_pool"]]
+    # Every count that describes the POOL is taken over `pool`, so the response reconciles:
+    # pool_count + len(not_in_pool) == count, and high_risk <= pool_count.
+    return {"subs": scored, "count": len(scored), "pool_count": len(pool),
+            "high_risk": sum(1 for s in pool if s["risk_band"] == "high"),
+            "not_in_pool": [{"company": s["company"], "ref": s["ref"],
+                             "workflow_state": s["workflow_state"]}
+                            for s in scored if not s["in_pool"]]}
 
 
 def coi_expiry(db: Session, project_id: str, soon_days: int = 30) -> dict:

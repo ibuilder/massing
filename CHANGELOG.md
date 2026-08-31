@@ -4,6 +4,98 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1124 (2026-08-31) — the last five refusal readers, and a metric that was never alive
+
+**`REFUSAL-READERS` closes: the five remaining instances, plus the behavioural gate for the class.**
+Every number below was measured through its real route before and after, never reasoned about.
+
+| endpoint | measured before | after |
+|---|---|---|
+| `/rfi/register` | `cost_impacted_count` and `schedule_impacted_count` both **1**, sourced entirely from a VOIDED RFI | `0` / `0` |
+| `/prequal/scores` | `high_risk: 1` on a project whose only high-risk sub had been **rejected** | `high_risk: 0`, `pool_count: 1` |
+| `/entitlements/conditions` | `total_open: 5`, three of them the terms of a **denied** variance | `total_open: 2` |
+| `/entitlements/condition-checks` | the denied variance's conditions model-checked into `total_not_checkable: 5` | `2`, refusals named |
+| `/specs/submittal-log` | `required_total: 5` / `missing_total: 5`, three demanded by a **void** spec section | `2` / `2` |
+| `/spine/traceability` | `specs_packaged_pct: 50.0`, the void section named as a broken chain link | `100.0`, gap list empty |
+
+**The prequalification case is the sharpest.** `score_record` *already noticed* the rejection — but
+through `data["status"]`, a free-text field a person types, while ignoring `workflow_state`, the
+field the reject **transition** actually sets. It raised a "marked rejected" flag, then scored and
+counted the record anyway. The state was not missing; it was read from the wrong field and acted on
+in no way that changed a number.
+
+**The feasibility-style shape recurs at the consumer, too.** A denied entitlement keeps its
+conditions listed — an appeal puts them back in play — so `/entitlements/condition-checks`, one level
+up, had to honour the refusal itself or it would re-create the defect by checking the model against
+terms that were never imposed and reporting the misses as compliance findings.
+
+### A metric that could never have computed
+
+`rfi.register`'s turnaround read `updated_at`; a module row's timestamp column is **`modified_at`**.
+`avg_response_days` was therefore permanently `None` — a **dead** metric, not a slow one — and any
+refusal filter over it would have been vacuous. `quality.py`'s `avg_days_to_close` carried the same
+typo and is fixed with it. (`ncr` declares no refusal state, so that one is only the dead-metric
+fix.) The gate asserts an answered RFI now produces a real number, so it cannot quietly die again.
+
+### What was already right, and is now asserted
+
+Three numbers the sweep's own derivation had wrongly listed as broken: `open_count`, `overdue_count`
+and `ball_in_court` already honoured `void` (it is in `CLOSED_STATES` and has its own court). They
+are now asserted so a future "fix" cannot double-count them. *A derived population names candidates,
+not defects — reading each one is what separates the two, and three of five sub-numbers named here
+were the wrong ones.*
+
+### The redundant guard mutation testing caught
+
+The first draft of the entitlement fix filtered refused records **twice** — once in `assess`, once
+again in `for_project`'s sums. Mutation-testing the second filter showed **no assertion could tell
+its presence from its absence**, because `assess` had already zeroed the record. It is gone. *A
+guard whose removal nothing detects is not defence in depth; it is a second place to rot.*
+
+### A fifth count that did not move with its filter — found in review
+
+`submittal_log.logged_total` is summed **submittal-side** (`sum(logged_by_section.values())`), not
+over the rows, so filtering the rows left it behind: a submittal logged against a **withdrawn**
+section still counted as logged while that section's `required` did not.
+
+This is the corollary this very release writes into the roadmap — *when you filter a computation,
+every count derived from that set must move with it* — **failing on the release that states it**,
+and the reason is worth naming. The other four counts (`required_total`, `missing_total`, `by_type`,
+`by_division`) accumulate inside the row loop, so filtering the loop moved them for free.
+`logged_total` is derived from a **different collection**, and a filter applied to one collection
+does nothing to a total derived from another. *Look for the counts that are built somewhere else.*
+
+**The suggested patch was not taken as written.** Accumulating `logged` per enforced row would also
+have dropped **orphan** submittals — logged against a section number that matches no spec row at
+all. Those are still submittals somebody logged; dropping them silently trades one wrong number for
+another. The exclusion is by section key and only for keys no enforced row also claims, so a
+withdrawn row and a reissued row sharing a section number cannot take the live one's logged
+submittals down with it.
+
+### The size ratchet did its job, and the pin came down
+
+18 lines of new response fields went into `apps/web/src/api/client.ts`, a file under an extraction
+ratchet at 2,752 — and the build went red at 2,769. That is the ratchet working exactly as its own
+comment describes: *an extraction without a ratchet is a rearrangement.* The four refusal-aware
+response shapes moved to `apps/web/src/api/types.ts` as named interfaces — which is what that file
+exists for, as its header says — taking the client to **2,731**, twenty lines below where `main` had
+it. The pin moves **down** 21, never up.
+
+*The failure was invisible locally for a self-inflicted reason worth recording: the size gate was
+run BEFORE the client edits, and the full-suite command was piped through `tail -20`, which
+discarded the inline `FAIL` line and reported the pipeline's exit status instead of the runner's.
+A check run before the change it should judge is not a check.*
+
+### Gate
+
+`services/api/test_refusal_readers.py` is the class's behavioural gate: per record type, drive the
+real route, transition into refusal, assert the consuming number does not move — each with a
+**positive control** proving the subject drove that number while live, and a **reconciliation**
+assertion tying the filtered population plus the excluded list back to the total the same response
+reports. It also asserts every refusal rule in the class is a named constant rather than an inline
+literal, and that `spine.traceability` uses `specs.SPEC_SECTION_WITHDRAWN` rather than its own copy.
+All seven fixes were mutation-checked independently.
+
 ## v0.3.1123 (2026-08-30) — a scheme the team refused could still win the comparison
 
 **Four `REFUSAL-READERS` instances, all of the form "a refused thing ranks first".** Unlike v0.3.1122

@@ -69,6 +69,11 @@ def _quality(db: Session, pid: str, name: str) -> Report:
 
 
 def _rfi_register(db: Session, pid: str, name: str) -> Report:
+    """RFI Register report: the KPI row, the ball-in-court chart and the full log.
+
+    The exposure KPIs exclude voided RFIs while the table still lists them, so `Voided (excluded)`
+    is shown whenever it is non-zero — without it the KPIs and the rows cannot be reconciled.
+    """
     from .. import rfi
     s = rfi.rfi_register(db, pid)
     r = Report("RFI Register", name)
@@ -78,6 +83,10 @@ def _rfi_register(db: Session, pid: str, name: str) -> Report:
     r.kpi("Avg response", f"{s['avg_response_days']} d" if s["avg_response_days"] is not None else "—")
     r.kpi("Cost-impacting", s["cost_impacted_count"])
     r.kpi("Schedule-impacting", s["schedule_impacted_count"])
+    # Shown only when non-zero, so a reader can reconcile the impact KPIs against the row count
+    # below: the voided RFIs are still in the table but carry none of the exposure.
+    if s.get("voided_count"):
+        r.kpi("Voided (excluded)", s["voided_count"])
     if s["ball_in_court"]:
         r.chart("bar", "RFI ball-in-court", list(s["ball_in_court"].keys()),
                 [{"name": "Count", "values": list(s["ball_in_court"].values())}])
@@ -233,10 +242,19 @@ def _action_tracker(db: Session, pid: str, name: str) -> Report:
 
 
 def _spec_submittal_log(db: Session, pid: str, name: str) -> Report:
+    """Spec-Driven Submittal Log report: required vs logged submittals per section, with the gaps.
+
+    `Withdrawn (excluded)` appears when any section is void, for the same reason as the RFI report:
+    the totals are taken over the enforced sections while the table lists every section.
+    """
     from .. import specs
     s = specs.submittal_log(db, pid)
     r = Report("Spec-Driven Submittal Log", name)
     r.kpi("Spec sections", s["spec_count"])
+    # Same reason: without this a reader sees N sections requiring fewer submittals than the rows
+    # add up to, with nothing on the page explaining where the difference went.
+    if s.get("withdrawn_excluded"):
+        r.kpi("Withdrawn (excluded)", len(s["withdrawn_excluded"]))
     r.kpi("Required submittals", s["required_total"])
     r.kpi("Logged", s["logged_total"])
     r.kpi("Missing", s["missing_total"])
