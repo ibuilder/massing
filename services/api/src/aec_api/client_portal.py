@@ -44,6 +44,40 @@ def create_token(db: Session, pid: str, label: str | None, actor: str | None,
     return _public_row(row)
 
 
+#: The owner-invoice state that counts as PAID. A constant because `owner_invoice` has two portal
+#: readers — the JSON below and `_payments_html`'s colour — and a literal spelled out in each is a
+#: rule with two places to rot. (Same reason as `OWNER_INVOICE_NOT_BILLED`, `RFI_WITHDRAWN` and
+#: `SPEC_SECTION_WITHDRAWN`.)
+INVOICE_PAID_STATE = "paid"
+
+
+def invoice_status_key(rec: dict[str, Any], data: dict[str, Any]) -> str:
+    """The owner invoice's status, normalised: the WORKFLOW state, falling back to the typed field.
+
+    `workflow_state` is what the transitions set. `data["status"]` is a select a person fills in,
+    carrying the *same five options capitalised* — Draft / Submitted / Approved / Rejected / Paid.
+    `modules.transition()` writes `workflow_state`, `modified_at` and `party_owner` and **never
+    touches `data`**, so the two drift apart the moment anybody uses the workflow, and nothing
+    reconciles them.
+
+    Measured before this fix, on three invoices driven through the REAL transitions — two of them
+    taken `submit` -> `mark_paid`, one of those also carrying the select's own "Paid" — the owner's
+    page reported **billed 650,000 / paid 0 / outstanding 650,000**, and an invoice paid through the
+    workflow displayed to the owner as **"draft"**. `paid` was structurally unreachable: the
+    comparison was lowercase against a field whose every option is capitalised, so only a lowercase
+    value written straight into the blob could ever match — which no part of the product does.
+
+    Prefer the state, fall back to the blob only when the state is absent, and casefold both. This
+    is the shape `precon.py` has always used for the same problem.
+    """
+    return str(rec.get("workflow_state") or data.get("status") or "draft").strip().lower()
+
+
+def _status_label(key: str) -> str:
+    """Display form of a status key: `under_review` -> `Under Review`. The owner reads this."""
+    return key.replace("_", " ").title()
+
+
 def _payment_schedule(db: Session, pid: str) -> dict[str, Any] | None:
     """PORTAL-TXN phase 2: the client-facing payment SCHEDULE (display only — no payment rail): the
     project's owner invoices as milestones with amount + status, plus billed/paid/outstanding totals."""
@@ -53,9 +87,9 @@ def _payment_schedule(db: Session, pid: str) -> dict[str, Any] | None:
         return None
     from .project_budget import OWNER_INVOICE_NOT_BILLED
     # The OWNER is the one reading this page, and the one who pressed reject. Showing a refused
-    # application inside their billed total contradicts their own decision back at them — and this
-    # reader made it worse by displaying `data.status` (default "draft") rather than the workflow
-    # state, so the rejected invoice appeared as a DRAFT that nonetheless counted as billed.
+    # application inside their billed total contradicts their own decision back at them. v0.3.1122
+    # fixed WHICH invoices are counted; the second half — which status is SHOWN — is fixed here, and
+    # the comment that used to sit at this line described the defect while leaving it in place.
     rows = [r for r in me.list_records(db, "owner_invoice", pid, limit=500)
             if r.get("workflow_state") not in OWNER_INVOICE_NOT_BILLED]
     items = []
@@ -66,11 +100,14 @@ def _payment_schedule(db: Session, pid: str) -> dict[str, Any] | None:
             amt = float(str(d.get("amount") or 0).replace(",", "").replace("$", ""))
         except (TypeError, ValueError):
             amt = 0.0
-        status = str(d.get("status") or "draft")
+        # `status_key` is the normalised value everything COMPARES on; `status` is what the owner
+        # reads. Both are returned so the page and its totals cannot disagree about one invoice.
+        status_key = invoice_status_key(r, d)
         items.append({"number": d.get("number"), "period": d.get("period"),
-                      "amount": round(amt, 2), "status": status})
+                      "amount": round(amt, 2), "status": _status_label(status_key),
+                      "status_key": status_key})
         billed += amt
-        if status == "paid":
+        if status_key == INVOICE_PAID_STATE:
             paid += amt
     if not items:
         return None
@@ -402,7 +439,9 @@ def _payments_html(ps: dict, esc) -> str:
     rows = []
     for it in ps.get("items", []):
         amount = it.get("amount") or 0
-        color = "#1a7f37" if it.get("status") == "paid" else "#9a6700"
+        # Compares the normalised key, never the display label — this line had the identical
+        # lowercase-vs-capitalised bug, so the green "paid" colour never once fired either.
+        color = "#1a7f37" if it.get("status_key") == INVOICE_PAID_STATE else "#9a6700"
         rows.append(
             '<li style="display:flex;gap:8px;align-items:baseline;margin:6px 0">'
             f'<span style="min-width:4em;color:#6b7280">{esc(it.get("number"))}</span>'

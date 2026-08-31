@@ -394,8 +394,35 @@ instances:
   because two of the fixes in this class put the filter somewhere a pattern check would have
   accepted. `services/api/test_refusal_readers.py`.
 
-- ◧ **PORTAL-STATUS — the owner's payment schedule shows a status nobody sets** *(S — Lane C; split
-  out of REFUSAL-READERS 2026-08-31, where it was found in review of v0.3.1122)*
+- ✅ **PORTAL-STATUS — the owner's payment schedule shows a status nobody sets** *(S — Lane C;
+  split out of REFUSAL-READERS 2026-08-31, **CLOSED v0.3.1125** the same day)*
+
+  **Measured, and worse than this entry described.** Not "a certified application reads as a draft":
+  `paid` was **structurally unreachable**. On `/shared/{token}/digest` with three invoices driven
+  through the real transitions — two of them `submit` → `mark_paid`, one of those also carrying the
+  select's own capitalised `"Paid"` — the owner's page reported **billed 650,000 / paid 0 /
+  outstanding 650,000**, and the invoice paid through the workflow displayed as **`draft`**. The
+  comparison was lowercase against a select whose every option is capitalised, so the only value
+  that could match was one written straight into the blob, which nothing in the product does — **and
+  the only thing that did was the test.** Now 350,000 / 300,000.
+
+  Two readers, one rule (`invoice_status_key`): the JSON, and `_payments_html`'s green "paid" colour,
+  which never once fired. The response carries `status_key` beside `status` so the page and its
+  totals cannot disagree.
+
+  **The scope finding matters more than the fix.** 17 modules declare both a workflow and a typed
+  `status`; a `get("status")` grep returns ~25 hits; **two were the defect.** The rule: the blob is
+  wrong only where the workflow can express the same thing (`owner_invoice`, `permit`,
+  `prequalification`, `value_engineering`, `weekly_plan`); where the workflow LACKS the concept the
+  blob is the authority and reading it is correct — `bid_submission`'s workflow is only
+  `[open, closed]`, so `project_budget.py` reading `"Awarded"` is right. Most other hits were never
+  module data: computed RAG dicts, a project field, a snapshot, and an external open-data payload.
+  *REFUSAL-READERS' population was derived too NARROW and missed five real reads; this one is too
+  WIDE and flags twenty-three non-defects. Neither a match nor a miss is evidence — only reading is.*
+
+  **Follow-on, small:** `prequalification.py:129` raises its "marked rejected" flag from the blob
+  while `in_pool` now comes from `workflow_state`, so a sub rejected through the real transition gets
+  no flag. Harmless (the flag is informational and case-folded) but the two should share a source.
 
   `client_portal._payment_schedule` renders `str(d.get("status") or "draft")` — the free-text `data`
   blob — instead of `workflow_state`, the field the transitions actually set. A certified pay
