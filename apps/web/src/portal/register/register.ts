@@ -27,14 +27,6 @@ const REF_RESOLVE_LIMIT = 500;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * MOD-FILTER — everything currently narrowing a register view.
- *
- * `q` and `state` were the whole vocabulary; `fields` is the per-field half. It is threaded through
- * `openModule` rather than held on the instance so that every re-render — a saved view, a page step,
- * an inline edit — either passes the filters on deliberately or drops them visibly. A filter
- * surviving in hidden state while the controls show something else is the worst of both.
- */
-/**
  * MOD-PERCENT — the field types that hold a MAGNITUDE, named once.
  *
  * The form layer asked `f.type === "number" || f.type === "currency"` in three separate places, and
@@ -90,6 +82,14 @@ export const READ_ONLY_FIELD_TYPES = [
   "table",
 ] as const;
 
+/**
+ * MOD-FILTER — everything currently narrowing a register view.
+ *
+ * `q` and `state` were the whole vocabulary; `fields` is the per-field half. It is threaded through
+ * `openModule` rather than held on the instance so that every re-render — a saved view, a page step,
+ * an inline edit — either passes the filters on deliberately or drops them visibly. A filter
+ * surviving in hidden state while the controls show something else is the worst of both.
+ */
 export interface RegisterFilter {
   q?: string;
   state?: string;
@@ -1670,32 +1670,6 @@ export class RegisterUI {
   }
 
   /**
-   * Compose Exhibit A — pick clauses, preview the assembled exhibit, then generate the PDF.
-   *
-   * NARROW BY TRADE, BECAUSE THE CATALOG OUTGREW THE PICKER
-   *     The library is 249 clauses across 21 MasterFormat divisions. This used to load all of them
-   *     into one flat 300px-tall checkbox list, which asks somebody to assemble a plumbing
-   *     subcontract from a list where the overwhelming majority of entries belong to other trades.
-   *     Passing the record's trade narrows it server-side — 249 -> 85 for plumbing — and the header
-   *     says which division it narrowed to, so a wrong trade on the record is visible rather than
-   *     silently producing a short exhibit.
-   *
-   * THE INITIAL SELECTION COMES FROM THE SERVER, WHICH IS THE BUG THIS REPLACES
-   *     The previous default was computed here:
-   *         `cb.checked = cl.category !== "Scope" || !trade || (cl.trade ?? "").toLowerCase() === trade`
-   *     The imported clauses carry no `trade` key at all — only body/category/default/division/id/
-   *     position/title — so that comparison was false for every one of the 242 imported clauses. The
-   *     dialog therefore opened with **every exclusion and every conditions clause ticked and almost
-   *     no scope clauses**, which is close to the opposite of a sensible subcontract exhibit. It was
-   *     a second selection rule that disagreed with the server's `default_ids`. Now there is one
-   *     rule: `scopeExhibit({trade})` returns the default selection and the boxes start there.
-   *
-   * EXCLUSIONS ARE AS PROMINENT AS INCLUSIONS
-   *     The point of the library gaining exclusions (69 of them) is that a subcontract can state what
-   *     is NOT included — that is where scope gaps come from. So the picker groups by category rather
-   *     than running them together, and the preview leads with the counts.
-   */
-  /**
    * `estimate.basis` -> the phase key `est_confidence._PHASE_CONF` scores against.
    *
    * **Explicit, because lowercasing is wrong for two of the five and wrong in the flattering
@@ -1901,6 +1875,32 @@ export class RegisterUI {
   }
 
 
+  /**
+   * Compose Exhibit A — pick clauses, preview the assembled exhibit, then generate the PDF.
+   *
+   * NARROW BY TRADE, BECAUSE THE CATALOG OUTGREW THE PICKER
+   *     The library is 249 clauses across 21 MasterFormat divisions. This used to load all of them
+   *     into one flat 300px-tall checkbox list, which asks somebody to assemble a plumbing
+   *     subcontract from a list where the overwhelming majority of entries belong to other trades.
+   *     Passing the record's trade narrows it server-side — 249 -> 85 for plumbing — and the header
+   *     says which division it narrowed to, so a wrong trade on the record is visible rather than
+   *     silently producing a short exhibit.
+   *
+   * THE INITIAL SELECTION COMES FROM THE SERVER, WHICH IS THE BUG THIS REPLACES
+   *     The previous default was computed here:
+   *         `cb.checked = cl.category !== "Scope" || !trade || (cl.trade ?? "").toLowerCase() === trade`
+   *     The imported clauses carry no `trade` key at all — only body/category/default/division/id/
+   *     position/title — so that comparison was false for every one of the 242 imported clauses. The
+   *     dialog therefore opened with **every exclusion and every conditions clause ticked and almost
+   *     no scope clauses**, which is close to the opposite of a sensible subcontract exhibit. It was
+   *     a second selection rule that disagreed with the server's `default_ids`. Now there is one
+   *     rule: `scopeExhibit({trade})` returns the default selection and the boxes start there.
+   *
+   * EXCLUSIONS ARE AS PROMINENT AS INCLUSIONS
+   *     The point of the library gaining exclusions (69 of them) is that a subcontract can state what
+   *     is NOT included — that is where scope gaps come from. So the picker groups by category rather
+   *     than running them together, and the preview leads with the counts.
+   */
   private async composeExhibit(m: ModuleDef, r: ModuleRecord, rid: string) {
     const pid = this.ctx.host.projectId()!;
     const api = this.ctx.host.api;

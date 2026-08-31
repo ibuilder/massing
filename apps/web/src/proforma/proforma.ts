@@ -1015,16 +1015,6 @@ export class ProformaUI {
     }).catch(() => { bodyEl.innerHTML = `<div class="meta">specialty assets unavailable (API offline)</div>`; });
   }
 
-  /** Developer cost budget: line-item hard/soft/acquisition costs (description × $/unit × qty) with
-   *  per-category contingency, that roll into the proforma's cost_lines. The institutional gap the
-   *  flat cost drivers don't cover. */
-  /** Repaint the deal-memory strip from the CURRENT assumptions. Safe to call when it is not mounted.
-   *
-   *  Only $/SF is asked for. A realised cost VARIANCE has no counterpart among these fields — the
-   *  nearest is a contingency, and "your contingency should cover our historical overrun" is a claim
-   *  this product would be making, not a unit conversion — and a realised schedule VARIANCE is not a
-   *  duration, so putting it beside `construction_months` would be a category error in matching units.
-   */
   /**
    * Repaint the income-provenance strip. Same shape as `refreshDealMemory` and for the same reason:
    * it describes a number the user can edit, so painting it once would leave a claim about the rent
@@ -1052,6 +1042,13 @@ export class ProformaUI {
     }).catch(() => { el.style.display = "none"; });
   }
 
+  /** Repaint the deal-memory strip from the CURRENT assumptions. Safe to call when it is not mounted.
+   *
+   *  Only $/SF is asked for. A realised cost VARIANCE has no counterpart among these fields — the
+   *  nearest is a contingency, and "your contingency should cover our historical overrun" is a claim
+   *  this product would be making, not a unit conversion — and a realised schedule VARIANCE is not a
+   *  duration, so putting it beside `construction_months` would be a category error in matching units.
+   */
   private refreshDealMemory() {
     const memory = this.memoryEl;
     const pid = this.projectId();
@@ -1118,6 +1115,9 @@ export class ProformaUI {
     }).catch(() => { memory.style.display = "none"; });   // endpoint absent → say nothing false
   }
 
+  /** Developer cost budget: line-item hard/soft/acquisition costs (description × $/unit × qty) with
+   *  per-category contingency, that roll into the proforma's cost_lines. The institutional gap the
+   *  flat cost drivers don't cover. */
   private renderBudget() {
     this.root.querySelector("#pf-budget")?.remove();   // idempotent — re-render replaces, never duplicates
     const host = document.createElement("div"); host.id = "pf-budget";

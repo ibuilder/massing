@@ -4,6 +4,46 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1131 (2026-08-31) — nine comments describing something else, and the reason nobody widened the gate
+
+`DOC-STRAND`. A doc comment immediately followed by another doc comment has lost its own
+declaration. It does not disappear — it attaches itself to the *next* declaration down and is read as
+documenting that. `apps/web/src/api/docComments.test.ts` has caught this inside `apps/web/src/api`
+since v0.3.1075. **Everywhere else in `apps/web/src` it was unchecked, and the roadmap's standing
+"~25 orphaned comments, not yet fixed or gated" had been a candidate count for a month.**
+
+Measured: **ten**, not ~25 — the `api/` cleanup had been the bulk of it. **Nine were real.**
+
+**The gate stayed narrow for a reason that did not survive being checked.** Its own docstring
+argued widening "would need a rule that can tell a header and a narrative from a leftover, and that
+rule does not exist yet", naming two shapes:
+
+* **A module header written below the import block is real — and needs no exemption, because it is
+  structural.** Nothing but imports stands above it. That is computable, it exempts exactly one site
+  (`apps/web/src/portal/panels/budget.ts`), and it cannot exempt a block with a declaration above it.
+* **The "narrative above the thing it motivates" was not a shape at all.** `apps/web/src/main.ts`
+  had no stranded comment. And the `apps/web/src/viewer/app.ts` RAIL-SPLIT block that reads as
+  deliberate prose documents `distributeToolGroups` — declared **42 lines further down**, past
+  `railGroup` and past `railGroup`'s own comment. It was residue, classified as intentional by
+  reading it rather than by looking for its owner.
+
+*A gate's scope is part of its claim, and so is the reason given for not widening it.*
+
+**All nine were moves, not deletes** — the opposite of what the `api/` cleanup found, where most
+orphans described features with no method left in the file. Not chance: `client.ts` was the file the
+methods were moving *out of*, so its residue was abandoned; these are feature modules that only had
+things inserted into them, so the owner is still a few dozen lines away. In **every one of the nine
+cases that owner carried no comment of its own**, so nine silently undocumented functions
+(`auditRooms`, `showMarkupGrid`, two different `renderBudget`s, `RegisterFilter`, `composeExhibit`,
+`refreshDealMemory`, `installClickEcho`, `distributeToolGroups`) got their documentation back and
+nothing was deleted.
+
+Gated tree-wide by `apps/web/src/tooling/docStranded.test.ts` (336 files, 4 mutations). The *pairing*
+half — does this comment share a word with the method below it? — stays inside `api/` on its own
+merits: outside it, a comment legitimately describes a paragraph of behaviour rather than one method.
+**Two rules that shipped together do not have to keep the same scope**, and assuming they did is what
+kept this half narrow after its stated blocker had stopped being true.
+
 ## v0.3.1130 (2026-08-31) — a release you could sign and nobody could check
 
 `ASSET-VERIFY`. `asset_rights.py` shipped both halves of a signed release manifest and only sealing

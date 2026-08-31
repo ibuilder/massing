@@ -61,12 +61,6 @@ export const CLICK_ECHO = "click_echo";
 const DEFAULT_MAX_PER_MINUTE = 120;
 
 /**
- * Attach the click-echo tracker. Returns a disposer.
- *
- * The interval is reported for every trusted click, including the ones that turn out to be fast:
- * a percentile computed only over clicks somebody suspected were slow is not a percentile.
- */
-/**
  * The send path both budgets share: a rolling per-minute cap, an implausible-interval drop, and a
  * reporter that cannot throw outward.
  *
@@ -93,6 +87,12 @@ function cappedSender(deps: { send: (b: string, ms: number) => void; now: () => 
   };
 }
 
+/**
+ * Attach the click-echo tracker. Returns a disposer.
+ *
+ * The interval is reported for every trusted click, including the ones that turn out to be fast:
+ * a percentile computed only over clicks somebody suspected were slow is not a percentile.
+ */
 export function installClickEcho(target: EventTarget, deps: ClickEchoDeps): () => void {
   const isUser = deps.isUserEvent ?? ((e: Event) => e.isTrusted);
   const report = cappedSender(deps, deps.maxPerMinute ?? DEFAULT_MAX_PER_MINUTE);

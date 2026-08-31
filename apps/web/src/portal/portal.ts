@@ -1183,14 +1183,14 @@ export class PortalUI {
   // the pin, which is why the star could be deleted from here rather than merely moved.
 
 
+  /** Cross-project executive portfolio — every job's on-schedule + on-budget status at a glance.
+   *  Rows are clickable to switch projects. The 'how's the whole book doing?' destination. */
+  private async renderPortfolio() { return (await import("./panels/portfolio")).renderPortfolio(this.panelCtx()); }
   /** First-class Budget destination — the GC's GMP project budget. Direct trade work (by CSI
    *  division + bid package) + General Conditions / Requirements (incl. staffing) + Overhead + Fee
    *  + Contingency = GMP, each line budget vs committed (buyout) vs variance, reconciled to the
    *  prime contract value and the developer proforma's construction hard cost. The on-budget half of
    *  what a project executive lives in, next to the Schedule destination. */
-  /** Cross-project executive portfolio — every job's on-schedule + on-budget status at a glance.
-   *  Rows are clickable to switch projects. The 'how's the whole book doing?' destination. */
-  private async renderPortfolio() { return (await import("./panels/portfolio")).renderPortfolio(this.panelCtx()); }
   private async renderBudget() { return (await import("./panels/budget")).renderBudget(this.panelCtx()); }
 
   private async renderScheduleViews(m: ModuleDef) { return (await import("./panels/schedule")).renderScheduleViews(this.panelCtx(), m); }

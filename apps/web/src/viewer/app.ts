@@ -2292,19 +2292,6 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
   }
 
   /**
-   * RAIL-SPLIT — move each `tool-group` to the rail panel that owns its job.
-   *
-   * Measured live: this one panel held **182 buttons and 11 inputs under 7 headings**, doing about
-   * ten unrelated jobs. "Tools" was not a category — it was where a control went when nobody
-   * decided. Each `section()` already declares what it is via `data-tool`, so the split is a
-   * re-parenting pass keyed off that, not a rewrite of 154 call sites. **A pass that only moves
-   * nodes cannot lose one**, which is the same property that made RAIL-TOOLBOX safe.
-   *
-   * A group with no destination stays in `panel-tools` on purpose. Unrouted must mean *visible in
-   * the old place*, never *gone*: a control that silently disappears looks exactly like one that was
-   * deliberately removed, and the next person to notice is a user who needed it.
-   */
-  /**
    * RAIL-SPLIT ② — put a named group of already-built controls into a rail panel.
    *
    * The controls are created by the code that owns their behaviour, exactly as before; this only
@@ -2353,6 +2340,19 @@ export function initViewerApp(ctx: ViewerCtx): ViewerApp {
     }
   }
 
+  /**
+   * RAIL-SPLIT — move each `tool-group` to the rail panel that owns its job.
+   *
+   * Measured live: this one panel held **182 buttons and 11 inputs under 7 headings**, doing about
+   * ten unrelated jobs. "Tools" was not a category — it was where a control went when nobody
+   * decided. Each `section()` already declares what it is via `data-tool`, so the split is a
+   * re-parenting pass keyed off that, not a rewrite of 154 call sites. **A pass that only moves
+   * nodes cannot lose one**, which is the same property that made RAIL-TOOLBOX safe.
+   *
+   * A group with no destination stays in `panel-tools` on purpose. Unrouted must mean *visible in
+   * the old place*, never *gone*: a control that silently disappears looks exactly like one that was
+   * deliberately removed, and the next person to notice is a user who needed it.
+   */
   function distributeToolGroups(panel: HTMLElement) {
     // `authoring` is deliberately NOT split here. It genuinely mixes annotation, the content
     // library and fabrication detail under one heading, and splitting a section by guessing which
