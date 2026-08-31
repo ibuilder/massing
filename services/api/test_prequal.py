@@ -52,6 +52,20 @@ assert not [f for f in pq.score_record({"workflow_state": "approved",
                                         "data": {"company": "Clean"}})["flags"]
             if "reject" in f.lower()]
 
+# --- and the FLAG and the POOL must agree on the NORMALISATION, not just on the field -------------
+# The first cut of v0.3.1126 fixed which field to read and left score_project comparing the raw
+# stored value, which reproduced the same defect one line away: with workflow_state "Rejected",
+# measured through /prequal/scores, the flag read `rejected` while in_pool stayed true and the sub
+# kept its place in pool_count and high_risk. Transitions write canonical states, but a bundle
+# import preserves what it is given, so this is reachable rather than theoretical.
+for _raw in ("rejected", "Rejected", "  REJECTED  "):
+    assert pq.state_key({"workflow_state": _raw}) == "rejected", _raw
+    assert "rejected" in pq.score_record({"workflow_state": _raw, "data": {}})["flags"], _raw
+# POSITIVE CONTROL for the loop above: a state that is NOT a refusal must survive canonicalisation
+# without becoming one, or the assertions could pass on a helper that returns "rejected" always.
+assert pq.state_key({"workflow_state": "  Approved "}) == "approved"
+assert "rejected" not in pq.score_record({"workflow_state": " Approved ", "data": {}})["flags"]
+
 # --- endpoints ---
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "P"}).json()["id"]

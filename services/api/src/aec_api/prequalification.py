@@ -119,6 +119,20 @@ def _rating_score(rating) -> tuple[float, str]:
 PREQUAL_NOT_IN_POOL = ("rejected",)
 
 
+def state_key(rec: dict) -> str:
+    """The record's workflow state, canonicalised — the ONE way this module reads that field.
+
+    A helper rather than two call sites, because v0.3.1126's first cut fixed the flag to read
+    `workflow_state` and left `score_project` comparing the raw stored value. The two then agreed on
+    the FIELD and disagreed on its NORMALISATION, which reproduced the same defect one line away:
+    with `workflow_state` stored as `"Rejected"`, measured through /prequal/scores, the flag read
+    `rejected` while `in_pool` stayed true and the sub kept its place in `pool_count` and
+    `high_risk`. Transitions write canonical states, but a bundle import preserves whatever it is
+    given, so the non-canonical case is reachable rather than theoretical.
+    """
+    return str(rec.get("workflow_state") or "").strip().lower()
+
+
 def score_record(rec: dict, project_size: float | None = None, today: date | None = None) -> dict:
     """Compute a 0-100 Q-score + risk band + factor breakdown + flags for one prequalification record."""
     today = today or datetime.now(timezone.utc).date()
@@ -145,7 +159,7 @@ def score_record(rec: dict, project_size: float | None = None, today: date | Non
     # flag, while one merely SUBMITTED with "Rejected" typed into the status field carried the flag
     # and stayed in. The flag fired on the sub who was still biddable and stayed silent on the one
     # the team had actually refused.
-    state = str(rec.get("workflow_state") or "").strip().lower()
+    state = state_key(rec)
     typed = str(d.get("status") or "").strip().lower()
     if state in PREQUAL_NOT_IN_POOL:
         flags.append("rejected")
@@ -180,7 +194,9 @@ def score_project(db: Session, project_id: str, project_size: float | None = Non
     scored = [score_record(r, project_size) for r in recs]
     for s, r in zip(scored, recs):
         s["workflow_state"] = r.get("workflow_state")
-        s["in_pool"] = r.get("workflow_state") not in PREQUAL_NOT_IN_POOL
+        # `state_key`, not the raw field — the flag and the pool must agree on the normalisation as
+        # well as on which field to read. See that helper for what happened when they did not.
+        s["in_pool"] = state_key(r) not in PREQUAL_NOT_IN_POOL
     scored.sort(key=lambda s: s["score"])
     pool = [s for s in scored if s["in_pool"]]
     # Every count that describes the POOL is taken over `pool`, so the response reconciles:

@@ -30,6 +30,21 @@ Both changes mutation-checked: reverting the flag to the blob, and collapsing th
 a plain rejection, each fail a specific assertion. A positive control asserts a clean record raises
 neither, so the pair cannot pass by flagging everything.
 
+### The first cut fixed the field and left the normalisation — found in review
+
+`score_record` canonicalised `workflow_state`; `score_project` compared the raw stored value. The two
+then agreed on **which field** to read and disagreed on **how to read it**, which reproduced the same
+defect one line away. Measured through `/prequal/scores` with `workflow_state` stored as `"Rejected"`:
+the flag read `rejected` while `in_pool` stayed **true** and the sub kept its place in `pool_count`
+and `high_risk`. Transitions write canonical states, but a bundle import preserves whatever it is
+given, so the non-canonical case is reachable rather than theoretical.
+
+Both now go through one `state_key()` helper — *a rule split across two call sites is a rule with two
+places to drift, and this one drifted inside the release that exists to stop exactly that.* Asserted
+over `rejected` / `Rejected` / `"  REJECTED  "`, with a positive control that a non-refusal state
+survives canonicalisation without becoming one, so the loop cannot pass on a helper that always
+returns `"rejected"`.
+
 ## v0.3.1125 (2026-08-31) — the owner's page said nothing had been paid, and it never could
 
 **`PORTAL-STATUS`.** The client-facing payment schedule showed `data["status"]` — a select a person
