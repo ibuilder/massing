@@ -42,6 +42,17 @@ STATUS_UNRECORDED = "unrecorded"
 
 #: Approval states in the `entitlement` register that mean conditions should exist.
 APPROVED_STATES = ("approved",)
+#: Entitlement states where the application was REFUSED. Conditions recorded against a denied
+#: entitlement are the terms of an approval that never happened — not obligations the project owes.
+#:
+#: `appealed` is deliberately NOT here: an appealed denial is live again, and its conditions are
+#: back in play. `draft`/`submitted`/`hearing` are not here either — a condition proposed before a
+#: decision is a real thing to track, which is what condition tracking is FOR. Only the settled
+#: refusal is refused.
+REFUSED_STATES = ("denied",)
+#: Reported instead of `tracked` for a refused entitlement, so the row is still visible with its
+#: conditions and it is obvious WHY it contributes nothing to the open total.
+STATUS_REFUSED = "refused"
 
 #: Leading enumerators an agency uses: "1.", "1)", "(1)", "a.", "Condition 3:", "•", "-".
 _ENUM = re.compile(
@@ -150,6 +161,16 @@ def assess(entitlement: dict[str, Any], discharged_seqs: set[int] | None = None)
         if it["seq"] in discharged and it["status"] != STATUS_UNPARSED:
             it["status"] = STATUS_DISCHARGED
 
+    if state in REFUSED_STATES:
+        return {"entitlement_id": entitlement.get("id"), "ref": entitlement.get("ref"),
+                "workflow_state": state, "status": STATUS_REFUSED,
+                "conditions": items, "counts": {}, "open_count": 0, "unparsed_count": 0,
+                "discharged_count": 0, "fully_discharged": False,
+                "note": ("this entitlement was DENIED. Its conditions are listed because they are "
+                         "what the agency would have required, and an appeal puts them back in "
+                         "play — but they are not open obligations, so they count zero. Nobody owes "
+                         "the terms of a permission that was refused")}
+
     approved = state in APPROVED_STATES
     if approved and not items:
         return {"entitlement_id": entitlement.get("id"), "ref": entitlement.get("ref"),
@@ -191,15 +212,32 @@ def for_project(db, project_id: str) -> dict[str, Any]:
         return {"project_id": project_id, "entitlements": [], "unrecorded": [],
                 "note": "the entitlement register is not installed here"}
     out = [assess(r) for r in rows]
+    # Measured before the fix on a project holding one APPROVED entitlement with two conditions and
+    # one DENIED entitlement with three: `total_open: 5`. Three of those five were the terms of a
+    # refused variance — a sound wall, a traffic signal and a height reduction nobody owes.
+    # The refusal is honoured in ONE place — `assess`, which zeroes the counts on a refused row so
+    # the row itself cannot read "3 open" while contributing 0 to the total. A second filter on the
+    # sums below was in the first draft of this fix and is deliberately gone: mutation-testing it
+    # showed no assertion could tell the two apart, because `assess` had already zeroed the record.
+    # A guard whose removal nothing detects is not defence in depth, it is a second place to rot.
+    live = [x for x in out if x["status"] != STATUS_REFUSED]
     return {
         "project_id": project_id,
         "entitlements": out,
         "entitlement_count": len(out),
+        # `live_count + len(refused) == entitlement_count`, and the totals below are taken over
+        # `live` only, so the response reconciles rather than contradicting its own list.
+        "live_count": len(live),
+        "refused": [{"ref": x["ref"] or x["entitlement_id"], "workflow_state": x["workflow_state"],
+                     "condition_count": len(x["conditions"])}
+                    for x in out if x["status"] == STATUS_REFUSED],
         "unrecorded": [x["ref"] or x["entitlement_id"] for x in out
                        if x["status"] == STATUS_UNRECORDED],
         "total_open": sum(x.get("open_count") or 0 for x in out),
         "total_unparsed": sum(x.get("unparsed_count") or 0 for x in out),
         "note": ("conditions are tracked, never auto-satisfied. An UNPARSED condition is one nobody "
                  "has read yet, and an APPROVED entitlement with no conditions recorded is reported "
-                 "as unrecorded rather than as clean."),
+                 "as unrecorded rather than as clean. A DENIED entitlement keeps its conditions "
+                 "listed but contributes none to the totals — an approval that never happened "
+                 "imposes nothing; an appeal moves it out of `denied` and back into them."),
     }

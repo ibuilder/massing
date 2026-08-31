@@ -633,12 +633,23 @@ def entitlement_condition_checks(pid: str, db: Session = Depends(get_db),
         facts = condition_checks.model_facts(model)
     except Exception:                            # noqa: BLE001 — no model is not_checkable, not a pass
         pass
-    out = []
+    # A DENIED entitlement keeps its conditions listed (an appeal puts them back in play), so this
+    # route has to honour the refusal itself or it re-creates the defect one level up: checking the
+    # model against terms that were never imposed, and reporting the misses as compliance failures.
+    out, refused = [], []
     for ent in tracked.get("entitlements", []):
         res = condition_checks.check_all(ent.get("conditions") or [], facts)
-        out.append({"entitlement_id": ent.get("entitlement_id"), "ref": ent.get("ref"),
-                    "workflow_state": ent.get("workflow_state"), **res})
-    return {"project_id": pid, "model_facts": facts, "entitlements": out,
+        row = {"entitlement_id": ent.get("entitlement_id"), "ref": ent.get("ref"),
+               "workflow_state": ent.get("workflow_state"),
+               "refused": ent.get("status") == approval_conditions.STATUS_REFUSED, **res}
+        (refused if row["refused"] else out).append(row)
+    return {"project_id": pid, "model_facts": facts, "entitlements": out + refused,
+            # Totals are over the entitlements actually in force; `refused` names what left them, so
+            # in_force_count + len(refused) == len(entitlements) and the response reconciles. Named
+            # `in_force_count`, not `checked_count`, because each ROW already carries a
+            # `checked_count` meaning something else — how many of its conditions were evaluable.
+            "in_force_count": len(out),
+            "refused": [{"ref": x["ref"], "workflow_state": x["workflow_state"]} for x in refused],
             "total_exceeds": sum(x["exceeds_count"] for x in out),
             "total_not_checkable": sum(x["not_checkable_count"] for x in out),
             "note": tracked.get("note", "")}

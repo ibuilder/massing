@@ -65,6 +65,8 @@ TESTS = ["test_provenance_report", "test_provenance_estimate_leg", "test_answers
          # R22-NOTICE-CLOCK — contractual notice periods + the register routes:
          "test_notice_clock", "test_notices_route",
          # Tier-2/3 competitive upgrades:
+         # REFUSAL-READERS — the behavioural gate for the refusal-state reader class:
+         "test_refusal_readers",
          "test_prequal", "test_vendor_memory", "test_payapp", "test_accounting", "test_carbon", "test_codecheck", "test_code_analysis", "test_codes", "test_approval_conditions", "test_agent_packs", "test_mcp_attribution", "test_approvability", "test_rfi_readiness", "test_readiness_bcf", "test_productivity", "test_ebc", "test_element_connections", "test_scene", "test_pricing", "test_cost_db",
          "test_ids_authoring", "test_procurement", "test_conceptual", "test_parcels", "test_net",
          "test_design_phase", "test_family_library", "test_change_instruments", "test_turnover",
