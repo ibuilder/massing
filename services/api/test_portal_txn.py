@@ -68,10 +68,28 @@ with TestClient(app) as c:
                                                    "action": "approved"}).status_code == 404
 
     # --- PORTAL-TXN phase 2: the payment schedule is OPT-IN per token -----------------------------
-    for inv in ({"number": "INV-001", "amount": 250000, "period": "2026-05", "status": "paid"},
-                {"number": "INV-002", "amount": 300000, "period": "2026-06", "status": "submitted"}):
-        r = c.post(f"/projects/{pid}/modules/owner_invoice", json={"data": inv})
-        assert r.status_code in (200, 201), r.text
+    # PORTAL-STATUS: both invoices are driven through the REAL transitions, and the two carry
+    # DELIBERATELY CONTRADICTORY evidence so the assertions below can tell which field is being
+    # believed. Until v0.3.1125 this seeded `"status": "paid"` straight into the data blob — a
+    # lowercase value the product cannot produce, since the `status` select's options are
+    # capitalised — so it proved the arithmetic on data no UI writes, while an invoice paid through
+    # `mark_paid` reported `paid: 0` to the owner.
+    #
+    # INV-001: paid through the WORKFLOW, with no `status` typed at all -> must count as paid.
+    # INV-002: only SUBMITTED, but carrying the select's own "Paid" in the blob -> must NOT count.
+    #          The transition is the authority; the typed field is a label somebody may have left
+    #          stale, and `modules.transition()` never writes it.
+    _paid = c.post(f"/projects/{pid}/modules/owner_invoice",
+                   json={"data": {"number": "INV-001", "amount": 250000,
+                                  "period": "2026-05"}}).json()["id"]
+    for _a in ("submit", "mark_paid"):
+        assert c.post(f"/projects/{pid}/modules/owner_invoice/{_paid}/transition",
+                      json={"action": _a}).status_code < 300
+    _open = c.post(f"/projects/{pid}/modules/owner_invoice",
+                   json={"data": {"number": "INV-002", "amount": 300000, "period": "2026-06",
+                                  "status": "Paid"}}).json()["id"]
+    assert c.post(f"/projects/{pid}/modules/owner_invoice/{_open}/transition",
+                  json={"action": "submit"}).status_code < 300
     plain_tok = c.post(f"/projects/{pid}/share-tokens", json={"label": "no-financials"}).json()
     assert plain_tok["show_payments"] is False
     assert "payment_schedule" not in c.get(f"/shared/{plain_tok['token']}/digest").json(), \
@@ -82,6 +100,49 @@ with TestClient(app) as c:
     ps = c.get(f"/shared/{pay_tok['token']}/digest").json()["payment_schedule"]
     assert ps["billed"] == 550000 and ps["paid"] == 250000 and ps["outstanding"] == 300000, ps
     assert {i["number"] for i in ps["items"]} == {"INV-001", "INV-002"}, ps["items"]
+    # The two invoices discriminate the sources: the same numbers above are reachable by believing
+    # the blob, so without this the totals alone could not tell the fix from the defect.
+    _by_num = {i["number"]: i for i in ps["items"]}
+    assert _by_num["INV-001"]["status_key"] == "paid", ("a workflow-paid invoice must read paid to "
+                                                        "the owner", _by_num["INV-001"])
+    assert _by_num["INV-001"]["status"] == "Paid", _by_num["INV-001"]
+    assert _by_num["INV-002"]["status_key"] == "submitted", (
+        "a merely SUBMITTED invoice must not read as paid just because somebody typed Paid in the "
+        "status field — the transition is the authority", _by_num["INV-002"])
+    # The FALLBACK branch cannot be reached through the route — every record created through the
+    # API gets a `workflow_state`, so only a legacy/imported row with a NULL state would fall back
+    # to the blob. Mutation-testing showed no route-level assertion could tell `.strip().lower()`
+    # from nothing at all, which is the untestable-guard shape v0.3.1124 deleted. The function is
+    # pure, so the branch is asserted DIRECTLY rather than kept as decoration nothing checks.
+    from aec_api.client_portal import invoice_status_key
+    assert invoice_status_key({"workflow_state": "paid"}, {}) == "paid"
+    assert invoice_status_key({"workflow_state": "submitted"}, {"status": "Paid"}) == "submitted", \
+        "the transition is the authority; a stale typed field must not override it"
+    assert invoice_status_key({}, {"status": "Paid"}) == "paid", \
+        "a row with no workflow state falls back to the blob, CASEFOLDED — the select writes " \
+        "'Paid' and every comparison in this module is lowercase"
+    assert invoice_status_key({}, {"status": "  PAID  "}) == "paid"
+    assert invoice_status_key({}, {}) == "draft"
+
+    # ...and the HTML colour keys off the same normalised value, so the page and the totals agree.
+    # Scoped to the INV-001 ROW, not the whole page. A page-wide substring check passes today (the
+    # mutation `color = "#9a6700"` does fail it, verified), but it is only true as long as nothing
+    # else on the page uses that colour — the moment something does, the assertion goes vacuous with
+    # nothing to announce it. Raised in review of #382 with the reasoning that an approved decision
+    # already renders it; that specific claim is false here, but the fragility it points at is real.
+    _page = c.get(f"/shared/{pay_tok['token']}").text
+    _row = next((li for li in _page.split("<li") if "INV-001" in li), None)
+    assert _row is not None, "the paid invoice must appear as a row on the owner's page"
+    # Colour AND label together, in one span. Scoping to the row proves the colour belongs to this
+    # invoice; binding it to `>Paid<` proves the owner actually reads "Paid" there. Raised in review
+    # as asserting the status span rather than a bare hex — a fair point: the hex alone would still
+    # pass if the label regressed to the raw blob value.
+    assert 'color:#1a7f37">Paid</span>' in _row, \
+        ("the paid invoice must render as a Paid span in the paid colour, on its own row; "
+         "this colour never fired at all before v0.3.1125", _row[:300])
+    _unpaid = next((li for li in _page.split("<li") if "INV-002" in li), None)
+    assert _unpaid is not None and "#1a7f37" not in _unpaid, \
+        "an unpaid invoice must NOT render in the paid colour"
     pay_html = c.get(f"/shared/{pay_tok['token']}").text
     assert "Payment schedule" in pay_html and "$300,000" in pay_html and "Outstanding" in pay_html, \
         "the opt-in HTML page renders the schedule"

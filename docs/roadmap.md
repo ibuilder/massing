@@ -394,8 +394,35 @@ instances:
   because two of the fixes in this class put the filter somewhere a pattern check would have
   accepted. `services/api/test_refusal_readers.py`.
 
-- ◧ **PORTAL-STATUS — the owner's payment schedule shows a status nobody sets** *(S — Lane C; split
-  out of REFUSAL-READERS 2026-08-31, where it was found in review of v0.3.1122)*
+- ✅ **PORTAL-STATUS — the owner's payment schedule shows a status nobody sets** *(S — Lane C;
+  split out of REFUSAL-READERS 2026-08-31, **CLOSED v0.3.1125** the same day)*
+
+  **Measured, and worse than this entry described.** Not "a certified application reads as a draft":
+  `paid` was **structurally unreachable**. On `/shared/{token}/digest` with three invoices driven
+  through the real transitions — two of them `submit` → `mark_paid`, one of those also carrying the
+  select's own capitalised `"Paid"` — the owner's page reported **billed 650,000 / paid 0 /
+  outstanding 650,000**, and the invoice paid through the workflow displayed as **`draft`**. The
+  comparison was lowercase against a select whose every option is capitalised, so the only value
+  that could match was one written straight into the blob, which nothing in the product does — **and
+  the only thing that did was the test.** Now 350,000 / 300,000.
+
+  Two readers, one rule (`invoice_status_key`): the JSON, and `_payments_html`'s green "paid" colour,
+  which never once fired. The response carries `status_key` beside `status` so the page and its
+  totals cannot disagree.
+
+  **The scope finding matters more than the fix.** 17 modules declare both a workflow and a typed
+  `status`; a `get("status")` grep returns ~25 hits; **two were the defect.** The rule: the blob is
+  wrong only where the workflow can express the same thing (`owner_invoice`, `permit`,
+  `prequalification`, `value_engineering`, `weekly_plan`); where the workflow LACKS the concept the
+  blob is the authority and reading it is correct — `bid_submission`'s workflow is only
+  `[open, closed]`, so `project_budget.py` reading `"Awarded"` is right. Most other hits were never
+  module data: computed RAG dicts, a project field, a snapshot, and an external open-data payload.
+  *REFUSAL-READERS' population was derived too NARROW and missed five real reads; this one is too
+  WIDE and flags twenty-three non-defects. Neither a match nor a miss is evidence — only reading is.*
+
+  **Follow-on, small:** `prequalification.py:129` raises its "marked rejected" flag from the blob
+  while `in_pool` now comes from `workflow_state`, so a sub rejected through the real transition gets
+  no flag. Harmless (the flag is informational and case-folded) but the two should share a source.
 
   `client_portal._payment_schedule` renders `str(d.get("status") or "draft")` — the free-text `data`
   blob — instead of `workflow_state`, the field the transitions actually set. A certified pay
@@ -964,7 +991,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | PORTAL-STATUS *(split out of the now-closed REFUSAL-READERS)* · R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · ASSET-VERIFY *(the verification half of asset-rights has no product caller; see Band 2)* · SOFT-CLASH-RULES *(six of seven sourced clearances never evaluated; see Band 2)* · CITE-RECORD *(XS — the record citation builder has no producer; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · ASSET-VERIFY *(the verification half of asset-rights has no product caller; see Band 2)* · SOFT-CLASH-RULES *(six of seven sourced clearances never evaluated; see Band 2)* · CITE-RECORD *(XS — the record citation builder has no producer; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |

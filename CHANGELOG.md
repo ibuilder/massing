@@ -4,6 +4,96 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1125 (2026-08-31) — the owner's page said nothing had been paid, and it never could
+
+**`PORTAL-STATUS`.** The client-facing payment schedule showed `data["status"]` — a select a person
+fills in — instead of `workflow_state`, the field the transitions actually set.
+
+Measured through `/shared/{token}/digest` on three owner invoices driven through the **real**
+transitions:
+
+| | before | after |
+|---|---|---|
+| `billed` | 650,000 | 650,000 |
+| **`paid`** | **0.00** | **350,000** |
+| `outstanding` | 650,000 | 300,000 |
+| INV-001 — `submit` → `mark_paid` | shown to the owner as **`draft`** | `Paid` |
+| INV-002 — same, plus the select's own `"Paid"` typed in | `Paid`, **not counted** | `Paid`, counted |
+| INV-003 — submitted | `draft` | `Submitted` |
+
+**`paid` was structurally unreachable.** The comparison was `status == "paid"`, lowercase, against a
+select whose every option is capitalised (`Draft / Submitted / Approved / Rejected / Paid`), with no
+normalisation anywhere on the write path. The only value that could ever have matched is a lowercase
+string written straight into the blob — which nothing in the product does. **The one thing that did
+was the test**, which seeded `"status": "paid"` through the API and so proved the arithmetic on data
+no UI can produce. *A check that supplies its own subject in a form the product cannot emit is not a
+check.*
+
+**The root cause is structural, not a typo.** `modules.transition()` writes `workflow_state`,
+`modified_at` and `party_owner` and **never touches `data`** — so the blob and the workflow are
+independent fields that drift apart the moment anybody uses the workflow, and nothing reconciles
+them. `owner_invoice` declares the same five-state vocabulary **twice**: once as its workflow, once
+as a hand-typed select.
+
+**Two readers, one rule.** `_payments_html`'s green "paid" colour carried the identical lowercase
+comparison, so it never once fired. Both now key off `invoice_status_key()`, and the response
+carries `status_key` (what everything compares on) beside `status` (what the owner reads), so the
+page and its totals cannot disagree about one invoice.
+
+### What the sweep did NOT change, and why that is the finding
+
+17 modules declare both a workflow and a hand-typed `status` field, and a `get("status")` grep
+returns ~25 hits. **Two of them were the defect** — both in `client_portal.py`. The rule that
+separated them:
+
+- **The workflow can express the same thing → the blob is a shadow; read the state.**
+  `owner_invoice`, `permit`, `prequalification`, `value_engineering`, `weekly_plan`.
+- **The workflow lacks the concept → the blob is the authority; reading it is CORRECT.**
+  `bid_submission`'s workflow is only `[open, closed]`, so award lives solely in its select;
+  `project_budget.py` reading `d["status"] == "Awarded"` is right, and its capitalisation matches.
+
+Most of the remaining hits were never module data at all: computed RAG dicts in `precon` and the
+construction report builder, a *project* field in `supply_pipeline`, a snapshot in `assistant`, and
+an **external** open-data permit payload in `routers/opendata.py`, correctly translated at the
+boundary. `procurement_gate` builds its status *from* `workflow_state` and reads its own dict.
+
+**REFUSAL-READERS' population was derived too NARROWLY and missed five real reads; this one is too
+WIDE and flags twenty-three non-defects. Same species of error, opposite directions — so neither a
+match nor a miss is evidence, and only reading settles it.**
+
+### A colour assertion scoped to its own row
+
+Review flagged the HTML colour check as vacuous, reasoning that an earlier approved decision already
+renders `#1a7f37` on that page. **Measured: that claim is false here** — forcing the payment row to
+`color = "#9a6700"` fails the assertion, so the colour was on the page only because of the invoice.
+The *fragility* behind the claim is real though: a page-wide substring check stays honest only while
+nothing else on the page uses that colour, and goes vacuous the moment something does, with nothing
+to announce it. The assertion now scopes to the INV-001 row and adds its converse — the unpaid row
+must NOT carry the paid colour.
+
+### A lane cell that outlived its item, and the gate that let it
+
+Review flagged a stale item code in the Lane C table. The framing — that it violates a validation
+rule — is wrong: every gate was green. **The observation is right, and the reason it was green is
+the more useful half.** `PORTAL-STATUS` was added to that row in v0.3.1124 and marked ✅ here, and
+the gate that exists to catch exactly this (*"names no code that has neither an open entry nor a
+note saying it is done"*) tested the whole cell against `/SHIPPED|CLOSED|.../`. The cell read
+`PORTAL-STATUS *(split out of the now-closed REFUSAL-READERS)*` — so it matched **"now-closed"**,
+a fact about a DIFFERENT item, and exempted the entry from its own check.
+
+*A note about somebody else is not evidence about you.* The rule now strips any parenthetical naming
+another code before testing, with a fixture carrying a positive control — the raw cell must still
+match the `done` regex, or the fixture would not reproduce the bug it describes. Verified by
+restoring the stale row: the gate names it.
+
+### A guard that no route-level test could see
+
+`invoice_status_key` casefolds, and mutation-testing showed **no assertion through the route could
+tell `.strip().lower()` from nothing** — workflow states are already lowercase, and the blob
+fallback is only reachable on a legacy row with a NULL state. That is the untestable-guard shape
+v0.3.1124 deleted. Here the branch is worth keeping, so it is asserted **directly** against the pure
+function instead of left as decoration: `invoice_status_key({}, {"status": "Paid"}) == "paid"`.
+
 ## v0.3.1124 (2026-08-31) — the last five refusal readers, and a metric that was never alive
 
 **`REFUSAL-READERS` closes: the five remaining instances, plus the behavioural gate for the class.**
