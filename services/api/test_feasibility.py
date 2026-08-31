@@ -76,6 +76,44 @@ with TestClient(app) as c:
     assert top["unit_yield"] >= cmp["scenarios"][1]["unit_yield"], cmp                 # sorted desc
     assert cmp["scenarios"][1]["delta_units"] < 0, cmp["scenarios"][1]                 # the lesser scheme
 
+    # --- a SUPERSEDED scheme is not a candidate, and must not become the BASELINE -----------------
+    # `supersede` is the explicit act of replacing a zoning record. Ranking one makes the winner —
+    # and therefore the scheme every other delta is measured against — an envelope that no longer
+    # applies. Measured before this: a superseded FAR-12 scheme ranked first at 240,000 GFA, so the
+    # live scheme was reported as a 160,000 SF shortfall against something nobody can build.
+    #
+    # The sibling `feasibility()` in the same file already reads this state to prefer an approved
+    # record. One function honoured it and this one did not.
+    _sup = c.post(f"/projects/{pid}/modules/zoning", json={"data": {
+        "site": "Airspace parcel — WITHDRAWN", "use_type": "Mixed-Use",
+        "site_area_sf": 20_000, "far": 20.0, "height_limit_ft": 600, "floor_to_floor_ft": 12,
+        "lot_coverage_pct": 90, "efficiency_pct": 90, "avg_unit_sf": 850,
+        "parking_ratio": 1.0}}).json()["id"]
+    # positive control: while it is live it DOES rank first, so the assertion below cannot pass
+    # merely because the scheme is uncompetitive.
+    _open = c.get(f"/projects/{pid}/feasibility/compare").json()
+    assert _open["scenarios"][0]["site"].startswith("Airspace"), \
+        ("a live scheme must be rankable — otherwise the exclusion below proves nothing",
+         [x["site"] for x in _open["scenarios"]])
+    for _act2 in ("approve", "supersede"):
+        assert c.post(f"/projects/{pid}/modules/zoning/{_sup}/transition",
+                      json={"action": _act2}).status_code == 200
+
+    cmp2 = c.get(f"/projects/{pid}/feasibility/compare").json()
+    assert cmp2["count"] == 2, ("a superseded scheme was still ranked", cmp2["count"])
+    assert not cmp2["scenarios"][0]["site"].startswith("Airspace"), cmp2["scenarios"][0]
+    assert cmp2["best_ref"] == cmp["best_ref"], "the live baseline must be unchanged by the exclusion"
+    # named, not silently dropped
+    assert [x["zoning_id"] for x in cmp2["superseded_excluded"]] == [_sup], cmp2["superseded_excluded"]
+    # every row now carries the state — it used to be dropped before any caller could see it
+    assert all("workflow_state" in x for x in cmp2["scenarios"]), cmp2["scenarios"][0]
+    # ...and the converse: `reopen` puts it back in contention
+    assert c.post(f"/projects/{pid}/modules/zoning/{_sup}/transition",
+                  json={"action": "reopen"}).status_code == 200
+    cmp3 = c.get(f"/projects/{pid}/feasibility/compare").json()
+    assert cmp3["count"] == 3 and cmp3["scenarios"][0]["site"].startswith("Airspace"), \
+        ("reopen must restore a superseded scheme", cmp3["count"])
+
     # report renders
     assert "site_feasibility" in {x["id"] for x in c.get("/reports").json()["reports"]}
     pdf = c.get(f"/projects/{pid}/reports/site_feasibility.pdf")

@@ -67,6 +67,24 @@ _METRICS = {
 }
 
 
+#: Design-option states that are OUT OF CONTENTION — listed, but never named best-in-class.
+#:
+#: `reject` is the team's explicit decision that a scheme is not the answer. Letting it win a metric
+#: makes the comparison recommend a scheme somebody already refused, and the card gives no hint:
+#: measured before this, a rejected option was named leader on ALL FOUR of its populated metrics
+#: while the same response reported `rejected: 1` in `by_state`. The state was not missing or hard to
+#: reach — it was one field away, counted, and ignored.
+#:
+#: This does not hide anything. Every option stays in `options` and in `by_state`; `not_in_contention`
+#: names what was dropped from the ranking, exactly as `marketing.compute_appraisal` names its
+#: `excluded_comparables`. A ranking whose field silently shrank reads as a weaker field rather than
+#: as a decision somebody made.
+#:
+#: These modules already separate LISTED from RANKED — for unmeasured carbon and unpriced economics,
+#: as their own notes say. Refusal simply was not one of the reasons.
+DESIGN_OPTION_NOT_IN_CONTENTION = ("rejected",)
+
+
 def compare(db: Session, pid: str) -> dict[str, Any]:
     rows = me.list_records(db, "design_option", pid, limit=100000) if "design_option" in me.TABLES else []
     opts = [_option(r) for r in rows if _d(r).get("name")]
@@ -90,8 +108,10 @@ def compare(db: Session, pid: str) -> dict[str, Any]:
         o["derived_hard_cost"] = e["hard_cost"] if e and e["basis"] == "derived" else None
         o["irr_agrees_with_proforma"] = e["agrees_with_declared"] if e else None
 
+    contenders = [o for o in opts if o["state"] not in DESIGN_OPTION_NOT_IN_CONTENTION]
+
     def _leader(key: str, lower: bool) -> str | None:
-        vals = [(o[key], o["name"]) for o in opts if o.get(key) is not None]
+        vals = [(o[key], o["name"]) for o in contenders if o.get(key) is not None]
         if not vals:
             return None
         return (min if lower else max)(vals, key=lambda t: t[0])[1]
@@ -110,11 +130,14 @@ def compare(db: Session, pid: str) -> dict[str, Any]:
 
     return {
         "count": len(opts), "options": opts, "leaders": leaders,
+        "not_in_contention": [o["name"] for o in opts
+                              if o["state"] in DESIGN_OPTION_NOT_IN_CONTENTION],
         "selected": selected["name"] if selected else None,
         "by_state": {s: sum(1 for o in opts if o["state"] == s)
                      for s in ("proposed", "shortlisted", "selected", "rejected")},
         "note": "Options compared on program, economics and embodied carbon; best-in-class named per "
                 "metric. An option whose carbon_basis is 'unavailable' carries no figure and is never "
-                "named best-in-class. Promote one to 'selected' to set the project's design direction "
-                "(its drawing set becomes current).",
+                "named best-in-class, and a REJECTED option is listed but never named best-in-class "
+                "either — see `not_in_contention`. Promote one to 'selected' to set the project's "
+                "design direction (its drawing set becomes current).",
     }

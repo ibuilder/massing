@@ -127,8 +127,14 @@ def compare_carbon(db: Session, pid: str) -> dict[str, Any]:
         if "design_option" in me.TABLES else []
     opts = [option_carbon(r) for r in rows if (r.get("data") or r).get("name")]
 
-    measured = [o for o in opts if o["embodied_kgco2e"] is not None]
-    unavailable = [o for o in opts if o["embodied_kgco2e"] is None]
+    # A REJECTED scheme is listed but not ranked — the same separation this module already makes for
+    # an unmeasured one, for a second reason. Without it the lowest-carbon headline can name a scheme
+    # the team refused, which is worse here than elsewhere: carbon is the number an option gets
+    # promoted on.
+    from .design_options import DESIGN_OPTION_NOT_IN_CONTENTION
+    contenders = [o for o in opts if o["state"] not in DESIGN_OPTION_NOT_IN_CONTENTION]
+    measured = [o for o in contenders if o["embodied_kgco2e"] is not None]
+    unavailable = [o for o in contenders if o["embodied_kgco2e"] is None]
     ranked = sorted(measured, key=lambda o: o["embodied_kgco2e"])
     by_intensity = [o for o in measured if o["kgco2e_per_m2"] is not None]
     by_intensity.sort(key=lambda o: o["kgco2e_per_m2"])
@@ -144,7 +150,12 @@ def compare_carbon(db: Session, pid: str) -> dict[str, Any]:
                 o["embodied_kgco2e"] - selected["embodied_kgco2e"], 1)
 
     return {
+        # `measured` and `unavailable` describe the RANKED population, so they sum to
+        # `in_contention_count`, not to `count`. Returning that explicitly is the difference between
+        # a reader who can account for every option and one who sees 1 + 0 against a count of 2 and
+        # has to guess. See the note in `option_economics` — same shape, found the same way.
         "count": len(opts),
+        "in_contention_count": len(contenders),
         "measured_count": len(measured),
         "unavailable_count": len(unavailable),
         "options": opts,
@@ -156,8 +167,11 @@ def compare_carbon(db: Session, pid: str) -> dict[str, Any]:
         # difference between a reader who knows to check and one who does not.
         "mixed_basis": len([b for b in mix if b != BASIS_UNAVAILABLE]) > 1,
         "basis_meanings": _WHY,
+        "not_in_contention": [o["name"] for o in opts
+                              if o["state"] in DESIGN_OPTION_NOT_IN_CONTENTION],
         "note": ("Options with no basis are listed and NOT ranked — an option that could not be "
-                 "measured is not an option with zero carbon."),
+                 "measured is not an option with zero carbon. A REJECTED option is listed and not "
+                 "ranked for the other reason: it is not in contention. See `not_in_contention`."),
         "message": (None if measured else
                     "No option can be given an embodied-carbon figure yet. Record `embodied_kgco2e` "
                     "on an option, or give it a gross area and a known building type."),

@@ -149,13 +149,31 @@ def compare(db, pid: str, actual_gfa_sf: float | None = None) -> dict[str, Any]:
     recs = me.list_records(db, "zoning", pid, limit=100000)
     if not recs:
         return {"scenarios": [], "count": 0, "warnings": ["Add Zoning & Site records (one per scheme) to compare."]}
+    # A SUPERSEDED scheme is not a candidate. `supersede` is the explicit act of replacing a zoning
+    # record (with `reopen` back to draft), so ranking one can make the winner — and therefore the
+    # BASELINE every other scheme's deltas are measured against — a scheme that no longer applies.
+    # Measured before this: a superseded FAR-12 scheme ranked first at 240,000 GFA against a live
+    # FAR-4 scheme's 80,000, so the live scheme was reported as a 160,000 SF shortfall against an
+    # envelope nobody can build.
+    #
+    # `draft` stays: an unapproved scheme is a real thing to test, which is what this comparison is
+    # FOR. Only the explicit replacement is excluded. The sibling `feasibility()` thirty lines below
+    # already reads this state to prefer an approved record — one function in the file honoured it
+    # and this one did not.
+    #
+    # `workflow_state` is now carried on every row. It was dropped before the caller could see it,
+    # so the UI had no way to mark a scheme as superseded even if it wanted to — the same shape as
+    # the appraisal defect, where the state was discarded before any filter could apply.
+    superseded = [r for r in recs if r.get("workflow_state") == "superseded"]
+    live = [r for r in recs if r.get("workflow_state") != "superseded"]
     scen = []
-    for rec in recs:
+    for rec in live:
         f = compute(rec, actual_gfa_sf=actual_gfa_sf)
         if f.get("error"):
             continue
         scen.append({
             "ref": rec.get("ref"), "zoning_id": rec.get("id"),
+            "workflow_state": rec.get("workflow_state"),
             "site": f.get("site"), "use_type": f.get("use_type"),
             "far": (f.get("inputs") or {}).get("far"),
             "max_floors": f.get("max_floors"),
@@ -169,7 +187,16 @@ def compare(db, pid: str, actual_gfa_sf: float | None = None) -> dict[str, Any]:
         if best:
             s["delta_units"] = (s["unit_yield"] or 0) - (best["unit_yield"] or 0)
             s["delta_gfa_sf"] = round((s["allowed_gfa_sf"] or 0) - (best["allowed_gfa_sf"] or 0), 1)
-    return {"scenarios": scen, "count": len(scen), "best_ref": best["ref"] if best else None}
+    return {"scenarios": scen, "count": len(scen), "best_ref": best["ref"] if best else None,
+            # Named rather than silently dropped: a comparison whose field shrank without saying so
+            # reads as a thinner set of options rather than as a decision somebody recorded.
+            "superseded_excluded": [{"ref": r.get("ref"), "zoning_id": r.get("id")}
+                                    for r in superseded],
+            "note": ("Schemes ranked by unit yield, then allowed GFA; deltas are vs. the top scheme. "
+                     "SUPERSEDED records are excluded from the ranking and named in "
+                     "`superseded_excluded` — a replaced scheme cannot be the baseline the live ones "
+                     "are measured against. Drafts ARE ranked: an unapproved scheme is a real option "
+                     "to test.")}
 
 
 def feasibility(db, pid: str, actual_gfa_sf: float | None = None, zoning_id: str | None = None) -> dict[str, Any]:

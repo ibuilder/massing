@@ -4,6 +4,60 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1123 (2026-08-30) — a scheme the team refused could still win the comparison
+
+**Four `REFUSAL-READERS` instances, all of the form "a refused thing ranks first".** Unlike v0.3.1122
+these move no money directly; they move what the product *recommends*, which is worse in one respect:
+a wrong number gets questioned, a wrong recommendation gets built.
+
+| endpoint | measured before | after |
+|---|---|---|
+| `/design/options/compare` | a REJECTED option named **best-in-class on all four** of its populated metrics | the live scheme leads |
+| `/design/options/carbon` | the rejected option was `lowest_total` | `Scheme D — live` |
+| `/design/options/economics` | the rejected option was `best_irr`, at 30% against a live 12% | the live scheme |
+| `/feasibility/compare` | a SUPERSEDED zoning scheme ranked **#1** at 240,000 GFA vs a live 80,000 | excluded and named |
+
+**The design-option case is the sharpest.** The engine already knew: the same response reported
+`rejected: 1` in `by_state` while naming that option the leader. The state was not missing, not
+buried, not expensive to reach — it was one field away, counted, and ignored.
+
+**The feasibility case is the most consequential.** The top scheme is the baseline every other
+scheme's deltas are measured against, so a superseded FAR-12 envelope made a live FAR-4 scheme read
+as a 160,000 SF *shortfall* against something nobody can build. Its own sibling `feasibility()`,
+thirty lines below in the same file, already reads that state to prefer an approved record — one
+function in the file honoured it and the other did not, the same shape as the accounting and
+procurement defects. `compare` also **dropped `workflow_state` before returning**, so no caller could
+have filtered even if it wanted to; every row now carries it.
+
+**Nothing is hidden.** All four endpoints keep listing the refused item and name what left the
+ranking — `not_in_contention`, `superseded_excluded` — following `compute_appraisal`'s
+`excluded_comparables`. A ranking whose field silently shrank reads as a thinner set of options
+rather than as a decision somebody recorded. `draft` and `proposed` are deliberately still ranked:
+an unapproved scheme is a real thing to test, which is what a comparison is *for*.
+
+These three modules already separated LISTED from RANKED — for unmeasured carbon and unpriced
+economics, as their own notes say. Refusal simply was not one of the reasons.
+
+**And the same defect, a third time, caught by review.** Excluding a refused option from the
+*ranking* left the counts describing the *unfiltered* set: `option_economics` reported
+`unpriced_count: 1` while **zero** options lacked an IRR — the rejected one has 30% and was simply
+missing from `priced` — and `option_carbon`'s `measured` + `unavailable` no longer summed to
+`count`. This is the third appearance of one shape: v0.3.1122's `billed_to_date` excluded refused
+invoices while `invoice_count` did not; then this; then carbon's parts not summing. **Filter a
+computation, leave a count over the unfiltered set.** Both now take their counts against the ranked
+population and return `in_contention_count`, so `count` reconciles rather than leaving a reader to
+infer the difference. Asserted, not just fixed: the test pins `unpriced_count` to the number of
+options that actually lack a figure, and pins both responses to add up.
+
+**A vacuous test, caught by mutation-checking rather than by review.** The first `option_carbon`
+mutation **did not fire**: reverting the fix broke nothing, because the rejected option carried no
+carbon figure and so could never have won that ranking. Adding one exposed a *second* vacuity — with
+the rejected option excluded, nothing was measured at all, `lowest_total` went `None`, and the
+assertion passed for a new wrong reason. It took a live carbon-bearing option to make the check real.
+Both guards are now in the test with the reasoning inline. Every assertion carries a **positive
+control** (the option leads while live) so no exclusion test can pass merely because its subject was
+uncompetitive.
+
 ## v0.3.1122 (2026-08-30) — the owner rejected the invoice; five money numbers went on counting it
 
 **A rejected owner invoice was booked as revenue.** `accounting.journal_entries` posted every

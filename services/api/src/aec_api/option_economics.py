@@ -171,14 +171,41 @@ def compare_economics(db: Session, pid: str) -> dict[str, Any]:
         sc = by_id.get(ref) or by_name.get(ref.lower()) if ref else None
         opts.append(option_economics(r, sc, candidates))
 
-    priced = [o for o in opts if o["irr_pct"] is not None]
+    # Same separation this module already makes between listed and ranked, for a second reason:
+    # `best_irr` must not name a scheme the team rejected. `derived` / `disagree` deliberately keep
+    # reading EVERY option, rejected included — "your declared IRR disagrees with your proforma" is
+    # a data-quality finding about a record, and it stays true whether or not the scheme is in play.
+    from .design_options import DESIGN_OPTION_NOT_IN_CONTENTION
+    contenders = [o for o in opts if o["state"] not in DESIGN_OPTION_NOT_IN_CONTENTION]
+    priced = [o for o in contenders if o["irr_pct"] is not None]
     ranked = sorted(priced, key=lambda o: -o["irr_pct"])
     derived = [o for o in opts if o["basis"] == BASIS_DERIVED]
     disagree = [o for o in derived if o["agrees_with_declared"] is False]
 
     return {
-        "count": len(opts), "priced_count": len(priced), "derived_count": len(derived),
-        "unpriced_count": len(opts) - len(priced),
+        # `count` is everything LISTED; the pricing counts describe the RANKED population, so they
+        # are taken against `contenders`. Deriving `unpriced_count` from `opts` instead reported a
+        # rejected option that HAS an IRR as unpriced — measured: unpriced_count 1 while zero
+        # options lacked a figure. The exclusion and the count that describes it must run over the
+        # same population, or the response contradicts itself; `in_contention_count` is returned so
+        # a reader can reconcile `count` rather than having to infer the difference.
+        #
+        # THIRD TIME THIS SHAPE HAS APPEARED (v0.3.1122 `billed_to_date` vs `invoice_count`, then
+        # `priced` vs `unpriced_count`, then carbon's `measured`+`unavailable` not summing): filter a
+        # computation, leave a count over the unfiltered set. Whenever a filter is added here, every
+        # count derived from that set moves with it.
+        # `unpriced_count` counts among CONTENDERS, not among all options, so that
+        # `priced_count + unpriced_count == in_contention_count` and the response reconciles. The
+        # alternative — counting missing IRRs across every option — answers a different question and
+        # reconciles with nothing; a rejected option with no figure is not a gap in the ranking,
+        # because it was never going to be ranked.
+        #
+        # The distinction is invisible unless a REFUSED option also lacks a figure, which is exactly
+        # the case the test now covers: with both semantics agreeing on the original data, the
+        # assertion was passing without discriminating between them.
+        "count": len(opts), "in_contention_count": len(contenders),
+        "priced_count": len(priced), "derived_count": len(derived),
+        "unpriced_count": len(contenders) - len(priced),
         "options": opts,
         "best_irr": ranked[0]["name"] if ranked else None,
         "scenarios": [{"id": i, "name": n} for i, n in candidates],
@@ -188,10 +215,17 @@ def compare_economics(db: Session, pid: str) -> dict[str, Any]:
              "derived_irr_pct": o["irr_pct"],
              "delta_pct": o["declared_vs_derived_irr_pct"]} for o in disagree],
         "basis_meanings": _WHY,
-        "note": ("An option is ranked only on a figure that exists. A `declared` figure is shown and "
-                 "labelled, never promoted to `derived`; an `unlinked` option is never priced from "
-                 "another scheme's deal."),
+        "not_in_contention": [o["name"] for o in opts
+                              if o["state"] in DESIGN_OPTION_NOT_IN_CONTENTION],
+        "note": ("An option is ranked only on a figure that exists, and only if it is still in "
+                 "contention — a REJECTED option is listed but never named `best_irr`. A `declared` "
+                 "figure is shown and labelled, never promoted to `derived`; an `unlinked` option is "
+                 "never priced from another scheme's deal."),
+        # "in contention" because `priced` is now contenders-only: a project whose ONLY priced
+        # option was rejected would otherwise be told no option can be priced, which is not what
+        # happened — one was, and then refused.
         "message": (None if priced else
-                    "No option can be priced yet. Link a proforma scenario to an option (set its "
+                    "No option in contention can be priced yet. Link a proforma scenario to an "
+                    "option (set its "
                     "`scenario` field), or record hard_cost / irr_pct directly."),
     }
