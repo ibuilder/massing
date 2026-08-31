@@ -42,7 +42,7 @@ given, so the non-canonical case is reachable rather than theoretical.
 Both now go through one `state_key()` helper — *a rule split across two call sites is a rule with two
 places to drift, and this one drifted inside the release that exists to stop exactly that.* Asserted
 over `rejected` / `Rejected` / `"  REJECTED  "`, with a positive control that a non-refusal state
-survives canonicalisation without becoming one, so the loop cannot pass on a helper that always
+survives canonicalisation without becoming one, so the test cannot pass if the helper always
 returns `"rejected"`.
 
 ## v0.3.1125 (2026-08-31) — the owner's page said nothing had been paid, and it never could
