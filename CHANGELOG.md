@@ -4,7 +4,7 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## v0.3.1129 (2026-08-31) — a citation had to name a source, never to have a real one
+## v0.3.1129 (2026-08-31) — a citation had to name its source, but never to have a real one
 
 `CITE-RECORD`. The entry said three of four citation builders were wired and the record one was not,
 and called it extra-small wiring. Measuring the premise found something worse than the gap.
