@@ -197,16 +197,16 @@ export function judgeRoom(det: HTMLElement | null, id: string): RoomReport {
   return { id, verdict: "ok", destinations, open, detail: `${destinations} destinations` };
 }
 
+/** Selector for the nav container that HOLDS the rail. Its absence and a room's absence are
+ *  different facts, and conflating them is the bug this constant exists to prevent. */
+export const NAV_SEL = ".portal-nav, .pnav";
+
 /**
  * Audit the room rail — the surface the redesign actually introduced.
  *
  * `auditWorkspaces` walks workspace tabs and therefore says nothing about the rail itself. This is
  * the rail, which was entirely unmeasured before this ring.
  */
-/** Selector for the nav container that HOLDS the rail. Its absence and a room's absence are
- *  different facts, and conflating them is the bug this constant exists to prevent. */
-export const NAV_SEL = ".portal-nav, .pnav";
-
 export function auditRooms(expected: readonly string[] = ROOM_IDS): RoomAuditReport {
   // WAS THE RAIL BUILT AT ALL? The first version of this function skipped this and reported every
   // room `missing` whenever the nav had not been constructed — which is what happens on the landing

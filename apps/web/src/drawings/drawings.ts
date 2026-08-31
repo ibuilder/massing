@@ -403,9 +403,6 @@ export class DrawingsUI {
     inp.click();
   }
 
-  /** MARKUP-2b: the cross-sheet markups grid — every markup in the project in one sortable list with
-   *  Σ totals per kind, revision/carried status, and RFI links. DOM built with textContent throughout
-   *  (XSS-safe by construction — markup notes/authors are user text). */
   /**
    * R36 backfill — dry-run, show what would move, then apply only on confirm.
    *
@@ -495,6 +492,9 @@ export class DrawingsUI {
     }
   }
 
+  /** MARKUP-2b: the cross-sheet markups grid — every markup in the project in one sortable list with
+   *  Σ totals per kind, revision/carried status, and RFI links. DOM built with textContent throughout
+   *  (XSS-safe by construction — markup notes/authors are user text). */
   private async showMarkupGrid() {
     const pid = this.host_.projectId();
     if (!pid) return;

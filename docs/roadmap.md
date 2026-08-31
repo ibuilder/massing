@@ -3058,18 +3058,40 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
   the next at five, but its three types are interleaved with unrelated ones, so it is a more
   careful extraction than a late-session slice should be.
 
-  ⚠️ **THIS EXTRACTION HAS BEEN LEAVING DOC COMMENTS BEHIND, and it has done it twice.** When a
-  method moves, its comment stays with the file and attaches itself to whatever follows. Two
-  distinct shapes, both measured:
+  ✅ **THIS EXTRACTION WAS LEAVING DOC COMMENTS BEHIND, in two distinct shapes — BOTH NOW CLOSED
+  AND GATED** (the second in v0.3.1131, which is also when the count below stopped being a guess).
+  When a method moves, its comment stays with the file and attaches itself to whatever follows:
   * **Eleven methods documented as a NEIGHBOUR's job** — fixed v0.3.1075, gated by
     `apps/web/src/api/docComments.test.ts`. `evm()` was described as `resourceLoading()`.
-  * **~25 ORPHANED comments** — a doc comment immediately followed by another doc comment, its own
-    declaration gone. Three sampled, all genuine and all traceable to this split:
-    `httpCore.ts` still documents `setToken`, which moved to `api/auth.ts`; `model.ts` still
-    documents TOPIC-BOARD, which moved to `api/topics.ts` in ⑳; `authoring.ts` still documents an
-    IFCPATCH-LIB dry-run scan. **Not yet fixed or gated** — the count is a candidate count, not a
-    verified one, and a gate that fails on 25 sites belongs with the cleanup rather than before
-    it. *A wrong docstring is worse than none; an orphaned one is how a wrong one is made.*
+  * **ORPHANED comments — a doc comment immediately followed by another, its own declaration gone.
+    CLOSED v0.3.1131, tree-wide, and the "~25" was never a real number.** It was a candidate count
+    and said so, but it then sat here for a month reading like a measurement. The 23 inside `api/`
+    were fixed and gated with `apps/web/src/api/docComments.test.ts`; re-measured over the whole of
+    `apps/web/src` afterwards, what was left was **ten**, of which **one was legitimate**.
+    *A wrong docstring is worse than none; an orphaned one is how a wrong one is made.*
+
+    **Why it stayed at `api/`, and why that reason did not hold.** `docComments.test.ts` argued the
+    widening "would need a rule that can tell a header and a narrative from a leftover, and that rule
+    does not exist yet", naming two shapes. Checked: **a module header written below the imports is
+    real and needs no exemption — it is structural** (nothing but imports above it), and it occurs
+    exactly once, in `apps/web/src/portal/panels/budget.ts`. **The "narrative above the thing it
+    motivates" did not survive at all**: `apps/web/src/main.ts` had no stranded comment, and the
+    `apps/web/src/viewer/app.ts` RAIL-SPLIT block that reads as deliberate prose documents
+    `distributeToolGroups`, declared 42 lines below it past `railGroup` and past `railGroup`'s own
+    comment. *It was classified as intentional by reading it rather than by looking for its owner* —
+    the same defect the gate exists to catch, one level out. **A gate's scope is part of its claim,
+    and so is the reason given for not widening it.**
+
+    **All nine were MOVES, which is the opposite of what `api/` found** — there, most orphans
+    described features with no method left in the file and were deleted. Not chance:
+    `apps/web/src/api/client.ts` was the file methods were moving *out of*, so its residue was
+    abandoned; these are feature modules that only had things inserted into them, so their residue is
+    *separated* — the owner a few dozen lines away, and in **every one of the nine cases carrying no
+    comment of its own**. Nine silently undocumented functions got their documentation back and
+    nothing was deleted. Gated tree-wide by `apps/web/src/tooling/docStranded.test.ts`; the pairing
+    half stays inside `api/` on its own merits, because outside it a comment legitimately describes a
+    paragraph of behaviour rather than one method. *Two rules that shipped together do not have to
+    keep the same scope, and assuming they did is what kept this half narrow.*
 
   **㉓ took `/projects/{pid}/evm` out** (6 methods, one contiguous run — the tightest group left;
   `client.ts` 3,120 → 3,066) as `apps/web/src/api/evm.ts`, with `EvmEarnedSchedule`, whose only
