@@ -4,6 +4,70 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1129 (2026-08-31) — a citation had to name its source, but never to have a real one
+
+`CITE-RECORD`. The entry said three of four citation builders were wired and the record one was not,
+and called it extra-small wiring. Measuring the premise found something worse than the gap.
+
+**`is_citation` checked that the identifying field was PRESENT, never that it had the right SHAPE:**
+
+| citation | before | after |
+|---|---|---|
+| `cite_ifc("3Rb$mtGnf8kQm0Xy1_ZzAB")` — a real GlobalId | 0.733 | 0.733 |
+| `cite_ifc("the north wall")` — a display name | **0.733** | **0.000** |
+| `cite_record("budget", 7)` | 0.667 | 0.667 |
+| `{"source_type": "record", "record_ref": "banana"}` | **0.667** | **0.000** |
+
+A display name where a GlobalId belongs scored **the contract's highest confidence tier**, equal to
+the real thing. That is this project's first non-negotiable — *reference a model element by GlobalId,
+never a transient id* — being credited without being met, in the one place whose whole job is to say
+whether a claim is backed. It is also the dead end `R31-CITE-HIGHLIGHT` fixed for documents,
+*"display names render fine and cannot be opened"*, never applied to elements or records.
+
+The rule was not new: `module_schema.IFC_GUID_RE` already existed and is now **imported, not copied** —
+a rule with two copies is a rule with two places to drift. `rule` and `doc` stay presence-only, since
+a rule id and a document id have no canonical shape, and **a positive control asserts they still
+pass**: without it, tightening every kind would look identical to tightening the two that have a
+format. Mutation-checked in both directions — reverting to presence-only fails, dropping the record
+shape fails, and over-tightening onto `rule`/`doc` fails.
+
+Scoped to **reads**, so stored citations are re-scored. That follows R37, which made this same
+function strict and did re-score stored data; it is deliberately *not* the write-time scoping
+`module_schema` uses for its own GUID rule.
+
+**`owner_of` was consolidated, and it was hiding dead code.** `folder_template.owner_of` had zero
+callers while `docmanager` reimplemented it at three sites. The three were not identical: `move`
+carried a different rule — keep the file's existing owner when the destination is off-taxonomy.
+Preserving it passed every test, and the mutation check showed why: **deleting the fallback broke
+nothing**, because `move` raises on an invalid destination two lines earlier. The branch was
+unreachable in the original too. *An unreachable branch and a well-guarded one look identical from
+the call site; only the mutation tells them apart.* New gate: `services/api/test_folder_owner.py`.
+
+**Review found a crash in the same function, older than this change.** `is_citation` looked its kind
+up with `_IDENTIFIES.get(c.get("source_type"))` — a dict lookup. A `source_type` that is a list, dict
+or set is **unhashable**, so instead of returning False like every other malformed shape it raised
+`TypeError: unhashable type`, and one bad entry took out the whole `provenance_confidence` call.
+`Assumptions.sources` is typed `dict[str, list[dict]]`, so a client can post exactly that. *A
+validator that crashes on the input it exists to reject is not rejecting it.* Guarded on
+`isinstance(kind, str)`, asserted over list/dict/set/int/None/object with a positive control that
+well-formed citations still score, and mutation-checked. Pre-dates the shape rule; fixed here because
+it is the same function and the same family.
+
+**Two test files minted fake GlobalIds, and only the FULL suite found the second one.** Both
+`test_cited_answer` and `test_persona_answer` passed `"g1"`-style placeholders to `cite_ifc`; under
+the new rule those stop being citations, so every claim reads as uncited. The first was obvious. The
+second was not: `persona_answer` builds no citations itself, the failure surfaced three modules away
+as *"3 claim(s) carry no citation"*, and **the affected-suites heuristic did not reach it** — the
+targeted runs were all green. *A change to a shared contract has no affected-suite shortlist; the
+population is everything that calls it.* Both fixtures now build real 22-character ids from readable
+labels, so they exercise the shape rather than dodge it.
+
+**The record builder is still unwired, and that is now recorded as a decision rather than a task.**
+`ask()` never reads a module record, nothing server-side populates `Assumptions.sources`, and the web
+only types the citation shape. Giving `cite_record` a producer means building record-aware QA — a
+feature, and the user's call. *"One of four missing from a set of four is a gap, not a design"* was a
+reasonable inference and it was wrong.
+
 ## v0.3.1128 (2026-08-31) — the sweep that found nothing, recorded so nobody runs it again
 
 Documentation only; no engine changed. v0.3.1127 corrected a roadmap claim that a release had

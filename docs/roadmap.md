@@ -444,8 +444,8 @@ instances:
   **real transitions** in the test. It changes a contract the portal tests encode
   (`services/api/test_portal_txn.py` seeds `status` in the blob), so the test must move with it.
 
-- ◧ **CITE-RECORD — three of four citation builders are wired, the record one is not** *(XS —
-  Lane C; measured 2026-08-29)*
+- ◧ **CITE-RECORD — the citation contract checked that a source was NAMED, never that it was
+  REAL** *(XS — Lane C; measured 2026-08-29, **re-scoped 2026-08-31 after measuring the premise**)*
 
   `cited_answer` exposes four builders. `cite_ifc`, `cite_rule` and `cite_doc` each have production
   callers; **`cite_record` has none.** So the platform can cite an IFC element, a rule and a document,
@@ -462,6 +462,49 @@ instances:
   one-line body inline at three sites** (122, 192, 220) rather than calling it. Nothing is missing —
   the owner role does reach the client — but three copies of an accessor will not follow the accessor
   if its semantics ever change. R37-CONSOLIDATE shipped exactly this fix three times on 2026-08-28.
+
+  ---
+
+  **THE `owner_of` HALF IS DONE (v0.3.1129), AND IT WAS HIDING DEAD CODE.** The three inline copies
+  were *not* identical, which the entry did not say: `list_folder` matched `owner_of` exactly,
+  `upload` used `node.get(...)` with no None-guard (safe only because `is_valid()` raises above it),
+  and `move` carried a **different rule** — keep the file's existing owner when the destination is
+  off-taxonomy. Preserving that third rule as `owner_of(new) or f.get("owner_role")` passed every
+  test, and **the mutation check showed why: deleting the fallback broke nothing.** `move` raises on
+  an invalid destination in its first two lines, so the branch was unreachable — in the original code
+  too. All three sites are now the same call. *An unreachable branch and a well-guarded one look
+  identical from the call site; only the mutation tells them apart.* Held by
+  `services/api/test_folder_owner.py`.
+
+  **THE `cite_record` HALF IS NOT A WIRING TASK, and the entry above is wrong to imply it is.**
+  Measured 2026-08-31: `ask()` routes only to the model, the docgraph and `doc_text` and **never
+  reads a module record**, so the QA leg has nothing to cite. Nothing server-side populates
+  `Assumptions.sources` — it is entirely client-supplied. The web client only *types* the citation
+  shape, it never builds one. So "give the record builder a producer" means **building record-aware
+  QA**: a feature and a product decision, not the extra-small consolidation this entry describes.
+  *"One of four missing from a set of four is a gap, not a design"* was a reasonable inference and it
+  was wrong — the other three are wired because something answers from an element, a rule and a
+  document, and nothing yet answers from a record.
+
+  **WHAT THE SEARCH FOUND INSTEAD, and it is worse than the gap it was looking for.** `is_citation`
+  required the identifying field to be *present*, never to have the right *shape*. Measured through
+  the contract:
+
+  | citation | before | after |
+  |---|---|---|
+  | `cite_ifc("3Rb$mtGnf8kQm0Xy1_ZzAB")` — a real GlobalId | 0.733 | 0.733 |
+  | `cite_ifc("the north wall")` — a display name | **0.733** | **0.000** |
+  | `cite_record("budget", 7)` | 0.667 | 0.667 |
+  | `{"record_ref": "banana"}` | **0.667** | **0.000** |
+
+  A display name where a GlobalId belongs scored **the contract's highest confidence tier**, equal to
+  the real thing — and that is this repository's first non-negotiable (*reference a model element by
+  GlobalId, never a transient id*) being credited without being met. It is also exactly the dead end
+  `R31-CITE-HIGHLIGHT` fixed for documents — *"display names render fine and cannot be opened"* —
+  never applied to elements or records. The rule was not even new: `module_schema.IFC_GUID_RE` already
+  existed and is now **imported rather than copied**. `rule` and `doc` stay presence-only, because a
+  rule id and a document id have no canonical shape, and a positive control asserts they still pass —
+  otherwise tightening everything would look identical to tightening the two kinds that have a format.
 
 - ◧ **SOFT-CLASH-RULES — six of seven sourced clearances are never checked** *(S — Lane C;
   measured 2026-08-29)*
