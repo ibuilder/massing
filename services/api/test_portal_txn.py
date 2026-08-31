@@ -133,8 +133,13 @@ with TestClient(app) as c:
     _page = c.get(f"/shared/{pay_tok['token']}").text
     _row = next((li for li in _page.split("<li") if "INV-001" in li), None)
     assert _row is not None, "the paid invoice must appear as a row on the owner's page"
-    assert "#1a7f37" in _row, ("the paid invoice must render in the paid colour ON ITS OWN ROW; "
-                               "this colour never fired at all before v0.3.1125", _row[:300])
+    # Colour AND label together, in one span. Scoping to the row proves the colour belongs to this
+    # invoice; binding it to `>Paid<` proves the owner actually reads "Paid" there. Raised in review
+    # as asserting the status span rather than a bare hex — a fair point: the hex alone would still
+    # pass if the label regressed to the raw blob value.
+    assert 'color:#1a7f37">Paid</span>' in _row, \
+        ("the paid invoice must render as a Paid span in the paid colour, on its own row; "
+         "this colour never fired at all before v0.3.1125", _row[:300])
     _unpaid = next((li for li in _page.split("<li") if "INV-002" in li), None)
     assert _unpaid is not None and "#1a7f37" not in _unpaid, \
         "an unpaid invoice must NOT render in the paid colour"

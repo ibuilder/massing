@@ -57,7 +57,7 @@ construction report builder, a *project* field in `supply_pipeline`, a snapshot 
 an **external** open-data permit payload in `routers/opendata.py`, correctly translated at the
 boundary. `procurement_gate` builds its status *from* `workflow_state` and reads its own dict.
 
-**REFUSAL-READERS' population was derived too NARROW and missed five real reads; this one is too
+**REFUSAL-READERS' population was derived too NARROWLY and missed five real reads; this one is too
 WIDE and flags twenty-three non-defects. Same species of error, opposite directions — so neither a
 match nor a miss is evidence, and only reading settles it.**
 
