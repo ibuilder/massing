@@ -26,8 +26,8 @@ caller is expected"*, which is what made them look considered.
 ## Two mechanisms, because one shape is decidable and the other is not
 
 * **Templated stem** (`exports/${file}.xlsx`) is a **pattern**: the parent segment and the extension
-  must still match literally. Six routes, and dropping the parent anchor vouches for six more that
-  nothing calls.
+  must still match literally. Six routes are accepted. Dropping the parent anchor *would* vouch for
+  six more that nothing calls — measured as a mutation, not shipped behaviour.
 * **Templated extension** (`model/export.${fmt}`) is a **two-entry named list with its call site
   recorded**, because as a pattern it is wrong in both directions: it vouches for six `export.*`
   routes of which only two are called. The other four are frozen correctly, and each says the same
@@ -56,7 +56,7 @@ nothing. Five mutations, all failing, all restored.
 way — `/leaf` instead of substring, measured at 81 → 124 frozen, 43 newly unreachable. Opposite
 change to the same rule; the earlier decision does not speak to this one.
 
-Uncalled by the rule: **81 → 75**.
+Uncalled by the rule: **81 → 73** — the strict baseline is 81 and the two leniencies remove eight.
 
 ## v0.3.1131 (2026-08-31) — nine comments describing something else, and the reason nobody widened the gate
 

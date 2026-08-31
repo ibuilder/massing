@@ -236,9 +236,13 @@ instances:
   `test_route_reachability` flags a route when its last static segment appears nowhere in the web
   source. Its header already knew literal matching is unsound against a client that builds URLs from
   template literals — that is why the rule is the *last* segment. **It assumes that segment is
-  written out.** Eight routes template it too: `/exports/{cobie,qto,schedule,spaces}.xlsx`
-  (`apps/web/src/viewer/tools/exportsSection.ts`), `/schedule/{gantt,lob}.svg`
-  (`apps/web/src/api/schedule.ts`) and `/model/export.{jsonld,parquet}` (`apps/web/src/api/model.ts`).
+  written out.** Eight routes template it too. Each is listed as *URL built at → value passed at*,
+  because the second is the evidence that it is reached and the first alone is not:
+  `/exports/{cobie,qto,schedule,spaces}.xlsx` — built and enumerated in
+  `apps/web/src/viewer/tools/exportsSection.ts`; `/schedule/{gantt,lob}.svg` — built in
+  `apps/web/src/api/schedule.ts`, both kinds passed in `apps/web/src/portal/panels/schedule.ts`;
+  `/model/export.{jsonld,parquet}` — built in `apps/web/src/api/model.ts`, both passed in
+  `apps/web/src/portal/panels/standards.ts`.
   Every one had a caller; every one was frozen as deliberately callerless, four of them under a
   heading saying no client caller was expected — **which is what made them look considered**.
 
