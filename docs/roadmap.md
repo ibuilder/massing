@@ -420,9 +420,13 @@ instances:
   *REFUSAL-READERS' population was derived too NARROW and missed five real reads; this one is too
   WIDE and flags twenty-three non-defects. Neither a match nor a miss is evidence — only reading is.*
 
-  **Follow-on, small:** `prequalification.py:129` raises its "marked rejected" flag from the blob
-  while `in_pool` now comes from `workflow_state`, so a sub rejected through the real transition gets
-  no flag. Harmless (the flag is informational and case-folded) but the two should share a source.
+  **Follow-on — CLOSED v0.3.1126, and it was not harmless.** This entry guessed that the flag merely
+  went missing on a workflow-rejected sub. Measured: the flag and the pool were **inverted** — it
+  fired on the sub still IN the pool (blob typed "Rejected", workflow `submitted`) and was silent on
+  the one the team had refused. The flag now reads `workflow_state`, the same authority as `in_pool`,
+  and a typed value the workflow contradicts is reported as a **disagreement** rather than believed
+  or dropped. *Predicting which way a defect points is not the same as measuring it — this one was
+  worse than the guess, as `/rfi/register` was in v0.3.1124.*
 
   `client_portal._payment_schedule` renders `str(d.get("status") or "draft")` — the free-text `data`
   blob — instead of `workflow_state`, the field the transitions actually set. A certified pay

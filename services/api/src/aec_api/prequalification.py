@@ -106,6 +106,33 @@ def _rating_score(rating) -> tuple[float, str]:
     return max(0.0, min(15.0, scaled)), f"rating {rating}"
 
 
+#: Prequalification states where the sub is NOT in the bidding pool. A rejected prequalification is
+#: a decision the team already made; its risk is not risk the project is carrying.
+#:
+#: `score_record` has always noticed rejection — but through `data["status"]`, a free-text field a
+#: person types, while ignoring `workflow_state`, the field the reject TRANSITION actually sets. It
+#: raised a "marked rejected" flag and then scored and counted the record anyway. The state was not
+#: missing; it was read from the wrong field and acted on in no way that changed a number.
+#:
+#: Defined ABOVE `score_record` as of v0.3.1126, because that function is now its first reader:
+#: the flag and the pool must not answer to different fields.
+PREQUAL_NOT_IN_POOL = ("rejected",)
+
+
+def state_key(rec: dict) -> str:
+    """The record's workflow state, canonicalised — the ONE way this module reads that field.
+
+    A helper rather than two call sites, because v0.3.1126's first cut fixed the flag to read
+    `workflow_state` and left `score_project` comparing the raw stored value. The two then agreed on
+    the FIELD and disagreed on its NORMALISATION, which reproduced the same defect one line away:
+    with `workflow_state` stored as `"Rejected"`, measured through /prequal/scores, the flag read
+    `rejected` while `in_pool` stayed true and the sub kept its place in `pool_count` and
+    `high_risk`. Transitions write canonical states, but a bundle import preserves whatever it is
+    given, so the non-canonical case is reachable rather than theoretical.
+    """
+    return str(rec.get("workflow_state") or "").strip().lower()
+
+
 def score_record(rec: dict, project_size: float | None = None, today: date | None = None) -> dict:
     """Compute a 0-100 Q-score + risk band + factor breakdown + flags for one prequalification record."""
     today = today or datetime.now(timezone.utc).date()
@@ -126,8 +153,21 @@ def score_record(rec: dict, project_size: float | None = None, today: date | Non
         flags.append("no bonding capacity")
     if expires and expires < today:
         flags.append("prequalification expired")
-    if d.get("status") and str(d.get("status")).lower() == "rejected":
-        flags.append("marked rejected")
+    # The flag reads the SAME authority as `in_pool` — `workflow_state`, which the reject transition
+    # sets — because until v0.3.1126 it did not, and the two came out inverted. Measured through
+    # /prequal/scores: a sub rejected through the real transition was out of the pool and carried NO
+    # flag, while one merely SUBMITTED with "Rejected" typed into the status field carried the flag
+    # and stayed in. The flag fired on the sub who was still biddable and stayed silent on the one
+    # the team had actually refused.
+    state = state_key(rec)
+    typed = str(d.get("status") or "").strip().lower()
+    if state in PREQUAL_NOT_IN_POOL:
+        flags.append("rejected")
+    elif typed in PREQUAL_NOT_IN_POOL:
+        # Not silently dropped: somebody typed this, and it disagreeing with the workflow is itself
+        # worth seeing. `modules.transition()` never writes `data`, so the two drift on their own and
+        # nothing reconciles them — naming the disagreement is more use than believing either side.
+        flags.append(f"status field says rejected, but the workflow says {state or 'nothing'}")
     return {
         "company": d.get("company"), "trade": d.get("trade"), "ref": rec.get("ref"),
         "score": score, "risk_band": band,
@@ -137,16 +177,6 @@ def score_record(rec: dict, project_size: float | None = None, today: date | Non
                     {"factor": "Rating", "points": rat_p, "of": 15, "note": rat_n},
                     {"factor": "Currency", "points": cur_p, "of": 10, "note": cur_n}],
         "flags": flags}
-
-
-#: Prequalification states where the sub is NOT in the bidding pool. A rejected prequalification is
-#: a decision the team already made; its risk is not risk the project is carrying.
-#:
-#: `score_record` has always noticed rejection — but through `data["status"]`, a free-text field a
-#: person types, while ignoring `workflow_state`, the field the reject TRANSITION actually sets. It
-#: raised a "marked rejected" flag and then scored and counted the record anyway. The state was not
-#: missing; it was read from the wrong field and acted on in no way that changed a number.
-PREQUAL_NOT_IN_POOL = ("rejected",)
 
 
 def score_project(db: Session, project_id: str, project_size: float | None = None) -> dict:
@@ -164,7 +194,9 @@ def score_project(db: Session, project_id: str, project_size: float | None = Non
     scored = [score_record(r, project_size) for r in recs]
     for s, r in zip(scored, recs):
         s["workflow_state"] = r.get("workflow_state")
-        s["in_pool"] = r.get("workflow_state") not in PREQUAL_NOT_IN_POOL
+        # `state_key`, not the raw field — the flag and the pool must agree on the normalisation as
+        # well as on which field to read. See that helper for what happened when they did not.
+        s["in_pool"] = state_key(r) not in PREQUAL_NOT_IN_POOL
     scored.sort(key=lambda s: s["score"])
     pool = [s for s in scored if s["in_pool"]]
     # Every count that describes the POOL is taken over `pool`, so the response reconciles:

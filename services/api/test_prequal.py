@@ -29,6 +29,43 @@ assert "EMR above 1.0" in w["flags"] and "no bonding capacity" in w["flags"] and
 assert sum(f["of"] for f in s["factors"]) == 100                 # weights sum to 100
 assert s["score"] > w["score"]
 
+# --- the rejection FLAG answers to the same field as `in_pool` (v0.3.1126) ------------------------
+# It did not until then, and the two came out INVERTED: measured through /prequal/scores, a sub
+# rejected by the real transition was out of the pool carrying no flag, while one merely submitted
+# with "Rejected" typed into the status field carried the flag and stayed in. The flag fired on the
+# sub who was still biddable and was silent on the one the team had refused.
+_refused = pq.score_record({"workflow_state": "rejected", "data": {"company": "Refused"}})
+assert "rejected" in _refused["flags"], ("the workflow's own refusal must raise the flag",
+                                         _refused["flags"])
+# The blob is not silently believed OR silently dropped — a disagreement is named, because
+# modules.transition() never writes `data`, so the two drift with nothing to reconcile them.
+_typed = pq.score_record({"workflow_state": "submitted", "data": {"company": "Typed",
+                                                                  "status": "Rejected"}})
+_dis = [f for f in _typed["flags"] if "status field says rejected" in f]
+assert _dis and "submitted" in _dis[0], ("a typed rejection that the workflow contradicts must be "
+                                         "reported as a DISAGREEMENT, not as a rejection", _typed["flags"])
+assert "rejected" not in _typed["flags"], ("...and must not be reported as a plain rejection",
+                                           _typed["flags"])
+# POSITIVE CONTROL: a record with neither raises neither, so the two assertions above cannot pass
+# merely because this function flags everything.
+assert not [f for f in pq.score_record({"workflow_state": "approved",
+                                        "data": {"company": "Clean"}})["flags"]
+            if "reject" in f.lower()]
+
+# --- and the FLAG and the POOL must agree on the NORMALISATION, not just on the field -------------
+# The first cut of v0.3.1126 fixed which field to read and left score_project comparing the raw
+# stored value, which reproduced the same defect one line away: with workflow_state "Rejected",
+# measured through /prequal/scores, the flag read `rejected` while in_pool stayed true and the sub
+# kept its place in pool_count and high_risk. Transitions write canonical states, but a bundle
+# import preserves what it is given, so this is reachable rather than theoretical.
+for _raw in ("rejected", "Rejected", "  REJECTED  "):
+    assert pq.state_key({"workflow_state": _raw}) == "rejected", _raw
+    assert "rejected" in pq.score_record({"workflow_state": _raw, "data": {}})["flags"], _raw
+# POSITIVE CONTROL for the loop above: a state that is NOT a refusal must survive canonicalisation
+# without becoming one, or the assertions could pass on a helper that returns "rejected" always.
+assert pq.state_key({"workflow_state": "  Approved "}) == "approved"
+assert "rejected" not in pq.score_record({"workflow_state": " Approved ", "data": {}})["flags"]
+
 # --- endpoints ---
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "P"}).json()["id"]
