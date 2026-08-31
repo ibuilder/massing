@@ -125,8 +125,19 @@ with TestClient(app) as c:
     assert invoice_status_key({}, {}) == "draft"
 
     # ...and the HTML colour keys off the same normalised value, so the page and the totals agree.
-    assert "#1a7f37" in c.get(f"/shared/{pay_tok['token']}").text, \
-        "the paid invoice must render in the paid colour; this never fired before v0.3.1125"
+    # Scoped to the INV-001 ROW, not the whole page. A page-wide substring check passes today (the
+    # mutation `color = "#9a6700"` does fail it, verified), but it is only true as long as nothing
+    # else on the page uses that colour — the moment something does, the assertion goes vacuous with
+    # nothing to announce it. Raised in review of #382 with the reasoning that an approved decision
+    # already renders it; that specific claim is false here, but the fragility it points at is real.
+    _page = c.get(f"/shared/{pay_tok['token']}").text
+    _row = next((li for li in _page.split("<li") if "INV-001" in li), None)
+    assert _row is not None, "the paid invoice must appear as a row on the owner's page"
+    assert "#1a7f37" in _row, ("the paid invoice must render in the paid colour ON ITS OWN ROW; "
+                               "this colour never fired at all before v0.3.1125", _row[:300])
+    _unpaid = next((li for li in _page.split("<li") if "INV-002" in li), None)
+    assert _unpaid is not None and "#1a7f37" not in _unpaid, \
+        "an unpaid invoice must NOT render in the paid colour"
     pay_html = c.get(f"/shared/{pay_tok['token']}").text
     assert "Payment schedule" in pay_html and "$300,000" in pay_html and "Outstanding" in pay_html, \
         "the opt-in HTML page renders the schedule"

@@ -61,6 +61,16 @@ boundary. `procurement_gate` builds its status *from* `workflow_state` and reads
 WIDE and flags twenty-three non-defects. Same species of error, opposite directions — so neither a
 match nor a miss is evidence, and only reading settles it.**
 
+### A colour assertion scoped to its own row
+
+Review flagged the HTML colour check as vacuous, reasoning that an earlier approved decision already
+renders `#1a7f37` on that page. **Measured: that claim is false here** — forcing the payment row to
+`color = "#9a6700"` fails the assertion, so the colour was on the page only because of the invoice.
+The *fragility* behind the claim is real though: a page-wide substring check stays honest only while
+nothing else on the page uses that colour, and goes vacuous the moment something does, with nothing
+to announce it. The assertion now scopes to the INV-001 row and adds its converse — the unpaid row
+must NOT carry the paid colour.
+
 ### A guard that no route-level test could see
 
 `invoice_status_key` casefolds, and mutation-testing showed **no assertion through the route could
