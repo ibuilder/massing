@@ -367,6 +367,32 @@ check("no frozen route has quietly become called or vanished — the allowlist c
       f"{len(gone)}: {gone[:6]} — if it now has a caller, delete the entry; if the path changed, "
       "update it. Leaving it freezes a name that no longer refers to anything.")
 
+# A SECOND blind spot, measured 2026-08-31 while wiring ASSET-VERIFY, and recorded here rather than
+# worked around. `/asset-rights/verify` has NO web caller and is invisible to this gate in **both**
+# directions: the leaf `verify` occurs in 25 unrelated web files, so the rule reads it as called —
+# and for the same reason it cannot be added to `KNOWN_UNCALLED` either, because the frozen check
+# would immediately report it as "quietly become called". A route this rule can neither flag nor
+# freeze is one it has no opinion about, and saying so is better than a green tick that means
+# nothing.
+#
+# It has no client caller **by design**: the party who verifies a release is whoever received the
+# `.mass`, using their own tooling — the same shape as `/auth/cloud/callback`, whose entry above
+# records that it must not have one. A `verifyRelease()` method was written for the client and then
+# deleted: nothing in the UI called it, so it would have been an unwired client method added to
+# satisfy a reachability check — the exact defect ASSET-VERIFY exists to remove, introduced while
+# removing it.
+#
+# The underlying coarseness is `leaf not in code`, a bare substring test. Measured alternatives, if
+# anyone takes this on: matching `/leaf` flags **43** further routes, and a word-boundary match
+# flags **5** (`/pipeline/allocate`, `/projects/{pid}/coordination/stale/recheck`,
+# `/projects/{pid}/model/columnar/aggregate`, `/projects/{pid}/modules/{key}/aggregate`,
+# `/structure/recommend`). Both are more accurate than what runs today; neither belongs in a release
+# about signed manifests, and each needs those routes triaged rather than bulk-frozen.
+check("the ASSET-VERIFY blind spot is still a blind spot, not silent coverage",
+      "/asset-rights/verify" not in FOUND and "/asset-rights/verify" not in KNOWN_UNCALLED,
+      "if this now fails, the matcher changed — re-triage /asset-rights/verify rather than "
+      "assuming the green tick above ever meant it was reachable")
+
 # The stated blind spot, asserted so it cannot be quietly forgotten.
 check("the rule's known FALSE NEGATIVE still holds: /proforma/renovation is NOT flagged",
       "/projects/{pid}/proforma/renovation" not in FOUND,

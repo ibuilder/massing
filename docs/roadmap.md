@@ -545,8 +545,8 @@ instances:
   unrelated commit. The sequencing question is whether the six arrive as `high` beside doors or enter
   at a lower severity first.
 
-- ◧ **ASSET-VERIFY — a release you can sign and cannot check** *(S — Lane C; measured 2026-08-29,
-  the day the feature merged)*
+- ✅ **ASSET-VERIFY — a release you can sign and cannot check** *(S — Lane C; measured 2026-08-29,
+  the day the feature merged; **SHIPPED v0.3.1130**)*
 
   `asset_rights.py` ships both halves of a signed release manifest. **Only the sealing half is
   reachable.** Counted against `services/api/src`, `services/data/src` and `apps/web/src`, excluding
@@ -582,6 +582,43 @@ instances:
   definition — `public_key_b64`'s own docstring says "safe to publish; this is what verifiers need").
   What a verify endpoint should *take* — an uploaded `.mass`, or a manifest document — is a real API
   shape question and worth deciding rather than guessing.
+
+  **SHIPPED v0.3.1130.** The shape question resolved to **the manifest document**: `asset_rights.json`
+  is what the container already carries, a verifier extracting one file is cheaper than re-uploading a
+  whole `.mass`, and it lets someone check a release they hold without handing it back to us.
+
+  * `POST /asset-rights/verify` → `verify_release`, reporting findings separately rather than one
+    boolean, because *"the content was altered"* and *"it carries no signature"* need different
+    responses.
+  * `GET /asset-rights/status` now serves `public_key`. Its docstring said *"never the key itself"*,
+    which read as a rule against publishing **any** key and left signed releases uncheckable;
+    withholding the public half protected nothing, since the same key is embedded in every signed
+    manifest we emit.
+  * `python -m aec_api.asset_rights --generate` mints a seed — a command, **not** a route. Minting a
+    private key is an operator action at the machine, and no request-authorisation gate is worth
+    trusting more than shell access to the host.
+
+  **The design error worth keeping, because it was caught by writing the test and not by reading.**
+  The plan was to default `public_key` to this deployment's key "so `trusted_key` means something".
+  That is backwards: a release signed by anyone else would then be checked against *our* key, fail,
+  and be reported as `signature_ok: false` — a valid third-party release described as a bad
+  signature. The key is the caller's to supply; omitted, the check falls back to the key inside the
+  document, which is exactly what `trusted_key: false` already means.
+
+  **A client method was written and then deleted.** `verifyRelease()` had no UI calling it, so it
+  would have been an unwired client method added to satisfy a reachability gate — the very defect
+  this item exists to remove, introduced while removing it. The verifier is whoever received the
+  `.mass`, with their own tooling, like `/auth/cloud/callback`.
+
+  **And the gate cannot see the new route, in either direction** — recorded in
+  `services/api/test_route_reachability.py` beside its other documented blind spot rather than worked
+  around. The leaf `verify` occurs in 25 unrelated web files, so the substring rule reads it as
+  called; for the same reason it cannot be frozen as uncalled. Measured alternatives for whoever
+  takes the matcher on: `/leaf` flags 43 more routes, a word-boundary match flags 5.
+
+  Held by `services/api/test_asset_verify.py` — 20 checks, four mutations, and a positive control on
+  the refusal branch that the first draft was missing: without it, a `--public-key` that *crashed*
+  was indistinguishable from one that refused cleanly.
 
 #### ✅ R46 — THE SECOND SYNC, ONE DAY LATER *(measured 2026-08-15; **COMPLETE v0.3.967**, re-verified against the gate 2026-08-29)*
 
@@ -1089,7 +1126,7 @@ two rows share a path, so two agents in different rows cannot collide.
 |---|---|---|
 | **A · Shell & IA** | `apps/web/src/shell/`, `apps/web/src/account/`, `apps/web/src/portal/portal.ts`, `apps/web/src/portal/favourites.test.ts`, `apps/web/src/portal/homes/`, `main.ts` | REL-4 · R40-RIBBON ② · R43-CRUD-FRAGMENTS *(⛔ CLOSED UNBUILT — rescoped 2026-08-11 before any code)* · R22-AGENT-PACKS *(moved from C 2026-08-16 — what remains is the governance CONSOLE, which is shell work. Its own entry said Lane A/E and the cell had not followed. The item stays ◧: the console is real work and this cell does not claim otherwise)* |
 | **B · UI & panels** | `apps/web/src/ui/`, `portal/panels/`, `portal/register/`, `field/`, `reportCenter.ts` | R24-REPORTS-BY-MOMENT · R24-TERMS · R24-FIELD-MODE |
-| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · ASSET-VERIFY *(the verification half of asset-rights has no product caller; see Band 2)* · SOFT-CLASH-RULES *(six of seven sourced clearances never evaluated; see Band 2)* · CITE-RECORD *(XS — the record citation builder has no producer; see Band 2)* |
+| **C · Backend engines** | `services/api/src/aec_api/`, `!services/api/src/aec_api/routers/`, `!services/api/src/aec_api/main.py` | R22-ENTITLEMENT · R22-PIPELINE *(Lane C remainder is the resourcing engine only)* · PERF-WORKERS ① · R43-MASSINGBILL-CORE · SOFT-CLASH-RULES *(six of seven sourced clearances never evaluated; see Band 2)* · CITE-RECORD *(what remains is whether anything should answer FROM a stored record, which is a product decision; see Band 2)* |
 | **D · Geometry & drawings** | `services/data/src/aec_data/`, `apps/web/src/drawings/` | — |
 | **E · Authoring feel & viewer** | `apps/web/src/viewer/`, `inference.ts`, `apps/web/src/tree/` | R28-VIEWER ④ · R39-DECOMP-VIEWER ③ *(ratchet pinned; seams measured — see entry)* · R43-VIEWER-CONFORMANCE · UX-3 *(library depth — `apps/web/src/viewer/tools/authoringSection.ts`)* · SITE-1 *(parcel overlays — `apps/web/src/viewer/gis.ts`)* |
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
