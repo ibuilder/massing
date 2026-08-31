@@ -118,8 +118,7 @@ def list_folder(pid: str, folder: str, include_superseded: bool = False) -> dict
     rows = [f for f in idx["files"] if f["folder"] == folder and not f.get("deleted")
             and (include_superseded or not f.get("superseded"))]
     rows.sort(key=lambda f: (f.get("title", ""), f.get("revision", "")))
-    node = folder_template.node(folder)
-    return {"folder": folder, "owner_role": node["owner_role"] if node else None,
+    return {"folder": folder, "owner_role": folder_template.owner_of(folder),
             "valid_folder": folder_template.is_valid(folder), "files": rows, "count": len(rows)}
 
 
@@ -189,7 +188,7 @@ def upload(pid: str, folder: str, filename: str, data: bytes | None, actor: str,
         "id": f"f{idx['seq']}", "folder": folder, "name": stored, "orig_name": filename,
         "title": title, "discipline": discipline, "doc_type": doc_type, "revision": rev,
         "cde_state": cde_state, "status": "Issued" if cde_state == "published" else "Draft",
-        "owner_role": node.get("owner_role"), "size": size, "key": key,
+        "owner_role": folder_template.owner_of(folder), "size": size, "key": key,
         "uploaded_by": actor, "uploaded_at": when.isoformat(timespec="seconds"),
         "supersedes": prior["id"] if prior else None,
     }
@@ -216,8 +215,11 @@ def move(pid: str, fid: str, new_folder: str, actor: str) -> dict[str, Any]:
         storage.put(new_key, storage.get(old_key))
         storage.delete(old_key)
     f["folder"], f["key"] = new_folder, new_key
-    node = folder_template.node(new_folder)
-    f["owner_role"] = node.get("owner_role") if node else f.get("owner_role")
+    # The `if node else f.get("owner_role")` this replaces was DEAD: `is_valid(new_folder)` raises at
+    # the top of this function, so the destination is always in the taxonomy by the time we get here
+    # and the fallback could never run. Mutation-checked — removing the fallback changed no test,
+    # which is what an unreachable branch looks like. Same structural guard as `upload`.
+    f["owner_role"] = folder_template.owner_of(new_folder)
     _save(pid, idx)
     return f
 

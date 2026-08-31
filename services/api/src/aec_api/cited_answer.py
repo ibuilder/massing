@@ -18,7 +18,14 @@ the first deterministic producer (a model query whose every claim cites the GUID
 """
 from __future__ import annotations
 
+import re
 from typing import Any
+
+from .module_schema import IFC_GUID_RE as _IFC_GUID_RE
+
+#: ``module/{key}/{rid}`` — the shape `cite_record` itself builds. Anchored, and both segments must be
+#: non-empty and slash-free, so "module/budget/" and a bare display name are both rejected.
+_RECORD_REF_RE = re.compile(r"^module/[^/]+/[^/]+$")
 
 # source-type rank: a rule or an IFC property is stronger provenance than free document text
 _RANK = {"rule": 3, "ifc": 3, "record": 2, "doc": 1}
@@ -28,10 +35,30 @@ _RANK = {"rule": 3, "ifc": 3, "record": 2, "doc": 1}
 #: provenance contract is supposed to stop anyone from getting credit for.
 _IDENTIFIES = {"ifc": "guid", "record": "record_ref", "rule": "rule_id", "doc": "document_id"}
 
+#: The SHAPE that identifying field must have, for the kinds whose identifier is a known format.
+#:
+#: Presence was never enough. Measured before this existed: ``cite_ifc("the north wall")`` and
+#: ``{"source_type": "record", "record_ref": "banana"}`` both passed ``is_citation`` and scored the
+#: *same* ``provenance_confidence`` as a real GlobalId (0.733) and a real ``module/budget/7`` (0.667).
+#: A display name renders perfectly and **cannot be opened** — the exact dead end R31-CITE-HIGHLIGHT
+#: fixed for document citations by preferring the resolvable identifier over ``ref``/``doc``. Records
+#: and elements had the same hole, at the highest confidence tier in the system.
+#:
+#: For ``ifc`` this is not a new rule: it is `module_schema.IFC_GUID_RE`, imported rather than copied,
+#: because a rule with two copies is a rule with two places to drift. It is also the top-level
+#: non-negotiable — reference a model element by GlobalId, never by a transient or display id — which
+#: a citation claiming ``source_type: "ifc"`` was previously credited for without meeting.
+#:
+#: ``rule`` and ``doc`` are deliberately absent. A rule id and a document id are free-form
+#: identifiers with no canonical shape this contract can check, so requiring one would reject valid
+#: citations to look strict. **Presence is the honest check where no shape is knowable** — the point
+#: is to stop unverifiable credit, not to perform validation.
+_SHAPES = {"ifc": _IFC_GUID_RE, "record": _RECORD_REF_RE}
+
 
 def is_citation(c: Any) -> bool:
-    """Whether `c` is a citation this contract recognises — a known ``source_type`` AND the identifying
-    field that kind requires.
+    """Whether `c` is a citation this contract recognises — a known ``source_type``, the identifying
+    field that kind requires, and (where the identifier has a knowable format) the right SHAPE.
 
     Needed because the citation dicts do not all arrive from the ``cite_*`` constructors. The proforma
     ``Assumptions.sources`` block is typed ``dict[str, list[dict]]`` and documented as taking these
@@ -41,8 +68,11 @@ def is_citation(c: Any) -> bool:
     strongest provenance signal in the system was available for free to anyone who claimed a kind and
     supplied nothing.
 
-    Callers that build through ``cite_ifc``/``cite_record``/``cite_rule``/``cite_doc`` always pass; this
-    is invisible to them by construction and only bites dicts that were never citations.
+    Callers that build through ``cite_rule``/``cite_doc`` always pass; this is invisible to them by
+    construction and only bites dicts that were never citations. ``cite_ifc`` and ``cite_record``
+    pass only when handed a real GlobalId and a real record id respectively — see ``_SHAPES``: a
+    constructor cannot make a display name resolvable, and pretending otherwise is what scored
+    ``cite_ifc("the north wall")`` at the contract's highest confidence.
     """
     if not isinstance(c, dict):
         return False
@@ -50,7 +80,10 @@ def is_citation(c: Any) -> bool:
     if field is None:
         return False                                  # unknown or missing kind — not a citation
     v = c.get(field)
-    return isinstance(v, str) and bool(v.strip())
+    if not isinstance(v, str) or not v.strip():
+        return False
+    shape = _SHAPES.get(c.get("source_type"))
+    return shape is None or bool(shape.match(v.strip()))
 
 
 def _cite(source_type: str, **kw: Any) -> dict[str, Any]:

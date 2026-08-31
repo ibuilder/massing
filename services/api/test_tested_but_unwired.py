@@ -64,8 +64,13 @@ FROZEN: dict[str, str] = {
     "verify_release": "ASSET-VERIFY (Band 2) — the verification half of asset-rights has no caller",
     "generate_seed": "ASSET-VERIFY (Band 2) — no supported way to mint a signing key",
     "rule_for": "SOFT-CLASH-RULES (Band 2) — six of seven sourced clearances never evaluated",
-    "cite_record": "no producer: cite_ifc/cite_rule/cite_doc are wired, the record builder is not",
-    "owner_of": "docmanager.py reimplements its one-line body inline at 3 sites instead of calling it",
+    #: Still unwired, and NOT for want of wiring it — measured 2026-08-31. `ask()` routes only to the
+    #: model, the docgraph and doc_text and never reads a module record, so the QA leg has nothing to
+    #: cite. Nothing server-side populates `Assumptions.sources`; it is entirely client-supplied, and
+    #: the web only TYPES the citation shape (client.ts) rather than building one. A producer means
+    #: record-aware QA — a feature, and the user's call — not the wiring this list implies.
+    "cite_record": "no producer: answering FROM a module record is not built, so nothing has a "
+                   "record to cite. See the CITE-RECORD roadmap entry.",
 }
 
 FAILED: list[str] = []

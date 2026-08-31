@@ -10,10 +10,22 @@ os.environ.pop("AEC_RBAC", None)
 from aec_api import cited_answer as ca  # noqa: E402
 from aec_api import persona_answer as pa
 
+
+def G(label: str) -> str:
+    """A syntactically valid IFC GlobalId (22 chars of ``[0-9A-Za-z_$]``) from a readable label.
+
+    These fixtures passed ``"g1"``/``"w"`` straight to `cite_ifc`, which was harmless until
+    `is_citation` began checking the GlobalId SHAPE and not merely its presence (v0.3.1129). A
+    display name where a GlobalId belongs is exactly the unresolvable citation the contract now
+    refuses, so minting one here made every claim read as uncited. `persona_answer` itself builds no
+    citations — only this fixture did — so the labels stay readable and only the padding is new.
+    """
+    return (label + "$" * 22)[:22]
+
 base = ca.build([
-    ca.claim("12 walls match.", [ca.cite_ifc("g1"), ca.cite_ifc("g2")]),
-    ca.claim("8 carry a 2HR rating.", [ca.cite_ifc("g1")]),
-    ca.claim("4 are unrated.", [ca.cite_ifc("g2")]),
+    ca.claim("12 walls match.", [ca.cite_ifc(G("g1")), ca.cite_ifc(G("g2"))]),
+    ca.claim("8 carry a 2HR rating.", [ca.cite_ifc(G("g1"))]),
+    ca.claim("4 are unrated.", [ca.cite_ifc(G("g2"))]),
 ])
 base["matched"] = 12
 
@@ -34,8 +46,8 @@ assert p["persona"] == "pm" and "Which of these have an open RFI or issue?" in p
 
 # --- insight priority: conflicts > uncited > empty > coverage ---------------------------------------
 conf = ca.build([
-    ca.claim("Model says 2HR.", [ca.cite_ifc("w")], target="w.FireRating", value="2HR"),
-    ca.claim("Code needs 3HR.", [ca.cite_rule("T601")], target="w.FireRating", value="3HR"),
+    ca.claim("Model says 2HR.", [ca.cite_ifc(G("w"))], target=f"{G('w')}.FireRating", value="2HR"),
+    ca.claim("Code needs 3HR.", [ca.cite_rule("T601")], target=f"{G('w')}.FireRating", value="3HR"),
 ])
 s = pa.shape(conf, "pm")
 assert "conflict" in s["insight"] and s["follow_ups"][0] == "Show the 1 conflicting source(s)", s
@@ -43,7 +55,7 @@ assert "conflict" in s["insight"] and s["follow_ups"][0] == "Show the 1 conflict
 unc = pa.shape(ca.build([ca.claim("A hunch.")]), "pm")
 assert "no citation" in unc["insight"] and "List the 1 uncited claim(s)" in unc["follow_ups"], unc
 
-empty = dict(ca.build([ca.claim("0 match.", [ca.cite_ifc("x")])]), matched=0)
+empty = dict(ca.build([ca.claim("0 match.", [ca.cite_ifc(G("x"))])]), matched=0)
 assert "Nothing in the model matches" in pa.shape(empty, "pm")["insight"]
 
 assert len(pa.shape(base, "pm")["follow_ups"]) <= 4                       # chips capped
