@@ -4,6 +4,36 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1128 (2026-08-31) — the sweep that found nothing, recorded so nobody runs it again
+
+Documentation only; no engine changed. v0.3.1127 corrected a roadmap claim that a release had
+already ended, and the obvious next inference was *"if one was stale, sweep them all"*. That was
+checked rather than assumed. **It is not a class.**
+
+**Population:** the 21 `⚠` markers in `docs/roadmap.md`, of which exactly **five** assert
+present-tense runtime behaviour that can be executed and falsified. The rest are SHIPPED rows,
+sweep-run headers, prior corrections and the 18-findings table; one more (`takt.py`'s name) is a
+semantics decision with nothing to falsify.
+
+**Four of five accurate.** The EOT surface is dark as described; `/schedule/risk` really does serve
+the same engine as `/schedule/montecarlo` (`schedule_risk_mc.for_project`); the three PPC
+implementations really were unified in v0.3.974 and are held by `services/api/test_ppc_divergence.py`;
+`/schedule/compare` really does return `finish_move_working_days` and `calendar_vs_working_gap_days`.
+The one false claim was the one already fixed.
+
+**Why the negative result is worth a release.** Every defect class this repository has found by
+sweeping — the refusal-state readers, `PORTAL-STATUS`, the status/workflow drift — showed *several*
+instances on the first probe. This one showed one and four counter-examples. *A sample of one is a
+finding, not a pattern.* Recording it stops the next reader inferring a class from the v0.3.1127
+entry and spending days confirming that well-maintained entries are well maintained.
+
+**The gap is stated rather than papered over.** Only the falsifiable five were swept. A roadmap
+sentence that misdescribes something unexecutable — an intent, a plan, a reason — cannot be caught
+this way, and no gate proposed here would catch it. The 103 test-file citations in the roadmap were
+considered as a population and rejected: filtering mechanically cannot separate a citation
+*describing what a test asserts* from one offered as *corroboration of a live defect*. That needs
+reading, not grep.
+
 ## v0.3.1127 (2026-08-31) — the roadmap described a defect that a release had already ended
 
 Documentation only; no engine changed. Two roadmap entries said `eot.py` **"names four AACE methods
