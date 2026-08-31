@@ -4,6 +4,53 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1130 (2026-08-31) — a release you could sign and nobody could check
+
+`ASSET-VERIFY`. `asset_rights.py` shipped both halves of a signed release manifest and only sealing
+was reachable: `verify_release`, `verify_signature`, `verify_content_hash`, `verify_manifest_hash`,
+`public_key_b64` and `generate_seed` had **zero** production callers, against one each for
+`sign_manifest` and `build_manifest`. A manifest exists so that *someone else* can confirm a release
+is authentic and unaltered; sealing alone produces a file nobody can check, including us.
+
+Three things were missing and none was a big build:
+
+* **`POST /asset-rights/verify`** takes the `asset_rights.json` out of a `.mass` and reports findings
+  separately — `content_hash_ok`, `manifest_hash_ok`, `signed`, `signature_ok`, `trusted_key` —
+  because *"the content was altered"* and *"it carries no signature"* call for different responses.
+* **`GET /asset-rights/status` now serves `public_key`.** Its docstring said *"never the key
+  itself"*, which read as a rule against publishing **any** key. `public_key_b64`'s own docstring
+  says the public half is *"safe to publish; this is what verifiers need"*, and that same key is
+  embedded in every signed manifest we emit — withholding it protected nothing and left a recipient
+  trusting the document's own copy, which is the copy an attacker would have replaced.
+* **`python -m aec_api.asset_rights --generate`** mints a signing seed. Without it the *signed* path
+  was unreachable from a clean deployment except by generating an Ed25519 key out of band. It is a
+  command and deliberately **not** a route: minting a private key is an operator action at the
+  machine, and no request-authorisation gate is worth trusting more than shell access to the host.
+
+**The design error, caught by writing the test rather than by reading the code.** The plan was to
+default `public_key` to this deployment's key "so `trusted_key` means something". Backwards: a
+release signed by anyone else would then be checked against *our* key, fail, and be reported as
+`signature_ok: false` — a valid third-party release described as a bad signature. The key is the
+caller's to supply. Omitted, the signature is checked against the key inside the document, which
+proves internal consistency and nothing about authorship — precisely what `trusted_key: false` says.
+
+**A client method was written and then deleted.** `verifyRelease()` had nothing in the UI calling it,
+so it would have been an unwired client method added to make a reachability gate go green — the exact
+defect this release removes, introduced while removing it. The party who verifies a release is
+whoever received the file, with their own tooling.
+
+**The reachability gate cannot see the new route in either direction, and that is now recorded rather
+than worked around.** The leaf `verify` occurs in 25 unrelated web files, so the substring rule reads
+it as called; for the same reason it cannot be frozen as uncalled. Asserted in
+`services/api/test_route_reachability.py` beside its other documented blind spot, with the measured
+alternatives for whoever takes the matcher on: `/leaf` flags 43 further routes, a word-boundary match
+flags 5.
+
+New gate `services/api/test_asset_verify.py` — 20 checks and four mutations. One of those mutations
+found a hole in the test itself: removing the `signing_available()` guard from `--public-key` makes
+the command *crash* rather than refuse, and an exit-code assertion cannot tell those apart. What the
+guard buys is an operator being told what to set, so that is what is asserted now.
+
 ## v0.3.1129 (2026-08-31) — a citation had to name its source, but never to have a real one
 
 `CITE-RECORD`. The entry said three of four citation builders were wired and the record one was not,

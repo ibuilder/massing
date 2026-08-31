@@ -531,10 +531,47 @@ def asset_rights_status(_user: str = Depends(current_user)) -> dict:
     Deliberately **not** `require_role`: that dependency resolves its `pid` from the path *or the
     query string*, so on a route with no `{pid}` a caller supplies their own — the hazard recorded
     on `authorize_pid`. Nothing here is project-scoped, so an authenticated user is the right gate.
-    Returns only booleans and the public issuer identifier; never the key itself."""
+
+    **Returns the PUBLIC key, and never the private one.** This docstring used to say "never the key
+    itself", which read as a rule against publishing any key and left a signed release unverifiable:
+    `public_key_b64`'s own docstring says the public half is *"safe to publish; this is what
+    verifiers need"*. Withholding it did not protect anything — the same key is embedded in every
+    signed manifest we emit — it just meant a third party had to trust the document's own copy of it,
+    which is the one an attacker who rewrote the manifest would have replaced. Empty when signing is
+    unavailable, so a caller can tell "no key here" from "key withheld"."""
     from .. import asset_rights as ar
     return {"enabled": ar.enabled(), "signing": ar.signing_available(),
-            "issuer": os.environ.get(ar.ISSUER_ENV) or ""}
+            "issuer": os.environ.get(ar.ISSUER_ENV) or "",
+            "public_key": ar.public_key_b64() if ar.signing_available() else ""}
+
+
+@router.post("/asset-rights/verify")
+def asset_rights_verify(manifest: dict = Body(..., embed=True),
+                        public_key: str | None = Body(default=None, embed=True),
+                        _user: str = Depends(current_user)) -> dict:
+    """Check a release manifest — the `asset_rights.json` from inside a `.mass` container.
+
+    **The half the feature exists for.** Sealing a release was reachable and checking one was not,
+    which gives a file nobody can verify; a manifest's whole purpose is that *someone else* can
+    confirm a release is authentic and unaltered. Findings are reported separately rather than as one
+    boolean, because "the content was altered" and "it carries no signature" call for different
+    responses — see `verify_release`.
+
+    **`public_key` is the caller's to supply, and is NOT defaulted to this deployment's.** That was
+    the first design here and it was wrong: a manifest signed by anyone else would then be checked
+    against our key, fail, and be reported as `signature_ok: false` — a valid third-party release
+    described as a bad signature. Omit it and the signature is checked against the key **embedded in
+    the document**, which proves the manifest is internally consistent and proves nothing about who
+    wrote it; that is exactly what `trusted_key: false` means. A verifier who already trusts a key
+    passes it — ours is on `/asset-rights/status`.
+
+    Not project-scoped and not `require_role`, for the same reason as the status route above: the
+    manifest is the input, and the caller may be verifying a release from another deployment
+    entirely."""
+    from .. import asset_rights as ar
+    if not isinstance(manifest, dict):
+        raise HTTPException(422, "manifest must be an object")
+    return ar.verify_release(manifest, public_key=(public_key or None))
 
 
 @router.get("/projects/{pid}/bundle")

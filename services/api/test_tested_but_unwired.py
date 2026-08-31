@@ -61,8 +61,6 @@ FROZEN: dict[str, str] = {
     "fetch_parcels": "parcels bridge: 'raises until one is wired (never fabricates data)'",
     "send_payment": "payments bridge: 'raises until a processor is wired (never fabricates a transfer)'",
     # --- OPEN ROADMAP ITEMS, not exemptions --------------------------------------------------
-    "verify_release": "ASSET-VERIFY (Band 2) — the verification half of asset-rights has no caller",
-    "generate_seed": "ASSET-VERIFY (Band 2) — no supported way to mint a signing key",
     "rule_for": "SOFT-CLASH-RULES (Band 2) — six of seven sourced clearances never evaluated",
     #: Still unwired, and NOT for want of wiring it — measured 2026-08-31. `ask()` routes only to the
     #: model, the docgraph and doc_text and never reads a module record, so the QA leg has nothing to

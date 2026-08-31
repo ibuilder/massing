@@ -334,3 +334,49 @@ def verify_release(manifest: dict, *, public_key: str | None = None) -> dict:
         "trusted_key": bool(signed and sig_ok and public_key),
         "ok": bool(content_ok and manifest_ok and (sig_ok if signed else True)),
     }
+
+
+def _main(argv: list[str] | None = None) -> int:
+    """Operator entry point: mint a signing key, or show the public half of the configured one.
+
+    `generate_seed` existed with no caller, which meant the **signed** path was unreachable from a
+    clean deployment except by generating an Ed25519 seed out of band — the capability shipped
+    complete and could not be turned on. This is the missing step, and it is deliberately a command
+    rather than a route: minting a private key is an operator action at the machine, and putting it
+    behind an HTTP endpoint would make "who may create a signing identity" a question about request
+    authorisation. There is no gate here worth trusting more than shell access to the host.
+
+    Prints the seed to stdout and everything else to stderr, so `--generate > key` captures only the
+    secret and a human still sees what to do with it.
+    """
+    import sys
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if "--generate" in argv:
+        seed = generate_seed()
+        print(f"# a fresh Ed25519 signing seed. Set it as {SIGNING_KEY_ENV} and keep it secret;\n"
+              f"# anyone holding it can sign releases as this deployment. It is not stored here.\n"
+              f"# The matching PUBLIC key, which verifiers need and which is safe to publish, is\n"
+              f"#   {public_key_b64(seed)}\n"
+              f"# and is served on GET /asset-rights/status once the seed is set.",
+              file=sys.stderr)
+        print(seed)
+        return 0
+    if "--public-key" in argv:
+        if not signing_available():
+            print(f"no signing key configured: set {SIGNING_KEY_ENV} (see --generate). Releases are "
+                  f"still hashed and tamper-evident without one; they carry no attribution.",
+                  file=sys.stderr)
+            return 1
+        print(public_key_b64())
+        return 0
+    print(f"usage: python -m aec_api.asset_rights [--generate | --public-key]\n"
+          f"  --generate    print a fresh Ed25519 seed for {SIGNING_KEY_ENV} (stdout = the secret)\n"
+          f"  --public-key  print the public key of the configured seed, for verifiers\n"
+          f"\nsigning is {'AVAILABLE' if signing_available() else 'unavailable'} in this environment.",
+          file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(_main())
