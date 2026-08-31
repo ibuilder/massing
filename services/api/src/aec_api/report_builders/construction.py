@@ -69,6 +69,11 @@ def _quality(db: Session, pid: str, name: str) -> Report:
 
 
 def _rfi_register(db: Session, pid: str, name: str) -> Report:
+    """RFI Register report: the KPI row, the ball-in-court chart and the full log.
+
+    The exposure KPIs exclude voided RFIs while the table still lists them, so `Voided (excluded)`
+    is shown whenever it is non-zero — without it the KPIs and the rows cannot be reconciled.
+    """
     from .. import rfi
     s = rfi.rfi_register(db, pid)
     r = Report("RFI Register", name)
@@ -237,6 +242,11 @@ def _action_tracker(db: Session, pid: str, name: str) -> Report:
 
 
 def _spec_submittal_log(db: Session, pid: str, name: str) -> Report:
+    """Spec-Driven Submittal Log report: required vs logged submittals per section, with the gaps.
+
+    `Withdrawn (excluded)` appears when any section is void, for the same reason as the RFI report:
+    the totals are taken over the enforced sections while the table lists every section.
+    """
     from .. import specs
     s = specs.submittal_log(db, pid)
     r = Report("Spec-Driven Submittal Log", name)

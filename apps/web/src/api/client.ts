@@ -58,7 +58,8 @@ import type {
   ResponsibilityMatrix, SmartView,
     BidLevelingDetail,
     SpecManual, Topic, Vec3, WorkItem, VitalsPayload,
-    DiligenceReadiness, MasterBuilderBrief } from "./types";
+    DiligenceReadiness, MasterBuilderBrief, RfiRegister, SpecSubmittalLog, PrequalScores,
+    SpineTraceability } from "./types";
 
 
 // Transport (baseUrl, token, json/_pdfPost/url/health) lives in HttpCore; ApiClient adds the typed
@@ -462,27 +463,11 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   }
   /** RFI register — ball-in-court, overdue, response turnaround, cost/schedule-impact exposure. */
   rfiRegister(pid: string) {
-    return this.json<{ rfi_count: number; open_count: number; overdue_count: number;
-      cost_impacted_count: number; schedule_impacted_count: number; avg_response_days: number | null;
-      /** Voided RFIs — a SUBSET of closed_count, and the population the exposure counts above
-       *  exclude. A withdrawn question carries no cost or schedule exposure. */
-      voided_count: number; withdrawn_excluded: string[];
-      ball_in_court: Record<string, number>; by_discipline: Record<string, number>;
-      by_priority: Record<string, number>; rows: Record<string, unknown>[] }>(
-      `/projects/${pid}/rfi/register`);
+    return this.json<RfiRegister>(`/projects/${pid}/rfi/register`);
   }
   /** Spec-driven submittal log — required submittals per spec section vs logged, with missing gaps. */
   specSubmittalLog(pid: string) {
-    return this.json<{ spec_count: number;
-      /** Sections actually in force. `enforced_spec_count + withdrawn_excluded.length ==
-       *  spec_count`; every total below is taken over the enforced sections only. */
-      enforced_spec_count: number;
-      withdrawn_excluded: { ref: string; section_number: string; title: string;
-        would_require: number }[];
-      required_total: number; logged_total: number;
-      missing_total: number; coverage_pct: number | null; by_type: Record<string, number>;
-      by_division: Record<string, number>; rows: Record<string, unknown>[] }>(
-      `/projects/${pid}/specs/submittal-log`);
+    return this.json<SpecSubmittalLog>(`/projects/${pid}/specs/submittal-log`);
   }
   /** Extract a typed submittal list from pasted spec text (AI when configured; rules fallback). */
   extractSubmittals(pid: string, text: string, create = false) {
@@ -1795,14 +1780,7 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   // --- Tier 2/3: prequal, lien exposure, accounting, carbon, code check, pricing ---------------
   prequalScores(pid: string, projectSize?: number) {
     const qs = projectSize ? `?project_size=${projectSize}` : "";
-    return this.json<{ subs: { company?: string; trade?: string; score: number; risk_band: string;
-      factors: { factor: string; points: number; of: number; note: string }[]; flags: string[];
-      workflow_state: string | null; in_pool: boolean }[];
-      /** `pool_count + not_in_pool.length == count`; `high_risk` counts among the POOL, so a sub
-       *  the team already rejected cannot inflate the project's risk headline. */
-      count: number; pool_count: number; high_risk: number;
-      not_in_pool: { company?: string; ref?: string; workflow_state: string | null }[] }>(
-      `/projects/${pid}/prequal/scores${qs}`);
+    return this.json<PrequalScores>(`/projects/${pid}/prequal/scores${qs}`);
   }
   coiExpiry(pid: string, soonDays = 30) {
     return this.json<{ expired: { vendor?: string; coverage_type?: string; expires: string; days: number }[];
@@ -1935,23 +1913,7 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   }
   /** Discipline Spine traceability: discipline → sheets → specs → bid packages → cost codes → budget. */
   spineTraceability(pid: string) {
-    return this.json<{
-      disciplines: { discipline: string; code: string | null; sheets: number; specs: number;
-        packages: number; cost_codes: number; budget: number }[];
-      coverage: { specs: number; bid_packages: number; cost_codes: number; sheets: number;
-        specs_packaged_pct: number | null; packages_costed_pct: number | null;
-        sheets_specced_pct: number | null; spec_to_budget_pct: number | null };
-      /** Every section on the job; `coverage.specs` is the enforced population the percentages are
-       *  taken over, so spec_count == coverage.specs + withdrawn_excluded.length. */
-      spec_count: number;
-      withdrawn_excluded: { ref: string; section: string; title: string }[];
-      gaps: { specs_without_bid_package: { ref: string; section: string; title: string }[];
-        bid_packages_without_cost_code: { ref: string; name: string }[];
-        sheets_without_spec: { ref: string; sheet: string }[] };
-      chain: { spec: string; section: string; title: string; discipline: string | null;
-        bid_package: string | null; bid_package_name: string | null; cost_code: string | null;
-        cost_code_value: string | null; linked: boolean }[];
-      note: string }>(`/projects/${pid}/spine/traceability`);
+    return this.json<SpineTraceability>(`/projects/${pid}/spine/traceability`);
   }
 
   // --- concept space programming: adjacency graph + massing hints ---------------

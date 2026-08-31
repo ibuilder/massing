@@ -52,6 +52,40 @@ again in `for_project`'s sums. Mutation-testing the second filter showed **no as
 its presence from its absence**, because `assess` had already zeroed the record. It is gone. *A
 guard whose removal nothing detects is not defence in depth; it is a second place to rot.*
 
+### A fifth count that did not move with its filter — found in review
+
+`submittal_log.logged_total` is summed **submittal-side** (`sum(logged_by_section.values())`), not
+over the rows, so filtering the rows left it behind: a submittal logged against a **withdrawn**
+section still counted as logged while that section's `required` did not.
+
+This is the corollary this very release writes into the roadmap — *when you filter a computation,
+every count derived from that set must move with it* — **failing on the release that states it**,
+and the reason is worth naming. The other four counts (`required_total`, `missing_total`, `by_type`,
+`by_division`) accumulate inside the row loop, so filtering the loop moved them for free.
+`logged_total` is derived from a **different collection**, and a filter applied to one collection
+does nothing to a total derived from another. *Look for the counts that are built somewhere else.*
+
+**The suggested patch was not taken as written.** Accumulating `logged` per enforced row would also
+have dropped **orphan** submittals — logged against a section number that matches no spec row at
+all. Those are still submittals somebody logged; dropping them silently trades one wrong number for
+another. The exclusion is by section key and only for keys no enforced row also claims, so a
+withdrawn row and a reissued row sharing a section number cannot take the live one's logged
+submittals down with it.
+
+### The size ratchet did its job, and the pin came down
+
+18 lines of new response fields went into `apps/web/src/api/client.ts`, a file under an extraction
+ratchet at 2,752 — and the build went red at 2,769. That is the ratchet working exactly as its own
+comment describes: *an extraction without a ratchet is a rearrangement.* The four refusal-aware
+response shapes moved to `apps/web/src/api/types.ts` as named interfaces — which is what that file
+exists for, as its header says — taking the client to **2,731**, twenty lines below where `main` had
+it. The pin moves **down** 21, never up.
+
+*The failure was invisible locally for a self-inflicted reason worth recording: the size gate was
+run BEFORE the client edits, and the full-suite command was piped through `tail -20`, which
+discarded the inline `FAIL` line and reported the pipeline's exit status instead of the runner's.
+A check run before the change it should judge is not a check.*
+
 ### Gate
 
 `services/api/test_refusal_readers.py` is the class's behavioural gate: per record type, drive the

@@ -326,6 +326,22 @@ instances:
   *A guard whose removal nothing detects is not defence in depth; it is a second place to rot.* The
   same instinct that makes duplicated rules dangerous makes duplicated guards untestable.
 
+  **A FIFTH count that did not move with its filter — and it was on the release that states the
+  rule.** `submittal_log.logged_total` is summed submittal-side (over `logged_by_section`), not over
+  the rows, so filtering the rows left it behind: a submittal logged against a WITHDRAWN section
+  still counted as logged while that section's `required` did not. Found in review, not here.
+  *The other four counts accumulate inside the row loop, so filtering the loop moved them for free;
+  this one is derived from a DIFFERENT COLLECTION, and a filter on one collection does nothing to a
+  total derived from another.* The rule now has a second half: **look for the counts built somewhere
+  else.** (The suggested patch was not taken as written — accumulating per enforced row would also
+  have dropped ORPHAN submittals, logged against a section number no row matches, which count today.)
+
+  **The size ratchet caught the release too, and the pin came down.** Eighteen lines of new response
+  fields went into `apps/web/src/api/client.ts`, under an extraction ratchet at 2,752; the build went
+  red at 2,769. The four response shapes moved to `apps/web/src/api/types.ts` as named interfaces —
+  what that file exists for — taking the client to 2,731, twenty lines below `main`. *A ratchet that
+  makes new code go somewhere better is doing its job; the pin only ever moves down.*
+
   **What the class cost, and what it taught.** Three releases, 14 readers across 8 record types.
   The derivation named candidates; **reading each one is what separated defect from correct-as-is**,
   and it was wrong in both directions — it missed 5 reads (wrong accessor list) and it mis-named 3

@@ -106,6 +106,11 @@ def submittal_log(db, pid: str) -> dict[str, Any]:
     by_type: dict[str, int] = {}
     withdrawn_refs = []
     enforced = 0
+    # Section keys claimed by withdrawn vs enforced rows. Kept separately because `logged_total` is
+    # summed over `logged_by_section` (submittal-side), not over the rows, so it needs its own
+    # exclusion — see the note at the return.
+    withdrawn_keys: set[str] = set()
+    enforced_keys: set[str] = set()
     for sp in specs:
         d = _d(sp)
         st = sp.get("workflow_state")
@@ -114,14 +119,17 @@ def submittal_log(db, pid: str) -> dict[str, Any]:
         req = parse_required_submittals(d.get("submittals_required") or "")
         withdrawn = st in SPEC_SECTION_WITHDRAWN
         logged = logged_by_section.get(parse_section_number(sec) or sec, 0)
+        key = parse_section_number(sec) or sec
         if withdrawn:
             # Listed, with what it USED to ask for visible in `required`, but contributing to no
             # total: a withdrawn section demands nothing and can therefore be missing nothing.
             withdrawn_refs.append({"ref": sp.get("ref"), "section_number": sec,
                                    "title": d.get("title"), "would_require": len(req)})
+            withdrawn_keys.add(key)
             missing = 0
         else:
             enforced += 1
+            enforced_keys.add(key)
             for item in req:
                 by_type[item["type"]] = by_type.get(item["type"], 0) + 1
             required_total += len(req)
@@ -142,7 +150,22 @@ def submittal_log(db, pid: str) -> dict[str, Any]:
         "spec_count": len(specs), "enforced_spec_count": enforced,
         "withdrawn_excluded": withdrawn_refs,
         "required_total": required_total,
-        "logged_total": sum(logged_by_section.values()), "missing_total": missing_total,
+        # `logged_total` is summed submittal-side, so filtering the ROWS did not move it: a
+        # submittal logged against a WITHDRAWN section still counted as logged while that section's
+        # `required` did not — the fourth time in this class that a count derived from a filtered
+        # set failed to move with it, and the second found by review rather than by us.
+        #
+        # Excluded by section KEY, and only for keys no enforced row also claims: two rows can carry
+        # the same section number (one withdrawn, one reissued), and dropping the key outright would
+        # silently discard the live row's logged submittals too.
+        #
+        # ORPHANS ARE DELIBERATELY KEPT. Accumulating `logged` per enforced row instead — the
+        # smaller patch — would also drop submittals logged against a section number that matches no
+        # spec row at all. Those are still submittals somebody logged; they belong in `logged_total`
+        # even though they appear in no row. That is why this sums the dict rather than the rows.
+        "logged_total": sum(v for k, v in logged_by_section.items()
+                            if k not in (withdrawn_keys - enforced_keys)),
+        "missing_total": missing_total,
         "coverage_pct": round(100 * (required_total - missing_total) / required_total, 1) if required_total else None,
         "by_type": by_type,
         "by_division": dict(sorted(by_division.items())),

@@ -33,6 +33,13 @@ def _d(r: dict) -> dict:
 
 
 def register(rfis: list[dict], as_of: date | None = None) -> dict[str, Any]:
+    """Aggregate a list of RFI records into the register: ball-in-court, overdue, turnaround, and
+    cost/schedule-impact exposure.
+
+    Pure over `rfis` — no database access — so the same aggregation serves the route, the PDF report
+    builder and the project-health rollup. VOID RFIs stay in `rows` and in `by_state`, but carry
+    none of the exposure and are not turnaround samples; see `RFI_WITHDRAWN`.
+    """
     today = as_of or date.today()
     by_state, by_discipline, by_priority, ball_in_court = {}, {}, {}, {}
     overdue = cost_impacted = schedule_impacted = voided = 0
@@ -105,6 +112,8 @@ def register(rfis: list[dict], as_of: date | None = None) -> dict[str, Any]:
 
 
 def rfi_register(db, pid: str) -> dict[str, Any]:
+    """Load a project's RFIs and aggregate them with `register`. Returns the empty register when the
+    rfi module is not installed in this deployment."""
     from . import modules as me
     rfis = me.list_records(db, "rfi", pid, limit=100000) if "rfi" in me.TABLES else []
     return register(rfis)

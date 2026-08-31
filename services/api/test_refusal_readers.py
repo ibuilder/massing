@@ -20,11 +20,18 @@ Run: PYTHONPATH=src ./.venv/bin/python test_refusal_readers.py
 import os
 
 os.environ["DATABASE_URL"] = "sqlite:///./test_refusal_readers.db"
-os.environ["STORAGE_DIR"] = "./test_storage_refusal_readers"
+# setdefault, not assignment: run_tests.py gives each suite an isolated `./_storage_{test}` and
+# sweeps it, but only the name IT chose — a suite that overrides STORAGE_DIR owns that directory
+# and the runner reports it rather than deleting it (91 such dirs, 122 MB, in the last full run).
+# The fallback below is for a direct `python test_refusal_readers.py`, and is cleared at startup.
+os.environ.setdefault("STORAGE_DIR", "./test_storage_refusal_readers")
 os.environ.pop("AEC_RBAC", None)
 for _f in ("./test_refusal_readers.db",):
     if os.path.exists(_f):
         os.remove(_f)
+if os.environ["STORAGE_DIR"] == "./test_storage_refusal_readers":   # direct run only
+    import shutil
+    shutil.rmtree("./test_storage_refusal_readers", ignore_errors=True)
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -196,10 +203,17 @@ with TestClient(app) as c:
                                         "division": "09 - Finishes", "discipline": "Architectural",
                                         "submittals_required": "Product Data\nSamples\nMock-up"})
 
-    # POSITIVE CONTROL: while issued, this section really does drive 3 of the 5 required submittals
-    # and really is an unpackaged link in the chain. Both numbers must be ITS doing before the void.
+    # A submittal LOGGED against the section that is about to be withdrawn. Without it the
+    # `logged_total` assertion below would be vacuous — the same trap the carbon mutation fell into.
+    _mk(c, pid, "submittal", {"title": "Paint colour samples", "spec_section": "09 91 00",
+                              "type": "Sample"})
+
+    # POSITIVE CONTROL: while issued, this section really does drive 3 of the 5 required submittals,
+    # owns the only logged submittal, and really is an unpackaged link in the chain. All three
+    # numbers must be ITS doing before the void.
     sl = c.get(f"/projects/{pid}/specs/submittal-log").json()
-    assert sl["required_total"] == 5 and sl["missing_total"] == 5, sl
+    assert sl["required_total"] == 5 and sl["missing_total"] == 4, sl
+    assert sl["logged_total"] == 1, sl["logged_total"]
     assert sl["by_division"].get("09 - Finishes") == 3, sl["by_division"]
     tr = c.get(f"/projects/{pid}/spine/traceability").json()
     assert tr["coverage"]["specs_packaged_pct"] == 50.0, tr["coverage"]
@@ -212,6 +226,10 @@ with TestClient(app) as c:
     # gaps were work orders against a section that had been deleted from the manual.
     assert sl["required_total"] == 2, sl["required_total"]
     assert sl["missing_total"] == 2, sl["missing_total"]
+    # `logged_total` is summed submittal-side, so filtering the ROWS did not move it: found in
+    # review, and the fourth time in this class that a count derived from a filtered set stayed
+    # behind. The only logged submittal belonged to the withdrawn section, so it must now be 0.
+    assert sl["logged_total"] == 0, sl["logged_total"]
     assert "09 - Finishes" not in sl["by_division"], sl["by_division"]
     assert sl["by_type"] == {"Product Data": 1, "Shop Drawing": 1}, sl["by_type"]
     assert sl["enforced_spec_count"] == 1 and sl["spec_count"] == 2, sl

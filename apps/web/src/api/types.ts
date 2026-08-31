@@ -993,3 +993,69 @@ export type Takeoff2dScopeOpts = {
   pxPerPoint?: number;
   annotations?: { id?: string; kind?: string; x?: number; y?: number; points?: [number, number][] }[];
 };
+
+
+/** Response of `GET /projects/{pid}/rfi/register`.
+ *
+ *  `voided_count` is a SUBSET of `closed_count`, not a third bucket beside it, and it is the
+ *  population `cost_impacted_count` / `schedule_impacted_count` / `avg_response_days` exclude: a
+ *  withdrawn RFI is a question the team retracted, so it carries no exposure and never received a
+ *  response. `open_count + closed_count === rfi_count`. */
+export interface RfiRegister {
+  rfi_count: number; open_count: number; closed_count: number; overdue_count: number;
+  cost_impacted_count: number; schedule_impacted_count: number; avg_response_days: number | null;
+  voided_count: number; withdrawn_excluded: string[];
+  ball_in_court: Record<string, number>; by_state: Record<string, number>;
+  by_discipline: Record<string, number>; by_priority: Record<string, number>;
+  rows: Record<string, unknown>[];
+}
+
+/** Response of `GET /projects/{pid}/specs/submittal-log`.
+ *
+ *  `enforced_spec_count + withdrawn_excluded.length === spec_count`, and every total is taken over
+ *  the enforced sections only — a VOID section requires nothing and can be missing nothing, though
+ *  it stays in `rows` so the log reads as a section somebody withdrew rather than one nobody wrote. */
+export interface SpecSubmittalLog {
+  spec_count: number; enforced_spec_count: number;
+  withdrawn_excluded: { ref: string; section_number: string; title: string;
+    would_require: number }[];
+  required_total: number; logged_total: number; missing_total: number;
+  coverage_pct: number | null;
+  by_type: Record<string, number>; by_division: Record<string, number>;
+  rows: Record<string, unknown>[];
+}
+
+/** Response of `GET /projects/{pid}/prequal/scores`.
+ *
+ *  `pool_count + not_in_pool.length === count`. `high_risk` counts among the POOL, so a sub the
+ *  team has already rejected cannot inflate the project's risk headline; rejected subs stay listed
+ *  in `subs` with their score intact. */
+export interface PrequalScores {
+  subs: { company?: string; trade?: string; ref?: string; score: number; risk_band: string;
+    factors: { factor: string; points: number; of: number; note: string }[]; flags: string[];
+    workflow_state: string | null; in_pool: boolean }[];
+  count: number; pool_count: number; high_risk: number;
+  not_in_pool: { company?: string; ref?: string; workflow_state: string | null }[];
+}
+
+/** Response of `GET /projects/{pid}/spine/traceability`.
+ *
+ *  `spec_count` is every section on the job; `coverage.specs` is the enforced population the
+ *  percentages are taken over, so `spec_count === coverage.specs + withdrawn_excluded.length`. A
+ *  withdrawn section is not an unpackaged one — it is not in the chain at all. */
+export interface SpineTraceability {
+  disciplines: { discipline: string; code: string | null; sheets: number; specs: number;
+    packages: number; cost_codes: number; budget: number }[];
+  coverage: { specs: number; bid_packages: number; cost_codes: number; sheets: number;
+    specs_packaged_pct: number | null; packages_costed_pct: number | null;
+    sheets_specced_pct: number | null; spec_to_budget_pct: number | null };
+  spec_count: number;
+  withdrawn_excluded: { ref: string; section: string; title: string }[];
+  gaps: { specs_without_bid_package: { ref: string; section: string; title: string }[];
+    bid_packages_without_cost_code: { ref: string; name: string }[];
+    sheets_without_spec: { ref: string; sheet: string }[] };
+  chain: { spec: string; section: string; title: string; discipline: string | null;
+    bid_package: string | null; bid_package_name: string | null; cost_code: string | null;
+    cost_code_value: string | null; linked: boolean }[];
+  note: string;
+}
