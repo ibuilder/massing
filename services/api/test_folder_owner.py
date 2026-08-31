@@ -43,6 +43,7 @@ _fail = 0
 
 
 def check(cond, msg):
+    """Record one assertion, printing PASS/FAIL, so every check reports rather than the first stopping the run."""
     global _fail
     if not cond:
         _fail += 1

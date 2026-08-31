@@ -43,6 +43,16 @@ nothing**, because `move` raises on an invalid destination two lines earlier. Th
 unreachable in the original too. *An unreachable branch and a well-guarded one look identical from
 the call site; only the mutation tells them apart.* New gate: `services/api/test_folder_owner.py`.
 
+**Review found a crash in the same function, older than this change.** `is_citation` looked its kind
+up with `_IDENTIFIES.get(c.get("source_type"))` — a dict lookup. A `source_type` that is a list, dict
+or set is **unhashable**, so instead of returning False like every other malformed shape it raised
+`TypeError: unhashable type`, and one bad entry took out the whole `provenance_confidence` call.
+`Assumptions.sources` is typed `dict[str, list[dict]]`, so a client can post exactly that. *A
+validator that crashes on the input it exists to reject is not rejecting it.* Guarded on
+`isinstance(kind, str)`, asserted over list/dict/set/int/None/object with a positive control that
+well-formed citations still score, and mutation-checked. Pre-dates the shape rule; fixed here because
+it is the same function and the same family.
+
 **Two test files minted fake GlobalIds, and only the FULL suite found the second one.** Both
 `test_cited_answer` and `test_persona_answer` passed `"g1"`-style placeholders to `cite_ifc`; under
 the new rule those stop being citations, so every claim reads as uncited. The first was obvious. The

@@ -51,6 +51,16 @@ assert ca.is_citation(ca.cite_doc("A-101")) and ca.is_citation(ca.cite_doc("any 
 assert not ca.is_citation({"source_type": "rule", "rule_id": "  "})
 assert not ca.is_citation({"source_type": "doc", "document_id": ""})
 
+# An UNHASHABLE source_type must be rejected, not raise. `_IDENTIFIES`/`_SHAPES` are dict lookups, so
+# a list/dict/set here raised `TypeError: unhashable type` while every other malformed shape returned
+# False — and `Assumptions.sources` is typed `dict[str, list[dict]]`, so a client can post exactly
+# that and take out the whole scoring call. Pre-dates the shape rule; found in review of it.
+for weird in ([ "ifc" ], {"k": 1}, {"ifc"}, 7, None, object()):
+    assert ca.is_citation({"source_type": weird, "guid": "x"}) is False, repr(weird)
+assert ca.provenance_confidence([{"source_type": ["ifc"], "guid": "x"}]) == 0.0
+# positive control: the guard must not swallow well-formed citations on the same path
+assert ca.provenance_confidence([ca.cite_ifc(G("wall"))]) == 0.733
+
 # The shape map must be CONSULTED, not merely defined — a rule nothing reads is the defect this fixes.
 assert set(ca._SHAPES) == {"ifc", "record"}, ca._SHAPES
 assert ca._SHAPES["ifc"] is not ca._SHAPES["record"], "one regex serving both kinds would not be a per-kind check"

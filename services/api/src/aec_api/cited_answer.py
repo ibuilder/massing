@@ -76,13 +76,20 @@ def is_citation(c: Any) -> bool:
     """
     if not isinstance(c, dict):
         return False
-    field = _IDENTIFIES.get(c.get("source_type"))
+    kind = c.get("source_type")
+    if not isinstance(kind, str):
+        # A dict/list/set here is UNHASHABLE, and the lookups below are dict `.get`s: this returned
+        # False for every other malformed shape and raised `TypeError: unhashable type` for these,
+        # so one bad entry in a client-supplied `Assumptions.sources` took out the whole scoring
+        # call. A validator that crashes on the input it exists to reject is not rejecting it.
+        return False
+    field = _IDENTIFIES.get(kind)
     if field is None:
         return False                                  # unknown or missing kind — not a citation
     v = c.get(field)
     if not isinstance(v, str) or not v.strip():
         return False
-    shape = _SHAPES.get(c.get("source_type"))
+    shape = _SHAPES.get(kind)
     return shape is None or bool(shape.match(v.strip()))
 
 
