@@ -71,6 +71,21 @@ nothing else on the page uses that colour, and goes vacuous the moment something
 to announce it. The assertion now scopes to the INV-001 row and adds its converse — the unpaid row
 must NOT carry the paid colour.
 
+### A lane cell that outlived its item, and the gate that let it
+
+Review flagged a stale item code in the Lane C table. The framing — that it violates a validation
+rule — is wrong: every gate was green. **The observation is right, and the reason it was green is
+the more useful half.** `PORTAL-STATUS` was added to that row in v0.3.1124 and marked ✅ here, and
+the gate that exists to catch exactly this (*"names no code that has neither an open entry nor a
+note saying it is done"*) tested the whole cell against `/SHIPPED|CLOSED|.../`. The cell read
+`PORTAL-STATUS *(split out of the now-closed REFUSAL-READERS)*` — so it matched **"now-closed"**,
+a fact about a DIFFERENT item, and exempted the entry from its own check.
+
+*A note about somebody else is not evidence about you.* The rule now strips any parenthetical naming
+another code before testing, with a fixture carrying a positive control — the raw cell must still
+match the `done` regex, or the fixture would not reproduce the bug it describes. Verified by
+restoring the stale row: the gate names it.
+
 ### A guard that no route-level test could see
 
 `invoice_status_key` casefolds, and mutation-testing showed **no assertion through the route could

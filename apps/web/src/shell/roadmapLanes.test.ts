@@ -309,6 +309,14 @@ function qualify(p: string): string {
 
 const CODES = itemCodes(OPEN);
 
+/** A lane cell's text with any parenthetical NAMING A DIFFERENT item code removed, so a "done" note
+ *  about somebody else cannot be read as a statement about this entry. See the test below. */
+function selfNote(e: { code: string; text: string }): string {
+  const anyCode = new RegExp(`${CODE_HEAD}[A-Z0-9-]{1,}`, "g");
+  return e.text.replace(/\([^)]*\)/g, (par) =>
+    [...par.matchAll(anyCode)].some((m) => m[0] !== e.code) ? "" : par);
+}
+
 describe("the roadmap lane table", () => {
   it("reads a plausible number of lanes and items — else every assertion below is vacuous", () => {
     // The can't-fail shape this repo keeps getting bitten by: a green check over an empty set.
@@ -442,9 +450,35 @@ describe("the roadmap lane table", () => {
     const base = (c: string) => c.split(" ")[0] ?? c;
     const done = /SHIPPED|CLOSED|COMPLETE|pending archive|✅|moved from|in flight/i;
     const stale = LANES.flatMap((l) => l.entries.map((e) => ({ lane: l.name, ...e })))
-      .filter((e) => !CODES.has(e.code) && !parked.has(base(e.code)) && !done.test(e.text))
+      .filter((e) => !CODES.has(e.code) && !parked.has(base(e.code)) && !done.test(selfNote(e)))
       .map((e) => `${e.lane} names ${e.code}, which has no open entry and no note saying it shipped`);
     expect(stale, "a lane cell that outlived its item reads as available work").toEqual([]);
+  });
+
+  /**
+   * The check above asks whether a lane cell carries "a note saying it is done". Until 2026-08-31 it
+   * asked that of the WHOLE cell, so a note about a DIFFERENT item counted as evidence about this
+   * one. `PORTAL-STATUS *(split out of the now-closed REFUSAL-READERS)*` slipped straight through:
+   * the regex matched "now-closed", which is a fact about REFUSAL-READERS, and exempted PORTAL-STATUS
+   * from the very check that exists to catch it. The item shipped, the lane kept advertising it as
+   * available work, and every gate stayed green.
+   *
+   * `selfNote` drops any parenthetical that names a code other than this entry's before the `done`
+   * test runs — a note about somebody else is not evidence about you. A self-note like
+   * `SCALE-SEAM *(shipped, pending archive)*` names no other code, so it survives and still exempts.
+   */
+  it("does not accept a note about ANOTHER code as evidence that this one is done", () => {
+    const other = { code: "ZZFAKE-STALE",
+                    text: "ZZFAKE-STALE *(split out of the now-closed ZZFAKE-OTHER)*" };
+    const self = { code: "ZZFAKE-SELF", text: "ZZFAKE-SELF *(shipped, pending archive)*" };
+    const done = /SHIPPED|CLOSED|COMPLETE|pending archive|✅|moved from|in flight/i;
+    // POSITIVE CONTROL: the raw cell DOES match, which is why the old rule passed. Without this the
+    // assertion below could hold for a fixture that never triggered the bug in the first place.
+    expect(done.test(other.text), "the whole cell matches — this is how it got through").toBe(true);
+    expect(done.test(selfNote(other)),
+           "a note about another code must NOT exempt this one").toBe(false);
+    expect(done.test(selfNote(self)),
+           "a genuine self-note must still exempt").toBe(true);
   });
 
   it("assigns every open item to a lane, or parks it explicitly", () => {
