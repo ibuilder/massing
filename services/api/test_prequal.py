@@ -29,6 +29,29 @@ assert "EMR above 1.0" in w["flags"] and "no bonding capacity" in w["flags"] and
 assert sum(f["of"] for f in s["factors"]) == 100                 # weights sum to 100
 assert s["score"] > w["score"]
 
+# --- the rejection FLAG answers to the same field as `in_pool` (v0.3.1126) ------------------------
+# It did not until then, and the two came out INVERTED: measured through /prequal/scores, a sub
+# rejected by the real transition was out of the pool carrying no flag, while one merely submitted
+# with "Rejected" typed into the status field carried the flag and stayed in. The flag fired on the
+# sub who was still biddable and was silent on the one the team had refused.
+_refused = pq.score_record({"workflow_state": "rejected", "data": {"company": "Refused"}})
+assert "rejected" in _refused["flags"], ("the workflow's own refusal must raise the flag",
+                                         _refused["flags"])
+# The blob is not silently believed OR silently dropped — a disagreement is named, because
+# modules.transition() never writes `data`, so the two drift with nothing to reconcile them.
+_typed = pq.score_record({"workflow_state": "submitted", "data": {"company": "Typed",
+                                                                  "status": "Rejected"}})
+_dis = [f for f in _typed["flags"] if "status field says rejected" in f]
+assert _dis and "submitted" in _dis[0], ("a typed rejection that the workflow contradicts must be "
+                                         "reported as a DISAGREEMENT, not as a rejection", _typed["flags"])
+assert "rejected" not in _typed["flags"], ("...and must not be reported as a plain rejection",
+                                           _typed["flags"])
+# POSITIVE CONTROL: a record with neither raises neither, so the two assertions above cannot pass
+# merely because this function flags everything.
+assert not [f for f in pq.score_record({"workflow_state": "approved",
+                                        "data": {"company": "Clean"}})["flags"]
+            if "reject" in f.lower()]
+
 # --- endpoints ---
 with TestClient(app) as c:
     pid = c.post("/projects", json={"name": "P"}).json()["id"]

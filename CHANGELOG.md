@@ -4,6 +4,32 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1126 (2026-08-31) — the rejection flag fired on the sub who was still biddable
+
+The tail of `PORTAL-STATUS`. `prequalification.score_record` raised its "marked rejected" flag from
+`data["status"]`, the typed field, while v0.3.1124 had moved `in_pool` to `workflow_state`, the field
+the reject transition sets. The two then answered to different fields, and came out **inverted**.
+
+Measured through `/prequal/scores`, on two subs driven through the real transitions:
+
+| sub | workflow | `in_pool` | flag before | flag after |
+|---|---|---|---|---|
+| rejected by the **transition** | `rejected` | `false` | **none** | `rejected` |
+| merely submitted, `"Rejected"` **typed in the blob** | `submitted` | `true` | **"marked rejected"** | `status field says rejected, but the workflow says submitted` |
+
+So the flag fired on the sub who was **still in the bidding pool** and stayed silent on the one the
+team had actually refused — the worst of both readings, and worse than either field alone.
+
+**The typed value is neither believed nor dropped.** `modules.transition()` never writes `data`, so
+the two fields drift on their own with nothing to reconcile them; a person typing "Rejected" while
+the workflow says otherwise is a real disagreement, and naming it is more use than picking a side.
+`PREQUAL_NOT_IN_POOL` moves above `score_record`, which is now its first reader — *the flag and the
+pool must not answer to different fields.*
+
+Both changes mutation-checked: reverting the flag to the blob, and collapsing the disagreement into
+a plain rejection, each fail a specific assertion. A positive control asserts a clean record raises
+neither, so the pair cannot pass by flagging everything.
+
 ## v0.3.1125 (2026-08-31) — the owner's page said nothing had been paid, and it never could
 
 **`PORTAL-STATUS`.** The client-facing payment schedule showed `data["status"]` — a select a person
