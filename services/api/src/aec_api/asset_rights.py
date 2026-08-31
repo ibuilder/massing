@@ -230,7 +230,28 @@ def _b64e(b: bytes) -> str:
 
 
 def signing_available() -> bool:
-    return bool((os.environ.get(SIGNING_KEY_ENV) or "").strip())
+    """Whether a **usable** signing key is configured — not merely whether the variable is set.
+
+    This asked only ``bool(env)``, which is a claim rather than a fact, and every consumer trusted
+    it: `bundle.py` signs a release when this is true, so a variable holding anything that is not a
+    32-byte seed took down the **whole `.mass` export** with a RuntimeError from `_private_key`,
+    long before this function's own answer was doubted. Publishing the public key on
+    `/asset-rights/status` inherited the same fault and turned it into an unhandled error on the one
+    route a client calls to decide whether to *offer* sealing at all.
+
+    So it now decodes the seed and builds the key. A misconfigured deployment reports
+    ``signing: false`` — hashed, tamper-evident, unsigned — which is a state the contract already
+    has words for, instead of failing somewhere further downstream where the cause is invisible.
+    Cheap enough to do per call (a base64 decode and an Ed25519 construction); no caching, because a
+    cached "yes" would reintroduce exactly the stale claim this replaces.
+    """
+    if not (os.environ.get(SIGNING_KEY_ENV) or "").strip():
+        return False
+    try:
+        _private_key()
+        return True
+    except Exception:
+        return False
 
 
 def _private_key():
@@ -363,9 +384,17 @@ def _main(argv: list[str] | None = None) -> int:
         return 0
     if "--public-key" in argv:
         if not signing_available():
-            print(f"no signing key configured: set {SIGNING_KEY_ENV} (see --generate). Releases are "
-                  f"still hashed and tamper-evident without one; they carry no attribution.",
-                  file=sys.stderr)
+            # "set" and "set to something unusable" are different operator problems and must not
+            # share a message: telling someone their key is missing when they can see it in the
+            # environment sends them to re-set the same typo.
+            if (os.environ.get(SIGNING_KEY_ENV) or "").strip():
+                print(f"{SIGNING_KEY_ENV} is set but is not a usable Ed25519 seed — it must be "
+                      f"base64url decoding to exactly 32 bytes. Releases are being written UNSIGNED "
+                      f"while it stays this way. Mint a valid one with --generate.", file=sys.stderr)
+            else:
+                print(f"no signing key configured: set {SIGNING_KEY_ENV} (see --generate). Releases "
+                      f"are still hashed and tamper-evident without one; they carry no attribution.",
+                      file=sys.stderr)
             return 1
         print(public_key_b64())
         return 0

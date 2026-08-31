@@ -111,6 +111,31 @@ check("Traceback" not in _nokey.stderr,
 check("AEC_ASSET_SIGNING_KEY" in _nokey.stderr and "--generate" in _nokey.stderr,
       "...naming the variable to set and the command that mints one")
 
+# --- 1b. a MALFORMED key is not a usable key ---------------------------------------------------------
+# `signing_available()` asked only `bool(env)` — a claim, not a fact — and every consumer trusted it.
+# `bundle.py` signs when it is true, so a variable holding anything that is not a 32-byte seed took
+# down the WHOLE .mass export from `_private_key`, and publishing the key on /asset-rights/status
+# turned the same fault into an unhandled error on the route a client calls to decide whether to
+# offer sealing. Found in review of this PR; the export half of it pre-dates this release.
+import importlib  # noqa: E402
+
+_real_seed = os.environ["AEC_ASSET_SIGNING_KEY"]
+for bad in ("not-a-real-seed", "!!!!", "c2hvcnQ="):          # non-b64, junk, and valid b64 too short
+    os.environ["AEC_ASSET_SIGNING_KEY"] = bad
+    importlib.reload(ar)
+    check(ar.signing_available() is False, f"a malformed seed is not 'available': {bad!r}")
+    st_bad = TestClient(app).get("/asset-rights/status")
+    check(st_bad.status_code == 200 and st_bad.json()["public_key"] == "" and not st_bad.json()["signing"],
+          f"...and /asset-rights/status answers 200 with signing:false rather than erroring: {bad!r}")
+    cli_bad = _cli("--public-key")
+    check(cli_bad.returncode == 1 and "is set but is not a usable" in cli_bad.stderr,
+          f"...and the CLI says SET-BUT-UNUSABLE, not 'not configured': {bad!r}")
+os.environ["AEC_ASSET_SIGNING_KEY"] = _real_seed
+importlib.reload(ar)
+check(ar.signing_available() is True, "positive control: the real seed is still usable after the "
+                                      "malformed ones (otherwise the checks above would pass on a "
+                                      "function that always answers False)")
+
 # --- 2. the public key is served, the private one is not --------------------------------------------
 st = client.get("/asset-rights/status").json()
 check(st.get("public_key") == ar.public_key_b64(), "GET /asset-rights/status serves the public key")
@@ -132,6 +157,20 @@ other = ar.public_key_b64(ar.generate_seed())
 r = client.post("/asset-rights/verify", json={"manifest": m, "public_key": other})
 check(r.status_code == 200 and not r.json()["signature_ok"],
       "a DIFFERENT key -> signature_ok False (so defaulting to ours would misreport third-party releases)")
+
+# The footgun the route docstring warns about, asserted so the warning is not just prose: the SAME
+# document and the same cryptographic evidence read `trusted_key: false` honestly, and `true` if the
+# caller echoes the document's own key back. The API cannot tell those apart — it has no trust anchor
+# — which is exactly why trusting a key is the part a verifier must do out of band. Comparing against
+# the embedded key would NOT fix this: for a genuine release the trusted key IS the embedded one.
+_embedded = m["verification"]["public_key"]
+_echoed = client.post("/asset-rights/verify", json={"manifest": m, "public_key": _embedded}).json()
+_honest = client.post("/asset-rights/verify", json={"manifest": m}).json()
+check(_echoed["trusted_key"] is True and _honest["trusted_key"] is False,
+      "echoing the document's own key back flips trusted_key on identical evidence — the documented "
+      "limit of what this route can know, pinned so it is not mistaken for a bug later")
+check(_echoed["signature_ok"] == _honest["signature_ok"],
+      "...and the SIGNATURE finding is identical either way, which is the part that is really proven")
 
 # --- 4. tampering is what the manifest exists to catch -----------------------------------------------
 tampered = {**m, "content": {**m["content"], "files": []}}

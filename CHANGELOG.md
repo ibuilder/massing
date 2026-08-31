@@ -46,6 +46,27 @@ it as called; for the same reason it cannot be frozen as uncalled. Asserted in
 alternatives for whoever takes the matcher on: `/leaf` flags 43 further routes, a word-boundary match
 flags 5.
 
+**Review found a crash bigger than the feature, and most of it pre-dated this release.**
+`signing_available()` asked only whether the environment variable was **non-empty** — a claim, not a
+fact — and every consumer trusted it. `bundle.py` signs a release when it is true, so a variable
+holding anything that is not a 32-byte seed took down the **whole `.mass` export** with a
+`RuntimeError` out of `_private_key`. Publishing the public key on `/asset-rights/status` inherited
+the same fault and turned it into an **unhandled error on the one route a client calls to decide
+whether to offer sealing at all** — that half was a regression this release introduced.
+
+It now decodes the seed and constructs the key, so a misconfigured deployment reports
+`signing: false` — hashed, tamper-evident, unsigned — a state the contract already has words for,
+instead of failing downstream where the cause is invisible. The CLI distinguishes *unset* from *set
+but unusable*, because telling an operator their key is missing when they can see it in the
+environment sends them to re-set the same typo.
+
+**And a limit of `trusted_key` that cannot be fixed, so it is documented and pinned instead.** The
+same manifest and the same cryptographic evidence report `trusted_key: false` honestly, and `true` if
+the caller echoes the document's own `verification.public_key` back. Comparing the supplied key
+against the embedded one would *not* fix it — for a genuine release those are the same key. The API
+has no trust anchor to check a caller's key against; trusting a key is the part a verifier does out
+of band. The route says so, and a test asserts the flip so it is not mistaken for a bug later.
+
 New gate `services/api/test_asset_verify.py` — 20 checks and four mutations. One of those mutations
 found a hole in the test itself: removing the `signing_available()` guard from `--public-key` makes
 the command *crash* rather than refuse, and an exit-code assertion cannot tell those apart. What the

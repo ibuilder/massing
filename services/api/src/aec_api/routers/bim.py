@@ -565,6 +565,13 @@ def asset_rights_verify(manifest: dict = Body(..., embed=True),
     wrote it; that is exactly what `trusted_key: false` means. A verifier who already trusts a key
     passes it — ours is on `/asset-rights/status`.
 
+    **Do not read the key out of the manifest and pass it back here.** `trusted_key` reports that the
+    signature verified against a key *you* supplied, and it cannot see where you got it: echo the
+    document's own `verification.public_key` back and the identical evidence that honestly reads
+    `trusted_key: false` will read `true`. The API has no trust anchor to check yours against —
+    trusting a key is the one part of this a verifier has to do out of band, from the issuer's
+    published key or a channel independent of the file.
+
     Not project-scoped and not `require_role`, for the same reason as the status route above: the
     manifest is the input, and the caller may be verifying a release from another deployment
     entirely."""
