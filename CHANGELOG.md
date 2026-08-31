@@ -4,6 +4,43 @@ All notable changes to Massing. Releases are signed, auto-updating desktop build
 (Windows / macOS / Linux); the updater always serves the latest. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## v0.3.1127 (2026-08-31) — the roadmap described a defect that a release had already ended
+
+Documentation only; no engine changed. Two roadmap entries said `eot.py` **"names four AACE methods
+and performs none of them. All four return an identical number on the same input."** Both are
+corrected, because the claim was false — and false on the day it was written.
+
+Measured through `eot.analyse`, one job, baseline finish 2026-01-31, two excusable events totalling
+20 days:
+
+| actual finish | `impacted_as_planned` | `as_planned_vs_as_built` | `time_impact` | `windows` |
+|---|---|---|---|---|
+| 2026-02-10 (slip 10) | **20.0** | **10.0** *(capped)* | *refuses* | *refuses* |
+| 2026-03-12 (slip 40) | 20.0 | 20.0 *(cap idle)* | *refuses* | *refuses* |
+
+Three distinct outcomes where the as-built cap binds, two where it does not, and the two series
+methods never return a number at all — they refuse with `method_needs_schedule_updates`. "All four
+return an identical number" is therefore untrue on every input, not merely on some.
+
+**The fix predated the claim by four days.** `v0.3.971` shipped 2026-08-16 under the title *"four
+delay methods, one number, and a label that said otherwise"*; the roadmap paragraph was dated
+*"measured 2026-08-20"*. A measurement date is what stops a reader re-checking a sentence, so an
+inherited date made this harder to catch, not easier.
+
+**The citation contradicted the claim it supported.** The paragraph cited
+`services/api/test_schedule_windows.py` as its pin. That test asserts `windows` and `time_impact`
+return `None` — *"which is now the REASON they refuse"*. The gate had been green on the **corrected**
+behaviour the entire time. *A citation is evidence that a file exists, not that it says what the
+sentence claims* — `test_claude_md_gates.py` checks the former and cannot check the latter.
+
+No new gate. The behaviour is already pinned twice (`test_schedule_windows.py`, `test_eot_methods.py`)
+and both were green throughout; what failed was prose that the existing gates already contradicted.
+A string-matching guard on one sentence would rot the same way the sentence did.
+
+**What survives is the genuine open decision, unchanged:** whether `/schedule/eot` should delegate to
+`schedule_windows` and `schedule_modelled` — which perform three of the four for real — or keep its
+own number and cite theirs. An EOT figure ends up in arbitration, so that remains a domain call.
+
 ## v0.3.1126 (2026-08-31) — the rejection flag fired on the sub who was still biddable
 
 The tail of `PORTAL-STATUS`. `prequalification.score_record` raised its "marked rejected" flag from

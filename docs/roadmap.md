@@ -587,12 +587,34 @@ auditable one — its own docstring says a caller-typed baseline "is unauditable
 different EOTs from one project by typing different dates" — but putting an extension-of-time figure
 in front of a user is a decision about what the product asserts in an arbitration, not a wiring task.
 
-**⚠ FOUND WHILE WIRING THESE TWO: `eot.py` names four AACE methods and performs none of them.** All
-four return an identical number on the same input — the method is recorded as a label and the
-arithmetic never changes, because nothing in it re-schedules a network. Three of the four *are*
-network operations. Pinned in `services/api/test_schedule_windows.py`; `schedule_windows` and
-`schedule_modelled` now perform three of the four for real. **Whether `/schedule/eot` should delegate
-to them, or keep its own number and cite theirs, is a domain decision** — the EOT figure ends up in
+**⚠ CORRECTED 2026-08-31 — the paragraph that stood here was FALSE, and false on the day it was
+written.** It said `eot.py` "names four AACE methods and performs none of them. All four return an
+identical number on the same input." Measured through `eot.analyse` on one job (baseline finish
+2026-01-31, two excusable events totalling 20 days):
+
+| actual finish | `impacted_as_planned` | `as_planned_vs_as_built` | `time_impact` | `windows` |
+|---|---|---|---|---|
+| 2026-02-10 (slip 10) | **20.0** | **10.0** *(capped)* | *refuses* | *refuses* |
+| 2026-03-12 (slip 40) | 20.0 | 20.0 *(cap idle)* | *refuses* | *refuses* |
+
+Three distinct outcomes where the cap binds, two where it does not — and **the series pair never
+returns a number at all**, refusing with `method_needs_schedule_updates`. So "all four return an
+identical number" is untrue on *every* input, not merely on some.
+
+**The fix predates the claim.** `v0.3.971` shipped **2026-08-16** under the title *"four delay
+methods, one number, and a label that said otherwise"* — it is the release that ended this. The
+paragraph above was dated *"measured 2026-08-20"*, four days later. **A claim can be stale on the day
+it is written**, and this one carried a measurement date, which is exactly what stops a reader
+re-checking it.
+
+**Its own citation contradicted it.** It cited `services/api/test_schedule_windows.py` as the pin;
+that test asserts `windows` and `time_impact` return `None` — *"which is now the REASON they refuse"*.
+The gate had been green on the corrected behaviour the whole time. **A citation is not evidence of
+what it is cited for** — nobody re-read the test the sentence pointed at.
+
+**What survives is the real decision, and it is unchanged:** `schedule_windows` and
+`schedule_modelled` perform three of the four for real. **Whether `/schedule/eot` should delegate to
+them, or keep its own number and cite theirs, is a domain decision** — the EOT figure ends up in
 arbitration, and changing what it means is not a refactor. Both still ship.
 
 **R46 IS COMPLETE (v0.3.967): 29 of 29 reachable, allowlist empty.** Recorded in `services/api/test_vendor_reachable.py`, which fails the build until each is either wired
@@ -1235,10 +1257,16 @@ that rotted were all sentences no test read. Note for whoever extends it — the
   what the product asserts, not a UI choice. Surfaced here by the 2026-08-29 sweep because it was
   recorded inside a ring entry that now reads ✅, where a reader looking for open decisions would not
   find it.
-- **`eot.py` names four AACE methods and performs none of them.** All four return an identical number
-  on the same input; three of the four *are* network operations. `schedule_windows` and
-  `schedule_modelled` now perform three for real. **Whether `/schedule/eot` should delegate to them or
-  keep its own number and cite theirs is the same arbitration question**, and both still ship today.
+- **Whether `/schedule/eot` should delegate its analysis to `schedule_windows` and
+  `schedule_modelled`, or keep its own number and cite theirs.** *(This bullet used to open by
+  claiming `eot.py` "names four AACE methods and performs none of them. All four return an identical
+  number on the same input." **That was false, and false when written** — `v0.3.971` had ended it four
+  days earlier, on 2026-08-16. Measured 2026-08-31: three distinct outcomes where the as-built cap
+  binds, and the two series methods refuse outright rather than returning any number. The full
+  measurement and the reason the error survived a cited test are in the R46 entry above.)* The
+  decision itself is untouched by that correction: `schedule_windows` and `schedule_modelled` perform
+  three of the four for real, **an EOT figure ends up in arbitration**, and changing what one means is
+  a domain call rather than a refactor. Both still ship today.
 - **The three renames and the `/edit` body shape in R43-VIEWER-CONFORMANCE.** *(Again not opening
   with the code — `roadmapStale.test.ts` reads an unmarked bullet headed by an item id as a second,
   contradicting copy of that item, which is exactly what this would have been.)* Every one is *which side
