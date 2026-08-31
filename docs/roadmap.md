@@ -612,6 +612,35 @@ that test asserts `windows` and `time_impact` return `None` — *"which is now t
 The gate had been green on the corrected behaviour the whole time. **A citation is not evidence of
 what it is cited for** — nobody re-read the test the sentence pointed at.
 
+**AND IT IS NOT A CLASS — swept 2026-08-31, four of five accurate.** The obvious next inference from
+the correction above is *"if one roadmap claim was stale, sweep them all"*. That was checked instead
+of assumed, and the answer is no. **Population:** the 21 `⚠` markers in this file, of which exactly
+**five** assert present-tense runtime behaviour that can be executed and falsified; the rest are
+SHIPPED rows, sweep-run headers, prior corrections and the 18-findings table, and one more
+(`takt.py`'s name) is a semantics decision with nothing to falsify.
+
+| claim | verdict |
+|---|---|
+| the EOT surface is dark, no client references it | **accurate** — re-verified the same day |
+| `eot.py` performs none of the four methods | **FALSE** — the correction above |
+| `/schedule/risk` and `/schedule/montecarlo` disagree by 38 days | **accurate, and resolved** — the alias calls `schedule_risk_mc.for_project`, the same engine |
+| three PPC implementations disagree | **accurate, and resolved** — one rule since v0.3.974, held by `services/api/test_ppc_divergence.py` |
+| `/schedule/compare` returns `finish_move_working_days` and `calendar_vs_working_gap_days` | **accurate** — both fields present, gate green |
+
+**The negative result is the point, and it is recorded so nobody runs this sweep again.** Every
+defect class this repository has found by sweeping — the refusal-state readers, `PORTAL-STATUS`,
+the status/workflow drift — showed **several** instances on the first probe. This one showed one, and
+four counter-examples. *A sample of one is a finding, not a pattern*, and the cost of the mistake runs
+the other way from the usual: generalising from it would have spent days confirming that
+well-maintained entries are well maintained.
+
+**What was NOT swept, stated so the gap is not mistaken for coverage.** Only the falsifiable five.
+A roadmap sentence that misdescribes something unexecutable — an intent, a plan, a reason — cannot be
+caught this way, and no gate proposed here would catch it either. The 103 test-file citations in this
+file were considered as a population and rejected: filtering them mechanically cannot separate a
+citation *describing what a test asserts* (self-consistent, the overwhelming majority) from one
+offered as *corroboration of a live defect* (the failing shape). That separation needs reading.
+
 **What survives is the real decision, and it is unchanged:** `schedule_windows` and
 `schedule_modelled` perform three of the four for real. **Whether `/schedule/eot` should delegate to
 them, or keep its own number and cite theirs, is a domain decision** — the EOT figure ends up in
