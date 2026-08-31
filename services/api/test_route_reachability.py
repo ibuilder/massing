@@ -442,8 +442,13 @@ print(f"  routes {len(PATHS)} · web source {len(BLOB):,} chars · uncalled by t
 #
 # `_STRICT` is what the rule said before `_templated_stem` existed. The difference must be exactly
 # the six whose call sites were read, one line at a time, in `_templated_stem`'s docstring.
+#: Stripped ONCE. The first draft called `strip_comments(BLOB)` inside the comprehension below, so a
+#: 3.9 MB blob was re-stripped per candidate route — 943 times — and this gate became the slowest in
+#: the suite at 72 s. One variable also guarantees all four checks below compare against the same
+#: text as `uncalled_routes` did, which a repeated call only happens to do.
+_CODE = strip_comments(BLOB)
 _STRICT = {r for r in PATHS
-           if len(_leaf(r)) >= MIN_SEGMENT and _leaf(r) not in strip_comments(BLOB)}
+           if len(_leaf(r)) >= MIN_SEGMENT and _leaf(r) not in _CODE}
 _GAINED = sorted(_STRICT - FOUND)
 _STEM_GAIN = [
     "/projects/{pid}/exports/cobie.xlsx", "/projects/{pid}/exports/qto.xlsx",
@@ -460,7 +465,7 @@ check("the two leniencies together vouch for EXACTLY the eight routes whose call
 #: above still passes while both instruments are wrong.
 _BY_PATTERN = sorted(r for r in _GAINED
                      if r not in CALLED_VIA_TEMPLATED_EXT
-                     and (_p := _templated_stem(r)) is not None and _p.search(strip_comments(BLOB)))
+                     and (_p := _templated_stem(r)) is not None and _p.search(_CODE))
 check("  ...six of them through the STEM pattern, and the other two only through the named list",
       _BY_PATTERN == sorted(_STEM_GAIN),
       f"the pattern accounts for {_BY_PATTERN}, expected {sorted(_STEM_GAIN)}")
@@ -469,7 +474,7 @@ check("  ...six of them through the STEM pattern, and the other two only through
 #: an allowlist asserting the OPPOSITE polarity — "this IS called" — needs the mirror of it, or it
 #: outlives its caller exactly the way the six frozen entries outlived theirs. Each entry names the
 #: call-site text that makes it true, and that text must still be in the source.
-_stale = sorted(r for r, ev in CALLED_VIA_TEMPLATED_EXT.items() if ev not in strip_comments(BLOB))
+_stale = sorted(r for r, ev in CALLED_VIA_TEMPLATED_EXT.items() if ev not in _CODE)
 check("  ...and every named entry's CALL SITE is still there — this list can rot too",
       not _stale,
       f"no longer called: {_stale} — the evidence string is gone, so either the caller moved (update "
