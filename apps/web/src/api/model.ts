@@ -93,7 +93,7 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
       truncated: number; note: string;
     }>(`/projects/${pid}/lod/handover-readiness`);
   }
-  /** FF&E BOM — furnishings bill of materials from placed furniture. */
+  /** ffeBom — furnishings bill of materials from placed furniture. */
   ffeBom(pid: string) {
     return this.json<{
       total: number; line_count: number;
