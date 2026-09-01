@@ -34,9 +34,7 @@ export async function renderEquipment(ctx: PanelContext) {
     if (!r.line_count) {
       body.appendChild(Object.assign(document.createElement("div"), { className: "meta",
         textContent: "No procurable equipment found in the model yet (needs MEP equipment, terminals or transport — ducts/pipes/fittings are excluded)." }));
-      return;
-    }
-
+    } else {
     const note = document.createElement("div"); note.className = "meta"; note.style.margin = "0 0 8px";
     note.textContent = "Grouped by class + type into RFQ line-items — the buyout package derived straight from the model.";
     body.appendChild(note);
@@ -55,6 +53,7 @@ export async function renderEquipment(ctx: PanelContext) {
     wrap.appendChild(t);
     if (r.lines.length > 200) wrap.insertAdjacentHTML("beforeend", `<div class="meta" style="opacity:.7">Showing first 200 of ${r.line_count} lines.</div>`);
     body.appendChild(wrap);
+    }
   } catch (e) {
     body.innerHTML = `<div class="meta">Equipment schedule unavailable: ${esc((e as Error).message)}</div>`;
   }
