@@ -153,7 +153,7 @@ describe("the API client's public surface", () => {
       "chartOfAccounts", "namingConventions", "elementsByDiscipline", "pipelineFunnel",
       "twoSidedBudget", "mepPressureLoss", "mepTrayFill", "mepThermalLoads",
       "lienWaiver", "rfqStatus", "entitlementConditionChecks",
-      "goldenThread", "k1Pack", "ffeBom", "specLinks", "authoringMatrix",
+      "goldenThread", "k1Pack", "capTable", "waterfallScenario", "capitalCall", "ffeBom", "specLinks", "authoringMatrix",
       "equipmentBudgetLines", "lodCensus", "exportQa", "qualityTurnoverReadiness",
       "costDatasets", "costVintage", "unitRates", "elementCosts5d", "gaebX83Url",
       "codeAmendments", "agentPacks", "modelHistory", "fileModel", "spacePack",

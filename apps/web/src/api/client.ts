@@ -281,61 +281,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
         rows: Record<string, unknown>[] };
     }>(`/projects/${pid}/leases/management${qs}`);
   }
-  /** Investor cap table — ownership by commitment + contributed/distributed totals. */
-  capTable(pid: string) {
-    return this.json<{ investor_count: number; total_commitment: number; total_contributed: number;
-      total_distributed: number; total_unreturned: number; by_class: Record<string, number>;
-      rows: Record<string, unknown>[] }>(`/projects/${pid}/cap-table`);
-  }
-  /** The syndication package — the cap table serialized to a neutral investor-platform schema. Always
-   * available offline; this is the payload the capital-markets connector pushes. */
-  securitiesPackage(pid: string) {
-    return this.json<{ schema: string; project: string; fund: Record<string, unknown>;
-      positions: Record<string, unknown>[]; disclosures: Record<string, unknown>; disclaimer: string }>(
-      `/projects/${pid}/securities/package`);
-  }
-  /** Whether the capital-markets syndication bridge is configured. Ledger sync only — never moves money. */
-  securitiesSyndicationStatus() {
-    return this.json<{ enabled: boolean; target: string; implemented: boolean; moves_money: boolean;
-      targets_supported: string[]; message: string }>(`/securities-syndication/status`);
-  }
-  /** Sync the cap table into the configured investor / digital-securities platform (positions only —
-   * no funds move). 422 with an actionable message if the bridge isn't configured. */
-  syndicateSecurities(pid: string) {
-    return this.json<{ target: string; remote_id: string | null; positions_pushed: number;
-      moves_money: boolean; status: string }>(
-      `/projects/${pid}/securities/syndicate`, { method: "POST" });
-  }
-  /** Run a distribution / equity-waterfall scenario over the cap table (pref → RoC → promote tiers). */
-  waterfallScenario(pid: string, body: { exit_amount?: number; contribution_date?: string;
-    exit_date?: string; distributable?: number[]; dates?: string[]; pref_rate?: number;
-    style?: string; clawback?: boolean } = {}) {
-    return this.json<{ total_distributable: number; lp_distributions: number; gp_distributions: number;
-      lp_irr: number | null; gp_irr: number | null; lp_equity_multiple: number; gp_equity_multiple: number;
-      lp_unreturned: number; pref_rate: number; style: string; note?: string;
-      periods: Record<string, unknown>[]; per_investor: Record<string, unknown>[] }>(
-      `/projects/${pid}/waterfall`, { method: "POST", body: JSON.stringify(body) });
-  }
-  /** Allocate a capital call (pro-rata by commitment). persist=true posts it to investor totals. */
-  capitalCall(pid: string, amount: number, persist = false) {
-    return this.json<{ kind: string; amount: number; persisted?: boolean; allocations: { investor: string; amount: number }[] }>(
-      `/projects/${pid}/capital-call`, { method: "POST", body: JSON.stringify({ amount, persist }) });
-  }
-  /** Allocate a distribution (pro-rata by commitment). persist=true posts it to investor totals. */
-  distribution(pid: string, amount: number, persist = false) {
-    return this.json<{ kind: string; amount: number; persisted?: boolean; allocations: { investor: string; amount: number }[] }>(
-      `/projects/${pid}/distribution`, { method: "POST", body: JSON.stringify({ amount, persist }) });
-  }
-  /** URL of a one-page investor capital-account statement PDF. */
-  investorStatementUrl(pid: string, iid: string) {
-    return this.url(`/projects/${pid}/investors/${iid}/statement.pdf`);
-  }
-  /** Mint a signed, expiring link to an investor's statement PDF (the no-login LP-portal share). */
-  shareInvestorStatement(pid: string, iid: string, ttl?: number) {
-    const q = ttl ? `?ttl=${ttl}` : "";
-    return this.json<{ url: string; sig: string; exp: number; expires_in: number }>(
-      `/projects/${pid}/investors/${iid}/share${q}`, { method: "POST" });
-  }
 
   // --- assistant · certified payroll · drawing set · ITB --------------------
   /** Ask about the whole project (modules/schedule/budget/risk); grounded snapshot, AI-optional. */

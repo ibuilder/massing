@@ -1,22 +1,16 @@
-/** FIN-GOV / FIN-INGEST — the locked reporting period, two-way reconciliation, and import lineage.
+/** Finance lock / ingest, plus the investor capital stack.
  *
- *  SCALE-SEAM ⑩ (targeted). Route-group `/projects/{pid}/finance`, taken out of `client.ts` by the
- *  route each method calls — the recipe ⑥ established.
+ *  SCALE-SEAM ⑩ took `/projects/{pid}/finance` (lock, reconcile, imports) out of `client.ts`.
+ *  SCALE-SEAM ㉙ adds the nine methods that answer *what do the investors own and get paid?* —
+ *  cap table, waterfall, capital calls, distributions, investor statements, and the securities
+ *  syndication package. `k1Pack` was already here (v0.3.1136); it is the same question from the
+ *  accountant's side. They span `/cap-table`, `/waterfall`, `/capital-call`, `/distribution`,
+ *  `/investors`, `/securities` and `/securities-syndication`, so a prefix split would have scattered
+ *  them. Rent-roll and lease management sat immediately above the cluster in `client.ts` and did
+ *  **not** come: those are property operations. *Adjacency in a file is not a relationship.*
  *
- *  **Not a sweep, and deliberately not one.** Measuring the residue of `client.ts` first showed 519
- *  methods across 191 route groups averaging 2.7 methods each — no coherent domain left worth a
- *  general extraction, and the largest remaining group would have moved 55 of 3,748 lines while
- *  moving the reachability ceiling by zero. That plan was dropped on those numbers.
- *
- *  This one is different because the ratchet asked for it by name. Giving `financeReconcile` the
- *  response shape it actually returns — instead of three `unknown[]` buckets that sent its first
- *  caller to read `fin_ingest.reconcile` — cost nine lines, and `client.ts` sat at exactly its
- *  `test_file_sizes.py` pin of 3,748. CI said `client.ts=3757 > 3748`. The file's own comment says
- *  the friction is the point and should force *"should this live in a domain module instead?"*, and
- *  for a four-method route group with a panel of its own the answer is yes. Pin 3,748 -> 3,726.
- *
- *  Reaches only `json` on `HttpCore`. A mixin, so every call site resolves unchanged;
- *  `api/surface.test.ts` proves a move is invisible to it and a loss is not.
+ *  Composed through the existing `withFinance` wrapper — no extra `withX()` on `ApiClient`
+ *  (TS mixin depth). `api/surface.test.ts` proves a move is invisible to it and a loss is not.
  */
 import { HttpCore } from "./httpCore";
 
@@ -54,6 +48,62 @@ export function withFinance<TBase extends Ctor<HttpCore>>(Base: TBase) {
   financeImports(pid: string) {
     return this.json<{ ts: string | null; actor: string | null; module: string; filename: string;
       imported: number; error_count: number }[]>(`/projects/${pid}/finance/imports`);
+  }
+
+  /** Investor cap table — ownership by commitment + contributed/distributed totals. */
+  capTable(pid: string) {
+    return this.json<{ investor_count: number; total_commitment: number; total_contributed: number;
+      total_distributed: number; total_unreturned: number; by_class: Record<string, number>;
+      rows: Record<string, unknown>[] }>(`/projects/${pid}/cap-table`);
+  }
+  /** The syndication package — the cap table serialized to a neutral investor-platform schema. Always
+   * available offline; this is the payload the capital-markets connector pushes. */
+  securitiesPackage(pid: string) {
+    return this.json<{ schema: string; project: string; fund: Record<string, unknown>;
+      positions: Record<string, unknown>[]; disclosures: Record<string, unknown>; disclaimer: string }>(
+      `/projects/${pid}/securities/package`);
+  }
+  /** Whether the capital-markets syndication bridge is configured. Ledger sync only — never moves money. */
+  securitiesSyndicationStatus() {
+    return this.json<{ enabled: boolean; target: string; implemented: boolean; moves_money: boolean;
+      targets_supported: string[]; message: string }>(`/securities-syndication/status`);
+  }
+  /** Sync the cap table into the configured investor / digital-securities platform (positions only —
+   * no funds move). 422 with an actionable message if the bridge isn't configured. */
+  syndicateSecurities(pid: string) {
+    return this.json<{ target: string; remote_id: string | null; positions_pushed: number;
+      moves_money: boolean; status: string }>(
+      `/projects/${pid}/securities/syndicate`, { method: "POST" });
+  }
+  /** Run a distribution / equity-waterfall scenario over the cap table (pref → RoC → promote tiers). */
+  waterfallScenario(pid: string, body: { exit_amount?: number; contribution_date?: string;
+    exit_date?: string; distributable?: number[]; dates?: string[]; pref_rate?: number;
+    style?: string; clawback?: boolean } = {}) {
+    return this.json<{ total_distributable: number; lp_distributions: number; gp_distributions: number;
+      lp_irr: number | null; gp_irr: number | null; lp_equity_multiple: number; gp_equity_multiple: number;
+      lp_unreturned: number; pref_rate: number; style: string; note?: string;
+      periods: Record<string, unknown>[]; per_investor: Record<string, unknown>[] }>(
+      `/projects/${pid}/waterfall`, { method: "POST", body: JSON.stringify(body) });
+  }
+  /** Allocate a capital call (pro-rata by commitment). persist=true posts it to investor totals. */
+  capitalCall(pid: string, amount: number, persist = false) {
+    return this.json<{ kind: string; amount: number; persisted?: boolean; allocations: { investor: string; amount: number }[] }>(
+      `/projects/${pid}/capital-call`, { method: "POST", body: JSON.stringify({ amount, persist }) });
+  }
+  /** Allocate a distribution (pro-rata by commitment). persist=true posts it to investor totals. */
+  distribution(pid: string, amount: number, persist = false) {
+    return this.json<{ kind: string; amount: number; persisted?: boolean; allocations: { investor: string; amount: number }[] }>(
+      `/projects/${pid}/distribution`, { method: "POST", body: JSON.stringify({ amount, persist }) });
+  }
+  /** URL of a one-page investor capital-account statement PDF. */
+  investorStatementUrl(pid: string, iid: string) {
+    return this.url(`/projects/${pid}/investors/${iid}/statement.pdf`);
+  }
+  /** Mint a signed, expiring link to an investor's statement PDF (the no-login LP-portal share). */
+  shareInvestorStatement(pid: string, iid: string, ttl?: number) {
+    const q = ttl ? `?ttl=${ttl}` : "";
+    return this.json<{ url: string; sig: string; exp: number; expires_in: number }>(
+      `/projects/${pid}/investors/${iid}/share${q}`, { method: "POST" });
   }
 
   /** Capital-account movement an accountant needs for Schedule K-1 prep — not a tax document. */
