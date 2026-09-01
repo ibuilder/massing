@@ -10,10 +10,13 @@
  *  NL-QA. They were not contiguous in `client.ts` (logistics and the model graph sat between
  *  readiness and QA). Logistics and the graph did **not** come.
  *
+ *  SCALE-SEAM ❻ adds the RFI register — *what is still open, and who holds the ball?*
+ *  Feasibility sat immediately below and did **not** come.
+ *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
 import { HttpCore } from "./httpCore";
-import type { Topic, Viewpoint } from "./types";
+import type { RfiRegister, Topic, Viewpoint } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -78,6 +81,11 @@ export function withTopics<TBase extends Ctor<HttpCore>>(Base: TBase) {
       citations: { kind: string; ref: string; source?: string; guids?: string[] }[];
       disclaimer: string; found?: boolean; ready?: boolean;
     }>(`/projects/${pid}/rfi/qa`, { method: "POST", body: JSON.stringify({ question }) });
+  }
+
+  /** rfiRegister — ball-in-court, overdue, response turnaround, cost/schedule-impact exposure. */
+  rfiRegister(pid: string) {
+    return this.json<RfiRegister>(`/projects/${pid}/rfi/register`);
   }
   };
 }

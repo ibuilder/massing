@@ -171,6 +171,7 @@ describe("the API client's public surface", () => {
       "askModel", "askProject",
       "submittalRegister", "specSubmittalLog", "extractSubmittals",
       "coLog",
+      "actionTracker", "rfiRegister", "feasibility", "feasibilityCompare",
       "clashMetrics", "clashClearanceRules", "clashMatrix",
       "chartOfAccounts", "namingConventions", "elementsByDiscipline", "pipelineFunnel",
       "twoSidedBudget", "mepPressureLoss", "mepTrayFill", "mepThermalLoads",

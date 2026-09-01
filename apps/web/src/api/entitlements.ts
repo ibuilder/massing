@@ -17,6 +17,9 @@ import type { EntitlementConditions, OpendataPermit, ReviewCycles } from "./type
  * SCALE-SEAM ㊽ adds open-data municipal filings — *which permits exist near this site?*
  * Cities catalog, query, import into the GC permit module. `permitReadiness` stayed — that
  * is a model-submission checklist, not a city feed.
+ *
+ * SCALE-SEAM ❼ adds zoning feasibility — *what can we legally build on this site?*
+ * Envelope plus scheme compare. `qualitySummary` sat below and did **not** come.
  */
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -71,6 +74,29 @@ export function withEntitlements<TBase extends Ctor<HttpCore>>(Base: TBase) {
   importOpendataPermits(pid: string, body: { city: string; lat?: number; lon?: number; radius?: number; address?: string; q?: string; max?: number }) {
     return this.json<{ imported: number; skipped: number; found: number; refs: string[] }>(
       `/projects/${pid}/opendata/permits/import`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  /** feasibility — zoning envelope: max buildable GFA, unit yield, parking, vs model GFA. */
+  feasibility(pid: string, gfa?: number) {
+    const qs = gfa != null ? `?gfa=${gfa}` : "";
+    return this.json<{ error?: string; site?: string; jurisdiction?: string; use_type?: string;
+      site_area_sf?: number; site_area_acres?: number; buildable_footprint_sf?: number | null;
+      max_floors?: number | null; far_gfa_sf?: number | null; envelope_gfa_sf?: number | null;
+      allowed_gfa_sf?: number | null; binding_constraint?: string | null; net_buildable_sf?: number | null;
+      unit_yield?: number | null; parking_required?: number | null; open_space_required_sf?: number | null;
+      constraints?: { constraint: string; limit_gfa_sf: number; basis: string }[];
+      model?: { actual_gfa_sf: number; far_used: number; pct_of_allowed: number;
+        headroom_gfa_sf: number; status: string } | null; warnings?: string[]; ref?: string }>(
+      `/projects/${pid}/feasibility${qs}`);
+  }
+  /** feasibilityCompare — zoning schemes ranked by buildable yield. */
+  feasibilityCompare(pid: string) {
+    return this.json<{ count: number; best_ref?: string | null; warnings?: string[];
+      scenarios: { ref?: string; site?: string; use_type?: string; far?: number | null;
+        max_floors?: number | null; allowed_gfa_sf?: number | null; binding_constraint?: string | null;
+        net_buildable_sf?: number | null; unit_yield?: number | null; parking_required?: number | null;
+        delta_units?: number; delta_gfa_sf?: number }[] }>(
+      `/projects/${pid}/feasibility/compare`);
   }
   };
 }

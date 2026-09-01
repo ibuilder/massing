@@ -59,7 +59,7 @@ import type {
   ResponsibilityMatrix, SmartView,
     BidLevelingDetail,
     SpecManual, Topic, Vec3, WorkItem, VitalsPayload,
-    DiligenceReadiness, MasterBuilderBrief, RfiRegister, PrequalScores,
+    DiligenceReadiness, MasterBuilderBrief, PrequalScores,
     SpineTraceability } from "./types";
 
 
@@ -146,14 +146,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     return r.json() as Promise<{ stored: boolean; bytes: number }>;
   }
-  /** Meeting & action-item tracker — open/overdue by assignee, completion, meeting log. */
-  actionTracker(pid: string) {
-    return this.json<{ action_count: number; open_count: number; done_count: number;
-      overdue_count: number; completion_pct: number | null; meeting_count: number;
-      last_meeting: string | null; by_assignee: Record<string, number>;
-      meetings_by_type: Record<string, number>; rows: Record<string, unknown>[] }>(
-      `/projects/${pid}/action-items/tracker`);
-  }
   /** Executive project-health rollup — per-domain status, overall score, ranked attention items. */
   projectHealth(pid: string) {
     return this.json<{
@@ -205,32 +197,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       peak_manpower: { count: number; date: string | null }; weather_lost_days: number;
       delay_days: number; by_weather: Record<string, number>; by_impact: Record<string, number>;
       rows: Record<string, unknown>[] }>(`/projects/${pid}/daily-reports/summary`);
-  }
-  /** RFI register — ball-in-court, overdue, response turnaround, cost/schedule-impact exposure. */
-  rfiRegister(pid: string) {
-    return this.json<RfiRegister>(`/projects/${pid}/rfi/register`);
-  }
-  /** Site feasibility / zoning envelope — max buildable GFA, unit yield, parking, vs. model GFA. */
-  feasibility(pid: string, gfa?: number) {
-    const qs = gfa != null ? `?gfa=${gfa}` : "";
-    return this.json<{ error?: string; site?: string; jurisdiction?: string; use_type?: string;
-      site_area_sf?: number; site_area_acres?: number; buildable_footprint_sf?: number | null;
-      max_floors?: number | null; far_gfa_sf?: number | null; envelope_gfa_sf?: number | null;
-      allowed_gfa_sf?: number | null; binding_constraint?: string | null; net_buildable_sf?: number | null;
-      unit_yield?: number | null; parking_required?: number | null; open_space_required_sf?: number | null;
-      constraints?: { constraint: string; limit_gfa_sf: number; basis: string }[];
-      model?: { actual_gfa_sf: number; far_used: number; pct_of_allowed: number;
-        headroom_gfa_sf: number; status: string } | null; warnings?: string[]; ref?: string }>(
-      `/projects/${pid}/feasibility${qs}`);
-  }
-  /** Compare zoning schemes (one zoning record = one scheme) ranked by buildable yield. */
-  feasibilityCompare(pid: string) {
-    return this.json<{ count: number; best_ref?: string | null; warnings?: string[];
-      scenarios: { ref?: string; site?: string; use_type?: string; far?: number | null;
-        max_floors?: number | null; allowed_gfa_sf?: number | null; binding_constraint?: string | null;
-        net_buildable_sf?: number | null; unit_yield?: number | null; parking_required?: number | null;
-        delta_units?: number; delta_gfa_sf?: number }[] }>(
-      `/projects/${pid}/feasibility/compare`);
   }
   /** Quality dashboard — inspection pass-rate KPIs, NCR loop, deficiency ball-in-court. */
   qualitySummary(pid: string) {

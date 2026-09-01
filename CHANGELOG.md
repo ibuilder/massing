@@ -106,6 +106,16 @@ Seventh follow-on on the same version: **SCALE-SEAM ❷ ❸ ❹**. Six methods o
 
 `MARKS` widened to ❺ on the way out. Pin 2,035 → 2,000.
 
+Eighth follow-on on the same version: **SCALE-SEAM ❺ ❻ ❼**. Four methods out of
+`client.ts` (`2,000 → 1,966`) into existing mixins.
+
+- ❺ *are meeting actions closing?* — one method onto `apps/web/src/api/routines.ts`.
+- ❻ *what RFIs are still open?* — one method onto `apps/web/src/api/topics.ts`.
+- ❼ *what can we legally build on this site?* — two methods onto
+  `apps/web/src/api/entitlements.ts`. Quality stayed.
+
+`MARKS` widened to ❽ on the way out. Pin 2,000 → 1,966.
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin

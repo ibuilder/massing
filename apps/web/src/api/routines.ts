@@ -12,6 +12,9 @@
  *  static segment is `due`, three characters, below the 5-char distinctiveness floor the rule needs to
  *  avoid 40% noise. That is the gate's documented blind spot rather than a defect in it, but it means
  *  the read half of this pair is still unwired and a UI will want it.
+ *
+ *  SCALE-SEAM ❺ adds the meeting action tracker — *are meeting actions closing?*
+ *  `projectHealth` sat immediately below and did **not** come.
  */
 import { HttpCore } from "./httpCore";
 
@@ -33,6 +36,15 @@ export function withRoutines<TBase extends Ctor<HttpCore>>(Base: TBase) {
       skipped: { id: string; kind: string; status: string; reason: string }[];
       in_flight_kinds: string[]; total_missed_windows: number; note: string;
     }>(`/projects/${pid}/routines/run-due`, { method: "POST" });
+  }
+
+  /** actionTracker — open/overdue by assignee, completion, meeting log. */
+  actionTracker(pid: string) {
+    return this.json<{ action_count: number; open_count: number; done_count: number;
+      overdue_count: number; completion_pct: number | null; meeting_count: number;
+      last_meeting: string | null; by_assignee: Record<string, number>;
+      meetings_by_type: Record<string, number>; rows: Record<string, unknown>[] }>(
+      `/projects/${pid}/action-items/tracker`);
   }
   };
 }
