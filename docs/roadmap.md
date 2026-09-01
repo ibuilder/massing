@@ -1188,7 +1188,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㉞ *(the only open slice; ②–㉝ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㊲ *(the only open slice; ②–㊱ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -3061,7 +3061,29 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㉞ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㉝ have shipped, **㉝ Last-Planner pull board in v0.3.1143**)*
+- ◧ ⭐ **SCALE-SEAM ㊲ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㊱ have shipped, **㉞–㊱ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+  **㊱ took the site-logistics stack out** (three methods; part of `client.ts` 2,440 → 2,323) into
+  the existing `apps/web/src/api/schedule.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped
+  by what they ANSWER: *what resources are on site when?* Get/put the resource list and the
+  date-sliced active set. **The model graph did NOT come**, though it sat immediately below —
+  that is a relational query. *Adjacency in a file is not a relationship.*
+  **`MARKS` was widened to ㊲ on the way out.**
+
+  **㉟ took the RFI readiness / NL-QA stack out** (three methods) into the existing
+  `apps/web/src/api/topics.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what does this model still need, and can we ask it a cited question?* Readiness gaps,
+  promoting those gaps to BCF topics, NL-QA. They were **not contiguous** in `client.ts` (logistics
+  and the model graph sat between readiness and QA). **Logistics and the graph did NOT come**
+  with this slice. *Adjacency in a file is not a relationship.*
+
+  **㉞ took the structural analysis stack out** (five methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *does this frame stand?* Analytical summary, gravity solve, OpenSees Tcl, Code_Aster
+  mesh, ASCE 7 lateral. **`subsetIfcUrl` did NOT come** (QUERY-DSL export). **Collab snapshot,
+  carbon compliance, and permit readiness did NOT come.** Also deleted two stranded comments on
+  `model.ts` (`FIN-PORTFOLIO` above `modelCapabilities`, `SMART-VIEWS` on the class close).
+  **The per-file pin moved 2,440 → 2,323** across ㉞+㉟+㊱.
+
   **㉝ took the Last-Planner stack out** (six methods; `client.ts` 2,486 → 2,440) into the existing
   `apps/web/src/api/schedule.ts` mixin — **no extra wrapper on `ApiClient`** (clash already rides
   here). Grouped by what they ANSWER: *did this week keep its commitments?* Pull board, PDF, PPC/TMR

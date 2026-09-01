@@ -1,5 +1,5 @@
 /** Model: the read side of the IFC model — capabilities, query, assets, exports, roundtrip,
- *  columnar stats and the live edit stream.
+ *  columnar stats, the live edit stream, and the analytical frame (does this structure stand?).
  *
  *  SCALE-SEAM ③. Route-group `/model`, the largest of the 219 groups in `client.ts` (29 methods).
  *  Picked by classifying every method by the route it calls — the `// --- section ---` comments label
@@ -227,7 +227,6 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
         overridden: boolean; type_value: unknown }>> }>(
       `/projects/${pid}/model/element/${encodeURIComponent(guid)}/effective-props`);
   }
-  /** FIN-PORTFOLIO — latest scenario per project side-by-side with governance state + the spread. */
   // --- model analysis (capabilities / query / LOD / envelope / MEP-extract / naming) --------------
   modelCapabilities(pid: string) {
     return this.json<{ supported_read_schemas: string[];
@@ -324,6 +323,90 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
   projectPulse(pid: string) {
     return this.json<ProjectPulse>(`/projects/${pid}/pulse`);
   }
-  /** SMART-VIEWS — the project's saved property-driven view presets (name + selector + mode). */
+
+  /** analyticalSummary — IfcStructuralAnalysisModel derived from the physical frame. */
+  analyticalSummary(pid: string) {
+    return this.json<{
+      analysis_models: { guid: string; name: string | null; predefined_type: string | null }[];
+      curve_members: number; surface_members: number; point_connections: number;
+      load_cases: (string | null)[]; load_groups: (string | null)[]; load_actions?: number;
+      supports?: number; has_model: boolean;
+    }>(`/projects/${pid}/analytical`);
+  }
+
+  /** structureSolve — gravity load case on analytical members plus a determinate statics solve. */
+  structureSolve(pid: string, opts?: {
+    liveOccupancy?: string; sdlPsf?: number; slabThicknessIn?: number;
+    tributaryFt?: number; grossAreaSf?: number; eKsi?: number; iIn4?: number;
+  }) {
+    const q = new URLSearchParams();
+    if (opts?.liveOccupancy) q.set("live_occupancy", opts.liveOccupancy);
+    if (opts?.sdlPsf != null) q.set("sdl_psf", String(opts.sdlPsf));
+    if (opts?.slabThicknessIn != null) q.set("slab_thickness_in", String(opts.slabThicknessIn));
+    if (opts?.tributaryFt != null) q.set("tributary_ft", String(opts.tributaryFt));
+    if (opts?.grossAreaSf != null) q.set("gross_area_sf", String(opts.grossAreaSf));
+    if (opts?.eKsi != null) q.set("e_ksi", String(opts.eKsi));
+    if (opts?.iIn4 != null) q.set("i_in4", String(opts.iIn4));
+    const qs = q.toString();
+    type Diagram = { x_ft: number; shear_kip: number; moment_kipft: number; deflection_in: number };
+    type Beam = {
+      name: string; guid: string; length_ft: number;
+      service: {
+        reaction_kip: number; shear_max_kip: number; moment_max_kipft: number;
+        deflection_in: number; deflection_limit_in: number; deflection_ok: boolean; diagram: Diagram[];
+      };
+      factored: Beam["service"];
+    };
+    return this.json<{
+      has_analytical: boolean; message?: string;
+      load_case?: {
+        name: string; dead_klf: number; live_klf: number; service_klf: number;
+        factored_lrfd_klf: number; dead_psf: number; live_psf: number; tributary_ft: number;
+        governing_combo: string;
+      };
+      counts?: { beams: number; columns: number; total_beam_length_ft: number };
+      governing_beam?: Beam | null; beams?: Beam[];
+      columns_axial?: {
+        service_total_kip: number; factored_lrfd_kip: number; storeys: number;
+        column_count: number; note: string;
+      } | null;
+      reactions?: { sum_beam_service_kip: number };
+      assumptions?: Record<string, unknown>; disclaimer?: string;
+    }>(`/projects/${pid}/structure/solve${qs ? `?${qs}` : ""}`);
+  }
+
+  /** openseesTclUrl — download URL for the analytical frame as an OpenSees (.tcl) model. */
+  openseesTclUrl(pid: string) {
+    return this.url(`/projects/${pid}/structure/opensees.tcl`);
+  }
+  /** codeAsterMailUrl — the analytical frame as a Code_Aster mesh (.mail, SI metres). */
+  codeAsterMailUrl(pid: string) {
+    return this.url(`/projects/${pid}/structure/code-aster.mail`);
+  }
+
+  /** structureLateral — ASCE 7 wind plus seismic lateral analysis (base shear to story forces). */
+  structureLateral(pid: string, opts?: {
+    sds?: number; sd1?: number; r?: number; ie?: number; system?: string;
+    windSpeedMph?: number; exposure?: string; deadPsf?: number; areaSf?: number;
+  }) {
+    const q = new URLSearchParams();
+    const map: Record<string, number | string | undefined> = {
+      sds: opts?.sds, sd1: opts?.sd1, r: opts?.r, ie: opts?.ie, system: opts?.system,
+      wind_speed_mph: opts?.windSpeedMph, exposure: opts?.exposure,
+      dead_psf: opts?.deadPsf, area_sf: opts?.areaSf,
+    };
+    for (const [k, v] of Object.entries(map)) if (v != null) q.set(k, String(v));
+    const qs = q.toString();
+    type Story = { level: number; height_ft: number; force_kip: number; shear_kip: number };
+    return this.json<{
+      story_count: number; area_sf: number | null; dead_psf: number; story_weight_kip: number;
+      seismic: { method: string; period_s: number; k: number; Cs: number; seismic_weight_kip: number;
+                 base_shear_kip: number; overturning_kipft: number; stories: (Story & { cvx: number; weight_kip: number })[] };
+      wind: { method: string; qh_psf: number; base_shear_kip: number; overturning_kipft: number;
+              stories: (Story & { trib_ft: number; pressure_psf: number })[] };
+      governing: { system: string; base_shear_kip: number };
+      disclaimer: string;
+    }>(`/projects/${pid}/structure/lateral${qs ? `?${qs}` : ""}`);
+  }
   };
 }

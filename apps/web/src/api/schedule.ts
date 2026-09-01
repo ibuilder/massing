@@ -1,4 +1,4 @@
-/** Schedule: CPM, 4D, takt, P6/MSP interchange, and the Last-Planner pull board.
+/** Schedule: CPM, 4D, takt, P6/MSP interchange, the Last-Planner pull board, and site logistics.
  *
  *  SCALE-SEAM ② took `/schedule`. SCALE-SEAM ㉝ adds the six Last-Planner methods that answer
  *  *did this week keep its commitments?* — the pull board, its PDF, PPC/TMR metrics, the
@@ -6,11 +6,15 @@
  *  `/lean/ppc`. License/integrations sat immediately above the cluster in `client.ts` and did
  *  **not** come (admin, not the board). Permit-city open data sat immediately below and did
  *  **not** come. Clash already rides this mixin so `ApiClient` does not grow another `withX()`.
+ *
+ *  SCALE-SEAM ㊱ adds the three logistics methods that answer *what resources are on site when?*
+ *  They sit on the 4D timeline. The model graph sat immediately below them in `client.ts` and
+ *  did **not** come — that is a relational query, not a site resource.
  */
 import { IS_DEMO, demoTextOr } from "../demo/demoApi";
 import { withClash } from "./clash";
 import { HttpCore, type LiveStream } from "./httpCore";
-import type { MakeReady } from "./types";
+import type { LogisticsResource, MakeReady } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -616,6 +620,19 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
                  onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
     return this.liveStream(`/projects/${pid}/pull-plan/stream`,
                            onMessage as (d: unknown) => void, onStatus);
+  }
+
+  /** getLogistics — site resources placed on the 4D timeline. */
+  getLogistics(pid: string) {
+    return this.json<{ resources: LogisticsResource[]; summary: { total: number; by_kind: Record<string, number>; start: string | null; end: string | null } }>(`/projects/${pid}/logistics`);
+  }
+  /** putLogistics — replace the project's site-logistics resource list. */
+  putLogistics(pid: string, resources: LogisticsResource[]) {
+    return this.json<{ resources: LogisticsResource[] }>(`/projects/${pid}/logistics`, { method: "PUT", body: JSON.stringify({ resources }) });
+  }
+  /** logisticsState — which site resources are active on a given date. */
+  logisticsState(pid: string, date?: string) {
+    return this.json<{ date: string | null; active: LogisticsResource[]; active_count: number; total: number }>(`/projects/${pid}/logistics/state${date ? `?date=${encodeURIComponent(date)}` : ""}`);
   }
   };
 }

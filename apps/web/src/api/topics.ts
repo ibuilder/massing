@@ -1,9 +1,14 @@
-/** BCF topics: create, viewpoints, board, timeline, comments.
+/** BCF topics: create, viewpoints, board, timeline, comments, and RFI readiness / NL-QA.
  *
  *  SCALE-SEAM ⑳. Route-group `/projects/{pid}/topics`, taken out of `client.ts` by the route
  *  each method calls. Seven methods in **three** regions — create/viewpoints next to pins,
  *  the board next to share links, timeline/comments next to model-version review.
  *  `pins()` is `/pins` and stays. Clash `create_topics` query flags stay with `/clash`.
+ *
+ *  SCALE-SEAM ㉟ adds the three RFI methods that answer *what does this model still need, and
+ *  can we ask it a cited question?* — readiness gaps, promoting those gaps to BCF topics, and
+ *  NL-QA. They were not contiguous in `client.ts` (logistics and the model graph sat between
+ *  readiness and QA). Logistics and the graph did **not** come.
  *
  *  A mixin, so every call site resolves unchanged. `api/surface.test.ts` is what proves it.
  */
@@ -52,6 +57,27 @@ export function withTopics<TBase extends Ctor<HttpCore>>(Base: TBase) {
   addTopicComment(pid: string, tid: string, body: { author?: string; text: string; reply_to?: string }) {
     return this.json<{ id: string; reply_to: string | null }>(
       `/projects/${pid}/topics/${tid}/comments`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  /** rfiReadiness — decision-readiness gaps on this model (cited, severity-ranked). */
+  rfiReadiness(pid: string) {
+    return this.json<{ ready: boolean; total_gaps: number; high_severity: number; summary: string; disclaimer: string;
+      by_category: Record<string, number>;
+      gaps: { category: string; severity: string; title: string; detail: string; fix: string; citation?: string;
+        count?: number | null; guids?: string[] }[] }>(`/projects/${pid}/rfi/readiness`);
+  }
+  /** rfiReadinessBcf — promote those readiness gaps to BCF topics (one per gap, GUID-anchored). */
+  rfiReadinessBcf(pid: string) {
+    return this.json<{ created: number; topics: string[]; ready: boolean; high_severity: number }>(
+      `/projects/${pid}/rfi/readiness/bcf`, { method: "POST", body: "{}" });
+  }
+  /** rfiQa — a plain-language question to a cited answer from the model's own data. */
+  rfiQa(pid: string, question: string) {
+    return this.json<{
+      question: string; intent: string; answer: string;
+      citations: { kind: string; ref: string; source?: string; guids?: string[] }[];
+      disclaimer: string; found?: boolean; ready?: boolean;
+    }>(`/projects/${pid}/rfi/qa`, { method: "POST", body: JSON.stringify({ question }) });
   }
   };
 }

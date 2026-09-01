@@ -16,6 +16,21 @@ PPC/TMR metrics, pull-planning benchmark, lean PPC, live board stream.
 `MARKS` widened to ㉞ on the way out. Pin lowered with the file. This bump sits on the
 `test_release_current` bound (10 ahead of tag `v0.3.1133`).
 
+Follow-on on the same version (no bump — the bound is already tight): **SCALE-SEAM ㉞ ㉟ ㊱**.
+Eleven methods out of `client.ts` (`2,440 → 2,323`) into existing mixins, still no extra
+`withX()` on `ApiClient`.
+
+- ㉞ *does this frame stand?* — five methods onto `apps/web/src/api/model.ts` (analytical
+  summary, gravity solve, OpenSees Tcl, Code_Aster mesh, ASCE 7 lateral). `subsetIfcUrl`,
+  collab, carbon compliance, and permit readiness stayed. Two stranded comments on `model.ts`
+  deleted.
+- ㉟ *what does this model still need, and can we ask it?* — three methods onto
+  `apps/web/src/api/topics.ts` (readiness, promote-to-BCF, NL-QA). Not a contiguous run.
+- ㊱ *what resources are on site when?* — three methods onto `apps/web/src/api/schedule.ts`
+  (get/put logistics, date state). The model graph stayed.
+
+`MARKS` widened to ㊲ on the way out. Pin lowered with the file.
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin

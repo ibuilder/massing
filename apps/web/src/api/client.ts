@@ -55,7 +55,7 @@ export type { ClashResult } from "./clash";
 import type {
   AuditEntry, Dashboard,
   DisciplineTree, DueFeed, EditMacro, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, RoomAllocation,
-  LogisticsResource, NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate,
+  NotifItem, OpendataPermit, ProjectMember, ProjectRole, PropLayer, PropMapRule, PreflightGate,
   ResponsibilityMatrix, SmartView,
     BidLevelingDetail,
     SpecManual, Topic, Vec3, WorkItem, VitalsPayload,
@@ -823,29 +823,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     if (!res.ok) throw new Error((await res.json().catch(() => ({ detail: res.status }))).detail || `CityGML -> ${res.status}`);
     return res.json() as Promise<{ type: string; features: unknown[]; meta: { buildings: number } }>;
   }
-  rfiReadiness(pid: string) {
-    return this.json<{ ready: boolean; total_gaps: number; high_severity: number; summary: string; disclaimer: string;
-      by_category: Record<string, number>;
-      gaps: { category: string; severity: string; title: string; detail: string; fix: string; citation?: string;
-        count?: number | null; guids?: string[] }[] }>(`/projects/${pid}/rfi/readiness`);
-  }
-  /** RFI-0: promote the decision-readiness gaps to BCF topics (one per gap, GUID-anchored, priority by severity). */
-  rfiReadinessBcf(pid: string) {
-    return this.json<{ created: number; topics: string[]; ready: boolean; high_severity: number }>(
-      `/projects/${pid}/rfi/readiness/bcf`, { method: "POST", body: "{}" });
-  }
-
-  // W9-5 site logistics on the 4D timeline
-  getLogistics(pid: string) {
-    return this.json<{ resources: LogisticsResource[]; summary: { total: number; by_kind: Record<string, number>; start: string | null; end: string | null } }>(`/projects/${pid}/logistics`);
-  }
-  putLogistics(pid: string, resources: LogisticsResource[]) {
-    return this.json<{ resources: LogisticsResource[] }>(`/projects/${pid}/logistics`, { method: "PUT", body: JSON.stringify({ resources }) });
-  }
-  logisticsState(pid: string, date?: string) {
-    return this.json<{ date: string | null; active: LogisticsResource[]; active_count: number; total: number }>(`/projects/${pid}/logistics/state${date ? `?date=${encodeURIComponent(date)}` : ""}`);
-  }
-
   // W9-4 semantic model graph (IFC relationships) — multi-hop, cited relational queries
   modelGraphStats(pid: string) {
     return this.json<{ nodes: number; edges: number; by_rel: Record<string, number> }>(`/projects/${pid}/graph`);
@@ -868,103 +845,9 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       by_rel: Record<string, number>;
     }>(`/projects/${pid}/doc-graph`);
   }
-  // RFI-0 NL-QA: a plain-language question -> a cited answer from the model's own data
-  rfiQa(pid: string, question: string) {
-    return this.json<{
-      question: string; intent: string; answer: string;
-      citations: { kind: string; ref: string; source?: string; guids?: string[] }[];
-      disclaimer: string; found?: boolean; ready?: boolean;
-    }>(`/projects/${pid}/rfi/qa`, { method: "POST", body: JSON.stringify({ question }) });
-  }
-
-  // W10-7 structural analytical model (IfcStructuralAnalysisModel derived from the physical frame)
-  analyticalSummary(pid: string) {
-    return this.json<{
-      analysis_models: { guid: string; name: string | null; predefined_type: string | null }[];
-      curve_members: number; surface_members: number; point_connections: number;
-      load_cases: (string | null)[]; load_groups: (string | null)[]; load_actions?: number;
-      supports?: number; has_model: boolean;
-    }>(`/projects/${pid}/analytical`);
-  }
-
-  // STRUCT-SOLVE: apply a gravity load case to the analytical members + a determinate statics solve
-  structureSolve(pid: string, opts?: {
-    liveOccupancy?: string; sdlPsf?: number; slabThicknessIn?: number;
-    tributaryFt?: number; grossAreaSf?: number; eKsi?: number; iIn4?: number;
-  }) {
-    const q = new URLSearchParams();
-    if (opts?.liveOccupancy) q.set("live_occupancy", opts.liveOccupancy);
-    if (opts?.sdlPsf != null) q.set("sdl_psf", String(opts.sdlPsf));
-    if (opts?.slabThicknessIn != null) q.set("slab_thickness_in", String(opts.slabThicknessIn));
-    if (opts?.tributaryFt != null) q.set("tributary_ft", String(opts.tributaryFt));
-    if (opts?.grossAreaSf != null) q.set("gross_area_sf", String(opts.grossAreaSf));
-    if (opts?.eKsi != null) q.set("e_ksi", String(opts.eKsi));
-    if (opts?.iIn4 != null) q.set("i_in4", String(opts.iIn4));
-    const qs = q.toString();
-    type Diagram = { x_ft: number; shear_kip: number; moment_kipft: number; deflection_in: number };
-    type Beam = {
-      name: string; guid: string; length_ft: number;
-      service: {
-        reaction_kip: number; shear_max_kip: number; moment_max_kipft: number;
-        deflection_in: number; deflection_limit_in: number; deflection_ok: boolean; diagram: Diagram[];
-      };
-      factored: Beam["service"];
-    };
-    return this.json<{
-      has_analytical: boolean; message?: string;
-      load_case?: {
-        name: string; dead_klf: number; live_klf: number; service_klf: number;
-        factored_lrfd_klf: number; dead_psf: number; live_psf: number; tributary_ft: number;
-        governing_combo: string;
-      };
-      counts?: { beams: number; columns: number; total_beam_length_ft: number };
-      governing_beam?: Beam | null; beams?: Beam[];
-      columns_axial?: {
-        service_total_kip: number; factored_lrfd_kip: number; storeys: number;
-        column_count: number; note: string;
-      } | null;
-      reactions?: { sum_beam_service_kip: number };
-      assumptions?: Record<string, unknown>; disclaimer?: string;
-    }>(`/projects/${pid}/structure/solve${qs ? `?${qs}` : ""}`);
-  }
-
-  /** FEM-EXPORT: download URL for the analytical frame as an OpenSees (.tcl) model. */
-  openseesTclUrl(pid: string) {
-    return this.url(`/projects/${pid}/structure/opensees.tcl`);
-  }
-  /** SOLVER-OUT — the analytical frame as a Code_Aster mesh (.mail, SI metres). */
-  codeAsterMailUrl(pid: string) {
-    return this.url(`/projects/${pid}/structure/code-aster.mail`);
-  }
-
   /** SUBSET-EXPORT: download URL for an IFC of just the elements matching a QUERY-DSL selector. */
   subsetIfcUrl(pid: string, query: string) {
     return this.url(`/projects/${pid}/export/subset.ifc?query=${encodeURIComponent(query)}`);
-  }
-
-  // STRUCT-LATERAL: ASCE 7 wind + seismic lateral analysis (base shear → story forces)
-  structureLateral(pid: string, opts?: {
-    sds?: number; sd1?: number; r?: number; ie?: number; system?: string;
-    windSpeedMph?: number; exposure?: string; deadPsf?: number; areaSf?: number;
-  }) {
-    const q = new URLSearchParams();
-    const map: Record<string, number | string | undefined> = {
-      sds: opts?.sds, sd1: opts?.sd1, r: opts?.r, ie: opts?.ie, system: opts?.system,
-      wind_speed_mph: opts?.windSpeedMph, exposure: opts?.exposure,
-      dead_psf: opts?.deadPsf, area_sf: opts?.areaSf,
-    };
-    for (const [k, v] of Object.entries(map)) if (v != null) q.set(k, String(v));
-    const qs = q.toString();
-    type Story = { level: number; height_ft: number; force_kip: number; shear_kip: number };
-    return this.json<{
-      story_count: number; area_sf: number | null; dead_psf: number; story_weight_kip: number;
-      seismic: { method: string; period_s: number; k: number; Cs: number; seismic_weight_kip: number;
-                 base_shear_kip: number; overturning_kipft: number; stories: (Story & { cvx: number; weight_kip: number })[] };
-      wind: { method: string; qh_psf: number; base_shear_kip: number; overturning_kipft: number;
-              stories: (Story & { trib_ft: number; pressure_psf: number })[] };
-      governing: { system: string; base_shear_kip: number };
-      disclaimer: string;
-    }>(`/projects/${pid}/structure/lateral${qs ? `?${qs}` : ""}`);
   }
 
   // COLLAB-1: live co-editing snapshot (model signature + presence roster)
