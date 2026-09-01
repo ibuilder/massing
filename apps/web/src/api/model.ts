@@ -22,6 +22,10 @@
  *
  *  SCALE-SEAM ⓭ adds E57 scan ingest — *can we bring this scan in?* Status plus convert.
  *  Admin audit/error stayed.
+ *
+ *  SCALE-SEAM ⓳ adds publish history — *what changed between publishes?* Version list,
+ *  element diff, cost delta, and the submit/approve/reject review gate. They were **not**
+ *  contiguous (`reviewModelVersion` sat with share-token decisions). Clash imports stayed.
  */
 import { HttpCore, type LiveStream } from "./httpCore";
 import type { ViewerLoadTiming, ProjectPulse, PropLayer } from "./types";
@@ -548,6 +552,45 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
     const res = await fetch(this.url(`/convert`), { method: "POST", headers: this.authHeaders(), body: fd });
     if (!res.ok) throw new Error((await res.text()) || `convert failed (${res.status})`);
     return res.blob();
+  }
+  /** MODEL-PUBLISH — the review gate over model versions: submit | approve | reject (409 on an
+   * illegal transition). The file pointer is never touched — this is the QA record. */
+  reviewModelVersion(pid: string, version: number, action: "submit" | "approve" | "reject", note?: string) {
+    return this.json<{ version: number; review_status: string; reviewed_by: string | null;
+      reviewed_at: string; review_note: string | null }>(
+      `/projects/${pid}/versions/${version}/review`,
+      { method: "POST", body: JSON.stringify({ action, note }) });
+  }
+  /** Model version history (one snapshot per publish), WITH its review state. The four review keys
+   *  are not new server work — this type declared 4 of the 8 keys `versions.history` has returned
+   *  since R18, so the record was discarded here (see `viewer/tools/modelReviewPanel.ts`). */
+  modelVersions(pid: string) {
+    return this.json<{ version: number; element_count: number; note: string | null; created_at: string | null;
+      review_status: "draft" | "in_review" | "approved"; reviewed_by: string | null;
+      reviewed_at: string | null; review_note: string | null }[]>(`/projects/${pid}/versions`);
+  }
+  /** Diff two model versions — added/removed/modified elements (with change labels) + unchanged count. */
+  versionDiff(pid: string, a: number, b: number) {
+    return this.json<{
+      from: number; to: number; added: string[]; removed: string[];
+      modified: { guid: string; name: string | null; ifc_class: string | null; changes: string[];
+        changed_properties?: { property: string; status: "added" | "removed" | "changed" }[] }[];
+      modified_available: boolean; property_detail_available?: boolean;
+      added_count: number; removed_count: number; modified_count: number; unchanged_count: number;
+    }>(`/projects/${pid}/versions/diff?a=${a}&b=${b}`);
+  }
+  /** REVISION-DELTA — conceptual cost impact of a revision (added priced, removed counted, modified flagged). */
+  versionCostDelta(pid: string, a: number, b: number) {
+    return this.json<{
+      from: number; to: number;
+      added: { count: number; priced_count: number; cost: number;
+        lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number }[];
+        unpriced: { ifc_class: string; count: number }[] };
+      removed: { count: number; by_class: { ifc_class: string; count: number; discipline: string }[]; note: string };
+      requantified: { count: number; sample: { guid: string; name: string | null; ifc_class: string | null }[]; note: string };
+      summary: { added_count: number; removed_count: number; requantified_count: number; added_cost: number };
+      note: string;
+    }>(`/projects/${pid}/versions/cost-delta?a=${a}&b=${b}`);
   }
   };
 }

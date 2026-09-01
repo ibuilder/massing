@@ -54,8 +54,8 @@ export * from "./library";
 export type { ClashResult } from "./clash";
 import type {
   Dashboard,
-  DisciplineTree, DueFeed, EscalationScan, EscalationRun, EnergyResult, IntegrationGroup, Job, ModelCiReport, WorkQueue, ModulePin, ModuleRecord, RoomAllocation,
-  NotifItem, PropMapRule, PreflightGate,
+  DisciplineTree, EnergyResult, IntegrationGroup, Job, ModelCiReport, ModulePin, ModuleRecord, RoomAllocation,
+  PropMapRule, PreflightGate,
   ResponsibilityMatrix, SmartView,
     BidLevelingDetail,
     SpecManual, Topic, WorkItem, VitalsPayload,
@@ -594,14 +594,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
       portfolio: { total_area_m2: number; total_capacity: number; median_m2_per_space: number | null };
       note: string;
     }>(`/benchmarks/space-utilization?area_per_person=${encodeURIComponent(areaPerPerson)}`);
-  }
-  /** MODEL-PUBLISH — the review gate over model versions: submit | approve | reject (409 on an
-   * illegal transition). The file pointer is never touched — this is the QA record. */
-  reviewModelVersion(pid: string, version: number, action: "submit" | "approve" | "reject", note?: string) {
-    return this.json<{ version: number; review_status: string; reviewed_by: string | null;
-      reviewed_at: string; review_note: string | null }>(
-      `/projects/${pid}/versions/${version}/review`,
-      { method: "POST", body: JSON.stringify({ action, note }) });
   }
   /** PORTAL-TXN — record a client decision through a share token (public; approve/acknowledge/decline). */
   sharedDecision(token: string, body: {
@@ -1408,41 +1400,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
   enumOptions(pid: string) {
     return this.json<Record<string, Record<string, string[]>>>(`/projects/${pid}/enum-options`);
   }
-  workQueue(pid: string) {
-    return this.json<WorkQueue>(`/projects/${pid}/work-queue`);
-  }
-  myWork(pid: string) {
-    return this.json<WorkItem[]>(`/projects/${pid}/my-work`);
-  }
-  notifications(pid: string) {
-    return this.json<NotifItem[]>(`/projects/${pid}/notifications`);
-  }
-  /** Cross-module SLA feed — open records past or near their due date (overdue / due-soon). */
-  dueFeed(pid: string, days = 7) {
-    return this.json<DueFeed>(`/projects/${pid}/due-feed?days=${days}`);
-  }
-  /** WORKFLOW-ENGINE — read-only escalation preview: overdue records with their computed level. */
-  escalationsScan(pid: string) {
-    return this.json<EscalationScan>(`/projects/${pid}/escalations`);
-  }
-  /** Apply the overdue-escalation pass (admin) — notifies the ball-in-court party + assignee. */
-  escalationsRun(pid: string) {
-    return this.json<EscalationRun>(`/projects/${pid}/escalations/run`, { method: "POST" });
-  }
-  /** Admin: send each member with open items a work-queue digest email. */
-  sendDigest(pid: string) {
-    return this.json<{ smtp_configured: boolean; results: Record<string, string[]>; skipped_no_email: string[] }>(
-      `/projects/${pid}/notifications/digest`, { method: "POST" });
-  }
-  viewAlerts(pid: string) {
-    return this.json<{ id: string; name: string; module: string; total: number; new: number;
-      config: { q?: string; state?: string; sort?: unknown } }[]>(`/projects/${pid}/views/alerts`);
-  }
-  notificationStream(pid: string, onMessage: (d: { count: number; items: NotifItem[] }) => void,
-                     onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
-    return this.liveStream(`/projects/${pid}/notifications/stream`,
-                           onMessage as (d: unknown) => void, onStatus);
-  }
   searchAll(pid: string, q: string, limit = 50) {
     return this.json<WorkItem[]>(`/projects/${pid}/search?q=${encodeURIComponent(q)}&limit=${limit}`);
   }
@@ -1467,37 +1424,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.url(`/module-attachments/${attId}/download`);
   }
 
-  /** Model version history (one snapshot per publish), WITH its review state. The four review keys
-   *  are not new server work — this type declared 4 of the 8 keys `versions.history` has returned
-   *  since R18, so the record was discarded here (see `viewer/tools/modelReviewPanel.ts`). */
-  modelVersions(pid: string) {
-    return this.json<{ version: number; element_count: number; note: string | null; created_at: string | null;
-      review_status: "draft" | "in_review" | "approved"; reviewed_by: string | null;
-      reviewed_at: string | null; review_note: string | null }[]>(`/projects/${pid}/versions`);
-  }
-  /** Diff two model versions — added/removed/modified elements (with change labels) + unchanged count. */
-  versionDiff(pid: string, a: number, b: number) {
-    return this.json<{
-      from: number; to: number; added: string[]; removed: string[];
-      modified: { guid: string; name: string | null; ifc_class: string | null; changes: string[];
-        changed_properties?: { property: string; status: "added" | "removed" | "changed" }[] }[];
-      modified_available: boolean; property_detail_available?: boolean;
-      added_count: number; removed_count: number; modified_count: number; unchanged_count: number;
-    }>(`/projects/${pid}/versions/diff?a=${a}&b=${b}`);
-  }
-  /** REVISION-DELTA — conceptual cost impact of a revision (added priced, removed counted, modified flagged). */
-  versionCostDelta(pid: string, a: number, b: number) {
-    return this.json<{
-      from: number; to: number;
-      added: { count: number; priced_count: number; cost: number;
-        lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number }[];
-        unpriced: { ifc_class: string; count: number }[] };
-      removed: { count: number; by_class: { ifc_class: string; count: number; discipline: string }[]; note: string };
-      requantified: { count: number; sample: { guid: string; name: string | null; ifc_class: string | null }[]; note: string };
-      summary: { added_count: number; removed_count: number; requantified_count: number; added_cost: number };
-      note: string;
-    }>(`/projects/${pid}/versions/cost-delta?a=${a}&b=${b}`);
-  }
   /** Reusable templates for a module (save a project's records → apply to another project). */
   templates(module: string) {
     return this.json<{ id: string; module: string; name: string; item_count: number }[]>(`/templates?module=${encodeURIComponent(module)}`);

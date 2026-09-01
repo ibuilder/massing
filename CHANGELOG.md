@@ -148,6 +148,18 @@ Eleventh follow-on on the same version: **SCALE-SEAM ⓮ ⓯ ⓰**. Nine methods
 
 `MARKS` widened to ⓱ on the way out. Pin 1,867 → 1,814.
 
+Twelfth follow-on on the same version: **SCALE-SEAM ⓱ ⓲ ⓳**. Thirteen methods out of
+`client.ts` (`1,814 → 1,740`) into existing mixins.
+
+- ⓱ *what needs my attention?* — four methods onto `apps/web/src/api/routines.ts`.
+- ⓲ *what's overdue, and who gets told?* — five methods onto
+  `apps/web/src/api/routines.ts`. Clash imports stayed.
+- ⓳ *what changed between publishes?* — four methods onto `apps/web/src/api/model.ts`.
+  Review gate was not contiguous with the version list.
+
+`MARKS` widened to ⓴ on the way out. Pin 1,814 → 1,740.
+
+
 
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 

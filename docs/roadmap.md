@@ -1188,7 +1188,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⓱ *(the only open slice; ②–⓰ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ⓴ *(the only open slice; ②–⓳ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -3061,7 +3061,21 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ⓱ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–⓰ have shipped, **⓮–⓰ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+- ◧ ⭐ **SCALE-SEAM ⓴ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–⓳ have shipped, **⓱–⓳ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+  **⓳ took publish history out** (four methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *what changed between publishes?* **Clash imports did NOT come.**
+
+  **⓲ took overdue escalation and the digest out** (five methods) into the existing
+  `apps/web/src/api/routines.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *what's overdue, and who gets told?* **Clash imports did NOT come.**
+
+  **⓱ took the inbox out** (four methods) into the existing
+  `apps/web/src/api/routines.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by
+  what they ANSWER: *what needs my attention?* **Escalations did NOT come with ⓱.**
+  **`MARKS` was widened to ⓴ on the way out.** **The per-file pin moved 1,814 → 1,740**
+  across ⓱+⓲+⓳.
+
   **⓰ took live presence out** (one method) into the existing
   `apps/web/src/api/sync.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
   they ANSWER: *who is looking at the model right now?* **Project CRUD did NOT come.**

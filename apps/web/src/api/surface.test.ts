@@ -200,7 +200,10 @@ describe("the API client's public surface", () => {
       "listUsers", "createUser", "updateUser", "resetWithToken",    // admin user management
       "myRole", "members", "addMember", "removeMember",             // ⓮ project roster
       "auditLog", "errorLog", "clearErrorLog", "reportClientError", // ⓯ ops observability
-      "presence",                                                   // ⓰ live peers
+      "presence",                                                   // 16 live peers
+      "workQueue", "myWork", "notifications", "dueFeed",            // 17 inbox
+      "escalationsScan", "sendDigest", "notificationStream",        // 18 overdue / digest
+      "reviewModelVersion", "modelVersions", "versionDiff",         // 19 publish history
       // ⑫ moved — one contiguous /connections run; a silent loss here is the admin connections screen
       "connections", "createConnection", "testConnection", "connectionTables",
       "syncProcore", "pushProcore", "syncSchedules",

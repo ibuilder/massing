@@ -15,8 +15,16 @@
  *
  *  SCALE-SEAM ❺ adds the meeting action tracker — *are meeting actions closing?*
  *  `projectHealth` sat immediately below and did **not** come.
+ *
+ *  SCALE-SEAM ⓱ adds the inbox — *what needs my attention?* Work queue, my-work,
+ *  notifications, SLA due-feed. Escalations sat below and did **not** come with ⓱.
+ *
+ *  SCALE-SEAM ⓲ adds overdue escalation and the digest — *what's overdue, and who
+ *  gets told?* Scan, apply, digest email, saved-view alerts, live notification stream.
+ *  Clash imports sat below and did **not** come.
  */
-import { HttpCore } from "./httpCore";
+import { HttpCore, type LiveStream } from "./httpCore";
+import type { DueFeed, EscalationRun, EscalationScan, NotifItem, WorkItem, WorkQueue } from "./types";
 
 type Ctor<T> = new (...args: any[]) => T;
 
@@ -45,6 +53,46 @@ export function withRoutines<TBase extends Ctor<HttpCore>>(Base: TBase) {
       last_meeting: string | null; by_assignee: Record<string, number>;
       meetings_by_type: Record<string, number>; rows: Record<string, unknown>[] }>(
       `/projects/${pid}/action-items/tracker`);
+  }
+  /** Work queue — open items across modules that need attention. */
+  workQueue(pid: string) {
+    return this.json<WorkQueue>(`/projects/${pid}/work-queue`);
+  }
+  /** My work — items assigned to the caller. */
+  myWork(pid: string) {
+    return this.json<WorkItem[]>(`/projects/${pid}/my-work`);
+  }
+  /** Project notifications, newest first. */
+  notifications(pid: string) {
+    return this.json<NotifItem[]>(`/projects/${pid}/notifications`);
+  }
+  /** Cross-module SLA feed — open records past or near their due date (overdue / due-soon). */
+  dueFeed(pid: string, days = 7) {
+    return this.json<DueFeed>(`/projects/${pid}/due-feed?days=${days}`);
+  }
+  /** WORKFLOW-ENGINE — read-only escalation preview: overdue records with their computed level. */
+  escalationsScan(pid: string) {
+    return this.json<EscalationScan>(`/projects/${pid}/escalations`);
+  }
+  /** Apply the overdue-escalation pass (admin) — notifies the ball-in-court party + assignee. */
+  escalationsRun(pid: string) {
+    return this.json<EscalationRun>(`/projects/${pid}/escalations/run`, { method: "POST" });
+  }
+  /** Admin: send each member with open items a work-queue digest email. */
+  sendDigest(pid: string) {
+    return this.json<{ smtp_configured: boolean; results: Record<string, string[]>; skipped_no_email: string[] }>(
+      `/projects/${pid}/notifications/digest`, { method: "POST" });
+  }
+  /** Saved-view alerts — new rows matching a watched filter. */
+  viewAlerts(pid: string) {
+    return this.json<{ id: string; name: string; module: string; total: number; new: number;
+      config: { q?: string; state?: string; sort?: unknown } }[]>(`/projects/${pid}/views/alerts`);
+  }
+  /** Live notification stream — count plus items as they arrive. */
+  notificationStream(pid: string, onMessage: (d: { count: number; items: NotifItem[] }) => void,
+                     onStatus?: (s: "connected" | "reconnecting") => void): LiveStream {
+    return this.liveStream(`/projects/${pid}/notifications/stream`,
+                           onMessage as (d: unknown) => void, onStatus);
   }
   };
 }
