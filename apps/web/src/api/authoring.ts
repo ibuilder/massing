@@ -190,6 +190,30 @@ export function withAuthoring<TBase extends Ctor<HttpCore>>(Base: TBase) {
       return this.json<MassingResult & { source_ifc: string; publish: string }>(
         `/projects/${pid}/generate/massing`, { method: "POST", body: JSON.stringify(params) });
     }
+    /** massingOptioneer — ranked envelope options over a lever sweep (yield, GFA, units). */
+    massingOptioneer(envelope: Record<string, unknown>, opts?: { levers?: Record<string, number[]>; objective?: string; limit?: number }) {
+      type Opt = { id: string; levers: Record<string, number>; floors: number; height_m: number;
+        gfa_m2: number; gfa_sf: number; net_sellable_m2: number; units: number; far_achieved: number;
+        binding_constraint: string; on_frontier: boolean;
+        proforma: { total_cost: number; noi: number; stabilized_value: number; profit: number;
+          yield_on_cost: number; profit_margin: number } };
+      return this.json<{
+        scenarios: Opt[]; frontier: string[]; best: string | null; objective: string;
+        count: number; shown: number; levers_swept: Record<string, number[]>; note: string;
+      }>(`/massing/optioneer`, { method: "POST", body: JSON.stringify({ envelope, levers: opts?.levers ?? null, objective: opts?.objective ?? "yield_on_cost", limit: opts?.limit ?? 24 }) });
+    }
+    /** massingOptionRecipes — emit a ranked option as the blank-model bootstrap plus edit-recipe steps. */
+    massingOptionRecipes(envelope: Record<string, unknown>, option?: string,
+                         opts?: { levers?: Record<string, number[]>; objective?: string; limit?: number }) {
+      return this.json<{
+        option: string; floors: number; floor_to_floor: number; plate_m2: number; plate_side_m: number;
+        core_side_m: number;
+        bootstrap: { name: string; storeys: number; storey_height: number; ground_size: number };
+        steps: { recipe: string; params: Record<string, unknown> }[]; step_count: number; note: string;
+      }>(`/massing/optioneer/recipes`, { method: "POST", body: JSON.stringify({
+        envelope, option: option ?? "", levers: opts?.levers ?? null,
+        objective: opts?.objective ?? "yield_on_cost", limit: opts?.limit ?? 24 }) });
+    }
     /** Create a blank authoring model (base IFC + levels + ground datum) — the from-scratch start for
      *  the in-browser modeler; sets it as the project's source IFC + publishes. */
     createBlankModel(pid: string, opts?: { name?: string; storeys?: number; storey_height?: number }) {

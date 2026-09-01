@@ -862,44 +862,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.json<Topic[]>(`/projects/${pid}/pins`);
   }
 
-  /** Model → field layout setout points (georeferenced; grids + column/footing/opening/wall). */
-  layoutPoints(pid: string, classes?: string) {
-    const q = classes ? `?classes=${encodeURIComponent(classes)}` : "";
-    return this.json<{ count: number; by_class: Record<string, number>; truncated: boolean; note: string;
-      points: { number: string; e: number; n: number; z: number; description: string; kind: string;
-        ifc_class: string; guid: string }[] }>(`/projects/${pid}/layout/points${q}`);
-  }
-  /** PENZD/PNEZD points-CSV download URL for total stations / marking robots. */
-  layoutCsvUrl(pid: string, order: "PENZD" | "PNEZD" = "PENZD", delimiter = ",", classes?: string) {
-    const q = new URLSearchParams({ order, delimiter, ...(classes ? { classes } : {}) }).toString();
-    return this.url(`/projects/${pid}/layout/points.csv?${q}`);
-  }
-  /** Layered DXF layout-drawing download URL for floor printers. */
-  layoutDxfUrl(pid: string, classes?: string) {
-    return this.url(`/projects/${pid}/layout.dxf${classes ? `?classes=${encodeURIComponent(classes)}` : ""}`);
-  }
-  /** Verify as-installed total-station shots against the design setout (deviation by point number). */
-  layoutVerify(pid: string, measured: { number: string; e: number; n: number; z: number }[], toleranceM = 0.02) {
-    return this.json<{ tolerance_m: number; checked: number; in_tolerance: number; max_deviation_m: number;
-      out_of_tolerance: { number: string; guid: string; ifc_class: string; deviation_m: number }[]; note: string }>(
-      `/projects/${pid}/layout/verify`, { method: "POST", body: JSON.stringify({ measured, tolerance_m: toleranceM }) });
-  }
-  /** Load-takedown defaults from the model — storey names/count + interior-column count. */
-  loadsDefaults(pid: string) {
-    return this.json<{ storey_names: string[]; storey_count: number; column_count: number }>(
-      `/projects/${pid}/loads/defaults`);
-  }
-  /** Preliminary gravity load takedown → per-column/footing service + factored (ASCE 7) axial. */
-  loadsTakedown(pid: string, params: { floor_area_sf?: number; storey_count?: number; occupancy?: string;
-      column_count?: number; sdl_psf?: number; slab_thickness_in?: number; storeys?: unknown[] }) {
-    return this.json<{ assumptions: Record<string, number>;
-      storeys: { name: string; occupancy: string; area_sf: number; col_dead_kip: number; col_live_kip: number }[];
-      column: { service_dead_kip: number; service_live_kip: number; service_total_kip: number;
-        factored_lrfd_kip: number; factored_asd_kip: number };
-      footing: { service_total_kip: number; factored_lrfd_kip: number };
-      combinations: { governing_lrfd: { combo: string; kips: number }; governing_asd: { combo: string; kips: number } };
-      disclaimer: string }>(`/projects/${pid}/loads/takedown`, { method: "POST", body: JSON.stringify(params) });
-  }
   /** Verified-as-built vs claimed progress per schedule activity + the overall trust gap (③b). */
   verifiedProgress(pid: string) {
     return this.json<{ elements_total: number; elements_verified: number; elements_deviated: number;
@@ -914,31 +876,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.json<{ rebar: { count: number; weight_kg: number; tonnes: number; estimated: boolean };
       mep: { duct_m: number; pipe_m: number; cable_m: number; counts: Record<string, number> };
       structure: { element_volume_m3: number } }>(`/projects/${pid}/quantities/disciplines`);
-  }
-  /** SCHED-OPT — deterministic schedule optioneering: ranked crew/zoning scenarios over the Takt LOB model. */
-  massingOptioneer(envelope: Record<string, unknown>, opts?: { levers?: Record<string, number[]>; objective?: string; limit?: number }) {
-    type Opt = { id: string; levers: Record<string, number>; floors: number; height_m: number;
-      gfa_m2: number; gfa_sf: number; net_sellable_m2: number; units: number; far_achieved: number;
-      binding_constraint: string; on_frontier: boolean;
-      proforma: { total_cost: number; noi: number; stabilized_value: number; profit: number;
-        yield_on_cost: number; profit_margin: number } };
-    return this.json<{
-      scenarios: Opt[]; frontier: string[]; best: string | null; objective: string;
-      count: number; shown: number; levers_swept: Record<string, number[]>; note: string;
-    }>(`/massing/optioneer`, { method: "POST", body: JSON.stringify({ envelope, levers: opts?.levers ?? null, objective: opts?.objective ?? "yield_on_cost", limit: opts?.limit ?? 24 }) });
-  }
-  /** MASSING-OPT phase 2 — emit a ranked option as the executable authoring chain: the blank-model
-   * bootstrap + GUID-stable edit-recipe steps for /edit/batch. Empty option = the best one. */
-  massingOptionRecipes(envelope: Record<string, unknown>, option?: string,
-                       opts?: { levers?: Record<string, number[]>; objective?: string; limit?: number }) {
-    return this.json<{
-      option: string; floors: number; floor_to_floor: number; plate_m2: number; plate_side_m: number;
-      core_side_m: number;
-      bootstrap: { name: string; storeys: number; storey_height: number; ground_size: number };
-      steps: { recipe: string; params: Record<string, unknown> }[]; step_count: number; note: string;
-    }>(`/massing/optioneer/recipes`, { method: "POST", body: JSON.stringify({
-      envelope, option: option ?? "", levers: opts?.levers ?? null,
-      objective: opts?.objective ?? "yield_on_cost", limit: opts?.limit ?? 24 }) });
   }
   /** MASTER-BUILDER brief as a shareable Markdown document (printable one-pager). */
   masterBuilderBriefMdUrl(pid: string) { return this.url(`/projects/${pid}/master-builder/brief.md`); }
@@ -1910,7 +1847,6 @@ export class ApiClient extends withAccounting(withDealMemory(withPdfTools(withCo
     return this.url(`/module-attachments/${attId}/download`);
   }
 
-  // authoring round-trip (Phase 6)
   /** Model version history (one snapshot per publish), WITH its review state. The four review keys
    *  are not new server work — this type declared 4 of the 8 keys `versions.history` has returned
    *  since R18, so the record was discarded here (see `viewer/tools/modelReviewPanel.ts`). */

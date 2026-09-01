@@ -43,6 +43,22 @@ Second follow-on on the same version: **SCALE-SEAM ㊲ ㊳ ㊴**. Twelve methods
 
 `MARKS` widened to ㊵ on the way out. Pin lowered with the file.
 
+Third follow-on on the same version: **SCALE-SEAM ㊵ ㊶ ㊷**, plus a harden of leftover `//`
+banners. Eight methods out of `client.ts` into existing mixins.
+
+- ㊵ *where do we set out in the field?* — four methods onto `apps/web/src/api/model.ts`
+  (points, CSV, DXF, as-installed verify). Pins stayed.
+- ㊶ *what axial load per column?* — two methods onto `apps/web/src/api/model.ts`
+  (defaults, gravity takedown). Verified progress stayed.
+- ㊷ *which envelope ranks, and how do we author the winner?* — two methods onto
+  `apps/web/src/api/authoring.ts` (optioneer + recipe chain). Selections stayed.
+
+Deleted the leftover `AUTH-VS` comment on `modelAssets` and the municipal-permit banner on
+`scheduleOptioneer`. `apps/web/src/api/docComments.test.ts` now fails a `//` line that sits
+on the next method's JSDoc and shares no word with it.
+
+`MARKS` widened to ㊸ on the way out. Pin 2,258 → 2,194.
+
 ## v0.3.1142 (2026-09-01) — SCALE-SEAM ㉜, appraisal and listings onto proforma.ts
 
 Nine methods out of `client.ts` into the existing `apps/web/src/api/proforma.ts` mixin

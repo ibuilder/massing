@@ -157,6 +157,8 @@ describe("the API client's public surface", () => {
       "modelGraphStats", "graphNeighbors", "docGraph",
       "editGraph", "listMacros", "runMacro",
       "getLayers", "resolveLayers", "bakeLayers",
+      "layoutPoints", "layoutVerify", "loadsTakedown",
+      "massingOptioneer", "massingOptionRecipes",
       "clashMetrics", "clashClearanceRules", "clashMatrix",
       "chartOfAccounts", "namingConventions", "elementsByDiscipline", "pipelineFunnel",
       "twoSidedBudget", "mepPressureLoss", "mepTrayFill", "mepThermalLoads",

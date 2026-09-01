@@ -28,7 +28,6 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
     return this.liveStream(`/projects/${pid}/model/stream`, onMessage, onStatus);
   }
 
-  // AUTH-VS: execute a recipe graph (visual node authoring) as one GUID-stable pass
   /** ASSET-REG — maintainable-asset register derived from the IFC (equipment/terminals/controls/transport). */
   modelAssets(pid: string) {
     type Tally = { count: number } & Record<string, string | number>;
@@ -453,6 +452,46 @@ export function withModel<TBase extends Ctor<HttpCore>>(Base: TBase) {
   /** bakeLayers — write the winning layer overrides into the IFC and publish. */
   bakeLayers(pid: string) {
     return this.json<{ baked: number; publish?: string; message?: string }>(`/projects/${pid}/layers/bake`, { method: "POST", body: JSON.stringify({ publish: true }) });
+  }
+
+  /** layoutPoints — georeferenced field setout (grids, columns, footings, openings, walls). */
+  layoutPoints(pid: string, classes?: string) {
+    const q = classes ? `?classes=${encodeURIComponent(classes)}` : "";
+    return this.json<{ count: number; by_class: Record<string, number>; truncated: boolean; note: string;
+      points: { number: string; e: number; n: number; z: number; description: string; kind: string;
+        ifc_class: string; guid: string }[] }>(`/projects/${pid}/layout/points${q}`);
+  }
+  /** layoutCsvUrl — PENZD/PNEZD points-CSV download URL for total stations. */
+  layoutCsvUrl(pid: string, order: "PENZD" | "PNEZD" = "PENZD", delimiter = ",", classes?: string) {
+    const q = new URLSearchParams({ order, delimiter, ...(classes ? { classes } : {}) }).toString();
+    return this.url(`/projects/${pid}/layout/points.csv?${q}`);
+  }
+  /** layoutDxfUrl — layered DXF layout-drawing download URL for floor printers. */
+  layoutDxfUrl(pid: string, classes?: string) {
+    return this.url(`/projects/${pid}/layout.dxf${classes ? `?classes=${encodeURIComponent(classes)}` : ""}`);
+  }
+  /** layoutVerify — as-installed total-station shots against the design setout. */
+  layoutVerify(pid: string, measured: { number: string; e: number; n: number; z: number }[], toleranceM = 0.02) {
+    return this.json<{ tolerance_m: number; checked: number; in_tolerance: number; max_deviation_m: number;
+      out_of_tolerance: { number: string; guid: string; ifc_class: string; deviation_m: number }[]; note: string }>(
+      `/projects/${pid}/layout/verify`, { method: "POST", body: JSON.stringify({ measured, tolerance_m: toleranceM }) });
+  }
+
+  /** loadsDefaults — storey names/count and interior-column count for a gravity takedown. */
+  loadsDefaults(pid: string) {
+    return this.json<{ storey_names: string[]; storey_count: number; column_count: number }>(
+      `/projects/${pid}/loads/defaults`);
+  }
+  /** loadsTakedown — preliminary gravity takedown to per-column/footing service and factored axial. */
+  loadsTakedown(pid: string, params: { floor_area_sf?: number; storey_count?: number; occupancy?: string;
+      column_count?: number; sdl_psf?: number; slab_thickness_in?: number; storeys?: unknown[] }) {
+    return this.json<{ assumptions: Record<string, number>;
+      storeys: { name: string; occupancy: string; area_sf: number; col_dead_kip: number; col_live_kip: number }[];
+      column: { service_dead_kip: number; service_live_kip: number; service_total_kip: number;
+        factored_lrfd_kip: number; factored_asd_kip: number };
+      footing: { service_total_kip: number; factored_lrfd_kip: number };
+      combinations: { governing_lrfd: { combo: string; kips: number }; governing_asd: { combo: string; kips: number } };
+      disclaimer: string }>(`/projects/${pid}/loads/takedown`, { method: "POST", body: JSON.stringify(params) });
   }
   };
 }

@@ -1188,7 +1188,7 @@ two rows share a path, so two agents in different rows cannot collide.
 | **F · Docs & demo** | `README.md`, `docs/`, `apps/web/src/demo/` | keep the shipped surface honest (below) — no coded items. **`demoData.test.ts` now gates the shell's startup endpoints**; re-run `build_demo_data.py` and that test after adding one |
 | **G · API surface** | `services/api/src/aec_api/routers/`, `main.py` | no standalone items: **every lane routes its own work**, which is why this is a lane rather than a shared file |
 | **H · Registers** | `services/api/modules/*/module.json` | — |
-| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㊵ *(the only open slice; ②–㊴ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
+| **I · API client** | `apps/web/src/api/` | SCALE-SEAM ㊸ *(the only open slice; ②–㊷ have shipped. This cell named ⑬–⑳ until 2026-08-24 — eight slices whose extractions had already landed — because the item regex could not see `㉒` at all, so nothing required this row to be right)* |
 | **J · Build & tooling** | `apps/web/scripts/`, `apps/web/vite.config.ts`, `apps/web/src/style.css`, `apps/web/src/tooling/`, `services/api/test_file_sizes.py`, `services/api/run_tests.py` | R39-TSC-CACHE *(local typecheck once diverged from CI; cause unknown, prior explanation retracted — an OBSERVATION, not a defect with a known fix. Read the entry before "fixing" it: the proposed fix is named there and rejected)* |
 
 **Parked — not available to pick up.** These are decisions or multi-release commitments, listed so
@@ -3061,7 +3061,31 @@ verbs, with a command bar as the escape hatch to everything); and **role-shaped 
 
 ## 🧱 Decomposition & reliability carry-overs (interleave one per few releases)
 
-- ◧ ⭐ **SCALE-SEAM ㊵ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㊴ have shipped, **㊲–㊴ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+- ◧ ⭐ **SCALE-SEAM ㊸ — `client.ts` is no longer a god-file, but the split is not finished.** *(②–㊷ have shipped, **㊵–㊷ in the v0.3.1143 follow-on** — no version bump, tag lag already at the `test_release_current` bound)*
+  **㊷ took the massing optioneer out** (two methods) into the existing
+  `apps/web/src/api/authoring.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what
+  they ANSWER: *which envelope ranks, and how do we author the winner?* Ranked lever sweep plus
+  the recipe chain for a chosen option. They sit next to `previewMassing` / `generateMassing`.
+  **Selections and the master-builder brief did NOT come.** *Adjacency in a file is not a
+  relationship.*
+  **`MARKS` was widened to ㊸ on the way out.**
+
+  **㊶ took the gravity load-takedown out** (two methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *what axial load per column?* Defaults plus the ASCE 7 takedown. **Verified progress
+  did NOT come** — that is a schedule trust-gap. *Adjacency in a file is not a relationship.*
+
+  **㊵ took the field-layout setout out** (four methods) into the existing
+  `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
+  ANSWER: *where do we set out in the field?* Points, CSV, DXF, as-installed verify. **Pins did
+  NOT come** — those are BCF topics.
+
+  **This follow-on also deleted leftover `//` banners (`AUTH-VS` on `modelAssets`, municipal
+  permit-open-data on `scheduleOptioneer`, authoring-round-trip on `modelVersions`, a stranded
+  GEN-SCORE comment in `estimate.ts`) and added a gate so the next leftover fails
+  `apps/web/src/api/docComments.test.ts`.
+  **The per-file pin moved 2,258 → 2,194** across ㊵+㊶+㊷.
+
   **㊴ took the IFC5 property-override layers out** (four methods) into the existing
   `apps/web/src/api/model.ts` mixin — **no extra wrapper on `ApiClient`**. Grouped by what they
   ANSWER: *what non-destructive property composition is in force?* Get/put/resolve/bake.

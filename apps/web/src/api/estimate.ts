@@ -140,8 +140,6 @@ export function withEstimate<TBase extends Ctor<HttpCore>>(Base: TBase) {
       metrics: Record<string, number>; region_index: number; escalation_factor: number; error?: string }>(
       `/projects/${pid}/estimate/conceptual`, { method: "POST", body: JSON.stringify(params) });
   }
-  /** GEN-SCORE option row: one massing variant with its engine-backed criteria + composite. */
-  // (shape shared by generate → score; scores/composite present only after scoring)
   /** Conceptual estimate from the IFC takeoff × unit rates — priced line items + total. */
   estimateFromModel(pid: string) {
     return this.json<{ total: number; element_count: number; lines: { ifc_class: string; count: number; unit: string; quantity: number; rate: number; amount: number }[]; unpriced: { ifc_class: string; count: number }[] }>(

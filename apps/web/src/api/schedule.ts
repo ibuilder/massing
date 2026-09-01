@@ -37,7 +37,6 @@ export function withSchedule<TBase extends Ctor<HttpCore>>(Base: TBase) {
     }>(`/projects/${pid}/schedule/optimize`);
   }
 
-  // --- municipal permit open data (multi-city) -------------------------------
   /** Schedule optioneering: sweep takt/zone/overlap levers and rank the resulting sequences. */
   scheduleOptioneer(pid: string, body: {
     floors?: number; trades?: { name: string; takt_days: number; reorderable?: boolean }[];
